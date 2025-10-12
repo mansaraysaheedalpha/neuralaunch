@@ -1,0 +1,56 @@
+# ===================================================================
+# General & System Files
+# ===================================================================
+# Ignore OS-generated files
+.DS_Store
+Thumbs.db
+
+# Ignore IDE and editor directories
+.vscode/
+.idea/
+
+# Ignore log files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+
+# ===================================================================
+# Frontend (Next.js / TypeScript / Node.js)
+# ===================================================================
+# Ignore dependency directories
+client/node_modules/
+
+# Ignore Next.js build output directory
+client/.next/
+
+# Ignore other build outputs
+client/dist
+client/build
+
+# Ignore environment variables. These are secret!
+# We will create a .env.example file to track which variables are needed.
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+
+# ===================================================================
+# Backend (Python / FastAPI)
+# ===================================================================
+# Ignore Python virtual environment directory
+server/venv/
+
+# Ignore Python cache files
+server/__pycache__/
+*.pyc
+
+# Ignore testing and coverage artifacts
+server/.pytest_cache/
+server/htmlcov/
+
+# Ignore secret environment variables for the backend
+server/.env
