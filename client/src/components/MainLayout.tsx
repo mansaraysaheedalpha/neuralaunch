@@ -1,8 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import type { ImperativePanelGroupHandle } from "react-resizable-panels";
+import { useState } from "react";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 
@@ -11,37 +9,27 @@ export default function MainLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const panelGroupRef = useRef<ImperativePanelGroupHandle>(null);
+  const [isSidebarOpen, setSidebarOpen] = useState(true);
 
   return (
-    <PanelGroup
-      ref={panelGroupRef}
-      direction="horizontal"
-      className="h-screen w-full bg-background"
-    >
-      <Panel
-        id="sidebar" // Give the panel an ID to control it
-        defaultSize={20}
-        minSize={15}
-        maxSize={25}
-        collapsible={true}
-        onCollapse={() => setIsCollapsed(true)}
-        onExpand={() => setIsCollapsed(false)}
-        className="hidden md:flex"
+    <div className="flex h-screen w-full bg-background">
+      {/* Sidebar Container */}
+      <div
+        className={`hidden md:flex flex-col transition-all duration-300 ${
+          isSidebarOpen ? "w-80" : "w-20"
+        }`}
       >
-        {/* Pass down the state and the ref to the Sidebar component */}
-        <Sidebar isCollapsed={isCollapsed} panelGroupRef={panelGroupRef} />
-      </Panel>
+        <Sidebar
+          isSidebarOpen={isSidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+        />
+      </div>
 
-      <PanelResizeHandle className="w-[1px] bg-border hidden md:block" />
-
-      <Panel defaultSize={80} className="flex flex-col flex-1 h-full">
-        <div className="flex flex-col flex-1 h-full isolate">
-          <Header />
-          <main className="flex-1 overflow-y-auto">{children}</main>
-        </div>
-      </Panel>
-    </PanelGroup>
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-y-auto">{children}</main>
+      </div>
+    </div>
   );
 }

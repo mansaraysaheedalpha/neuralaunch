@@ -5,6 +5,13 @@
 /* ============================================
    DESIGN TOKENS & CSS VARIABLES
    ============================================ */
+
+html,
+body {
+  height: 100%;
+  overflow: hidden; /* This is the key change */
+}
+
 :root {
   /* Color Palette */
   --background: 210 20% 98%; /* Light mode background */
@@ -113,8 +120,14 @@ body {
 }
 
 /* Selection Styling */
+/* SELECTION STYLING */
 ::selection {
-  background: hsla(var(--primary), 0.2);
+  background: rgba(59, 130, 246, 0.4); /* Standard bright blue highlight */
+  /* color: #FFFFFF; White text for high contrast */
+}
+::-moz-selection { /* For Firefox */
+  background: rgba(59, 130, 246, 0.4);
+  color: #FFFFFF;
 }
 
 /* Enhanced Prose styles for Markdown */

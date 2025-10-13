@@ -1,16 +1,14 @@
 "use client";
 
-import { useState, useEffect, RefObject } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { useSession } from "next-auth/react";
-import type { ImperativePanelGroupHandle } from "react-resizable-panels";
 
-// Define the props the component will receive
 interface SidebarProps {
-  isCollapsed: boolean;
-  panelGroupRef: RefObject<ImperativePanelGroupHandle>;
+  isSidebarOpen: boolean;
+  setSidebarOpen: (isOpen: boolean) => void;
 }
 
 // Helper function to format dates
@@ -33,7 +31,10 @@ function formatDate(dateString: string): string {
   }
 }
 
-export default function Sidebar({ isCollapsed, panelGroupRef }: SidebarProps) {
+export default function Sidebar({
+  isSidebarOpen,
+  setSidebarOpen,
+}: SidebarProps) {
   const {
     conversations,
     setConversations,
@@ -114,20 +115,12 @@ export default function Sidebar({ isCollapsed, panelGroupRef }: SidebarProps) {
     }
   }, [status, setConversations, setIsLoading, setError]);
 
-  const handleExpand = () => {
-    panelGroupRef.current?.getPanel("sidebar")?.expand();
-  };
-
-  const handleCollapse = () => {
-    panelGroupRef.current?.getPanel("sidebar")?.collapse();
-  };
-
-  if (isCollapsed) {
+  if (!isSidebarOpen) {
     return (
-      <div className="flex flex-col items-center h-full bg-card text-card-foreground border-r border-border p-2">
+      <div className="flex flex-col h-full bg-card text-card-foreground border-r border-border p-2 pt-4 items-center">
         <button
-          onClick={handleExpand}
-          className="w-10 h-10 flex items-center justify-center rounded-lg bg-primary text-primary-foreground mb-4"
+          onClick={() => setSidebarOpen(true)}
+          className="w-10 h-10 flex items-center justify-center rounded-lg bg-primary text-primary-foreground mb-4 transition-transform hover:scale-105"
           aria-label="Expand sidebar"
         >
           {/* Expand Icon */}
@@ -142,8 +135,8 @@ export default function Sidebar({ isCollapsed, panelGroupRef }: SidebarProps) {
             strokeLinecap="round"
             strokeLinejoin="round"
           >
-            <rect width="18" height="18" x="3" y="3" rx="2" />
-            <path d="M9 3v18" />
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+            <line x1="9" y1="3" x2="9" y2="21" />
           </svg>
         </button>
       </div>
@@ -152,11 +145,11 @@ export default function Sidebar({ isCollapsed, panelGroupRef }: SidebarProps) {
 
   return (
     <div className="flex flex-col h-full bg-card text-card-foreground border-r border-border">
-      {/* 1. FIXED HEADER */}
-      <div className="p-4 border-b border-border flex-shrink-0">
+      {/* 1. FIXED HEADER with Collapse Button */}
+      <div className="p-4 border-b border-border flex-shrink-0 flex items-center gap-2">
         <Link
           href="/"
-          className="flex items-center justify-center w-full px-4 py-3 bg-primary text-primary-foreground rounded-xl font-semibold transition-all duration-200 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transform hover:scale-[1.02] active:scale-[0.98] group"
+          className="flex-1 flex items-center justify-center px-4 py-3 bg-primary text-primary-foreground rounded-xl font-semibold transition-all duration-200 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transform hover:scale-[1.02] active:scale-[0.98] group"
         >
           <svg
             className="w-5 h-5 mr-2 flex-shrink-0"
@@ -173,6 +166,27 @@ export default function Sidebar({ isCollapsed, panelGroupRef }: SidebarProps) {
           </svg>
           <span className="truncate">New Chat</span>
         </Link>
+        <button
+          onClick={() => setSidebarOpen(false)}
+          className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-lg hover:bg-muted"
+          aria-label="Collapse sidebar"
+        >
+          {/* Collapse Icon */}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+            <line x1="9" y1="3" x2="9" y2="21" />
+          </svg>
+        </button>
       </div>
 
       {/* Chat History */}
@@ -329,27 +343,6 @@ export default function Sidebar({ isCollapsed, panelGroupRef }: SidebarProps) {
             </p>
             <p className="text-xs text-muted-foreground">AI Assistant</p>
           </div>
-          <button
-            onClick={handleCollapse}
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted"
-            aria-label="Collapse sidebar"
-          >
-            {/* Collapse Icon */}
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <rect width="18" height="18" x="3" y="3" rx="2" />
-              <path d="M9 3v18" />
-            </svg>
-          </button>
         </div>
       </div>
     </div>

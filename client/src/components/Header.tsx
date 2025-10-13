@@ -6,15 +6,17 @@ import ThemeSwitcher from "./ThemeSwitcher";
 
 export default function Header() {
   return (
-    <header className="pt-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between">
-          {/* Logo and App Name */}
+    <header className="pt-6 pb-4 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex items-center justify-between">
+        {/* We'll wrap the Link in a `div` and add the `group` class */}
+        <div className="group">
           <Link href="/" className="flex items-center space-x-3">
+            {/* The Logo Icon */}
             <div className="relative">
-              <div className="w-12 h-12 bg-gradient-primary rounded-xl flex items-center justify-center shadow-glow">
+              <div className="w-12 h-12 bg-gradient-to-br from-primary to-secondary rounded-xl flex items-center justify-center transition-all duration-300 group-hover:shadow-lg group-hover:shadow-primary/30">
+                {/* Add transition and group-hover effects to the SVG */}
                 <svg
-                  className="w-7 h-7 text-white"
+                  className="w-7 h-7 text-white transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -27,21 +29,23 @@ export default function Header() {
                   />
                 </svg>
               </div>
-              <div className="absolute -top-1 -right-1 w-4 h-4 bg-pink-500 rounded-full animate-pulse"></div>
             </div>
+            {/* The Text */}
             <div>
-              <h1 className="text-2xl font-bold text-gradient">IdeaSpark</h1>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                IdeaSpark
+              </h1>
+              <p className="text-xs text-muted-foreground">
                 AI-Powered Startup Ideas
               </p>
             </div>
           </Link>
+        </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center gap-4">
-            <ThemeSwitcher /> {/* 2. Add the component here */}
-            <LoginButton />
-          </div>
+        {/* Action Buttons */}
+        <div className="flex items-center gap-4">
+          <ThemeSwitcher />
+          <LoginButton />
         </div>
       </div>
     </header>

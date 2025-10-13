@@ -19,6 +19,11 @@ const config: Config = {
           foreground: "hsl(var(--primary-foreground))",
           light: "hsl(var(--primary-light))",
         },
+        accent: {
+          // Add this new accent color
+          DEFAULT: "hsl(195 85% 55%)",
+          foreground: "hsl(210 40% 98%)",
+        },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
           foreground: "hsl(var(--secondary-foreground))",
@@ -45,6 +50,22 @@ const config: Config = {
         md: "var(--shadow-md)",
         lg: "var(--shadow-lg)",
         xl: "var(--shadow-xl)",
+      },
+      // ADD THESE TWO SECTIONS:
+      keyframes: {
+        "gradient-x": {
+          "0%, 100%": {
+            "background-size": "200% 200%",
+            "background-position": "left center",
+          },
+          "50%": {
+            "background-size": "200% 200%",
+            "background-position": "right center",
+          },
+        },
+      },
+      animation: {
+        "gradient-x": "gradient-x 3s ease infinite",
       },
     },
   },

@@ -5,6 +5,7 @@ import { useState, FormEvent, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { useParams } from "next/navigation";
 import { useStore } from "@/lib/store";
+import TextareaAutosize from "react-textarea-autosize";
 
 export default function ChatPage() {
   const [input, setInput] = useState<string>("");
@@ -19,6 +20,8 @@ export default function ChatPage() {
     setError,
   } = useStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const params = useParams();
   const conversationId = params.conversationId as string;
@@ -161,7 +164,7 @@ export default function ChatPage() {
                       {message.content}
                     </p>
                   ) : (
-                    <div className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed">
+                    <div className="prose dark:prose-invert max-w-none prose-p:leading-relaxed">
                       <ReactMarkdown>{message.content}</ReactMarkdown>
                     </div>
                   )}
@@ -217,30 +220,31 @@ export default function ChatPage() {
         )}
 
         <div className="max-w-4xl mx-auto">
-          <form onSubmit={handleSubmit} className="relative">
+          <form ref={formRef} onSubmit={handleSubmit} className="relative">
             <div className="relative group">
               <div className="absolute -inset-1 bg-gradient-to-r from-violet-600 to-purple-600 rounded-3xl opacity-0 group-hover:opacity-20 blur-xl transition duration-500"></div>
-              <div className="relative flex items-end gap-3 bg-white dark:bg-slate-800/95 rounded-3xl shadow-2xl p-2 border-2 border-gray-200 dark:border-gray-700 transition-all duration-200 focus-within:border-violet-500 dark:focus-within:border-violet-500 focus-within:shadow-[0_0_0_4px_rgba(124,58,237,0.1)]">
-                <textarea
-                  id="skillsInput"
+              <div className="relative flex items-end gap-3 bg-card rounded-3xl shadow-2xl p-2 border-2 border-border transition-all duration-200 focus-within:border-primary focus-within:shadow-[0_0_0_4px_hsla(var(--primary),0.1)]">
+                <TextareaAutosize
+                  ref={inputRef} // It's good practice to have a ref for the input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Ask a follow-up question..."
-                  rows={1}
-                  className="flex-1 bg-transparent border-0 focus:ring-0 text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 resize-none outline-none px-4 py-3 min-h-[48px]"
+                  minRows={1} // Start as a single line
+                  maxRows={5} // Grow up to 5 lines before scrolling
+                  className="flex-1 bg-transparent border-0 focus:ring-0 text-base text-foreground placeholder-muted-foreground resize-none outline-none px-4 py-3"
                   required
                   disabled={isLoading}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
-                      handleSubmit(e as unknown as FormEvent<HTMLFormElement>);
+                      formRef.current?.requestSubmit(); // This is a cleaner way to submit
                     }
                   }}
                 />
                 <button
                   type="submit"
                   disabled={isLoading || !input.trim()}
-                  className="flex-shrink-0 p-3.5 rounded-2xl bg-gradient-to-r from-violet-600 to-purple-600 text-white hover:from-violet-700 hover:to-purple-700 disabled:bg-gray-400 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 disabled:scale-100 mr-1"
+                  className="flex-shrink-0 p-3.5 rounded-2xl bg-gradient-to-r from-primary to-secondary text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 disabled:scale-100 mr-1"
                   aria-label="Send message"
                 >
                   {isLoading &&
@@ -282,13 +286,13 @@ export default function ChatPage() {
                 </button>
               </div>
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-3">
+            <p className="text-xs text-muted-foreground text-center mt-3">
               Press{" "}
-              <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-mono text-xs">
+              <kbd className="px-2 py-1 bg-muted rounded border border-border font-mono text-xs">
                 Enter
               </kbd>{" "}
               to send,{" "}
-              <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-mono text-xs">
+              <kbd className="px-2 py-1 bg-muted rounded border border-border font-mono text-xs">
                 Shift + Enter
               </kbd>{" "}
               for new line
