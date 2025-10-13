@@ -225,10 +225,12 @@ export async function POST(req: NextRequest) {
     });
 
     const chat = model.startChat({
-      history: messages.slice(0, -1).map((msg: any) => ({
-        role: msg.role,
-        parts: [{ text: msg.content }],
-      })),
+      history: messages
+        .slice(0, -1)
+        .map((msg: { role: string; content: string }) => ({
+          role: msg.role,
+          parts: [{ text: msg.content }],
+        })),
     });
 
     const result = await chat.sendMessageStream(

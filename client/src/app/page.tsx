@@ -36,7 +36,6 @@ export default function HomePage() {
     updateMessage,
     isLoading,
     setIsLoading,
-    error,
     setError,
   } = useStore();
 
@@ -134,7 +133,7 @@ export default function HomePage() {
               </h1>
               <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
                 Unlock your entrepreneurial potential. The better your prompt,
-                the better the blueprint. Here’s how to get a game-changing
+                the better the blueprint. Here&apos;s how to get a game-changing
                 idea:
               </p>
             </div>

@@ -2,16 +2,18 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { useSession } from "next-auth/react";
+import { Fragment } from "react";
 
 interface SidebarProps {
   isSidebarOpen: boolean;
   setSidebarOpen: (isOpen: boolean) => void;
+  isMobileMenuOpen: boolean;
+  setMobileMenuOpen: (isOpen: boolean) => void;
 }
 
-// Helper function to format dates
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
   const now = new Date();
@@ -34,6 +36,8 @@ function formatDate(dateString: string): string {
 export default function Sidebar({
   isSidebarOpen,
   setSidebarOpen,
+  isMobileMenuOpen,
+  setMobileMenuOpen,
 }: SidebarProps) {
   const {
     conversations,
@@ -45,9 +49,9 @@ export default function Sidebar({
     setError,
   } = useStore();
 
-  const [mounted, setMounted] = useState<boolean>(false);
+  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
-  // const router = useRouter();
+  const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const { status } = useSession();
 
@@ -59,16 +63,8 @@ export default function Sidebar({
     setDeletingId(conversationId);
     setError(null);
     try {
-      const res = await fetch(`/api/conversations/${conversationId}`, {
-        method: "DELETE",
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to delete conversation.");
-      }
-
+      await fetch(`/api/conversations/${conversationId}`, { method: "DELETE" });
       removeConversation(conversationId);
-
       if (pathname === `/chat/${conversationId}`) {
         router.push("/");
       }
@@ -79,73 +75,33 @@ export default function Sidebar({
     }
   };
 
-  // Fix hydration by only rendering after mount
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   useEffect(() => {
     const fetchConversations = async () => {
       setIsLoading(true);
       setError(null);
       try {
         const response = await fetch("/api/conversations");
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch conversations");
-        }
-
+        if (!response.ok) throw new Error("Failed to fetch conversations");
         const data = await response.json();
         setConversations(data || []);
       } catch (err) {
         setError(err instanceof Error ? err.message : "An error occurred");
-        console.error("Error fetching conversations:", err);
       } finally {
         setIsLoading(false);
       }
     };
 
     if (status === "authenticated") {
-      // Only fetch if the user is logged in
       fetchConversations();
     } else if (status === "unauthenticated") {
-      // If logged out, just clear the list and don't show an error
       setConversations([]);
       setError(null);
     }
   }, [status, setConversations, setIsLoading, setError]);
 
-  if (!isSidebarOpen) {
-    return (
-      <div className="flex flex-col h-full bg-card text-card-foreground border-r border-border p-2 pt-4 items-center">
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className="w-10 h-10 flex items-center justify-center rounded-lg bg-primary text-primary-foreground mb-4 transition-transform hover:scale-105"
-          aria-label="Expand sidebar"
-        >
-          {/* Expand Icon */}
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-            <line x1="9" y1="3" x2="9" y2="21" />
-          </svg>
-        </button>
-      </div>
-    );
-  }
-
-  return (
+  const sidebarContent = (
     <div className="flex flex-col h-full bg-card text-card-foreground border-r border-border">
-      {/* 1. FIXED HEADER with Collapse Button */}
+      {/* Header */}
       <div className="p-4 border-b border-border flex-shrink-0 flex items-center gap-2">
         <Link
           href="/"
@@ -168,10 +124,9 @@ export default function Sidebar({
         </Link>
         <button
           onClick={() => setSidebarOpen(false)}
-          className="w-10 h-10 flex-shrink-0 flex items-center justify-center rounded-lg hover:bg-muted"
+          className="w-10 h-10 hidden md:flex items-center justify-center rounded-lg hover:bg-muted"
           aria-label="Collapse sidebar"
         >
-          {/* Collapse Icon */}
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="24"
@@ -185,6 +140,27 @@ export default function Sidebar({
           >
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
             <line x1="9" y1="3" x2="9" y2="21" />
+          </svg>
+        </button>
+        <button
+          onClick={() => setMobileMenuOpen(false)}
+          className="w-10 h-10 md:hidden flex items-center justify-center rounded-lg hover:bg-muted"
+          aria-label="Close menu"
+        >
+          {/* X Icon */}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
       </div>
@@ -346,5 +322,55 @@ export default function Sidebar({
         </div>
       </div>
     </div>
+  );
+
+  const collapsedSidebarContent = (
+    <div className="flex flex-col h-full bg-card text-card-foreground border-r border-border p-2 pt-4 items-center">
+      <button
+        onClick={() => setSidebarOpen(true)}
+        className="w-10 h-10 flex items-center justify-center rounded-lg bg-primary text-primary-foreground mb-4 transition-transform hover:scale-105"
+        aria-label="Expand sidebar"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+          <line x1="9" y1="3" x2="9" y2="21" />
+        </svg>
+      </button>
+    </div>
+  );
+
+  return (
+    <Fragment>
+      {/* MOBILE SIDEBAR OVERLAY */}
+      <div className={`md:hidden ${isMobileMenuOpen ? "block" : "hidden"}`}>
+        <div
+          onClick={() => setMobileMenuOpen(false)}
+          className="fixed inset-0 bg-black/60 z-40 transition-opacity"
+        ></div>
+        <div className="fixed top-0 left-0 bottom-0 w-80 bg-card z-50 flex flex-col transition-transform duration-300">
+          {/* On mobile, the sidebar is always the "open" content */}
+          {sidebarContent}
+        </div>
+      </div>
+
+      {/* DESKTOP SIDEBAR CONTAINER */}
+      <div
+        className={`hidden md:flex flex-col transition-all duration-300 ${
+          isSidebarOpen ? "w-80" : "w-20"
+        }`}
+      >
+        {isSidebarOpen ? sidebarContent : collapsedSidebarContent}
+      </div>
+    </Fragment>
   );
 }
