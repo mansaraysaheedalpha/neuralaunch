@@ -13,7 +13,7 @@ export default function MainLayout({
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <div className="flex h-screen w-full bg-background">
+    <div className="flex h-dvh w-full bg-background">
       {/* We only render the Sidebar ONCE. It will handle its own mobile/desktop visibility. */}
       <Sidebar
         isSidebarOpen={isSidebarOpen}
