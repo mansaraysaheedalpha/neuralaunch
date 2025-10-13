@@ -10,7 +10,7 @@ export default function Header({
   setMobileMenuOpen: (isOpen: boolean) => void;
 }) {
   return (
-    <header className="pt-6 pb-4 px-4 sm:px-6 lg:px-8">
+    <header className="flex h-20 items-center border-b border-border px-4 sm:px-6 lg:px-8 flex-shrink-0">
       <div className="w-full max-w-7xl mx-auto flex items-center">
         <div className="flex items-center gap-4">
           {/* Hamburger Menu Button - Mobile Only */}
