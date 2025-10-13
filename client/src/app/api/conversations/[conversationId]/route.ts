@@ -6,10 +6,10 @@ import { authOptions } from "../../auth/[...nextauth]/route";
 
 const prisma = new PrismaClient();
 
-// CORRECTED GET FUNCTION
 export async function GET(
   req: NextRequest,
-  context: { params: { conversationId: string } } // THE FIX IS HERE
+  // FIX: Type `params` as a Promise, as requested by the build error
+  context: { params: Promise<{ conversationId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -17,7 +17,8 @@ export async function GET(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { conversationId } = context.params; // AND HERE
+    // FIX: `await` the params to get the actual value
+    const { conversationId } = await context.params;
 
     const conversation = await prisma.conversation.findUnique({
       where: {
@@ -44,10 +45,10 @@ export async function GET(
   }
 }
 
-// CORRECTED DELETE FUNCTION
 export async function DELETE(
   req: NextRequest,
-  context: { params: { conversationId: string } } // THE FIX IS HERE
+  // FIX: Type `params` as a Promise here as well
+  context: { params: Promise<{ conversationId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -55,7 +56,8 @@ export async function DELETE(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { conversationId } = context.params; // AND HERE
+    // FIX: `await` the params here as well
+    const { conversationId } = await context.params;
 
     const conversation = await prisma.conversation.findUnique({
       where: {
