@@ -1,18 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import LoginButton from "./LoginButton";
+import ThemeSwitcher from "./ThemeSwitcher";
 
 export default function Header() {
-  const router = useRouter();
-
-  const handleNewChat = () => {
-    // We'll add logic here to clear the chat state
-    // For now, it just navigates home
-    router.push("/");
-  };
-
   return (
     <header className="pt-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-6xl mx-auto">
@@ -47,7 +39,7 @@ export default function Header() {
 
           {/* Action Buttons */}
           <div className="flex items-center gap-4">
-            
+            <ThemeSwitcher /> {/* 2. Add the component here */}
             <LoginButton />
           </div>
         </div>

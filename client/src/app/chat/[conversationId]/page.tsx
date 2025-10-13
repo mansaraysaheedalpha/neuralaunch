@@ -4,18 +4,20 @@
 import { useState, FormEvent, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { useParams } from "next/navigation";
-
-type Message = {
-  id: string;
-  role: "user" | "model";
-  content: string;
-};
+import { useStore } from "@/lib/store";
 
 export default function ChatPage() {
   const [input, setInput] = useState<string>("");
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string>("");
+  const {
+    messages,
+    setMessages,
+    addMessage,
+    updateMessage,
+    isLoading,
+    setIsLoading,
+    error,
+    setError,
+  } = useStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const params = useParams();
@@ -25,7 +27,7 @@ export default function ChatPage() {
     const loadChatHistory = async () => {
       if (conversationId) {
         setIsLoading(true);
-        setError("");
+        setError(null);
         try {
           const res = await fetch(`/api/conversations/${conversationId}`);
           if (res.ok) {
@@ -35,7 +37,7 @@ export default function ChatPage() {
             const errorData = await res.text();
             setError(`Failed to load conversation: ${errorData}`);
           }
-        } catch (err) {
+        } catch {
           setError("An error occurred while loading the chat.");
         } finally {
           setIsLoading(false);
@@ -44,7 +46,7 @@ export default function ChatPage() {
     };
 
     loadChatHistory();
-  }, [conversationId]);
+  }, [conversationId, setMessages, setIsLoading, setError]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -54,23 +56,25 @@ export default function ChatPage() {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    setError("");
+    setError(null);
     setIsLoading(true);
 
-    const userMessage: Message = {
+    const userMessage = {
       id: Date.now().toString(),
-      role: "user",
+      role: "user" as const,
       content: input,
     };
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
+    addMessage(userMessage);
     setInput("");
 
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: updatedMessages, conversationId }),
+        body: JSON.stringify({
+          messages: [...messages, userMessage],
+          conversationId,
+        }),
       });
 
       if (!res.ok) {
@@ -84,26 +88,16 @@ export default function ChatPage() {
       if (!reader) throw new Error("ReadableStream not supported.");
 
       const decoder = new TextDecoder();
-      const modelMessageId = (Date.now() + 1).toString();
+      const modelMessageId = `${Date.now()}-streaming`;
+      addMessage({ id: modelMessageId, role: "model", content: "" });
+
       let accumulatedText = "";
-
-      setMessages((prev) => [
-        ...prev,
-        { id: modelMessageId, role: "model", content: "" },
-      ]);
-
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         accumulatedText += decoder.decode(value, { stream: true });
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === modelMessageId
-              ? { ...msg, content: accumulatedText }
-              : msg
-          )
-        );
+        updateMessage(modelMessageId, accumulatedText);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -156,10 +150,10 @@ export default function ChatPage() {
                 style={{ animationDelay: `${index * 0.05}s` }}
               >
                 <div
-                  className={`max-w-[85%] rounded-3xl px-7 py-5 shadow-lg transition-all duration-300 hover:shadow-xl ${
+                  className={`max-w-[85%] rounded-3xl px-7 py-5 shadow-md transition-all duration-300 ${
                     message.role === "user"
-                      ? "bg-gradient-to-br from-violet-600 to-purple-600 text-white"
-                      : "bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-gray-200 dark:border-gray-700"
+                      ? "bg-muted text-foreground" // REFINED: More subtle user bubble
+                      : "bg-card border border-border" // REFINED: AI bubble uses new card style
                   }`}
                 >
                   {message.role === "user" ? (
@@ -167,7 +161,7 @@ export default function ChatPage() {
                       {message.content}
                     </p>
                   ) : (
-                    <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-bold prose-p:leading-relaxed prose-pre:bg-gray-900 prose-pre:text-gray-100">
+                    <div className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed">
                       <ReactMarkdown>{message.content}</ReactMarkdown>
                     </div>
                   )}
@@ -177,8 +171,10 @@ export default function ChatPage() {
           </div>
         )}
 
+        {/* Loading indicator for model response */}
         {isLoading &&
-          !messages.some((m) => m.role === "model" && !m.content) && (
+          messages.length > 0 &&
+          !messages.some((m) => m.id.endsWith("-streaming")) && (
             <div className="flex justify-start max-w-4xl mx-auto animate-slide-up">
               <div className="max-w-[85%] rounded-3xl px-7 py-5 shadow-lg bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-gray-200 dark:border-gray-700">
                 <div className="flex items-center gap-2">
@@ -198,13 +194,12 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Enhanced Input Section - Now higher up with breathing room */}
       <div className="p-4 sm:p-6 lg:p-6 pb-8 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-slate-900 dark:via-slate-900/95 backdrop-blur-xl relative z-20">
         {error && (
-          <div className="max-w-4xl mx-auto mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl animate-shake">
-            <div className="flex items-center gap-2">
+          <div className="max-w-4xl mx-auto mb-4 p-4 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-2xl animate-shake">
+            <div className="flex items-center gap-3">
               <svg
-                className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0"
+                className="w-6 h-6 text-red-600 dark:text-red-400 flex-shrink-0"
                 fill="currentColor"
                 viewBox="0 0 20 20"
               >
@@ -214,7 +209,7 @@ export default function ChatPage() {
                   clipRule="evenodd"
                 />
               </svg>
-              <p className="text-sm font-medium text-red-800 dark:text-red-200">
+              <p className="text-sm font-semibold text-red-800 dark:text-red-200">
                 {error}
               </p>
             </div>
@@ -224,31 +219,32 @@ export default function ChatPage() {
         <div className="max-w-4xl mx-auto">
           <form onSubmit={handleSubmit} className="relative">
             <div className="relative group">
-              <div className="absolute -inset-0.5 bg-gradient-to-r from-violet-600 to-purple-600 rounded-3xl opacity-0 group-hover:opacity-100 blur transition duration-500"></div>
-              <div className="relative flex items-end gap-3 bg-white dark:bg-slate-800 rounded-3xl shadow-2xl p-4 border border-gray-200 dark:border-gray-700">
+              <div className="absolute -inset-1 bg-gradient-to-r from-violet-600 to-purple-600 rounded-3xl opacity-0 group-hover:opacity-20 blur-xl transition duration-500"></div>
+              <div className="relative flex items-end gap-3 bg-white dark:bg-slate-800/95 rounded-3xl shadow-2xl p-2 border-2 border-gray-200 dark:border-gray-700 transition-all duration-200 focus-within:border-violet-500 dark:focus-within:border-violet-500 focus-within:shadow-[0_0_0_4px_rgba(124,58,237,0.1)]">
                 <textarea
                   id="skillsInput"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Ask a follow-up question..."
                   rows={1}
-                  className="flex-1 bg-transparent border-0 focus:ring-0 text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 resize-none outline-none px-3 py-3 min-h-[44px]"
+                  className="flex-1 bg-transparent border-0 focus:ring-0 text-base text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 resize-none outline-none px-4 py-3 min-h-[48px]"
                   required
                   disabled={isLoading}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
-                      handleSubmit(e as any);
+                      handleSubmit(e as unknown as FormEvent<HTMLFormElement>);
                     }
                   }}
                 />
                 <button
                   type="submit"
                   disabled={isLoading || !input.trim()}
-                  className="flex-shrink-0 p-3.5 rounded-2xl bg-gradient-to-r from-violet-600 to-purple-600 text-white hover:from-violet-700 hover:to-purple-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 disabled:scale-100"
+                  className="flex-shrink-0 p-3.5 rounded-2xl bg-gradient-to-r from-violet-600 to-purple-600 text-white hover:from-violet-700 hover:to-purple-700 disabled:bg-gray-400 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 disabled:scale-100 mr-1"
                   aria-label="Send message"
                 >
-                  {isLoading ? (
+                  {isLoading &&
+                  !messages.some((m) => m.id.endsWith("-streaming")) ? (
                     <svg
                       className="w-6 h-6 animate-spin"
                       fill="none"

@@ -1,12 +1,12 @@
 // client/src/app/api/conversations/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]/route";
 
 const prisma = new PrismaClient();
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user?.id) {
@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
         id: true,
         title: true,
         createdAt: true,
+        updatedAt: true,
       },
     });
 

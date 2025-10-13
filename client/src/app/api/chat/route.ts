@@ -61,7 +61,7 @@ Respond in this exact Markdown structure:
 Remember: Make the user feel excited, capable, and ready to start building! 🚀
 `;
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session || !session.user?.id) {
@@ -93,14 +93,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Get the authenticated user
     const session = await getServerSession(authOptions);
-    if (!session || !session.user?.id) {
-      return new NextResponse("Unauthorized", { status: 401 });
-    }
-    const userId = session.user.id;
+    const userId = session?.user?.id; // This will be undefined if not logged in
 
-    // 2. Parse the incoming messages from the request body
     const body = await req.json();
     const { messages, conversationId } = body;
 
@@ -108,84 +103,82 @@ export async function POST(req: NextRequest) {
       return new NextResponse("Messages are required", { status: 400 });
     }
 
-    // 3. Find or create a conversation
-    let conversation = conversationId
-      ? await prisma.conversation.findUnique({ where: { id: conversationId } })
-      : null;
+    let currentConversationId = conversationId;
 
-    if (!conversation) {
-      const initialContent = messages[messages.length - 1].content;
+    // --- LOGIC FOR AUTHENTICATED USERS ---
+    if (userId) {
+      let conversation = conversationId
+        ? await prisma.conversation.findUnique({
+            where: { id: conversationId },
+          })
+        : null;
 
-      // Trim, remove extra whitespace, and take the first 50 chars for the title.
-      // Default to "New Conversation" if the result is empty.
-      const title =
-        initialContent.trim().replace(/\s+/g, " ").substring(0, 50) ||
-        "New Conversation";
+      if (!conversation) {
+        const initialContent = messages[messages.length - 1].content;
+        const title =
+          initialContent.trim().replace(/\s+/g, " ").substring(0, 50) ||
+          "New Conversation";
+        conversation = await prisma.conversation.create({
+          data: { userId, title },
+        });
+        currentConversationId = conversation.id;
+      }
 
-      conversation = await prisma.conversation.create({
+      const lastUserMessage = messages[messages.length - 1];
+      await prisma.message.create({
         data: {
-          userId,
-          title,
+          conversationId: currentConversationId,
+          role: "user",
+          content: lastUserMessage.content,
         },
       });
     }
 
-    // 4. Save the new user message
-    const lastUserMessage = messages[messages.length - 1];
-    await prisma.message.create({
-      data: {
-        conversationId: conversation.id,
-        role: "user",
-        content: lastUserMessage.content,
-      },
-    });
-
-    // 5. Prepare history for the AI model
-    // UPGRADE: Pass the system prompt during model initialization
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-pro",
+      model: "gemini-2.5-pro", // Using a faster model can be good for logged-out users
       systemInstruction: SYSTEM_PROMPT,
     });
 
     const chat = model.startChat({
-      history: messages
-        .slice(0, -1)
-        .map((msg: { role: string; content: string }) => ({
-          role: msg.role,
-          parts: [{ text: msg.content }],
-        })),
+      history: messages.slice(0, -1).map((msg: any) => ({
+        role: msg.role,
+        parts: [{ text: msg.content }],
+      })),
     });
 
-    // 6. Call the AI and stream the response
-    const result = await chat.sendMessageStream(lastUserMessage.content);
+    const result = await chat.sendMessageStream(
+      messages[messages.length - 1].content
+    );
+
     let fullModelResponse = "";
-    
     const stream = new ReadableStream({
       async start(controller) {
         for await (const chunk of result.stream) {
           const chunkText = chunk.text();
           fullModelResponse += chunkText;
-          controller.enqueue(chunkText);
+          controller.enqueue(new TextEncoder().encode(chunkText));
         }
 
-        // 7. After the stream is finished, save the full model response
-        await prisma.message.create({
-          data: {
-            conversationId: conversation!.id,
-            role: "model",
-            content: fullModelResponse,
-          },
-        });
-
+        // --- SAVE RESPONSE ONLY IF AUTHENTICATED ---
+        if (userId && currentConversationId) {
+          await prisma.message.create({
+            data: {
+              conversationId: currentConversationId,
+              role: "model",
+              content: fullModelResponse,
+            },
+          });
+        }
         controller.close();
       },
     });
 
-    // Add the new conversation ID to the headers
-    return new Response(stream, {
-        headers: { "X-Conversation-Id": conversation.id }
-    });
+    const headers = new Headers();
+    if (userId && currentConversationId) {
+      headers.set("X-Conversation-Id", currentConversationId);
+    }
 
+    return new Response(stream, { headers });
   } catch (error) {
     console.error("[CHAT_POST_ERROR]", error);
     return new NextResponse("Internal Server Error", { status: 500 });

@@ -4,20 +4,30 @@
 import { useState, FormEvent, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
-
-type Message = {
-  id: string;
-  role: "user" | "model";
-  content: string;
-};
+import { useStore } from "@/lib/store";
+import { useSession } from "next-auth/react";
 
 export default function HomePage() {
   const [input, setInput] = useState<string>("");
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>("");
+  const {
+    messages,
+    setMessages,
+    updateMessage,
+    addMessage,
+    isLoading,
+    setIsLoading,
+    error,
+    setError,
+  } = useStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const { data: session, status } = useSession();
+
+  useEffect(() => {
+    // Clear messages and error when the component mounts for a fresh start
+    setMessages([]);
+    setError(null);
+  }, [setMessages, setError]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -27,16 +37,16 @@ export default function HomePage() {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    setError("");
+    setError(null);
     setIsLoading(true);
 
-    const userMessage: Message = {
+    const userMessage = {
       id: Date.now().toString(),
-      role: "user",
+      role: "user" as const,
       content: input,
     };
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
+    addMessage(userMessage);
+    const currentMessages = [...messages, userMessage];
     setInput("");
 
     try {
@@ -44,8 +54,8 @@ export default function HomePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: updatedMessages,
-          conversationId: null,
+          messages: currentMessages,
+          conversationId: null, // Always null for the first message
         }),
       });
 
@@ -56,17 +66,37 @@ export default function HomePage() {
         );
       }
 
-      const newConversationId = res.headers.get("X-Conversation-Id");
-
-      if (newConversationId) {
-        router.push(`/chat/${newConversationId}`);
+      // --- LOGIC FOR AUTHENTICATED VS. UNAUTHENTICATED ---
+      if (status === "authenticated") {
+        const newConversationId = res.headers.get("X-Conversation-Id");
+        if (newConversationId) {
+          router.push(`/chat/${newConversationId}`);
+        } else {
+          throw new Error("Failed to create a new conversation.");
+        }
       } else {
-        throw new Error("Failed to create a new conversation.");
+        // Handle streaming for non-authenticated user
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("ReadableStream not supported.");
+
+        const decoder = new TextDecoder();
+        const modelMessageId = `${Date.now()}-streaming`;
+        addMessage({ id: modelMessageId, role: "model", content: "" });
+
+        let accumulatedText = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          accumulatedText += decoder.decode(value, { stream: true });
+          updateMessage(modelMessageId, accumulatedText);
+        }
+        setIsLoading(false);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
-      setIsLoading(false);
+      setIsLoading(false); // Make sure loading is turned off on error
     }
+    // For authenticated users, finally block is not needed as page will redirect
   };
 
   return (
@@ -110,53 +140,35 @@ export default function HomePage() {
               </p>
             </div>
 
-            {/* Feature Pills - Enhanced Padding */}
-            <div className="flex flex-wrap items-center justify-center gap-3 mt-8">
-              <div className="flex items-center gap-2.5 px-5 py-3 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-full border border-gray-200 dark:border-gray-700 shadow-sm">
-                <svg
-                  className="w-5 h-5 text-violet-600 flex-shrink-0"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
-                </svg>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                  AI-Powered
-                </span>
-              </div>
-              <div className="flex items-center gap-2.5 px-5 py-3 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-full border border-gray-200 dark:border-gray-700 shadow-sm">
-                <svg
-                  className="w-5 h-5 text-violet-600 flex-shrink-0"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                  Instant Ideas
-                </span>
-              </div>
-              <div className="flex items-center gap-2.5 px-5 py-3 bg-white/60 dark:bg-slate-800/60 backdrop-blur-md rounded-full border border-gray-200 dark:border-gray-700 shadow-sm">
-                <svg
-                  className="w-5 h-5 text-violet-600 flex-shrink-0"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                  <path
-                    fillRule="evenodd"
-                    d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
-                  Personalized
-                </span>
-              </div>
+            {/* Suggested Prompts */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-4xl mx-auto w-full pt-8">
+              <SuggestedPrompt
+                title="Develop a SaaS"
+                description="for social media scheduling"
+                onClick={() =>
+                  setInput(
+                    "I'm a software developer skilled in React and Node.js. I want to build a SaaS for social media scheduling."
+                  )
+                }
+              />
+              <SuggestedPrompt
+                title="Create a Mobile App"
+                description="for local event discovery"
+                onClick={() =>
+                  setInput(
+                    "I'm a UX designer passionate about community building. I want to create a mobile app for finding local events."
+                  )
+                }
+              />
+              <SuggestedPrompt
+                title="Launch an E-commerce Brand"
+                description="for sustainable products"
+                onClick={() =>
+                  setInput(
+                    "I have experience in marketing and logistics. I want to launch an e-commerce brand for sustainable home goods."
+                  )
+                }
+              />
             </div>
           </div>
         ) : (
@@ -181,9 +193,9 @@ export default function HomePage() {
                       {message.content}
                     </p>
                   ) : (
-                    <ReactMarkdown className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-bold prose-p:leading-relaxed prose-pre:bg-gray-900 prose-pre:text-gray-100">
-                      {message.content}
-                    </ReactMarkdown>
+                    <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-bold prose-p:leading-relaxed prose-pre:bg-gray-900 prose-pre:text-gray-100">
+                      <ReactMarkdown>{message.content}</ReactMarkdown>
+                    </div>
                   )}
                 </div>
               </div>
@@ -254,7 +266,7 @@ export default function HomePage() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !e.shiftKey) {
                       e.preventDefault();
-                      handleSubmit(e as any);
+                      handleSubmit(e as unknown as FormEvent<HTMLFormElement>);
                     }
                   }}
                 />
@@ -319,3 +331,24 @@ export default function HomePage() {
     </div>
   );
 }
+
+// SuggestedPrompt Component
+const SuggestedPrompt = ({
+  title,
+  description,
+  onClick,
+}: {
+  title: string;
+  description: string;
+  onClick: () => void;
+}) => (
+  <button
+    onClick={onClick}
+    className="bg-white/50 dark:bg-slate-800/50 p-6 rounded-2xl border border-gray-200/50 dark:border-gray-700/50 text-left transition-all duration-200 hover:bg-white/80 dark:hover:bg-slate-800/80 hover:shadow-xl hover:scale-[1.02] group"
+  >
+    <h3 className="font-bold text-gray-900 dark:text-white text-lg">{title}</h3>
+    <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
+      {description}
+    </p>
+  </button>
+);

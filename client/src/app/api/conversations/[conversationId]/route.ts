@@ -42,3 +42,43 @@ export async function GET(
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { conversationId: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || !session.user?.id) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+
+    const { conversationId } = params;
+
+    // First, verify the conversation exists and belongs to the user
+    const conversation = await prisma.conversation.findUnique({
+      where: {
+        id: conversationId,
+        userId: session.user.id,
+      },
+    });
+
+    if (!conversation) {
+      return new NextResponse("Conversation not found or access denied", {
+        status: 404,
+      });
+    }
+
+    // Delete the conversation
+    await prisma.conversation.delete({
+      where: {
+        id: conversationId,
+      },
+    });
+
+    return new NextResponse(null, { status: 204 }); // 204 No Content for successful deletion
+  } catch (error) {
+    console.error("[CONVERSATION_DELETE_ERROR]", error);
+    return new NextResponse("Internal Server Error", { status: 500 });
+  }
+}
