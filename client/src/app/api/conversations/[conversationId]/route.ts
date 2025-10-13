@@ -6,9 +6,10 @@ import { authOptions } from "../../auth/[...nextauth]/route";
 
 const prisma = new PrismaClient();
 
+// CORRECTED GET FUNCTION
 export async function GET(
   req: NextRequest,
-  { params }: { params: { conversationId: string } }
+  context: { params: { conversationId: string } } // THE FIX IS HERE
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -16,12 +17,12 @@ export async function GET(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { conversationId } = params;
+    const { conversationId } = context.params; // AND HERE
 
     const conversation = await prisma.conversation.findUnique({
       where: {
         id: conversationId,
-        userId: session.user.id, // Ensure user can only access their own conversations
+        userId: session.user.id,
       },
       include: {
         messages: {
@@ -43,9 +44,10 @@ export async function GET(
   }
 }
 
+// CORRECTED DELETE FUNCTION
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { conversationId: string } }
+  context: { params: { conversationId: string } } // THE FIX IS HERE
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -53,9 +55,8 @@ export async function DELETE(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { conversationId } = params;
+    const { conversationId } = context.params; // AND HERE
 
-    // First, verify the conversation exists and belongs to the user
     const conversation = await prisma.conversation.findUnique({
       where: {
         id: conversationId,
@@ -69,14 +70,13 @@ export async function DELETE(
       });
     }
 
-    // Delete the conversation
     await prisma.conversation.delete({
       where: {
         id: conversationId,
       },
     });
 
-    return new NextResponse(null, { status: 204 }); // 204 No Content for successful deletion
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
     console.error("[CONVERSATION_DELETE_ERROR]", error);
     return new NextResponse("Internal Server Error", { status: 500 });
