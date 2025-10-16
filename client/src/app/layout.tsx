@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from "next";
 import { GeistSans } from "geist/font/sans";
 import "./globals.css";
 import Providers from "./providers";
+import { Toaster } from "react-hot-toast";
 import MainLayout from "@/components/MainLayout"; // 1. Import our new component
 
 export const metadata: Metadata = {
@@ -33,6 +34,16 @@ export default function RootLayout({
         <Providers>
           {/* 2. Use the MainLayout component to wrap the children */}
           <MainLayout>{children}</MainLayout>
+          <Toaster
+            position="bottom-center"
+            toastOptions={{
+              style: {
+                background: "hsl(var(--card))",
+                color: "hsl(var(--foreground))",
+                border: "1px solid hsl(var(--border))",
+              },
+            }}
+          />
         </Providers>
       </body>
     </html>

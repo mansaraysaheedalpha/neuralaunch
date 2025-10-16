@@ -1,11 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Fragment, useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import { useSession } from "next-auth/react";
-import { Fragment } from "react";
 
 interface SidebarProps {
   isSidebarOpen: boolean;
@@ -19,15 +18,9 @@ function formatDate(dateString: string): string {
   const now = new Date();
   const diffInMs = now.getTime() - date.getTime();
   const diffInHours = diffInMs / (1000 * 60 * 60);
-  const diffInDays = diffInHours / 24;
 
-  if (diffInHours < 1) {
-    const minutes = Math.floor(diffInMs / (1000 * 60));
-    return minutes < 1 ? "Just now" : `${minutes}m ago`;
-  } else if (diffInHours < 24) {
+  if (diffInHours < 24) {
     return `${Math.floor(diffInHours)}h ago`;
-  } else if (diffInDays < 7) {
-    return `${Math.floor(diffInDays)}d ago`;
   } else {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   }
@@ -48,32 +41,10 @@ export default function Sidebar({
     error,
     setError,
   } = useStore();
-
-  const [mounted, setMounted] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const { status } = useSession();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const handleDelete = async (conversationId: string) => {
-    setDeletingId(conversationId);
-    setError(null);
-    try {
-      await fetch(`/api/conversations/${conversationId}`, { method: "DELETE" });
-      removeConversation(conversationId);
-      if (pathname === `/chat/${conversationId}`) {
-        router.push("/");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-    } finally {
-      setDeletingId(null);
-    }
-  };
 
   useEffect(() => {
     const fetchConversations = async () => {
@@ -99,12 +70,28 @@ export default function Sidebar({
     }
   }, [status, setConversations, setIsLoading, setError]);
 
+  const handleDelete = async (conversationId: string) => {
+    setDeletingId(conversationId);
+    try {
+      await fetch(`/api/conversations/${conversationId}`, { method: "DELETE" });
+      removeConversation(conversationId);
+      if (pathname === `/chat/${conversationId}`) {
+        router.push("/");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const sidebarContent = (
     <div className="flex flex-col h-full bg-card text-card-foreground border-r border-border">
       {/* Header */}
       <div className="p-4 border-b border-border flex-shrink-0 flex items-center gap-2">
         <Link
           href="/"
+          onClick={() => setMobileMenuOpen(false)}
           className="flex-1 flex items-center justify-center px-4 py-3 bg-primary text-primary-foreground rounded-xl font-semibold transition-all duration-200 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transform hover:scale-[1.02] active:scale-[0.98] group"
         >
           <svg
@@ -147,7 +134,6 @@ export default function Sidebar({
           className="w-10 h-10 md:hidden flex items-center justify-center rounded-lg hover:bg-muted"
           aria-label="Close menu"
         >
-          {/* X Icon */}
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="24"
@@ -165,105 +151,88 @@ export default function Sidebar({
         </button>
       </div>
 
+      {/* Navigation */}
+      <div className="p-2">
+        <Link
+          href="/trends"
+          onClick={() => setMobileMenuOpen(false)}
+          className={`group relative flex items-center px-3 py-3 rounded-xl transition-all duration-200 ${
+            pathname === "/trends" ? "bg-primary/10" : "hover:bg-muted"
+          }`}
+        >
+          {pathname === "/trends" && (
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full"></div>
+          )}
+          <div
+            className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center mr-3 transition-all duration-200 ${
+              pathname === "/trends"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
+            }`}
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p
+              className={`text-sm font-medium truncate ${
+                pathname === "/trends"
+                  ? "text-primary font-semibold"
+                  : "text-foreground"
+              }`}
+            >
+              Spark Index
+            </p>
+          </div>
+          <span className="flex-shrink-0 px-2 py-0.5 bg-primary text-primary-foreground text-xs font-bold rounded-full">
+            NEW
+          </span>
+        </Link>
+      </div>
+
       {/* Chat History */}
-      <div className="flex-1 overflow-y-auto min-h-0 p-2">
-        {!mounted || (isLoading && conversations.length === 0) ? (
-          // FIX: Themed loading skeleton
+      <div className="flex-1 overflow-y-auto min-h-0 p-2 border-t border-border">
+        {status === "authenticated" && conversations.length > 0 && (
+          <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 py-2">
+            Recent Chats
+          </h2>
+        )}
+        {isLoading && status === "authenticated" ? (
           <div className="space-y-2 p-2">
-            {[...Array(8)].map((_, index) => (
+            {[...Array(5)].map((_, i) => (
               <div
-                key={index}
-                className="animate-pulse"
-                style={{ animationDelay: `${index * 0.05}s` }}
-              >
-                <div className="h-12 bg-muted rounded-lg"></div>
-              </div>
+                key={i}
+                className="h-10 bg-muted rounded-lg animate-pulse"
+              ></div>
             ))}
           </div>
-        ) : error ? (
-          // FIX: Themed error state
-          <div className="flex flex-col items-center justify-center h-full px-4 text-center">
-            <svg
-              className="w-10 h-10 text-muted-foreground mb-3"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <p className="text-sm text-muted-foreground">{error}</p>
-          </div>
-        ) : conversations.length === 0 ? (
-          // FIX: Themed empty state for logged-in users
-          status === "authenticated" && (
-            <div className="flex flex-col items-center justify-center h-full px-4 text-center">
-              <div className="w-16 h-16 bg-muted rounded-2xl flex items-center justify-center mb-4 ring-1 ring-border">
-                <svg
-                  className="w-8 h-8 text-primary"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                  />
-                </svg>
-              </div>
-              <p className="text-sm font-semibold text-foreground mb-1">
-                No conversations yet
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Start a new chat to begin your history.
-              </p>
-            </div>
-          )
         ) : (
-          // Conversation List
           <div className="space-y-1">
             {conversations.map((conversation) => {
               const isActive = pathname === `/chat/${conversation.id}`;
               return (
-                <div key={conversation.id} className="relative group">
-                  <Link
-                    href={`/chat/${conversation.id}`}
-                    className={`flex items-center w-full px-3 py-3 rounded-lg transition-colors duration-150 ${
-                      isActive ? "bg-primary/10" : "hover:bg-muted"
-                    }`}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p
-                        className={`text-sm font-medium truncate ${
-                          isActive ? "text-primary" : "text-foreground"
-                        }`}
-                      >
-                        {conversation.title}
-                      </p>
-                      {conversation.updatedAt && (
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {formatDate(conversation.updatedAt)}
-                        </p>
-                      )}
-                    </div>
-                  </Link>
-                  {/* FIX: Themed delete button */}
+                <Link
+                  key={conversation.id}
+                  href={`/chat/${conversation.id}`}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`group relative flex items-center px-3 py-2.5 rounded-lg transition-colors ${
+                    isActive ? "bg-muted" : "hover:bg-muted"
+                  }`}
+                >
+                  <p className="text-sm text-foreground truncate flex-1">
+                    {conversation.title}
+                  </p>
                   <button
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       handleDelete(conversation.id);
                     }}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity ml-2"
                     disabled={deletingId === conversation.id}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground bg-transparent opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-500/10 transition-all"
-                    aria-label="Delete chat"
                   >
+                    {/* Delete Icon SVG */}
                     {deletingId === conversation.id ? (
                       <svg
                         className="w-4 h-4 animate-spin"
@@ -300,7 +269,7 @@ export default function Sidebar({
                       </svg>
                     )}
                   </button>
-                </div>
+                </Link>
               );
             })}
           </div>
@@ -346,26 +315,40 @@ export default function Sidebar({
           <line x1="9" y1="3" x2="9" y2="21" />
         </svg>
       </button>
+      <Link
+        href="/trends"
+        className={`group relative flex items-center justify-center w-10 h-10 rounded-lg transition-colors ${
+          pathname === "/trends"
+            ? "bg-primary/10 text-primary"
+            : "hover:bg-muted text-muted-foreground"
+        }`}
+      >
+        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+        </svg>
+      </Link>
     </div>
   );
 
   return (
     <Fragment>
       {/* MOBILE SIDEBAR OVERLAY */}
-      <div className={`md:hidden ${isMobileMenuOpen ? "block" : "hidden"}`}>
+      <div
+        className={`md:hidden fixed inset-0 z-40 ${
+          isMobileMenuOpen ? "block" : "hidden"
+        }`}
+      >
         <div
           onClick={() => setMobileMenuOpen(false)}
-          className="fixed inset-0 bg-black/60 z-40 transition-opacity"
+          className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         ></div>
-        <div className="fixed top-0 left-0 bottom-0 w-80 bg-card z-50 flex flex-col transition-transform duration-300">
-          {/* On mobile, the sidebar is always the "open" content */}
+        <div className="relative w-80 h-full bg-card flex flex-col">
           {sidebarContent}
         </div>
       </div>
-
       {/* DESKTOP SIDEBAR CONTAINER */}
       <div
-        className={`hidden md:flex flex-col transition-all duration-300 ${
+        className={`hidden md:flex flex-col h-full transition-all duration-300 ${
           isSidebarOpen ? "w-80" : "w-20"
         }`}
       >

@@ -3,12 +3,70 @@
 
 import { useState, FormEvent, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useStore } from "@/lib/store";
 import TextareaAutosize from "react-textarea-autosize";
+import { motion } from "framer-motion";
+
+// This is our new, "smart" button component
+const ValidationHubButton = ({
+  conversationId,
+  landingPageId,
+}: {
+  conversationId: string;
+  landingPageId: string | null;
+}) => {
+  const router = useRouter();
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const handleClick = async () => {
+    // If a landing page already exists, just go to the builder page
+    if (landingPageId) {
+      router.push(`/build/${landingPageId}`);
+      return;
+    }
+
+    // Otherwise, create a new one
+    setIsGenerating(true);
+    try {
+      const res = await fetch("/api/landing-page/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        router.push(`/build/${data.landingPage.id}`);
+      } else {
+        throw new Error("Generation failed");
+      }
+    } catch (error) {
+      alert("Failed to build page. Please try again.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  return (
+    <motion.button
+      onClick={handleClick}
+      disabled={isGenerating}
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+      className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-semibold transition-opacity shadow-lg hover:opacity-90 disabled:opacity-50"
+    >
+      {isGenerating
+        ? "Building Your Hub..."
+        : landingPageId
+          ? "🚀 View & Edit Landing Page"
+          : "🚀 Build Validation Page"}
+    </motion.button>
+  );
+};
 
 export default function ChatPage() {
   const [input, setInput] = useState<string>("");
+  const [landingPageId, setLandingPageId] = useState<string | null>(null); // State for our page ID
   const {
     messages,
     setMessages,
@@ -21,8 +79,7 @@ export default function ChatPage() {
   } = useStore();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
+  const inputRef = useRef<HTMLTextAreaElement>(null); 
   const params = useParams();
   const conversationId = params.conversationId as string;
 
@@ -36,9 +93,10 @@ export default function ChatPage() {
           if (res.ok) {
             const data = await res.json();
             setMessages(data.messages || []);
+            // THIS IS THE FIX: We save the landing page ID when the chat loads
+            setLandingPageId(data.landingPage?.id || null);
           } else {
-            const errorData = await res.text();
-            setError(`Failed to load conversation: ${errorData}`);
+            setError(`Failed to load conversation`);
           }
         } catch {
           setError("An error occurred while loading the chat.");
@@ -47,7 +105,6 @@ export default function ChatPage() {
         }
       }
     };
-
     loadChatHistory();
   }, [conversationId, setMessages, setIsLoading, setError]);
 
@@ -171,6 +228,14 @@ export default function ChatPage() {
                 </div>
               </div>
             ))}
+            {messages.length > 0 && !isLoading && (
+              <div className="max-w-4xl mx-auto my-8 text-center">
+                <ValidationHubButton
+                  conversationId={conversationId}
+                  landingPageId={landingPageId}
+                />
+              </div>
+            )}
           </div>
         )}
 

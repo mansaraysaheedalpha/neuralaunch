@@ -1,10 +1,8 @@
 // client/src/app/api/conversations/route.ts
 import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]/route";
-
-const prisma = new PrismaClient();
+import prisma from "@/lib/prisma";//
 
 export async function GET() {
   try {

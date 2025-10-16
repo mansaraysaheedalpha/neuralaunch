@@ -1,12 +1,15 @@
-// client/src/app/api/chat/route.ts
-// client/src/app/api/chat/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { PrismaClient } from "@prisma/client";
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route"; // Adjust path if needed
+import { authOptions } from "../auth/[...nextauth]/route";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import {
+  getTagExtractionPrompt,
+  cleanAndValidateTags,
+  ALL_VALID_TAGS,
+} from "../../../../lib/tag-taxonomy";
+import prisma from "@/lib/prisma";//
+import { AI_MODELS } from "@/lib/models";
 
-const prisma = new PrismaClient();
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 
 // UPGRADE: Define the System Prompt constant
@@ -146,117 +149,173 @@ Your mission is to make every user feel like they've been given a treasure map�
 🚀 **Let's turn dreamers into builders. One validated startup at a time.**
 `;
 
-export async function GET() {
+async function generateTitle(prompt: string): Promise<string> {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user?.id) {
-      return new NextResponse("Unauthorized", { status: 401 });
+    const titleModel = genAI.getGenerativeModel({ model: AI_MODELS.FAST });
+    const result = await titleModel.generateContent(
+      `Generate ONE title ONLY for this conversation. Rules:
+- 4-6 words maximum
+- No numbering, no options, no explanations
+- Just the title text, nothing else
+- No quotes, no formatting
+
+User's prompt: "${prompt}"
+
+Title:`
+    );
+
+    const title = await result.response.text();
+
+    // Clean up: remove quotes, asterisks, numbering, "Title:" prefix
+    const cleanTitle = title
+      .replace(/^(Title:|Here's|Here are|Options?:|\d+\.|\*\*)/gi, "") // Remove prefixes
+      .replace(/[*"]/g, "") // Remove quotes and asterisks
+      .replace(/\n.*/g, "") // Remove everything after first line
+      .trim();
+
+    // Fallback if cleaned title is too long or empty
+    if (!cleanTitle || cleanTitle.length > 60) {
+      return prompt.substring(0, 50) || "New Conversation";
     }
-    const userId = session.user.id;
 
-    // Find the user's most recent conversation
-    const conversation = await prisma.conversation.findFirst({
-      where: { userId: userId },
-      orderBy: { createdAt: "desc" },
-      include: {
-        messages: {
-          orderBy: { createdAt: "asc" },
-        },
-      },
-    });
-
-    if (!conversation) {
-      return NextResponse.json(null, { status: 200 });
-    }
-
-    return NextResponse.json(conversation);
+    return cleanTitle;
   } catch (error) {
-    console.error("[CHAT_GET_ERROR]", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    console.error("Title generation failed, using fallback.", error);
+    return prompt.substring(0, 50) || "New Conversation";
+  }
+}
+
+async function extractAndSaveTags(blueprint: string, conversationId: string) {
+  try {
+    const taggingModel = genAI.getGenerativeModel({
+      model: "gemini-2.0-flash-exp",
+    });
+    const tagPrompt = getTagExtractionPrompt(blueprint);
+    const tagResult = await taggingModel.generateContent(tagPrompt);
+    const tagText = await tagResult.response.text();
+
+    const rawTags = tagText
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    const validatedTags = cleanAndValidateTags(rawTags);
+    const fallbackTags = ALL_VALID_TAGS.filter((tag) =>
+      new RegExp(`\\b${tag}\\b`, "i").test(blueprint)
+    );
+    const finalTags = [...new Set([...validatedTags, ...fallbackTags])].slice(
+      0,
+      10
+    );
+
+    if (finalTags.length > 0) {
+      await prisma.ideaTag.createMany({
+        data: finalTags.map((tagName) => ({ conversationId, tagName })),
+        skipDuplicates: true,
+      });
+    }
+  } catch (error) {
+    console.error(
+      `Tag extraction failed for conversation ${conversationId}:`,
+      error
+    );
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
+    console.log("=== CHAT API CALLED ===");
+
     const session = await getServerSession(authOptions);
-    const userId = session?.user?.id; // This will be undefined if not logged in
+    const userId = session?.user?.id;
 
     const body = await req.json();
     const { messages, conversationId } = body;
+    const lastUserMessage = messages[messages.length - 1]?.content;
 
-    if (!messages) {
+    if (!messages || !lastUserMessage) {
       return new NextResponse("Messages are required", { status: 400 });
     }
 
     let currentConversationId = conversationId;
 
-    // --- LOGIC FOR AUTHENTICATED USERS ---
-    if (userId) {
-      let conversation = conversationId
-        ? await prisma.conversation.findUnique({
-            where: { id: conversationId },
-          })
-        : null;
+    // Create conversation if it's a new chat
+    if (userId && !currentConversationId) {
+      // THIS IS THE FIX: Call our new title generation function
+      const title = await generateTitle(lastUserMessage);
+      console.log(`✅ Generated Title: "${title}"`);
 
-      if (!conversation) {
-        const initialContent = messages[messages.length - 1].content;
-        const title =
-          initialContent.trim().replace(/\s+/g, " ").substring(0, 50) ||
-          "New Conversation";
-        conversation = await prisma.conversation.create({
-          data: { userId, title },
-        });
-        currentConversationId = conversation.id;
-      }
+      const conversation = await prisma.conversation.create({
+        data: { userId, title }, // Use the AI-generated title
+      });
+      currentConversationId = conversation.id;
+      console.log("✅ Created conversation:", currentConversationId);
+    }
 
-      const lastUserMessage = messages[messages.length - 1];
+    // Save user message
+    if (userId && currentConversationId) {
       await prisma.message.create({
         data: {
           conversationId: currentConversationId,
           role: "user",
-          content: lastUserMessage.content,
+          content: lastUserMessage,
         },
       });
+      console.log("✅ Saved user message");
     }
 
+    // --- STREAMING LOGIC (UNCHANGED) ---
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-pro", // Using a faster model can be good for logged-out users
+      model: AI_MODELS.PRIMARY, // Changed to a stable, recommended model for streaming
       systemInstruction: SYSTEM_PROMPT,
     });
 
-    const chat = model.startChat({
-      history: messages
-        .slice(0, -1)
-        .map((msg: { role: string; content: string }) => ({
-          role: msg.role,
-          parts: [{ text: msg.content }],
-        })),
+    console.log("📡 Generating content stream...");
+
+    const formattedMessages = messages.map((msg: any) => ({
+      role: msg.role === "user" ? "user" : "model",
+      parts: [{ text: msg.content }],
+    }));
+
+    const result = await model.generateContentStream({
+      contents: formattedMessages,
     });
 
-    const result = await chat.sendMessageStream(
-      messages[messages.length - 1].content
-    );
+    console.log("✅ Stream connection established");
 
-    let fullModelResponse = "";
+    const encoder = new TextEncoder();
+    let fullResponse = "";
+
     const stream = new ReadableStream({
       async start(controller) {
-        for await (const chunk of result.stream) {
-          const chunkText = chunk.text();
-          fullModelResponse += chunkText;
-          controller.enqueue(new TextEncoder().encode(chunkText));
-        }
+        try {
+          for await (const chunk of result.stream) {
+            // Check for a safety rating response, which can be empty
+            if (chunk.candidates && chunk.candidates.length > 0) {
+              const chunkText = chunk.text();
+              fullResponse += chunkText;
+              controller.enqueue(encoder.encode(chunkText));
+            }
+          }
 
-        // --- SAVE RESPONSE ONLY IF AUTHENTICATED ---
-        if (userId && currentConversationId) {
-          await prisma.message.create({
-            data: {
-              conversationId: currentConversationId,
-              role: "model",
-              content: fullModelResponse,
-            },
-          });
+          console.log("✅ Stream complete. Length:", fullResponse.length);
+
+          if (userId && currentConversationId) {
+            await prisma.message.create({
+              data: {
+                conversationId: currentConversationId,
+                role: "model",
+                content: fullResponse,
+              },
+            });
+            console.log("✅ Saved AI response");
+            await extractAndSaveTags(fullResponse, currentConversationId);
+            console.log("✅ Tags extracted");
+          }
+          controller.close();
+        } catch (error) {
+          console.error("❌ Stream error:", error);
+          controller.error(error);
         }
-        controller.close();
       },
     });
 
@@ -265,9 +324,25 @@ export async function POST(req: NextRequest) {
       headers.set("X-Conversation-Id", currentConversationId);
     }
 
-    return new Response(stream, { headers });
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        ...Object.fromEntries(headers),
+      },
+    });
   } catch (error) {
-    console.error("[CHAT_POST_ERROR]", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    console.error("❌ [CHAT_POST_ERROR]", error);
+    return new NextResponse(
+      JSON.stringify({
+        error: "Internal Server Error",
+        detail: error instanceof Error ? error.message : "Unknown error",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  } finally {
+    await prisma.$disconnect();
   }
 }
