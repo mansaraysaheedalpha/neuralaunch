@@ -1,5 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// prisma/schema.prisma
 
 generator client {
   provider = "prisma-client-js"
@@ -10,6 +9,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// --- AUTH & USER MODELS (UNCHANGED) ---
 model User {
   id            String         @id @default(cuid())
   name          String?
@@ -19,43 +19,24 @@ model User {
   accounts      Account[]
   sessions      Session[]
   conversations Conversation[]
+  landingPages  LandingPage[]
+  achievements  Achievement[]
 }
 
-model Conversation {
-  id        String    @id @default(cuid())
-  title     String 
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  messages  Message[]
-}
-
-model Message {
-  id             String       @id @default(cuid())
-  content        String
-  role           String // "user" or "model"
-  createdAt      DateTime     @default(now())
-  conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-}
-
-// These models are required for NextAuth.js
 model Account {
   id                String  @id @default(cuid())
   userId            String
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String?
-  access_token      String?
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String?
+  id_token          String? @db.Text
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -74,4 +55,218 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// --- CORE APP MODELS ---
+model Conversation {
+  id          String    @id @default(cuid())
+  title       String
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages    Message[]
+  landingPage LandingPage?
+  tasks       Task[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // ===================== THIS IS THE CHANGE =====================
+  // The 'tags' field now points to the new join table.
+  tags        TagsOnConversations[]
+  // ==============================================================
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  content        String       @db.Text
+  role           String
+  createdAt      DateTime     @default(now())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+
+// ===================== THIS IS THE CHANGE =====================
+// The old 'IdeaTag' model is replaced with these two new models.
+
+// This is the central library of all unique tags.
+model Tag {
+  id   String @id @default(cuid())
+  name String @unique // Each tag name like "SaaS" or "AI" exists only once.
+
+  // This defines the connection to the join table.
+  conversations TagsOnConversations[]
+}
+
+// This is the new "join table" that connects Conversations and Tags.
+model TagsOnConversations {
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  tag            Tag          @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  tagId          String
+  assignedAt     DateTime     @default(now())
+  
+  // This creates a unique link for each conversation-tag pair.
+  @@id([conversationId, tagId])
+}
+// ==============================================================
+
+
+// --- ALL OTHER MODELS BELOW ARE UNCHANGED ---
+
+// --- LANDING PAGE MODELS (Phase 1) ---
+model LandingPage {
+  id                String        @id @default(cuid())
+  userId            String
+  conversationId    String        @unique
+  slug              String        @unique
+  title             String
+  headline          String
+  subheadline       String
+  problemStatement  String?
+  solutionStatement String?
+  features          Json
+  ctaText           String        @default("Join Waitlist")
+  designVariant     String
+  colorScheme       Json
+  metaTitle         String?
+  metaDescription   String?
+  ogImage           String?
+  isPublished       Boolean       @default(false)
+  publishedAt       DateTime?
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation      Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  emailSignups      EmailSignup[]
+  pageViews         PageView[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([userId])
+}
+
+model EmailSignup {
+  id            String      @id @default(cuid())
+  landingPageId String
+  email         String
+  name          String?
+  source        String?
+  userAgent     String?
+  ipAddress     String?
+  landingPage   LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+
+  @@index([landingPageId])
+}
+
+model PageView {
+  id            String      @id @default(cuid())
+  landingPageId String
+  sessionId     String
+  userAgent     String?
+  ipAddress     String?
+  referrer      String?
+  utmSource     String?
+  utmMedium     String?
+  utmCampaign   String?
+  timeOnPage    Int?
+  scrollDepth   Int?
+  ctaClicked    Boolean     @default(false)
+  landingPage   LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+
+  @@index([landingPageId])
+}
+
+// --- NEW MODELS FOR PHASE 2 (Core Task System) ---
+model Task {
+  id              String         @id @default(cuid())
+  conversationId  String
+  title           String
+  description     String         @db.Text
+  timeEstimate    String
+  orderIndex      Int
+  status          TaskStatus     @default(NOT_STARTED)
+  aiAssistantType AssistantType?
+  completedAt     DateTime?
+  conversation    Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  outputs         TaskOutput[]
+  reminders       TaskReminder[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([conversationId])
+}
+
+model TaskOutput {
+  id        String   @id @default(cuid())
+  taskId    String
+  content   Json // Stores the AI-generated content
+  version   Int      @default(1)
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+}
+
+enum TaskStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETE
+}
+
+enum AssistantType {
+  CUSTOMER_PROFILE
+  OUTREACH_EMAIL
+  LINKEDIN_MESSAGE
+  INTERVIEW_QUESTIONS
+  COMPETITIVE_ANALYSIS
+  PRICING_STRATEGY
+  GENERAL
+}
+
+model Achievement {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementType String // e.g., "FIRST_TASK_COMPLETE", "SPRINT_CHAMPION"
+  unlockedAt      DateTime @default(now())
+  metadata        Json? // e.g., { taskTitle: "Create Landing Page" }
+
+  conversationId  String?
+
+  
+  @@index([userId])
+  @@index([conversationId])
+}
+
+model Sprint {
+  id               String    @id @default(cuid())
+  conversationId   String    @unique
+  userId           String
+  startedAt        DateTime  @default(now())
+  targetEndAt      DateTime // 72 hours from start
+  completedAt      DateTime?
+  totalTasks       Int       @default(0)
+  completedTasks   Int       @default(0)
+  aiAssistsUsed    Int       @default(0) // We'll use this in a future step
+  timeSpent        Int       @default(0) // We'll use this in a future step
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+model TaskReminder {
+  id           String     @id @default(cuid())
+  taskId       String
+  userId       String // To easily find all reminders for a user
+  scheduledFor DateTime // The time this reminder should be sent
+  sent         Boolean    @default(false)
+  sentAt       DateTime?
+  reminderType String // e.g., "SPRINT_PROGRESS_CHECK"
+  task         Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@index([userId])
+  @@index([scheduledFor])
+  @@index([sent])
 }

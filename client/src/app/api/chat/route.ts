@@ -1,12 +1,27 @@
-// client/src/app/api/chat/route.ts
-// client/src/app/api/chat/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { PrismaClient } from "@prisma/client";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route"; // Adjust path if needed
+import {
+  getTagExtractionPrompt,
+  cleanAndValidateTags,
+  ALL_VALID_TAGS,
+} from "../../../../lib/tag-taxonomy";
+import prisma from "@/lib/prisma"; //
+import { AI_MODELS } from "@/lib/models";
+import { z } from "zod";
 
-const prisma = new PrismaClient();
+const chatRequestSchema = z.object({
+  messages: z
+    .array(
+      z.object({
+        role: z.string(),
+        content: z.string(),
+      })
+    )
+    .min(1, { message: "Messages array cannot be empty." }), // Ensure there's at least one message
+  conversationId: z.string().cuid().optional(), // Must be a valid CUID, but is optional
+});
+
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 
 // UPGRADE: Define the System Prompt constant
@@ -146,128 +161,217 @@ Your mission is to make every user feel like they've been given a treasure map�
 🚀 **Let's turn dreamers into builders. One validated startup at a time.**
 `;
 
-export async function GET() {
+async function generateTitle(prompt: string): Promise<string> {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user?.id) {
-      return new NextResponse("Unauthorized", { status: 401 });
-    }
-    const userId = session.user.id;
+    const titleModel = genAI.getGenerativeModel({ model: AI_MODELS.FAST });
+    const result = await titleModel.generateContent(
+      `Generate ONE title ONLY... User's prompt: "${prompt}" Title:`
+    );
 
-    // Find the user's most recent conversation
-    const conversation = await prisma.conversation.findFirst({
-      where: { userId: userId },
-      orderBy: { createdAt: "desc" },
-      include: {
-        messages: {
-          orderBy: { createdAt: "asc" },
+    // Assuming text() returns a Promise<string>
+    const title: string = result.response.text();
+
+    const cleanTitle = title
+      .replace(/^(Title:|Here's|Here are|Options?:|\d+\.|\*\*)/gi, "")
+      .replace(/[*"]/g, "")
+      .replace(/\n.*/g, "")
+      .trim();
+
+    if (!cleanTitle || cleanTitle.length > 60) {
+      return prompt.substring(0, 50) || "New Conversation";
+    }
+    return cleanTitle;
+  } catch (error: unknown) {
+    // Type catch block
+    console.error(
+      "Title generation failed, using fallback.",
+      error instanceof Error ? error.message : error
+    );
+    return prompt.substring(0, 50) || "New Conversation";
+  }
+}
+
+async function extractAndSaveTags(
+  blueprint: string,
+  conversationId: string
+): Promise<void> {
+  // Added return type
+  try {
+    const taggingModel = genAI.getGenerativeModel({ model: AI_MODELS.FAST }); // Use consistent model definition
+    const tagPrompt = getTagExtractionPrompt(blueprint);
+    const tagResult = await taggingModel.generateContent(tagPrompt);
+    // Assuming text() returns a Promise<string>
+    const tagText: string = tagResult.response.text();
+
+    const rawTags = tagText
+      .split(",")
+      .map((tag) => tag.trim().toLowerCase())
+      .filter(Boolean);
+    const validatedTags = cleanAndValidateTags(rawTags);
+    const fallbackTags = ALL_VALID_TAGS.filter((tag) =>
+      new RegExp(`\\b${tag}\\b`, "i").test(blueprint)
+    );
+    const finalTags = [...new Set([...validatedTags, ...fallbackTags])].slice(
+      0,
+      10
+    );
+
+    if (finalTags.length === 0) {
+      console.log("No valid tags found to save.");
+      return;
+    }
+
+    await prisma.$transaction(
+      finalTags.map((tagName) =>
+        prisma.tag.upsert({
+          where: { name: tagName },
+          update: {},
+          create: { name: tagName },
+        })
+      )
+    );
+    console.log(
+      `✅ Upserted ${finalTags.length} tags into the central Tag table.`
+    );
+
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: {
+        tags: {
+          create: finalTags.map((tagName) => ({
+            tag: { connect: { name: tagName } },
+          })),
         },
       },
     });
-
-    if (!conversation) {
-      return NextResponse.json(null, { status: 200 });
-    }
-
-    return NextResponse.json(conversation);
-  } catch (error) {
-    console.error("[CHAT_GET_ERROR]", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    console.log(
+      `🔗 Successfully connected tags to conversation ${conversationId}`
+    );
+  } catch (error: unknown) {
+    // Type catch block
+    console.error(
+      `Tag extraction failed for conversation ${conversationId}:`,
+      error instanceof Error ? error.message : error
+    );
+    // Do not re-throw, just log the error
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    const userId = session?.user?.id; // This will be undefined if not logged in
+    const session = await auth();
+    const userId = session?.user?.id;
 
-    const body = await req.json();
-    const { messages, conversationId } = body;
+    // --- FIX: Handle req.json() safely ---
+    const body: unknown = await req.json(); // Assign to unknown first
+    // ------------------------------------
 
-    if (!messages) {
-      return new NextResponse("Messages are required", { status: 400 });
+    const validation = chatRequestSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", issues: validation.error.format() },
+        { status: 400 }
+      );
     }
+    const { messages, conversationId } = validation.data;
 
+    const lastUserMessage = messages[messages.length - 1].content;
     let currentConversationId = conversationId;
+    let isNewConversation = false;
 
-    // --- LOGIC FOR AUTHENTICATED USERS ---
     if (userId) {
-      let conversation = conversationId
-        ? await prisma.conversation.findUnique({
-            where: { id: conversationId },
-          })
-        : null;
-
-      if (!conversation) {
-        const initialContent = messages[messages.length - 1].content;
-        const title =
-          initialContent.trim().replace(/\s+/g, " ").substring(0, 50) ||
-          "New Conversation";
-        conversation = await prisma.conversation.create({
+      if (!currentConversationId) {
+        const title = await generateTitle(lastUserMessage);
+        const conversation = await prisma.conversation.create({
           data: { userId, title },
         });
         currentConversationId = conversation.id;
+        isNewConversation = true;
       }
-
-      const lastUserMessage = messages[messages.length - 1];
       await prisma.message.create({
         data: {
           conversationId: currentConversationId,
           role: "user",
-          content: lastUserMessage.content,
+          content: lastUserMessage,
         },
       });
     }
 
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-pro", // Using a faster model can be good for logged-out users
+      model: AI_MODELS.PRIMARY,
       systemInstruction: SYSTEM_PROMPT,
     });
 
-    const chat = model.startChat({
-      history: messages
-        .slice(0, -1)
-        .map((msg: { role: string; content: string }) => ({
-          role: msg.role,
-          parts: [{ text: msg.content }],
-        })),
+    const formattedMessages = messages.map((msg) => ({
+      role: msg.role === "user" ? "user" : "model",
+      parts: [{ text: msg.content }],
+    }));
+
+    const result = await model.generateContentStream({
+      contents: formattedMessages,
     });
+    const encoder = new TextEncoder();
+    let fullResponse = "";
 
-    const result = await chat.sendMessageStream(
-      messages[messages.length - 1].content
-    );
-
-    let fullModelResponse = "";
     const stream = new ReadableStream({
       async start(controller) {
-        for await (const chunk of result.stream) {
-          const chunkText = chunk.text();
-          fullModelResponse += chunkText;
-          controller.enqueue(new TextEncoder().encode(chunkText));
+        try {
+          for await (const chunk of result.stream) {
+            // Check potential response structure differences if errors persist here
+            const chunkText = chunk.text(); // Assuming chunk.text() is sync
+            if (chunkText) {
+              fullResponse += chunkText;
+              controller.enqueue(encoder.encode(chunkText));
+            }
+          }
+          if (userId && currentConversationId) {
+            await prisma.message.create({
+              data: {
+                conversationId: currentConversationId,
+                role: "model",
+                content: fullResponse,
+              },
+            });
+            // Don't await tag extraction if it should run in background
+            void extractAndSaveTags(fullResponse, currentConversationId);
+          }
+          controller.close();
+        } catch (streamError: unknown) {
+          // Type catch block
+          console.error(
+            "❌ Stream error:",
+            streamError instanceof Error ? streamError.message : streamError
+          );
+          controller.error(streamError);
         }
-
-        // --- SAVE RESPONSE ONLY IF AUTHENTICATED ---
-        if (userId && currentConversationId) {
-          await prisma.message.create({
-            data: {
-              conversationId: currentConversationId,
-              role: "model",
-              content: fullModelResponse,
-            },
-          });
-        }
-        controller.close();
       },
     });
 
-    const headers = new Headers();
+    const responseHeaders = new Headers(); // Renamed to avoid conflict
+    responseHeaders.set("Content-Type", "text/plain; charset=utf-8");
     if (userId && currentConversationId) {
-      headers.set("X-Conversation-Id", currentConversationId);
+      responseHeaders.set("X-Conversation-Id", currentConversationId);
+      if (isNewConversation) {
+        responseHeaders.set("X-Is-New-Conversation", "true");
+      }
     }
-
-    return new Response(stream, { headers });
-  } catch (error) {
-    console.error("[CHAT_POST_ERROR]", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    return new Response(stream, { headers: responseHeaders });
+  } catch (error: unknown) {
+    // Type catch block
+    // Handle potential ZodError if .parse() was used (though .safeParse() handles it)
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: "Invalid request", issues: error.issues },
+        { status: 400 }
+      );
+    }
+    console.error(
+      "❌ [CHAT_POST_ERROR]",
+      error instanceof Error ? error.message : error
+    );
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }

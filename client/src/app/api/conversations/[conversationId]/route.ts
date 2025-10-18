@@ -1,36 +1,27 @@
 // client/src/app/api/conversations/[conversationId]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../auth/[...nextauth]/route";
-
-const prisma = new PrismaClient();
+import { auth } from "@/auth";
+import prisma from "@/lib/prisma"; // Use the singleton
 
 export async function GET(
   req: NextRequest,
-  // FIX: Type `params` as a Promise, as requested by the build error
+  // FIX: The context now contains a Promise of params
   context: { params: Promise<{ conversationId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session || !session.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    // FIX: `await` the params to get the actual value
+    // FIX: `await` the context.params to get the values
     const { conversationId } = await context.params;
 
     const conversation = await prisma.conversation.findUnique({
-      where: {
-        id: conversationId,
-        userId: session.user.id,
-      },
+      where: { id: conversationId, userId: session.user.id },
       include: {
-        messages: {
-          orderBy: {
-            createdAt: "asc",
-          },
-        },
+        messages: { orderBy: { createdAt: "asc" } },
+        landingPage: { select: { id: true } },
       },
     });
 
@@ -47,16 +38,14 @@ export async function GET(
 
 export async function DELETE(
   req: NextRequest,
-  // FIX: Type `params` as a Promise here as well
   context: { params: Promise<{ conversationId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session || !session.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    // FIX: `await` the params here as well
     const { conversationId } = await context.params;
 
     const conversation = await prisma.conversation.findUnique({
