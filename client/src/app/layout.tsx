@@ -5,6 +5,7 @@ import "./globals.css";
 import Providers from "./providers";
 import { Toaster } from "react-hot-toast";
 import MainLayout from "@/components/MainLayout"; // 1. Import our new component
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   title: "IdeaSpark - AI-Powered Startup Idea Generator",
@@ -38,6 +39,7 @@ export default function RootLayout({
               },
             }}
           />
+          <SpeedInsights />
         </Providers>
       </body>
     </html>
