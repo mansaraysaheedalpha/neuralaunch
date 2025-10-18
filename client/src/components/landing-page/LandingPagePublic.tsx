@@ -3,6 +3,21 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 
+// Define proper types for the JSON fields
+interface ColorScheme {
+  primary: string;
+  secondary: string;
+  accent: string;
+  background: string;
+  text: string;
+}
+
+interface Feature {
+  title: string;
+  description: string;
+  icon: string;
+}
+
 interface LandingPageProps {
   landingPage: {
     id: string;
@@ -11,59 +26,52 @@ interface LandingPageProps {
     subheadline: string;
     problemStatement: string | null;
     solutionStatement: string | null;
-    features: any; // JSON array
+    features: unknown; // JSON array - will be type-checked at runtime
     ctaText: string;
-    colorScheme: any; // JSON object
+    colorScheme: unknown; // JSON object - will be type-checked at runtime
   };
 }
 
 export default function LandingPagePublic({ landingPage }: LandingPageProps) {
   const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
+  const [_name] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const colors = landingPage.colorScheme as {
-    primary: string;
-    secondary: string;
-    accent: string;
-    background: string;
-    text: string;
-  };
+  const colors = landingPage.colorScheme as ColorScheme;
 
-  const features = landingPage.features as Array<{
-    title: string;
-    description: string;
-    icon: string;
-  }>;
+  const features = landingPage.features as Feature[];
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
     setIsSubmitting(true);
     setErrorMessage(null);
-    try {
-      const response = await fetch("/api/landing-page/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          landingPageSlug: landingPage.slug,
-          email,
-          name,
-        }),
-      });
-      if (!response.ok) {
-        throw new Error("Submission failed. Please try again.");
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/landing-page/signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            landingPageSlug: landingPage.slug,
+            email,
+            name: _name,
+          }),
+        });
+        if (!response.ok) {
+          throw new Error("Submission failed. Please try again.");
+        }
+        setIsSubmitted(true);
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "An unknown error occurred."
+        );
+      } finally {
+        setIsSubmitting(false);
       }
-      setIsSubmitted(true);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "An unknown error occurred."
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
+    })();
   };
 
   return (

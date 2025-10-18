@@ -148,26 +148,34 @@ function determineAssistantType(
 }
 
 /**
- * Calculate time estimate from hour range
+ * Calculate time estimate from hour range intelligently.
  */
 function calculateTimeEstimate(timeRange: string): string {
-  const parts = timeRange.split("-").map(Number);
+  // Try to parse a range like "9-24"
+  const parts = timeRange.split("-").map((s) => parseInt(s.trim(), 10));
 
-  if (parts.length === 1) {
-    // Single hour
-    return "1 hour";
+  if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+    const startHour = parts[0];
+    const endHour = parts[1];
+
+    // The duration is the difference between the end and start hours, inclusive.
+    // e.g., "1-8" is 8 hours. "9-24" is 16 hours.
+    const duration = endHour - startHour + 1;
+
+    if (duration >= 24) {
+      const days = Math.round(duration / 24);
+      return `${days} day${days > 1 ? "s" : ""}`;
+    }
+    return `${duration} hours`;
   }
 
-  const start = parts[0];
-  const end = parts[1];
-  const duration = end - start + 1;
+  // Fallback for a single number format like "8"
+  if (parts.length === 1 && !isNaN(parts[0])) {
+    return `${parts[0]} hours`;
+  }
 
-  if (duration <= 1) return "1 hour";
-  if (duration <= 8) return `${duration} hours`;
-  if (duration <= 24) return "1 day";
-
-  const days = Math.ceil(duration / 24);
-  return `${days} days`;
+  // Fallback for any other format we don't understand, just return it as is.
+  return timeRange;
 }
 
 /**

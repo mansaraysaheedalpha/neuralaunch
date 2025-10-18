@@ -4,11 +4,36 @@
 import { useState, FormEvent, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { useParams, useRouter } from "next/navigation";
-import { useStore } from "@/lib/store";
 import TextareaAutosize from "react-textarea-autosize";
 import { motion } from "framer-motion";
+import toast from "react-hot-toast";
+import { useChatStore } from "@/lib/stores/chatStore"; // Correct import
 
-// This is our new, "smart" button component
+// --- Define types for API responses ---
+interface Message {
+  id: string;
+  role: "user" | "model";
+  content: string;
+}
+
+interface ConversationApiResponse {
+  messages: Message[];
+  landingPage?: { id: string } | null; // Expecting landingPage object with id
+}
+
+interface GenerateApiResponse {
+  success: boolean;
+  landingPage?: { id: string }; // Expecting landingPage object with id
+  message?: string; // Optional error message
+}
+
+interface ErrorApiResponse {
+  message?: string;
+  detail?: string;
+  error?: string;
+}
+// ------------------------------------
+
 const ValidationHubButton = ({
   conversationId,
   landingPageId,
@@ -19,14 +44,13 @@ const ValidationHubButton = ({
   const router = useRouter();
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // FIX: Wrap async function for no-misused-promises
   const handleClick = async () => {
-    // If a landing page already exists, just go to the builder page
     if (landingPageId) {
       router.push(`/build/${landingPageId}`);
       return;
     }
 
-    // Otherwise, create a new one
     setIsGenerating(true);
     try {
       const res = await fetch("/api/landing-page/generate", {
@@ -34,14 +58,26 @@ const ValidationHubButton = ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ conversationId }),
       });
-      const data = await res.json();
-      if (data.success) {
+
+      // FIX: Explicitly type data and handle errors safely (Line 64)
+      if (!res.ok) {
+        const errorData = (await res.json()) as ErrorApiResponse;
+        throw new Error(errorData.message || "Generation failed");
+      }
+      // FIX: Line 67 - Use type assertion instead of unsafe assignment
+      const data = (await res.json()) as GenerateApiResponse;
+      if (data.success && data.landingPage?.id) {
         router.push(`/build/${data.landingPage.id}`);
       } else {
-        throw new Error("Generation failed");
+        throw new Error(
+          data.message || "Generation failed or missing landing page ID"
+        );
       }
-    } catch (error) {
-      alert("Failed to build page. Please try again.");
+    } catch (error: unknown) {
+      // FIX: Type error
+      toast.error(
+        `Failed to build page: ${error instanceof Error ? error.message : "Please try again."}`
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -49,7 +85,9 @@ const ValidationHubButton = ({
 
   return (
     <motion.button
-      onClick={handleClick}
+      onClick={() => {
+        void handleClick();
+      }} // FIX: Wrap async onClick properly
       disabled={isGenerating}
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
@@ -66,7 +104,7 @@ const ValidationHubButton = ({
 
 export default function ChatPage() {
   const [input, setInput] = useState<string>("");
-  const [landingPageId, setLandingPageId] = useState<string | null>(null); // State for our page ID
+  const [landingPageId, setLandingPageId] = useState<string | null>(null);
   const {
     messages,
     setMessages,
@@ -75,38 +113,56 @@ export default function ChatPage() {
     isLoading,
     setIsLoading,
     error,
-    setError,
-  } = useStore();
+    setError, // 'error' state IS used here
+  } = useChatStore(); // Use the correct store
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
-  const inputRef = useRef<HTMLTextAreaElement>(null); 
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const params = useParams();
-  const conversationId = params.conversationId as string;
+  // Ensure conversationId is always treated as string, handle potential array/undefined case
+  const conversationId = Array.isArray(params.conversationId)
+    ? params.conversationId[0]
+    : params.conversationId || "";
 
   useEffect(() => {
     const loadChatHistory = async () => {
-      if (conversationId) {
+      // Ensure conversationId is valid before fetching
+      if (conversationId && typeof conversationId === "string") {
         setIsLoading(true);
         setError(null);
         try {
           const res = await fetch(`/api/conversations/${conversationId}`);
           if (res.ok) {
-            const data = await res.json();
-            setMessages(data.messages || []);
-            // THIS IS THE FIX: We save the landing page ID when the chat loads
-            setLandingPageId(data.landingPage?.id || null);
+            // FIX: Line 135 - Use type assertion instead of unsafe assignment
+            const data = (await res.json()) as ConversationApiResponse;
+            // Ensure data.messages is an array before setting
+            setMessages(Array.isArray(data.messages) ? data.messages : []);
+            // Safely access landingPage.id
+            setLandingPageId(data.landingPage?.id ?? null);
           } else {
-            setError(`Failed to load conversation`);
+            // FIX: Line 141 - Use type assertion instead of unsafe assignment
+            const errorData = (await res.json()) as ErrorApiResponse;
+            setError(
+              `Failed to load conversation: ${errorData.message || res.statusText}`
+            );
           }
         } catch {
+          // FIX: Line 150 - Remove unused variable completely
           setError("An error occurred while loading the chat.");
         } finally {
           setIsLoading(false);
         }
+      } else {
+        // Handle invalid conversationId case if necessary
+        setError("Invalid conversation ID.");
+        setMessages([]);
+        setIsLoading(false);
       }
     };
-    loadChatHistory();
-  }, [conversationId, setMessages, setIsLoading, setError]);
+    // FIX: Handle floating promise
+    void loadChatHistory();
+  }, [conversationId, setMessages, setIsLoading, setError]); // Dependencies are correct
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -119,7 +175,8 @@ export default function ChatPage() {
     setError(null);
     setIsLoading(true);
 
-    const userMessage = {
+    const userMessage: Message = {
+      // Use the Message type
       id: Date.now().toString(),
       role: "user" as const,
       content: input,
@@ -128,50 +185,67 @@ export default function ChatPage() {
     setInput("");
 
     try {
+      const requestBody = {
+        messages: [...messages, userMessage], // messages from store are already Message[]
+        conversationId,
+      };
+
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: [...messages, userMessage],
-          conversationId,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!res.ok) {
-        const errorData = await res.json();
+        // FIX: Line 197 - Use type assertion instead of unsafe assignment
+        const errorData = (await res.json()) as ErrorApiResponse;
         throw new Error(
-          errorData.detail || "Failed to get response from server."
+          errorData.message ||
+            errorData.detail ||
+            errorData.error ||
+            `Server error: ${res.status}`
         );
       }
 
       const reader = res.body?.getReader();
-      if (!reader) throw new Error("ReadableStream not supported.");
+      if (!reader) throw new Error("No readable stream available");
 
-      const decoder = new TextDecoder();
-      const modelMessageId = `${Date.now()}-streaming`;
-      addMessage({ id: modelMessageId, role: "model", content: "" });
+      const decoder = new TextDecoder("utf-8");
+      const aiMessageId = `${Date.now()}-streaming`;
+      let accumulatedContent = "";
 
-      let accumulatedText = "";
+      addMessage({
+        id: aiMessageId,
+        role: "model",
+        content: "",
+      });
+
+       
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        accumulatedText += decoder.decode(value, { stream: true });
-        updateMessage(modelMessageId, accumulatedText);
+        const chunk = decoder.decode(value, { stream: true });
+        accumulatedContent += chunk;
+        updateMessage(aiMessageId, accumulatedContent);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+    } catch (streamError: unknown) {
+      // FIX: Line 352 - Use type assertion and proper error handling
+      const errorMessage =
+        streamError instanceof Error
+          ? streamError.message
+          : "An error occurred while sending your message";
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col h-full relative">
-      {/* Animated Background Elements */}
+    <div className="flex flex-col h-screen bg-gradient-to-br from-white via-violet-50/20 to-purple-50/20 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 overflow-hidden">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
-        <div className="absolute top-40 right-10 w-72 h-72 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
+        <div className="absolute top-20 left-10 w-96 h-96 bg-violet-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
+        <div className="absolute top-40 right-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
         <div className="absolute bottom-20 left-1/2 w-72 h-72 bg-indigo-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000"></div>
       </div>
 
@@ -285,12 +359,18 @@ export default function ChatPage() {
         )}
 
         <div className="max-w-4xl mx-auto">
-          <form ref={formRef} onSubmit={handleSubmit} className="relative">
+          <form
+            ref={formRef}
+            onSubmit={(e) => {
+              void handleSubmit(e);
+            }}
+            className="relative"
+          >
             <div className="relative group">
               <div className="absolute -inset-1 bg-gradient-to-r from-violet-600 to-purple-600 rounded-3xl opacity-0 group-hover:opacity-20 blur-xl transition duration-500"></div>
               <div className="relative flex items-end gap-3 bg-card rounded-3xl shadow-2xl p-2 border-2 border-border transition-all duration-200 focus-within:border-primary focus-within:shadow-[0_0_0_4px_hsla(var(--primary),0.1)]">
                 <TextareaAutosize
-                  ref={inputRef} // It's good practice to have a ref for the input
+                  ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder="Ask a follow-up question..."

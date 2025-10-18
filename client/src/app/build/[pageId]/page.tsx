@@ -2,12 +2,9 @@
 // Landing page builder/preview page
 
 import { notFound, redirect } from "next/navigation";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { PrismaClient } from "@prisma/client";
+import { auth } from "@/auth";
 import LandingPageBuilder from "@/components/landing-page/LandingPageBuilder";
-
-const prisma = new PrismaClient();
+import prisma from "@/lib/prisma";
 
 interface BuildPageProps {
   params: Promise<{ pageId: string }>;
@@ -15,7 +12,7 @@ interface BuildPageProps {
 
 export default async function BuildPage({ params }: BuildPageProps) {
   // Check authentication
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   if (!session || !session.user?.id) {
     // Await params to get the value for the redirect URL
     const { pageId } = await params;

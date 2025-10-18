@@ -1,14 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { auth } from "@/auth";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import {
   getTagExtractionPrompt,
   cleanAndValidateTags,
   ALL_VALID_TAGS,
 } from "../../../../lib/tag-taxonomy";
-import prisma from "@/lib/prisma";//
+import prisma from "@/lib/prisma"; //
 import { AI_MODELS } from "@/lib/models";
+import { z } from "zod";
+
+const chatRequestSchema = z.object({
+  messages: z
+    .array(
+      z.object({
+        role: z.string(),
+        content: z.string(),
+      })
+    )
+    .min(1, { message: "Messages array cannot be empty." }), // Ensure there's at least one message
+  conversationId: z.string().cuid().optional(), // Must be a valid CUID, but is optional
+});
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 
@@ -153,50 +165,47 @@ async function generateTitle(prompt: string): Promise<string> {
   try {
     const titleModel = genAI.getGenerativeModel({ model: AI_MODELS.FAST });
     const result = await titleModel.generateContent(
-      `Generate ONE title ONLY for this conversation. Rules:
-- 4-6 words maximum
-- No numbering, no options, no explanations
-- Just the title text, nothing else
-- No quotes, no formatting
-
-User's prompt: "${prompt}"
-
-Title:`
+      `Generate ONE title ONLY... User's prompt: "${prompt}" Title:`
     );
 
-    const title = await result.response.text();
+    // Assuming text() returns a Promise<string>
+    const title: string = result.response.text();
 
-    // Clean up: remove quotes, asterisks, numbering, "Title:" prefix
     const cleanTitle = title
-      .replace(/^(Title:|Here's|Here are|Options?:|\d+\.|\*\*)/gi, "") // Remove prefixes
-      .replace(/[*"]/g, "") // Remove quotes and asterisks
-      .replace(/\n.*/g, "") // Remove everything after first line
+      .replace(/^(Title:|Here's|Here are|Options?:|\d+\.|\*\*)/gi, "")
+      .replace(/[*"]/g, "")
+      .replace(/\n.*/g, "")
       .trim();
 
-    // Fallback if cleaned title is too long or empty
     if (!cleanTitle || cleanTitle.length > 60) {
       return prompt.substring(0, 50) || "New Conversation";
     }
-
     return cleanTitle;
-  } catch (error) {
-    console.error("Title generation failed, using fallback.", error);
+  } catch (error: unknown) {
+    // Type catch block
+    console.error(
+      "Title generation failed, using fallback.",
+      error instanceof Error ? error.message : error
+    );
     return prompt.substring(0, 50) || "New Conversation";
   }
 }
 
-async function extractAndSaveTags(blueprint: string, conversationId: string) {
+async function extractAndSaveTags(
+  blueprint: string,
+  conversationId: string
+): Promise<void> {
+  // Added return type
   try {
-    const taggingModel = genAI.getGenerativeModel({
-      model: "gemini-2.0-flash-exp",
-    });
+    const taggingModel = genAI.getGenerativeModel({ model: AI_MODELS.FAST }); // Use consistent model definition
     const tagPrompt = getTagExtractionPrompt(blueprint);
     const tagResult = await taggingModel.generateContent(tagPrompt);
-    const tagText = await tagResult.response.text();
+    // Assuming text() returns a Promise<string>
+    const tagText: string = tagResult.response.text();
 
     const rawTags = tagText
       .split(",")
-      .map((tag) => tag.trim())
+      .map((tag) => tag.trim().toLowerCase())
       .filter(Boolean);
     const validatedTags = cleanAndValidateTags(rawTags);
     const fallbackTags = ALL_VALID_TAGS.filter((tag) =>
@@ -207,52 +216,78 @@ async function extractAndSaveTags(blueprint: string, conversationId: string) {
       10
     );
 
-    if (finalTags.length > 0) {
-      await prisma.ideaTag.createMany({
-        data: finalTags.map((tagName) => ({ conversationId, tagName })),
-        skipDuplicates: true,
-      });
+    if (finalTags.length === 0) {
+      console.log("No valid tags found to save.");
+      return;
     }
-  } catch (error) {
+
+    await prisma.$transaction(
+      finalTags.map((tagName) =>
+        prisma.tag.upsert({
+          where: { name: tagName },
+          update: {},
+          create: { name: tagName },
+        })
+      )
+    );
+    console.log(
+      `✅ Upserted ${finalTags.length} tags into the central Tag table.`
+    );
+
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: {
+        tags: {
+          create: finalTags.map((tagName) => ({
+            tag: { connect: { name: tagName } },
+          })),
+        },
+      },
+    });
+    console.log(
+      `🔗 Successfully connected tags to conversation ${conversationId}`
+    );
+  } catch (error: unknown) {
+    // Type catch block
     console.error(
       `Tag extraction failed for conversation ${conversationId}:`,
-      error
+      error instanceof Error ? error.message : error
     );
+    // Do not re-throw, just log the error
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    console.log("=== CHAT API CALLED ===");
-
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     const userId = session?.user?.id;
 
-    const body = await req.json();
-    const { messages, conversationId } = body;
-    const lastUserMessage = messages[messages.length - 1]?.content;
+    // --- FIX: Handle req.json() safely ---
+    const body: unknown = await req.json(); // Assign to unknown first
+    // ------------------------------------
 
-    if (!messages || !lastUserMessage) {
-      return new NextResponse("Messages are required", { status: 400 });
+    const validation = chatRequestSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", issues: validation.error.format() },
+        { status: 400 }
+      );
     }
+    const { messages, conversationId } = validation.data;
 
+    const lastUserMessage = messages[messages.length - 1].content;
     let currentConversationId = conversationId;
+    let isNewConversation = false;
 
-    // Create conversation if it's a new chat
-    if (userId && !currentConversationId) {
-      // THIS IS THE FIX: Call our new title generation function
-      const title = await generateTitle(lastUserMessage);
-      console.log(`✅ Generated Title: "${title}"`);
-
-      const conversation = await prisma.conversation.create({
-        data: { userId, title }, // Use the AI-generated title
-      });
-      currentConversationId = conversation.id;
-      console.log("✅ Created conversation:", currentConversationId);
-    }
-
-    // Save user message
-    if (userId && currentConversationId) {
+    if (userId) {
+      if (!currentConversationId) {
+        const title = await generateTitle(lastUserMessage);
+        const conversation = await prisma.conversation.create({
+          data: { userId, title },
+        });
+        currentConversationId = conversation.id;
+        isNewConversation = true;
+      }
       await prisma.message.create({
         data: {
           conversationId: currentConversationId,
@@ -260,18 +295,14 @@ export async function POST(req: NextRequest) {
           content: lastUserMessage,
         },
       });
-      console.log("✅ Saved user message");
     }
 
-    // --- STREAMING LOGIC (UNCHANGED) ---
     const model = genAI.getGenerativeModel({
-      model: AI_MODELS.PRIMARY, // Changed to a stable, recommended model for streaming
+      model: AI_MODELS.PRIMARY,
       systemInstruction: SYSTEM_PROMPT,
     });
 
-    console.log("📡 Generating content stream...");
-
-    const formattedMessages = messages.map((msg: any) => ({
+    const formattedMessages = messages.map((msg) => ({
       role: msg.role === "user" ? "user" : "model",
       parts: [{ text: msg.content }],
     }));
@@ -279,9 +310,6 @@ export async function POST(req: NextRequest) {
     const result = await model.generateContentStream({
       contents: formattedMessages,
     });
-
-    console.log("✅ Stream connection established");
-
     const encoder = new TextEncoder();
     let fullResponse = "";
 
@@ -289,16 +317,13 @@ export async function POST(req: NextRequest) {
       async start(controller) {
         try {
           for await (const chunk of result.stream) {
-            // Check for a safety rating response, which can be empty
-            if (chunk.candidates && chunk.candidates.length > 0) {
-              const chunkText = chunk.text();
+            // Check potential response structure differences if errors persist here
+            const chunkText = chunk.text(); // Assuming chunk.text() is sync
+            if (chunkText) {
               fullResponse += chunkText;
               controller.enqueue(encoder.encode(chunkText));
             }
           }
-
-          console.log("✅ Stream complete. Length:", fullResponse.length);
-
           if (userId && currentConversationId) {
             await prisma.message.create({
               data: {
@@ -307,42 +332,46 @@ export async function POST(req: NextRequest) {
                 content: fullResponse,
               },
             });
-            console.log("✅ Saved AI response");
-            await extractAndSaveTags(fullResponse, currentConversationId);
-            console.log("✅ Tags extracted");
+            // Don't await tag extraction if it should run in background
+            void extractAndSaveTags(fullResponse, currentConversationId);
           }
           controller.close();
-        } catch (error) {
-          console.error("❌ Stream error:", error);
-          controller.error(error);
+        } catch (streamError: unknown) {
+          // Type catch block
+          console.error(
+            "❌ Stream error:",
+            streamError instanceof Error ? streamError.message : streamError
+          );
+          controller.error(streamError);
         }
       },
     });
 
-    const headers = new Headers();
+    const responseHeaders = new Headers(); // Renamed to avoid conflict
+    responseHeaders.set("Content-Type", "text/plain; charset=utf-8");
     if (userId && currentConversationId) {
-      headers.set("X-Conversation-Id", currentConversationId);
-    }
-
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        ...Object.fromEntries(headers),
-      },
-    });
-  } catch (error) {
-    console.error("❌ [CHAT_POST_ERROR]", error);
-    return new NextResponse(
-      JSON.stringify({
-        error: "Internal Server Error",
-        detail: error instanceof Error ? error.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
+      responseHeaders.set("X-Conversation-Id", currentConversationId);
+      if (isNewConversation) {
+        responseHeaders.set("X-Is-New-Conversation", "true");
       }
+    }
+    return new Response(stream, { headers: responseHeaders });
+  } catch (error: unknown) {
+    // Type catch block
+    // Handle potential ZodError if .parse() was used (though .safeParse() handles it)
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: "Invalid request", issues: error.issues },
+        { status: 400 }
+      );
+    }
+    console.error(
+      "❌ [CHAT_POST_ERROR]",
+      error instanceof Error ? error.message : error
     );
-  } finally {
-    await prisma.$disconnect();
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }

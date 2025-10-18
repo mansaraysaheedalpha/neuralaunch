@@ -1,24 +1,37 @@
 // src/app/api/achievements/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    // Fetch all achievements for the currently logged-in user
+    const { searchParams } = req.nextUrl;
+    const type = searchParams.get("type");
+    const conversationId = searchParams.get("conversationId");
+
+    let whereClause: Prisma.AchievementWhereInput = {
+      userId: session.user.id,
+    };
+
+    if (type === "user") {
+      // If the UI asks for 'user' type, fetch only achievements with NO conversationId.
+      whereClause.conversationId = null;
+    } else if (conversationId) {
+      // If a conversationId is provided, fetch only achievements for that specific conversation.
+      whereClause.conversationId = conversationId;
+    }
+    // If no params are given, it will fetch all achievements for the user (default).
+
     const achievements = await prisma.achievement.findMany({
-      where: {
-        userId: session.user.id,
-      },
-      orderBy: {
-        unlockedAt: "desc",
-      },
+      where: whereClause,
+      orderBy: { unlockedAt: "desc" },
     });
 
     return NextResponse.json(achievements);

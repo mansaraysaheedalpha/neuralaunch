@@ -24,6 +24,11 @@ export async function GET(req: NextRequest) {
             conversation: {
               include: {
                 user: true, // We need the user to get their email
+                landingPage: {
+                  select: {
+                    id: true,
+                  },
+                },
               },
             },
           },
@@ -47,8 +52,11 @@ export async function GET(req: NextRequest) {
       const conversation = reminder.task.conversation;
 
       if (user?.email) {
-        // Construct the URL back to the sprint page
-        const sprintUrl = `${sprintUrlBase}/build/${conversation.landingPage?.id}`;
+        // FIX: Line 51 - Safely access landingPage?.id with proper null handling
+        const landingPageId = conversation.landingPage?.id;
+        const sprintUrl = landingPageId
+          ? `${sprintUrlBase}/build/${landingPageId}`
+          : `${sprintUrlBase}/chat/${conversation.id}`;
 
         await sendSprintReminderEmail({
           to: user.email,

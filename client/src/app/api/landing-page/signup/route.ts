@@ -1,57 +1,63 @@
-// app/api/landing-page/signup/route.ts
-// PRODUCTION-READY email signup with real email delivery
+// src/app/api/landing-page/signup/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
 import { sendWelcomeEmail, notifyFounderOfSignup } from "@/lib/email-service";
-import prisma from "@/lib/prisma";//
+import prisma from "@/lib/prisma";
+import { z } from "zod";
+import { headers } from "next/headers"; // Correct import for App Router
+
+// Define Zod schema for the request body
+const signupRequestSchema = z.object({
+  landingPageSlug: z
+    .string()
+    .min(1, { message: "Missing required field: landingPageSlug" }),
+  email: z.string().email({ message: "Invalid email address" }),
+  name: z.string().optional(),
+});
 
 export async function POST(req: NextRequest) {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- Body is initially unknown
     const body = await req.json();
-    const { landingPageSlug, email, name, additionalData } = body;
 
-    // Validation
-    if (!landingPageSlug || !email) {
+    // Validate request body
+    const validation = signupRequestSchema.safeParse(body);
+    if (!validation.success) {
       return NextResponse.json(
-        { success: false, message: "Missing required fields" },
+        {
+          success: false,
+          message: "Invalid request body",
+          issues: validation.error.format(),
+        },
         { status: 400 }
       );
     }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { success: false, message: "Invalid email address" },
-        { status: 400 }
-      );
-    }
+    const { landingPageSlug, email, name } = validation.data;
 
     // Find landing page with owner info
     const landingPage = await prisma.landingPage.findUnique({
       where: { slug: landingPageSlug },
       include: {
-        user: {
-          select: {
-            email: true,
-            name: true,
-          },
-        },
+        user: { select: { email: true, name: true } },
       },
     });
 
-    if (!landingPage) {
+    // Add null check for landingPage.user
+    if (!landingPage?.user) {
       return NextResponse.json(
-        { success: false, message: "Landing page not found" },
+        { success: false, message: "Landing page or owner not found" },
         { status: 404 }
       );
     }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanName = name?.trim() || undefined;
 
     // Check if email already signed up
     const existing = await prisma.emailSignup.findFirst({
       where: {
         landingPageId: landingPage.id,
-        email: email.toLowerCase().trim(),
+        email: cleanEmail,
       },
     });
 
@@ -63,54 +69,80 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Get visitor info from headers
-    const userAgent = req.headers.get("user-agent") || undefined;
-    const ipAddress =
-      req.headers.get("x-forwarded-for") ||
-      req.headers.get("x-real-ip") ||
-      undefined;
-    const referrer = req.headers.get("referer") || undefined;
+    // --- FIX: Properly handle headers() return value with type safety ---
+    const headersList = await headers();
 
-    // Create signup in database
+    // Use type-safe assignments with explicit null handling
+    const userAgentHeader = headersList.get("user-agent");
+    const userAgentRaw: string | null =
+      typeof userAgentHeader === "string" ? userAgentHeader : null;
+
+    const xForwardedFor = headersList.get("x-forwarded-for");
+    const xRealIp = headersList.get("x-real-ip");
+    const ipAddressRaw: string | null =
+      typeof xForwardedFor === "string"
+        ? xForwardedFor
+        : typeof xRealIp === "string"
+          ? xRealIp
+          : null;
+
+    const refererHeader = headersList.get("referer");
+    const referrerRaw: string | null =
+      typeof refererHeader === "string" ? refererHeader : null;
+
+    // Safely process the retrieved values
+    const userAgent: string | undefined = userAgentRaw ?? undefined;
+    const ipAddress: string | undefined = ipAddressRaw
+      ? ipAddressRaw.split(",")[0]?.trim()
+      : undefined;
+    const referrer: string | undefined = referrerRaw ?? undefined;
+    // ----------------------------
+
+    // Create signup in database (removed additionalData)
     const signup = await prisma.emailSignup.create({
       data: {
         landingPageId: landingPage.id,
-        email: email.toLowerCase().trim(),
-        name: name?.trim() || undefined,
-        additionalData: additionalData || undefined,
-        source: referrer,
-        userAgent,
-        ipAddress,
+        email: cleanEmail,
+        name: cleanName,
+        source: referrer, // Use safely processed referrer
+        userAgent, // Use safely processed userAgent
+        ipAddress, // Use safely processed ipAddress
       },
     });
 
     console.log(
-      `✅ New signup for ${landingPageSlug}: ${email} (ID: ${signup.id})`
+      `✅ New signup for ${landingPageSlug}: ${cleanEmail} (ID: ${signup.id})`
     );
 
-    // Send welcome email to subscriber (async, don't wait)
-    const landingPageUrl =`${process.env.NEXT_PUBLIC_APP_URL}/lp/${landingPage.slug}`;
+    // Handle async emails correctly
+    const landingPageUrl = `${process.env.NEXT_PUBLIC_APP_URL || ""}/lp/${landingPage.slug}`;
 
-    sendWelcomeEmail({
-      to: email,
-      name: name?.trim(),
+    // Explicitly ignore promises for fire-and-forget emails
+    void sendWelcomeEmail({
+      to: cleanEmail,
+      name: cleanName,
       startupName: landingPage.title,
       landingPageUrl,
-    }).catch((error) => {
-      console.error("Failed to send welcome email:", error);
-      // Don't fail the signup if email fails
+    }).catch((emailError: unknown) => {
+      // Type the catch parameter
+      console.error(
+        "Failed to send welcome email:",
+        emailError instanceof Error ? emailError.message : emailError
+      );
     });
 
-    // Notify founder of new signup (async, don't wait)
     if (landingPage.user.email) {
-      notifyFounderOfSignup({
+      void notifyFounderOfSignup({
         founderEmail: landingPage.user.email,
-        signupEmail: email,
-        signupName: name?.trim(),
+        signupEmail: cleanEmail,
+        signupName: cleanName,
         startupName: landingPage.title,
-      }).catch((error) => {
-        console.error("Failed to notify founder:", error);
-        // Don't fail the signup if notification fails
+      }).catch((notifyError: unknown) => {
+        // Type the catch parameter
+        console.error(
+          "Failed to notify founder:",
+          notifyError instanceof Error ? notifyError.message : notifyError
+        );
       });
     }
 
@@ -119,13 +151,11 @@ export async function POST(req: NextRequest) {
       message: "Thanks for joining! Check your email for confirmation. 🚀",
       signupId: signup.id,
     });
-  } catch (error) {
+  } catch (error: unknown) {
+    // Type the catch parameter
     console.error("[LANDING_PAGE_SIGNUP]", error);
-    return NextResponse.json(
-      { success: false, message: "Internal server error" },
-      { status: 500 }
-    );
-  } finally {
-    await prisma.$disconnect();
+    const message =
+      error instanceof Error ? error.message : "Internal server error";
+    return NextResponse.json({ success: false, message }, { status: 500 });
   }
 }

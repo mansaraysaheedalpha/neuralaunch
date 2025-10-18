@@ -1,70 +1,109 @@
 // src/lib/achievements.ts
-import prisma from "@/lib/prisma";
-import { Achievements, AchievementType } from "./achievements.config"; // <-- IMPORT from our new config file
 
-/**
- * Checks for and grants new achievements to a user after an action.
- * This function should ONLY be called from the server (e.g., in an API route).
- * Returns an array of newly granted achievements.
- */
+import prisma from "@/lib/prisma";
+import { Achievements } from "./achievements.config";
+// ================== FIX #2: Import TaskStatus ==================
+import { TaskStatus } from "@prisma/client";
+// ===============================================================
+
 export async function checkAndGrantAchievements(
   userId: string,
   conversationId: string
-): Promise<Array<(typeof Achievements)[AchievementType]>> {
+) {
   const newAchievements = [];
 
-  const tasks = await prisma.task.findMany({
-    where: { conversationId },
-    include: { outputs: true },
-  });
+  try {
+    const [sprint, tasks, userAchievements] = await Promise.all([
+      prisma.sprint.findUnique({ where: { conversationId } }),
+      prisma.task.findMany({ where: { conversationId } }),
+      prisma.achievement.findMany({
+        where: { userId, conversationId: conversationId },
+      }),
+    ]);
 
-  if (tasks.length === 0) return [];
+    if (!sprint || tasks.length === 0) return [];
 
-  const existingAchievements = await prisma.achievement.findMany({
-    where: { userId },
-    select: { achievementType: true },
-  });
-  const existingTypes = new Set(
-    existingAchievements.map((a) => a.achievementType)
-  );
+    const existingSprintAchievements = new Set(
+      userAchievements.map((a) => a.achievementType)
+    );
 
-  // --- ACHIEVEMENT CHECKS ---
+    const completedTasksCount = tasks.filter(
+      (t) => t.status === TaskStatus.COMPLETE
+    ).length;
 
-  // Check for FIRST_TASK_COMPLETE
-  if (!existingTypes.has(Achievements.FIRST_TASK_COMPLETE.type)) {
-    if (tasks.some((t) => t.status === "COMPLETE")) {
-      newAchievements.push(Achievements.FIRST_TASK_COMPLETE);
+    // --- Check for "First Step Taken" ---
+    if (
+      completedTasksCount >= 1 &&
+      !existingSprintAchievements.has(Achievements.FIRST_STEP_TAKEN.type)
+    ) {
+      await prisma.achievement.create({
+        data: {
+          userId,
+          conversationId,
+          achievementType: Achievements.FIRST_STEP_TAKEN.type,
+        },
+      });
+      newAchievements.push(Achievements.FIRST_STEP_TAKEN);
     }
-  }
 
-  // Check for SPRINT_CHAMPION
-  if (!existingTypes.has(Achievements.SPRINT_CHAMPION.type)) {
-    if (tasks.every((t) => t.status === "COMPLETE")) {
+    // --- Check for "Sprint Champion" ---
+    if (
+      completedTasksCount > 0 &&
+      completedTasksCount === sprint.totalTasks &&
+      !existingSprintAchievements.has(Achievements.SPRINT_CHAMPION.type)
+    ) {
+      await prisma.achievement.create({
+        data: {
+          userId,
+          conversationId,
+          achievementType: Achievements.SPRINT_CHAMPION.type,
+        },
+      });
       newAchievements.push(Achievements.SPRINT_CHAMPION);
     }
-  }
 
-  // Check for AI_POWER_USER
-  if (!existingTypes.has(Achievements.AI_POWER_USER.type)) {
-    const aiUses = tasks.reduce((sum, task) => sum + task.outputs.length, 0);
-    if (aiUses >= 5) {
-      newAchievements.push(Achievements.AI_POWER_USER);
-    }
+    return newAchievements;
+  } catch (error) {
+    console.error("Error granting achievements:", error);
+    return [];
   }
+}
 
-  // --- Save new achievements to the database ---
-  if (newAchievements.length > 0) {
-    await prisma.achievement.createMany({
-      data: newAchievements.map((ach) => ({
-        userId: userId,
-        achievementType: ach.type,
-      })),
-      skipDuplicates: true,
+// We also need to update the AI Power User check to be user-wide
+export async function checkAndGrantAIAchievement(userId: string) {
+  try {
+    const aiAssistCount = await prisma.sprint.aggregate({
+      _sum: { aiAssistsUsed: true },
+      where: { userId },
     });
-    console.log(
-      `🏆 Granted ${newAchievements.length} new achievements to user ${userId}`
-    );
-  }
 
-  return newAchievements;
+    const totalAssists = aiAssistCount._sum.aiAssistsUsed || 0;
+
+    if (totalAssists >= Achievements.AI_POWER_USER.condition.count) {
+      // --- THE FIX ---
+      // 1. Manually check if the user-level achievement already exists.
+      const existingAchievement = await prisma.achievement.findFirst({
+        where: {
+          userId,
+          achievementType: Achievements.AI_POWER_USER.type,
+          conversationId: null, // Specifically look for the user-level one
+        },
+      });
+
+      // 2. Only create it if it does NOT exist.
+      if (!existingAchievement) {
+        await prisma.achievement.create({
+          data: {
+            userId,
+            achievementType: Achievements.AI_POWER_USER.type,
+            // conversationId is omitted, so it defaults to null
+          },
+        });
+        console.log(`🏆 Granted 'AI_POWER_USER' achievement to user ${userId}`);
+      }
+      // ---------------
+    }
+  } catch (error) {
+    console.error("Error checking AI achievement:", error);
+  }
 }

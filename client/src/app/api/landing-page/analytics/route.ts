@@ -2,14 +2,13 @@
 // API endpoint to get analytics data for a landing page
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 
 export async function GET(req: NextRequest) {
   try {
     // Authentication
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session || !session.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -214,7 +213,7 @@ export async function GET(req: NextRequest) {
         id: landingPage.id,
         slug: landingPage.slug,
         title: landingPage.title,
-        url: `https://ideaspark.page/${landingPage.slug}`,
+        url: `https://ideaspark-three.vercel.app/${landingPage.slug}`,
         createdAt: landingPage.createdAt,
         updatedAt: landingPage.updatedAt,
       },
@@ -227,7 +226,5 @@ export async function GET(req: NextRequest) {
       { error: "Internal server error" },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
-  }
+  } 
 }

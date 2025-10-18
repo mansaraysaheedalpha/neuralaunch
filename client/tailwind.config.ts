@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import typography from "@tailwindcss/typography"; // <-- 1. Import the plugin
 
 const config: Config = {
   content: [
@@ -20,7 +21,6 @@ const config: Config = {
           light: "hsl(var(--primary-light))",
         },
         accent: {
-          // Add this new accent color
           DEFAULT: "hsl(195 85% 55%)",
           foreground: "hsl(210 40% 98%)",
         },
@@ -51,7 +51,6 @@ const config: Config = {
         lg: "var(--shadow-lg)",
         xl: "var(--shadow-xl)",
       },
-      // ADD THESE TWO SECTIONS:
       keyframes: {
         "gradient-x": {
           "0%, 100%": {
@@ -69,7 +68,9 @@ const config: Config = {
       },
     },
   },
-  plugins: [require("@tailwindcss/typography")],
+  // --- FIX: Use the imported plugin ---
+  plugins: [typography], // <-- 2. Use the imported variable here
+  // ------------------------------------
 };
 
 export default config;

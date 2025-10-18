@@ -3,23 +3,29 @@
 
 import { AI_MODELS } from "@/lib/models";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { PrismaClient } from "@prisma/client";
+import { z } from "zod";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 
-export interface LandingPageContent {
-  headline: string;
-  subheadline: string;
-  problemStatement: string;
-  solutionStatement: string;
-  features: Array<{
-    title: string;
-    description: string;
-    icon: string;
-  }>;
-  ctaText: string;
-  metaTitle: string;
-  metaDescription: string;
-}
+// 3. Define a Zod schema matching LandingPageContent for safe parsing
+const landingPageContentSchema = z.object({
+  headline: z.string().min(1),
+  subheadline: z.string().min(1),
+  problemStatement: z.string().min(1),
+  solutionStatement: z.string().min(1),
+  features: z.array(z.object({
+    title: z.string().min(1),
+    description: z.string().min(1),
+    icon: z.string().min(1),
+  })).length(3, { message: "Must have exactly 3 features" }), // Ensure exactly 3 features
+  ctaText: z.string().min(1),
+  metaTitle: z.string().min(1),
+  metaDescription: z.string().min(1),
+});
+
+// Infer the TypeScript type from the Zod schema
+export type LandingPageContent = z.infer<typeof landingPageContentSchema>;
 
 export interface DesignVariant {
   id: string;
@@ -184,7 +190,6 @@ JSON FORMAT:
 }`;
 }
 
-// FIXED: Main Generation Function with better error handling
 export async function generateLandingPageContent(
   blueprint: string,
   startupTitle: string,
@@ -194,50 +199,58 @@ export async function generateLandingPageContent(
     const model = genAI.getGenerativeModel({ model: AI_MODELS.FAST });
     const prompt = getLandingPagePrompt(blueprint, targetMarket, startupTitle);
     const result = await model.generateContent(prompt);
-    const text = await result.response.text();
+    // Assuming .text() returns a Promise<string>
+    const text: string = result.response.text();
 
     let jsonString = "";
+    // Robust JSON extraction logic remains the same
     const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    if (codeBlockMatch && codeBlockMatch[1]) {
+    if (codeBlockMatch?.[1]) {
       jsonString = codeBlockMatch[1];
     } else {
-      const fallbackMatch = text.match(/\{[\s\S]*\}/);
-      if (fallbackMatch) {
+      const fallbackMatch = text.match(/(\{[\s\S]*\})/);
+      if (fallbackMatch?.[0]) {
         jsonString = fallbackMatch[0];
       }
     }
 
-    if (!jsonString)
+    if (!jsonString) {
       throw new Error("No valid JSON object found in AI response.");
-
-    const content: LandingPageContent = JSON.parse(jsonString);
-
-    if (
-      !content.headline ||
-      !content.features ||
-      content.features.length !== 3
-    ) {
-      throw new Error("Invalid content structure from AI");
     }
 
-    // THIS IS THE FIX: We are now returning ALL fields from the parsed content.
+    // --- FIX: Use Zod for safe parsing ---
+    // This parses the string and validates against the schema
+    const parseResult = landingPageContentSchema.safeParse(
+      JSON.parse(jsonString)
+    );
+
+    if (!parseResult.success) {
+      console.error(
+        "AI response failed validation:",
+        parseResult.error.format()
+      );
+      throw new Error("Invalid content structure from AI after parsing.");
+    }
+    // Now 'content' is guaranteed to match the LandingPageContent type
+    const content = parseResult.data;
+    // ------------------------------------
+
     return content;
-  } catch (error) {
-    console.error("❌ Generation error:", error);
+  } catch (error: unknown) {
+    // Type the error
+    console.error(
+      "❌ Generation error:",
+      error instanceof Error ? error.message : error
+    );
     console.log("⚠️ Using fallback content generation...");
-    return generateFallbackContent(startupTitle, blueprint);
+    // generateFallbackContent remains unchanged, but ensure it matches LandingPageContent type
+    return generateFallbackContent(startupTitle);
   }
 }
 
 // IMPROVED: Fallback with better content
-function generateFallbackContent(
-  startupTitle: string,
-  blueprint: string
-): LandingPageContent {
+function generateFallbackContent(startupTitle: string): LandingPageContent {
   // Extract some info from blueprint
-  const lines = blueprint.split("\n").filter((l) => l.trim().length > 20);
-  const firstMeaningfulLine = lines[0] || startupTitle;
-
   return {
     headline: `${startupTitle}: Turn Your Vision Into Reality`,
     subheadline:
@@ -297,8 +310,9 @@ export function generateSlug(title: string): string {
 // Check if slug is available
 export async function isSlugAvailable(
   slug: string,
-  prisma: any
+  prisma: PrismaClient // Use the imported type
 ): Promise<boolean> {
+  // Use await here as findUnique is async
   const existing = await prisma.landingPage.findUnique({
     where: { slug },
   });
@@ -307,15 +321,24 @@ export async function isSlugAvailable(
 
 // Generate unique slug with counter if needed
 export async function generateUniqueSlug(
-  baseSlug: string,
-  prisma: any
+  baseSlugInput: string, // Rename to avoid conflict
+  prisma: PrismaClient // Use the imported type
 ): Promise<string> {
+  // Generate base slug from input first
+  const baseSlug = generateSlug(baseSlugInput);
   let slug = baseSlug;
   let counter = 1;
 
+  // Pass prisma client correctly
   while (!(await isSlugAvailable(slug, prisma))) {
     slug = `${baseSlug}-${counter}`;
     counter++;
+    if (counter > 100) {
+      // Add a safety break
+      console.warn("generateUniqueSlug reached max attempts for:", baseSlug);
+      // Return with timestamp as a last resort
+      return `${baseSlug}-${Date.now()}`;
+    }
   }
 
   return slug;

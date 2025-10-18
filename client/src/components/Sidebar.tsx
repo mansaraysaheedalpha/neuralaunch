@@ -3,8 +3,17 @@
 import { Fragment, useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useStore } from "@/lib/store";
 import { useSession } from "next-auth/react";
+import toast from "react-hot-toast";
+import { useConversationStore } from "@/lib/stores/conversationStore";
+
+// Define the Conversation type to match what the API returns
+interface Conversation {
+  id: string;
+  title: string;
+  updatedAt: string;
+  // Add other fields if needed
+}
 
 interface SidebarProps {
   isSidebarOpen: boolean;
@@ -13,14 +22,22 @@ interface SidebarProps {
   setMobileMenuOpen: (isOpen: boolean) => void;
 }
 
-function formatDate(dateString: string): string {
+function formatDate(dateString?: string): string {
+  if (!dateString) return "";
   const date = new Date(dateString);
   const now = new Date();
   const diffInMs = now.getTime() - date.getTime();
-  const diffInHours = diffInMs / (1000 * 60 * 60);
 
-  if (diffInHours < 24) {
-    return `${Math.floor(diffInHours)}h ago`;
+  const diffInSeconds = Math.floor(diffInMs / 1000);
+  const diffInMinutes = Math.floor(diffInSeconds / 60);
+  const diffInHours = Math.floor(diffInMinutes / 60);
+
+  if (diffInSeconds < 60) {
+    return "Just now";
+  } else if (diffInMinutes < 60) {
+    return `${diffInMinutes}m ago`;
+  } else if (diffInHours < 24) {
+    return `${diffInHours}h ago`;
   } else {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   }
@@ -38,9 +55,9 @@ export default function Sidebar({
     removeConversation,
     isLoading,
     setIsLoading,
-    error,
+    error: _error,
     setError,
-  } = useStore();
+  } = useConversationStore();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
@@ -48,22 +65,26 @@ export default function Sidebar({
 
   useEffect(() => {
     const fetchConversations = async () => {
-      setIsLoading(true);
+      setIsLoading(true); // This now correctly refers to conversation list loading
       setError(null);
       try {
         const response = await fetch("/api/conversations");
         if (!response.ok) throw new Error("Failed to fetch conversations");
-        const data = await response.json();
+        const responseData: unknown = await response.json();
+        const data = responseData as Conversation[];
         setConversations(data || []);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "An error occurred");
+        const errorMessage =
+          err instanceof Error ? err.message : "An error occurred";
+        setError(errorMessage);
+        toast.error(errorMessage); // Show toast on error
       } finally {
         setIsLoading(false);
       }
     };
 
     if (status === "authenticated") {
-      fetchConversations();
+      void fetchConversations();
     } else if (status === "unauthenticated") {
       setConversations([]);
       setError(null);
@@ -200,7 +221,7 @@ export default function Sidebar({
         )}
         {isLoading && status === "authenticated" ? (
           <div className="space-y-2 p-2">
-            {[...Array(5)].map((_, i) => (
+            {Array.from({ length: 5 }, (_, i) => (
               <div
                 key={i}
                 className="h-10 bg-muted rounded-lg animate-pulse"
@@ -216,18 +237,34 @@ export default function Sidebar({
                   key={conversation.id}
                   href={`/chat/${conversation.id}`}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`group relative flex items-center px-3 py-2.5 rounded-lg transition-colors ${
-                    isActive ? "bg-muted" : "hover:bg-muted"
+                  className={`group relative flex items-center px-3 py-2.5 rounded-xl transition-all duration-200 ${
+                    isActive ? "bg-primary/10" : "hover:bg-muted"
                   }`}
                 >
-                  <p className="text-sm text-foreground truncate flex-1">
-                    {conversation.title}
-                  </p>
+                  {isActive && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full"></div>
+                  )}
+
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`text-sm truncate ${
+                        isActive
+                          ? "text-primary font-semibold"
+                          : "text-foreground"
+                      }`}
+                    >
+                      {conversation.title}
+                    </p>
+                    {/* ========================================= */}
+                    <p className="text-xs text-muted-foreground">
+                      {formatDate(conversation.updatedAt)}
+                    </p>
+                  </div>
                   <button
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      handleDelete(conversation.id);
+                      void handleDelete(conversation.id);
                     }}
                     className="opacity-0 group-hover:opacity-100 transition-opacity ml-2"
                     disabled={deletingId === conversation.id}

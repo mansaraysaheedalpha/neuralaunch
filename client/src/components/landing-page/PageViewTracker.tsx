@@ -2,7 +2,7 @@
 // PRODUCTION-READY page view tracking
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 
 interface PageViewTrackerProps {
   landingPageSlug: string;
@@ -16,17 +16,43 @@ export default function PageViewTracker({
   const startTime = useRef<number>(Date.now());
   const maxScroll = useRef<number>(0);
 
-  useEffect(() => {
-    // Get or create session ID
-    sessionId.current = getOrCreateSessionId();
+  const trackPageView = useCallback(async () => {
+    try {
+      await fetch("/api/landing-page/track-view", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          landingPageSlug,
+          sessionId: sessionId.current, // Use sessionId ref directly
+          referrer: document.referrer || undefined, // Handle empty referrer
+          utmSource: getUrlParam("utm_source"),
+          utmMedium: getUrlParam("utm_medium"),
+          utmCampaign: getUrlParam("utm_campaign"),
+        }),
+      });
+      // console.log("Initial page view tracked."); // Optional logging
+    } catch (error: unknown) {
+      // Type error
+      console.error(
+        "Failed to track page view:",
+        error instanceof Error ? error.message : error
+      );
+    }
+  }, [landingPageSlug]); // Dependency array includes props used inside
 
-    // Track initial page view
+  useEffect(() => {
+    // Get session ID (runs only once on mount essentially)
+    if (!sessionId.current) {
+      sessionId.current = getOrCreateSessionId();
+    }
+
+    // --- FIX: Handle floating promise and add dependency ---
+    // Track initial page view if not already tracked
     if (!hasTracked.current) {
-      trackPageView();
+      void trackPageView(); // Use void to handle the promise
       hasTracked.current = true;
     }
 
-    // Track scroll depth
     const handleScroll = () => {
       const scrollPercentage = Math.round(
         (window.scrollY /
@@ -63,28 +89,8 @@ export default function PageViewTracker({
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [landingPageSlug]);
-
-  const trackPageView = async () => {
-    try {
-      await fetch("/api/landing-page/track-view", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          landingPageSlug,
-          sessionId: sessionId.current,
-          referrer: document.referrer,
-          utmSource: getUrlParam("utm_source"),
-          utmMedium: getUrlParam("utm_medium"),
-          utmCampaign: getUrlParam("utm_campaign"),
-        }),
-      });
-    } catch (error) {
-      console.error("Failed to track page view:", error);
-    }
-  };
-
-  return null; // This is a tracking-only component
+  }, [landingPageSlug, trackPageView]);
+  return null;
 }
 
 // Helper functions

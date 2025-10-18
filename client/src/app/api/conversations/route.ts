@@ -1,12 +1,11 @@
 // client/src/app/api/conversations/route.ts
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { auth } from "@/auth";
 import prisma from "@/lib/prisma";//
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session || !session.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }

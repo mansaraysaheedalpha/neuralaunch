@@ -1,23 +1,42 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route";
-import prisma from "@/lib/prisma";//
+// src/app/api/trends/route.ts
 
-let cachedSnapshotData: any = null;
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/auth";
+import prisma from "@/lib/prisma";
+
+// FIX: Line 7 - Define proper type instead of 'any'
+interface CachedSnapshotData {
+  timeframe: string;
+  overview: {
+    totalIdeas: number;
+    growthRate: number;
+    recentIdeas: number;
+    mostActiveHour: { hour: number; count: number } | null;
+  };
+  topTags: Array<{
+    rank: number;
+    name: string;
+    count: number;
+    percentage: string;
+  }>;
+  topCombinations: Array<{ combination: string; count: number }>;
+}
+
+let cachedSnapshotData: CachedSnapshotData | null = null;
 let cacheTimestamp: Date | null = null;
 const CACHE_DURATION = 12 * 60 * 60 * 1000; // Cache for 12 hours
 
 export async function GET(req: NextRequest) {
-  const session = await getServerSession(authOptions);
+  const session = await auth();
   const isAuthenticated = !!session?.user?.id;
 
   try {
     const { searchParams } = new URL(req.url);
-    // For logged-out users, we always show "all time" data.
     const timeframe = isAuthenticated
       ? searchParams.get("timeframe") || "week"
       : "all";
 
+    // --- Caching logic for unauthenticated users (unchanged) ---
     if (!isAuthenticated) {
       const now = new Date();
       if (
@@ -45,15 +64,17 @@ export async function GET(req: NextRequest) {
       case "month":
         dateThreshold = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         break;
-      default:
+      default: // 'all'
         dateThreshold = new Date(0);
     }
 
+    // =========================== THE FIX: PART 1 ===========================
+    // We've updated the Prisma transaction to use the new schema.
+    // The tag-related queries are now more complex and are handled separately.
     const [
       totalIdeas,
       previousPeriodIdeas,
       ideasByHour,
-      topTags,
       conversationsWithTags,
       recentIdeas,
     ] = await prisma.$transaction([
@@ -74,17 +95,21 @@ export async function GET(req: NextRequest) {
       prisma.$queryRaw<
         Array<{ hour: number; count: bigint }>
       >`SELECT EXTRACT(HOUR FROM "createdAt") as hour, COUNT(*) as count FROM "Conversation" WHERE "createdAt" >= ${dateThreshold} GROUP BY hour ORDER BY count DESC LIMIT 1`,
-      prisma.ideaTag.groupBy({
-        by: ["tagName"],
-        where: { createdAt: { gte: dateThreshold } },
-        _count: { tagName: true },
-        orderBy: { _count: { tagName: "desc" } },
-        take: 10,
-      }),
+      // UPDATED QUERY for conversations and their tags
       prisma.conversation.findMany({
         where: { createdAt: { gte: dateThreshold } },
-        include: { tags: { select: { tagName: true } } },
-        take: 500,
+        include: {
+          tags: {
+            // This is now the TagsOnConversations join table
+            include: {
+              tag: {
+                // We need to include the actual Tag model
+                select: { name: true }, // To get the name
+              },
+            },
+          },
+        },
+        take: 500, // Limit to prevent performance issues with large datasets
       }),
       prisma.conversation.count({
         where: {
@@ -93,16 +118,45 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
+    // =========================== THE FIX: PART 2 ===========================
+    // This new block queries for the top tags using the new schema.
+    // This is done outside the transaction because it's a multi-step process.
+    const topTagsGrouped = await prisma.tagsOnConversations.groupBy({
+      by: ["tagId"],
+      where: { assignedAt: { gte: dateThreshold } },
+      _count: { tagId: true },
+      orderBy: { _count: { tagId: "desc" } },
+      take: 10,
+    });
+
+    const topTagIds = topTagsGrouped.map((group) => group.tagId);
+    const topTagsDetails = await prisma.tag.findMany({
+      where: { id: { in: topTagIds } },
+    });
+    const tagDetailsMap = new Map(
+      topTagsDetails.map((tag) => [tag.id, tag.name])
+    );
+
+    const topTagsData = topTagsGrouped.map((group) => ({
+      name: tagDetailsMap.get(group.tagId) || "Unknown Tag",
+      count: group._count.tagId,
+    }));
+    // =======================================================================
+
+    // --- Growth Rate calculation (unchanged) ---
     const growthRate =
       previousPeriodIdeas > 0
         ? ((totalIdeas - previousPeriodIdeas) / previousPeriodIdeas) * 100
         : totalIdeas > 0
-        ? 100
-        : 0;
+          ? 100
+          : 0;
 
+    // =========================== THE FIX: PART 3 ===========================
+    // Updated logic to calculate top combinations based on the new data structure.
     const tagPairs: { [key: string]: number } = {};
     conversationsWithTags.forEach((conv) => {
-      const tags = conv.tags.map((t) => t.tagName).sort();
+      // The path to the tag name is now conv.tags[...].tag.name
+      const tags = conv.tags.map((t) => t.tag.name).sort();
       for (let i = 0; i < tags.length; i++) {
         for (let j = i + 1; j < tags.length; j++) {
           const pair = `${tags[i]} + ${tags[j]}`;
@@ -114,8 +168,9 @@ export async function GET(req: NextRequest) {
       .sort(([, a], [, b]) => b - a)
       .slice(0, 6)
       .map(([combination, count]) => ({ combination, count }));
+    // =======================================================================
 
-    const response = {
+    const response: CachedSnapshotData = {
       timeframe,
       overview: {
         totalIdeas,
@@ -128,18 +183,18 @@ export async function GET(req: NextRequest) {
             }
           : null,
       },
-      topTags: topTags.map((item, index) => ({
+      // Map the new topTagsData structure to the response object
+      topTags: topTagsData.map((item, index) => ({
         rank: index + 1,
-        name: item.tagName,
-        count: item._count.tagName,
+        name: item.name,
+        count: item.count,
         percentage:
-          totalIdeas > 0
-            ? ((item._count.tagName / totalIdeas) * 100).toFixed(1)
-            : "0.0",
+          totalIdeas > 0 ? ((item.count / totalIdeas) * 100).toFixed(1) : "0.0",
       })),
       topCombinations,
     };
 
+    // --- Caching logic for unauthenticated users (unchanged) ---
     if (!isAuthenticated) {
       cachedSnapshotData = response;
       cacheTimestamp = new Date();

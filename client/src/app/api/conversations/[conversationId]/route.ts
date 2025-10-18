@@ -1,8 +1,7 @@
 // client/src/app/api/conversations/[conversationId]/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { authOptions } from "../../auth/[...nextauth]/route";
-import { getServerSession } from "next-auth/next";
-import prisma from "@/lib/prisma";// Use the singleton
+import { auth } from "@/auth";
+import prisma from "@/lib/prisma"; // Use the singleton
 
 export async function GET(
   req: NextRequest,
@@ -10,7 +9,7 @@ export async function GET(
   context: { params: Promise<{ conversationId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session || !session.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
@@ -42,7 +41,7 @@ export async function DELETE(
   context: { params: Promise<{ conversationId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session || !session.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }

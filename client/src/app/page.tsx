@@ -3,9 +3,16 @@
 import { useState, FormEvent, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
-import { useStore } from "@/lib/store";
 import { useSession } from "next-auth/react";
 import TextareaAutosize from "react-textarea-autosize";
+import { useChatStore } from "@/lib/stores/chatStore";
+import { useSWRConfig } from "swr";
+
+// Define type for API error response
+interface ApiErrorResponse {
+  detail?: string;
+  message?: string;
+}
 
 const ProTip = ({
   icon,
@@ -29,6 +36,7 @@ export default function HomePage() {
   const [input, setInput] = useState<string>("");
   const router = useRouter();
   const { status } = useSession();
+  const { mutate } = useSWRConfig();
   const {
     messages,
     setMessages,
@@ -37,7 +45,7 @@ export default function HomePage() {
     isLoading,
     setIsLoading,
     setError,
-  } = useStore();
+  } = useChatStore();
 
   const formRef = useRef<HTMLFormElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -52,7 +60,7 @@ export default function HomePage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
@@ -68,33 +76,26 @@ export default function HomePage() {
     addMessage(userMessage);
     setInput("");
 
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: currentMessages,
-          conversationId: null,
-        }),
-      });
+    void (async () => {
+      try {
+        const requestBody = { messages: currentMessages };
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        });
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(
-          errorData.detail || "Failed to get response from server."
-        );
-      }
-
-      if (status === "authenticated") {
-        const newConversationId = res.headers.get("X-Conversation-Id");
-        if (newConversationId) {
-          router.push(`/chat/${newConversationId}`);
-        } else {
+        if (!res.ok) {
+          const errorData: unknown = await res.json();
+          const typedError = errorData as ApiErrorResponse;
           throw new Error(
-            "API did not return a new conversation ID for authenticated user."
+            typedError.detail ||
+              typedError.message ||
+              "Failed to get response from server."
           );
         }
-      } else {
+
+        const newConversationId = res.headers.get("X-Conversation-Id");
         const reader = res.body?.getReader();
         if (!reader) throw new Error("ReadableStream not supported.");
 
@@ -109,12 +110,23 @@ export default function HomePage() {
           accumulatedText += decoder.decode(value, { stream: true });
           updateMessage(modelMessageId, accumulatedText);
         }
+
+        // ================= THIS IS THE FIX =================
+        // We now wait for the entire stream to finish.
+        // ONLY THEN do we navigate if the user is authenticated.
+        if (status === "authenticated" && newConversationId) {
+          await mutate("/api/conversations");
+          router.push(`/chat/${newConversationId}`);
+        } else {
+          // For guests, we just finish loading.
+          setIsLoading(false);
+        }
+        // ===================================================
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
         setIsLoading(false);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-      setIsLoading(false);
-    }
+    })();
   };
 
   return (

@@ -26,7 +26,7 @@ export default function LoginButton() {
           />
         )}
         <button
-          onClick={() => signOut()}
+          onClick={() => void signOut()}
           className="px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-violet-600 dark:hover:text-violet-400 transition-colors duration-200"
         >
           Sign Out
@@ -37,7 +37,7 @@ export default function LoginButton() {
 
   return (
     <button
-      onClick={() => signIn("google")}
+      onClick={() => void signIn("google")}
       className="px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-violet-600 to-purple-600 rounded-xl hover:from-violet-700 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95"
     >
       Sign In with Google

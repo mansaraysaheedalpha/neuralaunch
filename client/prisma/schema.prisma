@@ -9,18 +9,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// --- AUTH & USER MODELS ---
+// --- AUTH & USER MODELS (UNCHANGED) ---
 model User {
-  id            String    @id @default(cuid())
+  id            String         @id @default(cuid())
   name          String?
-  email         String?   @unique
+  email         String?        @unique
   emailVerified DateTime?
   image         String?
   accounts      Account[]
   sessions      Session[]
   conversations Conversation[]
   landingPages  LandingPage[]
-  achievements Achievement[]
+  achievements  Achievement[]
 }
 
 model Account {
@@ -37,6 +37,7 @@ model Account {
   id_token          String? @db.Text
   session_state     String?
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@unique([provider, providerAccountId])
 }
 
@@ -52,21 +53,26 @@ model VerificationToken {
   identifier String
   token      String   @unique
   expires    DateTime
+
   @@unique([identifier, token])
 }
 
 // --- CORE APP MODELS ---
 model Conversation {
-  id          String       @id @default(cuid())
+  id          String    @id @default(cuid())
   title       String
   userId      String
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tags        IdeaTag[]
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages    Message[]
   landingPage LandingPage?
-  tasks       Task[] // NEW: Phase 2 Relation
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  tasks       Task[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // ===================== THIS IS THE CHANGE =====================
+  // The 'tags' field now points to the new join table.
+  tags        TagsOnConversations[]
+  // ==============================================================
 }
 
 model Message {
@@ -78,14 +84,34 @@ model Message {
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 }
 
-model IdeaTag {
-  id             String       @id @default(cuid())
-  tagName        String
-  conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  createdAt      DateTime     @default(now())
-  @@index([conversationId])
+
+// ===================== THIS IS THE CHANGE =====================
+// The old 'IdeaTag' model is replaced with these two new models.
+
+// This is the central library of all unique tags.
+model Tag {
+  id   String @id @default(cuid())
+  name String @unique // Each tag name like "SaaS" or "AI" exists only once.
+
+  // This defines the connection to the join table.
+  conversations TagsOnConversations[]
 }
+
+// This is the new "join table" that connects Conversations and Tags.
+model TagsOnConversations {
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  tag            Tag          @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  tagId          String
+  assignedAt     DateTime     @default(now())
+  
+  // This creates a unique link for each conversation-tag pair.
+  @@id([conversationId, tagId])
+}
+// ==============================================================
+
+
+// --- ALL OTHER MODELS BELOW ARE UNCHANGED ---
 
 // --- LANDING PAGE MODELS (Phase 1) ---
 model LandingPage {
@@ -113,6 +139,7 @@ model LandingPage {
   pageViews         PageView[]
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
+
   @@index([userId])
 }
 
@@ -126,6 +153,7 @@ model EmailSignup {
   ipAddress     String?
   landingPage   LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
   createdAt     DateTime    @default(now())
+
   @@index([landingPageId])
 }
 
@@ -144,39 +172,38 @@ model PageView {
   ctaClicked    Boolean     @default(false)
   landingPage   LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
   createdAt     DateTime    @default(now())
+
   @@index([landingPageId])
 }
 
 // --- NEW MODELS FOR PHASE 2 (Core Task System) ---
-
 model Task {
-  id              String        @id @default(cuid())
+  id              String         @id @default(cuid())
   conversationId  String
   title           String
-  description     String        @db.Text
+  description     String         @db.Text
   timeEstimate    String
   orderIndex      Int
-  status          TaskStatus    @default(NOT_STARTED)
+  status          TaskStatus     @default(NOT_STARTED)
   aiAssistantType AssistantType?
   completedAt     DateTime?
-
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  outputs      TaskOutput[]
-  reminders TaskReminder[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  conversation    Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  outputs         TaskOutput[]
+  reminders       TaskReminder[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@index([conversationId])
 }
 
 model TaskOutput {
-  id      String   @id @default(cuid())
-  taskId  String
-  content Json     // Stores the AI-generated content
-  version Int      @default(1)
-  task    Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  taskId    String
+  content   Json // Stores the AI-generated content
+  version   Int      @default(1)
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+
   @@index([taskId])
 }
 
@@ -196,54 +223,49 @@ enum AssistantType {
   GENERAL
 }
 
-// --- ADD THIS NEW MODEL AT THE END OF THE FILE ---
 model Achievement {
   id              String   @id @default(cuid())
   userId          String
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  achievementType String   // e.g., "FIRST_TASK_COMPLETE", "SPRINT_CHAMPION"
+  achievementType String // e.g., "FIRST_TASK_COMPLETE", "SPRINT_CHAMPION"
   unlockedAt      DateTime @default(now())
-  metadata        Json?    // e.g., { taskTitle: "Create Landing Page" }
+  metadata        Json? // e.g., { taskTitle: "Create Landing Page" }
 
-  @@unique([userId, achievementType])
+  conversationId  String?
+
+  
   @@index([userId])
+  @@index([conversationId])
 }
 
 model Sprint {
-  id             String   @id @default(cuid())
-  conversationId String   @unique
-  userId         String
-  
-  startedAt      DateTime @default(now())
-  targetEndAt    DateTime // 72 hours from start
-  completedAt    DateTime?
-  totalTasks     Int      @default(0)
-  completedTasks Int      @default(0)
-  
-  aiAssistsUsed  Int      @default(0) // We'll use this in a future step
-  timeSpent      Int      @default(0) // We'll use this in a future step
-  
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  
+  id               String    @id @default(cuid())
+  conversationId   String    @unique
+  userId           String
+  startedAt        DateTime  @default(now())
+  targetEndAt      DateTime // 72 hours from start
+  completedAt      DateTime?
+  totalTasks       Int       @default(0)
+  completedTasks   Int       @default(0)
+  aiAssistsUsed    Int       @default(0) // We'll use this in a future step
+  timeSpent        Int       @default(0) // We'll use this in a future step
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
   @@index([userId])
 }
 
 model TaskReminder {
-  id           String   @id @default(cuid())
+  id           String     @id @default(cuid())
   taskId       String
   userId       String // To easily find all reminders for a user
-  
   scheduledFor DateTime // The time this reminder should be sent
-  sent         Boolean  @default(false)
+  sent         Boolean    @default(false)
   sentAt       DateTime?
-  reminderType String   // e.g., "SPRINT_PROGRESS_CHECK"
+  reminderType String // e.g., "SPRINT_PROGRESS_CHECK"
+  task         Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
 
-  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  
   @@index([userId])
   @@index([scheduledFor])
   @@index([sent])

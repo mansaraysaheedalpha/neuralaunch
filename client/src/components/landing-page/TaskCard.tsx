@@ -1,70 +1,79 @@
-// src/components/landing-page/TaskCard.tsx
 "use client";
 
 import { useState } from "react";
 import { motion } from "framer-motion";
+import { Task, TaskOutput, TaskStatus } from "@prisma/client";
+import { useSWRConfig } from "swr"; // 1. Get the global SWR config hook
+import toast from "react-hot-toast";
 import confetti from "canvas-confetti";
-import { Task, TaskOutput } from "@prisma/client";
-import toast from "react-hot-toast"; // NEW: Import toast
+
+// Define the type for the API response
+interface TaskUpdateResponse {
+  newAchievements?: Array<{
+    id: string;
+    title: string;
+    description: string;
+  }>;
+}
 
 interface TaskCardProps {
   task: Task & { outputs: TaskOutput[] };
-  onUpdate: () => void;
   onAssistantLaunch: (task: Task) => void;
 }
 
-export default function TaskCard({
-  task,
-  onUpdate,
-  onAssistantLaunch,
-}: TaskCardProps) {
+export default function TaskCard({ task, onAssistantLaunch }: TaskCardProps) {
   const [isUpdating, setIsUpdating] = useState(false);
+  const { mutate } = useSWRConfig(); // 2. Get the global mutate function
 
-  const handleStatusChange = async (newStatus: "COMPLETE" | "NOT_STARTED") => {
+  const handleStatusChange = (newStatus: TaskStatus) => {
     setIsUpdating(true);
-    try {
-      const response = await fetch(`/api/sprint/tasks/${task.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
 
-      if (!response.ok) throw new Error("Failed to update task.");
+    void (async () => {
+      try {
+        const res = await fetch(`/api/sprint/tasks/${task.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus }),
+        });
 
-      const { newAchievements } = await response.json();
+        if (!res.ok) throw new Error("Failed to update task status.");
 
-      if (newStatus === "COMPLETE") {
-        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        // --- THIS IS THE FIX ---
+        // 1. Read the response from the API with proper typing
+        const data: unknown = await res.json();
+        const typedData = data as TaskUpdateResponse;
+        const newAchievements = typedData.newAchievements;
 
-        // NEW: Display toast notifications for each new achievement
+        // 2. Only celebrate if the API confirms a new achievement was unlocked
         if (newAchievements && newAchievements.length > 0) {
-          newAchievements.forEach((ach: any, index: number) => {
-            setTimeout(() => {
-              toast.success(
-                (t) => (
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">🏆</span>
-                    <div>
-                      <p className="font-bold">{ach.title}</p>
-                      <p className="text-sm">{ach.description}</p>
-                    </div>
-                  </div>
-                ),
-                { duration: 5000 }
-              );
-            }, index * 1000); // Stagger notifications
+          void confetti({
+            particleCount: 150,
+            spread: 90,
+            origin: { y: 0.6 },
           });
+          const firstAchievement = newAchievements[0];
+          if (firstAchievement) {
+            toast.success(`Achievement Unlocked: ${firstAchievement.title}`);
+          }
         }
+        // -----------------------
+
+        // Mutate the data to refresh the UI
+        await Promise.all([
+          mutate(`/api/sprint/${task.conversationId}`),
+          mutate(`/api/achievements?conversationId=${task.conversationId}`),
+          mutate(`/api/sprint/analytics/${task.conversationId}`),
+        ]);
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "An unknown error occurred."
+        );
+      } finally {
+        setIsUpdating(false);
       }
-      onUpdate();
-    } catch (error) {
-      alert("Failed to update task status.");
-    } finally {
-      setIsUpdating(false);
-    }
+    })();
   };
 
-  const isCompleted = task.status === "COMPLETE";
   const assistantName = task.aiAssistantType
     ?.replace(/_/g, " ")
     .replace(
@@ -72,61 +81,33 @@ export default function TaskCard({
       (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
     );
 
+  const isCompleted = task.status === "COMPLETE";
+
   return (
     <motion.div
-      layout
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="p-5 bg-card border border-border rounded-xl transition-all"
+      className={`p-6 border rounded-2xl transition-all duration-300 ${
+        isCompleted ? "bg-card/50 border-dashed" : "bg-card shadow-sm"
+      }`}
     >
       <div className="flex items-start gap-4">
-        <button
-          onClick={() =>
-            handleStatusChange(isCompleted ? "NOT_STARTED" : "COMPLETE")
-          }
-          disabled={isUpdating}
-          className="flex-shrink-0 mt-1"
-        >
-          <div
-            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isCompleted ? "bg-primary border-primary" : "border-border group-hover:border-primary"}`}
+        <div className="flex-1">
+          <h4
+            className={`font-bold text-lg ${isCompleted ? "text-muted-foreground line-through" : "text-foreground"}`}
           >
-            {isCompleted && (
-              <svg
-                className="w-4 h-4 text-primary-foreground"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="3"
-                  d="M5 13l4 4L19 7"
-                ></path>
-              </svg>
-            )}
-          </div>
-        </button>
-
-        <div className="flex-1 min-w-0">
-          <p
-            className={`font-semibold text-foreground ${isCompleted ? "line-through text-muted-foreground" : ""}`}
-          >
-            {task.title}: {task.description}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {task.timeEstimate}
+            {task.title}
+          </h4>
+          <p className="text-sm text-muted-foreground mt-1">
+            {task.description}
           </p>
         </div>
-
-        <div className="flex-shrink-0">
+        <div className="flex items-center gap-3">
           {task.aiAssistantType ? (
             <button
               onClick={() => onAssistantLaunch(task)}
               className="px-4 py-2 bg-primary/10 text-primary text-sm font-semibold rounded-lg hover:bg-primary/20 transition-colors"
             >
-              {/* THIS IS THE FIX */}
               🤖 Launch {assistantName}
             </button>
           ) : (
@@ -134,6 +115,19 @@ export default function TaskCard({
               👤 Manual Task
             </span>
           )}
+          <button
+            onClick={() =>
+              handleStatusChange(isCompleted ? "NOT_STARTED" : "COMPLETE")
+            }
+            disabled={isUpdating}
+            className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors disabled:opacity-50 ${
+              isCompleted
+                ? "bg-muted text-muted-foreground hover:bg-border"
+                : "bg-green-500 text-white hover:bg-green-600"
+            }`}
+          >
+            {isUpdating ? "..." : isCompleted ? "Undo" : "Mark as Complete"}
+          </button>
         </div>
       </div>
     </motion.div>

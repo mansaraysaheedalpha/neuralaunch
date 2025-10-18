@@ -30,77 +30,101 @@ export interface AssistantResponse {
   };
 }
 
+// ======================= THIS IS THE UPDATED runTaskAssistant FUNCTION =======================
 /**
  * Main function: Run AI assistant for a task
  */
 export async function runTaskAssistant(
   assistantType: AssistantType,
   context: AssistantContext,
-  userInput?: string
-): Promise<AssistantResponse> {
+  taskDescription?: string
+): Promise<{ content: string }> {
   console.log(`🤖 Running ${assistantType} assistant...`);
 
-  const systemPrompt = getAssistantSystemPrompt(assistantType, context);
-  const userPrompt = userInput || getDefaultUserPrompt(assistantType);
+  // We now pass the taskDescription directly into the system prompt generator
+  const systemPrompt = getAssistantSystemPrompt(
+    assistantType,
+    context,
+    taskDescription
+  );
 
   try {
     const model = genAI.getGenerativeModel({
       model: AI_MODELS.PRIMARY,
       systemInstruction: systemPrompt,
       generationConfig: {
-        temperature: 0.8,
-        topP: 0.95,
-        topK: 40,
-        maxOutputTokens: 4096,
+        temperature: 0.7, // Slightly reduced temperature for more predictable output
+        maxOutputTokens: 8192, // Increased max tokens for comprehensive outputs
       },
     });
 
-    const result = await model.generateContent(userPrompt);
-    const content = await result.response.text();
+    // The entire instruction is now in the system prompt, so we send an empty prompt.
+    const result = model.generateContent("");
+    const response = await result;
+    const content = response.response.text();
 
     console.log(`✅ ${assistantType} generated ${content.length} characters`);
 
-    return {
-      content,
-      metadata: {
-        generatedAt: new Date(),
-        tokenCount: content.length / 4,
-        assistantType,
-      },
-    };
+    // The API route only needs the content, so we simplify the return type.
+    return { content };
   } catch (error) {
     console.error(`❌ ${assistantType} error:`, error);
-    throw new Error(`Failed to run ${assistantType} assistant: ${error}`);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Failed to run ${assistantType} assistant: ${errorMessage}`
+    );
   }
 }
+// ===========================================================================================
 
+// ================== THIS IS THE UPDATED getAssistantSystemPrompt FUNCTION ==================
 /**
  * Get system prompt for specific assistant type
  */
 function getAssistantSystemPrompt(
   assistantType: AssistantType,
-  context: AssistantContext
+  context: AssistantContext,
+  taskDescription?: string // Now accepts the task description
 ): string {
   const baseContext = buildContextString(context);
 
   switch (assistantType) {
     case "CUSTOMER_PROFILE":
-      return getCustomerProfilePrompt(baseContext, context);
+      return getCustomerProfilePrompt(baseContext);
     case "OUTREACH_EMAIL":
-      return getOutreachEmailPrompt(baseContext, context);
+      return getOutreachEmailPrompt(baseContext);
     case "LINKEDIN_MESSAGE":
-      return getLinkedInMessagePrompt(baseContext, context);
+      return getLinkedInMessagePrompt(baseContext);
     case "INTERVIEW_QUESTIONS":
-      return getInterviewQuestionsPrompt(baseContext, context);
+      return getInterviewQuestionsPrompt(baseContext);
     case "COMPETITIVE_ANALYSIS":
-      return getCompetitiveAnalysisPrompt(baseContext, context);
+      return getCompetitiveAnalysisPrompt(baseContext);
     case "PRICING_STRATEGY":
-      return getPricingStrategyPrompt(baseContext, context);
+      return getPricingStrategyPrompt(baseContext);
     case "GENERAL":
-      return getGeneralAssistantPrompt(baseContext, context);
+      // For GENERAL, we ignore the broad 'baseContext' to keep it focused.
+      return getGeneralAssistantPrompt(
+        taskDescription || "Perform the requested task."
+      );
     default:
-      return getGeneralAssistantPrompt(baseContext, context);
+      return getGeneralAssistantPrompt(
+        taskDescription || "Perform the requested task."
+      );
   }
+}
+// ===========================================================================================
+
+// ======================= THIS IS THE NEW, HYPER-FOCUSED PROMPT =======================
+/**
+ * GENERAL ASSISTANT - UPDATED
+ */
+function getGeneralAssistantPrompt(taskDescription: string): string {
+  return `You are a task-completion AI. Your ONLY job is to generate a text-based deliverable that directly completes the following user request. Do NOT be creative, do NOT offer advice, and do NOT generate strategic documents unless explicitly asked. Focus solely on the user's task description.
+
+  **USER'S TASK DESCRIPTION:**
+  "${taskDescription}"
+
+  Generate the deliverable for this task NOW. Output in clean, well-structured Markdown.`;
 }
 
 /**
@@ -122,10 +146,7 @@ ${context.features ? `\nKey Features:\n${context.features.map((f) => `- ${f.titl
 /**
  * CUSTOMER PROFILE GENERATOR - FIXED
  */
-function getCustomerProfilePrompt(
-  baseContext: string,
-  context: AssistantContext
-): string {
+function getCustomerProfilePrompt(baseContext: string): string {
   return `${baseContext}
 
 You are a customer research expert. Generate 50 detailed, realistic target customer profiles NOW.
@@ -182,10 +203,7 @@ START GENERATING NOW. No explanations - JUST 50 COMPLETE PROFILES.`;
 /**
  * OUTREACH EMAIL WRITER - FIXED
  */
-function getOutreachEmailPrompt(
-  baseContext: string,
-  context: AssistantContext
-): string {
+function getOutreachEmailPrompt(baseContext: string): string {
   return `${baseContext}
 
 You are an expert cold email copywriter. Generate 5 complete, ready-to-send email templates NOW.
@@ -254,427 +272,695 @@ Most {{JobTitle}}s are surprised by this. Curious if you're seeing the same tren
 
 Worth a quick chat?
 
-Best,
 {{YourName}}
 
-**Why This Works:** Shares value first, creates curiosity
+**Why This Works:** Leads with curiosity and data, not a pitch
 
-**Expected Response Rate:** 25-30%
+**Expected Response Rate:** 35%+
 
 ---
 
-**Template #4: The Time Saver**
+**Template #4: The Direct Problem**
 
-**Best For:** Busy executives
+**Best For:** When you know their specific pain point
 
-**Subject:** {{Company}}'s {{process}}
+**Subject:** {{Company}}'s {{specific problem}}
 
 **Email Body:**
 {{FirstName}},
 
-Most {{JobTitle}}s spend ~8 hours/week on [tedious task].
+Most {{JobTitle}}s at {{CompanySize}} companies lose [X hours/dollars] to [specific problem].
 
-{{CaseStudyCompany}} cut that to 15 minutes. Worth learning how?
+We helped [Similar Company] fix this in [timeframe].
+
+Want to compare notes on what worked?
 
 {{YourName}}
 
-**Why This Works:** Quantified time savings hits busy people's pain point
+**Why This Works:** Specific problem + proof + low-ask CTA
 
 **Expected Response Rate:** 25%+
 
 ---
 
-**Template #5: The Hiring Signal**
+**Template #5: The Mutual Connection**
 
-**Best For:** Fast-growing companies
+**Best For:** When you have a shared connection
 
-**Subject:** saw your post about {{JobRole}}
+**Subject:** {{MutualConnection}} suggested I reach out
 
 **Email Body:**
 Hi {{FirstName}},
 
-Congrats on hiring for 3 {{JobRole}}s.
+{{MutualConnection}} mentioned you're tackling [specific challenge] at {{Company}}.
 
-Fast growth usually means [pain point]. How are you handling that at {{Company}}?
+We recently helped [Similar Company] with the same issue. Happy to share what worked if helpful.
 
-Open to a quick chat?
+15 mins to compare notes?
 
 Best,
 {{YourName}}
 
-**Why This Works:** Hiring signals growth and implied pain points
+**Why This Works:** Warm intro + specific value + helpful tone
 
-**Expected Response Rate:** 30%+
+**Expected Response Rate:** 50%+
 
 ---
 
-These are COMPLETE, READY-TO-SEND templates. Use them now.`;
+**BONUS: Follow-up Sequence**
+
+**Day 3 Follow-up:**
+Subject: Re: [original subject]
+
+{{FirstName}} - following up on my note below. Worth 15 mins?
+
+**Day 7 Follow-up:**
+Subject: {{Company}} / quick question
+
+{{FirstName}},
+
+Still curious about [original topic]. If timing isn't right, totally understand - should I follow up in Q2?
+
+**Day 14 "Breakup" Email:**
+Subject: last note
+
+{{FirstName}},
+
+Last email from me - clearly not a priority right now.
+
+If things change, you know where to find me. Good luck with {{specific goal}}!
+
+---
+
+These are REAL EMAILS ready to send. Copy, customize, and use them now.`;
 }
 
 /**
  * LINKEDIN MESSAGE WRITER - FIXED
  */
-function getLinkedInMessagePrompt(
-  baseContext: string,
-  context: AssistantContext
-): string {
+function getLinkedInMessagePrompt(baseContext: string): string {
   return `${baseContext}
 
-You are a LinkedIn outreach expert. Generate 10 actual, ready-to-send messages NOW.
+You are a LinkedIn outreach expert. Generate 10 complete LinkedIn messages ready to send NOW.
 
-CRITICAL: Generate ACTUAL MESSAGES ready to copy-paste. No templates or instructions.
-
----
-
-**CONNECTION REQUEST #1:**
-{{FirstName}} - your post on [topic] resonated. We're both focused on [shared interest]. Would value connecting to learn from your experience.
-
-**When to use:** When they posted something relevant recently
+CRITICAL: Generate ACTUAL MESSAGES to copy-paste, NOT instructions or templates.
 
 ---
 
-**CONNECTION REQUEST #2:**
-Hi {{FirstName}}, noticed we're both in the [industry] space. Your work at {{Company}} is impressive. Would like to connect and potentially collaborate.
+**Message #1: Connection Request (Short & Relevant)**
 
-**When to use:** For peers in same industry
+Hi {{FirstName}},
 
----
+Saw your post about [relevant topic]. Would love to connect and learn more about your work at {{Company}}.
 
-**CONNECTION REQUEST #3:**
-{{FirstName}} - saw you're hiring for {{JobTitle}}. Congrats on the growth! Would love to connect and hear about what you're building.
+Best,
+{{YourName}}
 
-**When to use:** When they're hiring (signals growth/pain)
+**When to Use:** After they post about something relevant to your solution
 
----
-
-**CONNECTION REQUEST #4:**
-Hi {{FirstName}}, we have {{MutualConnection}} in common and both work in [industry]. Happy to connect!
-
-**When to use:** When you have mutual connections
+**Expected Accept Rate:** 60%+
 
 ---
 
-**CONNECTION REQUEST #5:**
-{{FirstName}} - your article on [topic] was spot-on. Would love to connect and potentially share some related insights I've gathered.
+**Message #2: Connection Request (Mutual Interest)**
 
-**When to use:** When they published content
+{{FirstName}},
 
----
+Fellow [industry/interest] person here. Your work on [specific project] caught my eye. Let's connect!
 
-**FOLLOW-UP #1 (After Connection Accept):**
-Thanks for connecting, {{FirstName}}! Saw you're at {{Company}}. Quick question: how are you handling [pain point] as you scale? We're seeing [trend] across the industry and curious about your approach.
+{{YourName}}
 
-**When to use:** First message after they accept
+**When to Use:** You share a clear common interest or background
 
----
-
-**FOLLOW-UP #2 (Value-First):**
-{{FirstName}} - thought you'd find this interesting: [share specific insight/resource relevant to their role]. Would love to hear your take on it.
-
-**When to use:** Build rapport before asking for anything
+**Expected Accept Rate:** 70%+
 
 ---
 
-**FOLLOW-UP #3 (Direct Ask):**
-{{FirstName}} - I'm helping [similar companies] solve [problem]. Given your role at {{Company}}, would you be open to a quick 15-min chat to compare notes?
+**Message #3: First Message After Connection**
 
-**When to use:** After building some rapport
+Thanks for connecting, {{FirstName}}!
 
----
+Curious about your work on [specific thing from their profile]. How's [relevant project/challenge] going at {{Company}}?
 
-**RE-ENGAGEMENT #1 (No Response):**
-{{FirstName}} - just saw [recent news about their company]. Curious how this impacts your [relevant area]. Worth a quick chat?
+**When to Use:** 2-3 days after they accept your connection
 
-**When to use:** If first message got no response
+**Expected Response Rate:** 40%+
 
 ---
 
-**RE-ENGAGEMENT #2 (Value Share):**
-{{FirstName}} - sharing this because it's directly relevant to {{Company}}: [insight/article/data]. Let me know if you want to discuss the implications for your team.
+**Message #4: Value-First Outreach**
 
-**When to use:** Provide value, don't ask for anything
+Hi {{FirstName}},
+
+Noticed {{Company}} is hiring for [role]. We helped [Similar Company] solve [related challenge] last quarter.
+
+Would love to share what worked if helpful. Worth a quick chat?
+
+**When to Use:** When you can lead with genuine value
+
+**Expected Response Rate:** 35%+
 
 ---
 
-These are REAL, COPY-PASTE-READY messages. Use them now.`;
+**Message #5: Comment on Their Content**
+
+Great point about [topic from their post], {{FirstName}}.
+
+We've seen similar results at [Your Company]. Would love to hear more about your approach - got 15 mins for a call?
+
+**When to Use:** They post something directly relevant to your solution
+
+**Expected Response Rate:** 45%+
+
+---
+
+**Message #6: Mutual Connection Intro**
+
+Hi {{FirstName}},
+
+{{MutualConnection}} mentioned you're working on [specific challenge]. We just helped [Company] tackle something similar.
+
+Happy to share what worked if useful. Quick call next week?
+
+**When to Use:** You have a strong mutual connection
+
+**Expected Response Rate:** 55%+
+
+---
+
+**Message #7: Re-engagement Message**
+
+{{FirstName}} - following up on my message from [time period].
+
+Still think there's value in connecting about [specific topic]. Worth 15 mins?
+
+**When to Use:** They never responded to your first message (wait 7-10 days)
+
+**Expected Response Rate:** 15%+
+
+---
+
+**Message #8: Industry Event Follow-up**
+
+Hi {{FirstName}},
+
+Great seeing you at [Event]! Your insights on [topic] were spot-on.
+
+Would love to continue the conversation. Coffee next week?
+
+**When to Use:** After meeting at an event (send within 24 hours)
+
+**Expected Response Rate:** 70%+
+
+---
+
+**Message #9: Content Share + Ask**
+
+{{FirstName}},
+
+Thought you'd find this [article/report] relevant given your work on [topic]: [link]
+
+Would love your take on [specific question]. Quick call to discuss?
+
+**When to Use:** You have genuinely valuable content to share
+
+**Expected Response Rate:** 30%+
+
+---
+
+**Message #10: The Direct Ask**
+
+Hi {{FirstName}},
+
+Straight to the point: we help [specific role] at [company size] solve [specific problem].
+
+Worth 15 mins to see if there's fit?
+
+{{YourName}}
+
+**When to Use:** When subtlety hasn't worked, or they're very direct in their style
+
+**Expected Response Rate:** 20%+
+
+---
+
+**PRO TIPS:**
+
+- Messages under 100 characters get 30% more responses
+- Questions get 50% more replies than statements
+- Mention something specific from their profile (increases response 3x)
+- Send between Tuesday-Thursday, 8-10 AM their timezone
+- If no response in 7 days, try one more follow-up then move on
+
+---
+
+These are REAL MESSAGES ready to send. Copy and use them now.`;
 }
 
 /**
- * INTERVIEW QUESTIONS GENERATOR - FIXED
+ * INTERVIEW QUESTIONS - FIXED
  */
-function getInterviewQuestionsPrompt(
-  baseContext: string,
-  context: AssistantContext
-): string {
+function getInterviewQuestionsPrompt(baseContext: string): string {
   return `${baseContext}
 
-You are a customer development expert. Generate 20 actual interview questions NOW.
+You are a customer research expert. Generate 20 complete interview questions with follow-ups NOW.
 
-CRITICAL: Generate ACTUAL QUESTIONS ready to use in interviews. No frameworks or explanations.
-
----
-
-## CURRENT SITUATION QUESTIONS (1-5)
-
-**Q1: Walk me through a typical day in your role. What are the 3-4 things you spend most time on?**
-
-**What you're learning:** Priorities, time allocation, where bottlenecks exist
-
-**Follow-ups:**
-- "Which of those feels most frustrating?"
-- "What would you eliminate if you could?"
-
-**Listen for:**
-🚩 RED FLAG: They describe ideal day, not reality
-✅ GREEN FLAG: They immediately mention specific frustrations
+CRITICAL: Generate ACTUAL QUESTIONS ready to use, NOT instructions or frameworks.
 
 ---
 
-**Q2: What tools and processes do you use to [relevant task]? Walk me through exactly how that works.**
+# CUSTOMER DISCOVERY INTERVIEW SCRIPT
 
-**What you're learning:** Current solution stack, integration pain, workarounds
+**INTRODUCTION (1 minute):**
 
-**Follow-ups:**
-- "What works well about that setup?"
-- "What drives you crazy about it?"
-
-**Listen for:**
-🚩 RED FLAG: They love their current tools
-✅ GREEN FLAG: They describe duct-tape solutions
+"Thanks for taking the time, {{Name}}. I'm working on [brief description of your startup idea] and want to make sure I'm actually solving a real problem. This isn't a sales call - I genuinely want to learn about your workflow. Cool if I ask you some questions?"
 
 ---
 
-**Q3: Tell me about the last time you tried to [relevant task]. What actually happened?**
+## PART 1: CURRENT SITUATION (5 minutes)
 
-**What you're learning:** Specific pain points, frequency, emotional response
+**Question #1:**
+"Walk me through a typical {{relevant time period}} at {{Company}}. What does your day-to-day look like?"
 
-**Follow-ups:**
-- "How did that make you feel?"
-- "What did you do next?"
+**Follow-up:** "What takes up most of your time?"
 
-**Listen for:**
-🚩 RED FLAG: Can't remember specific instance
-✅ GREEN FLAG: Gets animated, shares frustration
+**What to listen for:** Unprompted mentions of pain points
 
 ---
 
-**Q4: If you could wave a magic wand and change one thing about how you [relevant process], what would it be?**
+**Question #2:**
+"What's the most frustrating part of [relevant process/workflow]?"
 
-**What you're learning:** Biggest pain point, ideal solution
+**Follow-up:** "Can you give me a specific example from this week?"
 
-**Follow-ups:**
-- "Why that specifically?"
-- "What have you tried to fix it?"
-
-**Listen for:**
-🚩 RED FLAG: Vague "make it easier"
-✅ GREEN FLAG: Specific, detailed wish
+**What to listen for:** Emotion, specificity, frequency
 
 ---
 
-**Q5: How do you currently measure success in [relevant area]? What metrics matter most to you?**
+**Question #3:**
+"How are you currently solving [the problem your startup addresses]?"
 
-**What you're learning:** What they actually care about, not what they say
+**Follow-up:** "What do you like/dislike about that solution?"
 
-**Follow-ups:**
-- "How often do you check that?"
-- "What happens when it's not good?"
-
-**Listen for:**
-🚩 RED FLAG: Metrics they don't actually track
-✅ GREEN FLAG: Metrics they obsess over daily
+**What to listen for:** Workarounds, manual processes, dissatisfaction
 
 ---
 
-## PAIN POINTS QUESTIONS (6-10)
+**Question #4:**
+"What would happen if you stopped doing [current solution] entirely?"
 
-**Q6: What's the most frustrating part of [relevant process] right now?**
+**Follow-up:** "Have you ever tried stopping? What happened?"
 
-**Follow-ups:** "How often does that happen?" "What's the cost when it happens?"
-
----
-
-**Q7: Tell me about a time when [problem] caused a major issue. What happened?**
-
-**Follow-ups:** "How much time did you lose?" "What was the business impact?"
+**What to listen for:** How critical the problem actually is
 
 ---
 
-**Q8: If you had to rank your top 3 problems at work, where would [problem] fall?**
+**Question #5:**
+"How much time do you spend on [relevant task] per {{day/week/month}}?"
 
-**Follow-ups:** "Why is [#1] more important?" "What makes [problem] so painful?"
+**Follow-up:** "How much does that cost in terms of your time or budget?"
 
----
-
-**Q9: How much time do you spend on [manual workaround] per week?**
-
-**Follow-ups:** "What else could you do with that time?" "Have you tried to automate it?"
+**What to listen for:** Quantified pain (hours, dollars)
 
 ---
 
-**Q10: What happens when [problem] occurs and you can't solve it quickly?**
+## PART 2: PAST BEHAVIOR (5 minutes)
 
-**Follow-ups:** "Who does that impact?" "What's at stake?"
+**Question #6:**
+"Tell me about the last time [this problem] caused a major issue."
 
----
+**Follow-up:** "What was the impact?"
 
-## WORKAROUNDS & SOLUTIONS (11-15)
-
-**Q11: What have you tried to solve [problem] in the past?**
-
-**Follow-ups:** "Why didn't that work?" "What would make you try again?"
+**What to listen for:** Recent, specific stories (not hypotheticals)
 
 ---
 
-**Q12: Are you currently using any tools to address [problem]? How's that going?**
+**Question #7:**
+"What tools or solutions have you tried before?"
 
-**Follow-ups:** "What do you like/dislike about it?" "What's missing?"
+**Follow-up:** "Why did you stop using them?"
 
----
-
-**Q13: If you stopped [current workaround] tomorrow, what would break?**
-
-**Follow-ups:** "How painful would that be?" "What would you do instead?"
+**What to listen for:** What didn't work and why
 
 ---
 
-**Q14: Have you looked for other solutions to [problem]? What did you find?**
+**Question #8:**
+"Who else at {{Company}} deals with this problem?"
 
-**Follow-ups:** "Why didn't you choose any of them?" "What were you hoping for?"
+**Follow-up:** "How do they handle it?"
 
----
-
-**Q15: What would a perfect solution look like for [problem]?**
-
-**Follow-ups:** "What features are must-haves?" "What's nice-to-have?"
+**What to listen for:** Buying committee, decision makers
 
 ---
 
-## WILLINGNESS TO PAY (16-20)
+**Question #9:**
+"When was the last time you evaluated a new solution for this?"
 
-**Q16: How much does [problem] cost you currently in time and money?**
+**Follow-up:** "What stopped you from buying?"
 
-**Follow-ups:** "If you could quantify it, what would you say?" "Is that acceptable?"
-
----
-
-**Q17: What would it be worth to solve [problem] completely?**
-
-**Follow-ups:** "Would you pay [price] for that?" "Why or why not?"
+**What to listen for:** Objections, budget constraints, decision process
 
 ---
 
-**Q18: How do you currently budget for [category of solution]?**
+**Question #10:**
+"How much are you currently spending on [related tools/solutions]?"
 
-**Follow-ups:** "Who approves purchases?" "What's the typical range?"
+**Follow-up:** "Who approves that budget?"
 
----
-
-**Q19: If I built exactly what you described, would you be interested in trying it?**
-
-**Follow-ups:** "Would you pay for a pilot?" "What would make you say yes?"
+**What to listen for:** Budget availability, approval process
 
 ---
 
-**Q20: Who else should I talk to about this problem?**
+## PART 3: FUTURE VISION (5 minutes)
 
-**Follow-ups:** "Can you introduce me?" "What would they add to this conversation?"
+**Question #11:**
+"If you had a magic wand, what would the perfect solution look like?"
+
+**Follow-up:** "What specific features would it have?"
+
+**What to listen for:** Prioritization of features, must-haves vs nice-to-haves
 
 ---
 
-These are REAL QUESTIONS. Use them in your next interview.`;
+**Question #12:**
+"What's missing from your current solution?"
+
+**Follow-up:** "Which of those gaps is most painful?"
+
+**What to listen for:** Feature gaps, competitive advantages
+
+---
+
+**Question #13:**
+"If I built [brief description of your solution], would you be interested?"
+
+**Follow-up:** "Why or why not?"
+
+**What to listen for:** Genuine interest vs politeness
+
+---
+
+**Question #14:**
+"What would make this worth paying for?"
+
+**Follow-up:** "How much would you expect to pay?"
+
+**What to listen for:** Willingness to pay, price sensitivity
+
+---
+
+**Question #15:**
+"Who would need to approve a purchase like this at {{Company}}?"
+
+**Follow-up:** "What's the typical approval process?"
+
+**What to listen for:** Decision makers, budget authority
+
+---
+
+## PART 4: VALIDATION (3 minutes)
+
+**Question #16:**
+"If I built this and it worked, how would you measure success?"
+
+**Follow-up:** "What metrics would prove it's working?"
+
+**What to listen for:** Success criteria, KPIs
+
+---
+
+**Question #17:**
+"What would stop you from switching to a new solution?"
+
+**Follow-up:** "What are your biggest concerns about change?"
+
+**What to listen for:** Objections, switching costs
+
+---
+
+**Question #18:**
+"If I launched in [timeframe], would you be willing to try it?"
+
+**Follow-up:** "Would you pay for it, or would it need to be free first?"
+
+**What to listen for:** Early adopter signals, pricing validation
+
+---
+
+**Question #19:**
+"Who else should I talk to about this problem?"
+
+**Follow-up:** "Could you intro me?"
+
+**What to listen for:** Referrals, network access
+
+---
+
+**Question #20:**
+"Is there anything I didn't ask that I should have?"
+
+**Follow-up:** "What am I missing about this problem?"
+
+**What to listen for:** Blind spots, unexpected insights
+
+---
+
+## CLOSING (1 minute)
+
+"This was super helpful, {{Name}}. Mind if I follow up as I build this out? I'd love to show you what I come up with."
+
+**If they're excited:** "Would you be interested in early access?"
+
+---
+
+**SCORING THE INTERVIEW:**
+
+🟢 **STRONG SIGNAL (They're a real customer):**
+- Problem happens weekly or more
+- They've tried 2+ solutions
+- They can quantify pain ($$ or hours)
+- They're willing to pay
+- They gave you referrals
+
+🟡 **MAYBE (Need more validation):**
+- Problem exists but infrequent
+- They're "interested" but vague
+- No clear budget or urgency
+- Lots of feature requests
+
+🔴 **WEAK SIGNAL (Not a real customer):**
+- Can't remember last time problem happened
+- No current solution (probably not a real problem)
+- Wouldn't pay for a fix
+- Just being polite
+
+---
+
+These are REAL QUESTIONS ready to use in interviews. Print this and use it now.`;
 }
 
 /**
  * COMPETITIVE ANALYSIS - FIXED
  */
-function getCompetitiveAnalysisPrompt(
-  baseContext: string,
-  context: AssistantContext
-): string {
+function getCompetitiveAnalysisPrompt(baseContext: string): string {
   return `${baseContext}
 
 You are a competitive intelligence analyst. Generate a complete competitive analysis NOW.
 
-CRITICAL: Generate the ACTUAL ANALYSIS with real competitor names and data. No instructions.
+CRITICAL: Generate ACTUAL COMPETITIVE ANALYSIS with real competitor names and data, NOT templates or instructions.
 
 ---
 
 # COMPETITIVE ANALYSIS
 
-## 1. COMPETITOR LIST
+## 1. DIRECT COMPETITORS
 
-### DIRECT COMPETITORS (Same Solution)
+### Competitor #1: [Actual Company Name]
 
-**Competitor #1: [Real Company Name]**
-- URL: [actual URL]
-- Target Customer: [specific segment]
-- Core Offering: [what they do]
-- Pricing: [$ specific tiers]
-- Funding: [Series X, $Y raised]
-- Strengths: [2-3 specific things]
-- Weaknesses: [2-3 specific gaps]
+**Overview:**
+- Founded: [Year]
+- Funding: [Amount, stage]
+- Employees: ~[Number]
+- Revenue: ~[Amount] (estimated)
 
-**Competitor #2: [Next Company]**
-[Same format]
+**Product:**
+- Core features: [List]
+- Pricing: [Specific tiers and prices]
+- Target market: [Specific segment]
 
-[Continue for 5 direct competitors]
+**Strengths:**
+- [Specific strength with evidence]
+- [Specific strength with evidence]
 
-### INDIRECT COMPETITORS (Different Solution, Same Problem)
+**Weaknesses:**
+- [Specific weakness you found]
+- [Specific weakness you found]
 
-**Competitor #6: [Real Company]**
-[Same format]
-
-[Continue for 5 indirect competitors]
-
----
-
-## 2. FEATURE COMPARISON MATRIX
-
-| Feature | Your Solution | Competitor A | Competitor B | Competitor C |
-|---------|---------------|--------------|--------------|--------------|
-| [Feature 1] | ✅ | ✅ | ❌ | ✅ |
-| [Feature 2] | ✅ | ❌ | ✅ | ❌ |
-| [Feature 3] | ✅ | ✅ | ✅ | ❌ |
-[Continue for 10-15 key features]
+**Why You'll Win:**
+[Specific positioning advantage]
 
 ---
 
-## 3. POSITIONING ANALYSIS
+### Competitor #2: [Actual Company Name]
 
-**What Competitors Do Well:**
-1. [Specific strength and why customers choose them]
-2. [Another strength]
-3. [Another strength]
-4. [Another strength]
-5. [Another strength]
+**Overview:**
+- Founded: [Year]
+- Funding: [Amount, stage]
+- Employees: ~[Number]
+- Revenue: ~[Amount] (estimated)
 
-**What Competitors Do Poorly:**
-1. [Specific gap/weakness and customer complaints]
-2. [Another weakness]
-3. [Another weakness]
-4. [Another weakness]
-5. [Another weakness]
+**Product:**
+- Core features: [List]
+- Pricing: [Specific tiers and prices]
+- Target market: [Specific segment]
+
+**Strengths:**
+- [Specific strength with evidence]
+- [Specific strength with evidence]
+
+**Weaknesses:**
+- [Specific weakness you found]
+- [Specific weakness you found]
+
+**Why You'll Win:**
+[Specific positioning advantage]
+
+---
+
+### Competitor #3: [Actual Company Name]
+
+[Same format as above]
+
+---
+
+## 2. INDIRECT COMPETITORS (Alternative Solutions)
+
+**Current Workaround #1: [Describe manual process or tool combination]**
+- Who uses it: [Specific user type]
+- Cost: [Time and money]
+- Limitations: [What doesn't work]
+- Your advantage: [Why you're better]
+
+**Current Workaround #2:**
+[Same format]
+
+**Current Workaround #3:**
+[Same format]
+
+---
+
+## 3. FEATURE COMPARISON
+
+| Feature | Your Solution | Competitor #1 | Competitor #2 | Competitor #3 |
+|---------|---------------|---------------|---------------|---------------|
+| [Feature 1] | ✅ Yes | ✅ Yes | ❌ No | ⚠️ Partial |
+| [Feature 2] | ✅ Yes | ❌ No | ✅ Yes | ✅ Yes |
+| [Feature 3] | ✅ Yes | ⚠️ Partial | ❌ No | ❌ No |
+| [Feature 4] | ✅ Yes | ✅ Yes | ✅ Yes | ⚠️ Partial |
+| [Feature 5] | ✅ Yes | ❌ No | ❌ No | ❌ No |
+
+**Your Unique Features:**
+- [Feature only you have]
+- [Feature only you have]
+
+---
+
+## 4. PRICING COMPARISON
+
+| Tier | Your Price | Comp #1 | Comp #2 | Comp #3 |
+|------|------------|---------|---------|---------|
+| Free/Trial | [Your offer] | [Their offer] | [Their offer] | [Their offer] |
+| Starter | $[X]/mo | $[X]/mo | $[X]/mo | $[X]/mo |
+| Professional | $[X]/mo | $[X]/mo | $[X]/mo | $[X]/mo |
+| Enterprise | $[X]/mo | $[X]/mo | $[X]/mo | $[X]/mo |
+
+**Positioning:** You're [cheaper/more expensive] but offer [unique value]
+
+---
+
+## 5. MARKETING ANALYSIS
+
+**Competitor #1:**
+- Traffic: ~[X] visits/month (SimilarWeb estimate)
+- SEO: Ranking for [X] keywords
+- Content: [Blog frequency, quality]
+- Social: [Follower counts, engagement]
+- Paid ads: [Are they running ads? On which platforms?]
+
+**Competitor #2:**
+[Same format]
+
+**Competitor #3:**
+[Same format]
 
 **Your Opportunity:**
-1. [Specific positioning gap you can exploit]
-2. [Underserved customer segment]
-3. [Feature/capability they're missing]
-4. [Better approach to existing problem]
-5. [Unique angle or business model]
+[Where they're weak and you can win]
 
 ---
 
-## 4. DIFFERENTIATION STRATEGY
+## 6. CUSTOMER REVIEWS (What Real Users Say)
 
-**Primary Differentiator:**
-[Your unique angle that no competitor has]
+**Competitor #1:**
+- G2 Rating: [X]/5 ([X] reviews)
+- Common complaints: "[Quote actual reviews]"
+- What they love: "[Quote actual reviews]"
 
-**Target Segment:**
-[Specific niche where you'll compete first]
+**Competitor #2:**
+[Same format]
 
-**Positioning Statement:**
-[For [target customer], [your product] is the [category] that [unique benefit] unlike [competitors] which [their limitation].]
+**Competitor #3:**
+[Same format]
+
+**Your Advantage:**
+You'll solve [specific complaint] that all competitors struggle with
+
+---
+
+## 7. POSITIONING GAPS (Where You Can Win)
+
+**Gap #1: [Specific unmet need]**
+- Evidence: [Customer reviews, forum posts, etc.]
+- Market size: [How many people have this need]
+- Your solution: [How you'll fill it]
+
+**Gap #2: [Specific unmet need]**
+[Same format]
+
+**Gap #3: [Specific unmet need]**
+[Same format]
+
+---
+
+## 8. GO-TO-MARKET STRATEGY
+
+**Where Competitors Are Winning:**
+- [Channel/tactic with evidence]
+- [Channel/tactic with evidence]
+
+**Where They're Weak:**
+- [Untapped channel/segment]
+- [Untapped channel/segment]
+
+**Your Initial Focus:**
+[Specific channel/segment to own first]
+
+**Why This Will Work:**
+[Evidence-based reasoning]
+
+---
+
+## 9. COMPETITIVE MOATS
+
+**What Competitors Have Built:**
+- Network effects: [Who has them, how strong]
+- Data moats: [Who has proprietary data]
+- Brand: [Who has strong brand recognition]
+- Distribution: [Who has distribution advantages]
+
+**Your Moat Strategy:**
+- Year 1: [What you'll build]
+- Year 2: [What you'll build]
+- Year 3: [Defensible advantage]
 
 **Competitive Moat:**
 [How you'll defend this advantage long-term]
@@ -687,10 +973,7 @@ This is REAL analysis with ACTUAL competitors. Use it now.`;
 /**
  * PRICING STRATEGY - FIXED
  */
-function getPricingStrategyPrompt(
-  baseContext: string,
-  context: AssistantContext
-): string {
+function getPricingStrategyPrompt(baseContext: string): string {
   return `${baseContext}
 
 You are a pricing strategist. Generate a complete pricing strategy with specific numbers NOW.
@@ -873,26 +1156,9 @@ This is REAL PRICING with SPECIFIC NUMBERS. Implement it now.`;
 }
 
 /**
- * GENERAL ASSISTANT - FIXED
- */
-function getGeneralAssistantPrompt(
-  baseContext: string,
-  taskDescription: string
-): string {
-  return `${baseContext}
-You are a helpful startup execution assistant. Your ONLY job is to complete the following task for the user.
-
-CRITICAL: Do NOT provide instructions, advice, or explanations. Generate the ACTUAL deliverable requested in the task description.
-
-TASK DESCRIPTION: "${taskDescription}"
-
-Begin generating the deliverable for this task NOW.`;
-}
-
-/**
  * Get default user prompt if none provided
  */
-function getDefaultUserPrompt(assistantType: AssistantType): string {
+function _getDefaultUserPrompt(assistantType: AssistantType): string {
   switch (assistantType) {
     case "CUSTOMER_PROFILE":
       return "Generate 50 complete customer profiles with specific details, pain points, and where to find them.";
@@ -964,7 +1230,9 @@ export function validateAssistantOutput(
 /**
  * EXPORT
  */
-export default {
+const aiAssistants = {
   runTaskAssistant,
   validateAssistantOutput,
 };
+
+export default aiAssistants;

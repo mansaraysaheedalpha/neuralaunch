@@ -4,7 +4,20 @@
 import useSWR from "swr";
 import { motion } from "framer-motion";
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+// Define the shape of the analytics data
+interface AnalyticsData {
+  completedTasks: number;
+  totalTasks: number;
+  completionPercentage: number;
+  aiAssistsUsed: number;
+  hoursRemaining: number;
+}
+
+const fetcher = (url: string): Promise<AnalyticsData> =>
+  fetch(url).then(async (res) => {
+    const data: unknown = await res.json();
+    return data as AnalyticsData;
+  });
 
 interface StatCardProps {
   title: string;
@@ -33,7 +46,7 @@ export default function SprintAnalytics({
 }: {
   conversationId: string;
 }) {
-  const { data: stats, error } = useSWR(
+  const { data: stats, error } = useSWR<AnalyticsData, Error>(
     `/api/sprint/analytics/${conversationId}`,
     fetcher
   );
@@ -43,7 +56,7 @@ export default function SprintAnalytics({
     // Show a loading skeleton that matches the card layout
     return (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {[...Array(4)].map((_, i) => (
+        {Array.from({ length: 4 }, (_, i) => (
           <div
             key={i}
             className="p-6 bg-card border border-border rounded-2xl animate-pulse"

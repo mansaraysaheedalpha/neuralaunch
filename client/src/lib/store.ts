@@ -1,3 +1,4 @@
+//client/src/lib/store.ts
 import { create } from "zustand";
 
 type Conversation = {

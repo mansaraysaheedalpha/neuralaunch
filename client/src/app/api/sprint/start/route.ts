@@ -1,21 +1,41 @@
 // src/app/api/sprint/start/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../../auth/[...nextauth]/route";
+import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
-import { parseTasksFromBlueprint } from "@/lib/task-parser";
+import { parseTasksFromBlueprint, ParsedTask } from "@/lib/task-parser"; // Import ParsedTask type
+import { z } from "zod"; // Import Zod
+import { Prisma, Task } from "@prisma/client"; // Import Prisma Transaction Client type and Task type
+
+// Define Zod schema for request body
+const startSprintSchema = z.object({
+  conversationId: z.string().cuid({ message: "Invalid Conversation ID" }),
+});
+
+// Define a type for the Prisma Transaction Client
+type PrismaTransactionClient = Omit<
+  Prisma.TransactionClient,
+  "$commit" | "$rollback"
+>;
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { conversationId } = await req.json();
-    if (!conversationId) {
-      return new NextResponse("Missing conversationId", { status: 400 });
+    const body: unknown = await req.json();
+
+    // Validate request body
+    const validation = startSprintSchema.safeParse(body);
+    if (!validation.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", issues: validation.error.format() },
+        { status: 400 }
+      );
     }
+    const { conversationId } = validation.data; // Use validated ID
 
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId, userId: session.user.id },
@@ -28,35 +48,43 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (!conversation || conversation.messages.length === 0) {
-      return new NextResponse("Blueprint not found", { status: 404 });
+    const blueprintMessage = conversation?.messages?.[0];
+    // Add null check for conversation itself
+    if (!conversation || !blueprintMessage?.content) {
+      return new NextResponse("Blueprint not found or conversation missing", {
+        status: 404,
+      });
     }
+    const blueprint = blueprintMessage.content;
 
-    const parsedTasks = parseTasksFromBlueprint(
-      conversation.messages[0].content
-    );
+    const parsedTasks: ParsedTask[] = parseTasksFromBlueprint(blueprint); // Type the result
     if (parsedTasks.length === 0) {
-      return new NextResponse("Failed to parse tasks", { status: 500 });
+      return new NextResponse("Failed to parse tasks from blueprint", {
+        status: 500,
+      });
     }
 
     const startTime = new Date();
     const targetEndAt = new Date(startTime.getTime() + 72 * 60 * 60 * 1000);
 
-    // Using a transaction to ensure all operations succeed or fail together
-    await prisma.$transaction(async (tx) => {
-      await tx.task.deleteMany({ where: { conversationId } });
+    // Using a transaction with typed client
+    await prisma.$transaction(async (tx: PrismaTransactionClient) => {
+      // Type the tx client
+      // Delete existing tasks and reminders first
       await tx.taskReminder.deleteMany({ where: { task: { conversationId } } });
+      await tx.task.deleteMany({ where: { conversationId } });
 
-      const createdTasks = [];
+      const createdTasks: Task[] = []; // Type the array
       for (const task of parsedTasks) {
-        const createdTask = await tx.task.create({
+        // Type the createdTask
+        const createdTask: Task = await tx.task.create({
           data: {
             conversationId: conversationId,
             title: task.title,
             description: task.description,
             timeEstimate: task.timeEstimate,
             orderIndex: task.orderIndex,
-            aiAssistantType: task.aiAssistantType,
+            aiAssistantType: task.aiAssistantType, // Prisma handles optional enum correctly
           },
         });
         createdTasks.push(createdTask);
@@ -69,29 +97,29 @@ export async function POST(req: NextRequest) {
           targetEndAt: targetEndAt,
           totalTasks: parsedTasks.length,
           completedTasks: 0,
+          // Reset AI assists count on restart? Optional, depends on desired logic.
+          // aiAssistsUsed: 0,
         },
         create: {
           conversationId: conversationId,
-          userId: session.user.id,
+          userId: session.user.id, // Ensure userId is included
           startedAt: startTime,
           targetEndAt: targetEndAt,
           totalTasks: parsedTasks.length,
         },
       });
 
-      // NEW: Schedule two reminders
+      // Schedule reminders
       if (createdTasks.length > 0) {
         const firstTaskId = createdTasks[0].id;
         await tx.taskReminder.createMany({
           data: [
-            // Reminder 1: 24 hours after starting
             {
               taskId: firstTaskId,
               userId: session.user.id,
               scheduledFor: new Date(startTime.getTime() + 24 * 60 * 60 * 1000),
               reminderType: "SPRINT_PROGRESS_CHECK_24H",
             },
-            // Reminder 2: 48 hours after starting
             {
               taskId: firstTaskId,
               userId: session.user.id,
@@ -107,8 +135,12 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ success: true, taskCount: parsedTasks.length });
-  } catch (error) {
-    console.error("[SPRINT_START_ERROR]", error);
+  } catch (error: unknown) {
+    // Type catch block
+    console.error(
+      "[SPRINT_START_ERROR]",
+      error instanceof Error ? error.message : error
+    );
     return new NextResponse("Internal Server Error", { status: 500 });
   }
 }

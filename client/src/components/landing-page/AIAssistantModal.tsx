@@ -1,7 +1,7 @@
 // src/components/landing-page/AIAssistantModal.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Task } from "@prisma/client";
 import ReactMarkdown from "react-markdown";
@@ -19,14 +19,7 @@ export default function AIAssistantModal({
   const [output, setOutput] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (task) {
-      handleRunAssistant();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task]);
-
-  const handleRunAssistant = async () => {
+  const handleRunAssistant = useCallback(async () => {
     if (!task) return;
     setIsLoading(true);
     setOutput("");
@@ -59,7 +52,13 @@ export default function AIAssistantModal({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [task]);
+
+  useEffect(() => {
+    if (task) {
+      void handleRunAssistant();
+    }
+  }, [task, handleRunAssistant]);
 
   return (
     <AnimatePresence>
@@ -105,7 +104,7 @@ export default function AIAssistantModal({
             <footer className="p-4 border-t border-border flex justify-end gap-3 flex-shrink-0">
               <button
                 className="px-4 py-2 text-sm font-semibold border rounded-lg hover:bg-muted"
-                onClick={() => navigator.clipboard.writeText(output)}
+                onClick={() => void navigator.clipboard.writeText(output)}
               >
                 Copy Output
               </button>
