@@ -7,6 +7,7 @@ import { z } from "zod";
 import { headers } from "next/headers"; // Correct import for App Router
 
 export const runtime = "nodejs";
+
 // Define Zod schema for the request body
 const signupRequestSchema = z.object({
   landingPageSlug: z
@@ -70,33 +71,19 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // --- FIX: Properly handle headers() return value with type safety ---
+    // --- FIX: Properly await headers() and handle types ---
     const headersList = await headers();
 
-    // Use type-safe assignments with explicit null handling
-    const userAgentHeader = headersList.get("user-agent");
-    const userAgentRaw: string | null =
-      typeof userAgentHeader === "string" ? userAgentHeader : null;
-
+    // Safely extract headers with proper type checking
+    const userAgent: string | undefined =
+      headersList.get("user-agent") || undefined;
     const xForwardedFor = headersList.get("x-forwarded-for");
     const xRealIp = headersList.get("x-real-ip");
-    const ipAddressRaw: string | null =
-      typeof xForwardedFor === "string"
-        ? xForwardedFor
-        : typeof xRealIp === "string"
-          ? xRealIp
-          : null;
-
-    const refererHeader = headersList.get("referer");
-    const referrerRaw: string | null =
-      typeof refererHeader === "string" ? refererHeader : null;
-
-    // Safely process the retrieved values
-    const userAgent: string | undefined = userAgentRaw ?? undefined;
-    const ipAddress: string | undefined = ipAddressRaw
-      ? ipAddressRaw.split(",")[0]?.trim()
-      : undefined;
-    const referrer: string | undefined = referrerRaw ?? undefined;
+    const ipAddress: string | undefined = xForwardedFor
+      ? xForwardedFor.split(",")[0]?.trim()
+      : xRealIp || undefined;
+    const referrer: string | undefined =
+      headersList.get("referer") || undefined;
     // ----------------------------
 
     // Create signup in database (removed additionalData)
