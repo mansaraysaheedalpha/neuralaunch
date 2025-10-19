@@ -1,8 +1,6 @@
 // src/app/api/sprint/reminders/cron/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { sendSprintReminderEmail } from "@/lib/email-service"; // Now this import works
-
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
@@ -60,6 +58,7 @@ export async function GET(req: NextRequest) {
           ? `${sprintUrlBase}/build/${landingPageId}`
           : `${sprintUrlBase}/chat/${conversation.id}`;
 
+        const { sendSprintReminderEmail } = await import("@/lib/email-service");
         await sendSprintReminderEmail({
           to: user.email,
           userName: user.name,
