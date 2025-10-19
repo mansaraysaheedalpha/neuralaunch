@@ -124,13 +124,22 @@ export async function GET(
 
       const isDevelopment = process.env.NODE_ENV === "development";
       if (isDevelopment) {
-        browser = await puppeteerFull.launch({ headless: "new" });
+        console.log("Running in development mode, using full puppeteer.");
+        browser = await puppeteerFull.launch({ headless: true });
       } else {
+        console.log("Running in production mode, using @sparticuz/chromium.");
+        // Ensure executablePath is awaited and valid before launching
         const execPath = await chromium.executablePath();
+        if (!execPath) {
+          throw new Error(
+            "Could not find Chromium executable path for serverless environment."
+          );
+        }
         browser = await puppeteer.launch({
           args: chromium.args,
           executablePath: execPath,
-          headless: chromium.headless as boolean | "new" | "shell",
+          // FIX: Use boolean 'true' for headless mode in production
+          headless: true,
         });
       }
 
@@ -150,7 +159,16 @@ export async function GET(
 
       console.log("✅ PDF generated successfully.");
 
-      return new NextResponse(pdfBuffer, {
+      const pdfArrayBuffer = new ArrayBuffer(pdfBuffer.length);
+      // 2. Create a Uint8Array view on the new ArrayBuffer.
+      const pdfUint8Array = new Uint8Array(pdfArrayBuffer);
+      // 3. Copy the data from the Buffer into the Uint8Array view.
+      pdfUint8Array.set(pdfBuffer);
+
+      // 4. Create the Blob using the guaranteed-standard ArrayBuffer.
+      const pdfBlob = new Blob([pdfArrayBuffer], { type: "application/pdf" });
+      
+      return new NextResponse(pdfBlob, {
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `attachment; filename="${conversation.title}-sprint-report.pdf"`,

@@ -1,9 +1,2 @@
 
-{
-    "crons": [
-        {
-            "path": "/api/sprint/reminders/cron",
-            "schedule": "0 * * * *"
-        }
-    ]
-}
+{}

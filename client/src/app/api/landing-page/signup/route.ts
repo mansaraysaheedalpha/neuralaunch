@@ -1,10 +1,11 @@
 // src/app/api/landing-page/signup/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { sendWelcomeEmail, notifyFounderOfSignup } from "@/lib/email-service";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
-import { headers } from "next/headers"; // Correct import for App Router
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 // Define Zod schema for the request body
 const signupRequestSchema = z.object({
@@ -69,44 +70,26 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // --- FIX: Properly handle headers() return value with type safety ---
-    const headersList = await headers();
+    // Extract headers from the request object
+    const userAgent: string | undefined =
+      req.headers.get("user-agent") || undefined;
+    const xForwardedFor = req.headers.get("x-forwarded-for");
+    const xRealIp = req.headers.get("x-real-ip");
+    const ipAddress: string | undefined = xForwardedFor
+      ? xForwardedFor.split(",")[0]?.trim()
+      : xRealIp || undefined;
+    const referrer: string | undefined =
+      req.headers.get("referer") || undefined;
 
-    // Use type-safe assignments with explicit null handling
-    const userAgentHeader = headersList.get("user-agent");
-    const userAgentRaw: string | null =
-      typeof userAgentHeader === "string" ? userAgentHeader : null;
-
-    const xForwardedFor = headersList.get("x-forwarded-for");
-    const xRealIp = headersList.get("x-real-ip");
-    const ipAddressRaw: string | null =
-      typeof xForwardedFor === "string"
-        ? xForwardedFor
-        : typeof xRealIp === "string"
-          ? xRealIp
-          : null;
-
-    const refererHeader = headersList.get("referer");
-    const referrerRaw: string | null =
-      typeof refererHeader === "string" ? refererHeader : null;
-
-    // Safely process the retrieved values
-    const userAgent: string | undefined = userAgentRaw ?? undefined;
-    const ipAddress: string | undefined = ipAddressRaw
-      ? ipAddressRaw.split(",")[0]?.trim()
-      : undefined;
-    const referrer: string | undefined = referrerRaw ?? undefined;
-    // ----------------------------
-
-    // Create signup in database (removed additionalData)
+    // Create signup in database
     const signup = await prisma.emailSignup.create({
       data: {
         landingPageId: landingPage.id,
         email: cleanEmail,
         name: cleanName,
-        source: referrer, // Use safely processed referrer
-        userAgent, // Use safely processed userAgent
-        ipAddress, // Use safely processed ipAddress
+        source: referrer,
+        userAgent,
+        ipAddress,
       },
     });
 
@@ -117,6 +100,12 @@ export async function POST(req: NextRequest) {
     // Handle async emails correctly
     const landingPageUrl = `${process.env.NEXT_PUBLIC_APP_URL || ""}/lp/${landingPage.slug}`;
 
+    // CRITICAL FIX: Lazy import email functions to avoid build-time initialization
+    // This prevents Resend from being initialized during the build process
+    const { sendWelcomeEmail, notifyFounderOfSignup } = await import(
+      "@/lib/email-service"
+    );
+
     // Explicitly ignore promises for fire-and-forget emails
     void sendWelcomeEmail({
       to: cleanEmail,
@@ -124,7 +113,6 @@ export async function POST(req: NextRequest) {
       startupName: landingPage.title,
       landingPageUrl,
     }).catch((emailError: unknown) => {
-      // Type the catch parameter
       console.error(
         "Failed to send welcome email:",
         emailError instanceof Error ? emailError.message : emailError
@@ -138,7 +126,6 @@ export async function POST(req: NextRequest) {
         signupName: cleanName,
         startupName: landingPage.title,
       }).catch((notifyError: unknown) => {
-        // Type the catch parameter
         console.error(
           "Failed to notify founder:",
           notifyError instanceof Error ? notifyError.message : notifyError
@@ -152,7 +139,6 @@ export async function POST(req: NextRequest) {
       signupId: signup.id,
     });
   } catch (error: unknown) {
-    // Type the catch parameter
     console.error("[LANDING_PAGE_SIGNUP]", error);
     const message =
       error instanceof Error ? error.message : "Internal server error";

@@ -20,6 +20,15 @@ type TaskWithConversation = Prisma.TaskGetPayload<{
   };
 }>;
 
+interface AchievementConfig {
+  type: string;
+  title: string;
+  description: string;
+  scope: 'user' | 'sprint';
+  icon: string;
+  condition?: { count: number };
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ taskId: string }> }
@@ -95,7 +104,7 @@ export async function PATCH(
     });
 
     // Check achievements AFTER the transaction
-    let newAchievements = [];
+    let newAchievements: AchievementConfig[] = [];
     if (status === TaskStatus.COMPLETE) {
       // Pass the required conversationId safely
       newAchievements = await checkAndGrantAchievements(
