@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import {
   generateLandingPageContent,
-  generateUniqueSlug,
   generateSlug,
   DESIGN_VARIANTS,
   LandingPageContent,

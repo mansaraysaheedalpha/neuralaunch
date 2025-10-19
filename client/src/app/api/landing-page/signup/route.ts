@@ -6,6 +6,7 @@ import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { headers } from "next/headers"; // Correct import for App Router
 
+export const runtime = "nodejs";
 // Define Zod schema for the request body
 const signupRequestSchema = z.object({
   landingPageSlug: z

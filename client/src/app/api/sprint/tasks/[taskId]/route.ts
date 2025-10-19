@@ -6,7 +6,6 @@ import prisma from "@/lib/prisma";
 import { TaskStatus, Task, Prisma } from "@prisma/client"; // Import Task type and Prisma helper
 import { checkAndGrantAchievements } from "@/lib/achievements";
 import { z } from "zod"; // Import Zod
-import { AchievementType } from "@/lib/achievements.config";
 
 // Define Zod schema for the request body, using the TaskStatus enum
 const updateTaskSchema = z.object({
