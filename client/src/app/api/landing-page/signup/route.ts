@@ -4,9 +4,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { sendWelcomeEmail, notifyFounderOfSignup } from "@/lib/email-service";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
-import { headers } from "next/headers"; // Correct import for App Router
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic"; // Add this to prevent static optimization
 
 // Define Zod schema for the request body
 const signupRequestSchema = z.object({
@@ -71,30 +71,27 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // --- FIX: Properly await headers() and handle types ---
-    const headersList = await headers();
-
-    // Safely extract headers with proper type checking
+    // --- FIX: Extract headers from the request object instead ---
     const userAgent: string | undefined =
-      headersList.get("user-agent") || undefined;
-    const xForwardedFor = headersList.get("x-forwarded-for");
-    const xRealIp = headersList.get("x-real-ip");
+      req.headers.get("user-agent") || undefined;
+    const xForwardedFor = req.headers.get("x-forwarded-for");
+    const xRealIp = req.headers.get("x-real-ip");
     const ipAddress: string | undefined = xForwardedFor
       ? xForwardedFor.split(",")[0]?.trim()
       : xRealIp || undefined;
     const referrer: string | undefined =
-      headersList.get("referer") || undefined;
+      req.headers.get("referer") || undefined;
     // ----------------------------
 
-    // Create signup in database (removed additionalData)
+    // Create signup in database
     const signup = await prisma.emailSignup.create({
       data: {
         landingPageId: landingPage.id,
         email: cleanEmail,
         name: cleanName,
-        source: referrer, // Use safely processed referrer
-        userAgent, // Use safely processed userAgent
-        ipAddress, // Use safely processed ipAddress
+        source: referrer,
+        userAgent,
+        ipAddress,
       },
     });
 
@@ -112,7 +109,6 @@ export async function POST(req: NextRequest) {
       startupName: landingPage.title,
       landingPageUrl,
     }).catch((emailError: unknown) => {
-      // Type the catch parameter
       console.error(
         "Failed to send welcome email:",
         emailError instanceof Error ? emailError.message : emailError
@@ -126,7 +122,6 @@ export async function POST(req: NextRequest) {
         signupName: cleanName,
         startupName: landingPage.title,
       }).catch((notifyError: unknown) => {
-        // Type the catch parameter
         console.error(
           "Failed to notify founder:",
           notifyError instanceof Error ? notifyError.message : notifyError
@@ -140,7 +135,6 @@ export async function POST(req: NextRequest) {
       signupId: signup.id,
     });
   } catch (error: unknown) {
-    // Type the catch parameter
     console.error("[LANDING_PAGE_SIGNUP]", error);
     const message =
       error instanceof Error ? error.message : "Internal server error";
