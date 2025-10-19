@@ -1,12 +1,11 @@
 // src/app/api/landing-page/signup/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { sendWelcomeEmail, notifyFounderOfSignup } from "@/lib/email-service";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic"; // Add this to prevent static optimization
+export const dynamic = "force-dynamic";
 
 // Define Zod schema for the request body
 const signupRequestSchema = z.object({
@@ -71,7 +70,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // --- FIX: Extract headers from the request object instead ---
+    // Extract headers from the request object
     const userAgent: string | undefined =
       req.headers.get("user-agent") || undefined;
     const xForwardedFor = req.headers.get("x-forwarded-for");
@@ -81,7 +80,6 @@ export async function POST(req: NextRequest) {
       : xRealIp || undefined;
     const referrer: string | undefined =
       req.headers.get("referer") || undefined;
-    // ----------------------------
 
     // Create signup in database
     const signup = await prisma.emailSignup.create({
@@ -101,6 +99,12 @@ export async function POST(req: NextRequest) {
 
     // Handle async emails correctly
     const landingPageUrl = `${process.env.NEXT_PUBLIC_APP_URL || ""}/lp/${landingPage.slug}`;
+
+    // CRITICAL FIX: Lazy import email functions to avoid build-time initialization
+    // This prevents Resend from being initialized during the build process
+    const { sendWelcomeEmail, notifyFounderOfSignup } = await import(
+      "@/lib/email-service"
+    );
 
     // Explicitly ignore promises for fire-and-forget emails
     void sendWelcomeEmail({
