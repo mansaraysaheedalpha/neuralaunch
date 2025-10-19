@@ -13,7 +13,7 @@ import { Prisma } from "@prisma/client"; // Import Prisma helper type
 
 // --- FIX: Define more specific types ---
 // Type for individual features (adjust if your generator returns different fields)
-interface LandingPageFeature {
+export interface LandingPageFeature {
   title: string;
   description: string;
   icon?: string; // Icon might be optional
@@ -28,7 +28,7 @@ interface EmailSignupData {
 }
 
 // Update LandingPageData with specific types
-interface LandingPageData {
+export interface LandingPageData {
   id: string;
   slug: string;
   isPublished: boolean;

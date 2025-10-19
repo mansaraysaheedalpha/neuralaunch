@@ -1,68 +1,96 @@
 // app/build/[pageId]/page.tsx
-// Landing page builder/preview page
+// src/app/build/[pageId]/page.tsx
 
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
-import LandingPageBuilder from "@/components/landing-page/LandingPageBuilder";
+// Import the necessary types from LandingPageBuilder
+import LandingPageBuilder, { LandingPageData, LandingPageFeature } from "@/components/landing-page/LandingPageBuilder";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client"; // Import Prisma
 
 interface BuildPageProps {
-  params: Promise<{ pageId: string }>;
+  params: { pageId: string };
 }
 
+// --- FIX: Corrected parseFeatures function ---
+function parseFeatures(features: Prisma.JsonValue): LandingPageFeature[] {
+  // Check if it's an array first
+  if (!Array.isArray(features)) {
+    return [];
+  }
+
+  // 1. Filter for items that *look* like LandingPageFeature
+  const validItems = features.filter(
+    (
+      item
+    ): item is Prisma.JsonObject => // Check if it's a Prisma JsonObject first
+      typeof item === "object" &&
+      item !== null &&
+      !Array.isArray(item) && // Ensure it's not an array itself
+      "title" in item &&
+      typeof item.title === "string" &&
+      "description" in item &&
+      typeof item.description === "string"
+    // 'icon' check remains optional
+  );
+
+  // 2. Map the valid items and explicitly cast them
+  // We cast to 'unknown' first, then to the target type for stricter safety
+  return validItems.map((item) => item as unknown as LandingPageFeature);
+}
+// ---------------------------------------------
+
 export default async function BuildPage({ params }: BuildPageProps) {
-  // Check authentication
   const session = await auth();
-  if (!session || !session.user?.id) {
-    // Await params to get the value for the redirect URL
-    const { pageId } = await params;
+  const { pageId } = params;
+
+  if (!session?.user?.id) {
     redirect(`/api/auth/signin?callbackUrl=/build/${pageId}`);
   }
 
-   const { pageId } = await params;
-
-  // Get landing page with all related data
-  const landingPage = await prisma.landingPage.findUnique({
-    where: {
-      id: pageId,
-    },
+  const landingPageFromDb = await prisma.landingPage.findUnique({
+    where: { id: pageId },
     include: {
-      conversation: {
-        include: {
-          tags: true,
-        },
-      },
-      emailSignups: {
-        orderBy: { createdAt: "desc" },
-        take: 10,
-      },
+      emailSignups: { orderBy: { createdAt: "desc" }, take: 10 },
     },
   });
 
-  // Check if page exists and user owns it
-  if (!landingPage || landingPage.userId !== session.user.id) {
+  if (!landingPageFromDb || landingPageFromDb.userId !== session.user.id) {
     notFound();
   }
 
-  // Get analytics
-  const totalViews = await prisma.pageView.count({
-    where: { landingPageId: landingPage.id },
-  });
+  // Use the corrected parseFeatures function
+  const safeFeatures = parseFeatures(landingPageFromDb.features);
 
-  const uniqueVisitors = await prisma.pageView
-    .groupBy({
+  const landingPageForBuilder: LandingPageData = {
+      ...landingPageFromDb,
+      features: safeFeatures, // Assign the safely parsed features
+      colorScheme: (landingPageFromDb.colorScheme ?? {}) as Prisma.JsonObject,
+      // Map signups safely, ensuring createdAt is a string
+      emailSignups: landingPageFromDb.emailSignups.map(signup => ({
+          id: signup.id,
+          email: signup.email,
+          name: signup.name,
+          createdAt: signup.createdAt.toISOString(),
+      })),
+  };
+
+  // Get analytics (remains the same)
+  const totalViews = await prisma.pageView.count({
+      where: { landingPageId: landingPageFromDb.id },
+  });
+  const uniqueVisitors = await prisma.pageView.groupBy({
       by: ["sessionId"],
-      where: { landingPageId: landingPage.id },
-    })
-    .then((groups) => groups.length);
+      where: { landingPageId: landingPageFromDb.id },
+  }).then(groups => groups.length);
 
   return (
     <LandingPageBuilder
-      landingPage={landingPage}
+      landingPage={landingPageForBuilder}
       analytics={{
         totalViews,
         uniqueVisitors,
-        signupCount: landingPage.emailSignups.length,
+        signupCount: landingPageFromDb.emailSignups.length,
       }}
     />
   );
@@ -70,7 +98,7 @@ export default async function BuildPage({ params }: BuildPageProps) {
 
 // Generate metadata for the page
 export async function generateMetadata({ params }: BuildPageProps) {
-  const { pageId } = await params;
+  const { pageId } = params;
   const landingPage = await prisma.landingPage.findUnique({
     where: { id: pageId },
     select: { title: true },
