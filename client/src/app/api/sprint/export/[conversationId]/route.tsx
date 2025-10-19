@@ -159,7 +159,16 @@ export async function GET(
 
       console.log("✅ PDF generated successfully.");
 
-      return new NextResponse(pdfBuffer, {
+      const pdfArrayBuffer = new ArrayBuffer(pdfBuffer.length);
+      // 2. Create a Uint8Array view on the new ArrayBuffer.
+      const pdfUint8Array = new Uint8Array(pdfArrayBuffer);
+      // 3. Copy the data from the Buffer into the Uint8Array view.
+      pdfUint8Array.set(pdfBuffer);
+
+      // 4. Create the Blob using the guaranteed-standard ArrayBuffer.
+      const pdfBlob = new Blob([pdfArrayBuffer], { type: "application/pdf" });
+      
+      return new NextResponse(pdfBlob, {
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `attachment; filename="${conversation.title}-sprint-report.pdf"`,
