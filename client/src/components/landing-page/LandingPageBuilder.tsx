@@ -20,7 +20,7 @@ export interface LandingPageFeature {
 }
 
 // Type for email signups (based on typical fields)
-interface EmailSignupData {
+export interface EmailSignupData {
   id: string;
   email: string;
   name?: string | null; // Name is optional
@@ -70,6 +70,7 @@ interface LandingPageBuilderProps {
 
 export default function LandingPageBuilder({
   landingPage: initialData,
+  analytics,
 }: LandingPageBuilderProps) {
   const router = useRouter();
   const [landingPage, setLandingPage] = useState<LandingPageData>(initialData); // Ensure state has the correct type
@@ -177,41 +178,45 @@ export default function LandingPageBuilder({
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
+          {/* ===================== RESPONSIVE FIX ===================== */}
+          {/* Use flex-col on mobile, flex-row on medium screens and up */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            {/* Title and Status (takes full width on mobile) */}
             <div>
-              <h1 className="text-2xl font-bold text-foreground">
+              <h1 className="text-2xl font-bold text-foreground truncate">
                 {landingPage.title}
               </h1>
               <p
-                className={`text-sm font-semibold mt-1 ${
-                  landingPage.isPublished ? "text-green-500" : "text-amber-500"
-                }`}
+                className={`text-sm font-semibold mt-1 ${landingPage.isPublished ? "text-green-500" : "text-amber-500"}`}
               >
                 ● {landingPage.isPublished ? "Published" : "Draft"}
               </p>
             </div>
-            <div className="flex items-center gap-3">
+
+            {/* Action Buttons (flex-wrap allows buttons to wrap if needed on small screens) */}
+            {/* items-center aligns buttons vertically when wrapped */}
+            <div className="flex items-center flex-wrap justify-start md:justify-end gap-3">
               {landingPage.isPublished && (
                 <button
-                  onClick={copyUrl} // No promise here, so direct call is fine
-                  className="px-4 py-2 border rounded-lg hover:bg-muted transition-colors text-sm font-semibold"
+                  onClick={copyUrl}
+                  className="px-4 py-2 border rounded-lg hover:bg-muted transition-colors text-sm font-semibold whitespace-nowrap" // Added whitespace-nowrap
                 >
                   📋 Copy URL
                 </button>
               )}
-              {/* --- FIX: Handle misused promises --- */}
               <button
-                onClick={() => void handleRegenerate()} // Wrap async func
+                onClick={() => void handleRegenerate()}
                 disabled={isRegenerating}
-                className="px-4 py-2 border rounded-lg hover:bg-muted transition-colors disabled:opacity-50 text-sm font-semibold"
+                className="px-4 py-2 border rounded-lg hover:bg-muted transition-colors disabled:opacity-50 text-sm font-semibold whitespace-nowrap" // Added whitespace-nowrap
               >
                 {isRegenerating ? "Regenerating..." : "🔄 Regenerate"}
               </button>
               <motion.button
                 whileTap={{ scale: 0.98 }}
-                onClick={() => void handlePublish(!landingPage.isPublished)} // Wrap async func
+                onClick={() => void handlePublish(!landingPage.isPublished)}
                 disabled={isPublishing}
-                className={`px-6 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50 text-sm ${
+                className={`px-6 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50 text-sm whitespace-nowrap ${
+                  // Added whitespace-nowrap
                   landingPage.isPublished
                     ? "bg-amber-500 text-white hover:bg-amber-600"
                     : "bg-green-500 text-white hover:bg-green-600"
@@ -223,7 +228,6 @@ export default function LandingPageBuilder({
                     ? "Unpublish"
                     : "🚀 Publish"}
               </motion.button>
-              {/* ---------------------------------- */}
             </div>
           </div>
           {/* Tabs remain the same */}
@@ -291,7 +295,33 @@ export default function LandingPageBuilder({
         {activeTab === "analytics" && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Stat cards remain the same */}
+              <div className="p-6 border rounded-2xl bg-card">
+                <div className="text-sm text-muted-foreground mb-2">
+                  Total Views
+                </div>
+                <div className="text-4xl font-bold">{analytics.totalViews}</div>
+              </div>
+              <div className="p-6 border rounded-2xl bg-card">
+                <div className="text-sm text-muted-foreground mb-2">
+                  Unique Visitors
+                </div>
+                <div className="text-4xl font-bold">
+                  {analytics.uniqueVisitors}
+                </div>
+              </div>
+              <div className="p-6 border rounded-2xl bg-card">
+                <div className="text-sm text-muted-foreground mb-2">
+                  Email Signups
+                </div>
+                <div className="text-4xl font-bold">
+                  {analytics.signupCount}
+                </div>
+                <div className="text-sm text-green-600 mt-2">
+                  {analytics.uniqueVisitors > 0
+                    ? `${((analytics.signupCount / analytics.uniqueVisitors) * 100).toFixed(1)}% conversion`
+                    : "0% conversion"}
+                </div>
+              </div>
             </div>
             <div className="border rounded-2xl p-6 bg-card">
               <h3 className="text-lg font-bold mb-4">Recent Signups</h3>
@@ -299,7 +329,6 @@ export default function LandingPageBuilder({
                 <p className="text-muted-foreground">No signups yet.</p>
               ) : (
                 <div className="space-y-3">
-                  {/* --- FIX: Use the specific type for signup --- */}
                   {landingPage.emailSignups.map((signup: EmailSignupData) => (
                     <div
                       key={signup.id}
@@ -314,12 +343,10 @@ export default function LandingPageBuilder({
                         )}
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        {/* Ensure createdAt is treated as a date string */}
                         {new Date(signup.createdAt).toLocaleDateString()}
                       </div>
                     </div>
                   ))}
-                  {/* ---------------------------------------------- */}
                 </div>
               )}
             </div>
