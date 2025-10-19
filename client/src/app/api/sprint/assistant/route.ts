@@ -92,12 +92,17 @@ export async function POST(req: NextRequest) {
     }
 
     await prisma.$transaction(async (tx) => {
-      await tx.taskOutput.deleteMany({ where: { taskId: taskId } });
+      type TxClient = Omit<Prisma.TransactionClient, "$commit" | "$rollback">;
+
+      await (tx as TxClient).taskOutput.deleteMany({
+        where: { taskId: taskId },
+      });
       console.log(`🗑️ Deleted old outputs for task ${taskId}`);
-      await tx.taskOutput.create({
+
+      await (tx as TxClient).taskOutput.create({
         data: {
           taskId: taskId,
-          content: assistantResponse.content as Prisma.JsonValue,
+          content: (assistantResponse.content ?? "") as Prisma.InputJsonValue,
         },
       });
       console.log(`💾 Created new output for task ${taskId}`);
