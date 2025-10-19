@@ -22,7 +22,7 @@ type TaskWithConversation = Prisma.TaskGetPayload<{
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { taskId: string } }
+  { params }: { params: Promise<{ taskId: string }> }
 ) {
   try {
     const session = await auth();
@@ -30,7 +30,7 @@ export async function PATCH(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { taskId } = params;
+    const { taskId } = await params;
     const body: unknown = await req.json(); // Assign to unknown first
 
     // Validate the request body using Zod
