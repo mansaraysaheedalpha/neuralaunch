@@ -1,3 +1,4 @@
+//src/app/api/chat/route.ts 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -278,6 +279,7 @@ export async function POST(req: NextRequest) {
     const lastUserMessage = messages[messages.length - 1].content;
     let currentConversationId = conversationId;
     let isNewConversation = false;
+    let newConversationTitle = "";
 
     if (userId) {
       if (!currentConversationId) {
@@ -287,6 +289,7 @@ export async function POST(req: NextRequest) {
         });
         currentConversationId = conversation.id;
         isNewConversation = true;
+        newConversationTitle = conversation.title;
       }
       await prisma.message.create({
         data: {
@@ -353,6 +356,7 @@ export async function POST(req: NextRequest) {
       responseHeaders.set("X-Conversation-Id", currentConversationId);
       if (isNewConversation) {
         responseHeaders.set("X-Is-New-Conversation", "true");
+        responseHeaders.set("X-Conversation-Title", newConversationTitle);
       }
     }
     return new Response(stream, { headers: responseHeaders });

@@ -66,12 +66,15 @@ model Conversation {
   messages    Message[]
   landingPage LandingPage?
   tasks       Task[]
+  validationHub ValidationHub?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   // ===================== THIS IS THE CHANGE =====================
   // The 'tags' field now points to the new join table.
   tags        TagsOnConversations[]
+
+  @@index([createdAt])
   // ==============================================================
 }
 
@@ -205,6 +208,36 @@ model TaskOutput {
   createdAt DateTime @default(now())
 
   @@index([taskId])
+}
+
+model ValidationHub {
+  id               String   @id @default(cuid())
+  conversationId   String   @unique // Enforces one-to-one with Conversation
+  conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  // --- 1. USER INPUTS ---
+  // The user will manually provide this data
+  customerInterviewCount Int      @default(0)
+  interviewNotes         String?  @db.Text // User pastes their raw notes here
+
+  // --- 2. AI-DERIVED SCORE ---
+  // We will run an AI on 'interviewNotes' to get this
+  feedbackSentimentScore Float?   // A score, e.g., 0.0 to 1.0
+
+  // --- 3. CALCULATED SUB-SCORES ---
+  // Storing these makes the UI dashboard much easier to build
+  marketDemandScore      Float?   // Calculated from (Signups / Views)
+  problemValidationScore Float?   // Calculated from (Interview Count + Sentiment)
+  executionScore         Float?   // Calculated from (Sprint Completion %)
+
+  // --- 4. THE FINAL SCORE ---
+  totalValidationScore   Float?   // The final 0-100 score
+
+  // --- 5. NEW AI INSIGHT ---
+  aiInsight              String?  @db.Text // <-- ADD THIS LINE
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt // Tracks the last time the score was calculated
 }
 
 enum TaskStatus {

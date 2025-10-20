@@ -68,16 +68,14 @@ export async function GET(req: NextRequest) {
         dateThreshold = new Date(0);
     }
 
-    // =========================== THE FIX: PART 1 ===========================
-    // We've updated the Prisma transaction to use the new schema.
-    // The tag-related queries are now more complex and are handled separately.
     const [
       totalIdeas,
       previousPeriodIdeas,
       ideasByHour,
       conversationsWithTags,
       recentIdeas,
-    ] = await prisma.$transaction([
+      topTagsGrouped,
+    ] = await Promise.all([
       prisma.conversation.count({
         where: { createdAt: { gte: dateThreshold } },
       }),
@@ -95,39 +93,32 @@ export async function GET(req: NextRequest) {
       prisma.$queryRaw<
         Array<{ hour: number; count: bigint }>
       >`SELECT EXTRACT(HOUR FROM "createdAt") as hour, COUNT(*) as count FROM "Conversation" WHERE "createdAt" >= ${dateThreshold} GROUP BY hour ORDER BY count DESC LIMIT 1`,
-      // UPDATED QUERY for conversations and their tags
       prisma.conversation.findMany({
         where: { createdAt: { gte: dateThreshold } },
         include: {
           tags: {
-            // This is now the TagsOnConversations join table
             include: {
               tag: {
-                // We need to include the actual Tag model
-                select: { name: true }, // To get the name
+                select: { name: true },
               },
             },
           },
         },
-        take: 500, // Limit to prevent performance issues with large datasets
+        take: 500,
       }),
       prisma.conversation.count({
         where: {
           createdAt: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
         },
       }),
+      prisma.tagsOnConversations.groupBy({
+        by: ["tagId"],
+        where: { assignedAt: { gte: dateThreshold } },
+        _count: { tagId: true },
+        orderBy: { _count: { tagId: "desc" } },
+        take: 10,
+      }),
     ]);
-
-    // =========================== THE FIX: PART 2 ===========================
-    // This new block queries for the top tags using the new schema.
-    // This is done outside the transaction because it's a multi-step process.
-    const topTagsGrouped = await prisma.tagsOnConversations.groupBy({
-      by: ["tagId"],
-      where: { assignedAt: { gte: dateThreshold } },
-      _count: { tagId: true },
-      orderBy: { _count: { tagId: "desc" } },
-      take: 10,
-    });
 
     const topTagIds = topTagsGrouped.map((group) => group.tagId);
     const topTagsDetails = await prisma.tag.findMany({
@@ -141,9 +132,7 @@ export async function GET(req: NextRequest) {
       name: tagDetailsMap.get(group.tagId) || "Unknown Tag",
       count: group._count.tagId,
     }));
-    // =======================================================================
 
-    // --- Growth Rate calculation (unchanged) ---
     const growthRate =
       previousPeriodIdeas > 0
         ? ((totalIdeas - previousPeriodIdeas) / previousPeriodIdeas) * 100
@@ -151,11 +140,8 @@ export async function GET(req: NextRequest) {
           ? 100
           : 0;
 
-    // =========================== THE FIX: PART 3 ===========================
-    // Updated logic to calculate top combinations based on the new data structure.
     const tagPairs: { [key: string]: number } = {};
     conversationsWithTags.forEach((conv) => {
-      // The path to the tag name is now conv.tags[...].tag.name
       const tags = conv.tags.map((t) => t.tag.name).sort();
       for (let i = 0; i < tags.length; i++) {
         for (let j = i + 1; j < tags.length; j++) {
@@ -168,7 +154,6 @@ export async function GET(req: NextRequest) {
       .sort(([, a], [, b]) => b - a)
       .slice(0, 6)
       .map(([combination, count]) => ({ combination, count }));
-    // =======================================================================
 
     const response: CachedSnapshotData = {
       timeframe,
@@ -183,7 +168,6 @@ export async function GET(req: NextRequest) {
             }
           : null,
       },
-      // Map the new topTagsData structure to the response object
       topTags: topTagsData.map((item, index) => ({
         rank: index + 1,
         name: item.name,
@@ -194,7 +178,6 @@ export async function GET(req: NextRequest) {
       topCombinations,
     };
 
-    // --- Caching logic for unauthenticated users (unchanged) ---
     if (!isAuthenticated) {
       cachedSnapshotData = response;
       cacheTimestamp = new Date();

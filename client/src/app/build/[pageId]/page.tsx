@@ -11,7 +11,7 @@ import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client"; // Import Prisma
 
 interface BuildPageProps {
-  params: { pageId: string }; // Params are directly available in Server Components
+  params: Promise<{ pageId: string }>; // Params are directly available in Server Components
 }
 
 // Corrected parseFeatures function with type predicate and casting
@@ -40,7 +40,7 @@ function parseFeatures(features: Prisma.JsonValue): LandingPageFeature[] {
 
 export default async function BuildPage({ params }: BuildPageProps) {
   const session = await auth();
-  const { pageId } = params; // No need to await in Server Components
+  const { pageId } = await params; // No need to await in Server Components
 
   if (!session?.user?.id) {
     redirect(`/api/auth/signin?callbackUrl=/build/${pageId}`);
@@ -109,7 +109,7 @@ export default async function BuildPage({ params }: BuildPageProps) {
 
 // Generate metadata remains the same
 export async function generateMetadata({ params }: BuildPageProps) {
-  const { pageId } = params;
+  const { pageId } = await params;
   const landingPage = await prisma.landingPage.findUnique({
     where: { id: pageId },
     select: { title: true },

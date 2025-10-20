@@ -1,19 +1,16 @@
 // lib/ai-assistants.ts
-// AI Task Assistant System - Specialized AI for each task type
-
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import OpenAI from "openai";
 import { AssistantType } from "@prisma/client";
 import { AI_MODELS } from "./models";
 
-// --- Initialize Clients ---
 const genAI = new GoogleGenerativeAI(
   process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || ""
 );
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-})
+});
 
 export interface AssistantContext {
   startupIdea: string;
@@ -27,158 +24,103 @@ export interface AssistantContext {
   }>;
 }
 
-type ModelProvider = "GOOGLE" | "OPENAI";
-const CODE_KEYWORDS = [
-  "code",
-  "script",
-  "function",
-  "html",
-  "css",
-  "javascript",
-  "react",
-  "component",
-  "python",
-  "api",
-];
+const modelOrchestration: Record<AssistantType, "GOOGLE" | "OPENAI"> = {
+  CUSTOMER_PROFILE: "GOOGLE",
+  OUTREACH_EMAIL: "GOOGLE",
+  LINKEDIN_MESSAGE: "GOOGLE",
+  INTERVIEW_QUESTIONS: "GOOGLE",
+  COMPETITIVE_ANALYSIS: "GOOGLE",
+  PRICING_STRATEGY: "GOOGLE",
+  GENERAL: "GOOGLE",
+  CODE_GENERATION: "OPENAI",
+};
 
-export interface AssistantResponse {
-  content: string;
-  metadata: {
-    generatedAt: Date;
-    tokenCount: number;
-    assistantType: AssistantType;
-    provider: ModelProvider;
-  };
-}
-
-// --- 1. The Smart Router ---
-function routeToModel(
-  assistantType: AssistantType,
-  taskDescription: string
-): ModelProvider {
-  // If it's a GENERAL task, we need to inspect it.
-  if (assistantType === 'GENERAL') {
-    const descriptionLower = taskDescription.toLowerCase();
-    // If the description contains any code keywords, route to OpenAI
-    if (CODE_KEYWORDS.some(keyword => descriptionLower.includes(keyword))) {
-      console.log(`🤖 Routing 'GENERAL' task with code keywords to OPENAI`);
-      return 'OPENAI';
-    }
-    // Otherwise, it's a normal GENERAL task for Google
-    return 'GOOGLE';
-  }
-
-  // All other specialized tasks (CUSTOMER_PROFILE, etc.) go to Google.
-  return 'GOOGLE';
-}
-
-// ======================= THIS IS THE UPDATED runTaskAssistant FUNCTION =======================
-/**
- * Main function: Run AI assistant for a task
- */
 export async function runTaskAssistant(
   assistantType: AssistantType,
   context: AssistantContext,
   taskDescription?: string
-): Promise<AssistantResponse> {
-  const generatedAt = new Date(); // Capture time early
-
-  // Ensure taskDescription is provided
-  if (!taskDescription) {
-    console.error("❌ Task description is missing. Cannot run assistant.");
-    // Return a valid AssistantResponse indicating error
-    return {
-      content: "Error: Task description was missing.",
-      metadata: {
-        generatedAt,
-        tokenCount: 0,
-        assistantType,
-        provider: "GOOGLE", // Default or unknown provider in this case
-      },
-    };
+): Promise<{ content: string }> {
+  const model = modelOrchestration[assistantType];
+  if (model === "OPENAI") {
+    return runOpenAIAssistant(assistantType, context, taskDescription);
   }
+  return runGoogleAIAssistant(assistantType, context, taskDescription);
+}
 
-  console.log(`🤖 Orchestrating ${assistantType} assistant...`);
-  const provider = routeToModel(assistantType, taskDescription);
+async function runGoogleAIAssistant(
+  assistantType: AssistantType,
+  context: AssistantContext,
+  taskDescription?: string
+): Promise<{ content: string }> {
+  console.log(`🤖 Running ${assistantType} assistant with Google...`);
   const systemPrompt = getAssistantSystemPrompt(
     assistantType,
     context,
-    provider
+    taskDescription
   );
 
   try {
-    let content = "";
-    let tokenCount = 0; // Initialize token count
-
-    console.log(`🚀 Calling ${provider} for ${assistantType}...`);
-
-    // 3. Call the selected AI provider's API
-    if (provider === "GOOGLE") {
-      const model = genAI.getGenerativeModel({
-        model: AI_MODELS.PRIMARY,
-        systemInstruction: systemPrompt,
-        generationConfig: { temperature: 0.7, maxOutputTokens: 8192 },
-      });
-      const result = await model.generateContent(taskDescription);
-      content = result.response.text();
-      // Attempt to get token count from Google's response
-      tokenCount = result.response.usageMetadata?.totalTokenCount ?? 0;
-    } else if (provider === "OPENAI") {
-      const completion = await openai.chat.completions.create({
-        model: AI_MODELS.OPENAI, // Use the model from our config
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: taskDescription }, // Pass taskDescription as the user message
-        ],
+    const model = genAI.getGenerativeModel({
+      model: AI_MODELS.PRIMARY,
+      systemInstruction: systemPrompt,
+      generationConfig: {
         temperature: 0.7,
-        max_tokens: 4096,
-      });
-      content = completion.choices[0]?.message?.content || "";
-      // Get token count from OpenAI's response
-      tokenCount = completion.usage?.total_tokens ?? 0;
-    }
+        maxOutputTokens: 8192,
+      },
+    });
 
-    console.log(
-      `✅ ${provider} (${assistantType}) generated ${content.length} characters, Tokens: ${tokenCount}`
+    const result = model.generateContent("");
+    const response = await result;
+    const content = response.response.text();
+    console.log(`✅ ${assistantType} generated ${content.length} characters`);
+    return { content };
+  } catch (error) {
+    console.error(`❌ ${assistantType} error:`, error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Failed to run ${assistantType} assistant: ${errorMessage}`
     );
-
-    // Return the full AssistantResponse object
-    return {
-      content,
-      metadata: {
-        generatedAt,
-        tokenCount,
-        assistantType,
-        provider,
-      },
-    };
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    console.error(`❌ ${provider} (${assistantType}) error:`, message);
-
-    // Return a valid AssistantResponse indicating error
-    return {
-      content: `Error generating content using ${provider}: ${message}. Please try again.`,
-      metadata: {
-        generatedAt,
-        tokenCount: 0, // No tokens used successfully
-        assistantType,
-        provider,
-      },
-    };
   }
 }
 
+async function runOpenAIAssistant(
+  assistantType: AssistantType,
+  context: AssistantContext,
+  taskDescription?: string
+): Promise<{ content: string }> {
+  console.log(`🤖 Running ${assistantType} assistant with OpenAI...`);
+  const systemPrompt = getAssistantSystemPrompt(
+    assistantType,
+    context,
+    taskDescription
+  );
 
-// ================== THIS IS THE UPDATED getAssistantSystemPrompt FUNCTION ==================
-/**
- * Get system prompt for specific assistant type
- */
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt,
+        },
+      ],
+    });
+    const content = response.choices[0].message.content || "";
+    console.log(`✅ ${assistantType} generated ${content.length} characters`);
+    return { content };
+  } catch (error) {
+    console.error(`❌ ${assistantType} error:`, error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Failed to run ${assistantType} assistant: ${errorMessage}`
+    );
+  }
+}
+
 function getAssistantSystemPrompt(
   assistantType: AssistantType,
   context: AssistantContext,
-  provider: ModelProvider, // We need this to customize the GENERAL prompt
-  
+  taskDescription?: string
 ): string {
   const baseContext = buildContextString(context);
 
@@ -195,19 +137,42 @@ function getAssistantSystemPrompt(
       return getCompetitiveAnalysisPrompt(baseContext);
     case "PRICING_STRATEGY":
       return getPricingStrategyPrompt(baseContext);
+    case "CODE_GENERATION":
+      return getCodeGenerationPrompt(baseContext, taskDescription);
     case "GENERAL":
-      if (provider === "OPENAI") {
-        return getGeneralCodePrompt(baseContext);
-      } else {
-        return getGeneralTextPrompt(baseContext);
-      }
-
+      return getGeneralAssistantPrompt(
+        taskDescription || "Perform the requested task."
+      );
     default:
-      return getGeneralTextPrompt(baseContext);
+      return getGeneralAssistantPrompt(
+        taskDescription || "Perform the requested task."
+      );
   }
 }
-// ===========================================================================================
 
+function getCodeGenerationPrompt(
+  baseContext: string,
+  taskDescription?: string
+): string {
+  return `${baseContext}
+
+You are a world-class software engineer. Your task is to generate code based on the user's request.
+
+**USER'S TASK DESCRIPTION:**
+"${taskDescription}"
+
+Generate the code for this task NOW. Output in clean, well-structured code with comments where necessary.
+`;
+}
+
+function getGeneralAssistantPrompt(taskDescription: string): string {
+  return `You are a task-completion AI. Your ONLY job is to generate a text-based deliverable that directly completes the following user request. Do NOT be creative, do NOT offer advice, and do NOT generate strategic documents unless explicitly asked. Focus solely on the user's task description.
+
+  **USER'S TASK DESCRIPTION:**
+  "${taskDescription}"
+
+  Generate the deliverable for this task NOW. Output in clean, well-structured Markdown.`;
+}
 
 function buildContextString(context: AssistantContext): string {
   return `
@@ -222,36 +187,6 @@ ${context.features ? `\nKey Features:\n${context.features.map((f) => `- ${f.titl
 `;
 }
 
-// NEW: Prompt for code tasks (routed to OpenAI)
-function getGeneralCodePrompt(baseContext: string): string {
-  return `You are an expert seasoned full-stack developer and an Engineer and AI assistant. A user is working on their startup and needs help with a technical task.
-  
-Here is their startup context:
-${baseContext}
-
-Your job is to fulfill their specific task request, which will be provided in the user message.
-Provide clean, production-ready, and well-commented code. Always use Markdown for all code blocks.
-If you are providing file content, use a format like:
-\`\`\`javascript
-// src/components/MyComponent.tsx
-...code...
-\`\`\``;
-}
-
-// NEW: Prompt for non-code tasks (routed to Google)
-function getGeneralTextPrompt(baseContext: string): string {
-  return `You are a helpful AI assistant. A user is working on their startup and needs help with a general task.
-  
-Here is their startup context:
-${baseContext}
-
-Your job is to fulfill their specific task request, which will be provided in the user message.
-Generate a clean, text-based deliverable in well-structured Markdown.`;
-}
-
-/**
- * CUSTOMER PROFILE GENERATOR - FIXED
- */
 function getCustomerProfilePrompt(baseContext: string): string {
   return `${baseContext}
 
@@ -306,9 +241,6 @@ Format each profile EXACTLY like this:
 START GENERATING NOW. No explanations - JUST 50 COMPLETE PROFILES.`;
 }
 
-/**
- * OUTREACH EMAIL WRITER - FIXED
- */
 function getOutreachEmailPrompt(baseContext: string): string {
   return `${baseContext}
 
@@ -461,9 +393,6 @@ If things change, you know where to find me. Good luck with {{specific goal}}!
 These are REAL EMAILS ready to send. Copy, customize, and use them now.`;
 }
 
-/**
- * LINKEDIN MESSAGE WRITER - FIXED
- */
 function getLinkedInMessagePrompt(baseContext: string): string {
   return `${baseContext}
 
@@ -623,9 +552,6 @@ Worth 15 mins to see if there's fit?
 These are REAL MESSAGES ready to send. Copy and use them now.`;
 }
 
-/**
- * INTERVIEW QUESTIONS - FIXED
- */
 function getInterviewQuestionsPrompt(baseContext: string): string {
   return `${baseContext}
 
@@ -865,9 +791,6 @@ CRITICAL: Generate ACTUAL QUESTIONS ready to use, NOT instructions or frameworks
 These are REAL QUESTIONS ready to use in interviews. Print this and use it now.`;
 }
 
-/**
- * COMPETITIVE ANALYSIS - FIXED
- */
 function getCompetitiveAnalysisPrompt(baseContext: string): string {
   return `${baseContext}
 
@@ -1076,9 +999,6 @@ You'll solve [specific complaint] that all competitors struggle with
 This is REAL analysis with ACTUAL competitors. Use it now.`;
 }
 
-/**
- * PRICING STRATEGY - FIXED
- */
 function getPricingStrategyPrompt(baseContext: string): string {
   return `${baseContext}
 
@@ -1261,31 +1181,6 @@ CRITICAL: Generate ACTUAL PRICING TIERS with real numbers. No instructions or fr
 This is REAL PRICING with SPECIFIC NUMBERS. Implement it now.`;
 }
 
-// /**
-//  * Get default user prompt if none provided
-//  */
-// function _getDefaultUserPrompt(assistantType: AssistantType): string {
-//   switch (assistantType) {
-//     case "CUSTOMER_PROFILE":
-//       return "Generate 50 complete customer profiles with specific details, pain points, and where to find them.";
-//     case "OUTREACH_EMAIL":
-//       return "Generate 5 complete email templates with subject lines and body text ready to send.";
-//     case "LINKEDIN_MESSAGE":
-//       return "Generate 10 actual LinkedIn messages (connection requests, follow-ups, re-engagement) ready to copy-paste.";
-//     case "INTERVIEW_QUESTIONS":
-//       return "Generate 20 actual interview questions with follow-ups and what to listen for.";
-//     case "COMPETITIVE_ANALYSIS":
-//       return "Generate complete competitive analysis with real competitor names, pricing, and positioning gaps.";
-//     case "PRICING_STRATEGY":
-//       return "Generate complete pricing strategy with specific price points, tiers, and justification.";
-//     default:
-//       return "Generate the actual deliverable I need based on the startup context.";
-//   }
-// }
-
-/**
- * Validate assistant output
- */
 export function validateAssistantOutput(
   content: string,
   assistantType: AssistantType
@@ -1295,7 +1190,6 @@ export function validateAssistantOutput(
     return false;
   }
 
-  // Check if output contains instructional language (BAD)
   const instructionalPhrases = [
     "your task is",
     "here's what you need",
@@ -1308,11 +1202,9 @@ export function validateAssistantOutput(
   for (const phrase of instructionalPhrases) {
     if (content.toLowerCase().includes(phrase)) {
       console.warn(`⚠️ Output contains instructional language: "${phrase}"`);
-      // Don't fail validation, but warn
     }
   }
 
-  // Type-specific validation
   switch (assistantType) {
     case "CUSTOMER_PROFILE":
       return (
@@ -1333,9 +1225,6 @@ export function validateAssistantOutput(
   }
 }
 
-/**
- * EXPORT
- */
 const aiAssistants = {
   runTaskAssistant,
   validateAssistantOutput,

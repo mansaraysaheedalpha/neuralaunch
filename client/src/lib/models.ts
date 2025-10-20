@@ -16,4 +16,10 @@ export const AI_MODELS = {
    * Use for: Chat Titles, Landing Page Copy.
    */
   FAST: "gemini-2.5-flash",
+
+  /**
+   * For best-in-class code generation and complex reasoning.
+   * Use for: Code-related sprint tasks.
+   */
+  OPENAI: "gpt-4o",
 };

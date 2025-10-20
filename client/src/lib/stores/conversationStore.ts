@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-type Conversation = {
+export type Conversation = {
   id: string;
   title: string;
   createdAt?: string;

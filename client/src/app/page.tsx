@@ -1,3 +1,4 @@
+//src/app/page.tsx
 "use client";
 
 import { useState, FormEvent, useEffect, useRef } from "react";
@@ -6,6 +7,7 @@ import ReactMarkdown from "react-markdown";
 import { useSession } from "next-auth/react";
 import TextareaAutosize from "react-textarea-autosize";
 import { useChatStore } from "@/lib/stores/chatStore";
+import { useConversationStore } from "@/lib/stores/conversationStore";
 import { useSWRConfig } from "swr";
 
 // Define type for API error response
@@ -37,6 +39,7 @@ export default function HomePage() {
   const router = useRouter();
   const { status } = useSession();
   const { mutate } = useSWRConfig();
+  const { addConversation } = useConversationStore();
   const {
     messages,
     setMessages,
@@ -96,6 +99,7 @@ export default function HomePage() {
         }
 
         const newConversationId = res.headers.get("X-Conversation-Id");
+        const newConversationTitle = res.headers.get("X-Conversation-Title");
         const reader = res.body?.getReader();
         if (!reader) throw new Error("ReadableStream not supported.");
 
@@ -114,10 +118,23 @@ export default function HomePage() {
         // ================= THIS IS THE FIX =================
         // We now wait for the entire stream to finish.
         // ONLY THEN do we navigate if the user is authenticated.
-        if (status === "authenticated" && newConversationId) {
-          await mutate("/api/conversations");
+        if (
+          status === "authenticated" &&
+          newConversationId &&
+          newConversationTitle
+        ) {
+          addConversation({
+            id: newConversationId,
+            title: newConversationTitle,
+            updatedAt: new Date().toISOString(),
+          });
           router.push(`/chat/${newConversationId}`);
-        } else {
+        } else if (status === "authenticated" && newConversationId) {
+            // Fallback just in case (e.g., header missing)
+            // This will still have the title lag, but navigation will work
+            await mutate("/api/conversations"); // You can leave this, but it's not the fix
+            router.push(`/chat/${newConversationId}`);
+        }else {
           // For guests, we just finish loading.
           setIsLoading(false);
         }
