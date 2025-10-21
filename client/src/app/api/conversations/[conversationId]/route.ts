@@ -7,7 +7,7 @@ const MESSAGES_PER_PAGE = 20;
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { conversationId: string } } // <-- CORRECTED SIGNATURE
+  context: { params: Promise<{ conversationId: string }> } // <-- Adjusted type
 ) {
   try {
     const session = await auth();
@@ -15,7 +15,8 @@ export async function GET(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { conversationId } = params; // <-- CORRECTED ACCESS
+    // Await the params promise here
+    const { conversationId } = await context.params; // <-- Await here
     const { searchParams } = new URL(req.url);
     const cursor = searchParams.get("cursor");
 
@@ -32,30 +33,26 @@ export async function GET(
 
     const messages = await prisma.message.findMany({
       where: { conversationId },
-      take: MESSAGES_PER_PAGE + 1, // Take one extra to check for next page
+      take: MESSAGES_PER_PAGE + 1,
       ...(cursor && {
-        skip: 1, // Skip the cursor item itself
+        skip: 1,
         cursor: {
           id: cursor,
         },
       }),
-      orderBy: { createdAt: "asc" }, // Order chronologically
+      orderBy: { createdAt: "asc" },
     });
 
     let nextCursor = null;
-    // If we fetched more items than the page size, there's a next page
     if (messages.length > MESSAGES_PER_PAGE) {
-      const nextItem = messages.pop(); // Remove the extra item from the end
-      nextCursor = nextItem!.id; // Use its ID as the cursor for the next request
+      // Corrected check
+      const nextItem = messages.pop(); // Remove the extra item
+      nextCursor = nextItem!.id;
     }
-
-    // IMPORTANT: Reverse messages *before* sending if you want newest first in UI
-    // Or handle ordering on the client-side
-    // For infinite scrolling *up* (loading older messages), 'asc' order is usually correct.
 
     return NextResponse.json({
       ...conversation,
-      messages, // These are currently oldest first
+      messages,
       nextCursor,
     });
   } catch (error) {
@@ -66,7 +63,7 @@ export async function GET(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { conversationId: string } } // <-- CORRECTED SIGNATURE
+  context: { params: Promise<{ conversationId: string }> } // <-- Adjusted type
 ) {
   try {
     const session = await auth();
@@ -74,25 +71,23 @@ export async function DELETE(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { conversationId } = params; // <-- CORRECTED ACCESS
+    // Await the params promise here
+    const { conversationId } = await context.params; // <-- Await here
 
-    // Use deleteMany to ensure only the owner can delete, avoids fetching first
     const deleteResult = await prisma.conversation.deleteMany({
       where: {
         id: conversationId,
-        userId: session.user.id, // Security check: Only allow user to delete their own
+        userId: session.user.id,
       },
     });
 
-    // Check if any record was actually deleted
     if (deleteResult.count === 0) {
       return new NextResponse("Conversation not found or access denied", {
         status: 404,
       });
     }
 
-    // Successfully deleted
-    return new NextResponse(null, { status: 204 }); // 204 No Content is standard for successful DELETE
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
     console.error("[CONVERSATION_DELETE_ERROR]", error);
     return new NextResponse("Internal Server Error", { status: 500 });
