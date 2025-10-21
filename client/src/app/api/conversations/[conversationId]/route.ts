@@ -7,7 +7,7 @@ const MESSAGES_PER_PAGE = 20;
 
 export async function GET(
   req: NextRequest,
-  context: { params: Promise<{ conversationId: string }> }
+  context: { params: { conversationId: string } }
 ) {
   try {
     const session = await auth();
@@ -15,7 +15,7 @@ export async function GET(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { conversationId } = await context.params;
+    const { conversationId } = context.params;
     const { searchParams } = new URL(req.url);
     const cursor = searchParams.get("cursor");
 
