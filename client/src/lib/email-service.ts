@@ -136,7 +136,7 @@ function generateWelcomeEmailHTML({
   
   <div class="footer">
     <p>This email was sent because you signed up at <a href="${landingPageUrl}">${landingPageUrl}</a></p>
-    <p>Powered by <a href="https://ideaspark.app">IdeaSpark</a></p>
+    <p>Powered by <a href="https://startupvalidator.app">IdeaSpark</a></p>
   </div>
 </body>
 </html>
@@ -172,7 +172,7 @@ The ${startupName} Team
 
 ---
 This email was sent because you signed up at ${landingPageUrl}
-Powered by IdeaSpark - https://ideaspark.app
+Powered by IdeaSpark - https://startupvalidator.app
   `;
 }
 
