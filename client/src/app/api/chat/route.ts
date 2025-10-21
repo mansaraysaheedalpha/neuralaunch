@@ -10,6 +10,7 @@ import {
 import prisma from "@/lib/prisma"; //
 import { AI_MODELS } from "@/lib/models";
 import { z } from "zod";
+import { saveMemory } from "@/lib/ai-memory";
 
 const chatRequestSchema = z.object({
   messages: z
@@ -281,6 +282,13 @@ export async function POST(req: NextRequest) {
     let isNewConversation = false;
     let newConversationTitle = "";
 
+    // We run this without 'await' so it doesn't block the response
+    void saveMemory({
+      content: `User's initial prompt: "${lastUserMessage}"`,
+      conversationId: currentConversationId,
+      userId: userId,
+    });
+
     if (userId) {
       if (!currentConversationId) {
         const title = await generateTitle(lastUserMessage);
@@ -335,6 +343,15 @@ export async function POST(req: NextRequest) {
                 content: fullResponse,
               },
             });
+
+            if (isNewConversation) {
+              // Run without 'await'
+              void saveMemory({
+                content: `Initial IdeaSpark Blueprint:\n${fullResponse}`,
+                conversationId: currentConversationId,
+                userId: userId,
+              });
+            }
             // Don't await tag extraction if it should run in background
             void extractAndSaveTags(fullResponse, currentConversationId);
           }

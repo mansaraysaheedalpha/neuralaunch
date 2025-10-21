@@ -1,3 +1,4 @@
+//components/landing-page/LandingPagePublic.tsx
 "use client";
 
 import { useState } from "react";
