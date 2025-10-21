@@ -1,8 +1,8 @@
-//src/lib/ai - memory.ts;
 import "server-only";
 import OpenAI from "openai";
 import prisma from "@/lib/prisma";
-import { AI_MODELS } from "./models"; // <-- Integrates with your file
+import { Prisma } from "@prisma/client"; // <-- ADD THIS IMPORT
+import { AI_MODELS } from "./models";
 
 // Initialize the OpenAI client
 const openai = new OpenAI({
@@ -28,6 +28,9 @@ async function createEmbedding(text: string): Promise<number[]> {
 
     // 3. Get the embedding (the list of numbers)
     const embedding = response.data[0].embedding;
+    if (!embedding) {
+      throw new Error("OpenAI API returned an empty embedding.");
+    }
     return embedding;
   } catch (error) {
     console.error("Error creating embedding:", error);
@@ -37,7 +40,6 @@ async function createEmbedding(text: string): Promise<number[]> {
 
 /**
  * Saves a new memory to the AI Cofounder's long-term memory.
- * This is the function we'll call from our APIs.
  */
 export async function saveMemory({
   content,
@@ -48,38 +50,41 @@ export async function saveMemory({
   conversationId: string;
   userId: string;
 }) {
-  // 1. Create the vector embedding from the content
-  const embedding = await createEmbedding(content);
+  try {
+    // 1. Create the vector embedding from the content
+    const embedding = await createEmbedding(content);
 
-  // 2. Save to the database
-  // Because we used the `Unsupported` type, we must use raw SQL.
-  const vectorString = `[${embedding.join(",")}]`;
+    // 2. Save to the database
+    const vectorString = `[${embedding.join(",")}]`;
 
-  await prisma.$executeRawUnsafe(
-    `INSERT INTO "AiMemory" (id, content, embedding, "conversationId", "userId", "createdAt")
-     VALUES (gen_random_uuid(), $1, $2::vector(1536), $3, $4, NOW())
-     ON CONFLICT DO NOTHING`, // Add this to prevent errors if we accidentally save the same thing
-    content,
-    vectorString,
-    conversationId,
-    userId
-  );
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "AiMemory" (id, content, embedding, "conversationId", "userId", "createdAt")
+       VALUES (gen_random_uuid(), $1, $2::vector(1536), $3, $4, NOW())
+       ON CONFLICT DO NOTHING`, // Prevent errors on duplicate saves
+      content,
+      vectorString,
+      conversationId,
+      userId
+    );
 
-  console.log(`🤖 Saved new memory for conversation ${conversationId}`);
+    console.log(`🤖 Saved new memory for conversation ${conversationId}`);
+  } catch (error) {
+    // Log error but don't crash the main operation (e.g., chat response)
+    console.error(
+      "Error saving memory:",
+      error instanceof Error ? error.message : error
+    );
+  }
 }
 
 /**
  * Searches the AI Cofounder's memory for relevant information.
- * @param query The user's question or topic to search for.
- * @param conversationId The ID of the current conversation.
- * @param limit The maximum number of memories to retrieve.
- * @returns {Promise<string[]>} An array of the most relevant memory content strings.
  */
 export async function searchMemory({
   query,
   conversationId,
-  userId, // Add userId for security/filtering
-  limit = 5, // Default to retrieving top 5 memories
+  userId,
+  limit = 5,
 }: {
   query: string;
   conversationId: string;
@@ -91,10 +96,7 @@ export async function searchMemory({
     const queryEmbedding = await createEmbedding(query);
     const vectorString = `[${queryEmbedding.join(",")}]`;
 
-    // 2. Perform vector similarity search using raw SQL
-    // We use `<=>` (cosine distance) operator from pg_vector
-    // to find the closest vectors. Lower distance = more similar.
-    // Ensure you only search memories for the correct user and conversation.
+    // 2. Perform vector similarity search using raw SQL with Prisma.sql
     const results = await prisma.$queryRaw<Array<{ content: string }>>(
       Prisma.sql`
         SELECT content
@@ -109,10 +111,8 @@ export async function searchMemory({
 
     // 3. Return just the text content of the relevant memories
     return results.map((result) => result.content);
-
   } catch (error) {
     console.error("Error searching memory:", error);
-    // Return empty array on error, so the agent can still try to answer
-    return [];
+    return []; // Return empty array on error
   }
 }
