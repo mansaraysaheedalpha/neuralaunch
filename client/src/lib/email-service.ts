@@ -190,7 +190,7 @@ export async function notifyFounderOfSignup({
 }): Promise<boolean> {
   try {
     const { error } = await resend.emails.send({
-      from: "IdeaSpark <notifications@infinite-dynamics.com>",
+      from: "IdeaSpark <info@infinite-dynamics.com>",
       to: [founderEmail],
       subject: `🎉 New signup for ${startupName}!`,
       html: `
