@@ -27,6 +27,17 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Google Analytics */}
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-KN3B2XG85H"></script>
+        <script>
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+
+          gtag('config', 'G-KN3B2XG85H');
+        </script>
+      </head>
       <body className={`${GeistSans.className} antialiased`}>
         <Providers>
           {/* 2. Use the MainLayout component to wrap the children */}
