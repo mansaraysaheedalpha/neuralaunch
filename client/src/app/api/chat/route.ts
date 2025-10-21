@@ -264,9 +264,7 @@ export async function POST(req: NextRequest) {
     const session = await auth();
     const userId = session?.user?.id;
 
-    // --- FIX: Handle req.json() safely ---
-    const body: unknown = await req.json(); // Assign to unknown first
-    // ------------------------------------
+    const body: unknown = await req.json();
 
     const validation = chatRequestSchema.safeParse(body);
     if (!validation.success) {
@@ -282,15 +280,12 @@ export async function POST(req: NextRequest) {
     let isNewConversation = false;
     let newConversationTitle = "";
 
-    // We run this without 'await' so it doesn't block the response
-    void saveMemory({
-      content: `User's initial prompt: "${lastUserMessage}"`,
-      conversationId: currentConversationId,
-      userId: userId,
-    });
+    // --- MOVED saveMemory CALL ---
+    // Moved it inside the if(userId) block below
 
     if (userId) {
       if (!currentConversationId) {
+        // Create new conversation only if needed
         const title = await generateTitle(lastUserMessage);
         const conversation = await prisma.conversation.create({
           data: { userId, title },
@@ -298,14 +293,32 @@ export async function POST(req: NextRequest) {
         currentConversationId = conversation.id;
         isNewConversation = true;
         newConversationTitle = conversation.title;
+        console.log(`✨ Created new conversation: ${currentConversationId}`);
       }
+
+      // --- SAVE MEMORY HERE ---
+      // Now we are sure userId and currentConversationId are valid strings
+      if (currentConversationId) {
+        // Added explicit check just in case
+        void saveMemory({
+          content: `User's initial prompt: "${lastUserMessage}"`,
+          conversationId: currentConversationId, // Now guaranteed to be string
+          userId: userId,
+        });
+      }
+      // ------------------------
+
+      // Save user message
       await prisma.message.create({
         data: {
-          conversationId: currentConversationId,
+          conversationId: currentConversationId, // Guaranteed to be string here
           role: "user",
           content: lastUserMessage,
         },
       });
+      console.log(
+        `💾 Saved user message for conversation: ${currentConversationId}`
+      );
     }
 
     const model = genAI.getGenerativeModel({
