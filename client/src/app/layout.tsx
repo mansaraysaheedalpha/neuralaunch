@@ -7,7 +7,7 @@ import { Toaster } from "react-hot-toast";
 import MainLayout from "@/components/MainLayout"; // 1. Import our new component
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
-
+import Script from "next/script";
 
 export const metadata: Metadata = {
   title: "IdeaSpark - AI-Powered Startup Idea Generator",
@@ -25,18 +25,28 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const GA_MEASUREMENT_ID = "G-KN3B2XG85H";
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* Google Analytics */}
-        <script async src="https://www.googletagmanager.com/gtag/js?id=G-KN3B2XG85H"></script>
-        <script>
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          gtag('js', new Date());
-
-          gtag('config', 'G-KN3B2XG85H');
-        </script>
+        <Script
+          strategy="afterInteractive" // Load GA after the page is interactive
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
+        />
+        <Script
+          id="google-analytics"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            // Use dangerouslySetInnerHTML for inline scripts
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', '${GA_MEASUREMENT_ID}');
+            `,
+          }}
+        />
+        {/* --- End Google Analytics Scripts --- */}
       </head>
       <body className={`${GeistSans.className} antialiased`}>
         <Providers>
