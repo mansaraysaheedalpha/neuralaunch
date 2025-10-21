@@ -15,7 +15,7 @@ const updateSchema = z.object({
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { conversationId: string } }
+  { params }: { params: Promise<{ conversationId: string }> }
 ) {
   try {
     const session = await auth();
@@ -23,7 +23,7 @@ export async function GET(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const { conversationId } = params;
+    const { conversationId } = await params;
 
     // Verify user owns the conversation this hub will be attached to
     const conversation = await prisma.conversation.findUnique({
@@ -58,7 +58,7 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { conversationId: string } }
+  { params }: { params: Promise<{ conversationId: string }> }
 ) {
   try {
     const session = await auth();
@@ -67,7 +67,7 @@ export async function POST(
     }
 
     const userId = session.user.id;
-    const { conversationId } = params;
+    const { conversationId } = await params;
     const body: unknown = await req.json();
 
     // 1. Validate Input
