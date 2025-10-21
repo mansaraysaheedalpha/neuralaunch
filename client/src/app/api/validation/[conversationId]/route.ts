@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { getFeedbackSentiment, getValidationInsight } from "@/lib/validation"; // Import our new helper
+import { saveMemory } from "@/lib/ai-memory";
 
 // --- Zod Schema for Input Validation ---
 const updateSchema = z.object({
@@ -65,6 +66,7 @@ export async function POST(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
+    const userId = session.user.id;
     const { conversationId } = params;
     const body: unknown = await req.json();
 
@@ -144,6 +146,12 @@ export async function POST(
       problemValidationScore,
       executionScore,
       totalValidationScore,
+    });
+
+    void saveMemory({
+      content: `Validation Insight (Score: ${totalValidationScore.toFixed(0)}): "${aiInsight}"`,
+      conversationId: conversationId,
+      userId: userId, // Pass the userId we got earlier
     });
 
     // 6. Save Results to Database

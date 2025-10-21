@@ -6,8 +6,9 @@ import { useParams, useRouter } from "next/navigation";
 import TextareaAutosize from "react-textarea-autosize";
 import { motion } from "framer-motion";
 import toast from "react-hot-toast";
-import { useChatStore } from "@/lib/stores/chatStore"; // Correct import
+import { useChatStore } from "@/lib/stores/chatStore";
 import ValidationDashboard from "@/components/ValidationDashboard";
+import CofounderChat from "@/components/CofounderChat";
 
 // --- Define types for API responses ---
 interface Message {
@@ -18,13 +19,13 @@ interface Message {
 
 interface ConversationApiResponse {
   messages: Message[];
-  landingPage?: { id: string } | null; // Expecting landingPage object with id
+  landingPage?: { id: string } | null;
 }
 
 interface GenerateApiResponse {
   success: boolean;
-  landingPage?: { id: string }; // Expecting landingPage object with id
-  message?: string; // Optional error message
+  landingPage?: { id: string };
+  message?: string;
 }
 
 interface ErrorApiResponse {
@@ -44,7 +45,6 @@ const ValidationHubButton = ({
   const router = useRouter();
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // FIX: Wrap async function for no-misused-promises
   const handleClick = async () => {
     if (landingPageId) {
       router.push(`/build/${landingPageId}`);
@@ -59,12 +59,10 @@ const ValidationHubButton = ({
         body: JSON.stringify({ conversationId }),
       });
 
-      // FIX: Explicitly type data and handle errors safely (Line 64)
       if (!res.ok) {
         const errorData = (await res.json()) as ErrorApiResponse;
         throw new Error(errorData.message || "Generation failed");
       }
-      // FIX: Line 67 - Use type assertion instead of unsafe assignment
       const data = (await res.json()) as GenerateApiResponse;
       if (data.success && data.landingPage?.id) {
         router.push(`/build/${data.landingPage.id}`);
@@ -74,7 +72,6 @@ const ValidationHubButton = ({
         );
       }
     } catch (error: unknown) {
-      // FIX: Type error
       toast.error(
         `Failed to build page: ${
           error instanceof Error ? error.message : "Please try again."
@@ -89,7 +86,7 @@ const ValidationHubButton = ({
     <motion.button
       onClick={() => {
         void handleClick();
-      }} // FIX: Wrap async onClick properly
+      }}
       disabled={isGenerating}
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
@@ -104,7 +101,7 @@ const ValidationHubButton = ({
   );
 };
 
-// --- NEW HELPER COMPONENT FOR TABS ---
+// --- Helper component for Tabs ---
 const TabButton = ({
   title,
   isActive,
@@ -127,8 +124,9 @@ const TabButton = ({
 );
 
 export default function ChatPage() {
-  // --- NEW STATE FOR TABS ---
-  const [activeTab, setActiveTab] = useState<"chat" | "validation">("chat");
+  const [activeTab, setActiveTab] = useState<
+    "chat" | "validation" | "cofounder"
+  >("chat");
 
   const [input, setInput] = useState<string>("");
   const [landingPageId, setLandingPageId] = useState<string | null>(null);
@@ -153,7 +151,6 @@ export default function ChatPage() {
 
   useEffect(() => {
     const loadChatHistory = async () => {
-      // ... (no changes in this function)
       if (conversationId && typeof conversationId === "string") {
         setIsLoading(true);
         setError(null);
@@ -186,11 +183,13 @@ export default function ChatPage() {
   }, [conversationId, setMessages, setIsLoading, setError]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    // Only scroll chat messages if the chat tab is active
+    if (activeTab === "chat") {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, activeTab]); // Add activeTab dependency
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    // ... (no changes in this function)
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
@@ -259,44 +258,47 @@ export default function ChatPage() {
     }
   };
 
-  // --- RETURN STATEMENT IS NOW RESTRUCTURED ---
   return (
     <div className="flex flex-col h-screen bg-gradient-to-br from-white via-violet-50/20 to-purple-50/20 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 overflow-hidden">
-      {/* 1. Blurry Background (No Change) */}
+      {/* 1. Blurry Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 w-96 h-96 bg-violet-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
         <div className="absolute top-40 right-10 w-96 h-96 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
         <div className="absolute bottom-20 left-1/2 w-72 h-72 bg-indigo-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-4000"></div>
       </div>
-
-      {/* 2. MAIN CONTENT AREA (NOW SCROLLS EVERYTHING) */}
-      <div className="flex-1 overflow-y-auto relative z-10">
-        {/* --- NEW TAB SWITCHER --- */}
-        <div className="sticky top-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-20">
-          <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8">
-            <div className="flex border-b border-gray-200 dark:border-gray-700">
-              <TabButton
-                title="Chat"
-                isActive={activeTab === "chat"}
-                onClick={() => setActiveTab("chat")}
-              />
-              <TabButton
-                title="Validation Hub"
-                isActive={activeTab === "validation"}
-                onClick={() => setActiveTab("validation")}
-              />
-            </div>
+      {/* --- 2. HEADER AREA (Tabs - Fixed at Top) --- */}
+      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-20 flex-shrink-0 border-b border-gray-200 dark:border-gray-700">
+        <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8">
+          <div className="flex">
+            <TabButton
+              title="Chat"
+              isActive={activeTab === "chat"}
+              onClick={() => setActiveTab("chat")}
+            />
+            <TabButton
+              title="Validation Hub"
+              isActive={activeTab === "validation"}
+              onClick={() => setActiveTab("validation")}
+            />
+            <TabButton
+              title="AI Cofounder ✨"
+              isActive={activeTab === "cofounder"}
+              onClick={() => setActiveTab("cofounder")}
+            />
           </div>
         </div>
-
-        {/* --- CONDITIONAL CONTENT --- */}
+      </div>
+      {/* --- 3. SCROLLING CONTENT AREA --- */}
+      <div className="flex-1 overflow-y-auto relative z-10">
+        {/* Conditional Content */}
         {activeTab === "chat" && (
           <div className="p-4 sm:p-6 lg:p-8 space-y-6">
             <div className="space-y-6 max-w-4xl mx-auto">
-              {/* --- ALL YOUR ORIGINAL CHAT CONTENT GOES HERE --- */}
+              {/* Chat messages UI */}
               {messages.length === 0 && isLoading ? (
                 <div className="flex items-center justify-center min-h-[50vh]">
                   <div className="text-center space-y-4">
+                    {/* Loading icon */}
                     <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-violet-600 to-purple-600 rounded-2xl shadow-lg animate-pulse">
                       <svg
                         className="w-8 h-8 text-white"
@@ -358,7 +360,6 @@ export default function ChatPage() {
                   )}
                 </div>
               )}
-
               {/* Loading indicator for model response */}
               {isLoading &&
                 messages.length > 0 &&
@@ -386,18 +387,25 @@ export default function ChatPage() {
 
         {activeTab === "validation" && (
           <div className="p-4 sm:p-6 lg:p-8">
-            {/* --- VALIDATION DASHBOARD GOES HERE --- */}
             <div className="max-w-4xl mx-auto w-full">
               <ValidationDashboard />
             </div>
           </div>
         )}
-      </div>
 
-      {/* 3. CHAT INPUT AREA (NOW CONDITIONAL) */}
-      {/* It only appears if the 'chat' tab is active */}
+        {/* Cofounder Chat */}
+        {activeTab === "cofounder" && (
+          <div className="h-full">
+            {" "}
+            {/* Ensure it can take full height */}
+            <CofounderChat />
+          </div>
+        )}
+      </div>{" "}
+      {/* End Scrolling Content Area */}
+      {/* --- 4. CHAT INPUT AREA (Only for 'chat' tab) --- */}
       {activeTab === "chat" && (
-        <div className="p-4 sm:p-6 lg:p-6 pb-8 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-slate-900 dark:via-slate-900/95 backdrop-blur-xl relative z-20">
+        <div className="p-4 sm:p-6 lg:p-6 pb-8 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-slate-900 dark:via-slate-900/95 backdrop-blur-xl relative z-20 flex-shrink-0">
           {error && (
             <div className="max-w-4xl mx-auto mb-4 p-4 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-2xl animate-shake">
               <div className="flex items-center gap-3">
@@ -418,9 +426,6 @@ export default function ChatPage() {
               </div>
             </div>
           )}
-
-          {/* --- THE VALIDATION DASHBOARD IS NO LONGER HERE --- */}
-
           <div className="max-w-4xl mx-auto">
             <form
               ref={formRef}
@@ -437,8 +442,8 @@ export default function ChatPage() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="Ask a follow-up question..."
-                    minRows={1} // Start as a single line
-                    maxRows={5} // Grow up to 5 lines before scrolling
+                    minRows={1}
+                    maxRows={5}
                     className="flex-1 bg-transparent border-0 focus:ring-0 text-base text-foreground placeholder-muted-foreground resize-none outline-none px-4 py-3"
                     required
                     disabled={isLoading}

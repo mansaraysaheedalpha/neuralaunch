@@ -22,4 +22,11 @@ export const AI_MODELS = {
    * Use for: Code-related sprint tasks.
    */
   OPENAI: "gpt-4o",
+
+  /**
+   * --- ADD THIS BLOCK ---
+   * For generating vector embeddings.
+   * Use for: AI Cofounder memory.
+   */
+  EMBEDDING: "text-embedding-3-small",
 };

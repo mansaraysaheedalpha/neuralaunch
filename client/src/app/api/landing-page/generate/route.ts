@@ -11,6 +11,7 @@ import {
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
+import { saveMemory } from "@/lib/ai-memory";
 
 const generateRequestSchema = z.object({
   conversationId: z.string().cuid({ message: "Invalid Conversation ID" }),
@@ -35,6 +36,8 @@ export async function POST(req: NextRequest) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
+    const userId = session.user.id;
+
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const body = await req.json();
 
@@ -49,7 +52,7 @@ export async function POST(req: NextRequest) {
 
     const conversation: ConversationWithDetails | null =
       await prisma.conversation.findUnique({
-        where: { id: conversationId, userId: session.user.id },
+        where: { id: conversationId, userId: userId },
         include: {
           messages: {
             where: { role: "model" },
@@ -95,7 +98,7 @@ export async function POST(req: NextRequest) {
     // ---------------------------------------------
 
     const cleanBaseSlug = generateSlug(content.headline);
-    
+
     const landingPage = await prisma.landingPage.upsert({
       where: { conversationId: conversationId },
       update: {
@@ -109,10 +112,10 @@ export async function POST(req: NextRequest) {
         metaDescription: content.metaDescription,
         designVariant: designVariant.id,
         colorScheme: colorSchemeJson, // Use the casted value
-        slug: generateSlug(content.headline),
+        slug: cleanBaseSlug,
       },
       create: {
-        userId: session.user.id,
+        userId: userId,
         conversationId,
         slug: cleanBaseSlug,
         title: conversation.title,
@@ -127,6 +130,23 @@ export async function POST(req: NextRequest) {
         designVariant: designVariant.id,
         colorScheme: colorSchemeJson, // Use the casted value
       },
+      select: { id: true },
+    });
+
+    // --- 👇 2. SAVE LANDING PAGE CONTENT AS MEMORY ---
+    // Format a concise summary of the generated content
+    const memoryContent = `Generated Landing Page Content:
+Headline: ${content.headline}
+Subheadline: ${content.subheadline}
+Problem: ${content.problemStatement ?? "N/A"}
+Solution: ${content.solutionStatement ?? "N/A"}
+CTA: ${content.ctaText}`;
+
+    // Run without 'await' so it doesn't block the response
+    void saveMemory({
+      content: memoryContent,
+      conversationId: conversationId,
+      userId: userId,
     });
 
     return NextResponse.json({ success: true, landingPage });

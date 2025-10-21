@@ -1,4 +1,4 @@
-// lib/tag-taxonomy.ts
+// client/lib/tag-taxonomy.ts
 // World-class predefined taxonomy for consistent tagging
 
 export const TAG_TAXONOMY = {
