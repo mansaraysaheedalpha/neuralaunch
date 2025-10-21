@@ -27,7 +27,8 @@ export async function sendWelcomeEmail({
 }: WelcomeEmailParams): Promise<boolean> {
   try {
     const { data, error } = await resend.emails.send({
-      from: "IdeaSpark <onboarding@resend.dev>", // Change to your domain
+      // --- CHANGE #1: Use your verified domain ---
+      from: "IdeaSpark <welcome@infinite-dynamics.com>",
       to: [to],
       subject: `Thanks for joining ${startupName}! 🚀`,
       html: generateWelcomeEmailHTML({ name, startupName, landingPageUrl }),
@@ -47,7 +48,7 @@ export async function sendWelcomeEmail({
   }
 }
 
-// HTML version of welcome email
+// HTML version of welcome email (No changes needed here)
 function generateWelcomeEmailHTML({
   name,
   startupName,
@@ -143,7 +144,7 @@ function generateWelcomeEmailHTML({
   `;
 }
 
-// Plain text version (fallback)
+// Plain text version (No changes needed here)
 function generateWelcomeEmailText({
   name,
   startupName,
@@ -176,7 +177,7 @@ Powered by IdeaSpark - https://startupvalidator.app
   `;
 }
 
-// Optional: Send notification to startup founder
+// Your existing notifyFounderOfSignup function is already correct since it uses info@infinite-dynamics.com
 export async function notifyFounderOfSignup({
   founderEmail,
   signupEmail,
@@ -190,7 +191,7 @@ export async function notifyFounderOfSignup({
 }): Promise<boolean> {
   try {
     const { error } = await resend.emails.send({
-      from: "IdeaSpark <info@infinite-dynamics.com>",
+      from: "IdeaSpark <notifications@infinite-dynamics.com>", // Using a different address for clarity
       to: [founderEmail],
       subject: `🎉 New signup for ${startupName}!`,
       html: `
@@ -222,7 +223,8 @@ export async function sendSprintReminderEmail(
 ): Promise<boolean> {
   try {
     const { data, error } = await resend.emails.send({
-      from: "IdeaSpark <reminders@resend.dev>", // Using a different 'from' for filtering
+      // --- CHANGE #2: Use your verified domain ---
+      from: "IdeaSpark <reminders@infinite-dynamics.com>",
       to: [params.to],
       subject: `Keep up the momentum on ${params.startupName}! 🚀`,
       html: generateReminderEmailHTML(params),
@@ -241,6 +243,7 @@ export async function sendSprintReminderEmail(
   }
 }
 
+// generateReminderEmailHTML function (No changes needed here)
 function generateReminderEmailHTML({
   userName,
   startupName,
