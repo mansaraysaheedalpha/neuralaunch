@@ -3,17 +3,16 @@ import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { Task, TaskOutput, Prisma } from "@prisma/client";
 
-// Import chrome-aws-lambda
-import chromium from "chrome-aws-lambda";
-// --- FIX: Correct puppeteer-core import ---
+// --- Revert to @sparticuz/chromium ---
+import chromium from "@sparticuz/chromium";
+// ------------------------------------
 import puppeteer from "puppeteer-core";
-// Import the Browser type specifically
 import type { Browser } from "puppeteer-core";
-// ------------------------------------------
 
 // Keep puppeteerFull only for local dev fallback
-import puppeteerFull from "puppeteer";
+import puppeteerFull from "puppeteer"; // Ensure this is a devDependency
 import { marked } from "marked";
+import { Buffer } from "node:buffer";
 
 export const runtime = "nodejs";
 
@@ -22,6 +21,7 @@ async function generateHTML(
   title: string,
   tasks: (Task & { outputs: TaskOutput[] })[]
 ): Promise<string> {
+  // ... (HTML generation code remains the same) ...
   const styles = `
       body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333; padding: 40px; }
       h1, h2, h3 { color: #111; }
@@ -122,17 +122,11 @@ export async function GET(
     }
 
     let browser: Browser | null = null;
-    let pdfBuffer: Uint8Array | Buffer | null = null;
+    let pdfBuffer: Buffer | null = null;
 
     try {
       console.log("🚀 Launching browser...");
       const isProduction = process.env.VERCEL_ENV === "production";
-      type ChromiumAwsLambdaLike = {
-        executablePath: string | Promise<string>;
-        args: string[];
-        headless: boolean;
-      };
-      const chromiumSafe = chromium as unknown as ChromiumAwsLambdaLike; // Keep workaround for potential CJS issues
       let executablePath: string | undefined = undefined;
 
       if (!isProduction) {
@@ -153,13 +147,11 @@ export async function GET(
                 : process.platform === "linux"
                   ? "/usr/bin/google-chrome"
                   : "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-            // --- FIX: Use default puppeteer import ---
             browser = await puppeteer.launch({
               executablePath: localChromePath,
               args: [],
               headless: true,
             });
-            // -----------------------------------------
           } catch (fallbackError) {
             console.error(
               "Could not launch local Chrome instance either.",
@@ -171,22 +163,22 @@ export async function GET(
           }
         }
       } else {
-        console.log("Running in production mode, using chrome-aws-lambda.");
-        executablePath = await chromiumSafe.executablePath;
+        console.log("Running in production mode, using @sparticuz/chromium.");
+        // --- Revert to @sparticuz/chromium logic ---
+        executablePath = await chromium.executablePath(); // Use await directly if function returns promise
         if (!executablePath) {
           throw new Error(
-            "Could not find Chromium executable path via chrome-aws-lambda."
+            "Could not find Chromium executable path via @sparticuz/chromium."
           );
         }
         console.log(`Using Chromium path: ${executablePath}`);
-        // --- FIX: Use default puppeteer import ---
         browser = await puppeteer.launch({
-          args: chromiumSafe.args,
+          args: chromium.args,
           executablePath: executablePath,
-          headless: chromiumSafe.headless,
+          headless: true, // Use boolean true for headless
         });
-        // -----------------------------------------
         console.log("Browser launched successfully on Vercel.");
+        // ---------------------------------------------
       }
 
       if (!browser) {
@@ -208,12 +200,15 @@ export async function GET(
       });
       console.log("HTML content set on page.");
 
-      pdfBuffer = await page.pdf({
-        format: "A4",
-        printBackground: true,
-        margin: { top: "20px", right: "20px", bottom: "20px", left: "20px" },
-        timeout: 15000,
-      });
+      // Convert the Uint8Array returned by page.pdf to a Node Buffer to satisfy the expected Buffer type.
+      pdfBuffer = Buffer.from(
+        await page.pdf({
+          format: "A4",
+          printBackground: true,
+          margin: { top: "20px", right: "20px", bottom: "20px", left: "20px" },
+          timeout: 15000,
+        })
+      );
       console.log("✅ PDF generated successfully.");
     } catch (renderError) {
       console.error("❌ Error during PDF rendering phase:", renderError);
@@ -229,12 +224,13 @@ export async function GET(
       throw new Error("PDF Buffer could not be generated.");
     }
 
-    const arrayBuffer = pdfBuffer.buffer.slice(pdfBuffer.byteOffset, pdfBuffer.byteOffset + pdfBuffer.byteLength);
-    const arrayBufferForBlob =
-      arrayBuffer instanceof SharedArrayBuffer
-        ? new Uint8Array(arrayBuffer).slice().buffer
-        : arrayBuffer;
-    const pdfBlob = new Blob([arrayBufferForBlob], { type: "application/pdf" });
+    // Convert Node Buffer to a proper ArrayBuffer slice to satisfy BlobPart typing
+    const pdfArray = new Uint8Array(pdfBuffer);
+    const arrayBuffer = pdfArray.buffer.slice(
+      pdfArray.byteOffset,
+      pdfArray.byteOffset + pdfArray.byteLength
+    );
+    const pdfBlob = new Blob([arrayBuffer], { type: "application/pdf" });
 
     const safeFilename = conversation.title
       .replace(/[^a-z0-9_\-\s]/gi, "_")
