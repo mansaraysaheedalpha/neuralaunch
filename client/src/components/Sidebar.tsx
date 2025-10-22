@@ -321,7 +321,7 @@ export default function Sidebar({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-foreground truncate">
-              IdeaSpark
+              NeuraLaunch
             </p>
             <p className="text-xs text-muted-foreground">AI Assistant</p>
           </div>
