@@ -87,23 +87,51 @@ export default function SprintDashboard({
     setIsExporting(true);
     try {
       const response = await fetch(`/api/sprint/export/${conversationId}`);
+
       if (!response.ok) {
-        const errorData: unknown = await response.json();
-        const typedError = errorData as ApiErrorResponse;
-        throw new Error(typedError.message || "Failed to fetch export data.");
+        // Attempt to read error message as text first
+        let errorMessage = `Failed to export sprint (Status: ${response.status})`;
+        try {
+          // Try parsing as JSON if Content-Type suggests it
+          if (
+            response.headers.get("Content-Type")?.includes("application/json")
+          ) {
+            const errorData = (await response.json()) as ApiErrorResponse;
+            if (errorData.message) errorMessage = errorData.message;
+          } else {
+            // Otherwise, read as plain text
+            const errorText = await response.text();
+            if (errorText) errorMessage = errorText; // Use text if available
+          }
+        } catch (parseError) {
+          // If parsing fails either way, stick with the status message
+          console.error("Failed to parse error response:", parseError);
+        }
+        throw new Error(errorMessage);
       }
 
+      // If response is OK, process the PDF blob
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `ideaspark-report-${conversationId}.pdf`;
+      // Extract filename from header if possible, otherwise use default
+      const disposition = response.headers.get("Content-Disposition");
+      let filename = `ideaspark-report-${conversationId}.pdf`; // Default
+      if (disposition && disposition.indexOf("attachment") !== -1) {
+        const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+        const matches = filenameRegex.exec(disposition);
+        if (matches != null && matches[1]) {
+          filename = matches[1].replace(/['"]/g, "");
+        }
+      }
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
+      toast.success("Report exported successfully!");
     } catch (err: unknown) {
-      // Type the error
       toast.error(
         err instanceof Error ? err.message : "Failed to export sprint."
       );
