@@ -66,10 +66,10 @@ export default function Header({
               {/* Text */}
               <div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                  IdeaSpark
+                  NeuraLaunch
                 </h1>
                 <p className="text-xs text-muted-foreground">
-                  AI-Powered Startup Ideas
+                  AI Startup Co-Pilot
                 </p>
               </div>
             </Link>

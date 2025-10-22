@@ -28,7 +28,7 @@ export async function sendWelcomeEmail({
   try {
     const { data, error } = await resend.emails.send({
       // --- CHANGE #1: Use your verified domain ---
-      from: "IdeaSpark <welcome@infinite-dynamics.com>",
+      from: "NeuraLaunch <welcome@infinite-dynamics.com>",
       to: [to],
       subject: `Thanks for joining ${startupName}! 🚀`,
       html: generateWelcomeEmailHTML({ name, startupName, landingPageUrl }),
@@ -137,7 +137,7 @@ function generateWelcomeEmailHTML({
   
   <div class="footer">
     <p>This email was sent because you signed up at <a href="${landingPageUrl}">${landingPageUrl}</a></p>
-    <p>Powered by <a href="https://startupvalidator.app">IdeaSpark</a></p>
+    <p>Powered by <a href="https://startupvalidator.app">NeuraLaunch</a></p>
   </div>
 </body>
 </html>
@@ -173,7 +173,7 @@ The ${startupName} Team
 
 ---
 This email was sent because you signed up at ${landingPageUrl}
-Powered by IdeaSpark - https://startupvalidator.app
+Powered by NeuraLaunch - https://startupvalidator.app
   `;
 }
 
@@ -191,7 +191,7 @@ export async function notifyFounderOfSignup({
 }): Promise<boolean> {
   try {
     const { error } = await resend.emails.send({
-      from: "IdeaSpark <notifications@infinite-dynamics.com>", // Using a different address for clarity
+      from: "NeuraLaunch <notifications@infinite-dynamics.com>", // Using a different address for clarity
       to: [founderEmail],
       subject: `🎉 New signup for ${startupName}!`,
       html: `
@@ -224,7 +224,7 @@ export async function sendSprintReminderEmail(
   try {
     const { data, error } = await resend.emails.send({
       // --- CHANGE #2: Use your verified domain ---
-      from: "IdeaSpark <reminders@infinite-dynamics.com>",
+      from: "NeuraLaunch <reminders@infinite-dynamics.com>",
       to: [params.to],
       subject: `Keep up the momentum on ${params.startupName}! 🚀`,
       html: generateReminderEmailHTML(params),
@@ -266,7 +266,7 @@ function generateReminderEmailHTML({
     </head>
     <body>
       <div class="header">
-        <h1>IdeaSpark Sprint</h1>
+        <h1>NeuraLaunch Sprint</h1>
       </div>
       <div class="content">
         <h2>${greeting}! 👋</h2>
@@ -278,10 +278,10 @@ function generateReminderEmailHTML({
           </a>
         </center>
         <p>Don't let the momentum fade. Log back in and complete your next task!</p>
-        <p>Best,<br>The IdeaSpark Team</p>
+        <p>Best,<br>The NeuraLaunch Team</p>
       </div>
       <div class="footer">
-        <p>You're receiving this because you started a 72-hour sprint on IdeaSpark.</p>
+        <p>You're receiving this because you started a 72-hour sprint on NeuraLaunch.</p>
       </div>
     </body>
     </html>

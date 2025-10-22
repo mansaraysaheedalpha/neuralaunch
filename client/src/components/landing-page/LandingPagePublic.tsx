@@ -290,10 +290,10 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
             <p className="text-sm opacity-50">
               Powered by{" "}
               <a
-                href="https://ideaspark-three.vercel.app"
+                href="https://startupvalidator.app"
                 className="font-semibold hover:opacity-100 transition-opacity text-lp-primary"
               >
-                IdeaSpark
+                NeuraLink
               </a>
             </p>
           </div>
