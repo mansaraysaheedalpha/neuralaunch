@@ -1,5 +1,3 @@
-// src/auth.ts
-
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
@@ -25,9 +23,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
   },
-
   events: {
-    createUser: async ({ user }) => {
+    // --- REMOVED 'async' ---
+    createUser: ({ user }) => {
       // This event fires the first time a user signs up.
       console.log("New user created:", user.id);
       trackEvent("sign_up", {
