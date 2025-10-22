@@ -1,5 +1,7 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
+import type { NextConfig as NextJsConfig } from "next";
+import type { Configuration } from "webpack";
+
+const nextConfig: NextJsConfig = {
   productionBrowserSourceMaps: false,
   images: {
     remotePatterns: [
@@ -9,6 +11,13 @@ const nextConfig = {
       },
     ],
   },
+  webpack: (config: Configuration, { isServer }: { isServer: boolean }): Configuration => {
+    // Keep Prisma handling
+    if (isServer) {
+      // config.externals = [...config.externals, '@prisma/client']; // Optional externals
+    }
+    return config;
+  },
 };
 
-module.exports = nextConfig;
+export default nextConfig;
