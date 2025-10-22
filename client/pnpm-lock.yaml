@@ -77,12 +77,6 @@ importers:
       openai:
         specifier: ^6.5.0
         version: 6.5.0(ws@8.18.3)(zod@4.1.12)
-      pupeteer:
-        specifier: ^0.0.1
-        version: 0.0.1
-      puppeteer:
-        specifier: ^24.26.0
-        version: 24.26.0(typescript@5.9.3)
       puppeteer-core:
         specifier: ^24.26.0
         version: 24.26.0
@@ -171,6 +165,9 @@ importers:
       prisma:
         specifier: ^6.17.1
         version: 6.17.1(typescript@5.9.3)
+      puppeteer:
+        specifier: ^24.26.0
+        version: 24.26.0(typescript@5.9.3)
       tailwindcss:
         specifier: ^3.4.18
         version: 3.4.18(tsx@4.20.6)
@@ -3064,9 +3061,6 @@ packages:
   punycode@2.3.1:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
-
-  pupeteer@0.0.1:
-    resolution: {integrity: sha512-NQmPNNzecPECIHHikzJQChlbzG+TuM7DI0rwIkLH/7URZpPn+wVyJa1FOHo5OJQeGj3oDURNzu7aYM5WrMKw1g==}
 
   puppeteer-core@24.26.0:
     resolution: {integrity: sha512-l3aMYhTdSzazZ14rfpNAPGhnYHsd8mwduqybhu5aO/OR+d24P/V/eo8XTB3GB2yX2ZWf9GLAVcx8nnVPFZpP/A==}
@@ -6720,8 +6714,6 @@ snapshots:
       once: 1.4.0
 
   punycode@2.3.1: {}
-
-  pupeteer@0.0.1: {}
 
   puppeteer-core@24.26.0:
     dependencies:
