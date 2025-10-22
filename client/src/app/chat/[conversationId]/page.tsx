@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 import { useChatStore } from "@/lib/stores/chatStore";
 import ValidationDashboard from "@/components/ValidationDashboard";
 import CofounderChat from "@/components/CofounderChat";
+import { trackEvent } from "@/lib/analytics";
 
 // --- Define types for API responses ---
 interface Message {
@@ -65,6 +66,10 @@ const ValidationHubButton = ({
       }
       const data = (await res.json()) as GenerateApiResponse;
       if (data.success && data.landingPage?.id) {
+         trackEvent("create_landing_page", {
+           conversationId: conversationId,
+           landingPageId: data.landingPage.id,
+         });
         router.push(`/build/${data.landingPage.id}`);
       } else {
         throw new Error(

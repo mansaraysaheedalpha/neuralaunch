@@ -10,6 +10,7 @@ import AIAssistantModal from "./AIAssistantModal";
 import SprintAnalytics from "./SprintAnalytics";
 import SprintAchievements from "./SprintAchievements";
 import toast from "react-hot-toast";
+import { trackEvent } from "@/lib/analytics";
 
 // Define the expected shape of the data returned by the SWR hook
 interface SprintData {
@@ -67,6 +68,9 @@ export default function SprintDashboard({
         const typedError = errorData as ApiErrorResponse;
         throw new Error(typedError.message || "Failed to start sprint.");
       }
+      trackEvent("start_validation_sprint", {
+        conversationId: conversationId,
+      });
       // Re-fetch data after starting
       await mutate(); // Await the mutation to ensure data is updated
     } catch (err: unknown) {

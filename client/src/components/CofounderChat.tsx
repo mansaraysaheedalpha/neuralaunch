@@ -9,6 +9,7 @@ import {
   useCofounderStore,
   CofounderMessage,
 } from "@/lib/stores/cofounderStore";
+import { trackEvent } from "@/lib/analytics";
 
 // Define type for the API response
 interface CofounderApiResponse {
@@ -43,6 +44,9 @@ export default function CofounderChat() {
     e.preventDefault();
     if (!input.trim() || isLoading || !conversationId) return;
 
+     trackEvent("use_ai_cofounder", {
+       conversationId: conversationId,
+     });
     setError(null);
     setIsLoading(true);
 

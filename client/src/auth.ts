@@ -5,6 +5,7 @@ import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import prisma from "@/lib/prisma";
 import type { Adapter } from "next-auth/adapters";
+import { trackEvent } from "./lib/analytics";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma) as Adapter,
@@ -22,6 +23,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = user.id;
       }
       return session;
+    },
+  },
+
+  events: {
+    createUser: async ({ user }) => {
+      // This event fires the first time a user signs up.
+      console.log("New user created:", user.id);
+      trackEvent("sign_up", {
+        method: "Google", // You can track the sign-up method
+        userId: user.id,
+      });
     },
   },
 });

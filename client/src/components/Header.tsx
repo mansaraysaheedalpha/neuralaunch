@@ -1,4 +1,3 @@
-//src/components/Header.tsx
 "use client";
 
 import Link from "next/link";
@@ -14,6 +13,7 @@ export default function Header({
   setMobileMenuOpen: (isOpen: boolean) => void;
 }) {
   const { data: session, status } = useSession();
+  const FEEDBACK_FORM_URL = "https://forms.gle/WVLZzKtFYLvb7Xkg9"; // Your Google Form link
 
   return (
     <header className="flex h-20 items-center border-b border-border px-4 sm:px-6 lg:px-8 flex-shrink-0">
@@ -76,13 +76,25 @@ export default function Header({
           </div>
         </div>
 
-        {/* Action Buttons - UPDATED LOGIC with Dropdown */}
+        {/* Action Buttons - Right side */}
         <div className="flex items-center gap-4 ml-auto">
+          {/* --- FEEDBACK BUTTON --- */}
+          <Link
+            href={FEEDBACK_FORM_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden sm:inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-foreground bg-muted hover:bg-border rounded-lg transition-colors"
+          >
+            <span>Feedback</span>
+            <span>💬</span>
+          </Link>{" "}
+          {/* <-- FIXED: Added missing '>' */}
+          {/* ----------------------- */}
           <ThemeSwitcher />
           {status === "loading" ? (
             <div className="w-10 h-10 bg-muted rounded-full animate-pulse"></div>
           ) : session ? (
-            // ================= THIS IS THE NEW USER MENU =================
+            // User Menu Dropdown
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
                 <button
@@ -98,7 +110,7 @@ export default function Header({
                       className="object-cover"
                     />
                   ) : (
-                    // Fallback icon if no image
+                    // Fallback icon
                     <div className="w-full h-full bg-muted flex items-center justify-center text-muted-foreground">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -118,7 +130,6 @@ export default function Header({
                   )}
                 </button>
               </DropdownMenu.Trigger>
-
               <DropdownMenu.Portal>
                 <DropdownMenu.Content
                   className="mt-2 w-48 bg-card border border-border rounded-lg shadow-lg z-50 p-1 text-sm text-foreground"
@@ -129,7 +140,6 @@ export default function Header({
                     {session.user?.name || session.user?.email}
                   </DropdownMenu.Label>
                   <DropdownMenu.Separator className="h-px bg-border my-1" />
-
                   <DropdownMenu.Item asChild>
                     <Link
                       href="/profile"
@@ -157,9 +167,7 @@ export default function Header({
                       My Awards
                     </Link>
                   </DropdownMenu.Item>
-
                   <DropdownMenu.Separator className="h-px bg-border my-1" />
-
                   <DropdownMenu.Item
                     onSelect={() => void signOut()}
                     className="flex items-center gap-2 px-3 py-2 rounded hover:bg-muted cursor-pointer outline-none select-none text-red-500 hover:text-red-600"
@@ -185,7 +193,6 @@ export default function Header({
               </DropdownMenu.Portal>
             </DropdownMenu.Root>
           ) : (
-            // =============================================================
             <LoginButton />
           )}
         </div>

@@ -9,6 +9,7 @@ import TextareaAutosize from "react-textarea-autosize";
 import { useChatStore } from "@/lib/stores/chatStore";
 import { useConversationStore } from "@/lib/stores/conversationStore";
 import { useSWRConfig } from "swr";
+import { trackEvent } from "@/lib/analytics";
 
 // Define type for API error response
 interface ApiErrorResponse {
@@ -123,6 +124,9 @@ export default function HomePage() {
           newConversationId &&
           newConversationTitle
         ) {
+          trackEvent("generate_idea", {
+            conversationId: newConversationId,
+          });
           addConversation({
             id: newConversationId,
             title: newConversationTitle,
