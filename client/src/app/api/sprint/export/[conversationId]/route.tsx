@@ -1,52 +1,74 @@
-// src/app/api/sprint/export/[conversationId]/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
-import { Task, TaskOutput } from "@prisma/client";
-import { marked } from "marked";
+import { Task, TaskOutput, Prisma } from "@prisma/client";
 
-// Import for production (Vercel)
+// Import chrome-aws-lambda
 import chromium from "chrome-aws-lambda";
-import puppeteerCore from "puppeteer-core";
+// --- FIX: Correct puppeteer-core import ---
+import puppeteer from "puppeteer-core";
+// Import the Browser type specifically
+import type { Browser } from "puppeteer-core";
+// ------------------------------------------
 
-// Import for development (local)
+// Keep puppeteerFull only for local dev fallback
 import puppeteerFull from "puppeteer";
+import { marked } from "marked";
 
 export const runtime = "nodejs";
 
+// generateHTML function (Keep previous robust version)
 async function generateHTML(
   title: string,
   tasks: (Task & { outputs: TaskOutput[] })[]
 ): Promise<string> {
   const styles = `
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333; padding: 40px; }
-    h1, h2, h3 { color: #111; }
-    h1 { font-size: 28px; border-bottom: 2px solid #eee; padding-bottom: 15px; }
-    h2 { font-size: 22px; margin-top: 40px; }
-    hr { border: none; border-top: 1px solid #eee; margin: 40px 0; }
-    .task-card { page-break-inside: avoid; }
-    .output-content { background-color: #f6f8fa; padding: 16px; border-radius: 6px; border: 1px solid #e1e4e8; margin-top: 20px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 1em; margin-bottom: 1em; table-layout: fixed; }
-    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: top; word-wrap: break-word; }
-    th { background-color: #f2f2f2; font-weight: 600; }
-    tr:nth-child(even) { background-color: #f9f9f9; }
-  `;
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333; padding: 40px; }
+      h1, h2, h3 { color: #111; }
+      h1 { font-size: 28px; border-bottom: 2px solid #eee; padding-bottom: 15px; }
+      h2 { font-size: 22px; margin-top: 40px; }
+      hr { border: none; border-top: 1px solid #eee; margin: 40px 0; }
+      .task-card { page-break-inside: avoid; }
+      .output-content { background-color: #f6f8fa; padding: 16px; border-radius: 6px; border: 1px solid #e1e4e8; margin-top: 20px; overflow-wrap: break-word; white-space: pre-wrap; }
+      table { width: 100%; border-collapse: collapse; margin-top: 1em; margin-bottom: 1em; table-layout: fixed; }
+      th, td { border: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: top; word-wrap: break-word; }
+      th { background-color: #f2f2f2; font-weight: 600; }
+      tr:nth-child(even) { background-color: #f9f9f9; }
+      pre { background-color: #eee; padding: 10px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
+      code { font-family: monospace; }
+    `;
 
   const tasksWithParsedContent = await Promise.all(
     tasks
-      .filter((task) => task.outputs.length > 0)
+      .filter((task) => task.outputs.length > 0 && task.outputs[0]?.content)
       .map(async (task) => {
-        const content = task.outputs[0]?.content;
+        const content = task.outputs[0]?.content as
+          | Prisma.JsonValue
+          | undefined;
         let contentStr: string;
+
         if (typeof content === "string") {
           contentStr = content;
-        } else if (content === null || content === undefined) {
-          contentStr = "";
+        } else if (
+          content !== null &&
+          content !== undefined &&
+          typeof content === "object"
+        ) {
+          contentStr = "```json\n" + JSON.stringify(content, null, 2) + "\n```";
         } else {
-          contentStr = JSON.stringify(content);
+          contentStr = "";
         }
-        const parsedContent = await marked.parse(contentStr);
+
+        let parsedContent = "";
+        if (contentStr) {
+          try {
+            parsedContent = await marked.parse(contentStr);
+          } catch (parseError) {
+            console.error("Markdown parsing error:", parseError);
+            parsedContent = `<pre><code>${contentStr.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code></pre>`;
+          }
+        }
+
         return {
           title: task.title,
           description: task.description,
@@ -58,24 +80,24 @@ async function generateHTML(
   const tasksHTML = tasksWithParsedContent
     .map(
       (task) => `
-      <div class="task-card">
-        <hr />
-        <h2>✅ Task: ${task.title}</h2>
-        <p>${task.description}</p>
-        <div class="output-content">
-          ${task.parsedContent}
+        <div class="task-card">
+          <hr />
+          <h2>✅ Task: ${task.title}</h2>
+          <p>${task.description.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
+          <div class="output-content">
+            ${task.parsedContent}
+          </div>
         </div>
-      </div>
-    `
+      `
     )
     .join("");
 
-  return `<!DOCTYPE html><html><head><title>Sprint Report: ${title}</title><style>${styles}</style></head><body><h1>🚀 IdeaSpark Sprint Report: ${title}</h1><p>This document contains all the AI-generated assets from your 72-hour validation sprint.</p>${tasksHTML}</body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Sprint Report: ${title}</title><style>${styles}</style></head><body><h1>🚀 IdeaSpark Sprint Report: ${title.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</h1><p>This document contains all the AI-generated assets from your 72-hour validation sprint.</p>${tasksHTML}</body></html>`;
 }
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ conversationId: string }> }
+  context: { params: Promise<{ conversationId: string }> }
 ) {
   try {
     const session = await auth();
@@ -83,8 +105,7 @@ export async function GET(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    const resolvedParams = await params;
-    const conversationId: string = resolvedParams.conversationId;
+    const { conversationId } = await context.params;
 
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId, userId: session.user.id },
@@ -100,67 +121,138 @@ export async function GET(
       return new NextResponse("Conversation not found", { status: 404 });
     }
 
-    let browser = null;
+    let browser: Browser | null = null;
+    let pdfBuffer: Uint8Array | Buffer | null = null;
+
     try {
       console.log("🚀 Launching browser...");
+      const isProduction = process.env.VERCEL_ENV === "production";
+      type ChromiumAwsLambdaLike = {
+        executablePath: string | Promise<string>;
+        args: string[];
+        headless: boolean;
+      };
+      const chromiumSafe = chromium as unknown as ChromiumAwsLambdaLike; // Keep workaround for potential CJS issues
+      let executablePath: string | undefined = undefined;
 
-      const isDevelopment = process.env.NODE_ENV === "development";
-
-      if (isDevelopment) {
-        // Local development - use full puppeteer
-        console.log("Running in development mode");
-        browser = await puppeteerFull.launch({
-          headless: true,
-          args: ["--no-sandbox", "--disable-setuid-sandbox"],
-        });
+      if (!isProduction) {
+        console.log(
+          "Running in development/preview mode, attempting full puppeteer."
+        );
+        try {
+          browser = await puppeteerFull.launch({ headless: true });
+        } catch (devError) {
+          console.warn(
+            "Full puppeteer launch failed locally, falling back.",
+            devError instanceof Error ? devError.message : devError
+          );
+          try {
+            const localChromePath =
+              process.platform === "win32"
+                ? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+                : process.platform === "linux"
+                  ? "/usr/bin/google-chrome"
+                  : "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+            // --- FIX: Use default puppeteer import ---
+            browser = await puppeteer.launch({
+              executablePath: localChromePath,
+              args: [],
+              headless: true,
+            });
+            // -----------------------------------------
+          } catch (fallbackError) {
+            console.error(
+              "Could not launch local Chrome instance either.",
+              fallbackError
+            );
+            throw new Error(
+              "Failed to launch browser instance for local development."
+            );
+          }
+        }
       } else {
-        // Production (Vercel) - use chrome-aws-lambda
-        console.log("Running in production mode");
-        browser = await puppeteerCore.launch({
-          args: chromium.args,
-          executablePath: await chromium.executablePath,
-          headless: chromium.headless,
+        console.log("Running in production mode, using chrome-aws-lambda.");
+        executablePath = await chromiumSafe.executablePath;
+        if (!executablePath) {
+          throw new Error(
+            "Could not find Chromium executable path via chrome-aws-lambda."
+          );
+        }
+        console.log(`Using Chromium path: ${executablePath}`);
+        // --- FIX: Use default puppeteer import ---
+        browser = await puppeteer.launch({
+          args: chromiumSafe.args,
+          executablePath: executablePath,
+          headless: chromiumSafe.headless,
         });
+        // -----------------------------------------
+        console.log("Browser launched successfully on Vercel.");
+      }
+
+      if (!browser) {
+        throw new Error("Browser instance could not be launched.");
       }
 
       const page = await browser.newPage();
+      console.log("Browser page opened.");
+
       const htmlContent = await generateHTML(
         conversation.title,
         conversation.tasks
       );
+      console.log("HTML content generated.");
 
-      await page.setContent(htmlContent, { waitUntil: "networkidle0" });
-      const pdfBuffer = await page.pdf({
+      await page.setContent(htmlContent, {
+        waitUntil: "networkidle0",
+        timeout: 15000,
+      });
+      console.log("HTML content set on page.");
+
+      pdfBuffer = await page.pdf({
         format: "A4",
         printBackground: true,
         margin: { top: "20px", right: "20px", bottom: "20px", left: "20px" },
+        timeout: 15000,
       });
-
       console.log("✅ PDF generated successfully.");
-
-      return new NextResponse(pdfBuffer, {
-        headers: {
-          "Content-Type": "application/pdf",
-          "Content-Disposition": `attachment; filename="${conversation.title}-sprint-report.pdf"`,
-        },
-      });
+    } catch (renderError) {
+      console.error("❌ Error during PDF rendering phase:", renderError);
+      throw renderError;
     } finally {
       if (browser) {
         await browser.close();
         console.log("🔒 Browser closed.");
       }
     }
+
+    if (!pdfBuffer) {
+      throw new Error("PDF Buffer could not be generated.");
+    }
+
+    const arrayBuffer = pdfBuffer.buffer.slice(pdfBuffer.byteOffset, pdfBuffer.byteOffset + pdfBuffer.byteLength);
+    const arrayBufferForBlob =
+      arrayBuffer instanceof SharedArrayBuffer
+        ? new Uint8Array(arrayBuffer).slice().buffer
+        : arrayBuffer;
+    const pdfBlob = new Blob([arrayBufferForBlob], { type: "application/pdf" });
+
+    const safeFilename = conversation.title
+      .replace(/[^a-z0-9_\-\s]/gi, "_")
+      .replace(/\s+/g, "_")
+      .toLowerCase();
+
+    return new NextResponse(pdfBlob, {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${safeFilename}-sprint-report.pdf"`,
+      },
+    });
   } catch (error) {
-    console.error("❌ [PDF_EXPORT_ERROR]", error);
-    return new NextResponse(
-      JSON.stringify({
-        error: "Failed to generate PDF",
-        message: error instanceof Error ? error.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    console.error("❌ [PDF_EXPORT_ERROR - Overall]", error);
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "An unknown error occurred during PDF export.";
+    return new NextResponse(errorMessage, { status: 500 });
   }
 }
