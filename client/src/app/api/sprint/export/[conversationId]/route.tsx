@@ -1,13 +1,17 @@
-// src/app/api/sprint/export/[conversationId]/route.tsx
+// src/app/api/sprint/export/[conversationId]/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { Task, TaskOutput } from "@prisma/client";
-import chromium from "@sparticuz/chromium";
-import puppeteer, { Browser } from "puppeteer-core";
-import puppeteerFull from "puppeteer";
 import { marked } from "marked";
+
+// Import for production (Vercel)
+import chromium from "chrome-aws-lambda";
+import puppeteerCore from "puppeteer-core";
+
+// Import for development (local)
+import puppeteerFull from "puppeteer";
 
 export const runtime = "nodejs";
 
@@ -15,8 +19,6 @@ async function generateHTML(
   title: string,
   tasks: (Task & { outputs: TaskOutput[] })[]
 ): Promise<string> {
-  // ======================== THIS IS THE FIX ========================
-  // We've added table-layout and word-wrap properties to handle wide tables.
   const styles = `
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333; padding: 40px; }
     h1, h2, h3 { color: #111; }
@@ -25,41 +27,23 @@ async function generateHTML(
     hr { border: none; border-top: 1px solid #eee; margin: 40px 0; }
     .task-card { page-break-inside: avoid; }
     .output-content { background-color: #f6f8fa; padding: 16px; border-radius: 6px; border: 1px solid #e1e4e8; margin-top: 20px; }
-    
-    /* Styles for tables */
-    table { 
-      width: 100%; 
-      border-collapse: collapse; 
-      margin-top: 1em; 
-      margin-bottom: 1em;
-      table-layout: fixed; /* Prevents tables from becoming wider than their container */
-    }
-    th, td { 
-      border: 1px solid #ddd; 
-      padding: 10px; 
-      text-align: left; 
-      vertical-align: top;
-      word-wrap: break-word; /* Allows long words to be broken and wrapped to the next line */
-    }
+    table { width: 100%; border-collapse: collapse; margin-top: 1em; margin-bottom: 1em; table-layout: fixed; }
+    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: top; word-wrap: break-word; }
     th { background-color: #f2f2f2; font-weight: 600; }
     tr:nth-child(even) { background-color: #f9f9f9; }
   `;
-  // =======================================================================
 
-  // Parse all markdown content asynchronously
   const tasksWithParsedContent = await Promise.all(
     tasks
       .filter((task) => task.outputs.length > 0)
       .map(async (task) => {
         const content = task.outputs[0]?.content;
-        // Ensure content is a string before parsing
         let contentStr: string;
         if (typeof content === "string") {
           contentStr = content;
         } else if (content === null || content === undefined) {
           contentStr = "";
         } else {
-          // Handle JSON objects or other types
           contentStr = JSON.stringify(content);
         }
         const parsedContent = await marked.parse(contentStr);
@@ -93,14 +77,12 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ conversationId: string }> }
 ) {
-  // The rest of this function remains exactly the same
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    // Await params in Next.js 15+ with proper typing
     const resolvedParams = await params;
     const conversationId: string = resolvedParams.conversationId;
 
@@ -118,33 +100,30 @@ export async function GET(
       return new NextResponse("Conversation not found", { status: 404 });
     }
 
-    let browser: Browser | null = null;
+    let browser = null;
     try {
       console.log("🚀 Launching browser...");
 
       const isDevelopment = process.env.NODE_ENV === "development";
+
       if (isDevelopment) {
-        console.log("Running in development mode, using full puppeteer.");
-        browser = await puppeteerFull.launch({ headless: true });
-      } else {
-        console.log("Running in production mode, using @sparticuz/chromium.");
-        // Ensure executablePath is awaited and valid before launching
-        const execPath = await chromium.executablePath();
-        if (!execPath) {
-          throw new Error(
-            "Could not find Chromium executable path for serverless environment."
-          );
-        }
-        browser = await puppeteer.launch({
-          args: chromium.args,
-          executablePath: execPath,
-          // FIX: Use boolean 'true' for headless mode in production
+        // Local development - use full puppeteer
+        console.log("Running in development mode");
+        browser = await puppeteerFull.launch({
           headless: true,
+          args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        });
+      } else {
+        // Production (Vercel) - use chrome-aws-lambda
+        console.log("Running in production mode");
+        browser = await puppeteerCore.launch({
+          args: chromium.args,
+          executablePath: await chromium.executablePath,
+          headless: chromium.headless,
         });
       }
 
       const page = await browser.newPage();
-      // Now we await generateHTML since it's async
       const htmlContent = await generateHTML(
         conversation.title,
         conversation.tasks
@@ -159,16 +138,7 @@ export async function GET(
 
       console.log("✅ PDF generated successfully.");
 
-      const pdfArrayBuffer = new ArrayBuffer(pdfBuffer.length);
-      // 2. Create a Uint8Array view on the new ArrayBuffer.
-      const pdfUint8Array = new Uint8Array(pdfArrayBuffer);
-      // 3. Copy the data from the Buffer into the Uint8Array view.
-      pdfUint8Array.set(pdfBuffer);
-
-      // 4. Create the Blob using the guaranteed-standard ArrayBuffer.
-      const pdfBlob = new Blob([pdfArrayBuffer], { type: "application/pdf" });
-      
-      return new NextResponse(pdfBlob, {
+      return new NextResponse(pdfBuffer, {
         headers: {
           "Content-Type": "application/pdf",
           "Content-Disposition": `attachment; filename="${conversation.title}-sprint-report.pdf"`,
@@ -182,6 +152,15 @@ export async function GET(
     }
   } catch (error) {
     console.error("❌ [PDF_EXPORT_ERROR]", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    return new NextResponse(
+      JSON.stringify({
+        error: "Failed to generate PDF",
+        message: error instanceof Error ? error.message : "Unknown error",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   }
 }
