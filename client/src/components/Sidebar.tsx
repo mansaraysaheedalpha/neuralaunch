@@ -197,7 +197,7 @@ export default function Sidebar({
           </div>
           <div className="flex-1 min-w-0">
             <p
-              className={`text-sm font-medium truncate ${
+              className={`text-base font-medium truncate ${
                 pathname === "/trends"
                   ? "text-primary font-semibold"
                   : "text-foreground"
@@ -315,7 +315,7 @@ export default function Sidebar({
       <div className="p-2 border-t border-border flex-shrink-0">
         <div className="flex items-center space-x-2 p-2 rounded-xl">
           <div className="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center text-primary-foreground text-sm font-bold">
-            IS
+            NL
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-foreground truncate">

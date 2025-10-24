@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 // Add imports for scroll animations
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion, useScroll, useTransform, type Variants } from "framer-motion";
 import { useRef } from "react"; // Import useRef
 import {
   ArrowRight,
@@ -30,7 +30,7 @@ const wordVariants = {
     opacity: 1,
     y: 0,
     transition: {
-      type: "spring",
+      type: "spring" as const,
       damping: 12,
       stiffness: 100,
     },
@@ -57,13 +57,14 @@ const featureIconVariants = {
 };
 
 // --- Add Icon Animation Variants ---
-const iconPopIn = {
+const iconPopIn: Variants = {
   hidden: { scale: 0.5, opacity: 0 },
   visible: {
     scale: 1,
     opacity: 1,
     transition: {
-      type: "spring",
+      // Use a string literal const assertion to preserve the specific "spring" type without using `any`.
+      type: "spring" as const,
       stiffness: 260,
       damping: 20,
       delay: 0.3, // Small delay after card fades in
@@ -223,7 +224,7 @@ const ProblemSolutionSection = () => {
             </h2>
             <p className="text-lg md:text-xl text-muted-foreground mb-4">
               NeuraLaunch provides an AI-architected blueprint and a rigorous
-              72-hour sprint to ensure you're building a solution for a real,
+              72-hour sprint to ensure you&apos;re building a solution for a real,
               validated market need *before* you write a line of code.
             </p>
             <div className="flex flex-wrap gap-4 text-primary font-medium">
@@ -418,13 +419,16 @@ const FeaturesSection = () => {
               {/* Inner wrapper (keep this) */}
               <motion.div
                 className="relative z-10"
-                // whileHover={{ rotateX: -3, rotateY: index === 0 ? 3 : index === 2 ? -3 : 0 }} // Keep commented or uncomment if desired
+                whileHover={{ rotateX: -3, rotateY: index === 0 ? 3 : index === 2 ? -3 : 0 }} // Keep commented or uncomment if desired
               >
                 {/* Icon animation (remains the same) */}
                 <motion.div
-                  variants={featureIconVariants}
-                  whileHover="hover"
-                  initial="rest"
+                  initial={{ scale: 1, rotate: 0 }}
+                  whileHover={{
+                    scale: 1.1,
+                    rotate: 10,
+                    transition: { type: "spring", stiffness: 300, damping: 20 },
+                  }}
                   className="inline-block mb-5"
                 >
                   <feature.icon className="w-12 h-12 text-primary transition-transform duration-300" />
