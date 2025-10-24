@@ -1,0 +1,99 @@
+/* src/components/HeroForegroundStreaks.module.css */
+
+.streaksContainer {
+  position: absolute;
+  inset: 0;
+  z-index: 1; /* Above dot grid (0), below content (10) */
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.streak {
+  position: absolute;
+  /* Start position adjusted */
+  top: 0;
+  left: 0;
+  width: 1px; /* Keep thin */
+  height: 250px; /* Slightly longer */
+  /* Brighter gradient */
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(255, 255, 255, 0.4) 50%, /* Increased opacity */
+    transparent 100%
+  );
+  opacity: 0; /* Start hidden */
+  filter: blur(0.5px); /* Less blur for more definition */
+  /* Set transform origin to top center for better rotation control */
+  transform-origin: top center;
+  /* Apply initial rotation here and start completely above */
+  transform: translateY(-100%) rotate(var(--initial-angle, 0deg));
+
+  /* Animation properties */
+  animation-name: streakAnim;
+  animation-duration: 8s; /* Base duration */
+  animation-timing-function: cubic-bezier(0.25, 1, 0.5, 1); /* Faster start, slow end */
+  animation-iteration-count: infinite; /* Loop forever */
+  will-change: transform, opacity;
+}
+
+/* Define different starting positions (left), angles, and delays */
+.streak1 {
+  left: 15%;
+  --initial-angle: 25deg; /* Define angle as CSS variable */
+  animation-delay: 0s;
+  animation-duration: 6s; /* Vary speed */
+}
+
+.streak2 {
+  left: 45%;
+  --initial-angle: 15deg; /* Define angle as CSS variable */
+  animation-delay: 1.8s; /* Stagger start times */
+  animation-duration: 7.5s; /* Vary speed */
+}
+
+.streak3 {
+  left: 75%;
+  --initial-angle: 30deg; /* Define angle as CSS variable */
+  animation-delay: 4.2s; /* Stagger start times */
+  animation-duration: 5.5s; /* Vary speed */
+}
+
+.streak4 {
+  left: 90%;
+  --initial-angle: 20deg; /* Define angle as CSS variable */
+  animation-delay: 6.5s; /* Stagger start times */
+  animation-duration: 7s; /* Vary speed */
+}
+
+
+/* Updated Animation keyframes */
+@keyframes streakAnim {
+  0% {
+    opacity: 0;
+    /* Start completely above the screen, rotated */
+    transform: translateY(-100%) rotate(var(--initial-angle, 0deg));
+  }
+  10%, 20% { /* Fade in quicker */
+    opacity: 0.8; /* Make it more visible */
+  }
+  90% {
+     opacity: 0.2; /* Start fading out earlier */
+  }
+  100% {
+    opacity: 0;
+    /* End far below and slightly to the side, maintaining rotation */
+    /* Adjust translateX value to control sideways drift */
+    transform: translateY(150vh) translateX(-15vw) rotate(var(--initial-angle, 0deg));
+  }
+}
+
+/* Adjust color for dark mode if needed */
+:global(.dark) .streak {
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(255, 255, 255, 0.25) 50%, /* Adjusted dark mode opacity */
+    transparent 100%
+  );
+}

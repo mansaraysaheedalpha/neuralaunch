@@ -1,17 +1,20 @@
-//client/components/MainLayout
-"use client"; // Needs to be a client component because it uses state (useState)
+//client/src/app/(app)/layout.tsx
+"use client";
 
 import { useState } from "react";
-import Sidebar from "@/components/Sidebar"; // Assuming path is correct
-import Header from "@/components/Header"; // Assuming path is correct
+import Sidebar from "@/components/Sidebar";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default function MainLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <div className="flex h-dvh w-full bg-background">
-      {/* Sidebar for app pages */}
+      {/* We only render the Sidebar ONCE. It will handle its own mobile/desktop visibility. */}
       <Sidebar
         isSidebarOpen={isSidebarOpen}
         setSidebarOpen={setSidebarOpen}
@@ -19,11 +22,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         setMobileMenuOpen={setMobileMenuOpen}
       />
 
-      {/* Main Content Area within the app */}
+      {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
-        {/* Header for app pages */}
-        <Header setMobileMenuOpen={setMobileMenuOpen} />
-        {/* Actual page content for app routes */}
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>

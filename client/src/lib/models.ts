@@ -28,5 +28,5 @@ export const AI_MODELS = {
    * For generating vector embeddings.
    * Use for: AI Cofounder memory.
    */
-  EMBEDDING: "text-embedding-3-small",
+  EMBEDDING: "text-embedding-3-large",
 };

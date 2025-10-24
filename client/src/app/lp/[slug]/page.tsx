@@ -1,3 +1,4 @@
+//client/src/app/lp/[slug]/page.tsx
 import { notFound } from "next/navigation";
 // No need for Prisma type imports here if not used for casting
 import LandingPagePublic from "@/components/landing-page/LandingPagePublic";

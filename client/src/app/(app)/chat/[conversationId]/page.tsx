@@ -1,3 +1,4 @@
+//client/src/app/chat/[conversationId]/page.tsx
 "use client";
 
 import { useState, FormEvent, useEffect, useRef } from "react";
@@ -66,10 +67,10 @@ const ValidationHubButton = ({
       }
       const data = (await res.json()) as GenerateApiResponse;
       if (data.success && data.landingPage?.id) {
-         trackEvent("create_landing_page", {
-           conversationId: conversationId,
-           landingPageId: data.landingPage.id,
-         });
+        trackEvent("create_landing_page", {
+          conversationId: conversationId,
+          landingPageId: data.landingPage.id,
+        });
         router.push(`/build/${data.landingPage.id}`);
       } else {
         throw new Error(
@@ -273,7 +274,7 @@ export default function ChatPage() {
       </div>
       {/* --- 2. HEADER AREA (Tabs - Fixed at Top) --- */}
       <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md z-20 flex-shrink-0 border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8">
           <div className="flex">
             <TabButton
               title="Chat"
@@ -298,7 +299,7 @@ export default function ChatPage() {
         {/* Conditional Content */}
         {activeTab === "chat" && (
           <div className="p-4 sm:p-6 lg:p-8 space-y-6">
-            <div className="space-y-6 max-w-4xl mx-auto">
+            <div className="space-y-6">
               {/* Chat messages UI */}
               {messages.length === 0 && isLoading ? (
                 <div className="flex items-center justify-center min-h-[50vh]">
@@ -431,7 +432,7 @@ export default function ChatPage() {
               </div>
             </div>
           )}
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-7xl mx-auto">
             <form
               ref={formRef}
               onSubmit={(e) => {

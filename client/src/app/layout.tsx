@@ -1,22 +1,21 @@
+//client/src/app/layout.tsx
 import type { Metadata, Viewport } from "next";
 import { GeistSans } from "geist/font/sans";
-import "./globals.css";
-import Providers from "./providers";
+import "./globals.css"; // Keep global styles
+import Providers from "./providers"; // Keep providers (Theme, Session, etc.)
 import { Toaster } from "react-hot-toast";
-import MainLayout from "@/components/MainLayout";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
 import Script from "next/script";
 
 export const metadata: Metadata = {
-  // Add a favicon link here for better discovery
+  // Keep your metadata
   icons: {
     icon: "/favicon.ico",
     apple: "/apple-touch-icon.png",
   },
-  title: "IdeaSpark - AI-Powered Startup Idea Generator",
-  description:
-    "Transform your skills into innovative startup ideas with the power of AI.",
+  title: "NeuraLaunch - AI Startup Co-Pilot", // Updated name
+  description: "Go from skill to validated startup blueprint with AI.",
 };
 
 export const viewport: Viewport = {
@@ -30,12 +29,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   const GA_MEASUREMENT_ID = "G-KN3B2XG85H";
-  const HOTJAR_SITE_ID = "6553219"; // This seems to be your Site ID
+  const HOTJAR_SITE_ID = "6553219";
 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* --- Google Analytics Scripts (Correctly Implemented) --- */}
+        {/* --- Analytics Scripts --- */}
         <Script
           strategy="afterInteractive"
           src={`https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`}
@@ -52,8 +51,6 @@ export default function RootLayout({
             `,
           }}
         />
-
-        {/* --- Hotjar Tracking Code (CORRECTED IMPLEMENTATION) --- */}
         <Script
           id="hotjar-tracking"
           strategy="afterInteractive"
@@ -72,8 +69,11 @@ export default function RootLayout({
         />
       </head>
       <body className={`${GeistSans.className} antialiased`}>
+        {/* Providers wrap everything */}
         <Providers>
-          <MainLayout>{children}</MainLayout>
+          {/* Children are the page content (landing page OR app layout + page) */}
+          {children}
+          {/* Toaster is available globally */}
           <Toaster
             position="bottom-center"
             toastOptions={{
@@ -84,6 +84,7 @@ export default function RootLayout({
               },
             }}
           />
+          {/* Vercel Analytics */}
           <Analytics />
           <SpeedInsights />
         </Providers>

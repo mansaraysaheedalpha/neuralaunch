@@ -111,7 +111,7 @@ export default function Sidebar({
       {/* Header */}
       <div className="p-4 border-b border-border flex-shrink-0 flex items-center gap-2">
         <Link
-          href="/"
+          href="/generate"
           onClick={() => setMobileMenuOpen(false)}
           className="flex-1 flex items-center justify-center px-4 py-3 bg-primary text-primary-foreground rounded-xl font-semibold transition-all duration-200 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transform hover:scale-[1.02] active:scale-[0.98] group"
         >
@@ -206,9 +206,7 @@ export default function Sidebar({
               Spark Index
             </p>
           </div>
-          <span className="flex-shrink-0 px-2 py-0.5 bg-primary text-primary-foreground text-xs font-bold rounded-full">
-            NEW
-          </span>
+          
         </Link>
       </div>
 

@@ -10,12 +10,89 @@ import {
   CofounderMessage,
 } from "@/lib/stores/cofounderStore";
 import { trackEvent } from "@/lib/analytics";
+import { Bot, User, CornerDownLeft } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 // Define type for the API response
 interface CofounderApiResponse {
   response?: string;
   error?: string;
 }
+
+// --- NEW Loading Indicator Component ---
+const ThinkingIndicator = () => (
+  <motion.div
+    initial={{ opacity: 0, y: 10 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="flex justify-start mb-4" // Align left like Cofounder messages
+  >
+    <div className="flex items-center gap-2 p-3 rounded-2xl bg-muted/50 border border-border">
+      {/* Simple pulsing dots with primary color */}
+      <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+      <div
+        className="w-2 h-2 bg-primary rounded-full animate-pulse"
+        style={{ animationDelay: "0.1s" }}
+      ></div>
+      <div
+        className="w-2 h-2 bg-primary rounded-full animate-pulse"
+        style={{ animationDelay: "0.2s" }}
+      ></div>
+      <span className="text-sm text-muted-foreground ml-2">
+        Cofounder is thinking...
+      </span>
+    </div>
+  </motion.div>
+);
+
+const CofounderEmptyState = ({
+  onPromptClick,
+}: {
+  onPromptClick: (prompt: string) => void;
+}) => {
+  const prompts = [
+    "What are the biggest risks in my blueprint?",
+    "Suggest 3 specific next steps for validation.",
+    "Help me brainstorm customer interview questions.",
+    "Whom are my target audience for sharing my landing page based on my blueprint",
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5, delay: 0.2 }}
+      className="flex flex-col items-center justify-center h-full text-center px-6"
+    >
+      <div className="p-4 bg-primary/10 rounded-full mb-4">
+        <Bot className="w-10 h-10 text-primary" />
+      </div>
+      <h2 className="text-xl font-semibold text-foreground mb-2">
+        Your AI Cofounder is Ready
+      </h2>
+      <p className="text-muted-foreground mb-6 max-w-md mx-auto text-sm">
+        Ask me anything about your startup blueprint, validation sprint, or
+        strategy. I use your project&apos;s context to provide tailored advice.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg">
+        {prompts.map((prompt, i) => (
+          <motion.button
+            key={i}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 + i * 0.1 }}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => onPromptClick(prompt)}
+            className="p-3 bg-card dark:bg-slate-700/50 border border-border rounded-lg text-sm text-foreground hover:bg-muted/80 dark:hover:bg-slate-700 transition-colors text-left"
+          >
+            {prompt}
+          </motion.button>
+        ))}
+      </div>
+    </motion.div>
+  );
+};
+// ------------------------------------
 
 export default function CofounderChat() {
   const [input, setInput] = useState<string>("");
@@ -40,20 +117,25 @@ export default function CofounderChat() {
   }, [messages]);
 
   // Handle message submission
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading || !conversationId) return;
+  const handleSubmit = async (
+    e?: FormEvent<HTMLFormElement> | null,
+    promptText?: string
+  ) => {
+    if (e) e.preventDefault();
+    const messageContent = (promptText ?? input).trim(); // Use provided promptText if available, otherwise use input state
 
-     trackEvent("use_ai_cofounder", {
-       conversationId: conversationId,
-     });
+    if (!messageContent || isLoading || !conversationId) return;
+
+    trackEvent("use_ai_cofounder", {
+      conversationId: conversationId,
+    });
     setError(null);
     setIsLoading(true);
 
     const userMessage: CofounderMessage = {
       id: Date.now().toString(),
       role: "user",
-      content: input,
+      content: messageContent,
     };
     addMessage(userMessage);
     setInput(""); // Clear input immediately
@@ -99,150 +181,132 @@ export default function CofounderChat() {
     }
   };
 
+  // Helper function for prompt buttons
+  const handlePromptClick = (prompt: string) => {
+    void handleSubmit(null, prompt); // Call handleSubmit without event, passing the prompt
+  };
+
   return (
-    // Root div fills height and uses flex-col
-    <div className="flex flex-col h-full">
-      {/* Message area scrolls */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
-        <div className="space-y-6 max-w-4xl mx-auto">
-          {messages.map((message, index) => (
-            <div
-              key={message.id}
-              className={`flex ${
-                message.role === "user" ? "justify-end" : "justify-start"
-              } animate-slide-up`}
-              style={{ animationDelay: `${index * 0.05}s` }}
-            >
-              <div
-                className={`max-w-[85%] rounded-3xl px-7 py-5 shadow-md transition-all duration-300 ${
-                  message.role === "user"
-                    ? "bg-muted text-foreground"
-                    : "bg-card border border-border"
-                }`}
+    // Container with distinct background
+    <div className="flex flex-col h-full bg-gradient-to-br from-slate-50 via-gray-100 to-slate-200 dark:from-slate-800 dark:via-slate-800/50 dark:to-gray-900">
+      {/* Message area */}
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-4">
+        {/* Conditional Rendering: Empty State or Messages */}
+        {messages.length === 0 && !isLoading ? (
+          <CofounderEmptyState onPromptClick={handlePromptClick} />
+        ) : (
+          <div className="max-w-4xl mx-auto">
+            {" "}
+            {/* Width constraint for messages */}
+            <AnimatePresence>
+              {messages.map((message) => (
+                <motion.div
+                  key={message.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className={`flex items-start gap-3 mb-4 ${
+                    // Added mb-4 for spacing
+                    message.role === "user" ? "justify-end" : "justify-start"
+                  }`}
+                >
+                  {message.role === "cofounder" && (
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mt-1">
+                      <Bot className="w-5 h-5 text-primary" />
+                    </div>
+                  )}
+                  <div
+                    className={`max-w-[85%] rounded-2xl px-5 py-3 shadow-sm ${
+                      // Adjusted padding/rounding
+                      message.role === "user"
+                        ? "bg-primary text-primary-foreground" // User message style
+                        : "bg-card border border-border" // Cofounder message style
+                    }`}
+                  >
+                    <div className="prose dark:prose-invert max-w-none prose-p:leading-relaxed">
+                      {" "}
+                      {/* Removed prose-sm */}
+                      <ReactMarkdown>{message.content}</ReactMarkdown>
+                    </div>
+                  </div>
+                  {message.role === "user" && (
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-muted flex items-center justify-center mt-1">
+                      <User className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                  )}
+                </motion.div>
+              ))}
+            </AnimatePresence>
+            {/* Loading Indicator */}
+            {isLoading && <ThinkingIndicator />}
+            {/* Error Display */}
+            {error && !isLoading && (
+              <motion.div /* Add error styles if needed */
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex justify-start mb-4" // Align left like Cofounder messages
               >
-                <div className="prose dark:prose-invert max-w-none prose-p:leading-relaxed">
-                  <ReactMarkdown>{message.content}</ReactMarkdown>
+                <div className="max-w-[85%] rounded-2xl px-5 py-3 shadow-sm bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700">
+                  {" "}
+                  {/* Mimic bubble style */}
+                  <p className="text-sm font-semibold text-red-800 dark:text-red-200">
+                    Error: {error}
+                  </p>
                 </div>
-              </div>
-            </div>
-          ))}
-
-          {/* Loading indicator */}
-          {isLoading && (
-            <div className="flex justify-start max-w-4xl mx-auto animate-slide-up">
-              <div className="max-w-[85%] rounded-3xl px-7 py-5 shadow-lg bg-card border border-border">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 bg-primary rounded-full animate-bounce"></div>
-                  <div
-                    className="w-2.5 h-2.5 bg-primary rounded-full animate-bounce"
-                    style={{ animationDelay: "0.2s" }}
-                  ></div>
-                  <div
-                    className="w-2.5 h-2.5 bg-primary rounded-full animate-bounce"
-                    style={{ animationDelay: "0.4s" }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Error display inline */}
-          {error && !isLoading && (
-            <div className="flex justify-start max-w-4xl mx-auto animate-slide-up">
-              <div className="max-w-[85%] rounded-3xl px-7 py-5 shadow-md bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700">
-                <p className="text-sm font-semibold text-red-800 dark:text-red-200">
-                  Error: {error}
-                </p>
-              </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
+              </motion.div>
+            )}
+          </div>
+        )}
+        {/* Scroll Anchor */}
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* Input area fixed at the bottom */}
-      <div className="p-4 sm:p-6 lg:p-6 pb-8 bg-gradient-to-t from-background via-background/95 to-transparent relative z-20 flex-shrink-0">
+      {/* Input area */}
+      <div className="p-4 sm:px-6 sm:pb-6 border-t border-border bg-background/80 dark:bg-slate-900/80 backdrop-blur-sm flex-shrink-0">
         <div className="max-w-4xl mx-auto">
           <form
             ref={formRef}
             onSubmit={(e) => {
+              // Prevent returning a Promise to the DOM event handler
               void handleSubmit(e);
             }}
             className="relative"
           >
-            <div className="relative group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-violet-600 to-purple-600 rounded-3xl opacity-0 group-hover:opacity-20 blur-xl transition duration-500"></div>
-              <div className="relative flex items-end gap-3 bg-card rounded-3xl shadow-2xl p-2 border-2 border-border transition-all duration-200 focus-within:border-primary focus-within:shadow-[0_0_0_4px_hsla(var(--primary),0.1)]">
-                <TextareaAutosize
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask your AI Cofounder..."
-                  minRows={1}
-                  maxRows={5}
-                  className="flex-1 bg-transparent border-0 focus:ring-0 text-base text-foreground placeholder-muted-foreground resize-none outline-none px-4 py-3"
-                  required
-                  disabled={isLoading}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      formRef.current?.requestSubmit();
-                    }
-                  }}
-                />
-                <button
-                  type="submit"
-                  disabled={isLoading || !input.trim()}
-                  className="flex-shrink-0 p-3.5 rounded-2xl bg-gradient-to-r from-primary to-secondary text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 disabled:scale-100 mr-1"
-                  aria-label="Send message to Cofounder"
-                >
-                  {isLoading ? (
-                    <svg
-                      className="w-6 h-6 animate-spin"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                  ) : (
-                    <svg
-                      className="w-6 h-6"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2.5}
-                        d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-                      />
-                    </svg>
-                  )}
-                </button>
-              </div>
+            <div className="relative flex items-center gap-2 border border-input rounded-xl focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 bg-card p-1 pr-2 shadow-sm">
+              <TextareaAutosize
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask your AI Cofounder..."
+                minRows={1}
+                maxRows={4}
+                className="flex-1 bg-transparent border-0 focus:ring-0 text-sm text-foreground placeholder-muted-foreground resize-none outline-none px-3 py-2.5"
+                required
+                disabled={isLoading}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    formRef.current?.requestSubmit();
+                  }
+                }}
+              />
+              <motion.button
+                type="submit"
+                disabled={isLoading || !input.trim()}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex-shrink-0 p-2 rounded-lg bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                aria-label="Send message to Cofounder"
+              >
+                {isLoading ? (
+                  <div className="w-5 h-5 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent"></div> // Simple spinner
+                ) : (
+                  <CornerDownLeft className="w-5 h-5" /> // Enter key icon
+                )}
+              </motion.button>
             </div>
-            <p className="text-xs text-muted-foreground text-center mt-3">
-              Press{" "}
-              <kbd className="px-2 py-1 bg-muted rounded border border-border font-mono text-xs">
-                Enter
-              </kbd>{" "}
-              to send,{" "}
-              <kbd className="px-2 py-1 bg-muted rounded border border-border font-mono text-xs">
-                Shift + Enter
-              </kbd>{" "}
-              for new line
+            <p className="text-xs text-muted-foreground text-center mt-2">
+              Shift+Enter for new line
             </p>
           </form>
         </div>

@@ -9,7 +9,7 @@
 html,
 body {
   height: 100%;
-  overflow: hidden; /* This is the key change */
+  
 }
 
 :root {
@@ -21,7 +21,7 @@ body {
   --card-foreground: 210 10% 23%;
 
   --muted: 210 40% 96.1%;
-  --muted-foreground: 215 25% 65%;
+  --muted-foreground: 215 25% 55%;
 
   --border: 214.3 31.8% 91.4%;
   --input: 214.3 31.8% 91.4%;
@@ -62,7 +62,7 @@ body {
   --card-foreground: 210 40% 98%;
 
   --muted: 217 32% 17%;
-  --muted-foreground: 215 20% 65%;
+  --muted-foreground: 215 20% 75%;
 
   --border: 217 32% 27%;
   --input: 217 32% 27%;
@@ -178,4 +178,44 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+.feature-card {
+  /* Define a large gradient background, initially positioned */
+  background-image: linear-gradient(
+    110deg,
+    hsl(var(--card)) 0%, /* Start with card bg */
+    hsl(var(--card)) 40%,
+    hsla(var(--primary) / 0.1) 60%, /* Subtle primary color */
+    hsla(var(--secondary) / 0.1) 80%, /* Subtle secondary color */
+    hsl(var(--card)) 100% /* End with card bg */
+  );
+  background-size: 250% 100%; /* Make gradient wider than the card */
+  background-position: 100% 0; /* Start with the color part off-screen to the right */
+  transition: background-position 0.5s ease-out, transform 0.3s ease-out, box-shadow 0.3s ease-out; /* Include background-position in transition */
+}
+
+.feature-card:hover {
+  background-position: 0 0; /* Shift gradient into view on hover */
+  transform: translateY(-5px); /* Re-add lift effect via CSS */
+  box-shadow: 0px 15px 25px -10px hsla(var(--primary), 0.25); /* Re-add shadow effect via CSS */
+}
+
+/* Optional: Dark mode adjustments for gradient */
+.dark .feature-card {
+   background-image: linear-gradient(
+    110deg,
+    hsl(var(--card) / 0.8) 0%, /* Darker card bg */
+    hsl(var(--card) / 0.8) 40%,
+    hsla(var(--primary) / 0.2) 60%, /* Slightly stronger primary */
+    hsla(var(--secondary) / 0.2) 80%, /* Slightly stronger secondary */
+    hsl(var(--card) / 0.8) 100%
+  );
+   background-size: 250% 100%;
+   background-position: 100% 0;
+}
+
+.dark .feature-card:hover {
+   background-position: 0 0;
+   box-shadow: 0px 15px 25px -10px hsla(var(--primary), 0.35); /* Adjust shadow for dark */
 }

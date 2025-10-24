@@ -1,0 +1,69 @@
+/* src/components/HeroForegroundGrid.module.css */
+
+.gridContainer {
+  position: absolute;
+  inset: 0;
+  z-index: 0; /* Above background (-10), below content (10) */
+  pointer-events: none; /* Crucial: prevent interaction blocking */
+  overflow: hidden;
+  /* Optional: Add a very subtle mask to fade edges */
+  /* mask-image: radial-gradient(ellipse at center, black 60%, transparent 100%); */
+}
+
+/* Define dot colors using RGBA - Light mode default */
+.gridContainer::before,
+.gridContainer::after {
+  content: "";
+  position: absolute;
+  width: 200%;
+  height: 200%;
+  top: -50%; /* Center the larger pseudo-element */
+  left: -50%;
+  /* Light mode: faint grey dots */
+  background-image: radial-gradient(
+    circle,
+    rgba(55, 65, 81, 0.1) 0.8px, /* Faint grey using RGBA (Tailwind gray-700 @ 10%) */
+    transparent 1px /* Ensure transparency starts right after dot */
+  );
+  background-size: 30px 30px; /* Dot spacing */
+  /* Animation */
+  animation-name: drift; /* Use a simpler name */
+  animation-duration: 50s; /* Slower, gentler animation */
+  animation-iteration-count: infinite;
+  animation-timing-function: linear; /* Constant speed */
+  will-change: transform; /* Performance hint */
+}
+
+/* Second layer with different settings */
+.gridContainer::after {
+  background-size: 45px 45px; /* Different spacing */
+   /* Light mode: even fainter grey dots */
+   background-image: radial-gradient(
+    circle,
+    rgba(55, 65, 81, 0.07) 0.8px, /* Faint grey using RGBA (Tailwind gray-700 @ 7%) */
+    transparent 1px
+  );
+  animation-duration: 65s; /* Different speed */
+  animation-delay: -15s; /* Offset start time */
+}
+
+/* Simple drifting animation */
+@keyframes drift {
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(40px, -30px); /* Adjust drift distance */
+  }
+}
+
+/* Dark mode adjustments using RGBA */
+:global(.dark) .gridContainer::before {
+   /* Dark mode: faint white dots */
+   background-image: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0.8px, transparent 1px);
+}
+:global(.dark) .gridContainer::after {
+   /* Dark mode: even fainter white dots */
+   background-image: radial-gradient(circle, rgba(255, 255, 255, 0.05) 0.8px, transparent 1px);
+}
+

@@ -1,0 +1,144 @@
+/* src/components/HeroBackgroundGradient.module.css */
+
+.gradientContainer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden; /* Contain the shapes */
+  z-index: -10; /* Ensure it's behind content */
+  background-color: hsl(var(--background)); /* Base background color */
+}
+
+/* Base gradient layer (optional) */
+.gradientBg {
+  position: absolute;
+  inset: 0;
+  /* background: linear-gradient(135deg, hsla(var(--primary) / 0.05) 0%, hsla(var(--secondary) / 0.05) 100%); */
+  opacity: 0.8;
+}
+
+/* Base style for animated shapes */
+.shape {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px); /* Heavy blur */
+  opacity: 0.35; /* Base opacity */
+  mix-blend-mode: screen; /* Blend mode */
+  /* --- Apply BOTH animations using comma separation --- */
+  animation-name: move, pulseGlow; /* <<< ADD pulseGlow */
+  animation-duration: 30s, 15s; /* <<< Duration for move, Duration for pulseGlow */
+  animation-timing-function: ease-in-out, ease-in-out; /* Timing for each */
+  animation-iteration-count: infinite, infinite; /* Iteration for each */
+  animation-direction: alternate, alternate; /* Direction for each */
+  will-change: transform, opacity; /* Include opacity */
+}
+
+/* Define individual shapes */
+.shape1 {
+  width: 500px;
+  height: 500px;
+  background-color: rgba(109, 40, 217, 0.5); /* Primary Violet (Adjust RGB if needed) */
+  top: -10%;
+  left: -10%;
+  animation-delay: 0s, 0s; /* Delay for move, Delay for pulseGlow */
+  animation-duration: 30s, 18s; /* <<< Varied pulse duration */
+}
+
+.shape2 {
+  width: 400px;
+  height: 400px;
+  background-color: rgba(236, 72, 153, 0.5); /* Secondary Magenta (Adjust RGB if needed) */
+  bottom: -5%;
+  right: -5%;
+  animation-delay: -5s, -3s; /* Offset delays differently */
+  animation-duration: 35s, 14s; /* Varied pulse duration */
+}
+
+.shape3 {
+  width: 350px;
+  height: 350px;
+  /* Assuming accent is ~Indigo: rgba(79, 70, 229, alpha) */
+  background-color: rgba(79, 70, 229, 0.4);
+  bottom: 25%;
+  left: 20%;
+  animation-delay: -10s, -1s;
+  animation-duration: 40s, 16s;
+}
+
+/* Added Shapes */
+.shape4 {
+  width: 300px;
+  height: 300px;
+  background-color: rgba(109, 40, 217, 0.4); /* Primary Violet */
+  top: 10%;
+  right: 15%;
+  animation-delay: -15s, -4s;
+  animation-duration: 38s, 17s;
+}
+
+.shape5 {
+  width: 250px;
+  height: 250px;
+  background-color: rgba(236, 72, 153, 0.4); /* Secondary Magenta */
+  bottom: 40%;
+  left: -10%;
+  animation-delay: -20s, -2s;
+  animation-duration: 32s, 19s;
+}
+
+.shape6 {
+  width: 280px;
+  height: 280px;
+  background-color: rgba(79, 70, 229, 0.3); /* Accent Indigo */
+  top: 30%;
+  left: 40%;
+  animation-delay: -25s, -5s;
+  animation-duration: 45s, 20s;
+}
+
+
+/* Keyframe animation for movement */
+@keyframes move {
+  0% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  50% {
+     transform: translate(80px, -50px) scale(1.1);
+  }
+  100% {
+    transform: translate(-30px, 60px) scale(0.9);
+  }
+}
+
+/* --- NEW Keyframe animation for pulsing glow --- */
+@keyframes pulseGlow {
+  0% {
+    opacity: 0.25; /* Start slightly dimmer */
+    /* Optional: slightly smaller scale */
+    /* transform: scale(0.98); */
+  }
+  50% {
+    opacity: 0.45; /* Pulse brighter */
+    /* Optional: slightly larger scale */
+    /* transform: scale(1.02); */
+  }
+  100% {
+     opacity: 0.25; /* Fade back dimmer */
+     /* Optional: back to original scale */
+     /* transform: scale(0.98); */
+  }
+}
+
+/* Dark mode adjustments (optional) */
+:global(.dark) .shape {
+  mix-blend-mode: lighten; /* Lighten can look better in dark mode */
+  opacity: 0.45; /* Base opacity might need adjustment */
+  animation-name: move, pulseGlowDark;
+}
+
+/* Define a dark-mode variant of the pulsing keyframes */
+@keyframes pulseGlowDark {
+  0% { opacity: 0.35; }
+  50% { opacity: 0.55; }
+  100% { opacity: 0.35; }
+}
+

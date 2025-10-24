@@ -1,4 +1,4 @@
-// lib/landing-page-generator.ts
+//client/ lib/landing-page-generator.ts
 // FIXED VERSION - Proper slug generation and better AI prompts
 
 import { AI_MODELS } from "@/lib/models";

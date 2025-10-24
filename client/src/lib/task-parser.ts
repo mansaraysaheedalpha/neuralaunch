@@ -1,4 +1,4 @@
-// lib/task-parser.ts
+// src/lib/task-parser.ts
 // Parse tasks from AI-generated blueprints
 
 import { AssistantType } from "@prisma/client";

@@ -1,3 +1,4 @@
+//src/ lib/ai-analytics.ts
 // This function sends a custom event to Google Analytics.
 // --- Add this declaration at the top ---
 // This tells TypeScript that the global Window object might have a gtag function.
@@ -20,11 +21,11 @@ export const trackEvent = (
   eventParams?: { [key: string]: string | number | undefined } // Allow undefined for userId
 ) => {
   // Check if we're in the browser and if gtag is available.
-  if (typeof window !== "undefined" && typeof window.gtag === 'function') { // Added typeof check
+  if (typeof window !== "undefined" && typeof window.gtag === "function") {
+    // Added typeof check
     window.gtag("event", eventName, eventParams);
     console.log(`🚀 GA Event Tracked: ${eventName}`, eventParams || "");
   } else {
     console.log(`Analytics not available. Skipped event: ${eventName}`);
   }
 };
-

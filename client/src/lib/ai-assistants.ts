@@ -1,4 +1,4 @@
-// lib/ai-assistants.ts
+//src/ lib/ai-assistants.ts
 // AI Task Assistant System - Specialized AI for each task type
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
