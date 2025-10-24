@@ -3,7 +3,6 @@
 
 import { useState } from "react";
 import Sidebar from "@/components/Sidebar"; // Assuming path is correct
-import Header from "@/components/Header"; // Assuming path is correct
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setSidebarOpen] = useState(true);
@@ -22,8 +21,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Main Content Area within the app */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Header for app pages */}
-        <Header setMobileMenuOpen={setMobileMenuOpen} />
-        {/* Actual page content for app routes */}
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>
