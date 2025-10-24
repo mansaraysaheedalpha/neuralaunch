@@ -47,12 +47,12 @@ const staggerContainer = {
   },
 };
 
-const featureIconVariants = {
+const featureIconVariants: Variants = {
   rest: { scale: 1, rotate: 0 },
   hover: {
     scale: 1.1,
     rotate: 10,
-    transition: { type: "spring", stiffness: 300 },
+    transition: { type: "spring" as const, stiffness: 300 },
   },
 };
 
@@ -78,7 +78,7 @@ const HeroSection = () => {
   const headlineWords = "Build the Right Thing, Faster.".split(" ");
   const primaryWordIndex = 5;
   return (
-    <section className="relative overflow-hidden py-32 md:py-48 text-center">
+    <section className="relative overflow-hidden py-32 text-center">
       <HeroBackgroundGradient />
       <HeroForegroundGrid />
       <HeroForegroundStreaks />
@@ -93,7 +93,7 @@ const HeroSection = () => {
           variants={staggerContainer}
           initial="hidden"
           animate="visible"
-          className="text-6xl md:text-8xl font-black tracking-tighter text-foreground mb-6 leading-tight"
+          className="text-5xl md:text-7xl font-black tracking-tighter text-foreground mb-6 leading-tight"
         >
           {headlineWords.map((word, index) => (
             <motion.span
@@ -110,7 +110,7 @@ const HeroSection = () => {
         {/* Sub-headline */}
         <motion.p
           variants={fadeIn}
-          className="text-xl md:text-2xl text-muted-foreground mb-12 max-w-2xl mx-auto"
+          className="text-xl  text-muted-foreground mb-12 max-w-2xl mx-auto"
         >
           NeuraLaunch combines AI-driven blueprints with a structured validation
           sprint, empowering founders to turn visionary ideas into market-ready
@@ -125,7 +125,7 @@ const HeroSection = () => {
                 boxShadow: "0px 10px 20px hsla(var(--primary), 0.3)",
               }}
               whileTap={{ scale: 0.95 }}
-              className="text-2xl inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-primary to-secondary text-primary-foreground rounded-xl font-semibold shadow-lg transition-all duration-300 cursor-pointer"
+              className="text-lg inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-primary to-secondary text-primary-foreground rounded-xl font-semibold shadow-lg transition-all duration-300 cursor-pointer"
             >
               Generate Your Blueprint
               <ArrowRight className="w-5 h-5" />
@@ -184,7 +184,7 @@ const ProblemSolutionSection = () => {
           <div className="relative z-10">
             {" "}
             {/* Wrap content to keep it above graphic */}
-            <h2 className="text-4xl md:text-5xl font-bold tracking-tight text-foreground mb-4">
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground mb-4">
               Stop Building in the Dark.
             </h2>
             <p className="text-xl text-muted-foreground mb-6">
@@ -219,7 +219,7 @@ const ProblemSolutionSection = () => {
           <div className="relative z-10">
             {" "}
             {/* Wrap content to keep it above graphic */}
-            <h2 className="text-4xl md:text-5xl font-bold tracking-tight text-foreground mb-4">
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground mb-4">
               Validate with AI Precision.
             </h2>
             <p className="text-lg md:text-xl text-muted-foreground mb-4">
@@ -283,7 +283,7 @@ const HowItWorksSection = () => {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true }}
-          className="text-5xl md:text-6xl font-bold tracking-tight text-foreground mb-4"
+          className="text-4xl md:text-5xl font-bold tracking-tight text-foreground mb-4"
         >
           How NeuraLaunch Works
         </motion.h2>
@@ -293,7 +293,7 @@ const HowItWorksSection = () => {
           whileInView="visible"
           viewport={{ once: true, amount: 0.3 }}
           transition={{ delay: 0.1 }}
-          className="text-xl md:text-2xl text-muted-foreground mb-16 max-w-2xl mx-auto"
+          className="text-xl text-muted-foreground mb-16 max-w-2xl mx-auto"
         >
           From initial concept to validated idea in three streamlined steps.
         </motion.p>
@@ -346,7 +346,7 @@ const HowItWorksSection = () => {
               >
                 <step.icon className="w-12 h-12 text-primary" />
               </motion.div>
-              <h3 className="text-2xl font-semibold text-foreground mb-2">
+              <h3 className="text-xl font-semibold text-foreground mb-2">
                 {step.title}
               </h3>
               <p className="text-base text-muted-foreground">
@@ -391,7 +391,7 @@ const FeaturesSection = () => {
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true }}
-          className="text-5xl md:text-6xl font-bold tracking-tight text-foreground text-center mb-16"
+          className="text-4xl md:text-5xl font-bold tracking-tight text-foreground text-center mb-16"
         >
           Powered by Intelligent Tools
         </motion.h2>
@@ -419,21 +419,21 @@ const FeaturesSection = () => {
               {/* Inner wrapper (keep this) */}
               <motion.div
                 className="relative z-10"
-                whileHover={{ rotateX: -3, rotateY: index === 0 ? 3 : index === 2 ? -3 : 0 }} // Keep commented or uncomment if desired
+                whileHover={{
+                  rotateX: -3,
+                  rotateY: index === 0 ? 3 : index === 2 ? -3 : 0,
+                }} // Keep commented or uncomment if desired
               >
                 {/* Icon animation (remains the same) */}
                 <motion.div
-                  initial={{ scale: 1, rotate: 0 }}
-                  whileHover={{
-                    scale: 1.1,
-                    rotate: 10,
-                    transition: { type: "spring", stiffness: 300, damping: 20 },
-                  }}
-                  className="inline-block mb-5"
+                  variants={featureIconVariants}
+                  initial="rest"
+                  whileHover="hover"
+                  className="inline-block mb-6"
                 >
                   <feature.icon className="w-12 h-12 text-primary transition-transform duration-300" />
                 </motion.div>
-                <h3 className="text-2xl font-semibold text-foreground mb-4">
+                <h3 className="text-xl font-semibold text-foreground mb-4">
                   {feature.title}
                 </h3>
                 <p className="text-base text-muted-foreground">

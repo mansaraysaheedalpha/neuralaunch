@@ -2,23 +2,23 @@
 "use client";
 
 import Link from "next/link";
-import ThemeSwitcher from "./ThemeSwitcher"; // Assuming ThemeSwitcher is in components/
+import ThemeSwitcher from "./ThemeSwitcher";
 import { useSession, signOut } from "next-auth/react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import LoginButton from "./LoginButton"; // Assuming LoginButton is in components/
+import LoginButton from "./LoginButton";
 
 export default function LandingHeader() {
   const { data: session, status } = useSession();
+  const FEEDBACK_FORM_URL = "https://forms.gle/WVLZzKtFYLvb7Xkg9"; // Feedback URL
 
   return (
-    // Updated styling: absolute positioning, padding, z-index
+    // Fixed positioning for the landing page header
     <header className="fixed top-0 left-0 right-0 z-50 p-4 sm:px-6 lg:px-8 py-5 bg-background/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-border/50">
       <div className="w-full max-w-7xl mx-auto flex items-center justify-between">
-        {/* Logo and Title Section (Adapted from your previous Header) */}
+        {/* Logo and Title Section */}
         <Link href="/" className="flex items-center space-x-3 group">
-          {/* Logo Icon using your PNG */}
           <div className="relative">
             <motion.div // Added motion for subtle hover effect
               whileHover={{ scale: 1.05, rotate: -3 }}
@@ -33,7 +33,6 @@ export default function LandingHeader() {
               />
             </motion.div>
           </div>
-          {/* Text */}
           <div className="hidden sm:block">
             {" "}
             {/* Hide text on very small screens */}
@@ -44,13 +43,24 @@ export default function LandingHeader() {
           </div>
         </Link>
 
-        {/* Action Buttons - Right side (Adapted) */}
+        {/* Action Buttons */}
         <div className="flex items-center gap-3 sm:gap-4">
+          {/* Feedback Button */}
+          <Link
+            href={FEEDBACK_FORM_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-foreground bg-muted hover:bg-border rounded-full transition-colors" // Adjusted style
+          >
+            <span>Feedback</span>
+            <span>💬</span>
+          </Link>
           <ThemeSwitcher />
+          {/* Auth Status Logic */}
           {status === "loading" ? (
-            <div className="w-10 h-10 bg-muted rounded-full animate-pulse"></div>
+            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-muted rounded-full animate-pulse"></div>
           ) : session ? (
-            // User Menu Dropdown (Copied from your previous Header)
+            // User Menu Dropdown
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
                 <motion.button // Added motion
@@ -70,7 +80,6 @@ export default function LandingHeader() {
                   ) : (
                     // Fallback icon
                     <div className="w-full h-full bg-muted flex items-center justify-center text-muted-foreground">
-                      {/* Simple User Icon */}
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         width="20"
@@ -99,10 +108,10 @@ export default function LandingHeader() {
                     {session.user?.name || session.user?.email}
                   </DropdownMenu.Label>
                   <DropdownMenu.Separator className="h-px bg-border my-1" />
-                  {/* Link to the app/generate page */}
+                  {/* Link to Go to App */}
                   <DropdownMenu.Item asChild>
                     <Link
-                      href="/generate" // Link to the main app/generator page
+                      href="/generate"
                       className="flex items-center gap-2 px-3 py-2 rounded hover:bg-muted cursor-pointer outline-none select-none"
                     >
                       {/* Rocket Icon */}
@@ -128,7 +137,7 @@ export default function LandingHeader() {
                   </DropdownMenu.Item>
                   <DropdownMenu.Separator className="h-px bg-border my-1" />
                   <DropdownMenu.Item
-                    onSelect={() => void signOut()} // Sign out stays the same
+                    onSelect={() => void signOut()} // Sign out
                     className="flex items-center gap-2 px-3 py-2 rounded hover:bg-muted cursor-pointer outline-none select-none text-red-500 hover:text-red-600"
                   >
                     {/* Sign Out Icon */}
@@ -153,16 +162,9 @@ export default function LandingHeader() {
               </DropdownMenu.Portal>
             </DropdownMenu.Root>
           ) : (
-            // Use the LoginButton component for consistency if unauthenticated
-            <LoginButton />
-            // Or use the styled link if preferred:
-            // <Link
-            //   href="/api/auth/signin"
-            //   className="px-5 py-2.5 text-sm font-semibold border border-foreground/30 rounded-lg text-foreground bg-background/50 hover:bg-foreground/5 dark:border-white/30 dark:text-white dark:bg-slate-900/50 dark:hover:bg-white/5 transition-colors duration-200 shadow-sm whitespace-nowrap"
-            // >
-            //   Sign In with Google
-            // </Link>
+            <LoginButton /> // Use LoginButton component
           )}
+          {/* END Auth Status Logic */}
         </div>
       </div>
     </header>
