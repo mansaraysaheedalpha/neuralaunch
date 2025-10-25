@@ -114,6 +114,23 @@ function getOrCreateSessionId(): string {
 }
 
 function generateSessionId(): string {
+  // Use crypto.randomUUID if available (modern browsers)
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return `${Date.now()}-${crypto.randomUUID()}`;
+  }
+  
+  // Use crypto.getRandomValues for secure random (fallback for older browsers)
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    const array = new Uint8Array(16);
+    crypto.getRandomValues(array);
+    const randomStr = Array.from(array)
+      .map((b) => b.toString(36))
+      .join("")
+      .substring(0, 15);
+    return `${Date.now()}-${randomStr}`;
+  }
+  
+  // Final fallback for very old browsers (should rarely happen)
   return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
 }
 

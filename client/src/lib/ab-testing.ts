@@ -45,8 +45,23 @@ export function getABTestSessionId(): string {
   let sessionId = localStorage.getItem(storageKey);
 
   if (!sessionId) {
-    // Generate a simple random ID
-    sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+    // Generate a cryptographically secure random ID
+    // Use crypto.randomUUID if available (modern browsers), otherwise fall back to crypto.getRandomValues
+    if (crypto && crypto.randomUUID) {
+      sessionId = `session_${Date.now()}_${crypto.randomUUID()}`;
+    } else if (crypto && crypto.getRandomValues) {
+      // Generate secure random bytes and convert to base36 string
+      const array = new Uint8Array(16);
+      crypto.getRandomValues(array);
+      const randomStr = Array.from(array)
+        .map((b) => b.toString(36))
+        .join("")
+        .substring(0, 15);
+      sessionId = `session_${Date.now()}_${randomStr}`;
+    } else {
+      // Fallback for very old browsers (should rarely happen)
+      sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+    }
     localStorage.setItem(storageKey, sessionId);
   }
 
