@@ -5,7 +5,6 @@ import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { generateMvpCodebase } from "@/lib/services/mvp-generator";
-import { PricingTier } from "@/components/landing-page/PricingFeedback";
 import JSZip from "jszip";
 
 // Define PricingTier type to match the generator
@@ -85,19 +84,19 @@ export async function POST(req: NextRequest) {
 
     // This is the pricing data, which is already in JSON format
     // Type guard to ensure it's a valid PricingTier array
-    const pricingTiers: PricingTier[] = Array.isArray(landingPage.pricingTiers) 
-      ? landingPage.pricingTiers.filter((tier): tier is PricingTier => {
-          return (
-            tier !== null &&
-            typeof tier === 'object' &&
-            'name' in tier &&
-            'price' in tier &&
-            'description' in tier &&
-            typeof tier.name === 'string' &&
-            typeof tier.price === 'string' &&
-            typeof tier.description === 'string'
-          );
-        })
+    // Type guard to validate a raw value is a PricingTier
+    function isPricingTier(value: unknown): value is PricingTier {
+      if (typeof value !== "object" || value === null) return false;
+      const v = value as Record<string, unknown>;
+      return (
+        typeof v.name === "string" &&
+        typeof v.price === "string" &&
+        typeof v.description === "string"
+      );
+    }
+
+    const pricingTiers: PricingTier[] = Array.isArray(landingPage.pricingTiers)
+      ? (landingPage.pricingTiers as unknown[]).filter(isPricingTier)
       : [];
 
     // --- END NEW DATA FETCH ---
@@ -106,7 +105,6 @@ export async function POST(req: NextRequest) {
     // We now pass the correct data. This function is now async!
     const files = await generateMvpCodebase(
       blueprintString,
-      pricingTiers as unknown as PricingTier[]
       pricingTiers
     );
 
