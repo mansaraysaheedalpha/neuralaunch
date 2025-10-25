@@ -5,7 +5,7 @@ import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { parseTasksFromBlueprint, ParsedTask } from "@/lib/task-parser"; // Import ParsedTask type
 import { z } from "zod"; // Import Zod
-import { Prisma, Task } from "@prisma/client"; // Import Prisma Transaction Client type and Task type
+import { Prisma } from "@prisma/client"; // Import Prisma Transaction Client type
 
 // Define Zod schema for request body
 const startSprintSchema = z.object({
@@ -67,28 +67,30 @@ export async function POST(req: NextRequest) {
     const startTime = new Date();
     const targetEndAt = new Date(startTime.getTime() + 72 * 60 * 60 * 1000);
 
-    // Using a transaction with typed client
+    // Using a transaction with typed client and increased timeout
     await prisma.$transaction(async (tx: PrismaTransactionClient) => {
       // Type the tx client
       // Delete existing tasks and reminders first
       await tx.taskReminder.deleteMany({ where: { task: { conversationId } } });
       await tx.task.deleteMany({ where: { conversationId } });
 
-      const createdTasks: Task[] = []; // Type the array
-      for (const task of parsedTasks) {
-        // Type the createdTask
-        const createdTask: Task = await tx.task.create({
-          data: {
-            conversationId: conversationId,
-            title: task.title,
-            description: task.description,
-            timeEstimate: task.timeEstimate,
-            orderIndex: task.orderIndex,
-            aiAssistantType: task.aiAssistantType, // Prisma handles optional enum correctly
-          },
-        });
-        createdTasks.push(createdTask);
-      }
+      // Use createMany for better performance instead of a loop
+      await tx.task.createMany({
+        data: parsedTasks.map(task => ({
+          conversationId: conversationId,
+          title: task.title,
+          description: task.description,
+          timeEstimate: task.timeEstimate,
+          orderIndex: task.orderIndex,
+          aiAssistantType: task.aiAssistantType, // Prisma handles optional enum correctly
+        })),
+      });
+
+      // Get the created tasks to use the first task ID for reminders
+      const createdTasks = await tx.task.findMany({
+        where: { conversationId },
+        orderBy: { orderIndex: 'asc' },
+      });
 
       await tx.sprint.upsert({
         where: { conversationId },
@@ -132,6 +134,9 @@ export async function POST(req: NextRequest) {
           `✅ Scheduled 2 reminders for conversation ${conversationId}`
         );
       }
+    }, {
+      maxWait: 10000, // Maximum time to wait for transaction to start (10 seconds)
+      timeout: 20000, // Maximum time for transaction to complete (20 seconds)
     });
 
     return NextResponse.json({ success: true, taskCount: parsedTasks.length });
