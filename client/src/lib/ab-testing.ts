@@ -35,17 +35,18 @@ export function getABTestVariant(
 
 /**
  * Helper to get or create a session ID for A/B testing consistency.
- * Stores in localStorage to persist across page reloads.
+ * Uses the same session ID as page view tracking for consistency.
  */
 export function getABTestSessionId(): string {
   if (typeof window === "undefined") return "";
 
-  const storageKey = "neurallaunch_ab_session_id";
+  // Use the same session ID as page view tracking for consistency
+  const storageKey = "neurallaunch_session_id";
   let sessionId = localStorage.getItem(storageKey);
 
   if (!sessionId) {
     // Generate a simple random ID
-    sessionId = `ab_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+    sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
     localStorage.setItem(storageKey, sessionId);
   }
 
@@ -54,7 +55,7 @@ export function getABTestSessionId(): string {
 
 /**
  * Track which variant was shown to the user.
- * This can be used to record A/B test impressions.
+ * Uses sendBeacon for reliable tracking even when user navigates away.
  */
 export function trackABTestVariant(
   landingPageSlug: string,
@@ -62,17 +63,30 @@ export function trackABTestVariant(
   variant: string,
   sessionId: string
 ): void {
-  // Fire-and-forget tracking
-  void fetch("/api/landing-page/ab-test-track", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      landingPageSlug,
-      testName,
-      variant,
-      sessionId,
-    }),
-  }).catch((error) => {
-    console.error("[AB_TEST_TRACKING_ERROR]", error);
+  const data = JSON.stringify({
+    landingPageSlug,
+    testName,
+    variant,
+    sessionId,
   });
+
+  if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+    // Use sendBeacon for reliable tracking
+    // Create a Blob with proper content-type for sendBeacon
+    const blob = new Blob([data], { type: "application/json" });
+    const success = navigator.sendBeacon("/api/landing-page/ab-test-track", blob);
+    
+    if (!success) {
+      console.error("[AB_TEST_TRACKING_ERROR] sendBeacon failed");
+    }
+  } else {
+    // Fallback to fetch for older browsers
+    void fetch("/api/landing-page/ab-test-track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: data,
+    }).catch((error) => {
+      console.error("[AB_TEST_TRACKING_ERROR]", error);
+    });
+  }
 }

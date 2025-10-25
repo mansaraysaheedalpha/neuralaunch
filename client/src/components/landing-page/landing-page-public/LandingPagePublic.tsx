@@ -106,10 +106,11 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
   const [headline, setHeadline] = useState(landingPage.headline);
   const [subheadline, setSubheadline] = useState(landingPage.subheadline);
   const [ctaText, setCtaText] = useState(landingPage.ctaText);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Initialize A/B testing on mount
+  // Initialize A/B testing on mount - only once
   useEffect(() => {
-    if (!landingPage.abTestVariants) return;
+    if (isInitialized || !landingPage.abTestVariants) return;
 
     const abTestVariants = landingPage.abTestVariants as Record<string, string[]>;
     const sessionId = getABTestSessionId();
@@ -140,7 +141,9 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
         trackABTestVariant(landingPage.slug, "ctaText", selectedCtaText, sessionId);
       }
     }
-  }, [landingPage.slug, landingPage.abTestVariants, landingPage.headline, landingPage.subheadline, landingPage.ctaText]);
+
+    setIsInitialized(true);
+  }, [isInitialized, landingPage.slug, landingPage.abTestVariants]);
 
   const colors = landingPage.colorScheme as unknown as ColorScheme;
   // Ensure features is an array before mapping
