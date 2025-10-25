@@ -142,13 +142,13 @@ export function sanitizeJsonObject<T extends Record<string, unknown>>(
   obj: T,
   maxDepth = 5,
   currentDepth = 0
-): T {
+): Record<string, unknown> {
   if (currentDepth >= maxDepth) {
-    return {} as T;
+    return {};
   }
 
   if (obj === null || typeof obj !== "object") {
-    return obj;
+    return obj as unknown as Record<string, unknown>;
   }
 
   if (Array.isArray(obj)) {
@@ -156,7 +156,7 @@ export function sanitizeJsonObject<T extends Record<string, unknown>>(
       typeof item === "object" && item !== null
         ? sanitizeJsonObject(item as Record<string, unknown>, maxDepth, currentDepth + 1)
         : item
-    ) as T;
+    ) as unknown as Record<string, unknown>;
   }
 
   const sanitized: Record<string, unknown> = {};
@@ -180,7 +180,7 @@ export function sanitizeJsonObject<T extends Record<string, unknown>>(
     }
   }
 
-  return sanitized as T;
+  return sanitized;
 }
 
 /**

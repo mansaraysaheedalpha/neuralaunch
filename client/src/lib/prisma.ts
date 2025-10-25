@@ -35,8 +35,8 @@ prisma.$connect()
   });
 
 // Graceful shutdown
-process.on("beforeExit", async () => {
-  await prisma.$disconnect();
+process.on("beforeExit", () => {
+  void prisma.$disconnect();
 });
 
 export default prisma;

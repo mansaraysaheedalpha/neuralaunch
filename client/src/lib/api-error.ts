@@ -79,7 +79,7 @@ export function handleApiError(
         statusCode: 400,
         timestamp: new Date().toISOString(),
         details: error.errors.map((e) => ({
-          path: e.path.join("."),
+          path: String(e.path.join(".")),
           message: e.message,
         })),
       },
