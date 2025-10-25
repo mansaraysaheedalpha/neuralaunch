@@ -90,6 +90,7 @@ export async function POST(req: NextRequest) {
       const createdTasks = await tx.task.findMany({
         where: { conversationId },
         orderBy: { orderIndex: 'asc' },
+        select: { id: true },
       });
 
       await tx.sprint.upsert({
