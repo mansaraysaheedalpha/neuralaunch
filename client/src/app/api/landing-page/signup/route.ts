@@ -118,20 +118,18 @@ export async function POST(req: NextRequest) {
     // Explicitly ignore promises for fire-and-forget emails
     // Fire-and-forget email notifications
     void sendWelcomeEmail({
-      toEmail: cleanEmail,
-      toName: cleanName,
-      landingPageName: landingPage.title,
+      to: cleanEmail,
+      name: cleanName,
+      startupName: landingPage.title,
       landingPageUrl: landingPageUrl,
     }).catch(console.error);
 
     if (landingPage.user.email) {
       void notifyFounderOfSignup({
         founderEmail: landingPage.user.email,
-        founderName: landingPage.user.name,
         signupEmail: cleanEmail,
         signupName: cleanName,
-        landingPageName: landingPage.title,
-        landingPageUrl: landingPageUrl,
+        startupName: landingPage.title,
       }).catch(console.error);
     }
 

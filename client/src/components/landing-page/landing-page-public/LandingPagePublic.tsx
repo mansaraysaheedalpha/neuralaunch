@@ -105,6 +105,11 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
   const features = Array.isArray(landingPage.features)
     ? (landingPage.features as Feature[])
     : [];
+  
+  // Extract pricingTiers from landingPage
+  const pricingTiers = Array.isArray(landingPage.pricingTiers)
+    ? (landingPage.pricingTiers as any[])
+    : [];
 
   return (
     <div
@@ -328,19 +333,22 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
         {/* FeaturePrioritization Section */}
         {landingPage.surveyQuestion1 && (
           <FeaturePrioritization
-            slug={landingPage.slug}
+            landingPageSlug={landingPage.slug}
             features={features}
             primaryColor={colors.primary}
-            secondaryColor={colors.secondary}
+            backgroundColor={colors.background}
+            textColor={colors.text}
           />
         )}
 
         {/* PricingFeedback Section */}
         {pricingTiers.length > 0 && (
           <PricingFeedback
-            slug={landingPage.slug}
-            pricingTiers={pricingTiers}
-            colors={colors}
+            landingPageSlug={landingPage.slug}
+            tiers={pricingTiers}
+            primaryColor={colors.primary}
+            backgroundColor={colors.background}
+            textColor={colors.text}
           />
         )}
 
@@ -394,8 +402,7 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
         {/* Calendly Section */}
         {landingPage.calendlyUrl && (
           <CalendlyEmbed
-            url={landingPage.calendlyUrl}
-            primaryColor={colors.primary}
+            calendlyUrl={landingPage.calendlyUrl}
           />
         )}
         {/* Footer */}

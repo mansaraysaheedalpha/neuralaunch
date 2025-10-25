@@ -188,7 +188,7 @@ export async function POST(req: NextRequest) {
       : "b2b";
 
     // --- Generate Content AND Survey Questions in Parallel ---
-    const [content, surveyQuestions] = await Promise.all([
+    const [content, surveyQuestions, pricingTiers] = await Promise.all([
       generateLandingPageContent(blueprint, conversation.title, targetMarket),
       generateSurveyQuestions(blueprint),
       generatePricingTiers(blueprint, targetMarket),
@@ -203,8 +203,7 @@ export async function POST(req: NextRequest) {
     const featuresJson = (content.features ?? {}) as Prisma.InputJsonValue;
     const colorSchemeJson = (designVariant.colorScheme ??
       {}) as Prisma.InputJsonValue;
-    // ---------------------------------------------
-      const pricingTiersJson = (pricingTiers ?? []) as Prisma.InputJsonValue; 
+    const pricingTiersJson = (pricingTiers ?? []) as unknown as Prisma.InputJsonValue; 
     const cleanBaseSlug = generateSlug(content.headline);
 
     const landingPage = await prisma.landingPage.upsert({

@@ -88,6 +88,8 @@ export interface AnalyticsApiResponse {
     ratingDistribution: number[];
     averageSolutionRating: number;
     solutionRatingDistribution: number[];
+    featureVoteDistribution?: Array<{ name: string; count: number }>;
+    pricingVoteDistribution?: Array<{ name: string; count: number }>;
     surveyResponses: Array<{
       email: string;
       response1: string | null;

@@ -132,8 +132,8 @@ const FeaturePrioritization: React.FC<FeaturePrioritizationProps> = ({
                 borderColor: isSelected
                   ? primaryColor
                   : "rgba(128, 128, 128, 0.2)",
-                ringColor: primaryColor, // For the selection ring
                 color: textColor, // Ensure text color is set
+                // Note: ring color is controlled via Tailwind's ring-2 class
               }}
               whileHover={{ y: -5 }}
               transition={{ type: "spring", stiffness: 400, damping: 10 }}

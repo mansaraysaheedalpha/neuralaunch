@@ -138,8 +138,8 @@ export default async function PublicLandingPage({
     colorScheme:
       landingPage.colorScheme as unknown as InitialLandingPageData["colorScheme"], // Convert Prisma JSON safely
     pricingTiers: landingPage.pricingTiers as any,
-    pricingTiers: landingPage.pricingTiers as any,
     preorderLink: landingPage.preorderLink,
+    emailSignups: [],
   };
   // ------------------------------------
 

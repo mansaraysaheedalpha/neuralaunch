@@ -166,11 +166,11 @@ export async function GET(req: NextRequest) {
       signupsWithSurvey,
       recentViews7Days,
       recentViews30Days,
-      featureVotes,
-      pricingVotes,
       topSources,
       problemRatingsFeedback,
       solutionRatingsFeedback, // <-- Added
+      featureVotes,
+      pricingVotes,
       avgTimeOnPage,
       ctaClicks,
     ] = await Promise.all([
@@ -256,18 +256,6 @@ export async function GET(req: NextRequest) {
     const solutionRatingData = processRatings(validSolutionRatings);
     const featureVoteDistribution = processVotes(validFeatureVotes);
     const pricingVoteDistribution = processVotes(validPricingVotes);
-
-    // --- Process Feature Votes ---
-    const featureVoteCounts = new Map<string, number>();
-    validFeatureVotes.forEach((vote) => {
-      featureVoteCounts.set(
-        vote.value,
-        (featureVoteCounts.get(vote.value) || 0) + 1
-      );
-    });
-    const featureVoteDistribution = Array.from(featureVoteCounts.entries()).map(
-      ([name, count]) => ({ name, count })
-    );
 
     const surveyResponses = signupsWithSurvey
       .filter((signup) => signup.surveyResponse1 || signup.surveyResponse2)
