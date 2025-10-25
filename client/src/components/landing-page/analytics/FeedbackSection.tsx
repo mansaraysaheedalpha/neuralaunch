@@ -8,8 +8,6 @@ interface FeedbackSectionProps {
 }
 
 // --- Rating Distribution Chart (Reusable) ---
-const MIN_BAR_HEIGHT_PERCENT = 4; // Minimum height for bars with votes
-
 const RatingDistributionChart = ({
   title,
   distribution,
@@ -19,6 +17,8 @@ const RatingDistributionChart = ({
   distribution: number[];
   barColorClass: string;
 }) => {
+  const MIN_BAR_HEIGHT_PERCENT = 4; // Minimum height for bars with votes
+
   if (
     !distribution ||
     distribution.length !== 11 ||
