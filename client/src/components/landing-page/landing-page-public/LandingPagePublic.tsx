@@ -2,7 +2,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import HeroSignupForm from "./HeroSignupForm";
 import RatingWidget from "./RatingWidget";
 import FeaturePrioritization from "../FeaturePriotization";
@@ -11,6 +11,7 @@ import PricingFeedback from "../PricingFeedback";
 import type { InitialLandingPageData } from "../LandingPageBuilder";
 import { toast } from "react-hot-toast"; // <<< Import toast
 import type { PricingTier } from "../PricingFeedback";
+import { getABTestVariant, getABTestSessionId, trackABTestVariant } from "@/lib/ab-testing";
 
 // Define proper types for the JSON fields
 interface ColorScheme {
@@ -29,7 +30,10 @@ interface Feature {
 
 // Update props to use the detailed type
 interface LandingPageProps {
-  landingPage: InitialLandingPageData & { preorderLink?: string | null };
+  landingPage: InitialLandingPageData & { 
+    preorderLink?: string | null;
+    abTestVariants?: Record<string, string[]> | null;
+  };
 }
 
 // Helper function to get session ID
@@ -98,7 +102,45 @@ const SmokeTestFeatureCard: React.FC<{
 // ---------------------------------------------
 
 export default function LandingPagePublic({ landingPage }: LandingPageProps) {
-  // All state (email, survey, rating, etc.) is moved to child components.
+  // A/B testing state
+  const [headline, setHeadline] = useState(landingPage.headline);
+  const [subheadline, setSubheadline] = useState(landingPage.subheadline);
+  const [ctaText, setCtaText] = useState(landingPage.ctaText);
+
+  // Initialize A/B testing on mount
+  useEffect(() => {
+    if (!landingPage.abTestVariants) return;
+
+    const abTestVariants = landingPage.abTestVariants as Record<string, string[]>;
+    const sessionId = getABTestSessionId();
+
+    // Test headline variants
+    if (abTestVariants.headline && abTestVariants.headline.length > 0) {
+      const selectedHeadline = getABTestVariant(abTestVariants.headline, sessionId);
+      if (selectedHeadline) {
+        setHeadline(selectedHeadline);
+        trackABTestVariant(landingPage.slug, "headline", selectedHeadline, sessionId);
+      }
+    }
+
+    // Test subheadline variants
+    if (abTestVariants.subheadline && abTestVariants.subheadline.length > 0) {
+      const selectedSubheadline = getABTestVariant(abTestVariants.subheadline, sessionId);
+      if (selectedSubheadline) {
+        setSubheadline(selectedSubheadline);
+        trackABTestVariant(landingPage.slug, "subheadline", selectedSubheadline, sessionId);
+      }
+    }
+
+    // Test CTA text variants
+    if (abTestVariants.ctaText && abTestVariants.ctaText.length > 0) {
+      const selectedCtaText = getABTestVariant(abTestVariants.ctaText, sessionId);
+      if (selectedCtaText) {
+        setCtaText(selectedCtaText);
+        trackABTestVariant(landingPage.slug, "ctaText", selectedCtaText, sessionId);
+      }
+    }
+  }, [landingPage.slug, landingPage.abTestVariants, landingPage.headline, landingPage.subheadline, landingPage.ctaText]);
 
   const colors = landingPage.colorScheme as unknown as ColorScheme;
   // Ensure features is an array before mapping
@@ -175,16 +217,16 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
               className="text-center"
             >
               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black tracking-tight mb-4 sm:mb-6 px-2">
-                {landingPage.headline}
+                {headline}
               </h1>
               <p className="text-base sm:text-lg md:text-xl lg:text-2xl mb-8 sm:mb-10 max-w-3xl mx-auto opacity-80 px-4">
-                {landingPage.subheadline}
+                {subheadline}
               </p>
 
               {/* --- RENDER THE SIGNUP FORM COMPONENT --- */}
               <HeroSignupForm
                 landingPageSlug={landingPage.slug}
-                ctaText={landingPage.ctaText}
+                ctaText={ctaText}
                 surveyQuestion1={landingPage.surveyQuestion1}
                 surveyQuestion2={landingPage.surveyQuestion2}
               />
