@@ -157,6 +157,8 @@ model LandingPage {
   
 
   @@index([userId])
+  @@index([isPublished])
+  @@index([createdAt])
 }
 
 model EmailSignup {
@@ -175,6 +177,8 @@ model EmailSignup {
   createdAt     DateTime    @default(now())
 
   @@index([landingPageId])
+  @@index([email])
+  @@index([createdAt])
 }
 
 model PageView {
@@ -194,6 +198,9 @@ model PageView {
   createdAt     DateTime    @default(now())
 
   @@index([landingPageId])
+  @@index([sessionId])
+  @@index([createdAt])
+  @@index([utmSource])
 }
 
 // --- NEW MODELS FOR PHASE 2 (Core Task System) ---

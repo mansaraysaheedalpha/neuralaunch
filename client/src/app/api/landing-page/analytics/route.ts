@@ -160,13 +160,31 @@ export async function GET(req: NextRequest) {
       where: { landingPageId, ctaClicked: true },
     });
 
+    const utmSourcesQuery = prismaClient.pageView.groupBy({
+      by: ["utmSource"],
+      where: { landingPageId, utmSource: { not: null } },
+      _count: { utmSource: true },
+      orderBy: { _count: { utmSource: "desc" } },
+      take: 10, // Fetch a few more initially
+    });
+
+    const referrersQuery = prismaClient.pageView.groupBy({
+      by: ["referrer"],
+      // Only count referrers for views *without* a UTM source
+      where: { landingPageId, utmSource: null, referrer: { not: null } },
+      _count: { referrer: true },
+      orderBy: { _count: { referrer: "desc" } },
+      take: 10, // Fetch a few more initially
+    });
+
     const [
       totalViews,
       uniqueVisitorGroups,
       signupsWithSurvey,
       recentViews7Days,
       recentViews30Days,
-      topSources,
+      utmSources,
+      referrers,
       problemRatingsFeedback,
       solutionRatingsFeedback, // <-- Added
       featureVotes,
@@ -179,7 +197,8 @@ export async function GET(req: NextRequest) {
       signupsQuery,
       recentViews7DaysQuery,
       recentViews30DaysQuery,
-      topSourcesQuery,
+      utmSourcesQuery, // <-- New query execution
+      referrersQuery,
       problemRatingsQuery,
       solutionRatingsQuery, // <-- Added
       featureVotesQuery,
@@ -268,6 +287,58 @@ export async function GET(req: NextRequest) {
       .slice(0, 50);
     // -----------------------
 
+    const combinedSources: { source: string; count: number }[] = [];
+
+    // Add UTM sources first
+    utmSources.forEach((source) => {
+      if (source.utmSource) {
+        combinedSources.push({
+          source: source.utmSource,
+          count: source._count.utmSource ?? 0,
+        });
+      }
+    });
+
+    // Add referrers, trying to extract domain for cleaner display
+    referrers.forEach((ref) => {
+      if (ref.referrer) {
+        let sourceName = "Referral"; // Default
+        try {
+          const url = new URL(ref.referrer);
+          sourceName = url.hostname.replace(/^www\./, ""); // Extract domain like 'google.com'
+        } catch {
+          // If referrer is not a valid URL, use it as is (or keep 'Referral')
+          sourceName = ref.referrer.substring(0, 30); // Truncate long invalid referrers
+        }
+        // Check if this domain (or similar) already exists from UTMs
+        const existingIndex = combinedSources.findIndex(
+          (s) => s.source.toLowerCase() === sourceName.toLowerCase()
+        );
+        if (existingIndex !== -1) {
+          combinedSources[existingIndex].count += ref._count.referrer ?? 0;
+        } else {
+          combinedSources.push({
+            source: sourceName,
+            count: ref._count.referrer ?? 0,
+          });
+        }
+      }
+    });
+
+    // Calculate Direct traffic (Total views - views with UTM - views with Referrer)
+    const trackedViewsCount =
+      utmSources.reduce((sum, s) => sum + (s._count.utmSource ?? 0), 0) +
+      referrers.reduce((sum, r) => sum + (r._count.referrer ?? 0), 0);
+    const directViews = totalViews - trackedViewsCount;
+    if (directViews > 0) {
+      combinedSources.push({ source: "Direct", count: directViews });
+    }
+
+    // Sort combined list and take top 5
+    const top5Sources = combinedSources
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
     // --- Format Final Response ---
     const analytics = {
       overview: {
@@ -291,10 +362,7 @@ export async function GET(req: NextRequest) {
         createdAt: signup.createdAt.toISOString(),
         source: signup.source,
       })),
-      topSources: topSources.map((source) => ({
-        source: source.utmSource || "Direct",
-        count: source._count.utmSource ?? 0,
-      })),
+      topSources: top5Sources,
       landingPage: {
         id: landingPage.id,
         slug: landingPage.slug,
