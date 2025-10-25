@@ -45,7 +45,7 @@ const RatingDistributionChart = ({
             <div
               className={`w-full rounded-t transition-all duration-200 ${barColorClass}`}
               style={{ 
-                height: `${Math.max(4, (count / maxCount) * 100)}%`,
+                height: count > 0 ? `${Math.max(4, (count / maxCount) * 100)}%` : '0%',
                 minWidth: '4px'
               }}
             ></div>
