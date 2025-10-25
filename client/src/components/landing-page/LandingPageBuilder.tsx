@@ -147,7 +147,7 @@ export default function LandingPageBuilder({
   const router = useRouter();
   const [landingPage, setLandingPage] =
     useState<InitialLandingPageData>(initialData);
-  const [isPublishing, setIsPublishing] = useState(initialData.isPublished); // Init with correct status
+  const [isPublishing, setIsPublishing] = useState(false); // Init with correct status
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [activeTab, setActiveTab] = useState<
     "preview" | "analytics" | "sprint"
@@ -224,10 +224,7 @@ export default function LandingPageBuilder({
       setLandingPage((prev) => ({ ...prev, isPublished: !publishState }));
       if (analyticsData) await mutateAnalytics(analyticsData, false); // Revert SWR cache
     } finally {
-      // Note: We don't manually set setIsPublishing(false) here.
-      // The UI state (Draft/Published) relies on the `landingPage` state
-      // and `analyticsData` from SWR, reflecting the true status after fetch/revalidation.
-      // The temporary "(Publishing...)" text handles the visual loading state.
+      setIsPublishing(false); // Buttons re-enable after operation
     }
   };
 
