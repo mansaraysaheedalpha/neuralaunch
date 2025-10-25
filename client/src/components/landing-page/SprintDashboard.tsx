@@ -38,11 +38,14 @@ const fetcher = (url: string): Promise<SprintData> =>
 
 export default function SprintDashboard({
   conversationId,
+  landingPageId,
 }: {
   conversationId: string;
+  landingPageId: string;
 }) {
   const [isStarting, setIsStarting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isDownloadingMvp, setIsDownloadingMvp] = useState(false);
   const [activeAssistantTask, setActiveAssistantTask] = useState<Task | null>(
     null
   );
@@ -140,6 +143,56 @@ export default function SprintDashboard({
     }
   };
 
+  const handleDownloadMvp = async (projectId: string) => {
+    setIsDownloadingMvp(true);
+    try {
+      const response = await fetch("/api/scaffold/mvp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+
+      if (!response.ok) {
+        let errorMessage = `Failed to generate MVP (Status: ${response.status})`;
+        try {
+          if (
+            response.headers.get("Content-Type")?.includes("application/json")
+          ) {
+            const errorData = (await response.json()) as ApiErrorResponse;
+            if (errorData.message) errorMessage = errorData.message;
+          } else {
+            const errorText = await response.text();
+            if (errorText) errorMessage = errorText;
+          }
+        } catch (parseError) {
+          console.error("Failed to parse error response:", parseError);
+        }
+        throw new Error(errorMessage);
+      }
+
+      // Process the ZIP blob
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "mvp-codebase.zip";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success("MVP codebase downloaded successfully!");
+      trackEvent("download_mvp_codebase", {
+        conversationId: conversationId,
+      });
+    } catch (err: unknown) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to download MVP."
+      );
+    } finally {
+      setIsDownloadingMvp(false);
+    }
+  };
+
   // Error state handling remains the same
   if (error) {
     return (
@@ -178,15 +231,24 @@ export default function SprintDashboard({
             </p>
           </div>
           {hasTasks && (
-            // --- FIX: Handle misused promise ---
-            <button
-              onClick={() => void handleExport()} // Wrap async onClick
-              disabled={isExporting}
-              className="px-4 py-2 bg-primary/10 text-primary text-sm font-semibold rounded-lg hover:bg-primary/20 transition-colors disabled:opacity-50"
-            >
-              {isExporting ? "Exporting..." : "Export Report"}
-            </button>
-            // ---------------------------------
+            <div className="flex gap-2">
+              <button
+                onClick={() => void handleDownloadMvp(landingPageId)}
+                disabled={isDownloadingMvp}
+                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm font-semibold rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-md disabled:opacity-50"
+              >
+                {isDownloadingMvp
+                  ? "Building MVP..."
+                  : "🚀 Build & Download MVP"}
+              </button>
+              <button
+                onClick={() => void handleExport()}
+                disabled={isExporting}
+                className="px-4 py-2 bg-primary/10 text-primary text-sm font-semibold rounded-lg hover:bg-primary/20 transition-colors disabled:opacity-50"
+              >
+                {isExporting ? "Exporting..." : "Export Report"}
+              </button>
+            </div>
           )}
         </div>
       </div>

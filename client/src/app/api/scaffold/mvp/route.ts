@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import { generateMvpCodebase } from "@/lib/services/mvp-generator";
+import JSZip from "jszip";
 
 // Define Zod schema for the request body
 const scaffoldRequestSchema = z.object({
@@ -51,10 +53,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Placeholder response
-    return NextResponse.json({
-      success: true,
-      message: "Blueprint fetched",
+    // Generate MVP codebase files
+    const files = generateMvpCodebase(
+      landingPage.features,
+      landingPage.pricingTiers
+    );
+
+    // Create a zip file
+    const zip = new JSZip();
+
+    // Add each file to the zip
+    Object.entries(files).forEach(([filepath, content]) => {
+      zip.file(filepath, content);
+    });
+
+    // Generate the zip file as a buffer
+    const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+
+    // Return the zip file
+    return new NextResponse(zipBuffer, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/zip",
+        "Content-Disposition": 'attachment; filename="mvp-codebase.zip"',
+      },
     });
   } catch (error: unknown) {
     console.error(

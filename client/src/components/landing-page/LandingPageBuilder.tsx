@@ -480,7 +480,10 @@ export default function LandingPageBuilder({
         )}
 
         {activeTab === "sprint" && (
-          <SprintDashboard conversationId={landingPage.conversationId} />
+          <SprintDashboard
+            conversationId={landingPage.conversationId}
+            landingPageId={landingPage.id}
+          />
         )}
       </main>
     </div>

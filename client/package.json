@@ -29,6 +29,7 @@
     "date-fns": "^4.1.0",
     "framer-motion": "^12.23.24",
     "geist": "^1.5.1",
+    "jszip": "^3.10.1",
     "lottie-react": "^2.4.1",
     "lucide-react": "^0.545.0",
     "marked": "^16.4.1",
