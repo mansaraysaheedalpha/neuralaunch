@@ -78,7 +78,7 @@ export function handleApiError(
         message: "Invalid request data",
         statusCode: 400,
         timestamp: new Date().toISOString(),
-        details: error.errors.map((e) => ({
+        details: error.issues.map((e) => ({
           path: String(e.path.join(".")),
           message: e.message,
         })),
