@@ -7,12 +7,36 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
+const isProd = process.env.NODE_ENV === "production";
+
 const prisma =
   global.prisma ||
   new PrismaClient({
-    log: ["query"],
+    log: isProd 
+      ? ["error", "warn"] 
+      : ["query", "error", "warn"],
+    errorFormat: isProd ? "minimal" : "pretty",
   });
 
-if (process.env.NODE_ENV !== "production") global.prisma = prisma;
+if (!isProd) {
+  global.prisma = prisma;
+}
+
+// Handle connection errors gracefully
+prisma.$connect()
+  .then(() => {
+    if (!isProd) {
+      console.log("✅ Database connected successfully");
+    }
+  })
+  .catch((error) => {
+    console.error("❌ Database connection failed:", error);
+    // Don't crash the app, let it handle errors per-request
+  });
+
+// Graceful shutdown
+process.on("beforeExit", async () => {
+  await prisma.$disconnect();
+});
 
 export default prisma;

@@ -7,6 +7,13 @@ import { z } from "zod";
 import { generateMvpCodebase } from "@/lib/services/mvp-generator";
 import JSZip from "jszip";
 
+// Define PricingTier type to match the generator
+interface PricingTier {
+  name: string;
+  price: string;
+  description: string;
+}
+
 // Define Zod schema for the request body
 const scaffoldRequestSchema = z.object({
   // We're passing the landingPageId from the frontend
@@ -76,7 +83,21 @@ export async function POST(req: NextRequest) {
     const blueprintString = landingPage.conversation.messages[0].content;
 
     // This is the pricing data, which is already in JSON format
-    const pricingTiers = landingPage.pricingTiers;
+    // Type guard to ensure it's a valid PricingTier array
+    const pricingTiers: PricingTier[] = Array.isArray(landingPage.pricingTiers) 
+      ? landingPage.pricingTiers.filter((tier): tier is PricingTier => {
+          return (
+            tier !== null &&
+            typeof tier === 'object' &&
+            'name' in tier &&
+            'price' in tier &&
+            'description' in tier &&
+            typeof tier.name === 'string' &&
+            typeof tier.price === 'string' &&
+            typeof tier.description === 'string'
+          );
+        })
+      : [];
 
     // --- END NEW DATA FETCH ---
 
@@ -84,7 +105,7 @@ export async function POST(req: NextRequest) {
     // We now pass the correct data. This function is now async!
     const files = await generateMvpCodebase(
       blueprintString,
-      pricingTiers as any // Cast to any to match the generator's expected type
+      pricingTiers
     );
 
     // Create a zip file
