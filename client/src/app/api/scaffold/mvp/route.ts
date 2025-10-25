@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { generateMvpCodebase } from "@/lib/services/mvp-generator";
+import { PricingTier } from "@/components/landing-page/PricingFeedback";
 import JSZip from "jszip";
 
 // Define Zod schema for the request body
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
     // We now pass the correct data. This function is now async!
     const files = await generateMvpCodebase(
       blueprintString,
-      pricingTiers as any // Cast to any to match the generator's expected type
+      pricingTiers as unknown as PricingTier[]
     );
 
     // Create a zip file
@@ -95,11 +96,11 @@ export async function POST(req: NextRequest) {
       zip.file(filepath, content);
     });
 
-    // Generate the zip file as a buffer
-    const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+    // Generate the zip file as an ArrayBuffer (compatible with NextResponse)
+    const zipArrayBuffer = await zip.generateAsync({ type: "arraybuffer" });
 
     // Return the zip file
-    return new NextResponse(zipBuffer, {
+    return new NextResponse(zipArrayBuffer, {
       status: 200,
       headers: {
         "Content-Type": "application/zip",
