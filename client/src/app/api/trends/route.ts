@@ -3,8 +3,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
+import { handleApiError } from "@/lib/api-error";
+import { successResponse, withCache } from "@/lib/api-response";
+import { createApiLogger } from "@/lib/logger";
 
-// FIX: Line 7 - Define proper type instead of 'any'
+// Define proper type instead of 'any'
 interface CachedSnapshotData {
   timeframe: string;
   overview: {
@@ -27,16 +30,26 @@ let cacheTimestamp: Date | null = null;
 const CACHE_DURATION = 12 * 60 * 60 * 1000; // Cache for 12 hours
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  const isAuthenticated = !!session?.user?.id;
+  const logger = createApiLogger({
+    path: "/api/trends",
+    method: "GET",
+  });
 
   try {
+    const session = await auth();
+    const isAuthenticated = !!session?.user?.id;
+
     const { searchParams } = new URL(req.url);
     const timeframe = isAuthenticated
       ? searchParams.get("timeframe") || "week"
       : "all";
 
-    // --- Caching logic for unauthenticated users (unchanged) ---
+    logger.debug("Processing trends request", {
+      isAuthenticated,
+      timeframe,
+    });
+
+    // --- Caching logic for unauthenticated users ---
     if (!isAuthenticated) {
       const now = new Date();
       if (
@@ -44,11 +57,15 @@ export async function GET(req: NextRequest) {
         cacheTimestamp &&
         now.getTime() - cacheTimestamp.getTime() < CACHE_DURATION
       ) {
-        return NextResponse.json({
-          ...cachedSnapshotData,
-          isSnapshot: true,
-          snapshotDate: cacheTimestamp.toISOString(),
-        });
+        logger.info("Returning cached trends data");
+        return withCache(
+          NextResponse.json({
+            ...cachedSnapshotData,
+            isSnapshot: true,
+            snapshotDate: cacheTimestamp.toISOString(),
+          }),
+          3600 // 1 hour cache for clients
+        );
       }
     }
 
@@ -67,6 +84,8 @@ export async function GET(req: NextRequest) {
       default: // 'all'
         dateThreshold = new Date(0);
     }
+
+    logger.debug("Fetching trends data from database", { dateThreshold });
 
     const [
       totalIdeas,
@@ -178,19 +197,26 @@ export async function GET(req: NextRequest) {
       topCombinations,
     };
 
+    logger.info("Successfully generated trends data", {
+      totalIdeas,
+      topTagsCount: topTagsData.length,
+    });
+
     if (!isAuthenticated) {
       cachedSnapshotData = response;
       cacheTimestamp = new Date();
-      return NextResponse.json({
-        ...response,
-        isSnapshot: true,
-        snapshotDate: cacheTimestamp.toISOString(),
-      });
+      return withCache(
+        NextResponse.json({
+          ...response,
+          isSnapshot: true,
+          snapshotDate: cacheTimestamp.toISOString(),
+        }),
+        3600 // 1 hour cache for clients
+      );
     }
 
-    return NextResponse.json({ ...response, isSnapshot: false });
+    return successResponse({ ...response, isSnapshot: false });
   } catch (error) {
-    console.error("[TRENDS_GET_ERROR]", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    return handleApiError(error, "GET /api/trends");
   }
 }
