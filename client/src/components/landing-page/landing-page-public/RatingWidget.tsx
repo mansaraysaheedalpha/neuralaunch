@@ -56,40 +56,65 @@ export default function RatingWidget({
 
   return (
     <div
-      className="mt-6 p-4 border rounded-lg"
+      className="mt-6 p-4 sm:p-6 border rounded-lg"
       style={{ borderColor: `${primaryColor}30` }}
     >
       <label
         htmlFor={feedbackType}
-        className="block text-sm font-medium opacity-80 mb-2"
+        className="block text-sm sm:text-base font-medium opacity-80 mb-3"
       >
         {question} {/* Use prop */}
       </label>
-      <div className="flex items-center gap-3">
-        <span className="text-xs opacity-60">Not at all</span>
-        <input
-          id={feedbackType}
-          type="range"
-          min="0"
-          max="10"
-          step="1"
-          value={rating}
-          onChange={(e) => setRating(Number(e.target.value))}
-          className="w-full h-2 rounded-lg appearance-none cursor-pointer bg-lp-primary/20 accent-lp-primary"
-          style={{ accentColor: primaryColor }}
-        />
-        <span className="text-xs opacity-60">Very!</span> {/* Changed label */}
+      <div className="flex items-center gap-2 sm:gap-3">
+        <span className="text-xs opacity-60 whitespace-nowrap">Not at all</span>
+        <div className="relative flex-1">
+          <input
+            id={feedbackType}
+            type="range"
+            min="0"
+            max="10"
+            step="1"
+            value={rating}
+            onChange={(e) => setRating(Number(e.target.value))}
+            className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+            style={{
+              background: `linear-gradient(to right, ${primaryColor} 0%, ${primaryColor} ${(rating / 10) * 100}%, ${primaryColor}20 ${(rating / 10) * 100}%, ${primaryColor}20 100%)`,
+            }}
+          />
+          <style jsx>{`
+            input[type="range"]::-webkit-slider-thumb {
+              appearance: none;
+              width: 20px;
+              height: 20px;
+              border-radius: 50%;
+              background: ${primaryColor};
+              cursor: pointer;
+              border: 3px solid white;
+              box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            }
+            input[type="range"]::-moz-range-thumb {
+              width: 20px;
+              height: 20px;
+              border-radius: 50%;
+              background: ${primaryColor};
+              cursor: pointer;
+              border: 3px solid white;
+              box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            }
+          `}</style>
+        </div>
+        <span className="text-xs opacity-60 whitespace-nowrap">Very!</span> {/* Changed label */}
       </div>
-      <div className="text-center mt-2">
-        <span className="text-lg font-semibold" style={{ color: primaryColor }}>
+      <div className="text-center mt-3">
+        <span className="text-xl sm:text-2xl font-semibold" style={{ color: primaryColor }}>
           {rating}
         </span>
-        <span className="text-xs opacity-60"> / 10</span>
+        <span className="text-sm opacity-60"> / 10</span>
       </div>
       <button
         onClick={() => void handleRatingSubmit()}
         disabled={isSubmitting}
-        className="mt-3 px-4 py-1.5 text-sm font-semibold rounded-md transition-opacity disabled:opacity-50"
+        className="mt-4 w-full sm:w-auto px-6 py-2.5 text-sm font-semibold rounded-md transition-opacity disabled:opacity-50 hover:opacity-90"
         style={{ backgroundColor: primaryColor, color: "var(--lp-bg)" }}
       >
         {isSubmitting ? "Submitting..." : "Submit Rating"}

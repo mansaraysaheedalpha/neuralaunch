@@ -159,17 +159,17 @@ export default function HeroSignupForm({
         key="thank-you"
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="max-w-md mx-auto mt-10 p-6 rounded-2xl border-2 border-lp-primary bg-lp-bg"
+        className="max-w-md mx-auto mt-10 p-4 sm:p-6 rounded-2xl border-2 border-lp-primary bg-lp-bg"
       >
-        <div className="text-5xl mb-3">🎉</div>
-        <h3 className="text-2xl font-bold mb-2">Thank You!</h3>
-        <p className="opacity-70">
+        <div className="text-4xl sm:text-5xl mb-3">🎉</div>
+        <h3 className="text-xl sm:text-2xl font-bold mb-2">Thank You!</h3>
+        <p className="opacity-70 text-sm sm:text-base">
           Your feedback is valuable. Help us reach more people.
         </p>
         {/* --- 2. RENDER REFERRAL UI --- */}
         {signupId && (
-          <div className="text-left">
-            <label className="text-sm font-medium opacity-80 mb-1 block">
+          <div className="text-left mt-4">
+            <label className="text-xs sm:text-sm font-medium opacity-80 mb-1 block">
               Share your unique link:
             </label>
             <div className="flex w-full mb-4">
@@ -177,25 +177,25 @@ export default function HeroSignupForm({
                 type="text"
                 readOnly
                 value={referralUrl}
-                className="flex-1 px-4 py-2 rounded-l-md border-r-0 border text-sm bg-lp-bg text-lp-text focus:outline-none"
+                className="flex-1 px-3 sm:px-4 py-2 rounded-l-md border-r-0 border text-xs sm:text-sm bg-lp-bg text-lp-text focus:outline-none overflow-x-auto"
                 style={{ borderColor: "var(--lp-primary)" }}
               />
               <button
                 onClick={handleCopy}
-                className="px-4 py-2 rounded-r-md border border-lp-primary bg-lp-primary text-lp-primary-text font-semibold text-sm transition-all"
+                className="px-3 sm:px-4 py-2 rounded-r-md border border-lp-primary bg-lp-primary text-lp-primary-text font-semibold text-xs sm:text-sm transition-all whitespace-nowrap"
               >
                 {copied ? "Copied!" : <Copy size={16} />}
               </button>
             </div>
-            <div className="flex justify-center gap-4">
+            <div className="flex justify-center gap-3 sm:gap-4">
               <TwitterShareButton url={referralUrl} title={shareTitle}>
-                <TwitterIcon size={36} round />
+                <TwitterIcon size={32} round className="sm:w-9 sm:h-9" />
               </TwitterShareButton>
               <LinkedinShareButton url={referralUrl} title={shareTitle}>
-                <LinkedinIcon size={36} round />
+                <LinkedinIcon size={32} round className="sm:w-9 sm:h-9" />
               </LinkedinShareButton>
               <WhatsappShareButton url={referralUrl} title={shareTitle}>
-                <WhatsappIcon size={36} round />
+                <WhatsappIcon size={32} round className="sm:w-9 sm:h-9" />
               </WhatsappShareButton>
             </div>
           </div>
@@ -211,11 +211,11 @@ export default function HeroSignupForm({
         key="survey-form"
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="max-w-md mx-auto mt-10 p-6 rounded-2xl border-2 border-lp-primary bg-lp-bg"
+        className="max-w-md mx-auto mt-10 p-4 sm:p-6 rounded-2xl border-2 border-lp-primary bg-lp-bg"
       >
-        <div className="text-3xl mb-3">✅</div>
-        <h3 className="text-xl font-bold mb-3">One last step!</h3>
-        <p className="opacity-70 mb-5 text-sm">
+        <div className="text-2xl sm:text-3xl mb-3">✅</div>
+        <h3 className="text-lg sm:text-xl font-bold mb-3">One last step!</h3>
+        <p className="opacity-70 mb-5 text-xs sm:text-sm">
           Help us build the best product for you:
         </p>
         <form onSubmit={handleSurveySubmit} className="space-y-4 text-left">
@@ -223,7 +223,7 @@ export default function HeroSignupForm({
             {/* --- USE DYNAMIC QUESTION 1 --- */}
             <label
               htmlFor="survey1"
-              className="block text-sm font-medium opacity-80 mb-1"
+              className="block text-xs sm:text-sm font-medium opacity-80 mb-1"
             >
               {q1}
             </label>
@@ -234,14 +234,14 @@ export default function HeroSignupForm({
               value={surveyResponse1}
               required
               onChange={(e) => setSurveyResponse1(e.target.value)}
-              className="w-full px-4 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 ring-lp-primary bg-lp-bg text-lp-text border-lp-primary/50"
+              className="w-full px-3 sm:px-4 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 ring-lp-primary bg-lp-bg text-lp-text border-lp-primary/50"
             />
           </div>
           <div>
             {/* --- USE DYNAMIC QUESTION 2 --- */}
             <label
               htmlFor="survey2"
-              className="block text-sm font-medium opacity-80 mb-1"
+              className="block text-xs sm:text-sm font-medium opacity-80 mb-1"
             >
               {q2}
             </label>
@@ -251,13 +251,13 @@ export default function HeroSignupForm({
               type="text"
               value={surveyResponse2}
               onChange={(e) => setSurveyResponse2(e.target.value)}
-              className="w-full px-4 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 ring-lp-primary bg-lp-bg text-lp-text border-lp-primary/50"
+              className="w-full px-3 sm:px-4 py-2 rounded-md border text-sm focus:outline-none focus:ring-1 ring-lp-primary bg-lp-bg text-lp-text border-lp-primary/50"
             />
           </div>
           <button
             type="submit"
             disabled={isSubmittingSurvey}
-            className="w-full px-6 py-2.5 rounded-lg font-semibold text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-50 bg-lp-primary text-lp-bg"
+            className="w-full px-4 sm:px-6 py-2.5 rounded-lg font-semibold text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-50 bg-lp-primary text-lp-bg"
           >
             {isSubmittingSurvey ? "Submitting..." : "Submit Feedback"}
           </button>

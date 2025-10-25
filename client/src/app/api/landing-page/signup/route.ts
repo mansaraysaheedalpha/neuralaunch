@@ -115,14 +115,15 @@ export async function POST(req: NextRequest) {
       "@/lib/email-service"
     );
 
-    // Explicitly ignore promises for fire-and-forget emails
-    // Fire-and-forget email notifications
+    // Fire-and-forget email notifications with better error logging
     void sendWelcomeEmail({
       to: cleanEmail,
       name: cleanName,
       startupName: landingPage.title,
       landingPageUrl: landingPageUrl,
-    }).catch(console.error);
+    }).catch((error) => {
+      console.error("[WELCOME_EMAIL_ERROR]", error);
+    });
 
     if (landingPage.user.email) {
       void notifyFounderOfSignup({
@@ -130,7 +131,11 @@ export async function POST(req: NextRequest) {
         signupEmail: cleanEmail,
         signupName: cleanName,
         startupName: landingPage.title,
-      }).catch(console.error);
+      }).catch((error) => {
+        console.error("[FOUNDER_NOTIFICATION_ERROR]", error);
+      });
+    } else {
+      console.warn(`[SIGNUP] No founder email found for landing page: ${landingPage.slug}`);
     }
 
     // --- 3. CHECK FOR REFERRAL ACHIEVEMENT ---

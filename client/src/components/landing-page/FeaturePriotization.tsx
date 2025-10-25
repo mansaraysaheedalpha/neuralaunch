@@ -66,17 +66,17 @@ const FeaturePrioritization: React.FC<FeaturePrioritizationProps> = ({
   if (hasVoted) {
     return (
       <section
-        className="w-full max-w-4xl mx-auto p-8 py-12 text-center rounded-lg"
+        className="w-full max-w-4xl mx-auto p-4 sm:p-6 md:p-8 py-8 sm:py-10 md:py-12 text-center rounded-lg"
         style={{ color: textColor }}
       >
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
         >
-          <h2 className="text-3xl font-bold" style={{ color: primaryColor }}>
+          <h2 className="text-2xl sm:text-3xl font-bold" style={{ color: primaryColor }}>
             Thanks for your feedback!
           </h2>
-          <p className="mt-2 text-lg opacity-90">
+          <p className="mt-2 text-base sm:text-lg opacity-90">
             Your input helps us build what matters most.
           </p>
         </motion.div>
@@ -87,14 +87,14 @@ const FeaturePrioritization: React.FC<FeaturePrioritizationProps> = ({
   // 2. Voting State
   return (
     <section
-      className="w-full max-w-4xl mx-auto p-8 py-12"
+      className="w-full max-w-4xl mx-auto p-4 sm:p-6 md:p-8 py-8 sm:py-10 md:py-12"
       style={{ color: textColor }}
     >
       <motion.h2
         initial={{ opacity: 0, y: 10 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, amount: 0.3 }}
-        className="text-3xl md:text-4xl font-bold text-center mb-10"
+        className="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-8 sm:mb-10"
         style={{ color: textColor }} // Ensure heading uses text color
       >
         Which feature matters most to you?
@@ -109,7 +109,7 @@ const FeaturePrioritization: React.FC<FeaturePrioritizationProps> = ({
           hidden: {},
           visible: { transition: { staggerChildren: 0.1 } },
         }}
-        className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10"
+        className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-10"
       >
         {features.map((feature) => {
           const isSelected = selectedTitle === feature.title;
@@ -121,7 +121,7 @@ const FeaturePrioritization: React.FC<FeaturePrioritizationProps> = ({
                 visible: { opacity: 1, y: 0 },
               }}
               onClick={() => setSelectedTitle(feature.title)}
-              className={`w-full p-6 rounded-2xl text-left cursor-pointer transition-all border-2
+              className={`w-full p-4 sm:p-6 rounded-2xl text-left cursor-pointer transition-all border-2
                 ${
                   isSelected
                     ? "shadow-lg ring-2 ring-offset-2"
@@ -138,16 +138,16 @@ const FeaturePrioritization: React.FC<FeaturePrioritizationProps> = ({
               whileHover={{ y: -5 }}
               transition={{ type: "spring", stiffness: 400, damping: 10 }}
             >
-              <span className="text-4xl" role="img" aria-label={feature.title}>
+              <span className="text-3xl sm:text-4xl" role="img" aria-label={feature.title}>
                 {feature.icon}
               </span>
               <h3
-                className="text-xl font-semibold mt-4 mb-2"
+                className="text-lg sm:text-xl font-semibold mt-3 sm:mt-4 mb-2"
                 style={{ color: textColor }}
               >
                 {feature.title}
               </h3>
-              <p className="text-sm opacity-80">{feature.description}</p>
+              <p className="text-xs sm:text-sm opacity-80">{feature.description}</p>
             </motion.button>
           );
         })}
@@ -160,8 +160,8 @@ const FeaturePrioritization: React.FC<FeaturePrioritizationProps> = ({
           disabled={!selectedTitle || isSubmitting}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className="px-10 py-3 rounded-lg font-semibold text-lg transition-all 
-                     disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-8 sm:px-10 py-2.5 sm:py-3 rounded-lg font-semibold text-base sm:text-lg transition-all 
+                     disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
           style={{
             backgroundColor: primaryColor,
             color: backgroundColor, // Use dynamic bg color for text
@@ -169,7 +169,7 @@ const FeaturePrioritization: React.FC<FeaturePrioritizationProps> = ({
         >
           {isSubmitting ? "Submitting..." : "Submit Vote"}
         </motion.button>
-        {error && <p className="text-red-500 mt-4 text-sm">{error}</p>}
+        {error && <p className="text-red-500 mt-4 text-xs sm:text-sm">{error}</p>}
       </div>
     </section>
   );

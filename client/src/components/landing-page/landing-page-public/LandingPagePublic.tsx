@@ -71,12 +71,12 @@ const SmokeTestFeatureCard: React.FC<{
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ delay: index * 0.1, duration: 0.6 }}
-      className="p-8 rounded-2xl border-2 hover:shadow-xl transition-all bg-lp-bg"
+      className="p-6 sm:p-8 rounded-2xl border-2 hover:shadow-xl transition-all bg-lp-bg"
       style={{ borderColor: `${primaryColor}20` }}
     >
-      <div className="text-5xl mb-4">{feature.icon}</div>
-      <h3 className="text-2xl font-bold mb-3">{feature.title}</h3>
-      <p className="opacity-70 leading-relaxed mb-5">
+      <div className="text-4xl sm:text-5xl mb-3 sm:mb-4">{feature.icon}</div>
+      <h3 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-3">{feature.title}</h3>
+      <p className="text-sm sm:text-base opacity-70 leading-relaxed mb-4 sm:mb-5">
         {feature.description}
       </p>
       {/* This button *looks* like a CTA but is a smoke test */}
@@ -167,17 +167,17 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
               background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary} 50%, ${colors.accent} 100%)`,
             }}
           />
-          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-24 md:pt-32 md:pb-32">
+          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 sm:pt-20 pb-20 sm:pb-24 md:pt-32 md:pb-32">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6 }}
               className="text-center"
             >
-              <h1 className="text-5xl md:text-7xl font-black tracking-tight mb-6">
+              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-black tracking-tight mb-4 sm:mb-6 px-2">
                 {landingPage.headline}
               </h1>
-              <p className="text-xl md:text-2xl mb-10 max-w-3xl mx-auto opacity-80">
+              <p className="text-base sm:text-lg md:text-xl lg:text-2xl mb-8 sm:mb-10 max-w-3xl mx-auto opacity-80 px-4">
                 {landingPage.subheadline}
               </p>
 
@@ -196,11 +196,11 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
         {/* Problem/Solution Section */}
         {(landingPage.problemStatement || landingPage.solutionStatement) && (
           <section
-            className="py-20 border-t"
+            className="py-12 sm:py-16 md:py-20 border-t"
             style={{ borderColor: `${colors.primary}20` }}
           >
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-              <div className="grid md:grid-cols-2 gap-12 items-start">
+              <div className="grid md:grid-cols-2 gap-8 sm:gap-10 md:gap-12 items-start">
                 {landingPage.problemStatement && (
                   <motion.div
                     initial={{ opacity: 0, x: -20 }}
@@ -209,12 +209,12 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
                     transition={{ duration: 0.6 }}
                   >
                     <div
-                      className="inline-block px-4 py-2 rounded-full text-sm font-semibold mb-4 text-lp-primary"
+                      className="inline-block px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-semibold mb-3 sm:mb-4 text-lp-primary"
                       style={{ backgroundColor: `${colors.primary}20` }}
                     >
                       The Problem
                     </div>
-                    <p className="text-lg leading-relaxed opacity-80">
+                    <p className="text-base sm:text-lg leading-relaxed opacity-80">
                       {landingPage.problemStatement}
                     </p>
 
@@ -236,7 +236,7 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
                     transition={{ duration: 0.6, delay: 0.2 }}
                   >
                     <div
-                      className="inline-block px-4 py-2 rounded-full text-sm font-semibold mb-4"
+                      className="inline-block px-3 sm:px-4 py-1.5 sm:py-2 rounded-full text-xs sm:text-sm font-semibold mb-3 sm:mb-4"
                       style={{
                         backgroundColor: `${colors.accent}20`,
                         color: colors.accent,
@@ -244,7 +244,7 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
                     >
                       Our Solution
                     </div>
-                    <p className="text-lg leading-relaxed opacity-80">
+                    <p className="text-base sm:text-lg leading-relaxed opacity-80">
                       {landingPage.solutionStatement}
                     </p>
                     {/* --- ADD SOLUTION RATING WIDGET --- */}
@@ -264,7 +264,7 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
         {/* Features Section */}
         {features.length > 0 && (
           <section
-            className="py-20 border-t"
+            className="py-12 sm:py-16 md:py-20 border-t"
             style={{ borderColor: `${colors.primary}20` }}
           >
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -272,11 +272,11 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                className="text-4xl md:text-5xl font-black text-center mb-16"
+                className="text-3xl sm:text-4xl md:text-5xl font-black text-center mb-10 sm:mb-12 md:mb-16"
               >
                 Why Choose Us?
               </motion.h2>
-              <div className="grid md:grid-cols-3 gap-8">
+              <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8">
                 {features.map((feature, index) => (
                   <motion.div
                     key={index}
@@ -284,12 +284,12 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: index * 0.1, duration: 0.6 }}
-                    className="p-8 rounded-2xl border-2 hover:shadow-xl transition-all bg-lp-bg"
+                    className="p-6 sm:p-8 rounded-2xl border-2 hover:shadow-xl transition-all bg-lp-bg"
                     style={{ borderColor: `${colors.primary}20` }}
                   >
-                    <div className="text-5xl mb-4">{feature.icon}</div>
-                    <h3 className="text-2xl font-bold mb-3">{feature.title}</h3>
-                    <p className="opacity-70 leading-relaxed">
+                    <div className="text-4xl sm:text-5xl mb-3 sm:mb-4">{feature.icon}</div>
+                    <h3 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-3">{feature.title}</h3>
+                    <p className="text-sm sm:text-base opacity-70 leading-relaxed">
                       {feature.description}
                     </p>
                   </motion.div>
@@ -301,7 +301,7 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
 
         {features.length > 0 && (
           <section
-            className="py-20 border-t"
+            className="py-12 sm:py-16 md:py-20 border-t"
             style={{ borderColor: `${colors.primary}20` }}
           >
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -309,11 +309,11 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                className="text-4xl md:text-5xl font-black text-center mb-16"
+                className="text-3xl sm:text-4xl md:text-5xl font-black text-center mb-10 sm:mb-12 md:mb-16"
               >
                 Features Coming Soon
               </motion.h2>
-              <div className="grid md:grid-cols-3 gap-8">
+              <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6 sm:gap-8">
                 {features.map((feature, index) => (
                   // Use the new SmokeTestFeatureCard
                   <SmokeTestFeatureCard
@@ -355,26 +355,26 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
         {/* --- ADD PRE-ORDER SECTION --- */}
         {landingPage.preorderLink && (
           <section
-            className="py-20 border-t"
+            className="py-12 sm:py-16 md:py-20 border-t"
             style={{ borderColor: `${colors.primary}20` }}
           >
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              className="max-w-3xl mx-auto px-4 text-center rounded-2xl p-10"
+              className="max-w-3xl mx-auto px-4 sm:px-6 text-center rounded-2xl p-6 sm:p-8 md:p-10"
               style={{
                 background: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.secondary} 100%)`,
               }}
             >
               <h2
-                className="text-3xl md:text-4xl font-bold mb-4"
+                className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4"
                 style={{ color: colors.background }}
               >
                 Get Lifetime Access
               </h2>
               <p
-                className="text-lg opacity-90 mb-8"
+                className="text-base sm:text-lg opacity-90 mb-6 sm:mb-8"
                 style={{ color: colors.background }}
               >
                 Be one of our first 100 users and get a lifetime deal. Pre-order
@@ -386,7 +386,7 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
                 rel="noopener noreferrer"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="inline-block px-8 py-4 rounded-xl font-bold text-lg shadow-lg transition-all"
+                className="inline-block px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-bold text-base sm:text-lg shadow-lg transition-all"
                 style={{
                   backgroundColor: colors.background,
                   color: colors.primary,
@@ -407,11 +407,11 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
         )}
         {/* Footer */}
         <footer
-          className="py-8 border-t"
+          className="py-6 sm:py-8 border-t"
           style={{ borderColor: `${colors.primary}20` }}
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <p className="text-sm opacity-50">
+            <p className="text-xs sm:text-sm opacity-50">
               Powered by{" "}
               <a
                 href="https://startupvalidator.app" // Use your main domain
