@@ -409,12 +409,12 @@ export default function LandingPageBuilder({
                 <div className="h-[700px] overflow-y-auto">
                   {/* Pass the current state data to the preview */}
                   <LandingPagePublic
-                    landingPage={{
-                      ...landingPage, // Spread current state
-                      // Ensure features/colorScheme are correctly formatted from state
-                      features: landingPage.features,
-                      colorScheme: landingPage.colorScheme,
-                    }}
+                    landingPage={
+                      landingPage as unknown as InitialLandingPageData & {
+                        preorderLink?: string | null;
+                        abTestVariants?: Record<string, string[]> | null;
+                      }
+                    }
                   />
                 </div>
               </div>
