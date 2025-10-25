@@ -6,7 +6,6 @@ import {
   generateLandingPageContent,
   generateSlug,
   DESIGN_VARIANTS,
-  LandingPageContent,
 } from "lib/landing-page-generator";
 import prisma from "@/lib/prisma";
 import { z } from "zod";

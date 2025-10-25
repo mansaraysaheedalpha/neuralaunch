@@ -10,7 +10,7 @@ import CalendlyEmbed from "../CalendlyEmbed";
 import PricingFeedback from "../PricingFeedback";
 import type { InitialLandingPageData } from "../LandingPageBuilder";
 import { toast } from "react-hot-toast"; // <<< Import toast
-import { CheckCircle, Clock, BarChart2 } from "lucide-react";
+import type { PricingTier } from "../PricingFeedback";
 
 // Define proper types for the JSON fields
 interface ColorScheme {
@@ -108,7 +108,7 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
   
   // Extract pricingTiers from landingPage
   const pricingTiers = Array.isArray(landingPage.pricingTiers)
-    ? (landingPage.pricingTiers as any[])
+    ? (landingPage.pricingTiers as unknown as PricingTier[])
     : [];
 
   return (

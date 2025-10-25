@@ -11,7 +11,7 @@ const smokeTestSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const body: unknown = await req.json();
     const validation = smokeTestSchema.safeParse(body);
 
     if (!validation.success) {

@@ -109,7 +109,6 @@ const VoteDistributionChart = ({
 
 const FeedbackSection: React.FC<FeedbackSectionProps> = ({
   feedback,
-  primaryColor,
 }) => {
   // Fallback for accent color if not defined
   const accentColorClass = "bg-accent"; // Assuming 'bg-accent' is defined in your globals.css

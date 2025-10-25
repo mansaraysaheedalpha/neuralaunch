@@ -9,18 +9,18 @@ import type {
   InitialLandingPageData,
   LandingPageFeature,
 } from "@/components/landing-page/LandingPageBuilder";
-import { getABTestVariant } from "@/lib/ab-testing";
 
 interface PublicLandingPageProps {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 // generateMetadata function (Updated siteName)
 export async function generateMetadata({
   params,
 }: PublicLandingPageProps): Promise<Metadata> {
+  const { slug } = await params;
   const landingPage = await prisma.landingPage.findUnique({
-    where: { slug: params.slug, isPublished: true },
+    where: { slug: slug, isPublished: true },
   });
 
   if (!landingPage) {
@@ -69,9 +69,10 @@ export async function generateMetadata({
 export default async function PublicLandingPage({
   params,
 }: PublicLandingPageProps) {
+  const { slug } = await params;
   // Fetch all the data needed by the LandingPagePublic component
   const landingPage = await prisma.landingPage.findUnique({
-    where: { slug: params.slug, isPublished: true },
+    where: { slug: slug, isPublished: true },
     select: {
       id: true,
       slug: true,
@@ -102,27 +103,8 @@ export default async function PublicLandingPage({
 
   // --- 2. PERFORM A/B TEST LOGIC ---
   // We do this on the server to ensure the client gets a consistent version
-  let headline = landingPage.headline ?? "";
-  let subheadline = landingPage.subheadline ?? "";
-  let ctaText = landingPage.ctaText ?? "Sign Up";
-
-  if (
-    landingPage.abTestVariants &&
-    typeof landingPage.abTestVariants === "object" &&
-    !Array.isArray(landingPage.abTestVariants)
-  ) {
-    const variants = landingPage.abTestVariants as Record<string, string[]>;
-    if (variants.headline && variants.headline.length > 0) {
-      headline = getABTestVariant(variants.headline);
-    }
-    if (variants.subheadline && variants.subheadline.length > 0) {
-      subheadline = getABTestVariant(variants.subheadline);
-    }
-    if (variants.ctaText && variants.ctaText.length > 0) {
-      ctaText = getABTestVariant(variants.ctaText);
-    }
-  }
-
+  // Note: A/B testing is done on the client side for now via LandingPagePublic component
+  
   // --- Prepare props for the client component ---
   // This structure now correctly matches what LandingPagePublic expects
   const landingPagePropsForClient: InitialLandingPageData & {
@@ -137,7 +119,7 @@ export default async function PublicLandingPage({
       : [],
     colorScheme:
       landingPage.colorScheme as unknown as InitialLandingPageData["colorScheme"], // Convert Prisma JSON safely
-    pricingTiers: landingPage.pricingTiers as any,
+    pricingTiers: landingPage.pricingTiers,
     preorderLink: landingPage.preorderLink,
     emailSignups: [],
   };

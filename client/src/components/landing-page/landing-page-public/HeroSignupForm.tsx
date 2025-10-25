@@ -78,7 +78,7 @@ export default function HeroSignupForm({
   };
   // -------------------------------------------
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
 
@@ -100,7 +100,7 @@ export default function HeroSignupForm({
           }),
         });
 
-        const data = await response.json();
+        const data = (await response.json()) as { message?: string; signupId?: string };
         if (!response.ok) {
           throw new Error(
             data.message || "Submission failed. Please try again."

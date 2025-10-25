@@ -261,8 +261,8 @@ export async function GET(req: NextRequest) {
       .filter((signup) => signup.surveyResponse1 || signup.surveyResponse2)
       .map((signup) => ({
         email: signup.email,
-        response1: signup.surveyResponse1 as string | null, // Ensure types
-        response2: signup.surveyResponse2 as string | null,
+        response1: signup.surveyResponse1,
+        response2: signup.surveyResponse2,
         createdAt: signup.createdAt,
       }))
       .slice(0, 50);
