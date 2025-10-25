@@ -3,6 +3,10 @@
  * Input Sanitization Utilities
  * 
  * Provides utilities to sanitize user input and prevent XSS attacks
+ * 
+ * Note: For production HTML/Markdown sanitization, consider using a
+ * dedicated library like DOMPurify for more robust protection.
+ * The sanitizeMarkdown function here is a basic implementation.
  */
 
 /**
@@ -119,17 +123,35 @@ export function sanitizeSlug(input: string): string {
 
 /**
  * Sanitize markdown content
- * Allows basic markdown but prevents script injection
+ * Uses a more robust approach to prevent script injection
+ * Note: For production use, consider using a dedicated library like DOMPurify
  */
 export function sanitizeMarkdown(markdown: string): string {
   if (typeof markdown !== "string") {
     return "";
   }
 
-  // Remove script tags and event handlers
-  let sanitized = markdown.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
-  sanitized = sanitized.replace(/on\w+\s*=\s*["'][^"']*["']/gi, "");
-  sanitized = sanitized.replace(/javascript:/gi, "");
+  // For production, it's recommended to use a library like DOMPurify
+  // This is a basic implementation that should be enhanced for production use
+  let sanitized = markdown;
+
+  // Remove all script tags completely (including content)
+  // This regex handles script tags with attributes and whitespace
+  sanitized = sanitized.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+  
+  // Remove all event handlers (multiple passes to catch nested cases)
+  for (let i = 0; i < 3; i++) {
+    sanitized = sanitized.replace(/\son\w+\s*=\s*["'][^"']*["']/gi, "");
+    sanitized = sanitized.replace(/\son\w+\s*=\s*[^\s>]*/gi, "");
+  }
+
+  // Remove dangerous URL schemes (multiple passes)
+  const dangerousSchemes = ["javascript:", "vbscript:", "data:"];
+  for (let i = 0; i < 3; i++) {
+    dangerousSchemes.forEach((scheme) => {
+      sanitized = sanitized.replace(new RegExp(scheme, "gi"), "");
+    });
+  }
 
   return sanitized;
 }
