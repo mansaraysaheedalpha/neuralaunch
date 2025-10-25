@@ -109,6 +109,7 @@ export default async function PublicLandingPage({
   // This structure now correctly matches what LandingPagePublic expects
   const landingPagePropsForClient: InitialLandingPageData & {
     emailSignups: [];
+    abTestVariants?: Record<string, string[]> | null;
   } = {
     ...landingPage,
     headline: landingPage.headline ?? "",
@@ -121,6 +122,13 @@ export default async function PublicLandingPage({
       landingPage.colorScheme as unknown as InitialLandingPageData["colorScheme"], // Convert Prisma JSON safely
     pricingTiers: landingPage.pricingTiers,
     preorderLink: landingPage.preorderLink,
+    // Normalize abTestVariants from Prisma JSON (could be string/JsonValue) into the expected typed shape
+    abTestVariants:
+      landingPage.abTestVariants
+        ? typeof landingPage.abTestVariants === "string"
+          ? (JSON.parse(landingPage.abTestVariants) as Record<string, string[]>)
+          : (landingPage.abTestVariants as unknown as Record<string, string[]>)
+        : null,
     emailSignups: [],
   };
   // ------------------------------------
