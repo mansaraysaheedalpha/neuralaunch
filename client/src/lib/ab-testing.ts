@@ -56,6 +56,7 @@ export function getABTestSessionId(): string {
 /**
  * Track which variant was shown to the user.
  * Uses sendBeacon for reliable tracking even when user navigates away.
+ * Falls back to fetch if sendBeacon fails or is unavailable.
  */
 export function trackABTestVariant(
   landingPageSlug: string,
@@ -70,17 +71,8 @@ export function trackABTestVariant(
     sessionId,
   });
 
-  if (typeof navigator !== "undefined" && navigator.sendBeacon) {
-    // Use sendBeacon for reliable tracking
-    // Create a Blob with proper content-type for sendBeacon
-    const blob = new Blob([data], { type: "application/json" });
-    const success = navigator.sendBeacon("/api/landing-page/ab-test-track", blob);
-    
-    if (!success) {
-      console.error("[AB_TEST_TRACKING_ERROR] sendBeacon failed");
-    }
-  } else {
-    // Fallback to fetch for older browsers
+  // Helper function for fetch fallback
+  const sendWithFetch = () => {
     void fetch("/api/landing-page/ab-test-track", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -88,5 +80,26 @@ export function trackABTestVariant(
     }).catch((error) => {
       console.error("[AB_TEST_TRACKING_ERROR]", error);
     });
+  };
+
+  if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+    // Try sendBeacon first for reliability
+    try {
+      const blob = new Blob([data], { type: "application/json" });
+      const success = navigator.sendBeacon("/api/landing-page/ab-test-track", blob);
+      
+      if (!success) {
+        // sendBeacon failed (queue full or other issue), fallback to fetch
+        console.warn("[AB_TEST_TRACKING] sendBeacon failed, using fetch fallback");
+        sendWithFetch();
+      }
+    } catch (error) {
+      // sendBeacon threw an error, fallback to fetch
+      console.error("[AB_TEST_TRACKING] sendBeacon error:", error);
+      sendWithFetch();
+    }
+  } else {
+    // sendBeacon not available (older browser), use fetch
+    sendWithFetch();
   }
 }

@@ -102,13 +102,15 @@ const SmokeTestFeatureCard: React.FC<{
 // ---------------------------------------------
 
 export default function LandingPagePublic({ landingPage }: LandingPageProps) {
-  // A/B testing state
+  // A/B testing state - initialized from props but can be overridden by A/B tests
   const [headline, setHeadline] = useState(landingPage.headline);
   const [subheadline, setSubheadline] = useState(landingPage.subheadline);
   const [ctaText, setCtaText] = useState(landingPage.ctaText);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Initialize A/B testing on mount - only once
+  // Initialize A/B testing on mount - only once to maintain test consistency
+  // Note: We intentionally don't include landingPage.headline/subheadline/ctaText in deps
+  // because we want A/B tests to remain stable once initialized for the user session
   useEffect(() => {
     if (isInitialized || !landingPage.abTestVariants) return;
 
@@ -122,6 +124,9 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
         setHeadline(selectedHeadline);
         trackABTestVariant(landingPage.slug, "headline", selectedHeadline, sessionId);
       }
+    } else {
+      // No A/B test, use default from props
+      setHeadline(landingPage.headline);
     }
 
     // Test subheadline variants
@@ -131,6 +136,8 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
         setSubheadline(selectedSubheadline);
         trackABTestVariant(landingPage.slug, "subheadline", selectedSubheadline, sessionId);
       }
+    } else {
+      setSubheadline(landingPage.subheadline);
     }
 
     // Test CTA text variants
@@ -140,10 +147,14 @@ export default function LandingPagePublic({ landingPage }: LandingPageProps) {
         setCtaText(selectedCtaText);
         trackABTestVariant(landingPage.slug, "ctaText", selectedCtaText, sessionId);
       }
+    } else {
+      setCtaText(landingPage.ctaText);
     }
 
     setIsInitialized(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInitialized, landingPage.slug, landingPage.abTestVariants]);
+  // Note: landingPage.headline/subheadline/ctaText intentionally excluded to maintain test consistency
 
   const colors = landingPage.colorScheme as unknown as ColorScheme;
   // Ensure features is an array before mapping
