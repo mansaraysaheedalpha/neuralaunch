@@ -35,18 +35,25 @@ export async function POST(req: NextRequest) {
     }
     const { landingPageSlug, email, name } = validation.data;
 
+    // --- 1. GET THE REFERRAL CODE ---
+    const { searchParams } = new URL(req.url);
+    const ref = searchParams.get("ref");
+
     // Find landing page with owner info
     const landingPage = await prisma.landingPage.findUnique({
       where: { slug: landingPageSlug },
       include: {
-        user: { select: { email: true, name: true } },
+        user: { select: { email: true, name: true, id: true } },
       },
     });
 
     // Add null check for landingPage.user
     if (!landingPage?.user) {
       return NextResponse.json(
-        { success: false, message: "Landing page or owner not found" },
+        {
+          success: false,
+          message: "Landing page not found or no user associated.",
+        },
         { status: 404 }
       );
     }
@@ -67,6 +74,7 @@ export async function POST(req: NextRequest) {
         success: true,
         message: "You're already on the list! 🎉",
         alreadySignedUp: true,
+        signupId: existing.id,
       });
     }
 
@@ -90,6 +98,7 @@ export async function POST(req: NextRequest) {
         source: referrer,
         userAgent,
         ipAddress,
+        referredBy: ref || undefined,
       },
     });
 
@@ -107,31 +116,27 @@ export async function POST(req: NextRequest) {
     );
 
     // Explicitly ignore promises for fire-and-forget emails
+    // Fire-and-forget email notifications
     void sendWelcomeEmail({
-      to: cleanEmail,
-      name: cleanName,
-      startupName: landingPage.title,
-      landingPageUrl,
-    }).catch((emailError: unknown) => {
-      console.error(
-        "Failed to send welcome email:",
-        emailError instanceof Error ? emailError.message : emailError
-      );
-    });
+      toEmail: cleanEmail,
+      toName: cleanName,
+      landingPageName: landingPage.title,
+      landingPageUrl: landingPageUrl,
+    }).catch(console.error);
 
     if (landingPage.user.email) {
       void notifyFounderOfSignup({
         founderEmail: landingPage.user.email,
+        founderName: landingPage.user.name,
         signupEmail: cleanEmail,
         signupName: cleanName,
-        startupName: landingPage.title,
-      }).catch((notifyError: unknown) => {
-        console.error(
-          "Failed to notify founder:",
-          notifyError instanceof Error ? notifyError.message : notifyError
-        );
-      });
+        landingPageName: landingPage.title,
+        landingPageUrl: landingPageUrl,
+      }).catch(console.error);
     }
+
+    // --- 3. CHECK FOR REFERRAL ACHIEVEMENT ---
+    // (Skipped for now per instructions)
 
     return NextResponse.json({
       success: true,

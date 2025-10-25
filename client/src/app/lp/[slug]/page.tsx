@@ -1,45 +1,47 @@
 //client/src/app/lp/[slug]/page.tsx
 import { notFound } from "next/navigation";
-// No need for Prisma type imports here if not used for casting
-import LandingPagePublic from "@/components/landing-page/LandingPagePublic";
+import LandingPagePublic from "@/components/landing-page/landing-page-public/LandingPagePublic";
 import PageViewTracker from "@/components/landing-page/PageViewTracker";
 import { Metadata } from "next";
-import prisma from "@/lib/prisma"; // Use shared client instance
+import prisma from "@/lib/prisma";
+// Import the type definitions from the Builder to ensure consistency
+import type {
+  InitialLandingPageData,
+  LandingPageFeature,
+} from "@/components/landing-page/LandingPageBuilder";
+import { getABTestVariant } from "@/lib/ab-testing";
 
-// Keep adjusted interface for props passed by Next.js
 interface PublicLandingPageProps {
-  params: Promise<{ slug: string }>;
-  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+  params: { slug: string };
 }
 
-// generateMetadata function remains the same
+// generateMetadata function (Updated siteName)
 export async function generateMetadata({
-  params: paramsPromise,
+  params,
 }: PublicLandingPageProps): Promise<Metadata> {
-  const params = await paramsPromise;
   const landingPage = await prisma.landingPage.findUnique({
     where: { slug: params.slug, isPublished: true },
   });
 
   if (!landingPage) {
-    return { title: "Page Not Found | IdeaSpark" };
+    return { title: "Page Not Found | NeuraLaunch" }; // Updated name
   }
 
   const siteUrl =
-    process.env.NEXT_PUBLIC_APP_URL || `https://startupvalidator.app`;
+    process.env.NEXT_PUBLIC_APP_URL || `https://startupvalidator.app`; // Use your domain
 
   return {
     title: landingPage.metaTitle || landingPage.title,
     description: landingPage.metaDescription || landingPage.subheadline,
     icons: {
       icon: "/favicon.ico",
-      apple: "/apple-touch-icon.png", // Use real or fallback
+      apple: "/apple-touch-icon.png",
     },
     openGraph: {
       title: landingPage.metaTitle || landingPage.title,
       description: landingPage.metaDescription || landingPage.subheadline,
       url: `${siteUrl}/lp/${landingPage.slug}`,
-      siteName: "IdeaSpark",
+      siteName: "NeuraLaunch", // Updated name
       images: landingPage.ogImage
         ? [
             {
@@ -65,50 +67,86 @@ export async function generateMetadata({
 
 // Main page component
 export default async function PublicLandingPage({
-  params: paramsPromise,
+  params,
 }: PublicLandingPageProps) {
-  const params = await paramsPromise;
-
-  // Fetch the necessary data for the LandingPagePublic component
+  // Fetch all the data needed by the LandingPagePublic component
   const landingPage = await prisma.landingPage.findUnique({
     where: { slug: params.slug, isPublished: true },
-    // Select only the fields needed by LandingPagePublic to minimize data transfer
     select: {
       id: true,
       slug: true,
+      isPublished: true,
+      conversationId: true,
+      title: true,
       headline: true,
       subheadline: true,
       problemStatement: true,
       solutionStatement: true,
-      features: true, // Let Prisma pass the JSON value directly
+      features: true,
       ctaText: true,
-      colorScheme: true, // Let Prisma pass the JSON value directly
-      // Select other fields ONLY if LandingPagePublic uses them
+      colorScheme: true,
+      designVariant: true,
+      surveyQuestion1: true,
+      surveyQuestion2: true,
+      calendlyUrl: true,
+      pricingTiers: true,
+      abTestVariants: true,
+      preorderLink: true,
     },
+    // -----------------------
   });
 
   if (!landingPage) {
     notFound();
   }
 
-  // --- Pass the fetched data directly ---
-  // The structure fetched by Prisma now matches what LandingPagePublic expects
-  // (where features and colorScheme might be JsonValue, handled by 'unknown' + casting in the client component)
-  const landingPagePropsForClient = {
+  // --- 2. PERFORM A/B TEST LOGIC ---
+  // We do this on the server to ensure the client gets a consistent version
+  let headline = landingPage.headline ?? "";
+  let subheadline = landingPage.subheadline ?? "";
+  let ctaText = landingPage.ctaText ?? "Sign Up";
+
+  if (
+    landingPage.abTestVariants &&
+    typeof landingPage.abTestVariants === "object" &&
+    !Array.isArray(landingPage.abTestVariants)
+  ) {
+    const variants = landingPage.abTestVariants as Record<string, string[]>;
+    if (variants.headline && variants.headline.length > 0) {
+      headline = getABTestVariant(variants.headline);
+    }
+    if (variants.subheadline && variants.subheadline.length > 0) {
+      subheadline = getABTestVariant(variants.subheadline);
+    }
+    if (variants.ctaText && variants.ctaText.length > 0) {
+      ctaText = getABTestVariant(variants.ctaText);
+    }
+  }
+
+  // --- Prepare props for the client component ---
+  // This structure now correctly matches what LandingPagePublic expects
+  const landingPagePropsForClient: InitialLandingPageData & {
+    emailSignups: [];
+  } = {
     ...landingPage,
-    // Ensure nulls are handled if component expects non-null strings
     headline: landingPage.headline ?? "",
     subheadline: landingPage.subheadline ?? "",
     ctaText: landingPage.ctaText ?? "Sign Up",
-    // features and colorScheme are passed as fetched (Prisma.JsonValue)
-    // which aligns with 'unknown' in the client component's props.
+    features: Array.isArray(landingPage.features)
+      ? (landingPage.features as unknown as LandingPageFeature[])
+      : [],
+    colorScheme:
+      landingPage.colorScheme as unknown as InitialLandingPageData["colorScheme"], // Convert Prisma JSON safely
+    pricingTiers: landingPage.pricingTiers as any,
+    pricingTiers: landingPage.pricingTiers as any,
+    preorderLink: landingPage.preorderLink,
   };
   // ------------------------------------
 
   return (
     <>
       <PageViewTracker landingPageSlug={landingPage.slug} />
-      {/* Pass the prepared props */}
+      {/* Pass the fully-typed props */}
       <LandingPagePublic landingPage={landingPagePropsForClient} />
     </>
   );

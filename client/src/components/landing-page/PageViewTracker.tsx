@@ -23,56 +23,55 @@ export default function PageViewTracker({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           landingPageSlug,
-          sessionId: sessionId.current, // Use sessionId ref directly
-          referrer: document.referrer || undefined, // Handle empty referrer
+          sessionId: sessionId.current,
+          referrer: document.referrer || undefined,
           utmSource: getUrlParam("utm_source"),
           utmMedium: getUrlParam("utm_medium"),
           utmCampaign: getUrlParam("utm_campaign"),
+          // Note: ctaClicked and timeOnPage are sent on other events
         }),
       });
-      // console.log("Initial page view tracked."); // Optional logging
+      // console.log("Initial page view tracked.");
     } catch (error: unknown) {
-      // Type error
       console.error(
         "Failed to track page view:",
         error instanceof Error ? error.message : error
       );
     }
-  }, [landingPageSlug]); // Dependency array includes props used inside
+  }, [landingPageSlug]);
 
   useEffect(() => {
-    // Get session ID (runs only once on mount essentially)
     if (!sessionId.current) {
       sessionId.current = getOrCreateSessionId();
     }
 
-    // --- FIX: Handle floating promise and add dependency ---
-    // Track initial page view if not already tracked
     if (!hasTracked.current) {
-      void trackPageView(); // Use void to handle the promise
+      void trackPageView();
       hasTracked.current = true;
     }
 
     const handleScroll = () => {
-      const scrollPercentage = Math.round(
-        (window.scrollY /
-          (document.documentElement.scrollHeight - window.innerHeight)) *
-          100
-      );
-      maxScroll.current = Math.max(maxScroll.current, scrollPercentage);
+       // Check for valid scrollHeight/innerHeight to avoid divide-by-zero
+       const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+       if (scrollHeight <= 0) return; // Page is not scrollable
+
+       const scrollPercentage = Math.round(
+         (window.scrollY / scrollHeight) * 100
+       );
+       maxScroll.current = Math.max(maxScroll.current, scrollPercentage > 100 ? 100 : scrollPercentage); // Clamp at 100
     };
 
-    // Track time on page before leaving
     const handleBeforeUnload = () => {
       const timeOnPage = Math.round((Date.now() - startTime.current) / 1000);
 
       // Use sendBeacon for reliable tracking on page unload
+      // This sends a complete, separate event with the session summary
       navigator.sendBeacon(
         "/api/landing-page/track-view",
         JSON.stringify({
           landingPageSlug,
           sessionId: sessionId.current,
-          timeOnPage,
+          timeOnPage, // <<< Sends Avg. Time data
           scrollDepth: maxScroll.current,
           referrer: document.referrer,
           utmSource: getUrlParam("utm_source"),
@@ -90,12 +89,15 @@ export default function PageViewTracker({
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [landingPageSlug, trackPageView]);
+  
   return null;
 }
 
 // Helper functions
 function getOrCreateSessionId(): string {
-  const STORAGE_KEY = "ideaspark_session_id";
+  // --- FIX: Updated storage key name ---
+  const STORAGE_KEY = "neurallaunch_session_id";
+  // ------------------------------------
 
   if (typeof window === "undefined") {
     return generateSessionId();
@@ -119,5 +121,6 @@ function getUrlParam(param: string): string | undefined {
   if (typeof window === "undefined") return undefined;
 
   const urlParams = new URLSearchParams(window.location.search);
-  return urlParams.get(param) || undefined;
+  const value = urlParams.get(param);
+  return value ? value : undefined; // Return undefined if null or empty string
 }

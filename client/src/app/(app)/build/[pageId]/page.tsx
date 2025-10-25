@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 // Import the necessary types from LandingPageBuilder
 import LandingPageBuilder, {
-  LandingPageData,
+  InitialLandingPageData,
   LandingPageFeature,
 } from "@/components/landing-page/LandingPageBuilder";
 import prisma from "@/lib/prisma";
@@ -53,8 +53,21 @@ export default async function BuildPage({ params }: BuildPageProps) {
       // Ensure user owns the page for security
       userId: session.user.id,
     },
-    include: {
-      emailSignups: { orderBy: { createdAt: "desc" }, take: 10 },
+    select: {
+      id: true,
+      slug: true,
+      isPublished: true,
+      conversationId: true,
+      title: true,
+      headline: true,
+      subheadline: true,
+      problemStatement: true,
+      solutionStatement: true,
+      features: true,
+      ctaText: true,
+      designVariant: true,
+      colorScheme: true,
+      // emailSignups is no longer needed here, it's fetched by SWR
     },
   });
 
@@ -63,46 +76,22 @@ export default async function BuildPage({ params }: BuildPageProps) {
     notFound(); // Use notFound if the page doesn't exist or isn't owned by the user
   }
 
-  // --- Fetch Analytics Data ---
-  // Use Promise.all to fetch concurrently
-  const [totalViews, uniqueVisitorGroups] = await Promise.all([
-    prisma.pageView.count({
-      where: { landingPageId: landingPageFromDb.id },
-    }),
-    prisma.pageView.groupBy({
-      by: ["sessionId"],
-      where: { landingPageId: landingPageFromDb.id },
-      _count: { sessionId: true }, // Optimization
-    }),
-  ]);
-  const uniqueVisitors = uniqueVisitorGroups.length;
-  // -----------------------------
-
   // Prepare data for the client component, ensuring types match
   const safeFeatures = parseFeatures(landingPageFromDb.features);
-  const landingPageForBuilder: LandingPageData = {
-    // Spread all properties from the fetched DB object
+  const landingPageForBuilder: InitialLandingPageData = {
     ...landingPageFromDb,
-    // Overwrite/ensure specific types
     features: safeFeatures,
     colorScheme: (landingPageFromDb.colorScheme ?? {}) as Prisma.JsonObject,
-    // Map signups to match the EmailSignupData interface, converting Date to string
-    emailSignups: landingPageFromDb.emailSignups.map((signup) => ({
-      id: signup.id,
-      email: signup.email,
-      name: signup.name, // Prisma handles optional null correctly
-      createdAt: signup.createdAt.toISOString(), // Convert Date to ISO string
-    })),
+    // Ensure all string fields are non-null
+    headline: landingPageFromDb.headline ?? "",
+    subheadline: landingPageFromDb.subheadline ?? "",
+    ctaText: landingPageFromDb.ctaText ?? "Sign Up",
+    title: landingPageFromDb.title ?? "Untitled",
   };
 
   return (
     <LandingPageBuilder
-      landingPage={landingPageForBuilder} // Pass the correctly typed data
-      analytics={{
-        totalViews,
-        uniqueVisitors,
-        signupCount: landingPageFromDb.emailSignups.length, // Get count from original data
-      }}
+      landingPage={landingPageForBuilder} // Pass only the initial data
     />
   );
 }

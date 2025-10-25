@@ -140,12 +140,21 @@ model LandingPage {
   ogImage           String?
   isPublished       Boolean       @default(false)
   publishedAt       DateTime?
+  surveyQuestion1   String?  @db.Text
+  surveyQuestion2   String?  @db.Text
+  calendlyUrl       String?  @db.Text
+  pricingTiers      Json?
+  abTestVariants    Json?     // Stores A/B test definitions, e.g., {"headline": ["v1", "v2"]}
+  preorderLink      String?
   user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   conversation      Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   emailSignups      EmailSignup[]
   pageViews         PageView[]
-  createdAt         DateTime      @default(now())
+  feedback        LandingPageFeedback[]
+  smokeTests        FeatureSmokeTest[]
+   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
+  
 
   @@index([userId])
 }
@@ -154,11 +163,15 @@ model EmailSignup {
   id            String      @id @default(cuid())
   landingPageId String
   email         String
+  sessionId     String?
   name          String?
   source        String?
   userAgent     String?
   ipAddress     String?
   landingPage   LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+  surveyResponse1 String? @db.Text // Example field for question 1
+  surveyResponse2 String? @db.Text
+  referredBy    String?
   createdAt     DateTime    @default(now())
 
   @@index([landingPageId])
@@ -326,4 +339,32 @@ model AiMemory {
 
   @@index([conversationId])
   @@index([userId])
+}
+
+model LandingPageFeedback {
+  id            String   @id @default(cuid())
+  landingPageId String
+  sessionId     String?  // Optional: Link to PageView session if available
+  feedbackType  String   // e.g., 'problem_rating', 'solution_rating', 'feature_vote'
+  value         String   // Can store rating, vote, choice, etc.
+  createdAt     DateTime @default(now())
+
+  landingPage LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+
+  @@index([landingPageId, feedbackType])
+}
+
+// --- ADD THIS NEW MODEL ---
+model FeatureSmokeTest {
+  id            String   @id @default(cuid())
+  landingPageId String
+  featureName   String   // e.g., "Dashboard Analytics", "Team Collaboration"
+  sessionId     String?  // To link to a unique visitor
+  clickCount    Int      @default(1)
+  createdAt     DateTime @default(now())
+
+  landingPage LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+
+  @@unique([landingPageId, featureName, sessionId]) // Track clicks per feature per session
+  @@index([landingPageId])
 }
