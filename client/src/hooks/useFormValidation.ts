@@ -5,11 +5,11 @@
  * Provides form validation with Zod schemas and user-friendly error messages
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, FormEvent } from "react";
 import { z } from "zod";
 
 interface ValidationOptions<T> {
-  schema: z.ZodSchema<T>;
+  schema: z.ZodObject<z.ZodRawShape>;
   onSubmit: (data: T) => Promise<void> | void;
 }
 
@@ -20,7 +20,7 @@ interface ValidationResult<T> {
   isValid: boolean;
   handleChange: (name: keyof T, value: unknown) => void;
   handleBlur: (name: keyof T) => void;
-  handleSubmit: (e: React.FormEvent) => Promise<void>;
+  handleSubmit: (e: FormEvent) => Promise<void>;
   setError: (name: keyof T, message: string) => void;
   clearError: (name: keyof T) => void;
   reset: () => void;
@@ -38,10 +38,26 @@ export function useFormValidation<T extends Record<string, unknown>>({
   const validateField = useCallback(
     (name: keyof T, value: unknown) => {
       try {
-        // Validate single field - Using type assertion since we're constructing a valid schema
-        const partialSchema = schema.pick({ [name]: true } as Record<keyof T, true>);
-        partialSchema.parse({ [name]: value } as Partial<T>);
-        
+        // Only ZodObject schemas are supported for per-field validation; cast to access .pick
+        const objSchema = schema as unknown as z.ZodObject<z.ZodRawShape>;
+
+        if (typeof objSchema.pick === "function") {
+          // use pick to build a partial schema for the single field
+          const partialSchema = objSchema.pick({ [String(name)]: true } as Record<string, true>);
+          partialSchema.parse({ [String(name)]: value } as z.infer<typeof partialSchema>);
+        } else {
+          // Fallback: try to validate using the field schema directly if accessible
+          // Use a typed access to Zod internals to avoid `any`
+          const defLike = objSchema as unknown as {
+            _def?: { shape?: () => Record<string, z.ZodTypeAny> };
+          };
+          const shape = defLike._def?.shape?.();
+          const fieldSchema = shape ? (shape[String(name)] as z.ZodTypeAny | undefined) : undefined;
+          if (fieldSchema) {
+            fieldSchema.parse(value);
+          }
+        }
+
         // Clear error if validation passes
         setErrors((prev) => {
           const newErrors = { ...prev };
@@ -49,13 +65,13 @@ export function useFormValidation<T extends Record<string, unknown>>({
           return newErrors;
         });
         return true;
-      } catch (err) {
+      } catch (err: unknown) {
         if (err instanceof z.ZodError) {
-          const firstError = err.errors[0];
-          if (firstError) {
+          const firstIssue = err.issues && err.issues[0];
+          if (firstIssue) {
             setErrors((prev) => ({
               ...prev,
-              [name]: firstError.message,
+              [name]: firstIssue.message,
             }));
           }
         }
@@ -79,34 +95,41 @@ export function useFormValidation<T extends Record<string, unknown>>({
 
   const handleBlur = useCallback(
     (name: keyof T) => {
-      setTouchedFields((prev) => new Set(prev).add(name));
-      validateField(name, values[name]);
+      setTouchedFields((prev) => {
+        const next = new Set(prev);
+        next.add(name);
+        return next;
+      });
+
+      // Validate the single field on blur if a value exists
+      const value = values[name];
+      validateField(name, value);
     },
-    [values, validateField]
+    [validateField, values]
   );
 
   const handleSubmit = useCallback(
-    async (e: React.FormEvent) => {
+    async (e: FormEvent) => {
       e.preventDefault();
       setIsSubmitting(true);
 
       try {
         // Validate all fields
-        const validatedData = schema.parse(values);
-        
+        const validatedData = schema.parse(values) as T;
+
         // Clear all errors
         setErrors({});
-        
+
         // Call onSubmit handler
         await onSubmit(validatedData);
-      } catch (err) {
+      } catch (err: unknown) {
         if (err instanceof z.ZodError) {
-          // Map Zod errors to field errors
+          // Map Zod issues to field errors
           const fieldErrors: Partial<Record<keyof T, string>> = {};
-          err.errors.forEach((zodErr) => {
-            const fieldName = zodErr.path[0] as keyof T;
-            if (!fieldErrors[fieldName]) {
-              fieldErrors[fieldName] = zodErr.message;
+          err.issues.forEach((zodIssue) => {
+            const fieldName = zodIssue.path[0] as keyof T;
+            if (fieldName && !fieldErrors[fieldName]) {
+              fieldErrors[fieldName] = zodIssue.message;
             }
           });
           setErrors(fieldErrors);
