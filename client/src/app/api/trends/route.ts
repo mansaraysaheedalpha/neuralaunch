@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
       ) {
         logger.info("Returning cached trends data");
         return withCache(
-          NextResponse.json({
+          successResponse({
             ...cachedSnapshotData,
             isSnapshot: true,
             snapshotDate: cacheTimestamp.toISOString(),
@@ -206,7 +206,7 @@ export async function GET(req: NextRequest) {
       cachedSnapshotData = response;
       cacheTimestamp = new Date();
       return withCache(
-        NextResponse.json({
+        successResponse({
           ...response,
           isSnapshot: true,
           snapshotDate: cacheTimestamp.toISOString(),
