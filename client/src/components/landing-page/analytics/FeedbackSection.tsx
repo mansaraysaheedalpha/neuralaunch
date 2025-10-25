@@ -17,6 +17,8 @@ const RatingDistributionChart = ({
   distribution: number[];
   barColorClass: string;
 }) => {
+  const MIN_BAR_HEIGHT_PERCENT = 4; // Minimum height for bars with votes
+
   if (
     !distribution ||
     distribution.length !== 11 ||
@@ -35,7 +37,7 @@ const RatingDistributionChart = ({
       <h4 className="text-sm font-semibold mb-3 text-foreground">
         {title} (0-10)
       </h4>
-      <div className="flex items-end gap-1.5 h-24 pb-1">
+      <div className="flex items-end gap-1 h-24 pb-1">
         {distribution.map((count, rating) => (
           <div
             key={rating}
@@ -43,10 +45,13 @@ const RatingDistributionChart = ({
             title={`${count} vote(s)`}
           >
             <div
-              className={`w-[70%] rounded-t transition-all duration-200 ${barColorClass}`}
-              style={{ height: `${Math.max(2, (count / maxCount) * 100)}%` }}
+              className={`w-full rounded-t transition-all duration-200 ${barColorClass}`}
+              style={{ 
+                height: count > 0 ? `${Math.max(MIN_BAR_HEIGHT_PERCENT, (count / maxCount) * 100)}%` : '0%',
+                minWidth: '4px'
+              }}
             ></div>
-            <span className="text-xs text-muted-foreground mt-1.5 group-hover:font-semibold">
+            <span className="text-[10px] text-muted-foreground mt-1 group-hover:font-semibold">
               {rating}
             </span>
           </div>
