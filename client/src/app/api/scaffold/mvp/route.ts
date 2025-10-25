@@ -9,7 +9,9 @@ import JSZip from "jszip";
 
 // Define Zod schema for the request body
 const scaffoldRequestSchema = z.object({
-  projectId: z.string().cuid({ message: "Invalid Project ID" }),
+  // We're passing the landingPageId from the frontend
+  // The route calls it `projectId` but it's the `LandingPage` ID
+  projectId: z.string().cuid({ message: "Invalid Landing Page ID" }),
 });
 
 export async function POST(req: NextRequest) {
@@ -30,33 +32,59 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const { projectId } = validation.data;
+    // Rename for clarity. The "project" is the LandingPage
+    const { projectId: landingPageId } = validation.data;
 
-    // Fetch the LandingPage record associated with the projectId and userId
+    // --- THIS IS THE NEW, CORRECT DATA FETCH ---
+    // We need the LandingPage (for pricing) AND the Conversation (for the blueprint)
     const landingPage = await prisma.landingPage.findFirst({
       where: {
-        id: projectId,
+        id: landingPageId,
         userId: session.user.id, // Ensure ownership
       },
-      select: {
-        id: true,
-        features: true,
-        pricingTiers: true,
+      include: {
+        conversation: {
+          include: {
+            messages: {
+              where: { role: "model" },
+              orderBy: { createdAt: "asc" },
+              take: 1, // Get the first AI message, which IS the blueprint
+            },
+          },
+        },
       },
     });
 
-    // Check if the landing page exists and is owned by the user
+    // Check if we have all the data we need
     if (!landingPage) {
-      return new NextResponse(
-        "Landing page not found or you do not own it",
-        { status: 404 }
-      );
+      return new NextResponse("Landing page not found or you do not own it", {
+        status: 404,
+      });
     }
 
+    if (
+      !landingPage.conversation ||
+      !landingPage.conversation.messages ||
+      landingPage.conversation.messages.length === 0
+    ) {
+      return new NextResponse("Blueprint message not found in conversation", {
+        status: 404,
+      });
+    }
+
+    // This is the REAL blueprint: the raw markdown string
+    const blueprintString = landingPage.conversation.messages[0].content;
+
+    // This is the pricing data, which is already in JSON format
+    const pricingTiers = landingPage.pricingTiers;
+
+    // --- END NEW DATA FETCH ---
+
     // Generate MVP codebase files
-    const files = generateMvpCodebase(
-      landingPage.features,
-      landingPage.pricingTiers
+    // We now pass the correct data. This function is now async!
+    const files = await generateMvpCodebase(
+      blueprintString,
+      pricingTiers as any // Cast to any to match the generator's expected type
     );
 
     // Create a zip file
