@@ -1,10 +1,12 @@
 // src/app/api/landing-page/survey/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import { handleApiError, NotFoundError } from "@/lib/api-error";
+import { successResponse } from "@/lib/api-response";
 
 const surveySchema = z.object({
-  signupId: z.string().cuid(), // ID returned from initial signup
+  signupId: z.string().cuid(),
   response1: z.string().optional(),
   response2: z.string().optional(),
 });
@@ -15,19 +17,19 @@ export async function POST(req: NextRequest) {
     const validation = surveySchema.safeParse(body);
 
     if (!validation.success) {
-      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+      return handleApiError(validation.error, "POST /api/landing-page/survey");
     }
 
     const { signupId, response1, response2 } = validation.data;
 
-    // Check if signup exists (optional security check)
+    // Check if signup exists
     const signup = await prisma.emailSignup.findUnique({
       where: { id: signupId },
       select: { id: true },
     });
 
     if (!signup) {
-      return NextResponse.json({ error: "Signup not found" }, { status: 404 });
+      throw new NotFoundError("Signup");
     }
 
     await prisma.emailSignup.update({
@@ -38,12 +40,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ success: true });
+    return successResponse({ message: "Survey responses saved" }, "Survey responses saved successfully");
   } catch (error) {
-    console.error("[LP_SURVEY_ERROR]", error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
+    return handleApiError(error, "POST /api/landing-page/survey");
   }
 }

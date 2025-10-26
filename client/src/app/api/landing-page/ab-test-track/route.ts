@@ -1,7 +1,9 @@
 // src/app/api/landing-page/ab-test-track/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import { handleApiError, NotFoundError } from "@/lib/api-error";
+import { successResponse } from "@/lib/api-response";
 
 const abTestTrackSchema = z.object({
   landingPageSlug: z.string().min(1),
@@ -16,10 +18,7 @@ export async function POST(req: NextRequest) {
     const validation = abTestTrackSchema.safeParse(body);
 
     if (!validation.success) {
-      return NextResponse.json(
-        { error: "Invalid input", details: validation.error.format() },
-        { status: 400 }
-      );
+      return handleApiError(validation.error, "POST /api/landing-page/ab-test-track");
     }
 
     const { landingPageSlug, testName, variant, sessionId } = validation.data;
@@ -31,29 +30,21 @@ export async function POST(req: NextRequest) {
     });
 
     if (!landingPage) {
-      return NextResponse.json(
-        { error: "Landing page not found" },
-        { status: 404 }
-      );
+      throw new NotFoundError("Landing page");
     }
 
     // Track the A/B test impression using the feedback table
-    // We use feedbackType as "ab_test_{testName}" and value as the variant
     await prisma.landingPageFeedback.create({
       data: {
         landingPageId: landingPage.id,
-        sessionId: sessionId,
+        sessionId,
         feedbackType: `ab_test_${testName}`,
         value: variant,
       },
     });
 
-    return NextResponse.json({ success: true });
+    return successResponse({ message: "A/B test tracked" }, "A/B test impression tracked successfully");
   } catch (error) {
-    console.error("[AB_TEST_TRACK_ERROR]", error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
+    return handleApiError(error, "POST /api/landing-page/ab-test-track");
   }
 }
