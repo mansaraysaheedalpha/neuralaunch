@@ -407,7 +407,6 @@ We welcome contributions from the community! Whether you're fixing bugs, adding 
 - **Use ESLint rules** - Run `npm run lint` before committing
 - **Write meaningful commit messages** - Use conventional commits format
 - **Document complex logic** - Add comments for non-obvious code
-- **Document complex logic** - Add comments for non-obvious code
 - **Add tests for new features** - Maintain test coverage
 - **Update documentation** - Keep README and docs in sync with code
 - **Test in both light and dark modes** - Ensure UI works in all themes
