@@ -200,6 +200,11 @@ async function callOpenAI(
   responseFormat?: { type: "json_object" },
   stream?: boolean
 ): Promise<string | AsyncIterable<string>> {
+  // Runtime validation: Ensure API key is available
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY environment variable is required for OpenAI operations");
+  }
+  
   try {
     const messageArray = systemPrompt
       ? [{ role: "system", content: systemPrompt }, ...messages]

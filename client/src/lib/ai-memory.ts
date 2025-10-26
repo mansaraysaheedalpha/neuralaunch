@@ -16,6 +16,11 @@ const openai = new OpenAI({
  * @returns {Promise<number[]>} An array of 1536 numbers
  */
 async function createEmbedding(text: string): Promise<number[]> {
+  // Runtime validation: Ensure API key is available
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY environment variable is required for embedding generation");
+  }
+  
   // 1. Clean up the text
   const inputText = text.trim().replaceAll("\n", " ");
 
