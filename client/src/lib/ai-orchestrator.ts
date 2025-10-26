@@ -49,56 +49,90 @@ const anthropic = new Anthropic({
 /**
  * Routes a task to the appropriate AI model based on task type
  */
-function routeTaskToModel(taskType: AITaskType, payload?: unknown): {
+function routeTaskToModel(
+  taskType: AITaskType,
+  payload?: unknown
+): {
   modelId: string;
   provider: AIProvider;
 } {
   switch (taskType) {
     case AITaskType.BLUEPRINT_GENERATION:
-      console.log(`🎯 Routing ${taskType} to ${AI_MODELS.PRIMARY} (Gemini 2.5 Pro - complex generation)`);
+      console.log(
+        `🎯 Routing ${taskType} to ${AI_MODELS.PRIMARY} (Gemini 2.5 Pro - complex generation)`
+      );
       return { modelId: AI_MODELS.PRIMARY, provider: "GOOGLE" };
 
     case AITaskType.TITLE_GENERATION:
-      console.log(`🎯 Routing ${taskType} to ${AI_MODELS.FAST} (Gemini Flash - speed)`);
+      console.log(
+        `🎯 Routing ${taskType} to ${AI_MODELS.FAST} (Gemini Flash - speed)`
+      );
       return { modelId: AI_MODELS.FAST, provider: "GOOGLE" };
 
     case AITaskType.LANDING_PAGE_COPY:
     case AITaskType.SURVEY_QUESTION_GENERATION:
     case AITaskType.PRICING_TIER_GENERATION:
-      console.log(`🎯 Routing ${taskType} to ${AI_MODELS.FAST} (Gemini Flash - speed/efficiency for structured output)`);
+      console.log(
+        `🎯 Routing ${taskType} to ${AI_MODELS.FAST} (Gemini Flash - speed/efficiency for structured output)`
+      );
       return { modelId: AI_MODELS.FAST, provider: "GOOGLE" };
 
     case AITaskType.COFOUNDER_CHAT_RESPONSE:
-      console.log(`🎯 Routing ${taskType} to ${AI_MODELS.CLAUDE} (Sonnet - nuance, safety, better chat)`);
+      console.log(
+        `🎯 Routing ${taskType} to ${AI_MODELS.CLAUDE} (Sonnet - nuance, safety, better chat)`
+      );
       return { modelId: AI_MODELS.CLAUDE, provider: "ANTHROPIC" };
 
     case AITaskType.BLUEPRINT_PARSING:
       // Strong reasoning/JSON handling - use OpenAI
-      console.log(`🎯 Routing ${taskType} to ${AI_MODELS.OPENAI} (GPT-4o - strong reasoning/JSON handling)`);
+      console.log(
+        `🎯 Routing ${taskType} to ${AI_MODELS.OPENAI} (GPT-4o - strong reasoning/JSON handling)`
+      );
       return { modelId: AI_MODELS.OPENAI, provider: "OPENAI" };
 
     case AITaskType.SPRINT_TASK_ASSISTANCE: {
       // Check if the task is code-related based on payload
-      const taskPayload = payload as { taskType?: string; description?: string } | undefined;
+      const taskPayload = payload as
+        | { taskType?: string; description?: string }
+        | undefined;
       const description = taskPayload?.description?.toLowerCase() || "";
-      const codeKeywords = ["code", "script", "function", "html", "css", "javascript", "react", "component", "python", "api"];
-      
+      const codeKeywords = [
+        "code",
+        "script",
+        "function",
+        "html",
+        "css",
+        "javascript",
+        "react",
+        "component",
+        "python",
+        "api",
+      ];
+
       if (codeKeywords.some((keyword) => description.includes(keyword))) {
-        console.log(`🎯 Routing ${taskType} (code-related) to ${AI_MODELS.OPENAI} (GPT-4o - coding abilities)`);
+        console.log(
+          `🎯 Routing ${taskType} (code-related) to ${AI_MODELS.OPENAI} (GPT-4o - coding abilities)`
+        );
         return { modelId: AI_MODELS.OPENAI, provider: "OPENAI" };
       }
-      
-      console.log(`🎯 Routing ${taskType} (general) to ${AI_MODELS.CLAUDE} (Sonnet - general tasks)`);
+
+      console.log(
+        `🎯 Routing ${taskType} (general) to ${AI_MODELS.CLAUDE} (Sonnet - general tasks)`
+      );
       return { modelId: AI_MODELS.CLAUDE, provider: "ANTHROPIC" };
     }
 
     case AITaskType.CODE_GENERATION_MVP:
-      console.log(`🎯 Routing ${taskType} to ${AI_MODELS.OPENAI} (GPT-4o - strong coding abilities)`);
+      console.log(
+        `🎯 Routing ${taskType} to ${AI_MODELS.OPENAI} (GPT-4o - strong coding abilities)`
+      );
       return { modelId: AI_MODELS.OPENAI, provider: "OPENAI" };
 
     default: {
       const _exhaustiveCheck: never = taskType;
-      console.log(`⚠️ Unknown task type ${String(_exhaustiveCheck)}, defaulting to ${AI_MODELS.PRIMARY}`);
+      console.log(
+        `⚠️ Unknown task type ${String(_exhaustiveCheck)}, defaulting to ${AI_MODELS.PRIMARY}`
+      );
       return { modelId: AI_MODELS.PRIMARY, provider: "GOOGLE" };
     }
   }
@@ -159,7 +193,7 @@ async function callOpenAI(
         messages: messageArray as OpenAI.Chat.ChatCompletionMessageParam[],
         stream: true,
       });
-      
+
       return (async function* () {
         for await (const chunk of completion) {
           const content = chunk.choices[0]?.delta?.content;
@@ -173,7 +207,9 @@ async function callOpenAI(
     const completion = await openai.chat.completions.create({
       model: modelId,
       messages: messageArray as OpenAI.Chat.ChatCompletionMessageParam[],
-      ...(responseFormat && { response_format: { type: "json_object" as const } }),
+      ...(responseFormat && {
+        response_format: { type: "json_object" as const },
+      }),
     });
 
     return completion.choices[0]?.message?.content || "";
@@ -195,7 +231,8 @@ async function callClaude(
   try {
     // Claude expects messages without system role in the messages array
     const claudeMessages = messages.map((msg) => ({
-      role: msg.role === "model" || msg.role === "assistant" ? "assistant" : "user",
+      role:
+        msg.role === "model" || msg.role === "assistant" ? "assistant" : "user",
       content: msg.content,
     })) as Array<{ role: "user" | "assistant"; content: string }>;
 
@@ -211,7 +248,10 @@ async function callClaude(
 
       return (async function* () {
         for await (const chunk of response) {
-          if (chunk.type === "content_block_delta" && chunk.delta.type === "text_delta") {
+          if (
+            chunk.type === "content_block_delta" &&
+            chunk.delta.type === "text_delta"
+          ) {
             yield chunk.delta.text;
           }
         }
@@ -258,13 +298,23 @@ export async function executeAITask(
 
     switch (provider) {
       case "GOOGLE": {
-        const prompt = payload.prompt || payload.messages?.map((m) => m.content).join("\n") || "";
-        result = await callGemini(modelId, prompt, payload.systemInstruction, payload.stream);
+        const prompt =
+          payload.prompt ||
+          payload.messages?.map((m) => m.content).join("\n") ||
+          "";
+        result = await callGemini(
+          modelId,
+          prompt,
+          payload.systemInstruction,
+          payload.stream
+        );
         break;
       }
 
       case "OPENAI": {
-        const messages = payload.messages || [{ role: "user", content: payload.prompt || "" }];
+        const messages = payload.messages || [
+          { role: "user", content: payload.prompt || "" },
+        ];
         result = await callOpenAI(
           modelId,
           messages,
@@ -276,8 +326,15 @@ export async function executeAITask(
       }
 
       case "ANTHROPIC": {
-        const messages = payload.messages || [{ role: "user", content: payload.prompt || "" }];
-        result = await callClaude(modelId, messages, payload.systemInstruction, payload.stream);
+        const messages = payload.messages || [
+          { role: "user", content: payload.prompt || "" },
+        ];
+        result = await callClaude(
+          modelId,
+          messages,
+          payload.systemInstruction,
+          payload.stream
+        );
         break;
       }
 
@@ -288,25 +345,43 @@ export async function executeAITask(
     }
 
     if (typeof result === "string") {
-      console.log(`✅ ${provider} (${taskType}) completed successfully. Response length: ${result.length}`);
+      console.log(
+        `✅ ${provider} (${taskType}) completed successfully. Response length: ${result.length}`
+      );
     } else {
-      console.log(`✅ ${provider} (${taskType}) streaming started successfully.`);
+      console.log(
+        `✅ ${provider} (${taskType}) streaming started successfully.`
+      );
     }
 
     return result;
   } catch (error) {
-    console.error(`❌ Error executing task ${taskType} with ${provider}:`, error);
+    console.error(
+      `❌ Error executing task ${taskType} with ${provider}:`,
+      error
+    );
 
     // Implement fallback mechanism
     if (provider !== "GOOGLE") {
       console.log(`🔄 Attempting fallback to ${AI_MODELS.PRIMARY} (Gemini)`);
       try {
-        const prompt = payload.prompt || payload.messages?.map((m) => m.content).join("\n") || "";
-        const fallbackResult = await callGemini(AI_MODELS.PRIMARY, prompt, payload.systemInstruction, payload.stream);
+        const prompt =
+          payload.prompt ||
+          payload.messages?.map((m) => m.content).join("\n") ||
+          "";
+        const fallbackResult = await callGemini(
+          AI_MODELS.PRIMARY,
+          prompt,
+          payload.systemInstruction,
+          payload.stream
+        );
         console.log(`✅ Fallback successful for ${taskType}`);
         return fallbackResult;
       } catch (fallbackError) {
-        console.error(`❌ Fallback also failed for ${taskType}:`, fallbackError);
+        console.error(
+          `❌ Fallback also failed for ${taskType}:`,
+          fallbackError
+        );
         throw fallbackError;
       }
     }
