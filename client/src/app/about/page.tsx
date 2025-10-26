@@ -21,8 +21,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import Link from "next/link";
-import { useRef, useEffect, useState } from "react";
-import React from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import LandingHeader from "@/components/LandingHeader";
 import LandingFooter from "@/components/LandingFooter";
 
@@ -881,36 +880,34 @@ export default function AboutPage() {
         </div>
 
         {/* Floating Particles with stable positions */}
-        {React.useMemo(() => {
-          const particles = Array.from({ length: 5 }, (_, i) => ({
+        {useMemo(() => 
+          Array.from({ length: 5 }, (_, i) => ({
             key: i,
             xOffset: Math.random() * 20 - 10,
             left: 20 + i * 15,
             top: 30 + (i % 2) * 40,
-          }));
-          
-          return particles.map((particle) => (
-            <motion.div
-              key={particle.key}
-              animate={{
-                y: [0, -30, 0],
-                x: [0, particle.xOffset, 0],
-                opacity: [0.3, 0.6, 0.3],
-              }}
-              transition={{
-                duration: 3 + particle.key,
-                repeat: Infinity,
-                ease: "easeInOut",
-                delay: particle.key * 0.5,
-              }}
-              className="absolute w-2 h-2 bg-primary rounded-full"
-              style={{
-                left: `${particle.left}%`,
-                top: `${particle.top}%`,
-              }}
-            />
-          ));
-        }, [])}
+          })), []
+        ).map((particle) => (
+          <motion.div
+            key={particle.key}
+            animate={{
+              y: [0, -30, 0],
+              x: [0, particle.xOffset, 0],
+              opacity: [0.3, 0.6, 0.3],
+            }}
+            transition={{
+              duration: 3 + particle.key,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: particle.key * 0.5,
+            }}
+            className="absolute w-2 h-2 bg-primary rounded-full"
+            style={{
+              left: `${particle.left}%`,
+              top: `${particle.top}%`,
+            }}
+          />
+        ))}
       </section>
       
       <LandingFooter />

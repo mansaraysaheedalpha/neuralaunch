@@ -1,10 +1,9 @@
 "use client"; // This landing page uses animations and interactive elements
 
 import Link from "next/link";
-import React from "react";
 // Add imports for scroll animations
 import { motion, useScroll, useTransform, type Variants } from "framer-motion";
-import { useRef } from "react"; // Import useRef
+import { useRef, useMemo } from "react"; // Import useRef and useMemo
 import {
   ArrowRight,
   BrainCircuit,
@@ -80,7 +79,7 @@ const HeroSection = () => {
   const primaryWordIndex = 5;
   
   // Generate stable random values for particle animations
-  const particleOffsets = React.useMemo(() => 
+  const particleOffsets = useMemo(() => 
     Array.from({ length: 8 }, () => Math.random() * 30 - 15),
     []
   );
