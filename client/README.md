@@ -20,6 +20,41 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## AI Orchestration
+
+This application uses a centralized AI orchestration service (`src/lib/ai-orchestrator.ts`) that intelligently routes AI tasks to the best model for the job:
+
+### Supported Models
+- **Google Gemini 2.5 Pro** - Complex generation (blueprints, primary tasks)
+- **Google Gemini Flash** - Fast tasks (titles, landing page copy, surveys, pricing)
+- **OpenAI GPT-4o** - Code generation and reasoning (MVP blueprints, coding tasks)
+- **Anthropic Claude Sonnet 4.5** - Nuanced chat, safety, creative tasks (Cofounder)
+
+### Task Routing Strategy
+- `BLUEPRINT_GENERATION` → Gemini 2.5 Pro
+- `TITLE_GENERATION` → Gemini Flash
+- `LANDING_PAGE_COPY`, `SURVEY_QUESTION_GENERATION`, `PRICING_TIER_GENERATION` → Gemini Flash
+- `COFOUNDER_CHAT_RESPONSE` → Claude Sonnet
+- `BLUEPRINT_PARSING` → GPT-4o
+- `SPRINT_TASK_ASSISTANCE` → Adaptive (Claude for general, GPT-4o for code)
+- `CODE_GENERATION_MVP` → GPT-4o
+
+### Usage Example
+```typescript
+import { AITaskType, executeAITaskSimple } from "@/lib/ai-orchestrator";
+
+const response = await executeAITaskSimple(AITaskType.TITLE_GENERATION, {
+  prompt: "Generate a title for my startup idea",
+});
+```
+
+### Environment Variables Required
+```bash
+GOOGLE_API_KEY="your-gemini-key"
+OPENAI_API_KEY="your-openai-key"
+ANTHROPIC_API_KEY="your-anthropic-key"
+```
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

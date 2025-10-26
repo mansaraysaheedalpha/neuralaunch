@@ -11,6 +11,7 @@ This guide provides comprehensive instructions for deploying NeuraLaunch to prod
 3. **AI Services**: 
    - Google Gemini API key
    - OpenAI API key
+   - Anthropic Claude API key
 4. **Email**: Resend API key
 5. **Hosting**: Vercel (recommended) or any Node.js hosting platform
 
@@ -39,6 +40,7 @@ GOOGLE_CLIENT_SECRET="your-google-client-secret"
 # AI Services
 GOOGLE_API_KEY="your-google-gemini-api-key"
 OPENAI_API_KEY="your-openai-api-key"
+ANTHROPIC_API_KEY="your-anthropic-claude-api-key"
 
 # Email
 RESEND_API_KEY="your-resend-api-key"

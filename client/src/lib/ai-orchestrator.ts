@@ -143,7 +143,7 @@ async function callOpenAI(
   modelId: string,
   messages: Array<{ role: string; content: string }>,
   systemPrompt?: string,
-  responseFormat?: { type: string },
+  responseFormat?: { type: "json_object" },
   stream?: boolean
 ): Promise<string | AsyncIterable<string>> {
   try {
@@ -171,7 +171,7 @@ async function callOpenAI(
     const completion = await openai.chat.completions.create({
       model: modelId,
       messages: messageArray as OpenAI.Chat.ChatCompletionMessageParam[],
-      ...(responseFormat && { response_format: responseFormat }),
+      ...(responseFormat && { response_format: { type: "json_object" as const } }),
     });
 
     return completion.choices[0]?.message?.content || "";
@@ -243,7 +243,7 @@ export async function executeAITask(
     messages?: Array<{ role: string; content: string }>;
     systemInstruction?: string;
     stream?: boolean;
-    responseFormat?: { type: string };
+    responseFormat?: { type: "json_object" };
     [key: string]: unknown;
   }
 ): Promise<string | AsyncIterable<string>> {
@@ -339,7 +339,7 @@ export async function executeAITaskSimple(
     prompt?: string;
     messages?: Array<{ role: string; content: string }>;
     systemInstruction?: string;
-    responseFormat?: { type: string };
+    responseFormat?: { type: "json_object" };
     [key: string]: unknown;
   }
 ): Promise<string> {
