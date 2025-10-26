@@ -96,6 +96,7 @@ const CofounderEmptyState = ({
 
 export default function CofounderChat() {
   const [input, setInput] = useState<string>("");
+  const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
   const {
     messages,
     setMessages,
@@ -116,7 +117,7 @@ export default function CofounderChat() {
     const loadMessages = async () => {
       if (!conversationId) return;
 
-      setIsLoading(true);
+      setIsInitialLoading(true);
       try {
         const res = await fetch(
           `/api/cofounder/messages?conversationId=${conversationId}`
@@ -155,12 +156,12 @@ export default function CofounderChat() {
         console.error("Error loading cofounder messages:", message);
         // Don't set error state here to avoid blocking new messages
       } finally {
-        setIsLoading(false);
+        setIsInitialLoading(false);
       }
     };
 
     void loadMessages();
-  }, [conversationId, setMessages, setIsLoading]);
+  }, [conversationId, setMessages]);
 
   // Scroll to bottom when new messages are added
   useEffect(() => {
@@ -243,7 +244,7 @@ export default function CofounderChat() {
       {/* Message area */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-4">
         {/* Conditional Rendering: Empty State or Messages */}
-        {messages.length === 0 && !isLoading ? (
+        {messages.length === 0 && !isLoading && !isInitialLoading ? (
           <CofounderEmptyState onPromptClick={handlePromptClick} />
         ) : (
           <div className="max-w-4xl mx-auto">
