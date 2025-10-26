@@ -1,12 +1,12 @@
-# 🚀 IdeaSpark / NeuraLaunch
+# 🚀 NeuraLaunch
 
-[![Production Ready](https://img.shields.io/badge/production-ready-brightgreen.svg)](https://github.com/mansaraysaheedalpha/ideaspark)
+[![Production Ready](https://img.shields.io/badge/production-ready-brightgreen.svg)](https://github.com/mansaraysaheedalpha/neuralaunch)
 [![Security: A+](https://img.shields.io/badge/security-A+-success.svg)](#security-features)
 [![Performance: A+](https://img.shields.io/badge/performance-A+-success.svg)](#performance-optimization)
 
 > **Transform Ideas into Validated Startups with AI-Powered Precision**
 
-IdeaSpark (NeuraLaunch) is an AI-powered startup validation platform that combines intelligent blueprints with structured validation sprints, empowering founders to turn visionary ideas into market-ready startups.
+NeuraLaunch is an AI-powered startup validation platform that combines intelligent blueprints with structured validation sprints, empowering founders to turn visionary ideas into market-ready startups.
 
 ## ✨ Key Features
 
@@ -83,8 +83,8 @@ IdeaSpark (NeuraLaunch) is an AI-powered startup validation platform that combin
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/mansaraysaheedalpha/ideaspark.git
-cd ideaspark/client
+git clone https://github.com/mansaraysaheedalpha/neuralaunch.git
+cd neuralaunch/client
 ```
 
 2. **Install dependencies**
@@ -220,7 +220,7 @@ This project is proprietary software. All rights reserved.
 
 ## 👥 Team
 
-Created with ❤️ by the IdeaSpark team
+Created with ❤️ by the NeuraLaunch team
 
 ## 🙏 Acknowledgments
 
@@ -233,7 +233,7 @@ Created with ❤️ by the IdeaSpark team
 
 - **Documentation**: [DEPLOYMENT.md](./DEPLOYMENT.md)
 - **Health Check**: `https://yourdomain.com/api/health`
-- **Issues**: [GitHub Issues](https://github.com/mansaraysaheedalpha/ideaspark/issues)
+- **Issues**: [GitHub Issues](https://github.com/mansaraysaheedalpha/neuralaunch/issues)
 
 ---
 

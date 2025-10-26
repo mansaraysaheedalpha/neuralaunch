@@ -338,7 +338,7 @@ export default function TrendsPage() {
               No Trends Data Yet
             </h2>
             <p className="text-muted-foreground max-w-md mx-auto mb-8">
-              Be the first to generate an idea and start the trend! IdeaSpark
+              Be the first to generate an idea and start the trend! NeuraLaunch
               analyzes thousands of startup concepts to show you what&apos;s
               hot.
             </p>
@@ -533,7 +533,7 @@ export default function TrendsPage() {
                   Ready to Build Something Amazing?
                 </h3>
                 <p className="text-muted-foreground mb-6 max-w-2xl mx-auto">
-                  Join thousands of builders using IdeaSpark™ to validate and
+                  Join thousands of builders using NeuraLaunch™ to validate and
                   launch their startups with proven frameworks.
                 </p>
                 {status === "authenticated" ? (

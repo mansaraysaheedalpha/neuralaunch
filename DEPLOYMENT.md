@@ -1,7 +1,7 @@
-# IdeaSpark/NeuraLaunch - Production Deployment Guide
+# NeuraLaunch - Production Deployment Guide
 
 ## Overview
-This guide provides comprehensive instructions for deploying IdeaSpark to production.
+This guide provides comprehensive instructions for deploying NeuraLaunch to production.
 
 ## Prerequisites
 
@@ -143,8 +143,8 @@ CMD ["node", "server.js"]
 
 Build and run:
 ```bash
-docker build -t ideaspark .
-docker run -p 3000:3000 --env-file .env ideaspark
+docker build -t neuralaunch .
+docker run -p 3000:3000 --env-file .env neuralaunch
 ```
 
 ### Option 3: Traditional Node.js Hosting
@@ -155,7 +155,7 @@ docker run -p 3000:3000 --env-file .env ideaspark
 4. Start with PM2:
 ```bash
 npm i -g pm2
-pm2 start npm --name "ideaspark" -- start
+pm2 start npm --name "neuralaunch" -- start
 pm2 save
 pm2 startup
 ```
