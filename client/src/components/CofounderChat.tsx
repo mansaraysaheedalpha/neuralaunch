@@ -105,6 +105,9 @@ export default function CofounderChat() {
     setIsLoading,
     error,
     setError,
+    currentConversationId,
+    setCurrentConversationId,
+    resetStore,
   } = useCofounderStore();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -116,6 +119,12 @@ export default function CofounderChat() {
   useEffect(() => {
     const loadMessages = async () => {
       if (!conversationId) return;
+
+      // Only reload if we're switching to a different conversation
+      if (currentConversationId !== conversationId) {
+        resetStore(); // Clear the store before loading new conversation
+        setCurrentConversationId(conversationId);
+      }
 
       setIsInitialLoading(true);
       try {
@@ -161,7 +170,7 @@ export default function CofounderChat() {
     };
 
     void loadMessages();
-  }, [conversationId, setMessages]);
+  }, [conversationId, setMessages, currentConversationId, setCurrentConversationId, resetStore]);
 
   // Scroll to bottom when new messages are added
   useEffect(() => {

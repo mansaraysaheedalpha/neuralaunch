@@ -145,6 +145,9 @@ export default function ChatPage() {
     setIsLoading,
     error,
     setError,
+    currentConversationId,
+    setCurrentConversationId,
+    resetStore,
   } = useChatStore();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -158,6 +161,12 @@ export default function ChatPage() {
   useEffect(() => {
     const loadChatHistory = async () => {
       if (conversationId && typeof conversationId === "string") {
+        // Only reload if we're switching to a different conversation
+        if (currentConversationId !== conversationId) {
+          resetStore(); // Clear the store before loading new conversation
+          setCurrentConversationId(conversationId);
+        }
+        
         setIsLoading(true);
         setError(null);
         try {
@@ -186,7 +195,7 @@ export default function ChatPage() {
       }
     };
     void loadChatHistory();
-  }, [conversationId, setMessages, setIsLoading, setError]);
+  }, [conversationId, setMessages, setIsLoading, setError, currentConversationId, setCurrentConversationId, resetStore]);
 
   useEffect(() => {
     // Only scroll chat messages if the chat tab is active

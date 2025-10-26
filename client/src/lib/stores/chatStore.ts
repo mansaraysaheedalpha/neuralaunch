@@ -12,6 +12,7 @@ interface ChatState {
   messages: Message[];
   isLoading: boolean; // This is specific to the chat (e.g., AI is streaming)
   error: string | null;
+  currentConversationId: string | null;
   setMessages: (
     messages: Message[] | ((prevState: Message[]) => Message[])
   ) => void;
@@ -19,12 +20,15 @@ interface ChatState {
   updateMessage: (id: string, content: string) => void;
   setIsLoading: (isLoading: boolean) => void;
   setError: (error: string | null) => void;
+  setCurrentConversationId: (id: string | null) => void;
+  resetStore: () => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
   messages: [],
   isLoading: false,
   error: null,
+  currentConversationId: null,
   setMessages: (messages) =>
     set((state) => ({
       messages:
@@ -42,5 +46,12 @@ export const useChatStore = create<ChatState>((set) => ({
     })),
   setIsLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error, isLoading: false }),
-  
+  setCurrentConversationId: (id) => set({ currentConversationId: id }),
+  resetStore: () =>
+    set({
+      messages: [],
+      isLoading: false,
+      error: null,
+      currentConversationId: null,
+    }),
 }));
