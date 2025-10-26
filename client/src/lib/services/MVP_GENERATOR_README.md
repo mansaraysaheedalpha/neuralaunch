@@ -81,7 +81,7 @@ ${blueprintString}
 
 ### Intelligence Features
 
-- **Context-Aware**: Understands that "Cash Runway" implies financial models
+- **Context-Aware**: Understands that "Budget Planning" implies financial models
 - **Relationship Inference**: Automatically creates proper Prisma relations
 - **Type Safety**: Ensures all generated code is TypeScript-compliant
 

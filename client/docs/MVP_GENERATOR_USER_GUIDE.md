@@ -168,6 +168,8 @@ your-mvp/
 
 6. **Open your browser**
    Navigate to http://localhost:3000
+   
+   **Note:** In production, always use HTTPS. Update `NEXTAUTH_URL` to your production URL (e.g., `https://yourapp.com`).
 
 ---
 

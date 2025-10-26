@@ -9,6 +9,8 @@
  * Jest is properly configured in the project.
  */
 
+// Test suite templates - uncomment and use when Jest is configured
+/*
 // Mock types for testing
 interface MockBlueprint {
   pitch: string;
@@ -21,6 +23,11 @@ interface MockBlueprint {
   }>;
 }
 
+// Test suite templates - uncomment and use when Jest is configured
+/*
+// Note: These tests are examples and require Jest to be properly configured
+
+// Mock data for testing
 const mockBlueprintString = `
 # 🚀 FinTrack - Smart Expense Tracker
 
@@ -63,8 +70,6 @@ const mockParsedBlueprint: MockBlueprint = {
 };
 
 // Test suite templates - uncomment and use when Jest is configured
-/*
-// Note: These tests are examples and require Jest to be properly configured
 describe("MVP Generator", () => {
   describe("Blueprint Parsing", () => {
     it("should parse a blueprint string into structured JSON", async () => {

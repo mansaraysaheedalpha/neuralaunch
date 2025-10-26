@@ -64,10 +64,15 @@ export default function MvpGenerationProgress({
           {/* Status indicator */}
           {step.status === "active" && (
             <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: "100%" }}
-              transition={{ duration: 2, ease: "easeInOut" }}
-              className="h-1 bg-blue-500 rounded-full"
+              className="ml-auto w-16 h-1 bg-blue-500 rounded-full"
+              animate={{
+                opacity: [0.5, 1, 0.5],
+              }}
+              transition={{
+                duration: 1.5,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
             />
           )}
         </motion.div>
