@@ -165,7 +165,7 @@ export default function ChatPage() {
         if (currentConversationId !== conversationId) {
           resetStore(); // Clear the store before loading new conversation
           setCurrentConversationId(conversationId);
-        
+
           setIsLoading(true);
           setError(null);
           try {
