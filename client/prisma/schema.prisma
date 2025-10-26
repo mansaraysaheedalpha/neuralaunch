@@ -68,6 +68,7 @@ model Conversation {
   userId      String
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages    Message[]
+  cofounderMessages CofounderMessage[]
   landingPage LandingPage?
   tasks       Task[]
   validationHub ValidationHub?
@@ -89,6 +90,18 @@ model Message {
   createdAt      DateTime     @default(now())
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+model CofounderMessage {
+  id             String       @id @default(cuid())
+  content        String       @db.Text
+  role           String       // "user" or "cofounder"
+  createdAt      DateTime     @default(now())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  
+  @@index([conversationId])
+  @@index([createdAt])
 }
 
 

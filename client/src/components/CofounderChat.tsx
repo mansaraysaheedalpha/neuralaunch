@@ -98,18 +98,69 @@ export default function CofounderChat() {
   const [input, setInput] = useState<string>("");
   const {
     messages,
+    setMessages,
     addMessage,
     isLoading,
     setIsLoading,
     error,
     setError,
-    // You might add setMessages later if you implement loading history
   } = useCofounderStore();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const params = useParams();
   const conversationId = params.conversationId as string;
+
+  // Load messages from database on mount
+  useEffect(() => {
+    const loadMessages = async () => {
+      if (!conversationId) return;
+
+      setIsLoading(true);
+      try {
+        const res = await fetch(
+          `/api/cofounder/messages?conversationId=${conversationId}`
+        );
+
+        if (!res.ok) {
+          throw new Error("Failed to load cofounder messages");
+        }
+
+        const data: unknown = await res.json();
+        // Type guard to check if data has the expected structure
+        if (
+          data &&
+          typeof data === "object" &&
+          "messages" in data &&
+          Array.isArray(data.messages)
+        ) {
+          // Convert database messages to CofounderMessage format
+          const loadedMessages: CofounderMessage[] = data.messages.map(
+            (msg: {
+              id: string;
+              content: string;
+              role: string;
+              createdAt: string;
+            }) => ({
+              id: msg.id,
+              role: msg.role as "user" | "cofounder",
+              content: msg.content,
+            })
+          );
+          setMessages(loadedMessages);
+        }
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error ? err.message : "Failed to load messages";
+        console.error("Error loading cofounder messages:", message);
+        // Don't set error state here to avoid blocking new messages
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void loadMessages();
+  }, [conversationId, setMessages, setIsLoading]);
 
   // Scroll to bottom when new messages are added
   useEffect(() => {

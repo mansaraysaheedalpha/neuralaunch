@@ -1,6 +1,7 @@
 //src/app/api/cofounder/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import prisma from "@/lib/prisma";
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { AI_MODELS } from "@/lib/models";
@@ -132,6 +133,23 @@ ${relevantMemories.join("\n---\n")}
 
     const result = await model.generateContent(fullPrompt);
     const cofounderResponse = result.response.text();
+
+    // --- Save Messages to Database ---
+    // Save both user message and cofounder response to the database
+    await prisma.cofounderMessage.createMany({
+      data: [
+        {
+          content: userMessage,
+          role: "user",
+          conversationId,
+        },
+        {
+          content: cofounderResponse,
+          role: "cofounder",
+          conversationId,
+        },
+      ],
+    });
 
     // --- Save Interaction to Memory ---
     // Save both the user's message and the AI's response as new memories
