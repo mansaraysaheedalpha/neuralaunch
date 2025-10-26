@@ -110,10 +110,10 @@ ${relevantMemories.join("\n---\n")}
     }
 
     // Check for validation/score keywords
+    // Note: Using flexible matching for phrases with spaces
     if (
-      /\b(validation|score|rating|progress|metric|performance|how am i doing)\b/.test(
-        lowerCaseMessage
-      )
+      /\b(validation|score|rating|progress|metric|performance)\b/.test(lowerCaseMessage) ||
+      /how\s+am\s+i\s+doing/i.test(lowerCaseMessage)
     ) {
       const validationSummary = await getValidationHubSummary(conversationId);
       if (validationSummary) {

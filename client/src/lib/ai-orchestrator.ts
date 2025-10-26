@@ -200,7 +200,8 @@ async function callClaude(
     })) as Array<{ role: "user" | "assistant"; content: string }>;
 
     if (stream) {
-      // anthropic.messages.stream() returns a Stream object directly, not a Promise
+      // The Anthropic SDK's stream() method returns a MessageStream object directly
+      // which is already an async iterable, so we don't await it
       const response = anthropic.messages.stream({
         model: modelId,
         max_tokens: 8192,
