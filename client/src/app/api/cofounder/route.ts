@@ -110,7 +110,8 @@ ${relevantMemories.join("\n---\n")}
     }
 
     // Check for validation/score keywords
-    // Note: Using flexible matching for phrases with spaces
+    // Note: All patterns test against lowerCaseMessage (already converted to lowercase)
+    // so case-insensitive flags are not needed
     if (
       /\b(validation|score|rating|progress|metric|performance)\b/.test(lowerCaseMessage) ||
       /how\s+am\s+i\s+doing/.test(lowerCaseMessage)
