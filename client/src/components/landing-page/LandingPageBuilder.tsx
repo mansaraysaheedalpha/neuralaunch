@@ -11,6 +11,7 @@ import toast from "react-hot-toast";
 import { Prisma } from "@prisma/client";
 import useSWR from "swr";
 import React from "react"; // Import React
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 
 // Sub-component Imports
 import AnalyticsOverview from "./analytics/AnalyticsOverview";
@@ -332,34 +333,77 @@ export default function LandingPageBuilder({
             </div>
             {/* Action Buttons */}
             <div className="flex items-center flex-wrap justify-start md:justify-end gap-3">
-              {currentIsPublished && (
-                <button
-                  onClick={copyUrl}
-                  disabled={isPublishing || isRegenerating}
-                  className="px-4 py-2 border rounded-lg hover:bg-muted transition-colors text-sm font-semibold whitespace-nowrap disabled:opacity-50"
-                >
-                  📋 Copy URL
-                </button>
-              )}
-              <button
-                onClick={() => void handleRegenerate()}
-                disabled={isRegenerating || isPublishing}
-                className="px-4 py-2 border rounded-lg hover:bg-muted transition-colors disabled:opacity-50 text-sm font-semibold whitespace-nowrap"
-              >
-                {isRegenerating ? "..." : "🔄 Regenerate"}
-              </button>
-              <motion.button
-                whileTap={{ scale: 0.98 }}
-                onClick={() => void handlePublish(!currentIsPublished)}
-                disabled={isPublishing || isRegenerating}
-                className={`px-6 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50 text-sm whitespace-nowrap ${currentIsPublished ? "bg-amber-500 text-white hover:bg-amber-600" : "bg-green-500 text-white hover:bg-green-600"}`}
-              >
-                {isPublishing
-                  ? "..."
-                  : currentIsPublished
-                    ? "Unpublish"
-                    : "🚀 Publish"}
-              </motion.button>
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger asChild>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    disabled={isPublishing || isRegenerating}
+                    className="px-4 py-2 border rounded-lg hover:bg-muted transition-colors text-sm font-semibold whitespace-nowrap disabled:opacity-50 flex items-center gap-2"
+                  >
+                    ⚙️ Actions
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </motion.button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content
+                    className="mt-2 min-w-[200px] bg-card border border-border rounded-lg shadow-lg z-50 p-1 text-sm"
+                    sideOffset={5}
+                    align="end"
+                  >
+                    {currentIsPublished && (
+                      <>
+                        <DropdownMenu.Item
+                          onSelect={copyUrl}
+                          disabled={isPublishing || isRegenerating}
+                          className="flex items-center gap-3 px-3 py-2 rounded hover:bg-muted cursor-pointer outline-none select-none disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <span>📋</span>
+                          <span>Copy URL</span>
+                        </DropdownMenu.Item>
+                        <DropdownMenu.Separator className="h-px bg-border my-1" />
+                      </>
+                    )}
+                    <DropdownMenu.Item
+                      onSelect={() => void handleRegenerate()}
+                      disabled={isRegenerating || isPublishing}
+                      className="flex items-center gap-3 px-3 py-2 rounded hover:bg-muted cursor-pointer outline-none select-none disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span>{isRegenerating ? "⏳" : "🔄"}</span>
+                      <span>{isRegenerating ? "Regenerating..." : "Regenerate"}</span>
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Separator className="h-px bg-border my-1" />
+                    <DropdownMenu.Item
+                      onSelect={() => void handlePublish(!currentIsPublished)}
+                      disabled={isPublishing || isRegenerating}
+                      className={`flex items-center gap-3 px-3 py-2 rounded hover:bg-muted cursor-pointer outline-none select-none disabled:opacity-50 disabled:cursor-not-allowed ${currentIsPublished ? "text-amber-600 dark:text-amber-400" : "text-green-600 dark:text-green-400"}`}
+                    >
+                      <span>{isPublishing ? "⏳" : currentIsPublished ? "📤" : "🚀"}</span>
+                      <span>
+                        {isPublishing
+                          ? currentIsPublished
+                            ? "Unpublishing..."
+                            : "Publishing..."
+                          : currentIsPublished
+                            ? "Unpublish"
+                            : "Publish"}
+                      </span>
+                    </DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
             </div>
           </div>
           {/* Tabs */}
