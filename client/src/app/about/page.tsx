@@ -32,7 +32,7 @@ const fadeIn = {
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 40 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8 } },
 };
 
 const scaleIn = {
@@ -40,7 +40,7 @@ const scaleIn = {
   visible: {
     opacity: 1,
     scale: 1,
-    transition: { duration: 0.6, ease: "easeOut" },
+    transition: { duration: 0.6 },
   },
 };
 
@@ -60,7 +60,6 @@ const floatingAnimation = {
   transition: {
     duration: 3,
     repeat: Infinity,
-    ease: "easeInOut",
   },
 };
 
@@ -301,7 +300,7 @@ export default function AboutPage() {
           {/* Floating Decorative Elements */}
           <motion.div
             animate={{ y: [0, -10, 0], rotate: [0, 5, 0] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            transition={{ duration: 4, repeat: Infinity }}
             className="absolute top-20 left-10 opacity-20"
           >
             <Sparkles className="w-8 h-8 text-primary" />
@@ -311,7 +310,6 @@ export default function AboutPage() {
             transition={{
               duration: 5,
               repeat: Infinity,
-              ease: "easeInOut",
               delay: 1,
             }}
             className="absolute bottom-20 right-10 opacity-20"
@@ -545,7 +543,6 @@ export default function AboutPage() {
                       transition={{
                         duration: 3,
                         repeat: Infinity,
-                        ease: "easeInOut",
                       }}
                       className="absolute -top-8 -right-8 w-32 h-32 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-2xl"
                     />
@@ -745,7 +742,6 @@ export default function AboutPage() {
                   transition={{
                     duration: 3,
                     repeat: Infinity,
-                    ease: "easeInOut",
                   }}
                   className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg"
                 >
@@ -795,7 +791,6 @@ export default function AboutPage() {
                   transition={{
                     duration: 3,
                     repeat: Infinity,
-                    ease: "easeInOut",
                   }}
                   className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg"
                 >
@@ -851,7 +846,6 @@ export default function AboutPage() {
                 transition={{
                   duration: 1.5,
                   repeat: Infinity,
-                  ease: "easeInOut",
                 }}
                 className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-pink-500 to-rose-600 rounded-full shadow-2xl mb-6"
               >
@@ -905,8 +899,8 @@ export default function AboutPage() {
                   scale: [1, 1.1, 1],
                 }}
                 transition={{
-                  rotate: { duration: 20, repeat: Infinity, ease: "linear" },
-                  scale: { duration: 2, repeat: Infinity, ease: "easeInOut" },
+                  rotate: { duration: 20, repeat: Infinity },
+                  scale: { duration: 2, repeat: Infinity },
                 }}
                 className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-primary via-secondary to-accent rounded-full shadow-2xl mb-6 relative"
               >
@@ -947,7 +941,6 @@ export default function AboutPage() {
                   transition={{
                     duration: 2,
                     repeat: Infinity,
-                    ease: "easeInOut",
                   }}
                   className="group relative inline-flex items-center gap-3 px-10 py-5 bg-gradient-to-r from-primary via-secondary to-accent text-primary-foreground rounded-2xl font-bold text-xl shadow-2xl overflow-hidden"
                 >
@@ -988,7 +981,6 @@ export default function AboutPage() {
             transition={{
               duration: 3 + particle.key,
               repeat: Infinity,
-              ease: "easeInOut",
               delay: particle.key * 0.5,
             }}
             className="absolute w-2 h-2 bg-primary rounded-full"

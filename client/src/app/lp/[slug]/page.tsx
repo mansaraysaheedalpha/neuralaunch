@@ -18,51 +18,62 @@ interface PublicLandingPageProps {
 export async function generateMetadata({
   params,
 }: PublicLandingPageProps): Promise<Metadata> {
-  const { slug } = await params;
-  const landingPage = await prisma.landingPage.findUnique({
-    where: { slug: slug, isPublished: true },
-  });
-
-  if (!landingPage) {
-    return { title: "Page Not Found | NeuraLaunch" }; // Updated name
+  // Return default metadata if DATABASE_URL is not set
+  if (!process.env.DATABASE_URL) {
+    return { title: "NeuraLaunch" };
   }
+  
+  const { slug } = await params;
+  
+  try {
+    const landingPage = await prisma.landingPage.findUnique({
+      where: { slug: slug, isPublished: true },
+    });
 
-  const siteUrl =
-    process.env.NEXT_PUBLIC_APP_URL || `https://startupvalidator.app`; // Use your domain
+    if (!landingPage) {
+      return { title: "Page Not Found | NeuraLaunch" }; // Updated name
+    }
 
-  return {
-    title: landingPage.metaTitle || landingPage.title,
-    description: landingPage.metaDescription || landingPage.subheadline,
-    icons: {
-      icon: "/favicon.ico",
-      apple: "/apple-touch-icon.png",
-    },
-    openGraph: {
+    const siteUrl =
+      process.env.NEXT_PUBLIC_APP_URL || `https://startupvalidator.app`; // Use your domain
+
+    return {
       title: landingPage.metaTitle || landingPage.title,
       description: landingPage.metaDescription || landingPage.subheadline,
-      url: `${siteUrl}/lp/${landingPage.slug}`,
-      siteName: "NeuraLaunch", // Updated name
-      images: landingPage.ogImage
-        ? [
-            {
-              url: landingPage.ogImage,
-              width: 1200,
-              height: 630,
-              alt: landingPage.title,
-            },
-          ]
-        : [],
-      locale: "en_US",
-      type: "website",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: landingPage.metaTitle || landingPage.title,
-      description: landingPage.metaDescription || landingPage.subheadline,
-      images: landingPage.ogImage ? [landingPage.ogImage] : [],
-    },
-    robots: { index: true, follow: true },
-  };
+      icons: {
+        icon: "/favicon.ico",
+        apple: "/apple-touch-icon.png",
+      },
+      openGraph: {
+        title: landingPage.metaTitle || landingPage.title,
+        description: landingPage.metaDescription || landingPage.subheadline,
+        url: `${siteUrl}/lp/${landingPage.slug}`,
+        siteName: "NeuraLaunch", // Updated name
+        images: landingPage.ogImage
+          ? [
+              {
+                url: landingPage.ogImage,
+                width: 1200,
+                height: 630,
+                alt: landingPage.title,
+              },
+            ]
+          : [],
+        locale: "en_US",
+        type: "website",
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: landingPage.metaTitle || landingPage.title,
+        description: landingPage.metaDescription || landingPage.subheadline,
+        images: landingPage.ogImage ? [landingPage.ogImage] : [],
+      },
+      robots: { index: true, follow: true },
+    };
+  } catch (error) {
+    console.error("Error generating metadata:", error);
+    return { title: "NeuraLaunch" };
+  }
 }
 
 // Main page component
@@ -144,15 +155,25 @@ export default async function PublicLandingPage({
 
 // generateStaticParams remains the same
 export async function generateStaticParams() {
-  const publishedPages = await prisma.landingPage.findMany({
-    where: { isPublished: true },
-    select: { slug: true },
-    take: 100,
-  });
+  // Return empty array if DATABASE_URL is not set (e.g., during build without DB)
+  if (!process.env.DATABASE_URL) {
+    return [];
+  }
+  
+  try {
+    const publishedPages = await prisma.landingPage.findMany({
+      where: { isPublished: true },
+      select: { slug: true },
+      take: 100,
+    });
 
-  return publishedPages.map((page) => ({
-    slug: page.slug,
-  }));
+    return publishedPages.map((page) => ({
+      slug: page.slug,
+    }));
+  } catch (error) {
+    console.error("Error generating static params:", error);
+    return [];
+  }
 }
 
 // Revalidate pages every 60 seconds (ISR)
