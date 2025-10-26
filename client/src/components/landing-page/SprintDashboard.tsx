@@ -9,6 +9,7 @@ import TaskCard from "./TaskCard";
 import AIAssistantModal from "./AIAssistantModal";
 import SprintAnalytics from "./SprintAnalytics";
 import SprintAchievements from "./SprintAchievements";
+import MvpGenerationModal, { MvpGenerationOptions } from "./MvpGenerationModal";
 import toast from "react-hot-toast";
 import { trackEvent } from "@/lib/analytics";
 
@@ -46,6 +47,7 @@ export default function SprintDashboard({
   const [isStarting, setIsStarting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isDownloadingMvp, setIsDownloadingMvp] = useState(false);
+  const [isMvpModalOpen, setIsMvpModalOpen] = useState(false);
   const [activeAssistantTask, setActiveAssistantTask] = useState<Task | null>(
     null
   );
@@ -143,13 +145,16 @@ export default function SprintDashboard({
     }
   };
 
-  const handleDownloadMvp = async (projectId: string) => {
+  const handleDownloadMvp = async (
+    projectId: string,
+    options?: MvpGenerationOptions
+  ) => {
     setIsDownloadingMvp(true);
     try {
       const response = await fetch("/api/scaffold/mvp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId }),
+        body: JSON.stringify({ projectId, options }),
       });
 
       if (!response.ok) {
@@ -233,7 +238,7 @@ export default function SprintDashboard({
           {hasTasks && (
             <div className="flex flex-col sm:flex-row gap-2 mt-4 sm:mt-0">
               <button
-                onClick={() => void handleDownloadMvp(landingPageId)}
+                onClick={() => setIsMvpModalOpen(true)}
                 disabled={isDownloadingMvp}
                 className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm font-semibold rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-md disabled:opacity-50 w-full sm:w-auto"
               >
@@ -291,6 +296,14 @@ export default function SprintDashboard({
           <SprintAchievements conversationId={conversationId} />
         </div>
       )}
+
+      {/* MVP Generation Modal */}
+      <MvpGenerationModal
+        isOpen={isMvpModalOpen}
+        onClose={() => setIsMvpModalOpen(false)}
+        onGenerate={(options) => handleDownloadMvp(landingPageId, options)}
+        landingPageId={landingPageId}
+      />
     </div>
   );
 }
