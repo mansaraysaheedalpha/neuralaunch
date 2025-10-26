@@ -80,6 +80,8 @@ new TimeoutError(operation, timeoutMs)
 
 ## API Route Patterns
 
+> **Note**: All examples use the `@/` import alias which maps to the `src/` directory. This is configured in `tsconfig.json`.
+
 ### Standard Pattern
 
 ```typescript
