@@ -92,7 +92,7 @@ export default function TaskCard({ task, onAssistantLaunch }: TaskCardProps) {
         isCompleted ? "bg-card/50 border-dashed" : "bg-card shadow-sm"
       }`}
     >
-      <div className="flex items-start gap-4">
+      <div className="flex flex-col sm:flex-row items-start gap-4">
         <div className="flex-1">
           <h4
             className={`font-bold text-lg ${isCompleted ? "text-muted-foreground line-through" : "text-foreground"}`}
@@ -103,16 +103,16 @@ export default function TaskCard({ task, onAssistantLaunch }: TaskCardProps) {
             {task.description}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mt-4 sm:mt-0">
           {task.aiAssistantType ? (
             <button
               onClick={() => onAssistantLaunch(task)}
-              className="px-4 py-2 bg-primary/10 text-primary text-sm font-semibold rounded-lg hover:bg-primary/20 transition-colors"
+              className="px-4 py-2 bg-primary/10 text-primary text-sm font-semibold rounded-lg hover:bg-primary/20 transition-colors text-center"
             >
               🤖 Launch {assistantName}
             </button>
           ) : (
-            <span className="px-4 py-2 text-muted-foreground text-sm font-semibold">
+            <span className="px-4 py-2 text-muted-foreground text-sm font-semibold text-center">
               👤 Manual Task
             </span>
           )}

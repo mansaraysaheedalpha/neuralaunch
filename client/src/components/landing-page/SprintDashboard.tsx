@@ -231,11 +231,11 @@ export default function SprintDashboard({
             </p>
           </div>
           {hasTasks && (
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 mt-4 sm:mt-0">
               <button
                 onClick={() => void handleDownloadMvp(landingPageId)}
                 disabled={isDownloadingMvp}
-                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm font-semibold rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-md disabled:opacity-50"
+                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm font-semibold rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-md disabled:opacity-50 w-full sm:w-auto"
               >
                 {isDownloadingMvp
                   ? "Building MVP..."
@@ -244,7 +244,7 @@ export default function SprintDashboard({
               <button
                 onClick={() => void handleExport()}
                 disabled={isExporting}
-                className="px-4 py-2 bg-primary/10 text-primary text-sm font-semibold rounded-lg hover:bg-primary/20 transition-colors disabled:opacity-50"
+                className="px-4 py-2 bg-primary/10 text-primary text-sm font-semibold rounded-lg hover:bg-primary/20 transition-colors disabled:opacity-50 w-full sm:w-auto"
               >
                 {isExporting ? "Exporting..." : "Export Report"}
               </button>
