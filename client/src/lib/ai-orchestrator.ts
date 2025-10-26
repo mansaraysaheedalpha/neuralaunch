@@ -96,9 +96,11 @@ function routeTaskToModel(taskType: AITaskType, payload?: unknown): {
       console.log(`🎯 Routing ${taskType} to ${AI_MODELS.OPENAI} (GPT-4o - strong coding abilities)`);
       return { modelId: AI_MODELS.OPENAI, provider: "OPENAI" };
 
-    default:
-      console.log(`⚠️ Unknown task type ${taskType}, defaulting to ${AI_MODELS.PRIMARY}`);
+    default: {
+      const _exhaustiveCheck: never = taskType;
+      console.log(`⚠️ Unknown task type ${String(_exhaustiveCheck)}, defaulting to ${AI_MODELS.PRIMARY}`);
       return { modelId: AI_MODELS.PRIMARY, provider: "GOOGLE" };
+    }
   }
 }
 
@@ -198,7 +200,8 @@ async function callClaude(
     })) as Array<{ role: "user" | "assistant"; content: string }>;
 
     if (stream) {
-      const response = await anthropic.messages.stream({
+      // anthropic.messages.stream() returns a Stream object directly, not a Promise
+      const response = anthropic.messages.stream({
         model: modelId,
         max_tokens: 8192,
         messages: claudeMessages,
@@ -277,8 +280,10 @@ export async function executeAITask(
         break;
       }
 
-      default:
-        throw new Error(`Unknown provider: ${provider}`);
+      default: {
+        const _exhaustiveCheck: never = provider;
+        throw new Error(`Unknown provider: ${String(_exhaustiveCheck)}`);
+      }
     }
 
     if (typeof result === "string") {

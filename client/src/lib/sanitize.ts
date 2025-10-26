@@ -174,6 +174,7 @@ export function sanitizeJsonObject<T extends Record<string, unknown>>(
   }
 
   if (Array.isArray(obj)) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return obj.map((item) => 
       typeof item === "object" && item !== null
         ? sanitizeJsonObject(item as Record<string, unknown>, maxDepth, currentDepth + 1)

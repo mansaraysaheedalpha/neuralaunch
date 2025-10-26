@@ -1,7 +1,8 @@
 //src/lib/cofounder-helpers.ts
 import prisma from "./prisma";
+import { TaskStatus } from "@prisma/client";
 
-// --- ADD HELPER 1: Get Landing Page Analytics Summary ---
+// --- HELPER 1: Get Landing Page Analytics Summary ---
 export async function getLandingPageAnalyticsSummary(
   conversationId: string
 ): Promise<string | null> {
@@ -9,8 +10,16 @@ export async function getLandingPageAnalyticsSummary(
     where: { conversationId },
     select: {
       id: true,
+      slug: true,
+      title: true,
+      isPublished: true,
       _count: {
-        select: { pageViews: true, emailSignups: true },
+        select: { 
+          pageViews: true, 
+          emailSignups: true,
+          feedback: true,
+          smokeTests: true,
+        },
       },
     },
   });
@@ -19,31 +28,202 @@ export async function getLandingPageAnalyticsSummary(
 
   const views = landingPage._count.pageViews;
   const signups = landingPage._count.emailSignups;
+  const feedbackCount = landingPage._count.feedback;
+  const smokeTestCount = landingPage._count.smokeTests;
   const conversionRate =
     views > 0 ? ((signups / views) * 100).toFixed(1) : "0.0";
 
   return `Landing Page Analytics Summary:
+- Page: ${landingPage.title} (${landingPage.isPublished ? 'Published' : 'Draft'})
 - Total Views: ${views}
 - Total Signups: ${signups}
-- Conversion Rate: ${conversionRate}%`;
+- Conversion Rate: ${conversionRate}%
+- Feedback Received: ${feedbackCount}
+- Feature Smoke Tests: ${smokeTestCount}`;
 }
 
-// --- ADD HELPER 2: Get Sprint Progress Summary ---
+// --- HELPER 2: Get Sprint Progress Summary ---
 export async function getSprintProgressSummary(
   conversationId: string
 ): Promise<string | null> {
   const sprint = await prisma.sprint.findUnique({
     where: { conversationId },
-    select: { totalTasks: true, completedTasks: true },
+    select: { 
+      totalTasks: true, 
+      completedTasks: true,
+      startedAt: true,
+      targetEndAt: true,
+      aiAssistsUsed: true,
+    },
   });
 
-  if (!sprint || sprint.totalTasks === 0) return null; // No sprint started or no tasks
+  if (!sprint || sprint.totalTasks === 0) return null;
 
   const completionPercentage = Math.round(
     (sprint.completedTasks / sprint.totalTasks) * 100
   );
+  
+  const now = new Date();
+  const timeRemaining = sprint.targetEndAt.getTime() - now.getTime();
+  const hoursRemaining = Math.max(0, Math.round(timeRemaining / (1000 * 60 * 60)));
 
   return `Sprint Progress Summary:
 - Tasks Completed: ${sprint.completedTasks} / ${sprint.totalTasks}
-- Completion: ${completionPercentage}%`;
+- Completion: ${completionPercentage}%
+- Time Remaining: ${hoursRemaining} hours
+- AI Assists Used: ${sprint.aiAssistsUsed}`;
+}
+
+// --- HELPER 3: Get Blueprint/Idea Content ---
+export async function getBlueprintSummary(
+  conversationId: string
+): Promise<string | null> {
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    select: {
+      title: true,
+      messages: {
+        where: { role: "assistant" },
+        orderBy: { createdAt: "asc" },
+        take: 1,
+        select: { content: true },
+      },
+      tags: {
+        select: {
+          tag: {
+            select: { name: true },
+          },
+        },
+      },
+    },
+  });
+
+  if (!conversation || conversation.messages.length === 0) return null;
+
+  const blueprint = conversation.messages[0].content;
+  const tags = conversation.tags.map(t => t.tag.name).join(", ");
+  
+  // Extract key sections from the blueprint
+  const lines = blueprint.split('\n');
+  const titleLine = lines.find(line => line.startsWith('# ')) || '';
+  const pitchLine = lines.find(line => line.includes('**The Pitch:**')) || '';
+  
+  let summary = `Blueprint/Idea Summary:\n`;
+  summary += `- Project: ${conversation.title}\n`;
+  if (titleLine) summary += `- ${titleLine.replace('# ', '').trim()}\n`;
+  if (pitchLine) summary += `- ${pitchLine.replace('**The Pitch:**', 'Pitch:').trim()}\n`;
+  if (tags) summary += `- Tags: ${tags}\n`;
+  
+  // Include first 500 chars of blueprint for context
+  const blueprintPreview = blueprint.substring(0, 500).trim();
+  summary += `\nBlueprint Preview:\n${blueprintPreview}...\n`;
+
+  return summary;
+}
+
+// --- HELPER 4: Get Validation Hub Summary ---
+export async function getValidationHubSummary(
+  conversationId: string
+): Promise<string | null> {
+  const validationHub = await prisma.validationHub.findUnique({
+    where: { conversationId },
+    select: {
+      totalValidationScore: true,
+      marketDemandScore: true,
+      problemValidationScore: true,
+      executionScore: true,
+      customerInterviewCount: true,
+      feedbackSentimentScore: true,
+      aiInsight: true,
+    },
+  });
+
+  if (!validationHub || validationHub.totalValidationScore === null) return null;
+
+  let summary = `Validation Score Summary:\n`;
+  summary += `- Total Score: ${validationHub.totalValidationScore.toFixed(1)}/100\n`;
+  summary += `- Market Demand: ${validationHub.marketDemandScore?.toFixed(1) || '0'}/40\n`;
+  summary += `- Problem Validation: ${validationHub.problemValidationScore?.toFixed(1) || '0'}/50\n`;
+  summary += `- Execution: ${validationHub.executionScore?.toFixed(1) || '0'}/10\n`;
+  summary += `- Customer Interviews: ${validationHub.customerInterviewCount}\n`;
+  summary += `- Feedback Sentiment: ${((validationHub.feedbackSentimentScore || 0) * 100).toFixed(0)}%\n`;
+  
+  if (validationHub.aiInsight) {
+    summary += `\nAI Insight: ${validationHub.aiInsight}\n`;
+  }
+
+  return summary;
+}
+
+// --- HELPER 5: Get Detailed Sprint Tasks ---
+export async function getSprintTasksDetails(
+  conversationId: string
+): Promise<string | null> {
+  const tasks = await prisma.task.findMany({
+    where: { conversationId },
+    orderBy: { orderIndex: "asc" },
+    select: {
+      title: true,
+      description: true,
+      status: true,
+      timeEstimate: true,
+      aiAssistantType: true,
+      completedAt: true,
+    },
+  });
+
+  if (tasks.length === 0) return null;
+
+  let summary = `72-Hour Sprint Tasks:\n`;
+  
+  const statusEmoji = {
+    [TaskStatus.NOT_STARTED]: '⏳',
+    [TaskStatus.IN_PROGRESS]: '🔄',
+    [TaskStatus.COMPLETE]: '✅',
+  };
+
+  tasks.forEach((task, index) => {
+    const emoji = statusEmoji[task.status];
+    summary += `\n${index + 1}. ${emoji} ${task.title} (${task.timeEstimate})\n`;
+    summary += `   Status: ${task.status}\n`;
+    if (task.aiAssistantType) {
+      summary += `   AI Assistant Available: ${task.aiAssistantType}\n`;
+    }
+    if (task.completedAt) {
+      summary += `   Completed: ${task.completedAt.toLocaleDateString()}\n`;
+    }
+  });
+
+  return summary;
+}
+
+// --- HELPER 6: Get User Achievements ---
+export async function getUserAchievements(
+  conversationId: string,
+  userId: string
+): Promise<string | null> {
+  const achievements = await prisma.achievement.findMany({
+    where: {
+      userId,
+      conversationId,
+    },
+    orderBy: { unlockedAt: "desc" },
+    take: 10,
+    select: {
+      achievementType: true,
+      unlockedAt: true,
+      metadata: true,
+    },
+  });
+
+  if (achievements.length === 0) return null;
+
+  let summary = `Recent Achievements:\n`;
+  
+  achievements.forEach((achievement) => {
+    const date = achievement.unlockedAt.toLocaleDateString();
+    summary += `- 🏆 ${achievement.achievementType} (${date})\n`;
+  });
+
+  return summary;
 }

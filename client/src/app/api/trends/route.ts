@@ -1,6 +1,6 @@
 // src/app/api/trends/route.ts
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { handleApiError } from "@/lib/api-error";

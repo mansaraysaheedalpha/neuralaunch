@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
       FROM "PageView"
       WHERE "landingPageId" = ${landingPageId} AND "createdAt" >= ${last30Days}
       GROUP BY DATE("createdAt") ORDER BY date ASC`;
-    const topSourcesQuery = prismaClient.pageView.groupBy({
+    const _topSourcesQuery = prismaClient.pageView.groupBy({
       by: ["utmSource"],
       where: { landingPageId, utmSource: { not: null } },
       _count: { utmSource: true },

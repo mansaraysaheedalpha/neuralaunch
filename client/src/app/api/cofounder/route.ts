@@ -7,6 +7,10 @@ import { searchMemory, saveMemory } from "@/lib/ai-memory"; // Import both memor
 import {
   getLandingPageAnalyticsSummary,
   getSprintProgressSummary,
+  getBlueprintSummary,
+  getValidationHubSummary,
+  getSprintTasksDetails,
+  getUserAchievements,
 } from "@/lib/cofounder-helpers";
 import { z } from "zod";
 import { AITaskType, executeAITaskSimple } from "@/lib/ai-orchestrator";
@@ -28,15 +32,23 @@ Your Core Identity:
 - Your goal is to help the user validate their startup idea rigorously and efficiently.
 
 Your Capabilities:
-- **Memory:** You have access to relevant past memories (blueprints, insights, previous chats). Use this context!
+- **Full Context Awareness:** You have access to the complete project data:
+  * The original startup blueprint/idea generated
+  * Validation scores (Market Demand, Problem Validation, Execution scores)
+  * Landing page analytics (views, signups, conversion rates, feedback, smoke tests)
+  * 72-hour sprint progress and detailed task list
+  * User achievements and milestones
+  * Relevant past memories from conversations (RAG)
 - **Devil's Advocate:** Challenge the user's assumptions with data and logic. Ask clarifying questions. Don't just agree.
+- **Data-Driven Insights:** Reference specific metrics when giving advice (e.g., "Your 5% conversion rate suggests...")
 - **Skill Gap Filler:** Offer to help with tasks the user struggles with (e.g., writing copy, analyzing data).
 - **Accountability Partner:** Gently keep the user focused on their validation goals.
 
 Interaction Rules:
-- **Use the Provided Context:** Always integrate the retrieved memories into your response. Refer back to past insights or goals.
+- **Use the Provided Context:** Always integrate ALL the context provided (blueprint, scores, analytics, tasks, memories) into your response. Reference specific data points.
 - **Be Action-Oriented:** End your responses with a clear next step or a probing question.
 - **Maintain Context:** Remember this is an ongoing conversation within a specific startup project.
+- **Connect the Dots:** Help users see patterns across their data (e.g., low conversion + no customer interviews = need more validation)
 - **Tone:** Be direct, insightful, strategic, and supportive but firm ("tough love"). Avoid being overly enthusiastic or generic.
 
 DO NOT:
@@ -87,13 +99,31 @@ ${relevantMemories.join("\n---\n")}
       `;
     }
 
-    // --- RAG Step 2: Retrieve Structured Data (NEW) ---
+    // --- RAG Step 2: Retrieve Structured Data (ENHANCED) ---
     let structuredDataContext = "";
     const lowerCaseMessage = userMessage.toLowerCase();
 
+    // Always include blueprint summary for full context
+    const blueprintSummary = await getBlueprintSummary(conversationId);
+    if (blueprintSummary) {
+      structuredDataContext += `\n\n${blueprintSummary}`;
+    }
+
+    // Check for validation/score keywords
+    if (
+      /\b(validation|score|rating|progress|metric|performance|how am i doing)\b/.test(
+        lowerCaseMessage
+      )
+    ) {
+      const validationSummary = await getValidationHubSummary(conversationId);
+      if (validationSummary) {
+        structuredDataContext += `\n\n${validationSummary}`;
+      }
+    }
+
     // Check for analytics keywords
     if (
-      /\b(analytics|stats|views|signups|conversion|landing page performance)\b/.test(
+      /\b(analytics|stats|views|signups|conversion|landing page|traffic|visitors)\b/.test(
         lowerCaseMessage
       )
     ) {
@@ -106,13 +136,33 @@ ${relevantMemories.join("\n---\n")}
 
     // Check for sprint keywords
     if (
-      /\b(sprint|tasks|progress|checklist|72-hour|execution)\b/.test(
+      /\b(sprint|tasks|progress|checklist|72-hour|execution|todo|what should i do)\b/.test(
         lowerCaseMessage
       )
     ) {
       const sprintSummary = await getSprintProgressSummary(conversationId);
       if (sprintSummary) {
         structuredDataContext += `\n\n${sprintSummary}`;
+      }
+      
+      // Also include detailed task list if asking about tasks
+      if (/\b(tasks|checklist|todo|what should i do)\b/.test(lowerCaseMessage)) {
+        const taskDetails = await getSprintTasksDetails(conversationId);
+        if (taskDetails) {
+          structuredDataContext += `\n\n${taskDetails}`;
+        }
+      }
+    }
+
+    // Check for achievement keywords
+    if (
+      /\b(achievement|milestone|accomplishment|progress|unlock|badge|trophy)\b/.test(
+        lowerCaseMessage
+      )
+    ) {
+      const achievements = await getUserAchievements(conversationId, userId);
+      if (achievements) {
+        structuredDataContext += `\n\n${achievements}`;
       }
     }
     // --- RAG Step 3: Augment the Prompt ---
