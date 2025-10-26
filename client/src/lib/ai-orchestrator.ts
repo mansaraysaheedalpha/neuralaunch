@@ -8,6 +8,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { AI_MODELS } from "./models";
+import { ExternalServiceError, withTimeout } from "./api-error";
+import { logger } from "./logger";
 
 // ==================== TASK TYPE DEFINITIONS ====================
 
@@ -156,19 +158,35 @@ async function callGemini(
     });
 
     if (stream) {
-      const result = await model.generateContentStream(prompt);
+      const result = await withTimeout(
+        model.generateContentStream(prompt),
+        120000, // 2 minute timeout for streaming
+        `Gemini streaming (${modelId})`
+      );
       return (async function* () {
-        for await (const chunk of result.stream) {
-          yield chunk.text();
+        try {
+          for await (const chunk of result.stream) {
+            yield chunk.text();
+          }
+        } catch (streamError) {
+          logger.error(`Gemini stream error (${modelId})`, streamError instanceof Error ? streamError : undefined);
+          throw new ExternalServiceError("Gemini", `Streaming failed: ${streamError instanceof Error ? streamError.message : String(streamError)}`);
         }
       })();
     }
 
-    const result = await model.generateContent(prompt);
+    const result = await withTimeout(
+      model.generateContent(prompt),
+      60000, // 1 minute timeout for non-streaming
+      `Gemini generation (${modelId})`
+    );
     return result.response.text();
   } catch (error) {
-    console.error(`❌ Gemini API error (${modelId}):`, error);
-    throw error;
+    logger.error(`Gemini API error (${modelId})`, error instanceof Error ? error : undefined);
+    if (error instanceof ExternalServiceError) {
+      throw error;
+    }
+    throw new ExternalServiceError("Gemini", error instanceof Error ? error.message : String(error));
   }
 }
 
@@ -188,34 +206,50 @@ async function callOpenAI(
       : messages;
 
     if (stream) {
-      const completion = await openai.chat.completions.create({
-        model: modelId,
-        messages: messageArray as OpenAI.Chat.ChatCompletionMessageParam[],
-        stream: true,
-      });
+      const completion = await withTimeout(
+        openai.chat.completions.create({
+          model: modelId,
+          messages: messageArray as OpenAI.Chat.ChatCompletionMessageParam[],
+          stream: true,
+        }),
+        120000, // 2 minute timeout
+        `OpenAI streaming (${modelId})`
+      );
 
       return (async function* () {
-        for await (const chunk of completion) {
-          const content = chunk.choices[0]?.delta?.content;
-          if (content) {
-            yield content;
+        try {
+          for await (const chunk of completion) {
+            const content = chunk.choices[0]?.delta?.content;
+            if (content) {
+              yield content;
+            }
           }
+        } catch (streamError) {
+          logger.error(`OpenAI stream error (${modelId})`, streamError instanceof Error ? streamError : undefined);
+          throw new ExternalServiceError("OpenAI", `Streaming failed: ${streamError instanceof Error ? streamError.message : String(streamError)}`);
         }
       })();
     }
 
-    const completion = await openai.chat.completions.create({
-      model: modelId,
-      messages: messageArray as OpenAI.Chat.ChatCompletionMessageParam[],
-      ...(responseFormat && {
-        response_format: { type: "json_object" as const },
+    const completion = await withTimeout(
+      openai.chat.completions.create({
+        model: modelId,
+        messages: messageArray as OpenAI.Chat.ChatCompletionMessageParam[],
+        ...(responseFormat && {
+          response_format: { type: "json_object" as const },
+        }),
       }),
-    });
+      60000, // 1 minute timeout
+      `OpenAI generation (${modelId})`
+    );
 
     return completion.choices[0]?.message?.content || "";
   } catch (error) {
-    console.error(`❌ OpenAI API error (${modelId}):`, error);
-    throw error;
+    logger.error(`OpenAI API error (${modelId})`, error instanceof Error ? error : undefined);
+    if (error instanceof ExternalServiceError) {
+      throw error;
+    }
+    throw new ExternalServiceError("OpenAI", error instanceof Error ? error.message : String(error));
   }
 }
 
@@ -247,30 +281,42 @@ async function callClaude(
       });
 
       return (async function* () {
-        for await (const chunk of response) {
-          if (
-            chunk.type === "content_block_delta" &&
-            chunk.delta.type === "text_delta"
-          ) {
-            yield chunk.delta.text;
+        try {
+          for await (const chunk of response) {
+            if (
+              chunk.type === "content_block_delta" &&
+              chunk.delta.type === "text_delta"
+            ) {
+              yield chunk.delta.text;
+            }
           }
+        } catch (streamError) {
+          logger.error(`Claude stream error (${modelId})`, streamError instanceof Error ? streamError : undefined);
+          throw new ExternalServiceError("Claude", `Streaming failed: ${streamError instanceof Error ? streamError.message : String(streamError)}`);
         }
       })();
     }
 
-    const response = await anthropic.messages.create({
-      model: modelId,
-      max_tokens: 8192,
-      messages: claudeMessages,
-      ...(systemPrompt && { system: systemPrompt }),
-    });
+    const response = await withTimeout(
+      anthropic.messages.create({
+        model: modelId,
+        max_tokens: 8192,
+        messages: claudeMessages,
+        ...(systemPrompt && { system: systemPrompt }),
+      }),
+      60000, // 1 minute timeout
+      `Claude generation (${modelId})`
+    );
 
     // Extract text content from the response
     const textContent = response.content.find((block) => block.type === "text");
     return textContent && "text" in textContent ? textContent.text : "";
   } catch (error) {
-    console.error(`❌ Claude API error (${modelId}):`, error);
-    throw error;
+    logger.error(`Claude API error (${modelId})`, error instanceof Error ? error : undefined);
+    if (error instanceof ExternalServiceError) {
+      throw error;
+    }
+    throw new ExternalServiceError("Claude", error instanceof Error ? error.message : String(error));
   }
 }
 
@@ -345,25 +391,27 @@ export async function executeAITask(
     }
 
     if (typeof result === "string") {
-      console.log(
-        `✅ ${provider} (${taskType}) completed successfully. Response length: ${result.length}`
+      logger.info(
+        `${provider} (${taskType}) completed successfully`,
+        { responseLength: result.length }
       );
     } else {
-      console.log(
-        `✅ ${provider} (${taskType}) streaming started successfully.`
+      logger.info(
+        `${provider} (${taskType}) streaming started successfully`
       );
     }
 
     return result;
   } catch (error) {
-    console.error(
-      `❌ Error executing task ${taskType} with ${provider}:`,
-      error
+    logger.error(
+      `Error executing task ${taskType} with ${provider}`,
+      error instanceof Error ? error : undefined,
+      { taskType, provider }
     );
 
     // Implement fallback mechanism
     if (provider !== "GOOGLE") {
-      console.log(`🔄 Attempting fallback to ${AI_MODELS.PRIMARY} (Gemini)`);
+      logger.info(`Attempting fallback to ${AI_MODELS.PRIMARY} (Gemini) for ${taskType}`);
       try {
         const prompt =
           payload.prompt ||
@@ -375,12 +423,12 @@ export async function executeAITask(
           payload.systemInstruction,
           payload.stream
         );
-        console.log(`✅ Fallback successful for ${taskType}`);
+        logger.info(`Fallback successful for ${taskType}`);
         return fallbackResult;
       } catch (fallbackError) {
-        console.error(
-          `❌ Fallback also failed for ${taskType}:`,
-          fallbackError
+        logger.error(
+          `Fallback also failed for ${taskType}`,
+          fallbackError instanceof Error ? fallbackError : undefined
         );
         throw fallbackError;
       }
