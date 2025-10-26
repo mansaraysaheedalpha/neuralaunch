@@ -14,11 +14,31 @@ interface PricingTier {
   description: string;
 }
 
+// Define MvpGenerationOptions type
+export interface MvpGenerationOptions {
+  primaryModel?: string;
+  includeAuth?: boolean;
+  includePayments?: boolean;
+  databaseProvider?: "postgresql" | "mysql" | "sqlite";
+  additionalFeatures?: string[];
+}
+
 // Define Zod schema for the request body
 const scaffoldRequestSchema = z.object({
   // We're passing the landingPageId from the frontend
   // The route calls it `projectId` but it's the `LandingPage` ID
   projectId: z.string().cuid({ message: "Invalid Landing Page ID" }),
+  options: z
+    .object({
+      primaryModel: z.string().optional(),
+      includeAuth: z.boolean().optional(),
+      includePayments: z.boolean().optional(),
+      databaseProvider: z
+        .enum(["postgresql", "mysql", "sqlite"])
+        .optional(),
+      additionalFeatures: z.array(z.string()).optional(),
+    })
+    .optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -40,7 +60,13 @@ export async function POST(req: NextRequest) {
       );
     }
     // Rename for clarity. The "project" is the LandingPage
-    const { projectId: landingPageId } = validation.data;
+    const { projectId: landingPageId, options } = validation.data;
+
+    console.log("[SCAFFOLD_MVP] Starting MVP generation", {
+      landingPageId,
+      userId: session.user.id,
+      options,
+    });
 
     // --- THIS IS THE NEW, CORRECT DATA FETCH ---
     // We need the LandingPage (for pricing) AND the Conversation (for the blueprint)
@@ -103,9 +129,15 @@ export async function POST(req: NextRequest) {
 
     // Generate MVP codebase files
     // We now pass the correct data. This function is now async!
+    console.log("[SCAFFOLD_MVP] Generating codebase with AI...");
     const files = await generateMvpCodebase(
       blueprintString,
-      pricingTiers
+      pricingTiers,
+      options
+    );
+
+    console.log(
+      `[SCAFFOLD_MVP] Generated ${Object.keys(files).length} files`
     );
 
     // Create a zip file
@@ -120,6 +152,7 @@ export async function POST(req: NextRequest) {
     const zipArrayBuffer = await zip.generateAsync({ type: "arraybuffer" });
 
     // Return the zip file
+    console.log("[SCAFFOLD_MVP] Returning ZIP file to client");
     return new NextResponse(zipArrayBuffer, {
       status: 200,
       headers: {
@@ -129,9 +162,19 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: unknown) {
     console.error(
-      "[SCAFFOLD_MVP]",
+      "[SCAFFOLD_MVP] Error:",
       error instanceof Error ? error.message : error
     );
-    return new NextResponse("Internal Server Error", { status: 500 });
+    console.error("[SCAFFOLD_MVP] Stack:", error instanceof Error ? error.stack : "N/A");
+    return new NextResponse(
+      JSON.stringify({
+        error: "Failed to generate MVP",
+        message: error instanceof Error ? error.message : "Unknown error",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
   }
 }
