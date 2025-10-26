@@ -124,49 +124,50 @@ export default function CofounderChat() {
       if (currentConversationId !== conversationId) {
         resetStore(); // Clear the store before loading new conversation
         setCurrentConversationId(conversationId);
-      }
 
-      setIsInitialLoading(true);
-      try {
-        const res = await fetch(
-          `/api/cofounder/messages?conversationId=${conversationId}`
-        );
-
-        if (!res.ok) {
-          throw new Error("Failed to load cofounder messages");
-        }
-
-        const data: unknown = await res.json();
-        // Type guard to check if data has the expected structure
-        if (
-          data &&
-          typeof data === "object" &&
-          "messages" in data &&
-          Array.isArray(data.messages)
-        ) {
-          // Convert database messages to CofounderMessage format
-          const loadedMessages: CofounderMessage[] = data.messages.map(
-            (msg: {
-              id: string;
-              content: string;
-              role: string;
-              createdAt: string;
-            }) => ({
-              id: msg.id,
-              role: msg.role as "user" | "cofounder",
-              content: msg.content,
-            })
+        setIsInitialLoading(true);
+        try {
+          const res = await fetch(
+            `/api/cofounder/messages?conversationId=${conversationId}`
           );
-          setMessages(loadedMessages);
+
+          if (!res.ok) {
+            throw new Error("Failed to load cofounder messages");
+          }
+
+          const data: unknown = await res.json();
+          // Type guard to check if data has the expected structure
+          if (
+            data &&
+            typeof data === "object" &&
+            "messages" in data &&
+            Array.isArray(data.messages)
+          ) {
+            // Convert database messages to CofounderMessage format
+            const loadedMessages: CofounderMessage[] = data.messages.map(
+              (msg: {
+                id: string;
+                content: string;
+                role: string;
+                createdAt: string;
+              }) => ({
+                id: msg.id,
+                role: msg.role as "user" | "cofounder",
+                content: msg.content,
+              })
+            );
+            setMessages(loadedMessages);
+          }
+        } catch (err: unknown) {
+          const message =
+            err instanceof Error ? err.message : "Failed to load messages";
+          console.error("Error loading cofounder messages:", message);
+          // Don't set error state here to avoid blocking new messages
+        } finally {
+          setIsInitialLoading(false);
         }
-      } catch (err: unknown) {
-        const message =
-          err instanceof Error ? err.message : "Failed to load messages";
-        console.error("Error loading cofounder messages:", message);
-        // Don't set error state here to avoid blocking new messages
-      } finally {
-        setIsInitialLoading(false);
       }
+      // If currentConversationId === conversationId, do nothing (conversation already loaded)
     };
 
     void loadMessages();

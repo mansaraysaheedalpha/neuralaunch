@@ -165,29 +165,30 @@ export default function ChatPage() {
         if (currentConversationId !== conversationId) {
           resetStore(); // Clear the store before loading new conversation
           setCurrentConversationId(conversationId);
-        }
         
-        setIsLoading(true);
-        setError(null);
-        try {
-          const res = await fetch(`/api/conversations/${conversationId}`);
-          if (res.ok) {
-            const data = (await res.json()) as ConversationApiResponse;
-            setMessages(Array.isArray(data.messages) ? data.messages : []);
-            setLandingPageId(data.landingPage?.id ?? null);
-          } else {
-            const errorData = (await res.json()) as ErrorApiResponse;
-            setError(
-              `Failed to load conversation: ${
-                errorData.message || res.statusText
-              }`
-            );
+          setIsLoading(true);
+          setError(null);
+          try {
+            const res = await fetch(`/api/conversations/${conversationId}`);
+            if (res.ok) {
+              const data = (await res.json()) as ConversationApiResponse;
+              setMessages(Array.isArray(data.messages) ? data.messages : []);
+              setLandingPageId(data.landingPage?.id ?? null);
+            } else {
+              const errorData = (await res.json()) as ErrorApiResponse;
+              setError(
+                `Failed to load conversation: ${
+                  errorData.message || res.statusText
+                }`
+              );
+            }
+          } catch {
+            setError("An error occurred while loading the chat.");
+          } finally {
+            setIsLoading(false);
           }
-        } catch {
-          setError("An error occurred while loading the chat.");
-        } finally {
-          setIsLoading(false);
         }
+        // If currentConversationId === conversationId, do nothing (conversation already loaded)
       } else {
         setError("Invalid conversation ID.");
         setMessages([]);
