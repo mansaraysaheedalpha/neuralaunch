@@ -32,28 +32,29 @@ export default function LandingFooter() {
           </p>
         </div>
 
-        {/* Column 2: Links (Example) */}
+        {/* Column 2: Links */}
         <div className="flex flex-col items-center md:items-start space-y-2">
-          <h4 className="text-lg font-bold text-foreground mb-2">Legal</h4>
-          {/* Add actual links when pages exist */}
+          <h4 className="text-lg font-bold text-foreground mb-2">Company</h4>
           <Link
-            href="/privacy-policy"
+            href="/about"
             className="text-base text-muted-foreground hover:text-primary transition-colors"
           >
-            Privacy Policy
+            About Us
           </Link>
           <Link
-            href="/terms-of-service"
+            href="/faq"
             className="text-base text-muted-foreground hover:text-primary transition-colors"
           >
-            Terms of Service
+            FAQ
           </Link>
-          <Link
-            href="/contact"
+          <a
+            href="https://forms.gle/WVLZzKtFYLvb7Xkg9"
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-base text-muted-foreground hover:text-primary transition-colors"
           >
-            Contact Us
-          </Link>
+            Feedback
+          </a>
         </div>
 
         {/* Column 3: Social & Copyright */}
@@ -61,10 +62,11 @@ export default function LandingFooter() {
           {/* Optional: Social Media Icons */}
           <div className="flex space-x-4 mb-4">
             <a
-              href="https://github.com/your-repo"
+              href="https://github.com/mansaraysaheedalpha/ideaspark"
               target="_blank"
               rel="noopener noreferrer"
               className="text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Visit our GitHub repository"
             >
               <FaGithub size={20} />
             </a>
@@ -73,6 +75,7 @@ export default function LandingFooter() {
               target="_blank"
               rel="noopener noreferrer"
               className="text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Follow us on Twitter"
             >
               <FaTwitter size={20} />
             </a>
@@ -81,6 +84,7 @@ export default function LandingFooter() {
               target="_blank"
               rel="noopener noreferrer"
               className="text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Connect on LinkedIn"
             >
               <FaLinkedin size={20} />
             </a>

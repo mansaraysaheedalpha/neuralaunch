@@ -43,8 +43,22 @@ export default function LandingHeader() {
           </div>
         </Link>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-3 sm:gap-4">
+        {/* Navigation Links and Action Buttons */}
+        <div className="flex items-center gap-2 sm:gap-4">
+          {/* About Us Link */}
+          <Link
+            href="/about"
+            className="hidden md:inline-flex items-center px-3 py-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors"
+          >
+            About Us
+          </Link>
+          {/* FAQ Link */}
+          <Link
+            href="/faq"
+            className="hidden md:inline-flex items-center px-3 py-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors"
+          >
+            FAQ
+          </Link>
           {/* Feedback Button */}
           <Link
             href={FEEDBACK_FORM_URL}

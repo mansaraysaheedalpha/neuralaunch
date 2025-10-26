@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import toast from "react-hot-toast";
 import { useConversationStore } from "@/lib/stores/conversationStore";
-import { Award } from "lucide-react";
+import { Award, Info, HelpCircle } from "lucide-react";
 
 // Define the Conversation type to match what the API returns
 interface Conversation {
@@ -238,6 +238,72 @@ export default function Sidebar({
               }`}
             >
               My Awards
+            </p>
+          </div>
+        </Link>
+
+        {/* --- ADD ABOUT US LINK --- */}
+        <Link
+          href="/about"
+          onClick={() => setMobileMenuOpen(false)}
+          className={`group relative flex items-center px-3 py-3 rounded-xl transition-all duration-200 ${
+            pathname === "/about" ? "bg-primary/10" : "hover:bg-muted"
+          }`}
+        >
+          {pathname === "/about" && (
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full"></div>
+          )}
+          <div
+            className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center mr-3 transition-all duration-200 ${
+              pathname === "/about"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
+            }`}
+          >
+            <Info className="w-4 h-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p
+              className={`text-sm font-medium truncate ${
+                pathname === "/about"
+                  ? "text-primary font-semibold"
+                  : "text-foreground"
+              }`}
+            >
+              About Us
+            </p>
+          </div>
+        </Link>
+
+        {/* --- ADD FAQ LINK --- */}
+        <Link
+          href="/faq"
+          onClick={() => setMobileMenuOpen(false)}
+          className={`group relative flex items-center px-3 py-3 rounded-xl transition-all duration-200 ${
+            pathname === "/faq" ? "bg-primary/10" : "hover:bg-muted"
+          }`}
+        >
+          {pathname === "/faq" && (
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full"></div>
+          )}
+          <div
+            className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center mr-3 transition-all duration-200 ${
+              pathname === "/faq"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
+            }`}
+          >
+            <HelpCircle className="w-4 h-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p
+              className={`text-sm font-medium truncate ${
+                pathname === "/faq"
+                  ? "text-primary font-semibold"
+                  : "text-foreground"
+              }`}
+            >
+              FAQ
             </p>
           </div>
         </Link>
