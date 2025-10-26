@@ -113,7 +113,7 @@ ${relevantMemories.join("\n---\n")}
     // Note: Using flexible matching for phrases with spaces
     if (
       /\b(validation|score|rating|progress|metric|performance)\b/.test(lowerCaseMessage) ||
-      /how\s+am\s+i\s+doing/i.test(lowerCaseMessage)
+      /how\s+am\s+i\s+doing/.test(lowerCaseMessage)
     ) {
       const validationSummary = await getValidationHubSummary(conversationId);
       if (validationSummary) {
