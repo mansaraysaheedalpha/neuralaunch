@@ -1,16 +1,22 @@
-// src/app/api/validation/[conversationId]/route.ts (NEW FILE)
+// src/app/api/validation/[conversationId]/route.ts
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
-import { getFeedbackSentiment, getValidationInsight } from "@/lib/validation"; // Import our new helper
+import { getFeedbackSentiment, getValidationInsight } from "@/lib/validation";
 import { saveMemory } from "@/lib/ai-memory";
+import { handleApiError, ErrorResponses, NotFoundError } from "@/lib/api-error";
+import { successResponse } from "@/lib/api-response";
 
 // --- Zod Schema for Input Validation ---
 const updateSchema = z.object({
   customerInterviewCount: z.number().int().min(0).max(1000),
   interviewNotes: z.string().min(10, "Notes must be at least 10 characters"),
+});
+
+const conversationIdSchema = z.object({
+  conversationId: z.string().cuid(),
 });
 
 export async function GET(
@@ -20,12 +26,18 @@ export async function GET(
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return new NextResponse("Unauthorized", { status: 401 });
+      return ErrorResponses.unauthorized();
     }
 
-    const { conversationId } = await params;
+    const rawParams = await params;
+    const validation = conversationIdSchema.safeParse(rawParams);
+    if (!validation.success) {
+      return ErrorResponses.badRequest("Invalid conversation ID");
+    }
+    
+    const { conversationId } = validation.data;
 
-    // Verify user owns the conversation this hub will be attached to
+    // Verify user owns the conversation
     const conversation = await prisma.conversation.findUnique({
       where: {
         id: conversationId,
@@ -35,24 +47,21 @@ export async function GET(
     });
 
     if (!conversation) {
-      return new NextResponse("Not Found", { status: 404 });
+      throw new NotFoundError("Conversation");
     }
 
-    // Upsert ensures that a ValidationHub entry always exists.
-    // If it doesn't, it creates a blank one.
-    // If it does, it just fetches it.
+    // Upsert ensures that a ValidationHub entry always exists
     const validationHub = await prisma.validationHub.upsert({
-      where: { conversationId: conversationId },
+      where: { conversationId },
       create: {
-        conversationId: conversationId,
+        conversationId,
       },
       update: {}, // No updates needed on a simple GET
     });
 
-    return NextResponse.json(validationHub);
+    return successResponse(validationHub);
   } catch (error) {
-    console.error("[VALIDATION_HUB_GET_ERROR]", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    return handleApiError(error, "GET /api/validation/[conversationId]");
   }
 }
 
@@ -63,20 +72,23 @@ export async function POST(
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return new NextResponse("Unauthorized", { status: 401 });
+      return ErrorResponses.unauthorized();
     }
 
     const userId = session.user.id;
-    const { conversationId } = await params;
+    const rawParams = await params;
+    const paramValidation = conversationIdSchema.safeParse(rawParams);
+    if (!paramValidation.success) {
+      return ErrorResponses.badRequest("Invalid conversation ID");
+    }
+    
+    const { conversationId } = paramValidation.data;
     const body: unknown = await req.json();
 
     // 1. Validate Input
     const validation = updateSchema.safeParse(body);
     if (!validation.success) {
-      return NextResponse.json(
-        { error: "Invalid input", issues: validation.error.format() },
-        { status: 400 }
-      );
+      return handleApiError(validation.error, "POST /api/validation/[conversationId]");
     }
     const { customerInterviewCount, interviewNotes } = validation.data;
 
@@ -105,7 +117,7 @@ export async function POST(
 
     // Check if user owns this conversation
     if (!conversation) {
-      return new NextResponse("Not Found or Access Denied", { status: 404 });
+      throw new NotFoundError("Conversation");
     }
 
     // 3. Call AI for Sentiment Analysis
@@ -140,7 +152,8 @@ export async function POST(
     // D. Total Score (Max: 100 pts)
     const totalValidationScore =
       marketDemandScore + problemValidationScore + executionScore;
-    // 5. --- GET THE AI INSIGHT (NEW STEP) ---
+      
+    // 5. --- GET THE AI INSIGHT ---
     const aiInsight = await getValidationInsight({
       marketDemandScore,
       problemValidationScore,
@@ -150,8 +163,8 @@ export async function POST(
 
     void saveMemory({
       content: `Validation Insight (Score: ${totalValidationScore.toFixed(0)}): "${aiInsight}"`,
-      conversationId: conversationId,
-      userId: userId, // Pass the userId we got earlier
+      conversationId,
+      userId,
     });
 
     // 6. Save Results to Database
@@ -166,7 +179,7 @@ export async function POST(
         problemValidationScore,
         executionScore,
         totalValidationScore,
-        aiInsight, // <-- SAVE THE INSIGHT
+        aiInsight,
       },
       update: {
         customerInterviewCount,
@@ -176,15 +189,14 @@ export async function POST(
         problemValidationScore,
         executionScore,
         totalValidationScore,
-        aiInsight, // <-- SAVE THE INSIGHT
+        aiInsight,
         updatedAt: new Date(),
       },
     });
 
     // 7. Return the Full Result
-    return NextResponse.json(validationHub);
+    return successResponse(validationHub);
   } catch (error) {
-    console.error("[VALIDATION_SCORE_POST_ERROR]", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    return handleApiError(error, "POST /api/validation/[conversationId]");
   }
 }

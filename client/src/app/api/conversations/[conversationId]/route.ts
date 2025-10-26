@@ -1,22 +1,34 @@
 // client/src/app/api/conversations/[conversationId]/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
+import { handleApiError, ErrorResponses, NotFoundError } from "@/lib/api-error";
+import { successResponse, noContentResponse } from "@/lib/api-response";
+import { z } from "zod";
 
 const MESSAGES_PER_PAGE = 20;
 
+const conversationIdSchema = z.object({
+  conversationId: z.string().cuid(),
+});
+
 export async function GET(
   req: NextRequest,
-  context: { params: Promise<{ conversationId: string }> } // <-- Adjusted type
+  context: { params: Promise<{ conversationId: string }> }
 ) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
-      return new NextResponse("Unauthorized", { status: 401 });
+      return ErrorResponses.unauthorized();
     }
 
-    // Await the params promise here
-    const { conversationId } = await context.params; // <-- Await here
+    const params = await context.params;
+    const validation = conversationIdSchema.safeParse(params);
+    if (!validation.success) {
+      return ErrorResponses.badRequest("Invalid conversation ID");
+    }
+    
+    const { conversationId } = validation.data;
     const { searchParams } = new URL(req.url);
     const cursor = searchParams.get("cursor");
 
@@ -28,7 +40,7 @@ export async function GET(
     });
 
     if (!conversation) {
-      return new NextResponse("Conversation not found", { status: 404 });
+      throw new NotFoundError("Conversation");
     }
 
     const messages = await prisma.message.findMany({
@@ -43,36 +55,39 @@ export async function GET(
       orderBy: { createdAt: "asc" },
     });
 
-    let nextCursor = null;
+    let nextCursor: string | null = null;
     if (messages.length > MESSAGES_PER_PAGE) {
-      // Corrected check
-      const nextItem = messages.pop(); // Remove the extra item
+      const nextItem = messages.pop();
       nextCursor = nextItem!.id;
     }
 
-    return NextResponse.json({
+    return successResponse({
       ...conversation,
       messages,
       nextCursor,
     });
   } catch (error) {
-    console.error("[CONVERSATION_GET_ERROR]", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    return handleApiError(error, "GET /api/conversations/[conversationId]");
   }
 }
 
 export async function DELETE(
   req: NextRequest,
-  context: { params: Promise<{ conversationId: string }> } // <-- Adjusted type
+  context: { params: Promise<{ conversationId: string }> }
 ) {
   try {
     const session = await auth();
-    if (!session || !session.user?.id) {
-      return new NextResponse("Unauthorized", { status: 401 });
+    if (!session?.user?.id) {
+      return ErrorResponses.unauthorized();
     }
 
-    // Await the params promise here
-    const { conversationId } = await context.params; // <-- Await here
+    const params = await context.params;
+    const validation = conversationIdSchema.safeParse(params);
+    if (!validation.success) {
+      return ErrorResponses.badRequest("Invalid conversation ID");
+    }
+    
+    const { conversationId } = validation.data;
 
     const deleteResult = await prisma.conversation.deleteMany({
       where: {
@@ -82,14 +97,11 @@ export async function DELETE(
     });
 
     if (deleteResult.count === 0) {
-      return new NextResponse("Conversation not found or access denied", {
-        status: 404,
-      });
+      throw new NotFoundError("Conversation");
     }
 
-    return new NextResponse(null, { status: 204 });
+    return noContentResponse();
   } catch (error) {
-    console.error("[CONVERSATION_DELETE_ERROR]", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    return handleApiError(error, "DELETE /api/conversations/[conversationId]");
   }
 }

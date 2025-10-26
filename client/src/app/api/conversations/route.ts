@@ -1,18 +1,19 @@
 // client/src/app/api/conversations/route.ts
-import { NextResponse } from "next/server";
 import { auth } from "@/auth";
-import prisma from "@/lib/prisma";//
+import prisma from "@/lib/prisma";
+import { handleApiError, ErrorResponses } from "@/lib/api-error";
+import { successResponse } from "@/lib/api-response";
 
 export async function GET() {
   try {
     const session = await auth();
-    if (!session || !session.user?.id) {
-      return new NextResponse("Unauthorized", { status: 401 });
+    if (!session?.user?.id) {
+      return ErrorResponses.unauthorized();
     }
     const userId = session.user.id;
 
     const conversations = await prisma.conversation.findMany({
-      where: { userId: userId },
+      where: { userId },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -22,9 +23,8 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json(conversations);
+    return successResponse(conversations);
   } catch (error) {
-    console.error("[CONVERSATIONS_GET_ERROR]", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    return handleApiError(error, "GET /api/conversations");
   }
 }
