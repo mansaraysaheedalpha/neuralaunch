@@ -87,22 +87,22 @@ Configure in Vercel Dashboard:
 ### 2. Docker Deployment
 ```bash
 # Build Docker image
-docker build -t ideaspark .
+docker build -t neuralaunch .
 
 # Run container
-docker run -p 3000:3000 --env-file .env ideaspark
+docker run -p 3000:3000 --env-file .env neuralaunch
 ```
 
 ### 3. Traditional Node.js Deployment
 ```bash
 # On server
 git clone <repository>
-cd ideaspark/client
+cd neuralaunch/client
 npm install
 npm run build
 
 # Start with PM2
-pm2 start npm --name "ideaspark" -- start
+pm2 start npm --name "neuralaunch" -- start
 pm2 save
 pm2 startup
 ```
@@ -249,4 +249,4 @@ If database changes were made:
 
 **Last Updated**: [Date]
 **Version**: 1.0
-**Maintainer**: IdeaSpark Team
+**Maintainer**: NeuraLaunch Team

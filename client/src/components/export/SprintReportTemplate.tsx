@@ -69,7 +69,7 @@ export const SprintReportTemplate = ({ conversation }: ReportProps) => {
       </Head>
       <body style={styles.page}>
         <h1 style={styles.h1}>
-          🚀 IdeaSpark Sprint Report: {conversation.title}
+          🚀 NeuraLaunch Sprint Report: {conversation.title}
         </h1>
         <p style={styles.p}>
           This document contains all the AI-generated assets from your 72-hour

@@ -120,7 +120,7 @@ export default function SprintDashboard({
       a.href = url;
       // Extract filename from header if possible, otherwise use default
       const disposition = response.headers.get("Content-Disposition");
-      let filename = `ideaspark-report-${conversationId}.pdf`; // Default
+      let filename = `neuralaunch-report-${conversationId}.pdf`; // Default
       if (disposition && disposition.indexOf("attachment") !== -1) {
         const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
         const matches = filenameRegex.exec(disposition);

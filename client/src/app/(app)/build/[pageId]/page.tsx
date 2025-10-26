@@ -106,7 +106,7 @@ export async function generateMetadata({ params }: BuildPageProps) {
 
   return {
     title: landingPage
-      ? `Edit: ${landingPage.title} | IdeaSpark`
+      ? `Edit: ${landingPage.title} | NeuraLaunch`
       : "Page Not Found",
   };
 }

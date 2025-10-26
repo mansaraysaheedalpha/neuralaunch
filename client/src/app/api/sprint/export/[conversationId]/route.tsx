@@ -92,7 +92,7 @@ async function generateHTML(
     )
     .join("");
 
-  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Sprint Report: ${title}</title><style>${styles}</style></head><body><h1>🚀 IdeaSpark Sprint Report: ${title.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</h1><p>This document contains all the AI-generated assets from your 72-hour validation sprint.</p>${tasksHTML}</body></html>`;
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Sprint Report: ${title}</title><style>${styles}</style></head><body><h1>🚀 NeuraLaunch Sprint Report: ${title.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</h1><p>This document contains all the AI-generated assets from your 72-hour validation sprint.</p>${tasksHTML}</body></html>`;
 }
 
 export async function GET(

@@ -95,7 +95,7 @@ export default function ProfilePage() {
       <div className="max-w-4xl mx-auto">
         <h1 className="text-4xl font-bold text-foreground mb-2">Your Awards</h1>
         <p className="text-muted-foreground mb-8">
-          Celebrating your journey as a builder on the IdeaSpark platform.
+          Celebrating your journey as a builder on the NeuraLaunch platform.
         </p>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {allUserAchievements.map((ach: AchievementConfig, index: number) => (
