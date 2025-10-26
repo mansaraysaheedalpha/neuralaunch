@@ -17,11 +17,11 @@ export function middleware(_request: NextRequest) {
   // Adjust as needed for your specific third-party integrations
   const cspHeader = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://va.vercel-scripts.com https://www.googletagmanager.com https://static.hotjar.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://va.vercel-scripts.com https://www.googletagmanager.com https://static.hotjar.com https://t.contentsquare.net",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' blob: data: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "connect-src 'self' https://vercel.live https://vitals.vercel-insights.com https://www.google-analytics.com https://www.googletagmanager.com https://*.hotjar.com",
+    "connect-src 'self' https://vercel.live https://vitals.vercel-insights.com https://www.google-analytics.com https://www.googletagmanager.com https://*.hotjar.com https://*.contentsquare.net",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
