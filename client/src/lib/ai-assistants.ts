@@ -1,19 +1,8 @@
 //src/ lib/ai-assistants.ts
 // AI Task Assistant System - Specialized AI for each task type
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import OpenAI from "openai";
 import { AssistantType } from "@prisma/client";
-import { AI_MODELS } from "./models";
-
-// --- Initialize Clients ---
-const genAI = new GoogleGenerativeAI(
-  process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || ""
-);
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+import { AITaskType, executeAITaskSimple } from "./ai-orchestrator";
 
 export interface AssistantContext {
   startupIdea: string;
@@ -27,7 +16,7 @@ export interface AssistantContext {
   }>;
 }
 
-type ModelProvider = "GOOGLE" | "OPENAI";
+type ModelProvider = "GOOGLE" | "OPENAI" | "ANTHROPIC";
 const CODE_KEYWORDS = [
   "code",
   "script",
@@ -64,8 +53,8 @@ function routeToModel(
       console.log(`🤖 Routing 'GENERAL' task with code keywords to OPENAI`);
       return 'OPENAI';
     }
-    // Otherwise, it's a normal GENERAL task for Google
-    return 'GOOGLE';
+    // Otherwise, use Claude for general tasks
+    return 'ANTHROPIC';
   }
 
   // All other specialized tasks (CUSTOMER_PROFILE, etc.) go to Google.
@@ -107,39 +96,20 @@ export async function runTaskAssistant(
   );
 
   try {
-    let content = "";
-    let tokenCount = 0; // Initialize token count
+    console.log(`🚀 Calling ${provider} for ${assistantType} via orchestrator...`);
 
-    console.log(`🚀 Calling ${provider} for ${assistantType}...`);
+    // Use the AI orchestrator to execute the task
+    const content = await executeAITaskSimple(AITaskType.SPRINT_TASK_ASSISTANCE, {
+      prompt: taskDescription,
+      systemInstruction: systemPrompt,
+      description: taskDescription, // Pass description for routing
+    });
 
-    // 3. Call the selected AI provider's API
-    if (provider === "GOOGLE") {
-      const model = genAI.getGenerativeModel({
-        model: AI_MODELS.PRIMARY,
-        systemInstruction: systemPrompt,
-        generationConfig: { temperature: 0.7, maxOutputTokens: 8192 },
-      });
-      const result = await model.generateContent(taskDescription);
-      content = result.response.text();
-      // Attempt to get token count from Google's response
-      tokenCount = result.response.usageMetadata?.totalTokenCount ?? 0;
-    } else if (provider === "OPENAI") {
-      const completion = await openai.chat.completions.create({
-        model: AI_MODELS.OPENAI, // Use the model from our config
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: taskDescription }, // Pass taskDescription as the user message
-        ],
-        temperature: 0.7,
-        max_tokens: 4096,
-      });
-      content = completion.choices[0]?.message?.content || "";
-      // Get token count from OpenAI's response
-      tokenCount = completion.usage?.total_tokens ?? 0;
-    }
+    // Note: We don't have token count from orchestrator yet
+    const tokenCount = content.length; // Approximate
 
     console.log(
-      `✅ ${provider} (${assistantType}) generated ${content.length} characters, Tokens: ${tokenCount}`
+      `✅ ${provider} (${assistantType}) generated ${content.length} characters`
     );
 
     // Return the full AssistantResponse object

@@ -3,23 +3,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { AI_MODELS } from "@/lib/models";
 import { searchMemory, saveMemory } from "@/lib/ai-memory"; // Import both memory functions
 import {
   getLandingPageAnalyticsSummary,
   getSprintProgressSummary,
 } from "@/lib/cofounder-helpers";
 import { z } from "zod";
+import { AITaskType, executeAITaskSimple } from "@/lib/ai-orchestrator";
 
 // --- Input Validation ---
 const cofounderRequestSchema = z.object({
   message: z.string().min(1, "Message cannot be empty."),
   conversationId: z.string().cuid("Invalid Conversation ID."),
 });
-
-// --- Initialize AI Client ---
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 
 // --- Cofounder System Prompt ---
 // This defines the AI's personality and goals
@@ -124,15 +120,15 @@ ${relevantMemories.join("\n---\n")}
     const fullContext = vectorContext + structuredDataContext;
     const fullPrompt = `${fullContext}\n\nUser's Current Message: "${userMessage}"`;
 
-    // --- Call the Main AI Model ---
-    console.log(`🚀 Calling main AI model for Cofounder response...`);
-    const model = genAI.getGenerativeModel({
-      model: AI_MODELS.PRIMARY, // Use your best model
-      systemInstruction: COFOUNDER_SYSTEM_PROMPT,
-    });
-
-    const result = await model.generateContent(fullPrompt);
-    const cofounderResponse = result.response.text();
+    // --- Call the Main AI Model using orchestrator ---
+    console.log(`🚀 Calling AI orchestrator for Cofounder response...`);
+    const cofounderResponse = await executeAITaskSimple(
+      AITaskType.COFOUNDER_CHAT_RESPONSE,
+      {
+        prompt: fullPrompt,
+        systemInstruction: COFOUNDER_SYSTEM_PROMPT,
+      }
+    );
 
     // --- Save Messages to Database ---
     // Save both user message and cofounder response to the database

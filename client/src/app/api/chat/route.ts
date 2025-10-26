@@ -1,16 +1,19 @@
 //src/app/api/chat/route.ts 
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import {
   getTagExtractionPrompt,
   cleanAndValidateTags,
   ALL_VALID_TAGS,
 } from "../../../../lib/tag-taxonomy";
 import prisma from "@/lib/prisma"; //
-import { AI_MODELS } from "@/lib/models";
 import { z } from "zod";
 import { saveMemory } from "@/lib/ai-memory";
+import { 
+  AITaskType, 
+  executeAITaskSimple, 
+  executeAITaskStream 
+} from "@/lib/ai-orchestrator";
 
 const chatRequestSchema = z.object({
   messages: z
@@ -23,8 +26,6 @@ const chatRequestSchema = z.object({
     .min(1, { message: "Messages array cannot be empty." }), // Ensure there's at least one message
   conversationId: z.string().cuid().optional(), // Must be a valid CUID, but is optional
 });
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
 
 // UPGRADE: Define the System Prompt constant
 const SYSTEM_PROMPT = `
@@ -165,13 +166,9 @@ Your mission is to make every user feel like they've been given a treasure mapâ€
 
 async function generateTitle(prompt: string): Promise<string> {
   try {
-    const titleModel = genAI.getGenerativeModel({ model: AI_MODELS.FAST });
-    const result = await titleModel.generateContent(
-      `Generate ONE title ONLY... User's prompt: "${prompt}" Title:`
-    );
-
-    // Assuming text() returns a Promise<string>
-    const title: string = result.response.text();
+    const title = await executeAITaskSimple(AITaskType.TITLE_GENERATION, {
+      prompt: `Generate ONE title ONLY... User's prompt: "${prompt}" Title:`,
+    });
 
     const cleanTitle = title
       .replace(/^(Title:|Here's|Here are|Options?:|\d+\.|\*\*)/gi, "")
@@ -199,11 +196,10 @@ async function extractAndSaveTags(
 ): Promise<void> {
   // Added return type
   try {
-    const taggingModel = genAI.getGenerativeModel({ model: AI_MODELS.FAST }); // Use consistent model definition
     const tagPrompt = getTagExtractionPrompt(blueprint);
-    const tagResult = await taggingModel.generateContent(tagPrompt);
-    // Assuming text() returns a Promise<string>
-    const tagText: string = tagResult.response.text();
+    const tagText = await executeAITaskSimple(AITaskType.LANDING_PAGE_COPY, {
+      prompt: tagPrompt,
+    });
 
     const rawTags = tagText
       .split(",")
@@ -321,28 +317,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const model = genAI.getGenerativeModel({
-      model: AI_MODELS.PRIMARY,
-      systemInstruction: SYSTEM_PROMPT,
-    });
-
     const formattedMessages = messages.map((msg) => ({
       role: msg.role === "user" ? "user" : "model",
-      parts: [{ text: msg.content }],
+      content: msg.content,
     }));
 
-    const result = await model.generateContentStream({
-      contents: formattedMessages,
+    const result = await executeAITaskStream(AITaskType.BLUEPRINT_GENERATION, {
+      messages: formattedMessages,
+      systemInstruction: SYSTEM_PROMPT,
     });
+    
     const encoder = new TextEncoder();
     let fullResponse = "";
 
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of result.stream) {
-            // Check potential response structure differences if errors persist here
-            const chunkText = chunk.text(); // Assuming chunk.text() is sync
+          for await (const chunkText of result) {
             if (chunkText) {
               fullResponse += chunkText;
               controller.enqueue(encoder.encode(chunkText));

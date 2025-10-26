@@ -24,7 +24,12 @@ export const AI_MODELS = {
   OPENAI: "gpt-4o",
 
   /**
-   * --- ADD THIS BLOCK ---
+   * For nuanced understanding, safety, and potentially better chat/creative tasks.
+   * Use for: Cofounder chat, complex reasoning, coding tasks.
+   */
+  CLAUDE: "claude-sonnet-4-5-20250929",
+
+  /**
    * For generating vector embeddings.
    * Use for: AI Cofounder memory.
    */

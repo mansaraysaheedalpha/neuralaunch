@@ -11,12 +11,7 @@ import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { saveMemory } from "@/lib/ai-memory";
-import { GoogleGenerativeAI } from "@google/generative-ai"; // <<< ADD AI Client
-import { AI_MODELS } from "@/lib/models"; // <<< ADD AI Models
-
-// --- ADD AI Client Init ---
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-// -------------------------
+import { AITaskType, executeAITaskSimple } from "@/lib/ai-orchestrator";
 const generateRequestSchema = z.object({
   conversationId: z.string().cuid({ message: "Invalid Conversation ID" }),
   designVariantId: z.string().optional(),
@@ -43,7 +38,6 @@ interface PricingTier {
 // --- NEW: Survey Question Generation Function ---
 async function generateSurveyQuestions(blueprint: string): Promise<{ q1: string; q2: string }> {
     try {
-        const model = genAI.getGenerativeModel({ model: AI_MODELS.FAST }); // Use the fast model
         const prompt = `
 Based on this startup blueprint, generate two concise, high-impact survey questions to ask visitors after they sign up on a landing page.
 
@@ -59,8 +53,9 @@ ${blueprint}
 ---
 JSON:`;
 
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
+        const text = await executeAITaskSimple(AITaskType.SURVEY_QUESTION_GENERATION, {
+            prompt,
+        });
         
         // Clean and parse JSON
         const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -89,7 +84,6 @@ JSON:`;
 
 async function generatePricingTiers(blueprint: string, targetMarket: "b2b" | "b2c"): Promise<PricingTier[]> {
     try {
-        const model = genAI.getGenerativeModel({ model: AI_MODELS.FAST });
         const prompt = `
 Based on this startup blueprint and its target market (${targetMarket}), generate three distinct pricing tiers.
 
@@ -106,8 +100,9 @@ ${blueprint}
 ---
 JSON:`;
 
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
+        const text = await executeAITaskSimple(AITaskType.PRICING_TIER_GENERATION, {
+            prompt,
+        });
         
         const jsonMatch = text.match(/\[[\s\S]*\]/);
         if (!jsonMatch) {

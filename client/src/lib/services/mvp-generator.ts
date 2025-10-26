@@ -1,11 +1,6 @@
 // src/lib/services/mvp-generator.ts
-import { OpenAI } from "openai";
 import { AI_MODELS } from "@/lib/models"; // We'll use your GPT model
-
-// --- AI CLIENT INITIALIZATION ---
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { AITaskType, executeAITaskSimple } from "@/lib/ai-orchestrator";
 
 // --- TYPE DEFINITIONS ---
 
@@ -52,7 +47,7 @@ function slugify(text: string): string {
 }
 
 /**
- * NEW: This function uses GPT-5 Pro to parse the raw markdown blueprint
+ * NEW: This function uses GPT-4o to parse the raw markdown blueprint
  * into a structured JSON object. This is the "magic" step.
  */
 async function parseBlueprint(
@@ -117,15 +112,13 @@ ${blueprintString}
 `;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: AI_MODELS.OPENAI,
-      response_format: { type: "json_object" },
-      messages: [{ role: "user", content: parserPrompt }],
+    const jsonString = await executeAITaskSimple(AITaskType.BLUEPRINT_PARSING, {
+      prompt: parserPrompt,
+      responseFormat: { type: "json_object" },
     });
 
-    const jsonString = response.choices[0]?.message?.content;
     if (!jsonString) {
-      throw new Error("OpenAI returned an empty response.");
+      throw new Error("AI orchestrator returned an empty response.");
     }
 
     return JSON.parse(jsonString) as ParsedBlueprint;
