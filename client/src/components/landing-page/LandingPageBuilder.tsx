@@ -381,8 +381,8 @@ export default function LandingPageBuilder({
                       disabled={isRegenerating || isPublishing}
                       className="flex items-center gap-3 px-3 py-2 rounded hover:bg-muted cursor-pointer outline-none select-none disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <span>{isRegenerating ? "⏳" : "🔄"}</span>
-                      <span>{isRegenerating ? "Regenerating..." : "Regenerate"}</span>
+                      <span>🔄</span>
+                      <span>{isRegenerating ? "..." : "Regenerate"}</span>
                     </DropdownMenu.Item>
                     <DropdownMenu.Separator className="h-px bg-border my-1" />
                     <DropdownMenu.Item
@@ -390,12 +390,10 @@ export default function LandingPageBuilder({
                       disabled={isPublishing || isRegenerating}
                       className={`flex items-center gap-3 px-3 py-2 rounded hover:bg-muted cursor-pointer outline-none select-none disabled:opacity-50 disabled:cursor-not-allowed ${currentIsPublished ? "text-amber-600 dark:text-amber-400" : "text-green-600 dark:text-green-400"}`}
                     >
-                      <span>{isPublishing ? "⏳" : currentIsPublished ? "📤" : "🚀"}</span>
+                      <span>{currentIsPublished ? "📤" : "🚀"}</span>
                       <span>
                         {isPublishing
-                          ? currentIsPublished
-                            ? "Unpublishing..."
-                            : "Publishing..."
+                          ? "..."
                           : currentIsPublished
                             ? "Unpublish"
                             : "Publish"}
