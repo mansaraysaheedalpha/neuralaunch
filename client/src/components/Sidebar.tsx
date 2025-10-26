@@ -72,8 +72,8 @@ export default function Sidebar({
         const response = await fetch("/api/conversations");
         if (!response.ok) throw new Error("Failed to fetch conversations");
         const responseData: unknown = await response.json();
-        const data = responseData as Conversation[];
-        setConversations(data || []);
+        const apiResponse = responseData as { success: boolean; data: Conversation[] };
+        setConversations(apiResponse.data || []);
       } catch (err) {
         const errorMessage =
           err instanceof Error ? err.message : "An error occurred";
