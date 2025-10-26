@@ -17,6 +17,7 @@ NeuraLaunch is an AI-powered startup validation platform that combines intellige
 - **Business Model Design**: Revenue architecture and unit economics projections
 
 ### 🤖 AI Co-Founder with Memory (RAG)
+- **Persistent Conversations**: All co-founder chats are saved to database and persist across sessions
 - **Persistent Context**: AI remembers your entire project history
 - **Vector Search**: Retrieves relevant past conversations and insights
 - **Strategic Guidance**: Acts as Y Combinator partner + lean startup expert
