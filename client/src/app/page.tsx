@@ -1,6 +1,7 @@
 "use client"; // This landing page uses animations and interactive elements
 
 import Link from "next/link";
+import React from "react";
 // Add imports for scroll animations
 import { motion, useScroll, useTransform, type Variants } from "framer-motion";
 import { useRef } from "react"; // Import useRef
@@ -77,6 +78,13 @@ const iconPopIn: Variants = {
 const HeroSection = () => {
   const headlineWords = "Build the Right Thing, Faster.".split(" ");
   const primaryWordIndex = 5;
+  
+  // Generate stable random values for particle animations
+  const particleOffsets = React.useMemo(() => 
+    Array.from({ length: 8 }, () => Math.random() * 30 - 15),
+    []
+  );
+  
   return (
     <section className="relative overflow-hidden py-32 text-center">
       <HeroBackgroundGradient />
@@ -84,12 +92,12 @@ const HeroSection = () => {
       <HeroForegroundStreaks />
       
       {/* Floating Particles */}
-      {[...Array(8)].map((_, i) => (
+      {particleOffsets.map((offset, i) => (
         <motion.div
           key={i}
           animate={{
             y: [0, -30, 0],
-            x: [0, Math.random() * 30 - 15, 0],
+            x: [0, offset, 0],
             opacity: [0.2, 0.6, 0.2],
             scale: [1, 1.2, 1],
           }}

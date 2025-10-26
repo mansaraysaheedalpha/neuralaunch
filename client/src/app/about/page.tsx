@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRef, useEffect, useState } from "react";
+import React from "react";
 import LandingHeader from "@/components/LandingHeader";
 import LandingFooter from "@/components/LandingFooter";
 
@@ -32,12 +33,12 @@ const fadeIn = {
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 40 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" as const } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.8, ease: "easeOut" } },
 };
 
 const scaleIn = {
   hidden: { opacity: 0, scale: 0.8 },
-  visible: { opacity: 1, scale: 1, transition: { duration: 0.6, ease: "easeOut" as const } },
+  visible: { opacity: 1, scale: 1, transition: { duration: 0.6, ease: "easeOut" } },
 };
 
 const staggerContainer = {
@@ -56,7 +57,7 @@ const floatingAnimation = {
   transition: {
     duration: 3,
     repeat: Infinity,
-    ease: "easeInOut" as const,
+    ease: "easeInOut",
   },
 };
 
@@ -879,28 +880,37 @@ export default function AboutPage() {
           </motion.div>
         </div>
 
-        {/* Floating Particles */}
-        {[...Array(5)].map((_, i) => (
-          <motion.div
-            key={i}
-            animate={{
-              y: [0, -30, 0],
-              x: [0, Math.random() * 20 - 10, 0],
-              opacity: [0.3, 0.6, 0.3],
-            }}
-            transition={{
-              duration: 3 + i,
-              repeat: Infinity,
-              ease: "easeInOut",
-              delay: i * 0.5,
-            }}
-            className="absolute w-2 h-2 bg-primary rounded-full"
-            style={{
-              left: `${20 + i * 15}%`,
-              top: `${30 + (i % 2) * 40}%`,
-            }}
-          />
-        ))}
+        {/* Floating Particles with stable positions */}
+        {React.useMemo(() => {
+          const particles = Array.from({ length: 5 }, (_, i) => ({
+            key: i,
+            xOffset: Math.random() * 20 - 10,
+            left: 20 + i * 15,
+            top: 30 + (i % 2) * 40,
+          }));
+          
+          return particles.map((particle) => (
+            <motion.div
+              key={particle.key}
+              animate={{
+                y: [0, -30, 0],
+                x: [0, particle.xOffset, 0],
+                opacity: [0.3, 0.6, 0.3],
+              }}
+              transition={{
+                duration: 3 + particle.key,
+                repeat: Infinity,
+                ease: "easeInOut",
+                delay: particle.key * 0.5,
+              }}
+              className="absolute w-2 h-2 bg-primary rounded-full"
+              style={{
+                left: `${particle.left}%`,
+                top: `${particle.top}%`,
+              }}
+            />
+          ));
+        }, [])}
       </section>
       
       <LandingFooter />
