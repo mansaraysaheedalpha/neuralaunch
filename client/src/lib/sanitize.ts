@@ -157,6 +157,47 @@ export function sanitizeMarkdown(markdown: string): string {
 }
 
 /**
+ * Sanitize a single value recursively
+ */
+function sanitizeValue(
+  value: unknown,
+  maxDepth: number,
+  currentDepth: number
+): unknown {
+  if (currentDepth >= maxDepth) {
+    return undefined;
+  }
+
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    return sanitizeUserInput(value);
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => 
+      sanitizeValue(item, maxDepth, currentDepth + 1)
+    );
+  }
+
+  if (typeof value === "object") {
+    return sanitizeJsonObject(
+      value as Record<string, unknown>,
+      maxDepth,
+      currentDepth + 1
+    );
+  }
+
+  return undefined;
+}
+
+/**
  * Sanitize object for JSON storage
  * Removes potentially dangerous properties and limits depth
  */
@@ -170,16 +211,12 @@ export function sanitizeJsonObject<T extends Record<string, unknown>>(
   }
 
   if (obj === null || typeof obj !== "object") {
-    return obj as unknown as Record<string, unknown>;
+    return {};
   }
 
   if (Array.isArray(obj)) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    return obj.map((item) => 
-      typeof item === "object" && item !== null
-        ? sanitizeJsonObject(item as Record<string, unknown>, maxDepth, currentDepth + 1)
-        : item
-    ) as unknown as Record<string, unknown>;
+    // Arrays are not Record<string, unknown>, return empty object
+    return {};
   }
 
   const sanitized: Record<string, unknown> = {};
@@ -190,17 +227,7 @@ export function sanitizeJsonObject<T extends Record<string, unknown>>(
       continue;
     }
 
-    if (typeof value === "object" && value !== null) {
-      sanitized[key] = sanitizeJsonObject(
-        value as Record<string, unknown>,
-        maxDepth,
-        currentDepth + 1
-      );
-    } else if (typeof value === "string") {
-      sanitized[key] = sanitizeUserInput(value);
-    } else {
-      sanitized[key] = value;
-    }
+    sanitized[key] = sanitizeValue(value, maxDepth, currentDepth);
   }
 
   return sanitized;
