@@ -260,7 +260,7 @@ export default function AboutPage() {
       {/* Hero Section with 3D Effects */}
       <section
         ref={heroRef}
-        className="relative overflow-hidden py-32 px-4 sm:px-6 lg:px-8"
+        className="relative overflow-hidden py-28 px-4 sm:px-6 lg:px-8"
       >
         <motion.div
           style={{ opacity: heroOpacity, scale: heroScale }}
@@ -281,7 +281,7 @@ export default function AboutPage() {
 
           <motion.h1
             variants={fadeInUp}
-            className="text-4xl md:text-5xl lg:text-7xl font-black tracking-tight mb-6 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent"
+            className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight mb-6 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent"
           >
             About NeuraLaunch
           </motion.h1>

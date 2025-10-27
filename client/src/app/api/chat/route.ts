@@ -261,6 +261,7 @@ export async function POST(req: NextRequest) {
     const userId = session?.user?.id;
 
     const body: unknown = await req.json();
+    console.log("Received request to /api/chat with body:", body);
 
     const validation = chatRequestSchema.safeParse(body);
     if (!validation.success) {
@@ -326,47 +327,65 @@ export async function POST(req: NextRequest) {
       messages: formattedMessages,
       systemInstruction: SYSTEM_PROMPT,
     });
-    
+
     const encoder = new TextEncoder();
     let fullResponse = "";
 
+    // --- Stream Logic with Improved Save ---
     const stream = new ReadableStream({
       async start(controller) {
         try {
+          // Stream chunks to client
           for await (const chunkText of result) {
             if (chunkText) {
               fullResponse += chunkText;
               controller.enqueue(encoder.encode(chunkText));
             }
           }
-          if (userId && currentConversationId) {
-            await prisma.message.create({
-              data: {
-                conversationId: currentConversationId,
-                role: "model",
-                content: fullResponse,
-              },
-            });
 
-            if (isNewConversation) {
-              // Run without 'await'
-              void saveMemory({
-                content: `Initial NeuraLaunch Blueprint:\n${fullResponse}`,
-                conversationId: currentConversationId,
-                userId: userId,
+          // --- ATTEMPT TO SAVE AI RESPONSE ---
+          if (userId && currentConversationId) {
+            try {
+              // <<< Add specific try/catch for the save
+              await prisma.message.create({
+                data: {
+                  conversationId: currentConversationId,
+                  role: "model",
+                  content: fullResponse,
+                },
               });
+              console.log(
+                `💾✅ Successfully saved model response for conversation: ${currentConversationId}`
+              );
+
+              // Only save memory/tags if the message save was successful
+              if (isNewConversation) {
+                void saveMemory({
+                  content: `Initial NeuraLaunch Blueprint:\n${fullResponse}`,
+                  conversationId: currentConversationId,
+                  userId: userId,
+                });
+              }
+              void extractAndSaveTags(fullResponse, currentConversationId);
+            } catch (dbError: unknown) {
+              console.error(
+                `❌ FAILED to save model response for conversation ${currentConversationId}:`,
+                dbError instanceof Error ? dbError.message : dbError
+              );
+              // We won't close the controller with an error here,
+              // as the client already received the text via the stream.
+              // But the data won't be persistent.
             }
-            // Don't await tag extraction if it should run in background
-            void extractAndSaveTags(fullResponse, currentConversationId);
           }
-          controller.close();
+          // --- END SAVE ATTEMPT ---
+
+          controller.close(); // Close the stream successfully regardless of save status
         } catch (streamError: unknown) {
-          // Type catch block
           console.error(
             "❌ Stream error:",
             streamError instanceof Error ? streamError.message : streamError
           );
-          controller.error(streamError);
+          controller.error(streamError); // Propagate stream errors
         }
       },
     });
@@ -380,6 +399,10 @@ export async function POST(req: NextRequest) {
         responseHeaders.set("X-Conversation-Title", newConversationTitle);
       }
     }
+    console.log(
+      "Sending response from /api/chat with headers:",
+      responseHeaders
+    );
     return new Response(stream, { headers: responseHeaders });
   } catch (error: unknown) {
     // Type catch block
