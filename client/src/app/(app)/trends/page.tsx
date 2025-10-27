@@ -26,6 +26,12 @@ type TrendsData = {
   snapshotDate?: string;
 };
 
+interface TrendsApiResponse {
+  success: boolean;
+  data: TrendsData;
+  timestamp?: string;
+}
+
 const _SkeletonLoader = () => (
   <div className="bg-card/80 border border-border p-6 rounded-2xl animate-pulse">
     <div className="h-6 bg-muted rounded-xl w-3/4 mb-3"></div>
@@ -167,8 +173,8 @@ export default function TrendsPage() {
         const response = await fetch(`/api/trends?timeframe=${timeframe}`);
         if (!response.ok) throw new Error("Failed to fetch trends data.");
         const responseData: unknown = await response.json();
-        const data = responseData as TrendsData;
-        setTrends(data);
+        const apiResponse = responseData as TrendsApiResponse;
+        setTrends(apiResponse.data); // Get the data from the correct property
         setLastUpdated(new Date());
       } catch (err) {
         setError(

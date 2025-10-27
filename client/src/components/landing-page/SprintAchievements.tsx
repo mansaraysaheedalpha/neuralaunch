@@ -11,6 +11,12 @@ interface ApiErrorResponse {
   message?: string;
 }
 
+interface AchievementsApiResponse {
+  success: boolean;
+  data: Achievement[];
+  timestamp?: string;
+}
+
 // Define the expected return type of the fetcher
 const fetcher = (url: string): Promise<Achievement[]> =>
   fetch(url).then(async (res) => {
@@ -19,8 +25,11 @@ const fetcher = (url: string): Promise<Achievement[]> =>
       const errorBody = errorData as ApiErrorResponse;
       throw new Error(errorBody.message || `API Error: ${res.status}`);
     }
-    const data: unknown = await res.json();
-    return data as Achievement[];
+    // 1. Get the full API response object
+    const apiResponse = (await res.json()) as AchievementsApiResponse;
+
+    // 2. Return ONLY the array from the 'data' property
+    return apiResponse.data;
   });
 
 export default function SprintAchievements({

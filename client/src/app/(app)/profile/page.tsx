@@ -9,6 +9,13 @@ import { Achievement } from "@prisma/client";
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
+// NEW: Define the shape of your API's success response
+interface AchievementsApiResponse {
+  success: boolean;
+  data: Achievement[];
+  timestamp?: string; // Optional, but good to include
+}
+
 // FIX: Line 13 - Define proper interface instead of 'any'
 interface AchievementConfig {
   type: string;
@@ -64,28 +71,37 @@ const UserAchievementCard = ({
 );
 
 export default function ProfilePage() {
-  // FIX: Explicitly type the error to avoid unsafe destructuring
-  const swrResult = useSWR<Achievement[], Error>(
+  // FIX 1: Tell SWR to expect the *API Response OBJECT*
+  const swrResult = useSWR<AchievementsApiResponse, Error>(
     "/api/achievements?type=user",
     fetcher
   );
-  const unlockedAchievements = swrResult.data;
+  const apiResponse = swrResult.data;
   const error = swrResult.error;
 
   if (error)
     return (
       <div className="p-8 text-center text-destructive">
-        Failed to load achievements.
+                Failed to load achievements.      {" "}
       </div>
+    ); // FIX 2: Check if the *entire response object* is loading
+
+  if (!apiResponse)
+    return <div className="p-8 text-center">Loading Awards...</div>; // FIX 3: Get the array from the '.data' property
+
+  const unlockedAchievements = apiResponse.data; // FIX 4: Add a safety check for the array itself (handles null/undefined)
+
+  if (!unlockedAchievements) {
+    console.error(
+      "API response was successful but 'data' field was missing or null."
     );
-  if (!unlockedAchievements)
-    return <div className="p-8 text-center">Loading Awards...</div>;
+    return <div className="p-8 text-center">Could not load awards data.</div>;
+  } // THIS WILL NOW WORK! unlockedAchievements is the array.
 
   const unlockedTypes = new Set(
     unlockedAchievements.map((a) => a.achievementType)
-  );
+  ); // Get all possible user-level achievements from our config
 
-  // Get all possible user-level achievements from our config
   const allUserAchievements = (
     Object.values(Achievements) as AchievementConfig[]
   ).filter((ach: AchievementConfig) => ach.scope === "user");
