@@ -55,6 +55,7 @@ export default function GeneratePage() {
     setIsLoading,
     setError, // Make sure error state is destructured
     error, // Also get the error state itself
+    setCurrentConversationId,
   } = useChatStore();
 
   const formRef = useRef<HTMLFormElement>(null);
@@ -138,6 +139,7 @@ export default function GeneratePage() {
             title: newConversationTitle,
             updatedAt: new Date().toISOString(),
           });
+          setCurrentConversationId(newConversationId);
           router.push(`/chat/${newConversationId}`);
         } else if (status === "authenticated" && newConversationId) {
           // Fallback if title header is missing (less likely with correct API)
