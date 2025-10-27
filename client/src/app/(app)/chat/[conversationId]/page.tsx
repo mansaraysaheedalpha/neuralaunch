@@ -176,68 +176,45 @@ export default function ChatPage() {
         );
         resetStore();
         setCurrentConversationId(conversationId); // Set the new ID *before* fetching
-        // Let the logic proceed to fetch below
-      }
-      // Check 2: Are the messages *currently* empty for this specific conversation?
-      // This covers initial load AND refresh (where state is initially empty).
-      else if (messages.length === 0 && !isLoading) {
-        // Don't fetch if already loading
-        console.log(`Messages empty for ${conversationId}. Attempting fetch.`);
-        // Let the logic proceed to fetch below
-      }
-      // Check 3: If it's the same conversation and messages are NOT empty, don't refetch.
-      else if (messages.length > 0) {
-        // console.log(`Messages already loaded for ${conversationId}. Skipping fetch.`);
-        return; // Already loaded or loading, exit.
-      } else {
-        // This case handles isLoading === true, we don't need to do anything.
-        return;
-      }
 
-      // --- Fetch Logic ---
-      // This part only runs if we passed the checks above (switching convos or store is empty)
-      setIsLoading(true);
-      setError(null); // Clear previous errors before new fetch
-      try {
-        const res = await fetch(`/api/conversations/${conversationId}`);
-        if (res.ok) {
-          const data = (await res.json()) as ConversationApiResponse;
-          console.log(
-            `Fetched ${data.messages?.length ?? 0} messages for ${conversationId}`
-          );
-          setMessages(Array.isArray(data.messages) ? data.messages : []);
-          setLandingPageId(data.landingPage?.id ?? null);
-        } else {
-          const errorData = (await res.json()) as ErrorApiResponse;
-          const errorMessage = `Failed to load conversation: ${errorData.message || res.statusText}`;
-          console.error(errorMessage, errorData);
+        // --- Fetch Logic for new conversation ---
+        setIsLoading(true);
+        setError(null); // Clear previous errors before new fetch
+        try {
+          const res = await fetch(`/api/conversations/${conversationId}`);
+          if (res.ok) {
+            const data = (await res.json()) as ConversationApiResponse;
+            console.log(
+              `Fetched ${data.messages?.length ?? 0} messages for ${conversationId}`
+            );
+            setMessages(Array.isArray(data.messages) ? data.messages : []);
+            setLandingPageId(data.landingPage?.id ?? null);
+          } else {
+            const errorData = (await res.json()) as ErrorApiResponse;
+            const errorMessage = `Failed to load conversation: ${errorData.message || res.statusText}`;
+            console.error(errorMessage, errorData);
+            setError(errorMessage);
+            setMessages([]); // Clear messages on fetch error
+          }
+        } catch (fetchErr: unknown) {
+          const errorMessage = `An error occurred while loading the chat: ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}`;
+          console.error(errorMessage, fetchErr);
           setError(errorMessage);
           setMessages([]); // Clear messages on fetch error
+        } finally {
+          setIsLoading(false);
         }
-      } catch (fetchErr: unknown) {
-        const errorMessage = `An error occurred while loading the chat: ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}`;
-        console.error(errorMessage, fetchErr);
-        setError(errorMessage);
-        setMessages([]); // Clear messages on fetch error
-      } finally {
-        setIsLoading(false);
       }
+      // If currentConversationId === conversationId, the conversation is already loaded
+      // Don't refetch - this prevents clearing messages when they're being added
     };
 
     void loadChatHistory();
-    // Dependencies: Include everything read or set inside the effect.
-    // We want this effect to re-run if the URL param changes, or if relevant state changes that might necessitate a fetch.
-  }, [
-    conversationId,
-    setMessages,
-    setIsLoading,
-    setError,
-    currentConversationId,
-    setCurrentConversationId,
-    resetStore,
-    messages.length,
-    isLoading,
-  ]);
+    // Dependencies: Only include conversationId and currentConversationId to trigger reloads
+    // when switching between conversations. Zustand store functions are stable and don't need
+    // to be in the dependency array.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, currentConversationId]);
   // --- END SIMPLIFIED useEffect ---
   useEffect(() => {
     // Only scroll chat messages if the chat tab is active

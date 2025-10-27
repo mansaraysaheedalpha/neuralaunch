@@ -171,7 +171,8 @@ export default function CofounderChat() {
     };
 
     void loadMessages();
-  }, [conversationId, setMessages, currentConversationId, setCurrentConversationId, resetStore]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, currentConversationId]);
 
   // Scroll to bottom when new messages are added
   useEffect(() => {
