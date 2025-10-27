@@ -62,10 +62,12 @@ export default function GeneratePage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Reset state only on initial mount or when explicitly needed
+    // Reset state only on initial mount - clear any stale messages from previous sessions
     setMessages([]);
     setError(null);
-  }, [setMessages, setError]); // Keep dependencies minimal
+    // Zustand store functions are stable references, but we use eslint-disable for clarity
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array - only run on mount
 
   useEffect(() => {
     // Scroll smoothly when messages change
