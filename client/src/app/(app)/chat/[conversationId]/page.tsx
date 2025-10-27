@@ -1,4 +1,4 @@
-//client/src/app/chat/[conversationId]/page.tsx
+//client/src/app/(app)/chat/[conversationId]/page.tsx
 "use client";
 
 import { useState, FormEvent, useEffect, useRef } from "react";
