@@ -171,7 +171,11 @@ export default function CofounderChat() {
     };
 
     void loadMessages();
-  }, [conversationId, setMessages, currentConversationId, setCurrentConversationId, resetStore]);
+    // Only depend on conversationId and currentConversationId to trigger reloads when switching
+    // conversations. Zustand store functions (setMessages, resetStore, etc.) are stable references
+    // and don't need to be in the dependency array.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, currentConversationId]);
 
   // Scroll to bottom when new messages are added
   useEffect(() => {
