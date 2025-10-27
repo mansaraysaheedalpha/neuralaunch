@@ -130,6 +130,7 @@ const TabButton = ({
 );
 
 export default function ChatPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<
     "chat" | "validation" | "cofounder"
   >("chat");
