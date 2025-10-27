@@ -32,7 +32,11 @@ const fadeIn = {
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 40 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.8 } },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.8, ease: [0.42, 0, 0.58, 1] as const },
+  },
 };
 
 const scaleIn = {
@@ -40,7 +44,7 @@ const scaleIn = {
   visible: {
     opacity: 1,
     scale: 1,
-    transition: { duration: 0.6 },
+    transition: { duration: 0.6, ease: [0.42, 0, 0.58, 1] as const },
   },
 };
 
@@ -60,6 +64,7 @@ const floatingAnimation = {
   transition: {
     duration: 3,
     repeat: Infinity,
+    ease: [0.42, 0, 0.58, 1] as const,
   },
 };
 
@@ -260,7 +265,7 @@ export default function AboutPage() {
       {/* Hero Section with 3D Effects */}
       <section
         ref={heroRef}
-        className="relative overflow-hidden py-28 px-4 sm:px-6 lg:px-8"
+        className="relative overflow-hidden py-27.5 px-4 sm:px-6 lg:px-8"
       >
         <motion.div
           style={{ opacity: heroOpacity, scale: heroScale }}
@@ -269,7 +274,7 @@ export default function AboutPage() {
           variants={staggerContainer}
           className="max-w-6xl mx-auto text-center relative z-10"
         >
-          <motion.div variants={scaleIn} className="mb-8">
+          <motion.div variants={scaleIn} className="mb-8 py-5 mt-7">
             <motion.div
               animate={floatingAnimation}
               className="inline-flex items-center justify-center w-28 h-28 mb-6 bg-gradient-to-br from-primary via-secondary to-accent rounded-3xl shadow-2xl relative"
@@ -300,7 +305,11 @@ export default function AboutPage() {
           {/* Floating Decorative Elements */}
           <motion.div
             animate={{ y: [0, -10, 0], rotate: [0, 5, 0] }}
-            transition={{ duration: 4, repeat: Infinity }}
+            transition={{
+              duration: 4,
+              repeat: Infinity,
+              ease: [0.42, 0, 0.58, 1],
+            }}
             className="absolute top-20 left-10 opacity-20"
           >
             <Sparkles className="w-8 h-8 text-primary" />
@@ -310,6 +319,7 @@ export default function AboutPage() {
             transition={{
               duration: 5,
               repeat: Infinity,
+              ease: [0.42, 0, 0.58, 1],
               delay: 1,
             }}
             className="absolute bottom-20 right-10 opacity-20"
@@ -543,6 +553,7 @@ export default function AboutPage() {
                       transition={{
                         duration: 3,
                         repeat: Infinity,
+                        ease: [0.42, 0, 0.58, 1],
                       }}
                       className="absolute -top-8 -right-8 w-32 h-32 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-2xl"
                     />
@@ -899,8 +910,16 @@ export default function AboutPage() {
                   scale: [1, 1.1, 1],
                 }}
                 transition={{
-                  rotate: { duration: 20, repeat: Infinity },
-                  scale: { duration: 2, repeat: Infinity },
+                  rotate: {
+                    duration: 20,
+                    repeat: Infinity,
+                    ease: [0, 0, 1, 1],
+                  },
+                  scale: {
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: [0.42, 0, 0.58, 1],
+                  },
                 }}
                 className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-primary via-secondary to-accent rounded-full shadow-2xl mb-6 relative"
               >
@@ -981,6 +1000,7 @@ export default function AboutPage() {
             transition={{
               duration: 3 + particle.key,
               repeat: Infinity,
+              ease: [0.42, 0, 0.58, 1],
               delay: particle.key * 0.5,
             }}
             className="absolute w-2 h-2 bg-primary rounded-full"
