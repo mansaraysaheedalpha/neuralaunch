@@ -286,7 +286,7 @@ export default function AboutPage() {
 
           <motion.h1
             variants={fadeInUp}
-            className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight mb-6 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent"
+            className="text-4xl md:text-5xl lg:text-7xl font-black tracking-tight mb-6 bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent"
           >
             About NeuraLaunch
           </motion.h1>
@@ -753,6 +753,7 @@ export default function AboutPage() {
                   transition={{
                     duration: 3,
                     repeat: Infinity,
+                    ease: "easeInOut",
                   }}
                   className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg"
                 >
@@ -802,6 +803,7 @@ export default function AboutPage() {
                   transition={{
                     duration: 3,
                     repeat: Infinity,
+                    ease: "easeInOut",
                   }}
                   className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mb-6 shadow-lg"
                 >
@@ -857,6 +859,7 @@ export default function AboutPage() {
                 transition={{
                   duration: 1.5,
                   repeat: Infinity,
+                  ease: "easeInOut",
                 }}
                 className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-pink-500 to-rose-600 rounded-full shadow-2xl mb-6"
               >
@@ -960,6 +963,7 @@ export default function AboutPage() {
                   transition={{
                     duration: 2,
                     repeat: Infinity,
+                    ease: "easeInOut",
                   }}
                   className="group relative inline-flex items-center gap-3 px-10 py-5 bg-gradient-to-r from-primary via-secondary to-accent text-primary-foreground rounded-2xl font-bold text-xl shadow-2xl overflow-hidden"
                 >

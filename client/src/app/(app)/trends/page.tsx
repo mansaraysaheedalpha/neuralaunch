@@ -327,7 +327,7 @@ export default function TrendsPage() {
             ))}
           </div>
         </motion.div>
-        {!trends || trends.topTags.length === 0 ? (
+        {!trends || !trends.topTags || trends.topTags.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
