@@ -77,19 +77,19 @@ const iconPopIn: Variants = {
 const HeroSection = () => {
   const headlineWords = "Build the Right Thing, Faster.".split(" ");
   const primaryWordIndex = 5;
-  
+
   // Generate stable random values for particle animations
-  const particleOffsets = useMemo(() => 
-    Array.from({ length: 8 }, () => Math.random() * 30 - 15),
+  const particleOffsets = useMemo(
+    () => Array.from({ length: 8 }, () => Math.random() * 30 - 15),
     []
   );
-  
+
   return (
     <section className="relative overflow-hidden py-32 text-center">
       <HeroBackgroundGradient />
       <HeroForegroundGrid />
       <HeroForegroundStreaks />
-      
+
       {/* Floating Particles */}
       {particleOffsets.map((offset, i) => (
         <motion.div
@@ -113,7 +113,7 @@ const HeroSection = () => {
           }}
         />
       ))}
-      
+
       <motion.div
         variants={staggerContainer}
         initial="hidden"
@@ -268,8 +268,8 @@ const ProblemSolutionSection = () => {
             </h2>
             <p className="text-lg md:text-xl text-muted-foreground mb-4">
               NeuraLaunch provides an AI-architected blueprint and a rigorous
-              72-hour sprint to ensure you&apos;re building a solution for a real,
-              validated market need *before* you write a line of code.
+              72-hour sprint to ensure you&apos;re building a solution for a
+              real, validated market need *before* you write a line of code.
             </p>
             <div className="flex flex-wrap gap-4 text-primary font-medium">
               <span className="flex items-center gap-2">
@@ -462,18 +462,24 @@ const FeaturesSection = () => {
               className="feature-card p-8 rounded-xl border border-border bg-card dark:bg-slate-800/50 transition-all duration-300 group cursor-pointer relative hover:border-primary/50"
             >
               {/* Gradient Accent Line */}
-              <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${feature.color} rounded-t-xl`} />
-              
+              <div
+                className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${feature.color} rounded-t-xl`}
+              />
+
               {/* Animated Icon Background */}
               <motion.div
-                animate={{ 
+                animate={{
                   scale: [1, 1.2, 1],
-                  rotate: [0, 5, 0]
+                  rotate: [0, 5, 0],
                 }}
-                transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                transition={{
+                  duration: 3,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
                 className="absolute -top-4 -right-4 w-32 h-32 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-2xl opacity-0 group-hover:opacity-100"
               />
-              
+
               {/* Inner wrapper */}
               <motion.div
                 className="relative z-10"
@@ -489,7 +495,9 @@ const FeaturesSection = () => {
                   whileHover="hover"
                   className="inline-block mb-6"
                 >
-                  <div className={`w-16 h-16 bg-gradient-to-br ${feature.color} rounded-2xl flex items-center justify-center shadow-lg`}>
+                  <div
+                    className={`w-16 h-16 bg-gradient-to-br ${feature.color} rounded-2xl flex items-center justify-center shadow-lg`}
+                  >
                     <feature.icon className="w-8 h-8 text-white transition-transform duration-300" />
                   </div>
                 </motion.div>
