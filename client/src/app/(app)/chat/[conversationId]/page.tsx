@@ -265,7 +265,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-white via-violet-50/20 to-purple-50/20 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 overflow-hidden">
+    <div className="flex flex-col h-full bg-gradient-to-br from-white via-violet-50/20 to-purple-50/20 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 overflow-hidden">
       {/* 1. Blurry Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 w-96 h-96 bg-violet-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
