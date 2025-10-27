@@ -65,7 +65,9 @@ export default function GeneratePage() {
     // Reset state only on initial mount - clear any stale messages from previous sessions
     setMessages([]);
     setError(null);
-    // Zustand store functions are stable references, but we use eslint-disable for clarity
+    // Empty dependency array ensures this only runs once on mount.
+    // Zustand store functions (setMessages, setError) have stable references and don't need
+    // to be in the dependency array. The eslint-disable suppresses the exhaustive-deps warning.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty dependency array - only run on mount
 
