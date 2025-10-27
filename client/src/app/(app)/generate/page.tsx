@@ -61,11 +61,6 @@ export default function GeneratePage() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    // Reset state only on initial mount or when explicitly needed
-    setMessages([]);
-    setError(null);
-  }, [setMessages, setError]); // Keep dependencies minimal
 
   useEffect(() => {
     // Scroll smoothly when messages change

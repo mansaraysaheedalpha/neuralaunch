@@ -6,7 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import toast from "react-hot-toast";
 import { useConversationStore } from "@/lib/stores/conversationStore";
-import { Award, Info, HelpCircle } from "lucide-react";
+import { Award } from "lucide-react";
+import { useChatStore } from "@/lib/stores/chatStore";
 
 // Define the Conversation type to match what the API returns
 interface Conversation {
@@ -59,6 +60,7 @@ export default function Sidebar({
     error: _error,
     setError,
   } = useConversationStore();
+  const { setMessages, setError: setChatError } = useChatStore();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();
@@ -72,7 +74,10 @@ export default function Sidebar({
         const response = await fetch("/api/conversations");
         if (!response.ok) throw new Error("Failed to fetch conversations");
         const responseData: unknown = await response.json();
-        const apiResponse = responseData as { success: boolean; data: Conversation[] };
+        const apiResponse = responseData as {
+          success: boolean;
+          data: Conversation[];
+        };
         setConversations(apiResponse.data || []);
       } catch (err) {
         const errorMessage =
@@ -113,7 +118,11 @@ export default function Sidebar({
       <div className="p-4 border-b border-border flex-shrink-0 flex items-center gap-2">
         <Link
           href="/generate"
-          onClick={() => setMobileMenuOpen(false)}
+          onClick={() => {
+            setMessages([]);
+            setChatError(null);
+            setMobileMenuOpen(false);
+          }}
           className="flex-1 flex items-center justify-center px-4 py-3 bg-primary text-primary-foreground rounded-xl font-semibold transition-all duration-200 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transform hover:scale-[1.02] active:scale-[0.98] group"
         >
           <svg

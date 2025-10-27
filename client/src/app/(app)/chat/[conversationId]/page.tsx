@@ -1,4 +1,4 @@
-//client/src/app/chat/[conversationId]/page.tsx
+//client/src/app/(app)/chat/[conversationId]/page.tsx
 "use client";
 
 import { useState, FormEvent, useEffect, useRef } from "react";
@@ -163,7 +163,14 @@ export default function ChatPage() {
         try {
           const res = await fetch(`/api/conversations/${conversationId}`);
           if (res.ok) {
-            const data = (await res.json()) as ConversationApiResponse;
+            const responseJson = (await res.json()) as {
+              success: boolean;
+              data: ConversationApiResponse;
+            };
+
+            // 2. Get the actual data from the 'data' property
+            const data = responseJson.data;
+
             setMessages(Array.isArray(data.messages) ? data.messages : []);
             setLandingPageId(data.landingPage?.id ?? null);
           } else {
@@ -265,7 +272,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-white via-violet-50/20 to-purple-50/20 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 overflow-hidden">
+    <div className="flex flex-col h-full bg-gradient-to-br from-white via-violet-50/20 to-purple-50/20 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 overflow-hidden">
       {/* 1. Blurry Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 w-96 h-96 bg-violet-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
