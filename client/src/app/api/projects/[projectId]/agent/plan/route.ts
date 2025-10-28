@@ -4,10 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
-import { AITaskType, executeAITaskSimple } from "@/lib/ai-orchestrator"; // Assuming orchestrator is here
-import { logger } from "@/lib/logger"; // Assuming you have a logger
+import { AITaskType, executeAITaskSimple } from "@/lib/ai-orchestrator";
+import { logger } from "@/lib/logger";
+import { Prisma } from "@prisma/client";
 
-// Define the expected shape of the AI response
+// Define the expected shape of the AI response with proper Zod schemas
 const aiPlanResponseSchema = z.object({
   plan: z
     .array(
@@ -26,12 +27,13 @@ const aiPlanResponseSchema = z.object({
     .optional()
     .default([]), // Questions are optional
 });
+
 type AIPlanResponse = z.infer<typeof aiPlanResponseSchema>;
 
 export async function POST(
   req: NextRequest,
   { params }: { params: { projectId: string } }
-) {
+): Promise<NextResponse> {
   try {
     // 1. --- Authentication & Authorization ---
     const session = await auth();
@@ -136,13 +138,13 @@ Ensure the JSON is perfectly valid. The "plan" array must contain at least one t
     const { plan, questions } = parsedResponse;
 
     const nextAgentStatus =
-      questions.length > 0 ? "PENDING_USER_INPUT" : "READY_TO_EXECUTE"; // Or directly start executing? Let's wait for user input.
+      questions.length > 0 ? "PENDING_USER_INPUT" : "READY_TO_EXECUTE";
 
     await prisma.landingPage.update({
       where: { id: projectId },
       data: {
-        agentPlan: plan as any, // Prisma expects JsonValue, direct assignment works
-        agentClarificationQuestions: questions as any,
+        agentPlan: plan as Prisma.JsonArray, // Type-safe cast to JsonArray
+        agentClarificationQuestions: questions as Prisma.JsonArray,
         agentUserResponses: Prisma.JsonNull, // Clear previous responses
         agentCurrentStep: 0, // Start at the first step
         agentStatus: nextAgentStatus,
@@ -166,7 +168,11 @@ Ensure the JSON is perfectly valid. The "plan" array must contain at least one t
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    logger.error(`[Agent Plan API] Error: ${errorMessage}`, error);
+    const errorToLog = error instanceof Error ? error : new Error(String(error));
+    logger.error(
+      `[Agent Plan API] Error: ${errorMessage}`,
+      errorToLog
+    );
     return NextResponse.json(
       { error: "Internal Server Error", message: errorMessage },
       { status: 500 }

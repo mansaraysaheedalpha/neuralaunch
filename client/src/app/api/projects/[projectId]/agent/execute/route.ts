@@ -7,52 +7,65 @@ import { z } from "zod";
 import { AITaskType, executeAITaskSimple } from "@/lib/ai-orchestrator";
 import { SandboxService } from "@/lib/services/sandbox-service";
 import { logger } from "@/lib/logger";
-import { Prisma } from "@prisma/client"; // Needed for Json types
+import { Prisma } from "@prisma/client";
 
-// Define expected structure of AI response for execution
-const aiExecutionResponseSchema = z.string().min(10);
+// --- Zod Schemas for Type Safety ---
 
-// Define structure for storing step results
-interface StepResult {
-  startTime: string;
-  endTime: string;
-  taskIndex: number;
-  taskDescription: string;
-  status: "success" | "error";
-  summary: string;
-  filesWritten?: { path: string; success: boolean; message?: string }[];
-  commandsRun?: {
-    command: string;
-    attempt: number;
-    exitCode: number;
-    stdout?: string;
-    stderr?: string;
-    correctedCommand?: string;
-  }[];
-  errorMessage?: string;
-  errorDetails?: string; // e.g., stack trace
-}
+// Define schema for plan tasks
+const planTaskSchema = z.object({
+  task: z.string().min(1),
+});
 
-// Zod schema for fetching project data
+// Define schema for step results
+const stepResultSchema = z.object({
+  startTime: z.string(),
+  endTime: z.string(),
+  taskIndex: z.number(),
+  taskDescription: z.string(),
+  status: z.enum(["success", "error"]),
+  summary: z.string(),
+  filesWritten: z
+    .array(
+      z.object({
+        path: z.string(),
+        success: z.boolean(),
+        message: z.string().optional(),
+      })
+    )
+    .optional(),
+  commandsRun: z
+    .array(
+      z.object({
+        command: z.string(),
+        attempt: z.number(),
+        exitCode: z.number(),
+        stdout: z.string().optional(),
+        stderr: z.string().optional(),
+        correctedCommand: z.string().optional(),
+      })
+    )
+    .optional(),
+  errorMessage: z.string().optional(),
+  errorDetails: z.string().optional(),
+});
+
+// TypeScript type for StepResult
+type StepResult = z.infer<typeof stepResultSchema>;
+
+// Zod schema for validating fetched project data from Prisma
 const projectDataSchema = z.object({
-  agentPlan: z
-    .any()
-    .refine((val) => val === null || (Array.isArray(val) && val.length > 0), {
-      message: "Plan must be a non-empty array or null",
-    }),
+  agentPlan: z.union([z.array(planTaskSchema), z.null()]),
   agentCurrentStep: z.number().nullable(),
   agentStatus: z.string().nullable(),
-  agentUserResponses: z.any().nullable(),
-  agentExecutionHistory: z
-    .any()
-    .refine((val) => val === null || Array.isArray(val), {
-      message: "History must be an array or null",
-    }),
+  agentUserResponses: z.record(z.string(), z.string()).nullable(),
+  agentExecutionHistory: z.union([z.array(stepResultSchema), z.null()]),
   conversation: z
     .object({
-      messages: z
-        .array(z.object({ content: z.string() }))
-        .min(1, { message: "Conversation must have at least one message" }),
+      messages: z.array(
+        z.object({
+          content: z.string(),
+        })
+      ),
     })
     .nullable(),
 });
@@ -60,7 +73,7 @@ const projectDataSchema = z.object({
 export async function POST(
   req: NextRequest,
   { params }: { params: { projectId: string } }
-) {
+): Promise<NextResponse> {
   const startTime = new Date();
   // Initialize result tracking with default error state
   let stepResult: Partial<StepResult> = {
@@ -103,18 +116,20 @@ export async function POST(
       },
     });
 
-    if (!rawProjectData)
+    if (!rawProjectData) {
       return NextResponse.json(
         { error: "Project not found or forbidden" },
         { status: 404 }
       );
+    }
 
-    // Validate fetched data structure
+    // Validate fetched data structure with proper typing
     const validation = projectDataSchema.safeParse(rawProjectData);
     if (!validation.success) {
       logger.error(
         `[Agent Execute] Invalid project data structure for ${projectId}:`,
-        validation.error.format()
+        undefined,
+        { error: validation.error.format() }
       );
       return NextResponse.json(
         { error: "Internal Server Error: Invalid project data." },
@@ -122,16 +137,23 @@ export async function POST(
       );
     }
     projectData = validation.data; // Assign validated data
-    currentHistory =
-      (projectData.agentExecutionHistory as StepResult[] | null) || []; // Assign history
+    currentHistory = projectData.agentExecutionHistory || []; // Type-safe assignment
 
-    const plan = projectData.agentPlan as any[] | null;
+    const plan = projectData.agentPlan;
     const currentStep = projectData.agentCurrentStep ?? 0;
-    const userResponses = projectData.agentUserResponses as Record<
-      string,
-      string
-    > | null;
-    const blueprintContent = projectData.conversation!.messages[0].content;
+    const userResponses = projectData.agentUserResponses;
+    
+    // Validate conversation data exists
+    if (
+      !projectData.conversation?.messages ||
+      projectData.conversation.messages.length === 0
+    ) {
+      return NextResponse.json(
+        { error: "Blueprint content not found" },
+        { status: 400 }
+      );
+    }
+    const blueprintContent = projectData.conversation.messages[0].content;
 
     stepResult.taskIndex = currentStep;
 
@@ -151,9 +173,16 @@ export async function POST(
       stepResult.taskDescription = "End of Plan";
       stepResult.summary = "All tasks in the plan are complete.";
       stepResult.status = "success"; // Mark as success if plan is done
+      stepResult.endTime = new Date().toISOString();
       await prisma.landingPage.update({
         where: { id: projectId },
-        data: { agentStatus: "COMPLETE" },
+        data: {
+          agentStatus: "COMPLETE",
+          agentExecutionHistory: [
+            ...currentHistory,
+            stepResult as StepResult,
+          ] as Prisma.JsonArray,
+        },
       });
       return NextResponse.json(
         {
@@ -372,7 +401,7 @@ Provide the code blocks and/or shell commands first, then the summary on a new l
         agentExecutionHistory: [
           ...currentHistory,
           stepResult as StepResult,
-        ] as any, // Append result
+        ] as Prisma.JsonArray, // Properly cast to Prisma JsonArray type
         sandboxLastAccessedAt: new Date(), // Update last accessed time
       },
     });
@@ -394,9 +423,10 @@ Provide the code blocks and/or shell commands first, then the summary on a new l
     // 9. --- Error Handling: Update DB & Report ---
     const errorMessage =
       error instanceof Error ? error.message : "Unknown execution error";
+    const errorToLog = error instanceof Error ? error : new Error(String(error));
     logger.error(
       `[Agent Execute API] Error during task ${stepResult.taskIndex ?? "unknown"} for project ${params.projectId}: ${errorMessage}`,
-      error
+      errorToLog
     );
 
     stepResult.status = "error";
@@ -414,13 +444,13 @@ Provide the code blocks and/or shell commands first, then the summary on a new l
           agentExecutionHistory: [
             ...currentHistory,
             stepResult as StepResult,
-          ] as any,
+          ] as Prisma.JsonArray,
         },
       });
     } catch (dbError) {
       logger.error(
         `[Agent Execute API] Failed to update DB after error for project ${params.projectId}:`,
-        dbError
+        dbError instanceof Error ? dbError : undefined
       );
     }
 
@@ -443,7 +473,7 @@ interface CodeBlock {
   language?: string;
 }
 
-// Updated to be more robust
+// Updated to be more robust with explicit return type
 function extractCodeBlocks(responseText: string): CodeBlock[] {
   const blocks: CodeBlock[] = [];
   // Regex: ```(language?)\s*\n(// path/to/file.ext\s*\n)?([\s\S]*?)\n```
@@ -484,7 +514,7 @@ function extractCommands(responseText: string): string[] {
   return commands;
 }
 
-// Updated to find "Summary: " or take text after last block
+// Updated to find "Summary: " or take text after last block with explicit return type
 function extractSummary(responseText: string): string {
   const summaryMatch = responseText.match(/^Summary:\s*([\s\S]+)/im);
   if (summaryMatch) {

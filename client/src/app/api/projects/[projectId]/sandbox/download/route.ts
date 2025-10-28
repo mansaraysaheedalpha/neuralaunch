@@ -49,7 +49,7 @@ function demuxDockerStream(dockerStream: NodeJS.ReadableStream): Readable {
 export async function GET(
   req: NextRequest,
   { params }: { params: { projectId: string } }
-) {
+): Promise<NextResponse> {
   let docker: Docker;
   let archiveContainer: Docker.Container | null = null;
   const { projectId } = params;
@@ -83,7 +83,7 @@ export async function GET(
     } catch (dockerError) {
       logger.error(
         "[Sandbox Download] Failed to connect to Docker daemon:",
-        dockerError
+        dockerError instanceof Error ? dockerError : undefined
       );
       return new NextResponse(
         "Internal Server Error: Docker connection failed",
@@ -95,7 +95,13 @@ export async function GET(
       await docker.getVolume(volumeName).inspect();
       logger.debug(`[Sandbox Download] Verified volume exists: ${volumeName}`);
     } catch (volError) {
-      if (volError.statusCode === 404) {
+      const isNotFound =
+        typeof volError === "object" &&
+        volError !== null &&
+        "statusCode" in volError &&
+        volError.statusCode === 404;
+
+      if (isNotFound) {
         logger.warn(
           `[Sandbox Download] Volume ${volumeName} not found for project ${projectId}.`
         );
@@ -105,7 +111,7 @@ export async function GET(
       }
       logger.error(
         `[Sandbox Download] Error inspecting volume ${volumeName}:`,
-        volError
+        volError instanceof Error ? volError : undefined
       );
       throw volError;
     }
@@ -172,14 +178,14 @@ export async function GET(
         }
       })
       .catch((waitError) => {
+        const errorToLog = waitError instanceof Error ? waitError : new Error(String(waitError));
         logger.error(
           `[Sandbox Download] Error waiting for archiver container ${containerName}:`,
-          waitError
+          errorToLog
         );
       });
 
-    return new NextResponse(responseStream as any, {
-      // Cast needed for NextResponse type
+    return new NextResponse(responseStream as unknown as ReadableStream, {
       status: 200,
       headers: {
         "Content-Type": "application/zip",
@@ -190,9 +196,10 @@ export async function GET(
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown download error";
+    const errorToLog = error instanceof Error ? error : new Error(String(error));
     logger.error(
       `[Sandbox Download API] Error for project ${projectId}: ${errorMessage}`,
-      error
+      errorToLog
     );
 
     // Ensure temporary container is cleaned up on error
@@ -202,12 +209,13 @@ export async function GET(
       );
       archiveContainer
         .remove({ force: true })
-        .catch((rmErr) =>
+        .catch((rmErr) => {
+          const errorToLog = rmErr instanceof Error ? rmErr : new Error(String(rmErr));
           logger.error(
             `Error force removing archiver ${containerName} on cleanup:`,
-            rmErr
-          )
-        );
+            errorToLog
+          );
+        });
     }
 
     return new NextResponse(
