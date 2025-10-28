@@ -10,7 +10,10 @@ const INACTIVITY_THRESHOLD_MINUTES = 60 * 2;
  * Finds and stops sandbox containers that have been idle longer than the threshold.
  * Intended to be triggered by a scheduled job (e.g., Vercel Cron).
  */
-export async function stopIdleSandboxes() {
+export async function stopIdleSandboxes(): Promise<{
+  stoppedCount: number;
+  errors: number;
+}> {
   const jobStartTime = Date.now();
   logger.info("[IdleSandboxCleanup] Starting job...");
 
@@ -68,7 +71,7 @@ export async function stopIdleSandboxes() {
         errorCount++;
         logger.error(
           `[IdleSandboxCleanup] Exception stopping sandbox for project ${project.id}:`,
-          error
+          error instanceof Error ? error : undefined
         );
       }
     });
@@ -84,7 +87,7 @@ export async function stopIdleSandboxes() {
     const duration = Date.now() - jobStartTime;
     logger.error(
       `[IdleSandboxCleanup] Job failed during query phase after ${duration}ms:`,
-      error
+      error instanceof Error ? error : undefined
     );
     return { stoppedCount: 0, errors: 1 };
   }
