@@ -5,17 +5,24 @@ import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { logger } from "@/lib/logger";
+import { Prisma } from "@prisma/client";
 
-// Zod schema for the expected request body
+// Zod schema for the expected request body with proper typing
 // Expects an object where keys are question IDs and values are user answers
 const respondRequestSchema = z.object({
   answers: z.record(z.string().min(1), z.string().min(1)), // e.g., { "stack_choice": "Next.js", "auth_needs": "Google Only" }
 });
 
+// Schema for validating clarification questions structure
+const clarificationQuestionSchema = z.object({
+  id: z.string(),
+  text: z.string(),
+});
+
 export async function POST(
   req: NextRequest,
   { params }: { params: { projectId: string } }
-) {
+): Promise<NextResponse> {
   try {
     // 1. --- Authentication & Authorization ---
     const session = await auth();
@@ -64,26 +71,37 @@ export async function POST(
     const { answers } = validation.data;
 
     // Optional: Validate that the provided answer IDs match the questions asked
-    const questionsAsked = (
-      (project.agentClarificationQuestions as any[]) || []
-    ).map((q) => q.id);
-    const answerKeys = Object.keys(answers);
-    if (
-      answerKeys.length !== questionsAsked.length ||
-      !answerKeys.every((key) => questionsAsked.includes(key))
-    ) {
+    // Parse and validate clarification questions
+    const questionsValidation = z
+      .array(clarificationQuestionSchema)
+      .safeParse(project.agentClarificationQuestions);
+
+    if (questionsValidation.success) {
+      const questionsAsked = questionsValidation.data.map((q) => q.id);
+      const answerKeys = Object.keys(answers);
+      if (
+        answerKeys.length !== questionsAsked.length ||
+        !answerKeys.every((key) => questionsAsked.includes(key))
+      ) {
+        logger.warn(
+          `[Agent Respond] Mismatch between questions asked and answers provided for ${projectId}`,
+          undefined,
+          { questionsAsked, answerKeys }
+        );
+      }
+    } else {
       logger.warn(
-        `[Agent Respond] Mismatch between questions asked and answers provided for ${projectId}`
+        `[Agent Respond] Could not validate clarification questions structure for ${projectId}`,
+        undefined,
+        { error: questionsValidation.error }
       );
-      // Decide if this should be a hard error or just a warning
-      // return NextResponse.json({ error: "Mismatch between questions asked and answers provided." }, { status: 400 });
     }
 
     // 3. --- Save User Responses ---
     await prisma.landingPage.update({
       where: { id: projectId },
       data: {
-        agentUserResponses: answers as any, // Store the validated answers object
+        agentUserResponses: answers as Prisma.JsonObject, // Type-safe cast to JsonObject
         agentStatus: "READY_TO_EXECUTE", // Update status: Ready to start building!
         agentClarificationQuestions: Prisma.JsonNull, // Clear the questions once answered
       },
@@ -106,7 +124,10 @@ export async function POST(
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    logger.error(`[Agent Respond API] Error: ${errorMessage}`, error);
+    logger.error(
+      `[Agent Respond API] Error: ${errorMessage}`,
+      error instanceof Error ? error : undefined
+    );
     return NextResponse.json(
       { error: "Internal Server Error", message: errorMessage },
       { status: 500 }
