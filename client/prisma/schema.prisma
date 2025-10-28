@@ -165,9 +165,27 @@ model LandingPage {
   pageViews         PageView[]
   feedback        LandingPageFeedback[]
   smokeTests        FeatureSmokeTest[]
-   createdAt         DateTime      @default(now())
+
+  createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
   
+  sandboxContainerId String? @unique
+  sandboxInternalIp  String?
+  sandboxLastAccessedAt DateTime?
+
+
+  agentPlan                   Json?   
+  agentClarificationQuestions Json?  
+  agentUserResponses          Json? 
+  agentCurrentStep            Int? 
+  agentStatus                 String?
+  agentExecutionHistory       Json?
+  githubRepoUrl      String? 
+  githubRepoName     String?
+
+  vercelProjectId    String?
+  vercelProjectUrl   String?
+  vercelDeploymentUrl String?
 
   @@index([userId])
   @@index([isPublished])

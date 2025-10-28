@@ -26,6 +26,9 @@ export enum AITaskType {
   BLUEPRINT_PARSING = "BLUEPRINT_PARSING",
   SPRINT_TASK_ASSISTANCE = "SPRINT_TASK_ASSISTANCE",
   CODE_GENERATION_MVP = "CODE_GENERATION_MVP",
+  AGENT_PLANNING = "AGENT_PLANNING",
+  AGENT_EXECUTE_STEP = "AGENT_EXECUTE_STEP",
+  AGENT_DEBUG_COMMAND = "AGENT_DEBUG_COMMAND",
 }
 
 // ==================== PROVIDER TYPE ====================
@@ -70,6 +73,18 @@ function routeTaskToModel(
         `🎯 Routing ${taskType} to ${AI_MODELS.FAST} (Gemini Flash - speed)`
       );
       return { modelId: AI_MODELS.FAST, provider: "GOOGLE" };
+
+    case AITaskType.AGENT_PLANNING:
+      console.log(`🎯 Routing ${taskType} to ${AI_MODELS.PRIMARY}`)
+      return { modelId: AI_MODELS.PRIMARY, provider: "GOOGLE" };
+
+    case AITaskType.AGENT_EXECUTE_STEP:
+      console.log(`🎯 Routing ${taskType} to ${AI_MODELS.PRIMARY}`);
+      return { modelId: AI_MODELS.CLAUDE, provider: "ANTHROPIC"}
+
+    case AITaskType.AGENT_DEBUG_COMMAND:
+      console.log(`🎯 Routing ${taskType} to ${AI_MODELS.PRIMARY}`);
+      return { modelId: AI_MODELS.OPENAI, provider: "OPENAI"}
 
     case AITaskType.LANDING_PAGE_COPY:
     case AITaskType.SURVEY_QUESTION_GENERATION:

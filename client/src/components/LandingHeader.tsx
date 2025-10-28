@@ -176,7 +176,15 @@ export default function LandingHeader() {
               </DropdownMenu.Portal>
             </DropdownMenu.Root>
           ) : (
-            <LoginButton /> // Use LoginButton component
+            <Link href="/signin" passHref>
+              <motion.span
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-primary to-secondary rounded-xl hover:opacity-90 transition-opacity shadow-md"
+              >
+                Sign In / Get Started
+              </motion.span>
+            </Link>
           )}
           {/* END Auth Status Logic */}
         </div>
