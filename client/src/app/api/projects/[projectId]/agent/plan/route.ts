@@ -168,9 +168,10 @@ Ensure the JSON is perfectly valid. The "plan" array must contain at least one t
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
+    const errorToLog = error instanceof Error ? error : new Error(String(error));
     logger.error(
       `[Agent Plan API] Error: ${errorMessage}`,
-      error instanceof Error ? error : undefined
+      errorToLog
     );
     return NextResponse.json(
       { error: "Internal Server Error", message: errorMessage },

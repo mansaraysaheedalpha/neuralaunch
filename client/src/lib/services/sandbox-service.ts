@@ -81,7 +81,7 @@ export class SandboxService {
       } catch (error) {
         logger.warn(
           \`[SandboxService] Container \${project.sandboxContainerId} not found, will create new\`,
-          error instanceof Error ? error : undefined
+          error instanceof Error ? error : new Error(String(error))
         );
       }
     }
@@ -167,7 +167,7 @@ export class SandboxService {
     } catch (error) {
       logger.error(
         \`[SandboxService] Error stopping sandbox for project \${projectId}\`,
-        error instanceof Error ? error : undefined
+        error instanceof Error ? error : new Error(String(error))
       );
       return false;
     }
@@ -204,7 +204,7 @@ export class SandboxService {
         error instanceof Error ? error.message : "Unknown error";
       logger.error(
         \`[SandboxService] Command execution failed for project \${projectId}\`,
-        error instanceof Error ? error : undefined
+        error instanceof Error ? error : new Error(String(error))
       );
       return {
         status: "error",
@@ -247,7 +247,7 @@ export class SandboxService {
         error instanceof Error ? error.message : "Unknown error";
       logger.error(
         \`[SandboxService] File write failed for project \${projectId}\`,
-        error instanceof Error ? error : undefined
+        error instanceof Error ? error : new Error(String(error))
       );
       return {
         status: "error",

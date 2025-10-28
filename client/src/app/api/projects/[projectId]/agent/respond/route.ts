@@ -124,9 +124,10 @@ export async function POST(
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
+    const errorToLog = error instanceof Error ? error : new Error(String(error));
     logger.error(
       `[Agent Respond API] Error: ${errorMessage}`,
-      error instanceof Error ? error : undefined
+      errorToLog
     );
     return NextResponse.json(
       { error: "Internal Server Error", message: errorMessage },

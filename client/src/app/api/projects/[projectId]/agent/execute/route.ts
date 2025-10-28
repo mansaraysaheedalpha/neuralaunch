@@ -423,9 +423,10 @@ Provide the code blocks and/or shell commands first, then the summary on a new l
     // 9. --- Error Handling: Update DB & Report ---
     const errorMessage =
       error instanceof Error ? error.message : "Unknown execution error";
+    const errorToLog = error instanceof Error ? error : new Error(String(error));
     logger.error(
       `[Agent Execute API] Error during task ${stepResult.taskIndex ?? "unknown"} for project ${params.projectId}: ${errorMessage}`,
-      error instanceof Error ? error : undefined
+      errorToLog
     );
 
     stepResult.status = "error";

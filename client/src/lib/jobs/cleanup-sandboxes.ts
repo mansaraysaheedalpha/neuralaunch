@@ -69,9 +69,10 @@ export async function stopIdleSandboxes(): Promise<{
         }
       } catch (error) {
         errorCount++;
+        const errorToLog = error instanceof Error ? error : new Error(String(error));
         logger.error(
           `[IdleSandboxCleanup] Exception stopping sandbox for project ${project.id}:`,
-          error instanceof Error ? error : undefined
+          errorToLog
         );
       }
     });
@@ -85,9 +86,10 @@ export async function stopIdleSandboxes(): Promise<{
     return { stoppedCount, errors: errorCount };
   } catch (error) {
     const duration = Date.now() - jobStartTime;
+    const errorToLog = error instanceof Error ? error : new Error(String(error));
     logger.error(
       `[IdleSandboxCleanup] Job failed during query phase after ${duration}ms:`,
-      error instanceof Error ? error : undefined
+      errorToLog
     );
     return { stoppedCount: 0, errors: 1 };
   }

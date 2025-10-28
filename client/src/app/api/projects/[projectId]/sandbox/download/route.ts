@@ -178,9 +178,10 @@ export async function GET(
         }
       })
       .catch((waitError) => {
+        const errorToLog = waitError instanceof Error ? waitError : new Error(String(waitError));
         logger.error(
           `[Sandbox Download] Error waiting for archiver container ${containerName}:`,
-          waitError instanceof Error ? waitError : undefined
+          errorToLog
         );
       });
 
@@ -195,9 +196,10 @@ export async function GET(
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown download error";
+    const errorToLog = error instanceof Error ? error : new Error(String(error));
     logger.error(
       `[Sandbox Download API] Error for project ${projectId}: ${errorMessage}`,
-      error instanceof Error ? error : undefined
+      errorToLog
     );
 
     // Ensure temporary container is cleaned up on error
@@ -207,12 +209,13 @@ export async function GET(
       );
       archiveContainer
         .remove({ force: true })
-        .catch((rmErr) =>
+        .catch((rmErr) => {
+          const errorToLog = rmErr instanceof Error ? rmErr : new Error(String(rmErr));
           logger.error(
             `Error force removing archiver ${containerName} on cleanup:`,
-            rmErr instanceof Error ? rmErr : undefined
-          )
-        );
+            errorToLog
+          );
+        });
     }
 
     return new NextResponse(
