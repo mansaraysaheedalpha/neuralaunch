@@ -7,9 +7,13 @@ import { z } from "zod";
 import { AITaskType, executeAITaskSimple } from "@/lib/ai-orchestrator";
 import { SandboxService } from "@/lib/services/sandbox-service";
 import { logger } from "@/lib/logger";
-import { Prisma } from "@prisma/client";
 
 // --- Type Definitions ---
+
+interface PlanTask {
+  task: string;
+  [key: string]: unknown;
+}
 
 interface StepResult {
   startTime: string;
@@ -167,8 +171,7 @@ export async function POST(
     const validation = projectDataSchema.safeParse(rawProjectData);
     if (!validation.success) {
       logger.error(
-        `[Agent Execute] Invalid project data structure for ${projectId}:`,
-        validation.error.format()
+        `[Agent Execute] Invalid project data structure for ${projectId}: ${JSON.stringify(validation.error.format())}`
       );
       return NextResponse.json(
         { error: "Internal Server Error: Invalid project data." },
@@ -176,11 +179,12 @@ export async function POST(
       );
     }
     projectData = validation.data;
+    
+    const plan = projectData.agentPlan as PlanTask[] | null;
+    const currentStep = projectData.agentCurrentStep ?? 0;
     currentHistory =
       (projectData.agentExecutionHistory as StepResult[] | null) || [];
 
-    const plan = projectData.agentPlan as any[] | null;
-    const currentStep = projectData.agentCurrentStep ?? 0;
     const userResponses = projectData.agentUserResponses as Record<
       string,
       string
@@ -522,7 +526,7 @@ Current plan step ${currentStep + 1} of ${plan.length}.
       } catch (pushError) {
         logger.error(
           `[Agent Execute] Exception during git push operation:`,
-          pushError
+          pushError instanceof Error ? pushError : undefined
         );
         stepResult.errorMessage =
           (stepResult.errorMessage ? stepResult.errorMessage + "; " : "") +
@@ -557,11 +561,11 @@ Current plan step ${currentStep + 1} of ${plan.length}.
           stepResult as StepResult,
         ] as any,
         sandboxLastAccessedAt: new Date(),
-      },
-    });
-
-    return NextResponse.json(
-      {
+        status: "success",
+        message: `Step ${currentStep + 1} completed: ${summary}`,
+        nextStepIndex: currentStep + 1,
+        nextTaskDescription: isComplete ? null : (plan?.[currentStep + 1]?.task ?? null),
+        isComplete: isComplete,
         status: "success",
         message: `Step ${currentStep + 1} completed: ${summary}`,
         nextStepIndex: currentStep + 1,
@@ -570,7 +574,7 @@ Current plan step ${currentStep + 1} of ${plan.length}.
         agentStatus: finalAgentStatus,
         stepResult: stepResult,
       },
-      { status: 200 }
+      {status: 200 },
     );
   } catch (error: unknown) {
     // 9. Error Handling: Update DB & Report
@@ -578,7 +582,7 @@ Current plan step ${currentStep + 1} of ${plan.length}.
       error instanceof Error ? error.message : "Unknown execution error";
     logger.error(
       `[Agent Execute API] Error during task ${stepResult.taskIndex ?? "unknown"} for project ${projectId}: ${errorMessage}`,
-      error
+      error instanceof Error ? error : undefined
     );
 
     stepResult.status = "error";
@@ -600,7 +604,7 @@ Current plan step ${currentStep + 1} of ${plan.length}.
     } catch (dbError) {
       logger.error(
         `[Agent Execute API] Failed to update DB after error for project ${projectId}:`,
-        dbError
+        dbError instanceof Error ? dbError : undefined
       );
     }
     return NextResponse.json(

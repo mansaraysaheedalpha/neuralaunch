@@ -38,7 +38,7 @@ export async function POST(
       );
     }
 
-    const body = await req.json();
+    const body: unknown = await req.json();
     const validation = writeRequestSchema.safeParse(body);
     if (!validation.success) {
       return NextResponse.json(

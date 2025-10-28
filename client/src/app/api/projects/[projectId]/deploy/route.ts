@@ -2,18 +2,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
-import { z } from "zod";
 import { logger } from "@/lib/logger";
 
 // Vercel API base URL
 const VERCEL_API_BASE = "https://api.vercel.com";
+
+// Type for Vercel API error response
+interface VercelErrorResponse {
+  error?: {
+    message?: string;
+  };
+}
 
 // Helper to make authenticated Vercel API calls
 async function fetchVercelAPI(
   endpoint: string,
   token: string,
   options: RequestInit = {}
-) {
+): Promise<any> {
   const url = `${VERCEL_API_BASE}${endpoint}`;
   const response = await fetch(url, {
     ...options,
@@ -25,19 +31,23 @@ async function fetchVercelAPI(
   });
 
   if (!response.ok) {
-    let errorBody;
+    let errorBody: unknown = null;
     try {
       errorBody = await response.json();
-    } catch (e) {
-      errorBody = await response.text();
+    } catch {
+      try {
+        errorBody = await response.text();
+      } catch {
+        errorBody = null;
+      }
     }
+    const errorMessage =
+      (errorBody as VercelErrorResponse)?.error?.message ||
+      (typeof errorBody === "string" ? errorBody : response.statusText);
     logger.error(
-      `Vercel API Error (${response.status}) on ${endpoint}:`,
-      errorBody
+      `Vercel API Error (${response.status}) on ${endpoint}: ${errorMessage}`
     );
-    throw new Error(
-      `Vercel API Error (${response.status}): ${errorBody?.error?.message || response.statusText}`
-    );
+    throw new Error(`Vercel API Error (${response.status}): ${errorMessage}`);
   }
 
   // Handle responses that might have no content (e.g., 204)
@@ -89,7 +99,7 @@ export async function POST(
     // 2. --- Fetch Vercel Access Token ---
     const vercelAccount = await prisma.account.findFirst({
       where: { userId: userId, provider: "vercel" },
-      select: { access_token: true, team_id: true }, // Assuming team_id was stored (optional)
+      select: { access_token: true }, // team_id is not a field in the Account model
     });
 
     if (!vercelAccount?.access_token) {
@@ -105,7 +115,7 @@ export async function POST(
       );
     }
     const vercelToken = vercelAccount.access_token;
-    const vercelTeamId = vercelAccount.team_id; // May be null if not stored
+    const vercelTeamId: string | null = null; // team_id is not stored in the Account model
 
     let vercelProjectId = project.vercelProjectId;
     let vercelProjectUrl = project.vercelProjectUrl;

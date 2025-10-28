@@ -42,12 +42,12 @@ class SandboxServiceClass {
     } catch (error) {
       console.warn(
         "[SandboxService] Failed to connect via socket, trying default Docker connection:",
-        error.message
+        error instanceof Error ? error.message : String(error)
       );
       // Fallback might work for Docker Desktop on Windows/Mac or remote Docker hosts via DOCKER_HOST env var
       this.docker = new Docker();
     }
-    this.ensureNetworkExists(); // Check if network exists on startup
+    void this.ensureNetworkExists(); // Check if network exists on startup
   }
 
   /** Checks if the required Docker network exists, creates if not. */
@@ -58,7 +58,12 @@ class SandboxServiceClass {
         `[SandboxService] Docker network "${DOCKER_NETWORK_NAME}" found.`
       );
     } catch (error) {
-      if (error.statusCode === 404) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "statusCode" in error &&
+        error.statusCode === 404
+      ) {
         console.warn(
           `[SandboxService] Docker network "${DOCKER_NETWORK_NAME}" not found. Creating...`
         );
@@ -207,7 +212,7 @@ class SandboxServiceClass {
               // console.log(`[SandboxService] Found running & healthy sandbox for ${projectId} at ${containerIp}`);
               return `http://${containerIp}:${SANDBOX_INTERNAL_PORT}`;
             }
-          } catch (healthError) {
+          } catch {
             console.warn(
               `[SandboxService] Sandbox ${project.sandboxContainerId} found but unhealthy. Will recreate.`
             );
@@ -235,7 +240,12 @@ class SandboxServiceClass {
           }
         }
       } catch (error) {
-        if (error.statusCode === 404) {
+        if (
+          error &&
+          typeof error === "object" &&
+          "statusCode" in error &&
+          error.statusCode === 404
+        ) {
           console.warn(
             `[SandboxService] Container ${project.sandboxContainerId} DB record exists but not found in Docker. Recreating...`
           );
@@ -315,7 +325,7 @@ class SandboxServiceClass {
         createError
       );
       throw new Error(
-        `Failed to initialize sandbox environment: ${createError.message}`
+        `Failed to initialize sandbox environment: ${createError instanceof Error ? createError.message : String(createError)}`
       );
     }
   }
@@ -370,7 +380,7 @@ class SandboxServiceClass {
     } catch (error) {
       logger.error(
         `[Sandbox Git] Error in gitInitIfNeeded for ${projectId}:`,
-        error
+        error instanceof Error ? error : undefined
       );
       return {
         success: false,
@@ -405,7 +415,10 @@ class SandboxServiceClass {
       // console.log(`[Sandbox Git] Staged changes for ${projectId}.`);
       return { success: true, message: "Changes staged successfully." };
     } catch (error) {
-      logger.error(`[Sandbox Git] Error in gitAddAll for ${projectId}:`, error);
+      logger.error(
+        `[Sandbox Git] Error in gitAddAll for ${projectId}:`,
+        error instanceof Error ? error : undefined
+      );
       return {
         success: false,
         message: "An unexpected error occurred staging changes.",
@@ -471,7 +484,10 @@ class SandboxServiceClass {
         details: commitResult.stderr,
       };
     } catch (error) {
-      logger.error(`[Sandbox Git] Error in gitCommit for ${projectId}:`, error);
+      logger.error(
+        `[Sandbox Git] Error in gitCommit for ${projectId}:`,
+        error instanceof Error ? error : undefined
+      );
       return {
         success: false,
         committed: false,
@@ -524,7 +540,12 @@ class SandboxServiceClass {
       }
       return true;
     } catch (error) {
-      if (error.statusCode === 404) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "statusCode" in error &&
+        error.statusCode === 404
+      ) {
         console.warn(
           `[SandboxService] Container ${project.sandboxContainerId} not found in Docker during stop. Clearing DB record.`
         );
@@ -582,7 +603,15 @@ class SandboxServiceClass {
         await volume.remove();
         console.log(`[SandboxService] Volume ${volumeName} removed.`);
       } catch (volError) {
-        if (volError.statusCode === 404) {
+        const volStatusCode =
+          volError &&
+          typeof volError === "object" &&
+          "statusCode" in volError &&
+          typeof (volError as Record<string, unknown>).statusCode === "number"
+            ? (volError as { statusCode: number }).statusCode
+            : undefined;
+
+        if (volStatusCode === 404) {
           console.log(
             `[SandboxService] Volume ${volumeName} not found, likely already removed.`
           );
@@ -599,7 +628,12 @@ class SandboxServiceClass {
       await this.clearSandboxRecord(projectId);
       return true;
     } catch (error) {
-      if (error.statusCode === 404) {
+      if (
+        error &&
+        typeof error === "object" &&
+        "statusCode" in error &&
+        error.statusCode === 404
+      ) {
         console.warn(
           `[SandboxService] Container ${containerId} not found during removal. Clearing DB record.`
         );
@@ -610,7 +644,7 @@ class SandboxServiceClass {
           console.log(
             `[SandboxService] Removed orphaned volume ${volumeName}.`
           );
-        } catch (volErr) {
+        } catch {
           /* ignore */
         }
         return true; // Container gone, so effectively removed
@@ -783,7 +817,7 @@ class SandboxServiceClass {
     } catch (error) {
       logger.error(
         `[Sandbox Git] Error in gitPushToRepo for ${projectId}:`,
-        error
+        error instanceof Error ? error : undefined
       );
       return {
         success: false,

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { Octokit } from "@octokit/rest"; // GitHub API client
+import { RequestError } from "@octokit/request-error";
 import { z } from "zod";
 import { logger } from "@/lib/logger";
 
@@ -55,7 +56,7 @@ export async function POST(
     // 2. --- Input Validation (Optional Repo Name) ---
     let requestedRepoName: string | undefined;
     try {
-      const body = await req.json();
+      const body: unknown = await req.json();
       const validation = createRepoSchema.safeParse(body);
       if (validation.success) {
         requestedRepoName = validation.data.repoName;
@@ -65,7 +66,7 @@ export async function POST(
           `[GitHub Create Repo] Invalid repoName provided for ${projectId}. Using default.`
         );
       }
-    } catch (e) {
+    } catch {
       // No body provided or not JSON, proceed with default name
     }
 
@@ -120,9 +121,11 @@ export async function POST(
         auto_init: false, // Don't initialize with README yet, agent will push code
       });
 
-      if (response.status !== 201) {
+      const status: number = response.status;
+
+      if (status !== 201) {
         // 201 Created is the expected success status
-        throw new Error(`GitHub API returned status ${response.status}`);
+        throw new Error(`GitHub API returned status ${status}`);
       }
 
       repoFullName = response.data.full_name; // e.g., "username/repo-name"
@@ -131,28 +134,39 @@ export async function POST(
       logger.info(
         `[GitHub Create Repo] Successfully created repository: ${repoHtmlUrl}`
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error(
         `[GitHub Create Repo] Failed to create repository '${repoName}' for project ${projectId}:`,
-        error
+        error instanceof Error ? error : undefined
       );
       let message = "Failed to create GitHub repository.";
-      if (
-        error.status === 422 &&
-        error.message?.includes("name already exists")
-      ) {
-        message = `Repository name '${repoName}' already exists on your GitHub account. Try a different name.`;
-        return NextResponse.json({ error: message }, { status: 409 }); // 409 Conflict
-      } else if (error.status === 401) {
-        message =
-          "Invalid GitHub credentials. Please reconnect your GitHub account.";
-        // Optionally: Mark the token as invalid in your DB?
-        return NextResponse.json({ error: message }, { status: 401 });
+      
+      if (error instanceof RequestError) {
+        if (
+          error.status === 422 &&
+          error.message?.includes("name already exists")
+        ) {
+          message = `Repository name '${repoName}' already exists on your GitHub account. Try a different name.`;
+          return NextResponse.json({ error: message }, { status: 409 }); // 409 Conflict
+        } else if (error.status === 401) {
+          message =
+            "Invalid GitHub credentials. Please reconnect your GitHub account.";
+          // Optionally: Mark the token as invalid in your DB?
+          return NextResponse.json({ error: message }, { status: 401 });
+        }
+        // Use the error message from Octokit if available
+        message = error.message || message;
+        return NextResponse.json(
+          { error: message, details: String(error) },
+          { status: 500 }
+        );
       }
-      // Use the error message from Octokit if available
-      message = error.message || message;
+  
+      if (error instanceof Error) {
+        message = error.message || message;
+      }
       return NextResponse.json(
-        { error: message, details: error.toString() },
+        { error: message, details: String(error) },
         { status: 500 }
       );
     }
@@ -178,7 +192,10 @@ export async function POST(
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    logger.error(`[GitHub Create Repo API] Error: ${errorMessage}`, error);
+    logger.error(
+      `[GitHub Create Repo API] Error: ${errorMessage}`,
+      error instanceof Error ? error : undefined
+    );
     return NextResponse.json(
       { error: "Internal Server Error", message: errorMessage },
       { status: 500 }
