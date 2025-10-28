@@ -21,7 +21,7 @@ const writeRequestSchema = z.object({
 export async function POST(
   req: NextRequest,
   { params }: { params: { projectId: string } }
-) {
+): Promise<NextResponse> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -59,10 +59,13 @@ export async function POST(
       return NextResponse.json(result, { status: 500 });
     }
     return NextResponse.json(result, { status: 201 }); // 201 Created
-  } catch (error) {
+  } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    console.error(`[SANDBOX_WRITE_API_ERROR] ${errorMessage}`, error);
+    logger.error(
+      `[SANDBOX_WRITE_API_ERROR] ${errorMessage}`,
+      error instanceof Error ? error : undefined
+    );
     return NextResponse.json(
       { error: "Internal Server Error", message: errorMessage },
       { status: 500 }
