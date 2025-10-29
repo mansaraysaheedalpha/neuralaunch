@@ -118,7 +118,7 @@ function extractSummary(responseText: string): string {
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  props: { params: Promise<{ projectId: string }> }
 ) {
   const startTime = new Date();
   let stepResult: Partial<StepResult> = {
@@ -129,6 +129,8 @@ export async function POST(
   };
   let projectData: z.infer<typeof projectDataSchema> | null = null;
   let currentHistory: StepResult[] = [];
+  
+  const params = await props.params;
   const { projectId } = params; // Extract projectId early for logging
 
   try {
@@ -561,20 +563,20 @@ Current plan step ${currentStep + 1} of ${plan.length}.
           stepResult as StepResult,
         ] as any,
         sandboxLastAccessedAt: new Date(),
+      },
+    });
+
+    return NextResponse.json(
+      {
         status: "success",
         message: `Step ${currentStep + 1} completed: ${summary}`,
         nextStepIndex: currentStep + 1,
-        nextTaskDescription: isComplete ? null : (plan?.[currentStep + 1]?.task ?? null),
-        isComplete: isComplete,
-        status: "success",
-        message: `Step ${currentStep + 1} completed: ${summary}`,
-        nextStepIndex: currentStep + 1,
-        nextTaskDescription: isComplete ? null : plan[currentStep + 1].task,
+        nextTaskDescription: isComplete ? null : plan[currentStep + 1]?.task,
         isComplete: isComplete,
         agentStatus: finalAgentStatus,
         stepResult: stepResult,
       },
-      {status: 200 },
+      { status: 200 }
     );
   } catch (error: unknown) {
     // 9. Error Handling: Update DB & Report

@@ -2,70 +2,136 @@
 
 import { signIn } from "next-auth/react";
 import { motion } from "framer-motion";
-import { Lock } from "lucide-react"; // Or your preferred icons
-// Import Google and GitHub icons if you have them, e.g., from react-icons
+import { Sparkles, ArrowRight, Shield } from "lucide-react";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
-
-// Simple SVG Icons as placeholders
-// const GoogleIcon = () => (
-//   <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-//     <path
-//       fill="#4285F4"
-//       d="M21.35 11.1h-9.8v3.8h5.5c-.3 1.2-1.3 2.2-2.7 2.2s-2.7-.9-2.7-2.2.9-2.2 2.7-2.2c.6 0 1.1.1 1.6.4l2.8-2.8C18.3 3.9 15.3 3 12 3c-4.9 0-9 4.1-9 9s4.1 9 9 9c5.1 0 8.5-3.6 8.5-8.8 0-.6-.1-1.1-.2-1.6z"
-//     />
-//   </svg>
-// );
-
+import Link from "next/link";
 
 export default function SignInPage() {
   const handleSignIn = (provider: "google" | "github") => {
-    // Redirects to provider, then back to the page the user was originally on, or home page.
-    signIn(provider, { callbackUrl: "/" });
+    void signIn(provider, { callbackUrl: "/" });
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-background via-violet-50/10 to-purple-50/10 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800/50 p-4">
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md p-8 bg-card border border-border rounded-2xl shadow-xl text-center"
+    <div className="relative flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-background via-violet-50/10 to-purple-50/10 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800/50 p-4 overflow-hidden">
+      {/* Background decoration */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-72 h-72 bg-primary/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 right-10 w-96 h-96 bg-secondary/5 rounded-full blur-3xl" />
+      </div>
+
+      {/* Back to Home Link */}
+      <Link
+        href="/"
+        className="absolute top-6 left-6 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
       >
-        <Lock className="w-12 h-12 text-primary mx-auto mb-4" />
-        <h1 className="text-2xl font-bold text-foreground mb-2">
-          Sign In / Sign Up
-        </h1>
-        <p className="text-muted-foreground mb-8">
-          Connect to save your blueprints and unlock the full power of
-          NeuraLaunch.
-        </p>
+        <ArrowRight className="w-4 h-4 rotate-180" />
+        Back to Home
+      </Link>
 
-        <div className="space-y-4">
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => handleSignIn("google")}
-            className="w-full inline-flex items-center justify-center px-6 py-3 bg-white dark:bg-gray-800 border border-border rounded-lg font-medium text-foreground hover:bg-muted focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all"
+      {/* Main Sign In Card */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+        className="relative z-10 w-full max-w-md"
+      >
+        {/* Logo and Branding */}
+        <div className="text-center mb-8">
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+            className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary to-secondary rounded-2xl mb-4 shadow-lg"
           >
-            <FcGoogle />
-            Continue with Google
-          </motion.button>
-
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => handleSignIn("github")}
-            className="w-full inline-flex items-center justify-center px-6 py-3 bg-gray-900 dark:bg-gray-700 border border-transparent rounded-lg font-medium text-white hover:bg-gray-800 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all"
+            <Sparkles className="w-8 h-8 text-white" />
+          </motion.div>
+          <motion.h1
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
+            className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent mb-2"
           >
-            <FaGithub />
-            Continue with GitHub
-          </motion.button>
+            Welcome to NeuraLaunch
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4, duration: 0.5 }}
+            className="text-muted-foreground"
+          >
+            Sign in to start building your validated startup
+          </motion.p>
         </div>
 
-        <p className="text-xs text-muted-foreground mt-8">
-          By continuing, you agree to our Terms of Service and Privacy Policy.
-        </p>
+        {/* Sign In Options Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5, duration: 0.5 }}
+          className="bg-card/80 backdrop-blur-xl border border-border rounded-2xl shadow-2xl p-8"
+        >
+          <div className="space-y-4">
+            {/* Google Sign In */}
+            <motion.button
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => handleSignIn("google")}
+              className="group relative w-full flex items-center justify-center gap-3 px-6 py-4 bg-white dark:bg-slate-800 border-2 border-border hover:border-primary/50 rounded-xl font-medium text-foreground transition-all duration-300 overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <FcGoogle className="w-5 h-5 relative z-10" />
+              <span className="relative z-10">Continue with Google</span>
+            </motion.button>
+
+            {/* GitHub Sign In */}
+            <motion.button
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => handleSignIn("github")}
+              className="group relative w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-gray-900 to-gray-800 dark:from-gray-700 dark:to-gray-600 border-2 border-transparent hover:border-gray-600 rounded-xl font-medium text-white transition-all duration-300 overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+              <FaGithub className="w-5 h-5 relative z-10" />
+              <span className="relative z-10">Continue with GitHub</span>
+            </motion.button>
+          </div>
+
+          {/* Divider */}
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-border" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-card px-3 text-muted-foreground">
+                Secure authentication
+              </span>
+            </div>
+          </div>
+
+          {/* Trust Indicators */}
+          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <Shield className="w-4 h-4" />
+            <span>Your data is protected and secure</span>
+          </div>
+        </motion.div>
+
+        {/* Terms and Privacy */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.6, duration: 0.5 }}
+          className="text-xs text-center text-muted-foreground mt-6"
+        >
+          By continuing, you agree to our{" "}
+          <Link href="/terms" className="text-primary hover:underline">
+            Terms of Service
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="text-primary hover:underline">
+            Privacy Policy
+          </Link>
+        </motion.p>
       </motion.div>
     </div>
   );

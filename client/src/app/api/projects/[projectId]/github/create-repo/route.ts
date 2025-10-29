@@ -19,7 +19,7 @@ const createRepoSchema = z.object({
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  props: { params: Promise<{ projectId: string }> }
 ) {
   try {
     // 1. --- Authentication & Authorization ---
@@ -28,7 +28,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const userId = session.user.id;
-    const { projectId } = params;
+    const { projectId } = await props.params;
 
     // Fetch project and verify ownership
     const project = await prisma.landingPage.findFirst({

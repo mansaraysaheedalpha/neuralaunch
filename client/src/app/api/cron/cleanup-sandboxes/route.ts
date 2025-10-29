@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     logger.error(
       "[Cron Trigger] Error executing stopIdleSandboxes job:",
-      error
+      error instanceof Error ? error : undefined
     );
     return NextResponse.json(
       {

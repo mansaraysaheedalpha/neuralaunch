@@ -21,6 +21,14 @@ const nextConfig: NextJsConfig = {
       // config.externals = [...config.externals, '@prisma/client'];
     }
 
+    // Exclude native .node modules from webpack processing (dockerode issue)
+    config.module = config.module || {};
+    config.module.rules = config.module.rules || [];
+    config.module.rules.push({
+      test: /\.node$/,
+      loader: "ignore-loader",
+    });
+
     // NO ignore-loader needed for @sparticuz/chromium usually
 
     return config;

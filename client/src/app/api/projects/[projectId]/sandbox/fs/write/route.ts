@@ -20,7 +20,7 @@ const writeRequestSchema = z.object({
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  props: { params: Promise<{ projectId: string }> }
 ) {
   try {
     const session = await auth();
@@ -28,6 +28,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const params = await props.params;
     const project = await prisma.landingPage.findFirst({
       where: { id: params.projectId, userId: session.user.id },
     });

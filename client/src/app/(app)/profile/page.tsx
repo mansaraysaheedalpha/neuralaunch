@@ -20,6 +20,17 @@ export default async function ProfilePage() {
         },
     });
 
+    // Check if a Vercel account is linked for this user
+    const vercelAccount = await prisma.account.findFirst({
+        where: {
+            userId: session.user.id,
+            provider: 'vercel',
+        },
+    });
+
+    const hasGitHub = !!githubAccount;
+    const hasVercel = !!vercelAccount;
+
     return (
       <div>
         <h1>Profile Settings</h1>

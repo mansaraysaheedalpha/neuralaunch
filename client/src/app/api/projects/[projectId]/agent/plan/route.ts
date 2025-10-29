@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { AITaskType, executeAITaskSimple } from "@/lib/ai-orchestrator"; // Assuming orchestrator is here
 import { logger } from "@/lib/logger"; // Assuming you have a logger
@@ -30,7 +31,7 @@ type AIPlanResponse = z.infer<typeof aiPlanResponseSchema>;
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  props: { params: Promise<{ projectId: string }> }
 ) {
   try {
     // 1. --- Authentication & Authorization ---
@@ -39,7 +40,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const userId = session.user.id;
-    const { projectId } = params;
+    const { projectId } = await props.params;
 
     // Fetch the project (LandingPage) and ensure it belongs to the user
     // Also include the conversation to get the blueprint
@@ -123,7 +124,7 @@ Ensure the JSON is perfectly valid. The "plan" array must contain at least one t
     } catch (parseError) {
       logger.error(
         `[Agent Plan] Failed to parse or validate AI JSON response for ${projectId}:`,
-        parseError
+        parseError instanceof Error ? parseError : undefined
       );
       logger.error(`[Agent Plan] Raw AI Response: ${aiResponseJson}`);
       return NextResponse.json(
@@ -166,7 +167,7 @@ Ensure the JSON is perfectly valid. The "plan" array must contain at least one t
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    logger.error(`[Agent Plan API] Error: ${errorMessage}`, error);
+    logger.error(`[Agent Plan API] Error: ${errorMessage}`, error instanceof Error ? error : undefined);
     return NextResponse.json(
       { error: "Internal Server Error", message: errorMessage },
       { status: 500 }
