@@ -7,7 +7,6 @@ import { useSession, signOut } from "next-auth/react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
-import LoginButton from "./LoginButton";
 
 export default function LandingHeader() {
   const { data: session, status } = useSession();
@@ -177,13 +176,29 @@ export default function LandingHeader() {
             </DropdownMenu.Root>
           ) : (
             <Link href="/signin" passHref>
-              <motion.span
-                whileHover={{ scale: 1.05 }}
+              <motion.button
+                whileHover={{ scale: 1.05, boxShadow: "0 10px 25px -5px rgba(139, 92, 246, 0.3)" }}
                 whileTap={{ scale: 0.95 }}
-                className="px-5 py-2 text-sm font-semibold text-white bg-gradient-to-r from-primary to-secondary rounded-xl hover:opacity-90 transition-opacity shadow-md"
+                className="relative inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-primary via-violet-600 to-secondary rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group"
               >
-                Sign In / Get Started
-              </motion.span>
+                <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-secondary via-violet-600 to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <span className="relative z-10">Get Started</span>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="relative z-10 group-hover:translate-x-1 transition-transform"
+                >
+                  <path d="M5 12h14" />
+                  <path d="m12 5 7 7-7 7" />
+                </svg>
+              </motion.button>
             </Link>
           )}
           {/* END Auth Status Logic */}
