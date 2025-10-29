@@ -3,11 +3,16 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import GitHub from "next-auth/providers/github";
-import VercelProvider from "next-auth/providers/vercel";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import prisma from "@/lib/prisma"; // Your Prisma singleton
 import type { Adapter } from "next-auth/adapters";
+import type { OAuthConfig } from "next-auth/providers";
 // import { trackEvent } from "@/lib/analytics"; // Your analytics function
+
+// Stub function for trackEvent (replace with actual analytics when ready)
+function trackEvent(event: string, data: Record<string, unknown>) {
+  console.log(`[Analytics] Event: ${event}`, data);
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma) as Adapter,
@@ -29,7 +34,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
     // --- CORRECTED VERCEL PROVIDER ---
-    OAuthProvider({
+    {
       id: "vercel", // Unique ID for this provider
       name: "Vercel",
       type: "oauth",
@@ -49,7 +54,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       userinfo: {
         // Endpoint to fetch basic user info after auth
         url: "https://api.vercel.com/v2/user",
-        async request(context) {
+        async request(context: any) {
           // context contains tokens, provider config
           const response = await fetch("https://api.vercel.com/v2/user", {
             headers: { Authorization: `Bearer ${context.tokens.access_token}` },
@@ -67,7 +72,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           image: profile.avatar, // Vercel uses 'avatar' field
         };
       },
-    }),
+    } as OAuthConfig<any>,
   ],
   secret: process.env.NEXTAUTH_SECRET!, // Ensure this is set
   callbacks: {
@@ -95,17 +100,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     signIn: ({ user, account, isNewUser }) => {
       console.log(
-        `User signed in: ${user.id}, Provider: ${account.provider}, New User: ${isNewUser}`
+        `User signed in: ${user.id}, Provider: ${account?.provider ?? "unknown"}, New User: ${isNewUser}`
       );
-      // trackEvent("sign_in", { userId: user.id, provider: account.provider, isNewUser });
+      // trackEvent("sign_in", { userId: user.id, provider: account?.provider, isNewUser });
     },
   },
   // If you need custom sign-in pages, define them here:
-  // pages: {
-  //   signIn: '/signin',
-  // }
+  pages: {
+    signIn: "/signin",
+  },
 });
-
-
-import { handlers } from "@/auth";
-export const { GET, POST } = handlers;
