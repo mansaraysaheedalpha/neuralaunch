@@ -21,7 +21,7 @@ import { FaGithub } from "react-icons/fa";
 export default function SignInPage() {
   const handleSignIn = (provider: "google" | "github") => {
     // Redirects to provider, then back to the page the user was originally on, or home page.
-    signIn(provider, { callbackUrl: "/" });
+    void signIn(provider, { callbackUrl: "/" });
   };
 
   return (

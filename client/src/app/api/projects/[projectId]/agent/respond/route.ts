@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { logger } from "@/lib/logger";
 
@@ -14,7 +15,7 @@ const respondRequestSchema = z.object({
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  props: { params: Promise<{ projectId: string }> }
 ) {
   try {
     // 1. --- Authentication & Authorization ---
@@ -23,7 +24,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const userId = session.user.id;
-    const { projectId } = params;
+    const { projectId } = await props.params;
 
     // Fetch the project, ensure it belongs to the user, and check its current status
     const project = await prisma.landingPage.findFirst({
@@ -106,7 +107,7 @@ export async function POST(
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    logger.error(`[Agent Respond API] Error: ${errorMessage}`, error);
+    logger.error(`[Agent Respond API] Error: ${errorMessage}`, error instanceof Error ? error : undefined);
     return NextResponse.json(
       { error: "Internal Server Error", message: errorMessage },
       { status: 500 }

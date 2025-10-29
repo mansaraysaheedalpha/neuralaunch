@@ -59,7 +59,7 @@ const projectDataSchema = z.object({
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  props: { params: Promise<{ projectId: string }> }
 ) {
   const startTime = new Date();
   // Initialize result tracking with default error state
@@ -72,6 +72,9 @@ export async function POST(
   // Need project data accessible in catch block
   let projectData: z.infer<typeof projectDataSchema> | null = null;
   let currentHistory: StepResult[] = []; // Store history here
+  
+  // Get params early so projectId is accessible in catch block
+  const { projectId } = await props.params;
 
   try {
     // 1. --- Authentication & Authorization ---
@@ -80,7 +83,6 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const userId = session.user.id;
-    const { projectId } = params;
 
     // Fetch project data and validate structure
     const rawProjectData = await prisma.landingPage.findFirst({
@@ -114,7 +116,7 @@ export async function POST(
     if (!validation.success) {
       logger.error(
         `[Agent Execute] Invalid project data structure for ${projectId}:`,
-        validation.error.format()
+        new Error(JSON.stringify(validation.error.format()))
       );
       return NextResponse.json(
         { error: "Internal Server Error: Invalid project data." },
@@ -395,8 +397,8 @@ Provide the code blocks and/or shell commands first, then the summary on a new l
     const errorMessage =
       error instanceof Error ? error.message : "Unknown execution error";
     logger.error(
-      `[Agent Execute API] Error during task ${stepResult.taskIndex ?? "unknown"} for project ${params.projectId}: ${errorMessage}`,
-      error
+      `[Agent Execute API] Error during task ${stepResult.taskIndex ?? "unknown"} for project ${projectId}: ${errorMessage}`,
+      error instanceof Error ? error : undefined
     );
 
     stepResult.status = "error";
@@ -407,7 +409,7 @@ Provide the code blocks and/or shell commands first, then the summary on a new l
     // Save error state
     try {
       await prisma.landingPage.update({
-        where: { id: params.projectId },
+        where: { id: projectId },
         data: {
           agentStatus: "ERROR",
           // Use the 'currentHistory' fetched at the start
@@ -419,8 +421,8 @@ Provide the code blocks and/or shell commands first, then the summary on a new l
       });
     } catch (dbError) {
       logger.error(
-        `[Agent Execute API] Failed to update DB after error for project ${params.projectId}:`,
-        dbError
+        `[Agent Execute API] Failed to update DB after error for project ${projectId}:`,
+        dbError instanceof Error ? dbError : undefined
       );
     }
 
