@@ -6,15 +6,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ListChecks, HelpCircle, Send, Loader2, Play } from "lucide-react";
 import { logger } from "@/lib/logger"; // Or console
-
-// Define the shape of Plan steps and Questions
-interface PlanStep {
-  task: string;
-}
-interface Question {
-  id: string; // e.g., "tech_stack"
-  text: string;
-}
+import type { PlanStep, Question } from "@/types/agent"; // Import shared types
 
 type SubmitAnswersResponse = {
   agentStatus?: string;
@@ -103,7 +95,7 @@ export default function AgentPlanner({
     setLocalError(null);
 
     try {
-      const res = await fetch(`/api/projects/${projectId}/agent/answers`, {
+      const res = await fetch(`/api/projects/${projectId}/agent/respond`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ answers }),

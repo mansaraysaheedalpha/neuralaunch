@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { logger } from "@/lib/logger";
 
@@ -106,7 +107,10 @@ export async function POST(
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    logger.error(`[Agent Respond API] Error: ${errorMessage}`, error);
+    logger.error(
+      `[Agent Respond API] Error: ${errorMessage}`,
+      error instanceof Error ? error : undefined
+    );
     return NextResponse.json(
       { error: "Internal Server Error", message: errorMessage },
       { status: 500 }

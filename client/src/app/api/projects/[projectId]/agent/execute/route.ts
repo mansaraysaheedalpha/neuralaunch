@@ -113,8 +113,7 @@ export async function POST(
     const validation = projectDataSchema.safeParse(rawProjectData);
     if (!validation.success) {
       logger.error(
-        `[Agent Execute] Invalid project data structure for ${projectId}:`,
-        validation.error.format()
+        `[Agent Execute] Invalid project data structure for ${projectId}: ${JSON.stringify(validation.error.format())}`
       );
       return NextResponse.json(
         { error: "Internal Server Error: Invalid project data." },
@@ -396,7 +395,7 @@ Provide the code blocks and/or shell commands first, then the summary on a new l
       error instanceof Error ? error.message : "Unknown execution error";
     logger.error(
       `[Agent Execute API] Error during task ${stepResult.taskIndex ?? "unknown"} for project ${params.projectId}: ${errorMessage}`,
-      error
+      error instanceof Error ? error : undefined
     );
 
     stepResult.status = "error";
@@ -420,7 +419,7 @@ Provide the code blocks and/or shell commands first, then the summary on a new l
     } catch (dbError) {
       logger.error(
         `[Agent Execute API] Failed to update DB after error for project ${params.projectId}:`,
-        dbError
+        dbError instanceof Error ? dbError : undefined
       );
     }
 

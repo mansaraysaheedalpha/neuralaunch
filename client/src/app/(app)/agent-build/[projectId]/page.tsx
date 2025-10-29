@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { useParams } from "next/navigation"; // To get projectId from URL
 import useSWR, { mutate } from "swr"; // For data fetching and cache mutation
 import { logger } from "@/lib/logger"; // Your logger
+import type { ProjectAgentData } from "@/types/agent"; // Import shared types
 
 // Import the components we've designed
 import AgentControl from "@/components/agent/AgentControl";
@@ -11,41 +12,6 @@ import AgentPlanner from "@/components/agent/AgentPlanner";
 import SandboxLogsViewer from "@/components/agent/SandboxLogsViewer";
 import AgentArtifacts from "@/components/agent/AgentArtifacts";
 import LoadingSkeleton from "@/components/LoadingSkeleton"; // Assuming you have a loading component
-
-// --- Define Types ---
-// (Ideally move these to a shared types file, e.g., @/types/agent.ts)
-interface PlanStep {
-  task: string;
-}
-interface Question {
-  id: string;
-  text: string;
-}
-interface StepResult {
-  /* ... definition from AgentControl ... */
-}
-interface AccountInfo {
-  provider: string;
-  providerAccountId: string;
-} // Basic account info
-
-interface ProjectAgentData {
-  id: string;
-  title: string; // Project title
-  agentPlan: PlanStep[] | null;
-  agentClarificationQuestions: Question[] | null;
-  agentUserResponses: Record<string, string> | null;
-  agentCurrentStep: number | null;
-  agentStatus: string | null;
-  agentExecutionHistory: StepResult[] | null;
-  githubRepoUrl: string | null;
-  githubRepoName: string | null;
-  vercelProjectId: string | null;
-  vercelProjectUrl: string | null;
-  vercelDeploymentUrl: string | null;
-  // User's connected accounts (added for this page)
-  accounts: AccountInfo[];
-}
 
 // --- SWR Fetcher ---
 const fetcher = async (url: string): Promise<ProjectAgentData> => {
@@ -77,7 +43,11 @@ export default function BuildAgentPage() {
     {
       refreshInterval: 5000, // Optional: Poll for status updates
       // Only poll when the agent is actively executing
-      isPaused: () => projectData?.agentStatus !== "EXECUTING",
+      isPaused: (): boolean => {
+        // Access projectData through the closure, but TypeScript needs explicit type
+        const data = projectData;
+        return data?.agentStatus !== "EXECUTING";
+      },
     }
   );
 
@@ -123,7 +93,10 @@ export default function BuildAgentPage() {
       // Optional: Update local state based on result for immediate feedback before SWR polls
       // if (result.agentStatus) { /* update local status if needed */ }
     } catch (err) {
-      logger.error("[BuildAgentPage] Error executing step:", err);
+      logger.error(
+        "[BuildAgentPage] Error executing step:",
+        err instanceof Error ? err : undefined
+      );
       // Update UI to show error (though SWR refresh should also catch it)
       mutate(projectApiUrl); // Ensure error status is fetched
     } finally {

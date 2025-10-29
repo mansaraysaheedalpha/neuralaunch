@@ -139,3 +139,8 @@ export function FormSkeleton({ fields = 4 }: { fields?: number }) {
     </div>
   );
 }
+
+/**
+ * Default export for page loading state
+ */
+export default PageSkeleton;

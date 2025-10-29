@@ -561,20 +561,20 @@ Current plan step ${currentStep + 1} of ${plan.length}.
           stepResult as StepResult,
         ] as any,
         sandboxLastAccessedAt: new Date(),
+      },
+    });
+
+    return NextResponse.json(
+      {
         status: "success",
         message: `Step ${currentStep + 1} completed: ${summary}`,
         nextStepIndex: currentStep + 1,
         nextTaskDescription: isComplete ? null : (plan?.[currentStep + 1]?.task ?? null),
         isComplete: isComplete,
-        status: "success",
-        message: `Step ${currentStep + 1} completed: ${summary}`,
-        nextStepIndex: currentStep + 1,
-        nextTaskDescription: isComplete ? null : plan[currentStep + 1].task,
-        isComplete: isComplete,
         agentStatus: finalAgentStatus,
         stepResult: stepResult,
       },
-      {status: 200 },
+      { status: 200 }
     );
   } catch (error: unknown) {
     // 9. Error Handling: Update DB & Report

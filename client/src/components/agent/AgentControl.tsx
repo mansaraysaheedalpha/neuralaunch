@@ -13,28 +13,7 @@ import {
   CircleHelp,
 } from "lucide-react"; // Example icons
 import { logger } from "@/lib/logger"; // Assuming client-side logger exists or use console
-
-// Import the StepResult interface (ensure path is correct)
-// This might need to be defined in a shared types file (e.g., @/types/agent.ts)
-interface StepResult {
-  startTime: string;
-  endTime: string;
-  taskIndex: number;
-  taskDescription: string;
-  status: "success" | "error";
-  summary: string;
-  filesWritten?: { path: string; success: boolean; message?: string }[];
-  commandsRun?: {
-    command: string;
-    attempt: number;
-    exitCode: number;
-    stdout?: string;
-    stderr?: string;
-    correctedCommand?: string;
-  }[];
-  errorMessage?: string;
-  errorDetails?: string;
-}
+import type { StepResult } from "@/types/agent"; // Import shared types
 
 interface AgentControlProps {
   projectId: string;
