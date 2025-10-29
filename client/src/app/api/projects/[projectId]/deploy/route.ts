@@ -59,9 +59,10 @@ async function fetchVercelAPI(
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  context: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const params = await context.params;
     // 1. --- Authentication & Authorization ---
     const session = await auth();
     if (!session?.user?.id) {
@@ -310,7 +311,10 @@ export async function POST(
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
-    logger.error(`[Vercel Deploy API] Error: ${errorMessage}`, error);
+    logger.error(
+      `[Vercel Deploy API] Error: ${errorMessage}`,
+      error instanceof Error ? error : undefined
+    );
     return NextResponse.json(
       { error: "Internal Server Error", message: errorMessage },
       { status: 500 }

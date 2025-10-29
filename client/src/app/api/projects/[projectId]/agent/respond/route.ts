@@ -15,9 +15,10 @@ const respondRequestSchema = z.object({
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  context: { params: Promise<{ projectId: string }> }
 ) {
   try {
+    const params = await context.params;
     // 1. --- Authentication & Authorization ---
     const session = await auth();
     if (!session?.user?.id) {

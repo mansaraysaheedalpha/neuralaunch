@@ -21,7 +21,29 @@ const nextConfig: NextJsConfig = {
       // config.externals = [...config.externals, '@prisma/client'];
     }
 
-    // NO ignore-loader needed for @sparticuz/chromium usually
+    // Ignore native modules that cause build errors
+    if (!isServer) {
+      // Client-side: ignore server-only packages
+      config.resolve = config.resolve || {};
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        crypto: false,
+        stream: false,
+        os: false,
+        path: false,
+      };
+    }
+
+    // Ignore binary files from ssh2 and dockerode
+    config.module = config.module || {};
+    config.module.rules = config.module.rules || [];
+    config.module.rules.push({
+      test: /\.node$/,
+      use: "ignore-loader",
+    });
 
     return config;
   },

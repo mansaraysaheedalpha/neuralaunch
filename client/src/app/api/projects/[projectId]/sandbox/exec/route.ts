@@ -118,8 +118,9 @@ function extractSummary(responseText: string): string {
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  context: { params: Promise<{ projectId: string }> }
 ) {
+  const params = await context.params;
   const startTime = new Date();
   let stepResult: Partial<StepResult> = {
     startTime: startTime.toISOString(),

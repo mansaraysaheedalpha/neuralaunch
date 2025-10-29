@@ -68,7 +68,7 @@ export async function stopIdleSandboxes() {
         errorCount++;
         logger.error(
           `[IdleSandboxCleanup] Exception stopping sandbox for project ${project.id}:`,
-          error
+          error instanceof Error ? error : undefined
         );
       }
     });
@@ -84,7 +84,7 @@ export async function stopIdleSandboxes() {
     const duration = Date.now() - jobStartTime;
     logger.error(
       `[IdleSandboxCleanup] Job failed during query phase after ${duration}ms:`,
-      error
+      error instanceof Error ? error : undefined
     );
     return { stoppedCount: 0, errors: 1 };
   }
