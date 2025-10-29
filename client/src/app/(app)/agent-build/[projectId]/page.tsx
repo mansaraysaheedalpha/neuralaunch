@@ -1,144 +1,165 @@
-"use client"; // Required for SWR and client-side interactions
+"use client";
+import { useState, useEffect, useCallback } from "react";
+import { useParams } from "next/navigation";
+import useSWR from "swr";
+import { logger } from "@/lib/logger";
+import {
+  ProjectAgentData,
+  AgentStatus,
+  StepResult,
+} from "@/lib/types/agent";
 
-import { useState, useCallback } from "react";
-import { useParams } from "next/navigation"; // To get projectId from URL
-import useSWR, { mutate } from "swr"; // For data fetching and cache mutation
-import { logger } from "@/lib/logger"; // Your logger
-
-// Import the components we've designed
+// Import UI components
 import AgentControl from "@/components/agent/AgentControl";
 import AgentPlanner from "@/components/agent/AgentPlanner";
 import SandboxLogsViewer from "@/components/agent/SandboxLogsViewer";
 import AgentArtifacts from "@/components/agent/AgentArtifacts";
-import LoadingSkeleton from "@/components/LoadingSkeleton"; // Assuming you have a loading component
+import LoadingSkeleton from "@/components/LoadingSkeleton";
 
-// --- Define Types ---
-// (Ideally move these to a shared types file, e.g., @/types/agent.ts)
-interface PlanStep {
-  task: string;
-}
-interface Question {
-  id: string;
-  text: string;
-}
-interface StepResult {
-  /* ... definition from AgentControl ... */
-}
-interface AccountInfo {
-  provider: string;
-  providerAccountId: string;
-} // Basic account info
-
-interface ProjectAgentData {
-  id: string;
-  title: string; // Project title
-  agentPlan: PlanStep[] | null;
-  agentClarificationQuestions: Question[] | null;
-  agentUserResponses: Record<string, string> | null;
-  agentCurrentStep: number | null;
-  agentStatus: string | null;
-  agentExecutionHistory: StepResult[] | null;
-  githubRepoUrl: string | null;
-  githubRepoName: string | null;
-  vercelProjectId: string | null;
-  vercelProjectUrl: string | null;
-  vercelDeploymentUrl: string | null;
-  // User's connected accounts (added for this page)
-  accounts: AccountInfo[];
-}
-
-// --- SWR Fetcher ---
+// --- SWR Fetcher for initial data load ---
 const fetcher = async (url: string): Promise<ProjectAgentData> => {
   const res = await fetch(url);
   if (!res.ok) {
-    const errorData = await res
-      .json()
-      .catch(() => ({ error: `API Error: ${res.status}` }));
-    throw new Error(errorData.error || `API Error: ${res.status}`);
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(
+      errorData.error || `API Error: ${res.status}`
+    );
   }
   return res.json();
 };
 
+// --- Custom Hook for Agent State & SSE ---
+function useAgentState(projectId: string) {
+  const projectApiUrl = `/api/projects/${projectId}/agent/state`;
+
+  // Use SWR for the initial data load
+  const {
+    data: initialData,
+    error: initialError,
+    isLoading: isInitialLoading,
+    mutate,
+  } = useSWR<ProjectAgentData>(projectId ? projectApiUrl : null, fetcher, {
+    revalidateOnFocus: false, // SSE will handle updates
+  });
+
+  const [agentData, setAgentData] = useState<ProjectAgentData | null>(
+    initialData || null
+  );
+
+  // Update local state when SWR fetches initial data
+  useEffect(() => {
+    if (initialData) {
+      setAgentData(initialData);
+    }
+  }, [initialData]);
+
+  // Effect to connect to the SSE stream
+  useEffect(() => {
+    if (!projectId) return;
+
+    const eventSource = new EventSource(
+      `/api/projects/${projectId}/agent/events`
+    );
+
+    eventSource.onopen = () => {
+      logger.info("[SSE] Connection opened.");
+    };
+
+    eventSource.onmessage = (event) => {
+      const eventData = JSON.parse(event.data);
+      logger.info("[SSE] Received event:", eventData);
+
+      setAgentData((currentData) => {
+        if (!currentData) return null;
+
+        switch (eventData.type) {
+          case "status_update":
+            return { ...currentData, agentStatus: eventData.status };
+          case "step_start":
+            return {
+              ...currentData,
+              agentStatus: "EXECUTING" as AgentStatus,
+              agentCurrentStep: eventData.taskIndex,
+            };
+          case "step_complete":
+            // Refetch the full state to get the latest history and artifacts
+            mutate();
+            return {
+              ...currentData,
+              agentStatus: eventData.isComplete
+                ? ("COMPLETE" as AgentStatus)
+                : ("PAUSED_AFTER_STEP" as AgentStatus),
+            };
+          case "error":
+            // Refetch to get detailed error info in history
+            mutate();
+            return { ...currentData, agentStatus: "ERROR" as AgentStatus };
+          // NOTE: A 'log' event type could be handled here to update a log viewer component
+          default:
+            return currentData;
+        }
+      });
+    };
+
+    eventSource.onerror = (err) => {
+      logger.error("[SSE] Connection error:", err);
+      eventSource.close();
+    };
+
+    // Cleanup on component unmount
+    return () => {
+      logger.info("[SSE] Closing connection.");
+      eventSource.close();
+    };
+  }, [projectId, mutate]);
+
+  return {
+    agentData,
+    error: initialError,
+    isLoading: isInitialLoading && !agentData,
+    mutate,
+  };
+}
+
 // --- The Page Component ---
 export default function BuildAgentPage() {
   const params = useParams();
-  const projectId = params.projectId as string; // Get projectId from URL
-
-  // API endpoint to fetch project agent data AND connected accounts
-  const projectApiUrl = `/api/projects/${projectId}/agent/state`; // Define this new backend route
+  const projectId = params.projectId as string;
 
   const {
-    data: projectData,
+    agentData: projectData,
     error,
     isLoading,
-  } = useSWR<ProjectAgentData>(
-    projectId ? projectApiUrl : null, // Fetch only if projectId is available
-    fetcher,
-    {
-      refreshInterval: 5000, // Optional: Poll for status updates
-      // Only poll when the agent is actively executing
-      isPaused: () => projectData?.agentStatus !== "EXECUTING",
-    }
-  );
+    mutate,
+  } = useAgentState(projectId);
 
-  // --- State for local UI feedback (optional, API responses update props eventually) ---
-  const [isExecutingStep, setIsExecutingStep] = useState(false);
-
-  // --- Derived Connection Status ---
-  const isGitHubConnected = !!projectData?.accounts?.some(
-    (acc) => acc.provider === "github"
-  );
-  const isVercelConnected = !!projectData?.accounts?.some(
-    (acc) => acc.provider === "vercel"
-  );
-
-  // --- Callback Implementations ---
   const handleActionComplete = useCallback(() => {
-    // Revalidate the project data using SWR's mutate
-    logger.info(
-      "[BuildAgentPage] Action complete, revalidating project data..."
-    );
-    mutate(projectApiUrl);
-  }, [projectApiUrl]);
+    // Revalidate data after user actions like submitting answers or creating artifacts
+    mutate();
+  }, [mutate]);
 
   const handleExecuteNextStep = useCallback(async () => {
-    if (!projectId || isExecutingStep) return;
-    setIsExecutingStep(true);
-    logger.info(
-      `[BuildAgentPage] Triggering execution for step ${projectData?.agentCurrentStep ?? 0}...`
-    );
+    if (!projectId) return;
+    logger.info("[BuildAgentPage] Triggering agent execution...");
     try {
+      // This API call now returns immediately with 202 Accepted
       const response = await fetch(`/api/projects/${projectId}/agent/execute`, {
         method: "POST",
       });
-      const result = await response.json(); // Contains status, message, stepResult
       if (!response.ok) {
-        throw new Error(
-          result.error || `Failed to execute step (${response.status})`
-        );
+        const result = await response.json();
+        throw new Error(result.error || "Failed to start execution.");
       }
-      logger.info(`[BuildAgentPage] Execute step response: ${result.status}`);
-      // Manually trigger revalidation immediately for faster UI update
-      mutate(projectApiUrl);
-      // Optional: Update local state based on result for immediate feedback before SWR polls
-      // if (result.agentStatus) { /* update local status if needed */ }
+      // The UI will update via SSE, no immediate mutation needed here
     } catch (err) {
-      logger.error("[BuildAgentPage] Error executing step:", err);
-      // Update UI to show error (though SWR refresh should also catch it)
-      mutate(projectApiUrl); // Ensure error status is fetched
-    } finally {
-      setIsExecutingStep(false);
+      logger.error("[BuildAgentPage] Error triggering execution:", err);
+      // Optionally show a toast notification for the error
     }
-  }, [
-    projectId,
-    projectApiUrl,
-    isExecutingStep,
-    projectData?.agentCurrentStep,
-  ]);
+  }, [projectId]);
 
   // --- Render Logic ---
   if (isLoading) {
-    return <LoadingSkeleton />; // Your loading state
+    return <LoadingSkeleton />;
   }
 
   if (error) {
@@ -150,25 +171,30 @@ export default function BuildAgentPage() {
   }
 
   if (!projectData) {
-    return <div className="p-4">Project data not found.</div>; // Should not happen if projectId is valid
+    return <div className="p-4">Project data not found.</div>;
   }
 
-  // Pass necessary data down to child components
+  const isGitHubConnected = !!projectData.accounts?.some(
+    (acc) => acc.provider === "github"
+  );
+  const isVercelConnected = !!projectData.accounts?.some(
+    (acc) => acc.provider === "vercel"
+  );
+
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-8">
       <h1 className="text-3xl font-bold mb-6">
         AI Agent Build: {projectData.title}
       </h1>
 
-      {/* Conditionally render Planner or Control based on status */}
       {projectData.agentStatus === "PENDING_USER_INPUT" ? (
         <AgentPlanner
           projectId={projectId}
           plan={projectData.agentPlan}
           questions={projectData.agentClarificationQuestions}
           initialAgentStatus={projectData.agentStatus}
-          onAnswersSubmit={handleActionComplete} // Revalidate after submitting answers
-          onExecuteStart={handleExecuteNextStep} // Trigger first step
+          onAnswersSubmit={handleActionComplete}
+          onExecuteStart={handleExecuteNextStep}
         />
       ) : (
         <AgentControl
@@ -180,11 +206,7 @@ export default function BuildAgentPage() {
             projectData.agentCurrentStep !== null &&
             projectData.agentCurrentStep < projectData.agentPlan.length
               ? projectData.agentPlan[projectData.agentCurrentStep].task
-              : (projectData.agentExecutionHistory?.length ?? 0) > 0 // Show last completed task if possible
-                ? projectData.agentExecutionHistory![
-                    projectData.agentExecutionHistory!.length - 1
-                  ].taskDescription
-                : null
+              : null
           }
           agentStatus={projectData.agentStatus}
           lastStepResult={
@@ -210,7 +232,7 @@ export default function BuildAgentPage() {
         agentStatus={projectData.agentStatus}
         isGitHubConnected={isGitHubConnected}
         isVercelConnected={isVercelConnected}
-        onActionComplete={handleActionComplete} // Pass revalidation callback
+        onActionComplete={handleActionComplete}
       />
     </div>
   );

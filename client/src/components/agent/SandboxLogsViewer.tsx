@@ -1,115 +1,60 @@
-// src/components/agent/SandboxLogsViewer.tsx (New File or update existing placeholder)
-
-"use client"; // Required for hooks like useEffect, useState, useRef
-
+"use client";
 import { useEffect, useState, useRef } from "react";
-import Pusher from "pusher-js";
 import { motion } from "framer-motion";
-import { logger } from "@/lib/logger"; // Assuming client-side logger or use console
+import { logger } from "@/lib/logger";
 
 interface SandboxLogsViewerProps {
-  projectId: string; // The ID of the LandingPage/Project
+  projectId: string;
 }
 
 export default function SandboxLogsViewer({
   projectId,
 }: SandboxLogsViewerProps) {
-  const [logs, setLogs] = useState<string>(""); // Store logs as a single string
+  const [logs, setLogs] = useState<string>("");
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const logsEndRef = useRef<null | HTMLDivElement>(null);
-  const channelName = `sandbox-logs-${projectId}`; // Pusher channel name specific to this project
 
   useEffect(() => {
-    // Ensure Pusher environment variables are available on the client
-    const pusherKey = process.env.NEXT_PUBLIC_PUSHER_KEY;
-    const pusherCluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
+    if (!projectId) return;
 
-    if (!pusherKey || !pusherCluster) {
-      logger.error(
-        "[SandboxLogsViewer] Pusher environment variables (NEXT_PUBLIC_PUSHER_KEY, NEXT_PUBLIC_PUSHER_CLUSTER) are not set."
-      );
-      setLogs("[Error: Pusher configuration missing. Cannot display logs.]\n");
-      setIsConnected(false);
-      return;
-    }
+    const eventSource = new EventSource(
+      `/api/projects/${projectId}/agent/events`
+    );
 
-    let pusherClient: Pusher | null = null;
+    eventSource.onopen = () => {
+      logger.info("[LogsViewer SSE] Connection opened.");
+      setIsConnected(true);
+      setLogs((prev) => prev || "[Connected to sandbox logs...]\n");
+    };
 
-    try {
-      pusherClient = new Pusher(pusherKey, {
-        cluster: pusherCluster,
-      });
+    eventSource.onmessage = (event) => {
+      const eventData = JSON.parse(event.data);
 
-      const channel = pusherClient.subscribe(channelName);
-
-      // --- Event Bindings ---
-
-      // Successful subscription
-      channel.bind("pusher:subscription_succeeded", () => {
-        logger.info(
-          `[SandboxLogsViewer] Successfully subscribed to Pusher channel: ${channelName}`
-        );
-        setIsConnected(true);
-        // Add connection message only if logs are currently empty, otherwise it's a reconnect
-        setLogs((prev) => prev || "[Connected to sandbox logs...]\n");
-      });
-
-      // Failed subscription
-      channel.bind(
-        "pusher:subscription_error",
-        (status: { error?: { message?: string }; status?: string | number }) => {
-          logger.error(
-            `[SandboxLogsViewer] Pusher subscription error for ${channelName}:`,
-            undefined,
-            { status }
-          );
-          setIsConnected(false);
-          setLogs(
-            (prev) =>
-              prev +
-              `\n[Error subscribing to logs: ${status.error?.message ?? status.status}]\n`
-          );
-        }
-      );
-
-      // Receiving log messages
-      channel.bind("log-message", (data: { message: string }) => {
-        // Append new message, ensuring it exists and is a string
-        if (data && typeof data.message === "string") {
-          setLogs((prev) => prev + data.message);
-        }
-      });
-
-      logger.info(
-        `[SandboxLogsViewer] Attempting to subscribe to Pusher channel: ${channelName}`
-      );
-      setLogs("[Connecting to sandbox logs...]\n"); // Initial connecting message
-    } catch (error) {
-      logger.error(
-        "[SandboxLogsViewer] Failed to initialize Pusher:",
-        error instanceof Error ? error : undefined
-      );
-      setLogs((prev) => prev + "[Error initializing log connection.]\n");
-      setIsConnected(false);
-    }
-
-    // --- Cleanup Function ---
-    return () => {
-      if (pusherClient) {
-        logger.info(
-          `[SandboxLogsViewer] Unsubscribing from Pusher channel: ${channelName}`
-        );
-        pusherClient.unsubscribe(channelName);
-        pusherClient.disconnect();
-        setIsConnected(false);
+      // We only care about 'log' events here
+      if (eventData.type === "log" && typeof eventData.message === "string") {
+        setLogs((prev) => prev + eventData.message + "\n");
       }
     };
-  }, [projectId, channelName]); // Rerun effect if projectId changes
 
-  // Auto-scroll effect
+    eventSource.onerror = (err) => {
+      logger.error("[LogsViewer SSE] Connection error:", err);
+      setIsConnected(false);
+      setLogs((prev) => prev + "[Error: Lost connection to logs.]\n");
+      eventSource.close();
+    };
+
+    setLogs("[Connecting to sandbox logs...]\n");
+
+    return () => {
+      logger.info("[LogsViewer SSE] Closing connection.");
+      eventSource.close();
+      setIsConnected(false);
+    };
+  }, [projectId]);
+
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logs]); // Scroll whenever logs update
+  }, [logs]);
 
   return (
     <motion.div
@@ -118,21 +63,18 @@ export default function SandboxLogsViewer({
       transition={{ delay: 0.2, duration: 0.5 }}
       className="bg-gray-900 text-gray-200 font-mono p-4 rounded-lg h-96 overflow-y-auto text-sm border border-gray-700 relative shadow-inner"
     >
-      {/* Connection Status Indicator */}
       <div
         className={`absolute top-3 right-3 w-3 h-3 rounded-full transition-colors duration-300 ${
           isConnected ? "bg-green-500 animate-pulse" : "bg-red-500"
         }`}
         title={isConnected ? "Connected to Logs" : "Disconnected from Logs"}
       />
-      {/* Log Content */}
       <pre className="whitespace-pre-wrap break-words">
         <code>
           {logs ||
             (isConnected ? "Waiting for logs..." : "Attempting to connect...")}
         </code>
       </pre>
-      {/* Invisible element to target for scrolling */}
       <div ref={logsEndRef} />
     </motion.div>
   );
