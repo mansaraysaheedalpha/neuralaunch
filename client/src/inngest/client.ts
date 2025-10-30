@@ -1,7 +1,6 @@
 // src/inngest/client.ts
 
 import { Inngest, EventSchemas } from "inngest";
-import type { PlanStep } from "@/types/agent"; // Import PlanStep if needed for event data typing
 
 // Define the events and their expected data payloads
 export type AgentEvents = {

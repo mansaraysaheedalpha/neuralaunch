@@ -17,7 +17,6 @@ import { logger } from "@/lib/logger";
 import type { StepResult } from "@/types/agent"; // This type must include prUrl?: string | null
 
 interface AgentControlProps {
-  projectId: string;
   currentStepIndex: number | null;
   totalSteps: number;
   currentTaskDescription: string | null;
@@ -27,7 +26,6 @@ interface AgentControlProps {
 }
 
 export default function AgentControl({
-  projectId,
   currentStepIndex,
   totalSteps,
   currentTaskDescription,

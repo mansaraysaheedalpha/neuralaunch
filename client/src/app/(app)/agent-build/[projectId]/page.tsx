@@ -4,7 +4,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useParams } from "next/navigation";
-import useSWR, { mutate } from "swr";
+import useSWR from "swr";
 import { logger } from "@/lib/logger";
 
 // --- Import Components ---
@@ -172,10 +172,17 @@ export default function BuildAgentPage() {
               method: "POST",
             });
             if (!res.ok) {
-              const errData = await res
+              const errData: unknown = await res
                 .json()
                 .catch(() => ({ error: "Failed to trigger plan" }));
-              throw new Error(errData.error || `API Error: ${res.status}`);
+              const message =
+                typeof errData === "object" &&
+                errData !== null &&
+                "error" in errData &&
+                typeof (errData as { error: unknown }).error === "string"
+                  ? (errData as { error: string }).error
+                  : `API Error: ${res.status}`;
+              throw new Error(message);
             }
             logger.info(
               "[BuildAgentPage] Planning initiated successfully. Revalidating state..."
@@ -319,8 +326,8 @@ export default function BuildAgentPage() {
           plan={projectData.agentPlan}
           questions={projectData.agentClarificationQuestions}
           initialAgentStatus={agentStatus}
-          onActionComplete={handleActionComplete}
-          onExecuteStart={handleExecuteNextStep} // This might still be useful if planning yields no questions/env vars
+          onActionComplete={() => void handleActionComplete()}
+          onExecuteStart={() => void handleExecuteNextStep()} // This might still be useful if planning yields no questions/env vars
           onSubmissionError={(errMsg) =>
             toast.error(`Submission Error: ${errMsg}`)
           }
@@ -335,7 +342,7 @@ export default function BuildAgentPage() {
               ? projectData.agentRequiredEnvKeys
               : []
           }
-          onActionComplete={handleActionComplete}
+          onActionComplete={() => void handleActionComplete()}
           onSubmissionError={(errMsg) =>
             toast.error(`Configuration Error: ${errMsg}`)
           }
@@ -344,7 +351,6 @@ export default function BuildAgentPage() {
 
       {showControls && (
         <AgentControl
-          projectId={projectId}
           currentStepIndex={projectData.agentCurrentStep}
           totalSteps={projectData.agentPlan?.length ?? 0}
           currentTaskDescription={
@@ -383,7 +389,7 @@ export default function BuildAgentPage() {
             agentStatus={agentStatus}
             isGitHubConnected={isGitHubConnected}
             isVercelConnected={isVercelConnected}
-            onActionComplete={handleActionComplete}
+            onActionComplete={() => void handleActionComplete()}
           />
         </>
       )}

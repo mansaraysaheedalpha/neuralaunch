@@ -134,7 +134,7 @@ export function getEnv(): Env {
 try {
   validateEnv();
   logger.info("Environment loaded and validated on startup.");
-} catch (error) {
+} catch {
   if (process.env.NODE_ENV === "production") {
     console.error("Halting process due to invalid environment configuration.");
     process.exit(1);

@@ -167,7 +167,7 @@ Ensure the JSON is perfectly valid. "plan" must have at least one task. "questio
     // 5. --- Parse and Validate AI Response ---
     let parsedResponse: AIPlanResponse;
     try {
-      const rawJsonResponse = JSON.parse(aiResponseJson);
+      const rawJsonResponse: unknown = JSON.parse(aiResponseJson);
       parsedResponse = aiPlanResponseSchema.parse(rawJsonResponse); // Validate against updated Zod schema
       log.info(
         `AI response parsed successfully. Plan steps: ${parsedResponse.plan.length}, Questions: ${parsedResponse.questions.length}, EnvKeys: ${parsedResponse.requiredEnvKeys.length}`
@@ -204,9 +204,9 @@ Ensure the JSON is perfectly valid. "plan" must have at least one task. "questio
     await prisma.landingPage.update({
       where: { id: projectId },
       data: {
-        agentPlan: plan as any, // Prisma expects JsonValue
-        agentClarificationQuestions: questions as any,
-        agentRequiredEnvKeys: requiredEnvKeys as any, // Save the identified keys
+        agentPlan: plan as Prisma.InputJsonValue, // Prisma expects InputJsonValue
+        agentClarificationQuestions: questions as Prisma.InputJsonValue,
+        agentRequiredEnvKeys: requiredEnvKeys as Prisma.InputJsonValue, // Save the identified keys
         agentUserResponses: Prisma.JsonNull, // Clear previous responses
         agentCurrentStep: 0, // Reset to step 0
         agentStatus: nextAgentStatus,
