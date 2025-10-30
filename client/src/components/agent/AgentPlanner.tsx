@@ -1,45 +1,63 @@
-// src/components/agent/AgentPlanner.tsx (New File)
+// src/components/agent/AgentPlanner.tsx
 
 "use client";
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ListChecks, HelpCircle, Send, Loader2, Play } from "lucide-react";
-import { logger } from "@/lib/logger"; // Or console
-import type { PlanStep, Question } from "@/types/agent"; // Import shared types
+import {
+  ListChecks,
+  HelpCircle,
+  Send,
+  Loader2,
+  Play,
+  Brain,
+} from "lucide-react"; // Added Brain icon
+import { logger } from "@/lib/logger";
+import type { PlanStep, Question } from "@/types/agent"; // Ensure Question type includes 'options' and 'allowAgentDecision'
 
+// --- Types ---
 type SubmitAnswersResponse = {
   agentStatus?: string;
   error?: string;
 };
 
-function isSubmitAnswersResponse(value: unknown): value is SubmitAnswersResponse {
+// Type guard for API response
+function isSubmitAnswersResponse(
+  value: unknown
+): value is SubmitAnswersResponse {
   if (typeof value !== "object" || value === null) return false;
   const obj = value as Record<string, unknown>;
-  if ("agentStatus" in obj && obj.agentStatus !== undefined && typeof obj.agentStatus !== "string") return false;
-  if ("error" in obj && obj.error !== undefined && typeof obj.error !== "string") return false;
-  return true;
+  // Check types loosely, allowing undefined
+  const hasStatus =
+    "agentStatus" in obj &&
+    (typeof obj.agentStatus === "string" || obj.agentStatus === undefined);
+  const hasError =
+    "error" in obj &&
+    (typeof obj.error === "string" || obj.error === undefined);
+  return hasStatus || hasError; // It's valid if it has at least one, or potentially both
 }
+
+// Special value to indicate agent should decide
+const AGENT_DECISION_MARKER = "__AGENT_DECISION__";
 
 interface AgentPlannerProps {
   projectId: string;
   plan: PlanStep[] | null;
-  questions: Question[] | null;
+  questions: Question[] | null; // Expects the enhanced Question type
   initialAgentStatus: string | null;
-  // Callback when answers are submitted successfully (passes new status)
-  onAnswersSubmit: (newStatus: string) => void;
-  // Callback to trigger first execution step (used if no questions)
+  // Callback now just needs to revalidate data (parent handles status)
+  onActionComplete: () => void;
+  // Callback to trigger first execution step (used if no questions/config needed)
   onExecuteStart: () => void;
   // Optional: Callback if submitting answers fails
   onSubmissionError?: (error: string) => void;
 }
 
-// Animation variants
+// --- Animation Variants (Keep existing ones) ---
 const fadeIn = {
   hidden: { opacity: 0, y: 10 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
 };
-
 const staggerContainer = {
   hidden: { opacity: 0 },
   visible: {
@@ -48,12 +66,13 @@ const staggerContainer = {
   },
 };
 
+// --- Component ---
 export default function AgentPlanner({
   projectId,
   plan,
   questions,
   initialAgentStatus,
-  onAnswersSubmit,
+  onActionComplete, // Renamed from onAnswersSubmit for clarity
   onExecuteStart,
   onSubmissionError,
 }: AgentPlannerProps) {
@@ -61,38 +80,51 @@ export default function AgentPlanner({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  // Determine if all questions have answers
-  const allQuestionsAnswered = questions
-    ? questions.every((q) => answers[q.id]?.trim())
-    : true;
-  const showQuestions =
-    questions &&
-    questions.length > 0 &&
-    initialAgentStatus === "PENDING_USER_INPUT";
-  const showStartButton =
-    (!questions || questions.length === 0) &&
-    (initialAgentStatus === "READY_TO_EXECUTE" ||
-      initialAgentStatus === "PENDING_USER_INPUT"); // Show start if no questions
+  // --- Derived State ---
+  const validQuestions = Array.isArray(questions) ? questions : [];
+  const showQuestionsSection =
+    validQuestions.length > 0 && initialAgentStatus === "PENDING_USER_INPUT";
+  const showStartButton = // Show start only if agent is ready and there were no questions/config steps
+    !showQuestionsSection && initialAgentStatus === "READY_TO_EXECUTE";
 
-  const isExecutingOrComplete =
-    initialAgentStatus === "EXECUTING" ||
-    initialAgentStatus === "COMPLETE";
+  // Check if all *required* questions are answered (not empty and not agent decision)
+  const allRequiredAnswered = validQuestions
+    .filter((q) => !q.allowAgentDecision) // Filter for required questions
+    .every(
+      (q) => answers[q.id]?.trim() && answers[q.id] !== AGENT_DECISION_MARKER
+    );
 
-  // Update answer state
+  // Check if all questions have *some* answer (including agent decision)
+  const allQuestionsTouched = validQuestions.every(
+    (q) => answers[q.id] !== undefined
+  );
+
+  const canSubmitAnswers =
+    showQuestionsSection && allRequiredAnswered && allQuestionsTouched;
+
+  // --- Event Handlers ---
+
+  // Update answer state (for textareas or selected options)
   const handleAnswerChange = (questionId: string, value: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
     setLocalError(null); // Clear error on input change
   };
 
+  // Handle "Let Agent Decide" button click
+  const handleAgentDecision = (questionId: string) => {
+    handleAnswerChange(questionId, AGENT_DECISION_MARKER);
+  };
+
   // Submit answers to the backend
   const handleSubmitAnswers = async () => {
-    if (!allQuestionsAnswered) {
-      setLocalError("Please answer all questions before submitting.");
+    if (!canSubmitAnswers) {
+      setLocalError("Please answer all required questions before submitting.");
       return;
     }
 
     setIsSubmitting(true);
     setLocalError(null);
+    logger.info(`Submitting answers for project ${projectId}:`, answers);
 
     try {
       const res = await fetch(`/api/projects/${projectId}/agent/respond`, {
@@ -104,26 +136,26 @@ export default function AgentPlanner({
       const parsed: unknown = await res.json();
 
       if (!isSubmitAnswersResponse(parsed)) {
-        throw new Error(`Invalid response from server`);
+        throw new Error("Invalid response format received from server.");
       }
 
-      if (!res.ok) {
+      if (!res.ok || parsed.error) {
         throw new Error(
           parsed.error || `Failed to submit answers (${res.status})`
         );
       }
 
       logger.info(
-        `[AgentPlanner] Answers submitted successfully for ${projectId}`
+        `Answers submitted successfully for ${projectId}. New status: ${parsed.agentStatus}`
       );
-      onAnswersSubmit(parsed.agentStatus || "READY_TO_EXECUTE"); // Notify parent
+      onActionComplete(); // Notify parent to revalidate data
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
           : "Unknown error submitting answers.";
       logger.error(
-        `[AgentPlanner] Error submitting answers for ${projectId}:`,
+        `Error submitting answers for ${projectId}:`,
         error instanceof Error ? error : undefined
       );
       setLocalError(message);
@@ -137,14 +169,19 @@ export default function AgentPlanner({
 
   // Trigger first execution step
   const handleStartExecution = () => {
-    // Basic check to prevent accidental double-clicks if parent doesn't disable
-    if (initialAgentStatus === "EXECUTING") return;
     onExecuteStart();
   };
 
+  // --- Render Logic ---
+
   // Only render if there's a plan or questions to show
-  if (!plan && !showQuestions) {
-    return null; // Or a placeholder/loading state if needed initially
+  if (!plan && !showQuestionsSection) {
+    // Could show a loading state if planning hasn't finished yet
+    return (
+      <div className="p-6 text-center text-muted-foreground italic">
+        Waiting for agent plan...
+      </div>
+    );
   }
 
   return (
@@ -154,7 +191,7 @@ export default function AgentPlanner({
       animate="visible"
       className="mb-6 space-y-6"
     >
-      {/* Plan Overview */}
+      {/* Plan Overview (No Changes Needed Here) */}
       {plan && plan.length > 0 && (
         <motion.div
           variants={fadeIn}
@@ -181,9 +218,9 @@ export default function AgentPlanner({
         </motion.div>
       )}
 
-      {/* Questions Section */}
+      {/* Enhanced Questions Section */}
       <AnimatePresence>
-        {showQuestions && (
+        {showQuestionsSection && (
           <motion.div
             key="questions-section"
             variants={fadeIn}
@@ -199,31 +236,104 @@ export default function AgentPlanner({
               </h3>
             </div>
             <p className="text-sm text-muted-foreground mb-4">
-              The AI agent needs answers to these questions before building:
+              The AI agent needs answers before building. For optional choices,
+              you can let the agent decide.
             </p>
+
+            {/* Map through questions */}
             <motion.div
               variants={staggerContainer}
               initial="hidden"
               animate="visible"
-              className="space-y-4"
+              className="space-y-6" // Increased spacing between questions
             >
-              {questions.map((q) => (
-                <motion.div key={q.id} variants={fadeIn} className="space-y-1">
+              {validQuestions.map((q) => (
+                <motion.div key={q.id} variants={fadeIn} className="space-y-2">
                   <label
                     htmlFor={q.id}
                     className="block text-sm font-medium text-foreground"
                   >
                     {q.text}
+                    {!q.allowAgentDecision && (
+                      <span className="text-red-500 ml-1">*</span>
+                    )}{" "}
+                    {/* Indicate required */}
                   </label>
-                  <textarea
-                    id={q.id}
-                    rows={2}
-                    value={answers[q.id] || ""}
-                    onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-                    disabled={isSubmitting}
-                    className="w-full px-3 py-2 bg-background border border-border rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-sm placeholder:text-muted-foreground/50 disabled:opacity-60"
-                    placeholder="Your answer..."
-                  />
+
+                  {/* Render Options or Textarea */}
+                  {q.options && q.options.length > 0 ? (
+                    // Display Options (e.g., as buttons)
+                    <div className="flex flex-wrap gap-2">
+                      {q.options.map((option) => (
+                        <motion.button
+                          key={option}
+                          onClick={() => handleAnswerChange(q.id, option)}
+                          disabled={
+                            isSubmitting ||
+                            answers[q.id] === AGENT_DECISION_MARKER
+                          }
+                          whileHover={{
+                            scale:
+                              isSubmitting ||
+                              answers[q.id] === AGENT_DECISION_MARKER
+                                ? 1
+                                : 1.03,
+                          }}
+                          whileTap={{
+                            scale:
+                              isSubmitting ||
+                              answers[q.id] === AGENT_DECISION_MARKER
+                                ? 1
+                                : 0.98,
+                          }}
+                          className={`px-4 py-2 text-sm rounded-lg border-2 transition-all ${
+                            answers[q.id] === option
+                              ? "border-primary bg-primary/10 text-primary font-semibold"
+                              : "border-border bg-background hover:border-primary/50 text-muted-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+                          }`}
+                        >
+                          {option}
+                        </motion.button>
+                      ))}
+                    </div>
+                  ) : (
+                    // Display Textarea
+                    <textarea
+                      id={q.id}
+                      rows={2}
+                      value={
+                        answers[q.id] === AGENT_DECISION_MARKER
+                          ? ""
+                          : answers[q.id] || ""
+                      } // Don't show marker in textarea
+                      onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                      disabled={
+                        isSubmitting || answers[q.id] === AGENT_DECISION_MARKER
+                      }
+                      className="w-full px-3 py-2 bg-background border border-border rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-sm placeholder:text-muted-foreground/50 disabled:opacity-60 disabled:cursor-not-allowed"
+                      placeholder="Your answer..."
+                    />
+                  )}
+
+                  {/* "Let Agent Decide" Button */}
+                  {q.allowAgentDecision && (
+                    <motion.button
+                      onClick={() => handleAgentDecision(q.id)}
+                      disabled={isSubmitting}
+                      whileHover={{ scale: isSubmitting ? 1 : 1.03 }}
+                      whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
+                      className={`mt-2 flex items-center gap-2 px-3 py-1.5 text-xs rounded-md border transition-all ${
+                        answers[q.id] === AGENT_DECISION_MARKER
+                          ? "border-amber-500 bg-amber-500/10 text-amber-500 font-semibold"
+                          : "border-border bg-muted/50 hover:bg-muted text-muted-foreground disabled:opacity-50"
+                      }`}
+                    >
+                      <Brain className="w-3 h-3" />
+                      {answers[q.id] === AGENT_DECISION_MARKER
+                        ? "Agent Will Decide"
+                        : "Let Agent Decide"}
+                    </motion.button>
+                  )}
                 </motion.div>
               ))}
             </motion.div>
@@ -234,16 +344,15 @@ export default function AgentPlanner({
               </p>
             )}
 
+            {/* Submit Button */}
             <motion.button
               onClick={() => void handleSubmitAnswers()}
-              disabled={!allQuestionsAnswered || isSubmitting}
+              disabled={!canSubmitAnswers || isSubmitting}
               whileHover={{
-                scale: !allQuestionsAnswered || isSubmitting ? 1 : 1.03,
+                scale: !canSubmitAnswers || isSubmitting ? 1 : 1.03,
               }}
-              whileTap={{
-                scale: !allQuestionsAnswered || isSubmitting ? 1 : 0.98,
-              }}
-              className="w-full mt-4 inline-flex items-center justify-center px-6 py-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              whileTap={{ scale: !canSubmitAnswers || isSubmitting ? 1 : 0.98 }}
+              className="w-full mt-6 inline-flex items-center justify-center px-6 py-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               {isSubmitting ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -258,19 +367,13 @@ export default function AgentPlanner({
         )}
       </AnimatePresence>
 
-      {/* Start Execution Button */}
+      {/* Start Execution Button (Only if agent is ready) */}
       {showStartButton && (
         <motion.button
           onClick={handleStartExecution}
-          // Disable if agent is already executing or done
-          disabled={isExecutingOrComplete}
-          whileHover={{
-            scale: isExecutingOrComplete ? 1 : 1.03,
-          }}
-          whileTap={{
-            scale: isExecutingOrComplete ? 1 : 0.98,
-          }}
-          className="w-full mt-4 inline-flex items-center justify-center px-6 py-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.98 }}
+          className="w-full inline-flex items-center justify-center px-6 py-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-green-500 to-emerald-600 hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 transition-all"
         >
           <Play className="w-4 h-4 mr-2" />
           Start Building - Step 1

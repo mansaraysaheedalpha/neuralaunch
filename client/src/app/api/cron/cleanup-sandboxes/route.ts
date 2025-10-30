@@ -1,3 +1,4 @@
+//src/app/api/cron/cleanup-sandbox/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { stopIdleSandboxes } from "@/lib/jobs/cleanup-sandboxes"; // Import the job function
 import { logger } from "@/lib/logger"; // Your logger

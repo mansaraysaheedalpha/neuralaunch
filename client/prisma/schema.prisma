@@ -25,6 +25,7 @@ model User {
   landingPages  LandingPage[]
   achievements  Achievement[]
   memories      AiMemory[]
+  vercelTeamId String?
 }
 
 model Account {
@@ -186,6 +187,9 @@ model LandingPage {
   vercelProjectId    String?
   vercelProjectUrl   String?
   vercelDeploymentUrl String?
+
+  encryptedEnvVars String? @db.Text // Store as an encrypted JSON string or blob
+  agentRequiredEnvKeys Json?
 
   @@index([userId])
   @@index([isPublished])

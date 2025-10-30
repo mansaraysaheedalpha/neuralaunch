@@ -9,27 +9,24 @@ import TaskCard from "./TaskCard";
 import AIAssistantModal from "./AIAssistantModal";
 import SprintAnalytics from "./SprintAnalytics";
 import SprintAchievements from "./SprintAchievements";
-import MvpGenerationModal, { MvpGenerationOptions } from "./MvpGenerationModal";
+import { useRouter } from "next/navigation"; // *** ADDED: For navigation ***
+import { Bot } from "lucide-react";
 import toast from "react-hot-toast";
 import { trackEvent } from "@/lib/analytics";
+import { logger } from "@/lib/logger";
 
-// Define the expected shape of the data returned by the SWR hook
 interface SprintData {
   tasks: Array<Task & { outputs: TaskOutput[] }>;
-  // Add other fields returned by /api/sprint/[conversationId] if any
 }
 
-// Define the type for API error responses
 interface ApiErrorResponse {
   message?: string;
 }
 
-// Define the type for the fetcher function's return value
 const fetcher = (url: string): Promise<SprintData> =>
   fetch(url).then(async (res) => {
     if (!res.ok) {
-      // Handle API errors more gracefully with proper typing
-      const errorData: unknown = await res.json();
+      const errorData: unknown = await res.json().catch(() => ({}));
       const typedError = errorData as ApiErrorResponse;
       throw new Error(typedError.message || `API Error: ${res.status}`);
     }
@@ -39,15 +36,14 @@ const fetcher = (url: string): Promise<SprintData> =>
 
 export default function SprintDashboard({
   conversationId,
-  landingPageId,
+  landingPageId, // This is the projectId for the agent
 }: {
   conversationId: string;
   landingPageId: string;
 }) {
+  const router = useRouter();
   const [isStarting, setIsStarting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [isDownloadingMvp, setIsDownloadingMvp] = useState(false);
-  const [isMvpModalOpen, setIsMvpModalOpen] = useState(false);
   const [activeAssistantTask, setActiveAssistantTask] = useState<Task | null>(
     null
   );
@@ -145,59 +141,21 @@ export default function SprintDashboard({
     }
   };
 
-  const handleDownloadMvp = async (
-    projectId: string,
-    options?: MvpGenerationOptions
-  ) => {
-    setIsDownloadingMvp(true);
-    try {
-      const response = await fetch("/api/scaffold/mvp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, options }),
+  // *** ADDED: Navigation Handler ***
+  const handleNavigateToAgent = () => {
+    if (landingPageId) {
+      trackEvent("navigate_to_agent_build", {
+        conversationId,
+        projectId: landingPageId,
       });
-
-      if (!response.ok) {
-        let errorMessage = `Failed to generate MVP (Status: ${response.status})`;
-        try {
-          if (
-            response.headers.get("Content-Type")?.includes("application/json")
-          ) {
-            const errorData = (await response.json()) as ApiErrorResponse;
-            if (errorData.message) errorMessage = errorData.message;
-          } else {
-            const errorText = await response.text();
-            if (errorText) errorMessage = errorText;
-          }
-        } catch (parseError) {
-          console.error("Failed to parse error response:", parseError);
-        }
-        throw new Error(errorMessage);
-      }
-
-      // Process the ZIP blob
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "mvp-codebase.zip";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-      toast.success("MVP codebase downloaded successfully!");
-      trackEvent("download_mvp_codebase", {
-        conversationId: conversationId,
-      });
-    } catch (err: unknown) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to download MVP."
+      router.push(`/agent-build/${landingPageId}`); // Navigate to the agent page
+    } else {
+      toast.error("Project ID is missing, cannot navigate to agent builder.");
+      logger.error(
+        "[SprintDashboard] Missing landingPageId for agent navigation."
       );
-    } finally {
-      setIsDownloadingMvp(false);
     }
   };
-
   // Error state handling remains the same
   if (error) {
     return (
@@ -225,31 +183,36 @@ export default function SprintDashboard({
       />
 
       <div className="mb-8 p-6 bg-card border border-border rounded-2xl">
-        <div className="flex items-start justify-between">
+        <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+          {" "}
+          {/* Adjusted layout for responsiveness */}
           <div>
             <h2 className="text-3xl font-bold text-foreground">
               🚀 72-Hour Validation Sprint
             </h2>
             <p className="text-muted-foreground mt-2">
-              Turn your blueprint into action. Complete these tasks to validate
-              your idea.
+              Turn your blueprint into action. Complete tasks to validate your
+              idea.
             </p>
           </div>
+          {/* Action Buttons appear once sprint tasks exist */}
           {hasTasks && (
-            <div className="flex flex-col sm:flex-row gap-2 mt-4 sm:mt-0">
-              <button
-                onClick={() => setIsMvpModalOpen(true)}
-                disabled={isDownloadingMvp}
-                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm font-semibold rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-md disabled:opacity-50 w-full sm:w-auto"
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto self-start sm:self-center">
+
+              <motion.button
+                onClick={handleNavigateToAgent} // Use new handler
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm font-semibold rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-md disabled:opacity-50"
               >
-                {isDownloadingMvp
-                  ? "Building MVP..."
-                  : "🚀 Build & Download MVP"}
-              </button>
+                <Bot className="w-4 h-4" /> {/* AI/Agent Icon */}
+                Engineer My MVP
+              </motion.button>
+              {/* ********************* */}
               <button
                 onClick={() => void handleExport()}
                 disabled={isExporting}
-                className="px-4 py-2 bg-primary/10 text-primary text-sm font-semibold rounded-lg hover:bg-primary/20 transition-colors disabled:opacity-50 w-full sm:w-auto"
+                className="w-full sm:w-auto px-4 py-2 bg-primary/10 text-primary text-sm font-semibold rounded-lg hover:bg-primary/20 transition-colors disabled:opacity-50"
               >
                 {isExporting ? "Exporting..." : "Export Report"}
               </button>
@@ -258,11 +221,11 @@ export default function SprintDashboard({
         </div>
       </div>
 
+      {/* Sprint Start Button or Task List */}
       {!hasTasks ? (
         <div className="text-center py-12">
-          {/* --- FIX: Handle misused promise --- */}
           <motion.button
-            onClick={() => void handleStartSprint()} // Wrap async onClick
+            onClick={() => void handleStartSprint()}
             disabled={isStarting}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -270,7 +233,6 @@ export default function SprintDashboard({
           >
             {isStarting ? "Parsing Blueprint..." : "Start Your 72-Hour Sprint"}
           </motion.button>
-          {/* --------------------------------- */}
           <p className="text-sm text-muted-foreground mt-4">
             This will parse your AI-generated blueprint into actionable tasks.
           </p>
@@ -279,31 +241,17 @@ export default function SprintDashboard({
         <div>
           <SprintAnalytics conversationId={conversationId} />
           <div className="space-y-4">
-            {/* --- FIX: Map over the correctly typed tasks array --- */}
-            {tasks.map(
-              (
-                task // No need for explicit type here, inferred from 'tasks'
-              ) => (
-                <TaskCard
-                  key={task.id}
-                  task={task} // Task is already Task & { outputs: TaskOutput[] }
-                  onAssistantLaunch={setActiveAssistantTask}
-                />
-              )
-            )}
-            {/* -------------------------------------------------- */}
+            {tasks.map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                onAssistantLaunch={setActiveAssistantTask}
+              />
+            ))}
           </div>
           <SprintAchievements conversationId={conversationId} />
         </div>
       )}
-
-      {/* MVP Generation Modal */}
-      <MvpGenerationModal
-        isOpen={isMvpModalOpen}
-        onClose={() => setIsMvpModalOpen(false)}
-        onGenerate={(options) => handleDownloadMvp(landingPageId, options)}
-        landingPageId={landingPageId}
-      />
     </div>
   );
 }

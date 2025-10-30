@@ -1,5 +1,5 @@
 // Shared type definitions for the AI Agent Builder feature
-
+//lib/types/agent.ts
 export interface PlanStep {
   task: string;
 }
@@ -7,6 +7,8 @@ export interface PlanStep {
 export interface Question {
   id: string;
   text: string;
+  options?: string[] | null; // <-- ADD THIS LINE
+  allowAgentDecision?: boolean | null; // <-- ADD THIS LINE
 }
 
 export interface StepResult {
@@ -27,6 +29,7 @@ export interface StepResult {
   }[];
   errorMessage?: string;
   errorDetails?: string;
+  prUrl?: string | null;
 }
 
 export interface AccountInfo {
@@ -43,6 +46,7 @@ export interface ProjectAgentData {
   agentCurrentStep: number | null;
   agentStatus: string | null;
   agentExecutionHistory: StepResult[] | null;
+  agentRequiredEnvKeys: string[] | null;
   githubRepoUrl: string | null;
   githubRepoName: string | null;
   vercelProjectId: string | null;
