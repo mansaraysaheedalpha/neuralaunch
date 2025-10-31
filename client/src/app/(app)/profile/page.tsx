@@ -20,6 +20,17 @@ export default async function ProfilePage() {
         },
     });
 
+    // Check if a Vercel account is linked for this user
+    const vercelAccount = await prisma.account.findFirst({
+        where: {
+            userId: session.user.id,
+            provider: 'vercel',
+        },
+    });
+
+    const hasGitHub = !!githubAccount;
+    const hasVercel = !!vercelAccount;
+
     return (
       <div>
         <h1>Profile Settings</h1>
@@ -36,7 +47,7 @@ export default async function ProfilePage() {
           )}
           {/* Vercel */}
           {hasVercel ? (
-            <p className="text-green-600">✅ Vercel Account Connected</p> // Optionally show team ID: {vercelTeamId}
+            <p className="text-green-600">✅ Vercel Account Connected</p>
           ) : (
             <ConnectVercelButton />
           )}

@@ -48,7 +48,6 @@ export default function GeneratePage() {
   const { addConversation } = useConversationStore();
   const {
     messages,
-    setMessages,
     addMessage,
     updateMessage,
     isLoading,

@@ -1,26 +1,17 @@
-// src/components/agent/AgentArtifacts.tsx (New File)
+// src/components/agent/AgentArtifacts.tsx
 
 "use client";
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import {
-  Download,
-  Github,
-  Box,
-  ExternalLink,
-  Loader2,
-  AlertCircle,
-} from "lucide-react";
-import { logger } from "@/lib/logger"; // Or console
-// Import functions to interact with your API routes
-// (These would typically live in a dedicated API client/service file)
+import { Github, Box, ExternalLink, Loader2, AlertCircle } from "lucide-react"; // 'Download' icon removed
+import { logger } from "@/lib/logger";
 
-// --- Helper Functions (Simulated API Calls) ---
-// Replace these with your actual fetch calls to the backend API routes
-
+// --- Helper Function Types ---
 type CreateRepoResponse = { repoUrl: string; repoName: string };
 type DeployResponse = { projectUrl: string; deploymentUrl: string };
+
+// --- Helper Functions ---
 
 function parseErrorMessage(data: unknown, fallback: string): string {
   if (data && typeof data === "object") {
@@ -50,32 +41,7 @@ function isDeployResponse(data: unknown): data is DeployResponse {
   );
 }
 
-async function triggerDownload(projectId: string): Promise<void> {
-  logger.info(`[Artifacts] Triggering download for ${projectId}`);
-  // Make GET request to /api/projects/${projectId}/sandbox/download
-  // Handle blob response and trigger browser download
-  const response = await fetch(`/api/projects/${projectId}/sandbox/download`);
-  if (!response.ok) {
-    let message = `Download failed with status ${response.status}`;
-    try {
-      const data: unknown = await response.json();
-      message = parseErrorMessage(data, message);
-    } catch {
-      // ignore JSON parse errors and use fallback
-    }
-    throw new Error(message);
-  }
-  const blob = await response.blob();
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${projectId}_workspace.zip`; // Set filename
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  window.URL.revokeObjectURL(url);
-  logger.info(`[Artifacts] Download successful for ${projectId}`);
-}
+// *** triggerDownload function REMOVED ***
 
 async function triggerCreateRepo(
   projectId: string,
@@ -87,7 +53,7 @@ async function triggerCreateRepo(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ repoName }), // Send optional repo name
+      body: JSON.stringify({ repoName }),
     }
   );
   const data: unknown = await response.json();
@@ -104,7 +70,7 @@ async function triggerCreateRepo(
   logger.info(
     `[Artifacts] Repo created successfully for ${projectId}: ${data.repoUrl}`
   );
-  return data; // contains repoUrl, repoName
+  return data;
 }
 
 async function triggerDeploy(
@@ -128,20 +94,19 @@ async function triggerDeploy(
   logger.info(
     `[Artifacts] Deployment triggered successfully for ${projectId}: ${data.deploymentUrl}`
   );
-  return data; // contains projectUrl, deploymentUrl
+  return data;
 }
 // --- End Helper Functions ---
 
 interface AgentArtifactsProps {
   projectId: string;
   githubRepoUrl: string | null;
-  githubRepoName: string | null; // Needed for display/confirmation
+  githubRepoName: string | null;
   vercelProjectUrl: string | null;
   vercelDeploymentUrl: string | null;
   agentStatus: string | null;
-  isGitHubConnected: boolean; // From parent checking Account table
-  isVercelConnected: boolean; // From parent checking Account table
-  // Callback to refetch project data after repo creation or deployment trigger
+  isGitHubConnected: boolean;
+  isVercelConnected: boolean;
   onActionComplete: () => void;
 }
 
@@ -162,36 +127,27 @@ export default function AgentArtifacts({
   isVercelConnected,
   onActionComplete,
 }: AgentArtifactsProps) {
-  const [isDownloading, setIsDownloading] = useState(false);
+  // *** isDownloading state REMOVED ***
   const [isCreatingRepo, setIsCreatingRepo] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [suggestedRepoName, _setSuggestedRepoName] = useState(""); // Optional input
+  const [suggestedRepoName, _setSuggestedRepoName] = useState("");
 
-  const handleDownload = async () => {
-    setIsDownloading(true);
-    setError(null);
-    try {
-      await triggerDownload(projectId);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Download failed.";
-      logger.error("[Artifacts] Download error:", err instanceof Error ? err : undefined);
-      setError(message);
-    } finally {
-      setIsDownloading(false);
-    }
-  };
+  // *** handleDownload function REMOVED ***
 
   const handleCreateRepo = async () => {
     setIsCreatingRepo(true);
     setError(null);
     try {
       await triggerCreateRepo(projectId, suggestedRepoName || undefined);
-      onActionComplete(); // Notify parent to refetch project data (to get new repo URL)
+      onActionComplete();
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Repository creation failed.";
-      logger.error("[Artifacts] Create repo error:", err instanceof Error ? err : undefined);
+      logger.error(
+        "[Artifacts] Create repo error:",
+        err instanceof Error ? err : undefined
+      );
       setError(message);
     } finally {
       setIsCreatingRepo(false);
@@ -203,20 +159,19 @@ export default function AgentArtifacts({
     setError(null);
     try {
       await triggerDeploy(projectId);
-      onActionComplete(); // Notify parent to refetch project data (to get deployment URLs)
+      onActionComplete();
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Deployment trigger failed.";
-      logger.error("[Artifacts] Deploy error:", err instanceof Error ? err : undefined);
+      logger.error(
+        "[Artifacts] Deploy error:",
+        err instanceof Error ? err : undefined
+      );
       setError(message);
     } finally {
       setIsDeploying(false);
     }
   };
-
-  // Determine button states
-  const canCreateRepo = isGitHubConnected && !githubRepoUrl;
-  const canDeploy = isVercelConnected && !!githubRepoUrl; // Must have repo before deploying
 
   return (
     <motion.div
@@ -237,21 +192,7 @@ export default function AgentArtifacts({
         </div>
       )}
 
-      {/* Download Button */}
-      <motion.button
-        onClick={() => { void handleDownload(); }}
-        disabled={isDownloading}
-        whileHover={{ scale: isDownloading ? 1 : 1.03 }}
-        whileTap={{ scale: isDownloading ? 1 : 0.98 }}
-        className="w-full inline-flex items-center justify-center px-4 py-2 border border-border rounded-md shadow-sm text-sm font-medium text-foreground bg-background hover:bg-muted focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {isDownloading ? (
-          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-        ) : (
-          <Download className="w-4 h-4 mr-2" />
-        )}
-        {isDownloading ? "Downloading..." : "Download Current Code (.zip)"}
-      </motion.button>
+      {/* *** Download Button REMOVED *** */}
 
       {/* GitHub Section */}
       <div className="pt-4 border-t border-border">
@@ -262,7 +203,6 @@ export default function AgentArtifacts({
           <p className="text-sm text-muted-foreground">
             Connect your GitHub account in profile settings to create a
             repository.
-            {/* Optionally, add a Link here to settings */}
           </p>
         ) : githubRepoUrl ? (
           <div className="flex items-center justify-between">
@@ -283,17 +223,10 @@ export default function AgentArtifacts({
             <p className="text-sm text-muted-foreground">
               Create a private GitHub repository for your project code.
             </p>
-            {/* Optional Input for Repo Name */}
-            {/* <input
-                type="text"
-                value={suggestedRepoName}
-                onChange={(e) => setSuggestedRepoName(e.target.value.replace(/[^a-zA-Z0-9._-]/g, ''))} // Basic sanitization
-                placeholder="Optional: custom-repo-name"
-                className="w-full px-3 py-1.5 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
-                disabled={isCreatingRepo}
-            /> */}
             <motion.button
-              onClick={() => { void handleCreateRepo(); }}
+              onClick={() => {
+                void handleCreateRepo();
+              }}
               disabled={isCreatingRepo}
               whileHover={{ scale: isCreatingRepo ? 1 : 1.03 }}
               whileTap={{ scale: isCreatingRepo ? 1 : 0.98 }}
@@ -362,14 +295,16 @@ export default function AgentArtifacts({
               </div>
             ) : (
               <p className="text-sm text-muted-foreground mb-2">
-                Deploy your project&#39;s `main` branch to Vercel.
+                Deploy your project&apos;s `main` branch to Vercel.
               </p>
             )}
 
             {/* Deploy Button */}
             <motion.button
-              onClick={() => { void handleDeploy(); }}
-              disabled={isDeploying || agentStatus === "EXECUTING"} // Disable while agent is busy
+              onClick={() => {
+                void handleDeploy();
+              }}
+              disabled={isDeploying || agentStatus === "EXECUTING"}
               whileHover={{
                 scale: isDeploying || agentStatus === "EXECUTING" ? 1 : 1.03,
               }}

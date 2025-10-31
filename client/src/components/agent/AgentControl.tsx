@@ -1,6 +1,6 @@
-// src/components/agent/AgentControl.tsx (New File)
+// src/components/agent/AgentControl.tsx
 
-"use client"; // This component manages state and interacts with APIs
+"use client";
 
 import { useState } from "react";
 import { motion } from "framer-motion";
@@ -11,45 +11,21 @@ import {
   Play,
   Square,
   CircleHelp,
-} from "lucide-react"; // Example icons
-import { logger } from "@/lib/logger"; // Assuming client-side logger exists or use console
-
-// Import the StepResult interface (ensure path is correct)
-// This might need to be defined in a shared types file (e.g., @/types/agent.ts)
-interface StepResult {
-  startTime: string;
-  endTime: string;
-  taskIndex: number;
-  taskDescription: string;
-  status: "success" | "error";
-  summary: string;
-  filesWritten?: { path: string; success: boolean; message?: string }[];
-  commandsRun?: {
-    command: string;
-    attempt: number;
-    exitCode: number;
-    stdout?: string;
-    stderr?: string;
-    correctedCommand?: string;
-  }[];
-  errorMessage?: string;
-  errorDetails?: string;
-}
+  ExternalLink, // Added for the PR link
+} from "lucide-react";
+import { logger } from "@/lib/logger";
+import type { StepResult } from "@/types/agent"; // This type must include prUrl?: string | null
 
 interface AgentControlProps {
-  projectId: string;
-  currentStepIndex: number | null; // Index of the *next* step to run (or null if not started/complete)
+  currentStepIndex: number | null;
   totalSteps: number;
-  currentTaskDescription: string | null; // Description of the step just completed or about to run
-  agentStatus: string | null; // e.g., 'READY_TO_EXECUTE', 'EXECUTING', 'PAUSED_AFTER_STEP', 'ERROR', 'COMPLETE'
+  currentTaskDescription: string | null;
+  agentStatus: string | null;
   lastStepResult: StepResult | null;
-  // This prop function will likely make the API call to /api/projects/[projectId]/agent/execute
-  // The parent component is responsible for handling the response and updating the props passed back here.
   onExecuteNextStep: () => Promise<void>;
 }
 
 export default function AgentControl({
-  projectId,
   currentStepIndex,
   totalSteps,
   currentTaskDescription,
@@ -57,27 +33,28 @@ export default function AgentControl({
   lastStepResult,
   onExecuteNextStep,
 }: AgentControlProps) {
-  const [isExecuting, setIsExecuting] = useState(false); // Local loading state for the button click
+  const [isExecuting, setIsExecuting] = useState(false);
 
   const handleExecuteClick = async () => {
     setIsExecuting(true);
     try {
       await onExecuteNextStep();
-      // Parent component will receive the API response and update props (agentStatus, currentStepIndex etc.)
     } catch (error) {
-      // Parent component should ideally handle API errors and update agentStatus to 'ERROR'
-      logger.error("Error triggering execute step:", error instanceof Error ? error : undefined);
-      // We might show a temporary local error here, but rely on parent state update
+      logger.error(
+        "Error triggering execute step:",
+        error instanceof Error ? error : undefined
+      );
     } finally {
       setIsExecuting(false);
     }
   };
 
-  // Determine button text and disabled state based on status
+  // --- Determine button state based on agentStatus ---
   let buttonText = "Start Building";
   let buttonIcon = <Play className="w-4 h-4 mr-2" />;
   let isButtonDisabled = true;
   let showButton = true;
+  let buttonClassName = "bg-primary hover:opacity-90"; // Default button color
 
   const nextStepNumber = (currentStepIndex ?? 0) + 1;
 
@@ -85,35 +62,43 @@ export default function AgentControl({
     buttonText = "Agent is Working...";
     buttonIcon = <Loader2 className="w-4 h-4 mr-2 animate-spin" />;
     isButtonDisabled = true;
-    showButton = true; // Show disabled button while executing
   } else if (agentStatus === "READY_TO_EXECUTE") {
     buttonText = `Run Step ${nextStepNumber}`;
     buttonIcon = <Play className="w-4 h-4 mr-2" />;
     isButtonDisabled = false;
-  } else if (agentStatus === "PAUSED_AFTER_STEP") {
-    buttonText = `Run Step ${nextStepNumber}`;
+  } else if (
+    agentStatus === "PAUSED_AFTER_STEP" ||
+    agentStatus === "PAUSED_FOR_PREVIEW"
+  ) {
+    // This is the new "continue" state
+    buttonText = `Continue to Step ${nextStepNumber}`;
     buttonIcon = <Play className="w-4 h-4 mr-2" />;
     isButtonDisabled = false;
+    // Use a different color to indicate "approve" or "continue"
+    buttonClassName = "bg-green-600 hover:bg-green-700";
   } else if (agentStatus === "ERROR") {
     buttonText = `Retry Step ${nextStepNumber}`;
-    buttonIcon = <CircleHelp className="w-4 h-4 mr-2" />; // Or RotateCcw for retry
-    isButtonDisabled = false; // Allow retry
+    buttonIcon = <CircleHelp className="w-4 h-4 mr-2" />;
+    isButtonDisabled = false;
+    buttonClassName = "bg-red-600 hover:bg-red-700"; // Error color
   } else if (agentStatus === "COMPLETE") {
     buttonText = "All Steps Complete";
     buttonIcon = <CheckCircle className="w-4 h-4 mr-2" />;
     isButtonDisabled = true;
-    showButton = false; // Hide button when complete
-  } else if (agentStatus === "PENDING_USER_INPUT") {
+    showButton = false; // Hide button when all done
+  } else if (
+    agentStatus === "PENDING_USER_INPUT" ||
+    agentStatus === "PENDING_CONFIGURATION"
+  ) {
     buttonText = "Waiting for Input...";
-    buttonIcon = <Square className="w-4 h-4 mr-2" />; // Indicate pause/wait
+    buttonIcon = <Square className="w-4 h-4 mr-2" />;
     isButtonDisabled = true;
-    showButton = true;
   } else {
-    // Default/Initial state before planning
-    buttonText = "Start Building Process";
-    buttonIcon = <Play className="w-4 h-4 mr-2" />;
-    isButtonDisabled = true; // Disabled until plan is ready
-    showButton = false; // Hide until plan is ready
+    // Default/Initial state (null or "PLANNING")
+    buttonText = "Agent is Planning...";
+    buttonIcon = <Loader2 className="w-4 h-4 mr-2 animate-spin" />;
+    isButtonDisabled = true;
+    showButton = true; // Show planning state
   }
 
   // --- UI Rendering ---
@@ -133,15 +118,21 @@ export default function AgentControl({
                 ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 animate-pulse"
                 : agentStatus === "PAUSED_AFTER_STEP"
                   ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                  : agentStatus === "ERROR"
-                    ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                    : agentStatus === "COMPLETE"
-                      ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
-                      : agentStatus === "READY_TO_EXECUTE"
-                        ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                        : agentStatus === "PENDING_USER_INPUT"
-                          ? "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
-                          : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200" // Default/Planning
+                  : // *** NEW STATUS STYLE ***
+                    agentStatus === "PAUSED_FOR_PREVIEW"
+                    ? "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200"
+                    : agentStatus === "ERROR"
+                      ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                      : agentStatus === "COMPLETE"
+                        ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                        : agentStatus === "READY_TO_EXECUTE"
+                          ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                          : // *** NEW STATUS STYLE ***
+                            agentStatus === "PENDING_CONFIGURATION"
+                            ? "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                            : agentStatus === "PENDING_USER_INPUT"
+                              ? "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200"
+                              : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200" // Default/Planning
             }`}
           >
             {agentStatus.replace(/_/g, " ")}
@@ -179,31 +170,67 @@ export default function AgentControl({
             **Error:** {lastStepResult.errorMessage}
           </p>
         )}
-        {agentStatus === "PAUSED_AFTER_STEP" && lastStepResult?.summary && (
-          <p className="text-sm text-green-700 dark:text-green-300">
-            <CheckCircle className="w-4 h-4 inline mr-1" />
-            **Step {lastStepResult.taskIndex + 1} Complete:**{" "}
-            {lastStepResult.summary}
-          </p>
-        )}
+
+        {/* *** UPDATED: Combined Pause States & Added PR Link *** */}
+        {(agentStatus === "PAUSED_AFTER_STEP" ||
+          agentStatus === "PAUSED_FOR_PREVIEW") &&
+          lastStepResult?.summary && (
+            <div className="space-y-3">
+              <p className="text-sm text-green-700 dark:text-green-300">
+                <CheckCircle className="w-4 h-4 inline mr-1" />
+                **Step {lastStepResult.taskIndex + 1} Complete:**{" "}
+                {/* Clean summary just in case it contains markdown link text */}
+                {lastStepResult.summary.replace(
+                  /View \[Pull Request & Preview\]\(.*\)/,
+                  ""
+                )}
+              </p>
+
+              {/* Show PR Link if it exists */}
+              {agentStatus === "PAUSED_FOR_PREVIEW" && lastStepResult.prUrl && (
+                <a
+                  href={lastStepResult.prUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-gray-800 dark:bg-gray-700 rounded-lg hover:bg-gray-900 dark:hover:bg-gray-600 transition-all"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  View Pull Request & Vercel Preview
+                </a>
+              )}
+            </div>
+          )}
+
+        {/* Next Task Description */}
         {agentStatus !== "ERROR" &&
           agentStatus !== "PAUSED_AFTER_STEP" &&
+          agentStatus !== "PAUSED_FOR_PREVIEW" &&
           agentStatus !== "COMPLETE" &&
           currentTaskDescription && (
             <p className="text-sm text-muted-foreground italic">
               **Next Task:** {currentTaskDescription}
             </p>
           )}
+
         {agentStatus === "COMPLETE" && (
           <p className="text-sm font-semibold text-purple-600 dark:text-purple-300">
             🎉 All steps completed successfully!
           </p>
         )}
+
         {agentStatus === "PENDING_USER_INPUT" && (
           <p className="text-sm text-muted-foreground italic">
-            Waiting for your input in the planner section below...
+            Waiting for your input in the planner section...
           </p>
         )}
+
+        {/* *** ADDED: New Status Message *** */}
+        {agentStatus === "PENDING_CONFIGURATION" && (
+          <p className="text-sm text-amber-600 dark:text-amber-400 italic animate-pulse">
+            Please provide the required environment variables...
+          </p>
+        )}
+
         {agentStatus === "EXECUTING" && (
           <p className="text-sm text-blue-600 dark:text-blue-300 italic animate-pulse">
             Working on step {nextStepNumber}... Check logs below.
@@ -218,11 +245,7 @@ export default function AgentControl({
           disabled={isButtonDisabled}
           whileHover={{ scale: isButtonDisabled ? 1 : 1.03 }}
           whileTap={{ scale: isButtonDisabled ? 1 : 0.98 }}
-          className={`w-full inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white ${
-            agentStatus === "ERROR"
-              ? "bg-red-600 hover:bg-red-700"
-              : "bg-primary hover:opacity-90"
-          } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all`}
+          className={`w-full inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-md shadow-sm text-base font-medium text-white ${buttonClassName} focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all`}
         >
           {buttonIcon}
           {buttonText}

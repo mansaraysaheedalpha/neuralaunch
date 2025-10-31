@@ -3,55 +3,80 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
-import { AITaskType, executeAITaskSimple } from "@/lib/ai-orchestrator"; // Assuming orchestrator is here
-import { logger } from "@/lib/logger"; // Assuming you have a logger
+import { AITaskType, executeAITaskSimple } from "@/lib/ai-orchestrator";
+import { logger } from "@/lib/logger";
 
-// Define the expected shape of the AI response
 const aiPlanResponseSchema = z.object({
   plan: z
-    .array(
-      z.object({
-        task: z.string().min(1),
-      })
-    )
-    .min(1),
+    .array(z.object({ task: z.string().min(1) }))
+    .min(1, "Plan must contain at least one task."),
   questions: z
     .array(
       z.object({
-        id: z.string().min(1), // A unique ID for the question (e.g., "stack_choice")
+        id: z.string().min(1),
         text: z.string().min(1),
+        options: z.array(z.string()).optional(),
+        allowAgentDecision: z.boolean().optional().default(false),
       })
     )
     .optional()
-    .default([]), // Questions are optional
+    .default([]),
+  requiredEnvKeys: z
+    .array(
+      z
+        .string()
+        .min(1)
+        .regex(/^[A-Z0-9_]+$/, "Invalid ENV key format")
+    )
+    .optional()
+    .default([]),
 });
 type AIPlanResponse = z.infer<typeof aiPlanResponseSchema>;
 
+/**
+ * Extracts a JSON object from a string, stripping markdown fences (```json ... ```)
+ * if they are present.
+ */
+function extractJsonFromString(text: string): string {
+  const jsonRegex = /```json\s*([\s\S]*?)\s*```/;
+  const match = text.match(jsonRegex);
+  if (match && match[1]) {
+    // Found markdown fences, return the clean JSON content
+    return match[1];
+  }
+  // No fences found, assume the whole string is the JSON
+  return text;
+}
+
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> } // *** CORRECTED SIGNATURE ***
 ) {
+  const log = logger.child({ api: "/api/projects/[projectId]/agent/plan" });
   try {
-    // 1. --- Authentication & Authorization ---
+    const { projectId } = await params; // *** CORRECTED PARAM ACCESS ***
+    log.info(`Plan generation request for project ${projectId}`);
+
     const session = await auth();
     if (!session?.user?.id) {
+      log.warn("Unauthorized access attempt.");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const userId = session.user.id;
-    const { projectId } = params;
+    log.info(`Authenticated user: ${userId}`);
 
-    // Fetch the project (LandingPage) and ensure it belongs to the user
-    // Also include the conversation to get the blueprint
     const project = await prisma.landingPage.findFirst({
       where: { id: projectId, userId: userId },
       include: {
         conversation: {
           include: {
             messages: {
-              where: { role: "assistant" }, // Assuming 'assistant' role for AI blueprint
+              // Look for the first AI-generated message
+              where: { role: { in: ["assistant", "model"] } },
               orderBy: { createdAt: "asc" },
-              take: 1, // Get the first AI message which should be the blueprint
+              take: 1,
             },
           },
         },
@@ -59,26 +84,39 @@ export async function POST(
     });
 
     if (!project) {
+      log.warn(`Project ${projectId} not found or forbidden.`);
       return NextResponse.json(
         { error: "Project not found or forbidden" },
         { status: 404 }
       );
     }
-    if (!project.conversation || project.conversation.messages.length === 0) {
+
+    const blueprintContent = project.conversation?.messages?.[0]?.content;
+
+    if (!blueprintContent) {
+      log.error(
+        `Blueprint content missing for project ${projectId}. Searched messages for role 'assistant' or 'model'.`
+      );
       return NextResponse.json(
-        { error: "Blueprint not found for this project" },
+        {
+          error:
+            "Blueprint not found for this project. Please generate a blueprint first.",
+        },
         { status: 400 }
       );
     }
 
-    const blueprintContent = project.conversation.messages[0].content;
-
-    // 2. --- Construct AI Prompt ---
     const planningPrompt = `
-You are an AI Engineering Lead tasked with building a web application based on the provided blueprint. Your goals are:
-1.  Analyze the blueprint and create a concise, step-by-step technical plan (5-10 steps) outlining the major features/tasks involved in building the MVP. Focus on backend setup, authentication, core models, and essential frontend components.
-2.  Identify 1-3 critical ambiguities or decisions required from the user before starting implementation (e.g., stack choice if unclear, primary feature focus, specific integrations). Generate clear, non-technical questions for the user. If the blueprint is very clear, you might not need any questions.
-3.  Assign a unique, simple 'id' (e.g., "tech_stack", "auth_needs") to each question.
+You are an AI Engineering Lead analyzing a startup blueprint to create a technical build plan. Your goals are:
+
+1.  **Analyze Blueprint:** Understand the core features, target users, and implied technical needs (database, auth, payments, external APIs, etc.).
+2.  **Create Build Plan:** Generate a concise, step-by-step technical plan (5-10 steps) for building the MVP. Focus on backend setup (framework, DB schema), auth, core features, and essential frontend components. Assume a standard Next.js + Prisma setup unless otherwise implied or specified.
+3.  **Identify Required ENV Keys:** List the environment variable keys essential for the project based on the plan (e.g., DATABASE_URL, NEXTAUTH_SECRET, GOOGLE_CLIENT_ID, STRIPE_SECRET_KEY, RESEND_API_KEY). Be specific. ALWAYS include DATABASE_URL and NEXTAUTH_SECRET if auth is involved.
+4.  **Formulate Clarifying Questions:** Identify 1-3 critical ambiguities or technical decisions needed from the user.
+    * **Tech Choices:** If the stack is ambiguous (e.g., UI library, specific payment provider if multiple mentioned), formulate a question with clear options. Include a common default. Mark these questions with \`"allowAgentDecision": true\`.
+    * **Feature Focus:** Ask about core feature prioritization if unclear.
+    * **Assign unique IDs** (e.g., "ui_library", "payment_provider").
+5.  **If no questions or ENV keys are needed, return empty arrays.**
 
 **Blueprint:**
 ---
@@ -89,84 +127,113 @@ ${blueprintContent}
 \`\`\`json
 {
   "plan": [
-    { "task": "Describe Step 1 (e.g., Setup Prisma schema with User, Post models)" },
-    { "task": "Describe Step 2 (e.g., Implement Google OAuth using NextAuth)" },
-    // ... more steps
+    { "task": "Step 1 description (e.g., Setup Next.js project with Tailwind CSS)" },
+    { "task": "Step 2 description (e.g., Define Prisma schema: User, Project models)" }
   ],
   "questions": [
-    { "id": "question1_id", "text": "Ask question 1 here" },
-    { "id": "question2_id", "text": "Ask question 2 here" }
-    // ... potentially more, up to 3
+    {
+      "id": "ui_library",
+      "text": "Which UI component library should we use?",
+      "options": ["Tailwind CSS (Default)", "Shadcn UI", "Material UI"],
+      "allowAgentDecision": true
+    }
+  ],
+  "requiredEnvKeys": [
+    "DATABASE_URL",
+    "NEXTAUTH_SECRET",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET"
   ]
 }
 \`\`\`
-Ensure the JSON is perfectly valid. The "plan" array must contain at least one task. The "questions" array can be empty if no clarification is needed.`;
+Ensure the JSON is perfectly valid. "plan" must have at least one task. "questions" and "requiredEnvKeys" can be empty arrays [].
+`;
 
-    // 3. --- Call AI Orchestrator ---
-    logger.info(
-      `[Agent Plan] Requesting plan generation for project ${projectId}`
+    log.info(
+      `Requesting enhanced plan generation from AI for project ${projectId}`
     );
-    const aiResponseJson = await executeAITaskSimple(
+    const aiResponseString = await executeAITaskSimple(
       AITaskType.AGENT_PLANNING,
       {
-        // Assuming you add AGENT_PLANNING type
         prompt: planningPrompt,
-        responseFormat: { type: "json_object" }, // Crucial for getting JSON back
+        responseFormat: { type: "json_object" },
       }
     );
 
-    // 4. --- Parse and Validate AI Response ---
     let parsedResponse: AIPlanResponse;
     try {
-      const rawJsonResponse = JSON.parse(aiResponseJson);
-      parsedResponse = aiPlanResponseSchema.parse(rawJsonResponse); // Validate against Zod schema
-    } catch (parseError) {
-      logger.error(
-        `[Agent Plan] Failed to parse or validate AI JSON response for ${projectId}:`,
-        parseError
+      // *** THIS IS THE FIX ***
+      // 1. Clean the string to remove markdown fences
+      const cleanedJsonString = extractJsonFromString(aiResponseString);
+
+      // 2. Parse the clean string
+      const rawJsonResponse = JSON.parse(cleanedJsonString) as unknown;
+      // *** END FIX ***
+
+      parsedResponse = aiPlanResponseSchema.parse(rawJsonResponse);
+      log.info(
+        `AI response parsed successfully. Plan steps: ${parsedResponse.plan.length}, Questions: ${parsedResponse.questions.length}, EnvKeys: ${parsedResponse.requiredEnvKeys.length}`
       );
-      logger.error(`[Agent Plan] Raw AI Response: ${aiResponseJson}`);
+    } catch (parseError) {
+      log.error(
+        `Failed to parse or validate AI JSON response for ${projectId}:`,
+        parseError instanceof Error ? parseError : undefined
+      );
+      log.error(`Raw AI Response (that failed parsing): ${aiResponseString}`); // Log the raw, problematic string
       return NextResponse.json(
-        { error: "AI failed to generate a valid plan. Please try again." },
+        {
+          error:
+            "AI failed to generate a valid plan structure. Please try again.",
+        },
         { status: 500 }
       );
     }
 
-    // 5. --- Save Plan & Questions to Database ---
-    const { plan, questions } = parsedResponse;
+    const { plan, questions, requiredEnvKeys } = parsedResponse;
+    let nextAgentStatus: string;
 
-    const nextAgentStatus =
-      questions.length > 0 ? "PENDING_USER_INPUT" : "READY_TO_EXECUTE"; // Or directly start executing? Let's wait for user input.
+    if (questions.length > 0) {
+      nextAgentStatus = "PENDING_USER_INPUT";
+    } else if (requiredEnvKeys.length > 0) {
+      nextAgentStatus = "PENDING_CONFIGURATION";
+    } else {
+      nextAgentStatus = "READY_TO_EXECUTE";
+    }
+    log.info(`Determined next agent status: ${nextAgentStatus}`);
 
     await prisma.landingPage.update({
       where: { id: projectId },
       data: {
-        agentPlan: plan as any, // Prisma expects JsonValue, direct assignment works
-        agentClarificationQuestions: questions as any,
-        agentUserResponses: Prisma.JsonNull, // Clear previous responses
-        agentCurrentStep: 0, // Start at the first step
+        agentPlan: plan,
+        agentClarificationQuestions: questions,
+        agentRequiredEnvKeys: requiredEnvKeys,
+        agentUserResponses: Prisma.JsonNull,
+        agentCurrentStep: 0,
         agentStatus: nextAgentStatus,
+        agentExecutionHistory: Prisma.JsonNull,
       },
     });
 
-    logger.info(
-      `[Agent Plan] Plan generated and saved for project ${projectId}. Status: ${nextAgentStatus}`
+    log.info(
+      `Plan generated and saved for project ${projectId}. Status: ${nextAgentStatus}`
     );
 
-    // 6. --- Return Questions to Frontend ---
-    // The frontend will receive these questions and display them in the chat UI.
     return NextResponse.json(
       {
+        plan: plan,
         questions: questions,
-        plan: plan, // Also return the plan for display if needed
+        requiredEnvKeys: requiredEnvKeys,
         agentStatus: nextAgentStatus,
       },
       { status: 200 }
     );
   } catch (error: unknown) {
     const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    logger.error(`[Agent Plan API] Error: ${errorMessage}`, error);
+      error instanceof Error ? error.message : "Unknown error during planning";
+    log.error(
+      `Error: ${errorMessage}`,
+      error instanceof Error ? error : undefined
+    );
     return NextResponse.json(
       { error: "Internal Server Error", message: errorMessage },
       { status: 500 }

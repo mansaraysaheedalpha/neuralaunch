@@ -17,6 +17,7 @@ export default function SandboxLogsViewer({
   const [logs, setLogs] = useState<string>(""); // Store logs as a single string
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const logsEndRef = useRef<null | HTMLDivElement>(null);
+  const pusherClientRef = useRef<Pusher | null>(null);
   const channelName = `sandbox-logs-${projectId}`; // Pusher channel name specific to this project
 
   useEffect(() => {
@@ -33,24 +34,20 @@ export default function SandboxLogsViewer({
       return;
     }
 
-    let pusherClient: Pusher | null = null;
-
+    // Only initialize if the ref is empty
+  if (!pusherClientRef.current) {
     try {
-      pusherClient = new Pusher(pusherKey, {
+      pusherClientRef.current = new Pusher(pusherKey, {
         cluster: pusherCluster,
       });
 
-      const channel = pusherClient.subscribe(channelName);
+      const channel = pusherClientRef.current.subscribe(channelName);
 
-      // --- Event Bindings ---
-
-      // Successful subscription
       channel.bind("pusher:subscription_succeeded", () => {
         logger.info(
           `[SandboxLogsViewer] Successfully subscribed to Pusher channel: ${channelName}`
         );
         setIsConnected(true);
-        // Add connection message only if logs are currently empty, otherwise it's a reconnect
         setLogs((prev) => prev || "[Connected to sandbox logs...]\n");
       });
 
@@ -80,30 +77,32 @@ export default function SandboxLogsViewer({
         }
       });
 
-      logger.info(
-        `[SandboxLogsViewer] Attempting to subscribe to Pusher channel: ${channelName}`
-      );
-      setLogs("[Connecting to sandbox logs...]\n"); // Initial connecting message
-    } catch (error) {
-      logger.error(
-        "[SandboxLogsViewer] Failed to initialize Pusher:",
-        error instanceof Error ? error : undefined
-      );
-      setLogs((prev) => prev + "[Error initializing log connection.]\n");
-      setIsConnected(false);
-    }
-
-    // --- Cleanup Function ---
-    return () => {
-      if (pusherClient) {
         logger.info(
-          `[SandboxLogsViewer] Unsubscribing from Pusher channel: ${channelName}`
+          `[SandboxLogsViewer] Attempting to subscribe to Pusher channel: ${channelName}`
         );
-        pusherClient.unsubscribe(channelName);
-        pusherClient.disconnect();
+        setLogs("[Connecting to sandbox logs...]\n"); // Initial connecting message
+      } catch (error) {
+        logger.error(
+          "[SandboxLogsViewer] Failed to initialize Pusher:",
+          error instanceof Error ? error : undefined
+        );
+        setLogs((prev) => prev + "[Error initializing log connection.]\n");
         setIsConnected(false);
       }
-    };
+    }
+  
+      // --- Cleanup Function ---
+      return () => {
+    if (pusherClientRef.current) {
+      logger.info(
+        `[SandboxLogsViewer] Unsubscribing from Pusher channel: ${channelName}`
+      );
+      pusherClientRef.current.unsubscribe(channelName);
+      pusherClientRef.current.disconnect();
+      pusherClientRef.current = null; // <-- Set ref to null on cleanup
+      setIsConnected(false);
+    }
+  };
   }, [projectId, channelName]); // Rerun effect if projectId changes
 
   // Auto-scroll effect

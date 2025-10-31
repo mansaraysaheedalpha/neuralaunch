@@ -1,3 +1,4 @@
+//src/app/api/cron/cleanup-sandbox/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { stopIdleSandboxes } from "@/lib/jobs/cleanup-sandboxes"; // Import the job function
 import { logger } from "@/lib/logger"; // Your logger
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     logger.error(
       "[Cron Trigger] Error executing stopIdleSandboxes job:",
-      error
+      error instanceof Error ? error : undefined
     );
     return NextResponse.json(
       {

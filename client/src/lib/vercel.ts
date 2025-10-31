@@ -1,19 +1,41 @@
 // lib/vercel.ts
+import { logger } from "./logger"; // Added logger
+
 interface VercelTeamsResponse {
-  teams?: Array<{ id: string }>;
+  teams?: Array<{ id: string; name: string }>; // Added name for logging
 }
 
-async function getVercelTeamId(accessToken: string): Promise<string | null> {
+// *** ADDED EXPORT ***
+export async function getVercelTeamId(
+  accessToken: string
+): Promise<string | null> {
   try {
-    const res = await fetch('https://api.vercel.com/v2/teams', {
-      headers: { Authorization: `Bearer ${accessToken}` }
+    const res = await fetch("https://api.vercel.com/v2/teams", {
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
-    if (!res.ok) return null;
-    const data = await res.json() as VercelTeamsResponse;
-    // Assuming the user might be in multiple teams, pick one or let user choose later
-    return data.teams?.[0]?.id || null;
+    if (!res.ok) {
+      logger.error(
+        `[getVercelTeamId] Failed to fetch teams with status ${res.status}`
+      );
+      return null;
+    }
+    const data = (await res.json()) as VercelTeamsResponse;
+    // Pick the first team. A more advanced flow might let the user choose.
+    if (data.teams && data.teams.length > 0) {
+      logger.info(
+        `[getVercelTeamId] Found team: ${data.teams[0].name} (${data.teams[0].id})`
+      );
+      return data.teams[0].id;
+    }
+    logger.info(
+      "[getVercelTeamId] User is not in any teams, using personal account."
+    );
+    return null; // No teams, will use personal account (null teamId)
   } catch (error) {
-    console.error("Error fetching Vercel teams:", error);
+    logger.error(
+      "[getVercelTeamId] Error fetching Vercel teams:",
+      error instanceof Error ? error : undefined
+    );
     return null;
   }
 }

@@ -3,94 +3,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
-import { z } from "zod";
-import { AITaskType, executeAITaskSimple } from "@/lib/ai-orchestrator";
-import { SandboxService } from "@/lib/services/sandbox-service";
 import { logger } from "@/lib/logger";
-import { Prisma } from "@prisma/client"; // Needed for Json types
-
-// Define expected structure of AI response for execution
-const aiExecutionResponseSchema = z.string().min(10);
-
-// Define structure for storing step results
-interface StepResult {
-  startTime: string;
-  endTime: string;
-  taskIndex: number;
-  taskDescription: string;
-  status: "success" | "error";
-  summary: string;
-  filesWritten?: { path: string; success: boolean; message?: string }[];
-  commandsRun?: {
-    command: string;
-    attempt: number;
-    exitCode: number;
-    stdout?: string;
-    stderr?: string;
-    correctedCommand?: string;
-  }[];
-  errorMessage?: string;
-  errorDetails?: string; // e.g., stack trace
-}
-
-// Zod schema for fetching project data
-const projectDataSchema = z.object({
-  agentPlan: z
-    .any()
-    .refine((val) => val === null || (Array.isArray(val) && val.length > 0), {
-      message: "Plan must be a non-empty array or null",
-    }),
-  agentCurrentStep: z.number().nullable(),
-  agentStatus: z.string().nullable(),
-  agentUserResponses: z.any().nullable(),
-  agentExecutionHistory: z
-    .any()
-    .refine((val) => val === null || Array.isArray(val), {
-      message: "History must be an array or null",
-    }),
-  conversation: z
-    .object({
-      messages: z
-        .array(z.object({ content: z.string() }))
-        .min(1, { message: "Conversation must have at least one message" }),
-    })
-    .nullable(),
-});
+import { inngest } from "@/inngest/client"; // Import Inngest client
+import type { PlanStep, StepResult } from "@/types/agent"; // Keep types for fetching data
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  context: { params: Promise<{ projectId: string }> }
 ) {
-  const startTime = new Date();
-  // Initialize result tracking with default error state
-  let stepResult: Partial<StepResult> = {
-    startTime: startTime.toISOString(),
-    status: "error", // Default to error unless explicitly successful
-    filesWritten: [],
-    commandsRun: [],
-  };
-  // Need project data accessible in catch block
-  let projectData: z.infer<typeof projectDataSchema> | null = null;
-  let currentHistory: StepResult[] = []; // Store history here
+  const params = await context.params;
+  const { projectId } = params;
+  const log = logger.child({
+    api: `/api/projects/${projectId}/agent/execute`,
+    projectId,
+  });
 
   try {
     // 1. --- Authentication & Authorization ---
     const session = await auth();
     if (!session?.user?.id) {
+      log.warn("Unauthorized request.");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const userId = session.user.id;
-    const { projectId } = params;
 
-    // Fetch project data and validate structure
-    const rawProjectData = await prisma.landingPage.findFirst({
+    // 2. --- Fetch Project State Needed to Send Event ---
+    const projectData = await prisma.landingPage.findFirst({
       where: { id: projectId, userId: userId },
       select: {
         agentPlan: true,
         agentCurrentStep: true,
         agentStatus: true,
         agentUserResponses: true,
-        agentExecutionHistory: true,
+        agentExecutionHistory: true, // Needed for history length
+        githubRepoUrl: true,
         conversation: {
           include: {
             messages: {
@@ -103,43 +49,47 @@ export async function POST(
       },
     });
 
-    if (!rawProjectData)
+    if (!projectData) {
+      log.warn("Project not found or forbidden.");
       return NextResponse.json(
         { error: "Project not found or forbidden" },
         { status: 404 }
       );
+    }
 
-    // Validate fetched data structure
-    const validation = projectDataSchema.safeParse(rawProjectData);
-    if (!validation.success) {
-      logger.error(
-        `[Agent Execute] Invalid project data structure for ${projectId}:`,
-        validation.error.format()
-      );
+    const plan = projectData.agentPlan as PlanStep[] | null;
+    const currentStep = projectData.agentCurrentStep ?? 0;
+    const currentHistory =
+      (projectData.agentExecutionHistory as StepResult[] | null) || [];
+
+    // 3. --- Plan Completion Check (before Status Narrowing) ---
+    if (!plan || currentStep >= plan.length) {
+      log.warn("Attempted to execute beyond end of plan.");
+      if (projectData.agentStatus !== "COMPLETE") {
+        await prisma.landingPage.update({
+          where: { id: projectId },
+          data: { agentStatus: "COMPLETE" },
+        });
+      }
       return NextResponse.json(
-        { error: "Internal Server Error: Invalid project data." },
-        { status: 500 }
+        {
+          status: "complete",
+          message: "All steps already complete.",
+          agentStatus: "COMPLETE",
+        },
+        { status: 200 }
       );
     }
-    projectData = validation.data; // Assign validated data
-    currentHistory =
-      (projectData.agentExecutionHistory as StepResult[] | null) || []; // Assign history
 
-    const plan = projectData.agentPlan as any[] | null;
-    const currentStep = projectData.agentCurrentStep ?? 0;
-    const userResponses = projectData.agentUserResponses as Record<
-      string,
-      string
-    > | null;
-    const blueprintContent = projectData.conversation!.messages[0].content;
-
-    stepResult.taskIndex = currentStep;
-
-    // 2. --- Status Check ---
+    // 3b. --- Status Check ---
     if (
       projectData.agentStatus !== "READY_TO_EXECUTE" &&
-      projectData.agentStatus !== "PAUSED_AFTER_STEP"
+      projectData.agentStatus !== "PAUSED_AFTER_STEP" &&
+      projectData.agentStatus !== "ERROR"
     ) {
+      log.warn(
+        `Agent cannot execute in current status: ${projectData.agentStatus}`
+      );
       return NextResponse.json(
         {
           error: `Agent cannot execute in current status: ${projectData.agentStatus}`,
@@ -147,356 +97,82 @@ export async function POST(
         { status: 400 }
       );
     }
-    if (!plan || currentStep >= plan.length) {
-      stepResult.taskDescription = "End of Plan";
-      stepResult.summary = "All tasks in the plan are complete.";
-      stepResult.status = "success"; // Mark as success if plan is done
-      await prisma.landingPage.update({
-        where: { id: projectId },
-        data: { agentStatus: "COMPLETE" },
-      });
-      return NextResponse.json(
-        {
-          status: "complete",
-          message: "All steps complete.",
-          agentStatus: "COMPLETE",
-        },
-        { status: 200 }
-      );
-    }
 
     const currentTask = plan[currentStep];
-    stepResult.taskDescription = currentTask.task;
+    const blueprintSummary =
+      projectData.conversation?.messages?.[0]?.content.substring(0, 1500) +
+        "..." || "No blueprint summary available.";
 
-    // 3. --- Update Status to EXECUTING ---
-    await prisma.landingPage.update({
-      where: { id: projectId },
-      data: { agentStatus: "EXECUTING" },
-    });
-    logger.info(
-      `[Agent Execute] Starting task ${currentStep}: "${currentTask.task}" for project ${projectId}`
-    );
-
-    // 4. --- Construct AI Prompt for Task Execution ---
-    const previousStepsSummary =
-      currentHistory.length > 0
-        ? "Previous Steps Completed:\n" +
-          currentHistory
-            .map(
-              (h) =>
-                `- Step ${h.taskIndex + 1}: ${h.taskDescription} (${h.status === "success" ? "OK" : "Failed"})`
-            )
-            .join("\n")
-        : "This is the first step.";
-
-    const executionPrompt = `
-You are an AI Software Engineer executing a single step in a plan to build a web application.
-
-**Project Blueprint Summary:**
----
-${blueprintContent.substring(0, 1500)}...
----
-
-**User Preferences/Answers:**
----
-${userResponses ? JSON.stringify(userResponses, null, 2) : "None provided."}
----
-
-**Plan Context:**
-${previousStepsSummary}
-Current plan step ${currentStep + 1} of ${plan.length}.
-
-**Your Current Task:** ${currentTask.task}
-
-**Instructions:**
-1.  Generate the necessary code modifications OR shell commands required to COMPLETE **only this specific task**.
-2.  Assume you are in the root directory '/workspace' of a standard Next.js/Prisma project.
-3.  For code changes, provide the full file content within fenced Markdown code blocks, clearly indicating the file path relative to '/workspace' (e.g., \`\`\`typescript\n// src/components/Button.tsx\n...\n\`\`\`). ONLY provide COMPLETE files. Do NOT provide diffs or partial code.
-4.  For shell commands, list them inside a \`\`\`sh\`\`\` code block, one command per line (e.g., \`npm install zod\`). Assume commands run sequentially.
-5.  Keep changes focused SOLELY on the current task. Do NOT repeat work from previous steps.
-6.  After the code/commands, provide a brief (1-2 sentence) plain text summary of what you did, starting with "Summary: ".
-
-**Output:**
-Provide the code blocks and/or shell commands first, then the summary on a new line.
-`;
-
-    // 5. --- Call AI Orchestrator ---
-    // Add AGENT_EXECUTE_STEP to AITaskType and route (e.g., to GPT-4o or Claude 3.5 Sonnet)
-    const aiResponse = await executeAITaskSimple(
-      AITaskType.AGENT_EXECUTE_STEP,
-      {
-        prompt: executionPrompt,
-      }
-    );
-
-    // 6. --- Parse AI Response ---
-    const codeBlocks = extractCodeBlocks(aiResponse);
-    const commands = extractCommands(aiResponse);
-    const summary = extractSummary(aiResponse);
-    stepResult.summary = summary;
-
-    // 7. --- Execute Actions in Sandbox ---
-    logger.info(
-      `[Agent Execute] Applying actions for task ${currentStep} of project ${projectId}`
-    );
-
-    // Write files
-    for (const block of codeBlocks) {
-      logger.debug(`[Agent Execute] Writing file: ${block.path}`);
-      const writeResult = await SandboxService.writeFile(
-        projectId,
-        userId,
-        block.path,
-        block.content
-      );
-      stepResult.filesWritten!.push({
-        path: block.path,
-        success: writeResult.status === "success",
-        message: writeResult.message,
+    // 4. --- Get GitHub token if needed ---
+    let githubToken: string | null = null;
+    if (projectData.githubRepoUrl) {
+      const githubAccount = await prisma.account.findFirst({
+        where: { userId: userId, provider: "github" },
+        select: { access_token: true },
       });
-      if (writeResult.status === "error") {
-        throw new Error(
-          `Failed to write file ${block.path}: ${writeResult.message}`
-        );
+      githubToken = githubAccount?.access_token || null;
+      if (!githubToken) {
+        log.warn(`GitHub repo exists but token missing. Git push might fail.`);
       }
     }
 
-    // Run commands with self-correction
-    for (const command of commands) {
-      logger.debug(`[Agent Execute] Executing command: ${command}`);
-      let execResult = await SandboxService.execCommand(
-        projectId,
-        userId,
-        command,
-        300
-      ); // 5 min timeout
-      let attempt = 1;
-      const maxAttempts = 3;
-      let currentCommand = command; // Track the command being run (original or corrected)
-
-      while (execResult.status === "error" && attempt < maxAttempts) {
-        logger.warn(
-          `[Agent Execute] Command failed (attempt ${attempt}): "${currentCommand}". Error: ${execResult.stderr.substring(0, 500)}...`
-        );
-        stepResult.commandsRun!.push({
-          command: currentCommand,
-          attempt,
-          exitCode: execResult.exitCode,
-          stderr: execResult.stderr,
-          stdout: execResult.stdout,
-        }); // Log failed attempt
-
-        const fixPrompt = `
-                The following shell command failed inside a Docker container (working directory /workspace):
-                \`\`\`sh
-                ${currentCommand}
-                \`\`\`
-                Exit Code: ${execResult.exitCode}
-                Error Output (stderr):
-                \`\`\`
-                ${execResult.stderr}
-                \`\`\`
-                Output (stdout):
-                \`\`\`
-                ${execResult.stdout}
-                \`\`\`
-                Based ONLY on this error and the original task ("${currentTask.task}"), provide the corrected shell command(s) in a \`\`\`sh\`\`\` block to fix this specific error. If the error is complex or requires file changes, respond ONLY with "Cannot fix.".`;
-
-        // Add AGENT_DEBUG_COMMAND to AITaskType and route (e.g., GPT-4o or Claude 3.5 Sonnet)
-        const fixResponse = await executeAITaskSimple(
-          AITaskType.AGENT_DEBUG_COMMAND,
-          {
-            prompt: fixPrompt, // Only provide the specific error context for debugging
-          }
-        );
-
-        const correctedCommands = extractCommands(fixResponse);
-
-        if (
-          correctedCommands.length === 0 ||
-          fixResponse.includes("Cannot fix.")
-        ) {
-          logger.error(
-            `[Agent Execute] AI could not suggest a fix for command: ${currentCommand}`
-          );
-          throw new Error(
-            `Command failed and AI could not fix: "${currentCommand}"\nError: ${execResult.stderr}`
-          );
-        }
-
-        currentCommand = correctedCommands[0]; // Try the first suggested fix
-        logger.info(
-          `[Agent Execute] AI suggested fix (attempt ${attempt + 1}): "${currentCommand}"`
-        );
-        attempt++;
-
-        execResult = await SandboxService.execCommand(
-          projectId,
-          userId,
-          currentCommand,
-          300
-        );
-      } // End self-correction loop
-
-      // Log the final attempt result (whether success or final failure)
-      stepResult.commandsRun!.push({
-        command: currentCommand,
-        attempt,
-        exitCode: execResult.exitCode,
-        stdout: execResult.stdout,
-        stderr: execResult.stderr,
-        // Add the originally failed command if correction occurred
-        ...(attempt > 1 && { correctedCommand: command }),
-      });
-
-      // If still failed after retries, throw
-      if (execResult.status === "error") {
-        throw new Error(
-          `Command failed after ${attempt} attempts: "${currentCommand}"\nError: ${execResult.stderr}`
-        );
-      }
-    } // End of commands loop
-
-    // 8. --- Success: Update DB & Report ---
-    logger.info(
-      `[Agent Execute] Task ${currentStep} completed successfully for project ${projectId}.`
+    // 5. --- Send Event to Inngest ---
+    log.info(
+      `Sending event 'agent/execute.step.requested' for step ${currentStep}`
     );
-    stepResult.status = "success";
-    stepResult.endTime = new Date().toISOString();
-
-    await prisma.landingPage.update({
-      where: { id: projectId },
+    await inngest.send({
+      name: "agent/execute.step.requested",
+      // Add user context for Inngest dashboard
+      user: { id: userId },
       data: {
-        agentStatus: "PAUSED_AFTER_STEP",
-        agentCurrentStep: currentStep + 1,
-        agentExecutionHistory: [
-          ...currentHistory,
-          stepResult as StepResult,
-        ] as any, // Append result
-        sandboxLastAccessedAt: new Date(), // Update last accessed time
+        projectId: projectId,
+        userId: userId,
+        stepIndex: currentStep,
+        taskDescription: currentTask.task,
+        blueprintSummary: blueprintSummary,
+        userResponses: projectData.agentUserResponses as Record<
+          string,
+          string
+        > | null,
+        githubToken: githubToken,
+        githubRepoUrl: projectData.githubRepoUrl,
+        currentHistoryLength: currentHistory.length, // Pass current history length
       },
     });
 
+    // 6. --- Update Status (If retrying from ERROR) ---
+    let nextStatus = projectData.agentStatus; // Keep current status usually
+    if (projectData.agentStatus === "ERROR") {
+      nextStatus = "EXECUTING"; // Mark as executing immediately on retry
+      await prisma.landingPage.update({
+        where: { id: projectId },
+        data: { agentStatus: nextStatus },
+      });
+      log.info("Resetting status from ERROR to EXECUTING for retry.");
+    }
+
+    // 7. --- Return Immediate Response ---
+    log.info("Event sent successfully. Returning 202 Accepted response.");
     return NextResponse.json(
       {
-        status: "success",
-        message: `Step ${currentStep + 1} completed: ${summary}`,
-        nextStepIndex: currentStep + 1,
-        nextTaskDescription:
-          currentStep + 1 < plan.length ? plan[currentStep + 1].task : null,
-        isComplete: currentStep + 1 >= plan.length,
-        agentStatus: "PAUSED_AFTER_STEP",
-        stepResult: stepResult,
+        status: "queued",
+        message: `Step ${currentStep + 1} execution requested. Check status for updates.`,
+        nextStepIndex: currentStep, // Indicate which step is being processed
+        agentStatus: nextStatus, // Return current or updated status
       },
-      { status: 200 }
+      { status: 202 } // 202 Accepted
     );
   } catch (error: unknown) {
-    // 9. --- Error Handling: Update DB & Report ---
     const errorMessage =
-      error instanceof Error ? error.message : "Unknown execution error";
-    logger.error(
-      `[Agent Execute API] Error during task ${stepResult.taskIndex ?? "unknown"} for project ${params.projectId}: ${errorMessage}`,
-      error
+      error instanceof Error ? error.message : "Unknown error";
+    log.error(
+      `Error processing execute request: ${errorMessage}`,
+      error instanceof Error ? error : undefined
     );
-
-    stepResult.status = "error";
-    stepResult.endTime = new Date().toISOString();
-    stepResult.errorMessage = errorMessage;
-    stepResult.errorDetails = error instanceof Error ? error.stack : undefined;
-
-    // Save error state
-    try {
-      await prisma.landingPage.update({
-        where: { id: params.projectId },
-        data: {
-          agentStatus: "ERROR",
-          // Use the 'currentHistory' fetched at the start
-          agentExecutionHistory: [
-            ...currentHistory,
-            stepResult as StepResult,
-          ] as any,
-        },
-      });
-    } catch (dbError) {
-      logger.error(
-        `[Agent Execute API] Failed to update DB after error for project ${params.projectId}:`,
-        dbError
-      );
-    }
-
+    // Avoid updating DB status here on generic errors, let the function handle ERROR state
     return NextResponse.json(
-      {
-        error: "Agent failed to complete the task.",
-        message: errorMessage,
-        stepResult,
-      },
+      { error: "Internal Server Error", message: errorMessage },
       { status: 500 }
     );
   }
-} // End of POST function
-
-// --- Helper Functions ---
-
-interface CodeBlock {
-  path: string;
-  content: string;
-  language?: string;
 }
-
-// Updated to be more robust
-function extractCodeBlocks(responseText: string): CodeBlock[] {
-  const blocks: CodeBlock[] = [];
-  // Regex: ```(language?)\s*\n(// path/to/file.ext\s*\n)?([\s\S]*?)\n```
-  const regex = /```(\w+)?\s*(?:\n\/\/\s*(.*?)\s*)?\n([\s\S]*?)\n```/g;
-  let match;
-  while ((match = regex.exec(responseText)) !== null) {
-    // Simple heuristic: if it doesn't look like a command block, treat as code
-    if (
-      match[1]?.toLowerCase() !== "sh" &&
-      match[1]?.toLowerCase() !== "bash"
-    ) {
-      // Path might be missing, use a placeholder or try to infer if needed
-      const filePath =
-        match[2]?.trim() ||
-        `unknown_file_${blocks.length + 1}.${match[1] || "txt"}`;
-      blocks.push({
-        language: match[1] || undefined,
-        path: filePath,
-        content: match[3].trim(),
-      });
-    }
-  }
-  return blocks;
-}
-
-function extractCommands(responseText: string): string[] {
-  const commands: string[] = [];
-  const regex = /```(sh|bash)\s*\n([\s\S]*?)\n```/g;
-  let match;
-  while ((match = regex.exec(responseText)) !== null) {
-    const lines = match[2].trim().split("\n");
-    commands.push(
-      ...lines
-        .map((line) => line.trim())
-        .filter((line) => line && !line.startsWith("#"))
-    );
-  }
-  return commands;
-}
-
-// Updated to find "Summary: " or take text after last block
-function extractSummary(responseText: string): string {
-  const summaryMatch = responseText.match(/^Summary:\s*([\s\S]+)/im);
-  if (summaryMatch) {
-    return summaryMatch[1].trim().replace(/[*_`]/g, "");
-  }
-
-  // Fallback: text after the last code block
-  const lastBlockEnd = responseText.lastIndexOf("```");
-  if (lastBlockEnd === -1) {
-    return "AI execution completed."; // Default if no summary found
-  }
-  const summaryText = responseText.substring(lastBlockEnd + 3).trim();
-  return summaryText.replace(/[*_`]/g, "") || "AI actions applied."; // Fallback if empty after block
-}
-
