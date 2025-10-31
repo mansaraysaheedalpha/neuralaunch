@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import useSWR, { mutate, useSWRConfig } from "swr";
 import { logger } from "@/lib/logger";
@@ -156,6 +156,9 @@ export default function BuildAgentPage() {
   const [isPlanning, setIsPlanning] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
   const [isExecutingStep, setIsExecutingStep] = useState(false);
+  
+  // Use a ref to track if planning has been initiated to prevent duplicate requests
+  const planningInitiatedRef = useRef(false);
 
   // --- Trigger Initial Planning ---
   useEffect(() => {
@@ -190,7 +193,17 @@ export default function BuildAgentPage() {
     // This is the trigger. It means the DB has a record, but no plan
     // has ever been created for it.
     if (projectData.agentStatus === null) {
+      // Check if planning has already been initiated to prevent duplicate requests
+      if (planningInitiatedRef.current) {
+        logger.info(
+          "[BuildAgentPage] Planning already initiated, skipping duplicate request."
+        );
+        return;
+      }
+
       const triggerPlan = async () => {
+        // Mark planning as initiated before starting the request
+        planningInitiatedRef.current = true;
         setIsPlanning(true);
         setPlanError(null);
         logger.info(
@@ -214,6 +227,8 @@ export default function BuildAgentPage() {
           logger.error("[BuildAgentPage] Error triggering plan:", err);
           setPlanError(message);
           toast.error(`Failed to start planning: ${message}`);
+          // Reset the ref on error so user can retry
+          planningInitiatedRef.current = false;
         } finally {
           setIsPlanning(false);
         }
