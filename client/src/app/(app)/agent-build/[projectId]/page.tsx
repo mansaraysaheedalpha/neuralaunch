@@ -40,7 +40,8 @@ const stepResultSchema = z.object({
       })
     )
     .optional()
-    .nullable(),
+    .nullable()
+    .transform((val) => val ?? undefined),
   commandsRun: z
     .array(
       z.object({
@@ -53,7 +54,8 @@ const stepResultSchema = z.object({
       })
     )
     .optional()
-    .nullable(),
+    .nullable()
+    .transform((val) => val ?? undefined),
   errorMessage: z.string().optional().nullable(),
   errorDetails: z.string().optional().nullable(),
   prUrl: z.string().nullable().optional(),
