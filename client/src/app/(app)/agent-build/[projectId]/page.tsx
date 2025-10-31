@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import useSWR, { mutate, useSWRConfig } from "swr";
 import { logger } from "@/lib/logger";
@@ -156,6 +156,9 @@ export default function BuildAgentPage() {
   const [isPlanning, setIsPlanning] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
   const [isExecutingStep, setIsExecutingStep] = useState(false);
+  
+  // Use a ref to track if planning has been initiated to prevent duplicate requests
+  const planningInitiatedRef = useRef(false);
 
   // --- Trigger Initial Planning ---
   useEffect(() => {
@@ -190,7 +193,17 @@ export default function BuildAgentPage() {
     // This is the trigger. It means the DB has a record, but no plan
     // has ever been created for it.
     if (projectData.agentStatus === null) {
+      // Check if planning has already been initiated to prevent duplicate requests
+      if (planningInitiatedRef.current) {
+        logger.info(
+          "[BuildAgentPage] Planning already initiated, skipping duplicate request."
+        );
+        return;
+      }
+
       const triggerPlan = async () => {
+        // Mark planning as initiated before starting the request
+        planningInitiatedRef.current = true;
         setIsPlanning(true);
         setPlanError(null);
         logger.info(
@@ -214,11 +227,19 @@ export default function BuildAgentPage() {
           logger.error("[BuildAgentPage] Error triggering plan:", err);
           setPlanError(message);
           toast.error(`Failed to start planning: ${message}`);
+          // Reset the ref on error so user can retry
+          planningInitiatedRef.current = false;
         } finally {
           setIsPlanning(false);
         }
       };
       void triggerPlan();
+    } else if (projectData.agentStatus !== null && planningInitiatedRef.current) {
+      // Reset the ref when planning is complete (agentStatus is no longer null)
+      logger.info(
+        "[BuildAgentPage] Planning complete, resetting planning ref."
+      );
+      planningInitiatedRef.current = false;
     }
 
     // If projectData exists AND agentStatus is NOT null (e.g., it's "PENDING_USER_INPUT"),
@@ -232,6 +253,9 @@ export default function BuildAgentPage() {
     isPlanning,
     revalidateProjectData,
   ]);
+  // Note: planningInitiatedRef is intentionally NOT in the dependency array
+  // because refs don't trigger re-renders and are meant for synchronous state
+  // tracking across renders. Including it would be redundant and incorrect.
   // *** END OF CORRECTED LOGIC ***
 
   // --- Callbacks ---
