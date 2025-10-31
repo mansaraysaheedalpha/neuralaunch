@@ -4,77 +4,78 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useParams } from "next/navigation";
-import useSWR from "swr";
+import useSWR, { mutate, useSWRConfig } from "swr";
 import { logger } from "@/lib/logger";
+import { z } from "zod";
+import type {
+  PlanStep,
+  Question,
+  StepResult,
+  AccountInfo,
+} from "@/types/agent";
 
-// --- Import Components ---
+// Import Components
 import AgentControl from "@/components/agent/AgentControl";
 import AgentPlanner from "@/components/agent/AgentPlanner";
 import SandboxLogsViewer from "@/components/agent/SandboxLogsViewer";
 import AgentArtifacts from "@/components/agent/AgentArtifacts";
-import AgentEnvConfigurator from "@/components/agent/AgentEnvConfigurator"; // *** NEW IMPORT ***
+import AgentEnvConfigurator from "@/components/agent/AgentEnvConfigurator";
 import LoadingSkeleton from "@/components/LoadingSkeleton";
-import toast from "react-hot-toast"; // For potential notifications
+import toast from "react-hot-toast";
 
-// Add this near the top of BuildAgentPage.tsx, after imports
-import { z } from "zod";
+// --- Zod Schema for Data Validation ---
+const stepResultSchema = z.object({
+  startTime: z.string(),
+  endTime: z.string(),
+  taskIndex: z.number(),
+  taskDescription: z.string(),
+  status: z.enum(["success", "error"]),
+  summary: z.string(),
+  filesWritten: z
+    .array(
+      z.object({
+        path: z.string(),
+        success: z.boolean(),
+        message: z.string().optional(),
+      })
+    )
+    .optional()
+    .nullable(),
+  commandsRun: z
+    .array(
+      z.object({
+        command: z.string(),
+        attempt: z.number(),
+        exitCode: z.number(),
+        stdout: z.string().optional(),
+        stderr: z.string().optional(),
+        correctedCommand: z.string().optional(),
+      })
+    )
+    .optional()
+    .nullable(),
+  errorMessage: z.string().optional().nullable(),
+  errorDetails: z.string().optional().nullable(),
+  prUrl: z.string().nullable().optional(),
+});
 
-// Zod schema mirroring ProjectAgentData in types/agent.ts
+const questionSchema = z.object({
+  id: z.string(),
+  text: z.string(),
+  options: z.array(z.string()).nullable().optional(),
+  allowAgentDecision: z.boolean().nullable().optional(),
+});
+
 const projectAgentDataSchema = z.object({
   id: z.string(),
   title: z.string(),
   agentPlan: z.array(z.object({ task: z.string() })).nullable(),
-  agentClarificationQuestions: z
-    .array(
-      z.object({
-        id: z.string(),
-        text: z.string(),
-        options: z.array(z.string()).optional(), // Add optional fields from Question type
-        allowAgentDecision: z.boolean().optional(),
-      })
-    )
-    .nullable(),
-  agentUserResponses: z.record(z.string(), z.string()).nullable(), // Assuming simple key-value for now
+  agentClarificationQuestions: z.array(questionSchema).nullable(),
+  agentUserResponses: z.record(z.string()).nullable(),
   agentCurrentStep: z.number().nullable(),
   agentStatus: z.string().nullable(),
-  agentExecutionHistory: z
-    .array(
-      z.object({
-        // Define StepResult structure more precisely if needed
-        startTime: z.string(),
-        endTime: z.string(),
-        taskIndex: z.number(),
-        taskDescription: z.string(),
-        status: z.enum(["success", "error"]),
-        summary: z.string(),
-        filesWritten: z
-          .array(
-            z.object({
-              path: z.string(),
-              success: z.boolean(),
-              message: z.string().optional(),
-            })
-          )
-          .optional(),
-        commandsRun: z
-          .array(
-            z.object({
-              command: z.string(),
-              attempt: z.number(),
-              exitCode: z.number(),
-              stdout: z.string().optional(),
-              stderr: z.string().optional(),
-              correctedCommand: z.string().optional(),
-            })
-          )
-          .optional(),
-        errorMessage: z.string().optional(),
-        errorDetails: z.string().optional(),
-        prUrl: z.string().nullable().optional(),
-      })
-    )
-    .nullable(),
-  agentRequiredEnvKeys: z.array(z.string()).nullable(), // *** ADDED THIS FIELD ***
+  agentExecutionHistory: z.array(stepResultSchema).nullable(),
+  agentRequiredEnvKeys: z.array(z.string()).nullable(),
   githubRepoUrl: z.string().nullable(),
   githubRepoName: z.string().nullable(),
   vercelProjectId: z.string().nullable(),
@@ -82,19 +83,16 @@ const projectAgentDataSchema = z.object({
   vercelDeploymentUrl: z.string().nullable(),
   accounts: z.array(
     z.object({
-      // AccountInfo type
       provider: z.string(),
       providerAccountId: z.string(),
     })
   ),
 });
 
-// Infer the type from the schema (optional, but good practice)
 type ValidatedProjectAgentData = z.infer<typeof projectAgentDataSchema>;
 
-// --- SWR Fetcher ---
+// --- SWR Fetcher with Validation ---
 const fetcher = async (url: string): Promise<ValidatedProjectAgentData> => {
-  // Use inferred type
   const res = await fetch(url);
   if (!res.ok) {
     const errorJson: unknown = await res.json().catch(() => null);
@@ -102,20 +100,22 @@ const fetcher = async (url: string): Promise<ValidatedProjectAgentData> => {
       typeof errorJson === "object" &&
       errorJson !== null &&
       "error" in errorJson &&
-      typeof (errorJson as { error: unknown }).error === "string"
+      typeof (errorJson as { error: string }).error === "string"
         ? (errorJson as { error: string }).error
         : `API Error: ${res.status}`;
     throw new Error(message);
   }
+
   const data: unknown = await res.json();
+
   const validationResult = projectAgentDataSchema.safeParse(data);
   if (!validationResult.success) {
     logger.error(
       "[BuildAgentPage] API data validation failed:",
-      validationResult.error
+      validationResult.error.format()
     );
     throw new Error(
-      `Invalid data structure received from API: ${validationResult.error.issues[0]?.message || "Validation failed"}`
+      `Invalid data structure received from API: ${validationResult.error.errors[0]?.message || "Validation failed"}`
     );
   }
   return validationResult.data;
@@ -125,106 +125,122 @@ const fetcher = async (url: string): Promise<ValidatedProjectAgentData> => {
 export default function BuildAgentPage() {
   const params = useParams();
   const projectId = params.projectId as string;
+  const projectApiUrl = projectId
+    ? `/api/projects/${projectId}/agent/state`
+    : null;
 
-  const projectApiUrl = `/api/projects/${projectId}/agent/state`;
+  const { cache } = useSWRConfig();
 
   const {
     data: projectData,
     error,
-    isLoading: isLoadingProjectData, // Renamed for clarity
-    mutate: revalidateProjectData, // Renamed for clarity
-  } = useSWR<ValidatedProjectAgentData, Error>(
-    projectId ? projectApiUrl : null,
-    fetcher,
-    {
-      refreshInterval: 5000,
-      isPaused: (): boolean => {
-        const data = projectData; // Access closure variable
-        // Only poll actively when executing or potentially during initial planning/config phases if needed
-        return (
-          data?.agentStatus !== "EXECUTING" && data?.agentStatus !== "PLANNING"
-        ); // Add PLANNING if you implement that status
-      },
-    }
-  );
+    isLoading: isLoadingProjectData,
+    isValidating,
+    mutate: revalidateProjectData,
+  } = useSWR<ValidatedProjectAgentData, Error>(projectApiUrl, fetcher, {
+    refreshInterval: 5000,
+    isPaused: (): boolean => {
+      const data = projectApiUrl
+        ? (cache.get(projectApiUrl)?.data as
+            | ValidatedProjectAgentData
+            | undefined)
+        : undefined;
+      return (
+        data?.agentStatus !== "EXECUTING" && data?.agentStatus !== "PLANNING"
+      );
+    },
+  });
 
-  // --- Local State ---
   const [isPlanning, setIsPlanning] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
-  const [isExecutingStep, setIsExecutingStep] = useState(false); // Already exists
+  const [isExecutingStep, setIsExecutingStep] = useState(false);
 
   // --- Trigger Initial Planning ---
   useEffect(() => {
-    // Only trigger if data isn't loading, project ID exists, no error, not already planning
-    // And if the agent hasn't started yet (status is null/undefined or plan is null)
-    if (!isLoadingProjectData && projectId && !error && !isPlanning) {
-      // Check status and plan presence more robustly
-      const needsPlanning =
-        !projectData || (!projectData.agentStatus && !projectData.agentPlan);
+    // *** THIS IS THE CORRECTED LOGIC ***
 
-      if (needsPlanning) {
-        const triggerPlan = async () => {
-          setIsPlanning(true);
-          setPlanError(null);
-          logger.info("[BuildAgentPage] No plan found. Triggering planning...");
-          try {
-            const res = await fetch(`/api/projects/${projectId}/agent/plan`, {
-              method: "POST",
-            });
-            if (!res.ok) {
-              const errData: unknown = await res
-                .json()
-                .catch(() => ({ error: "Failed to trigger plan" }));
-              const message =
-                typeof errData === "object" &&
-                errData !== null &&
-                "error" in errData &&
-                typeof (errData as { error: unknown }).error === "string"
-                  ? (errData as { error: string }).error
-                  : `API Error: ${res.status}`;
-              throw new Error(message);
-            }
-            logger.info(
-              "[BuildAgentPage] Planning initiated successfully. Revalidating state..."
-            );
-            await revalidateProjectData(); // Revalidate immediately
-          } catch (err) {
-            logger.error(
-              "[BuildAgentPage] Error triggering plan:",
-              err instanceof Error ? err : undefined
-            );
-            const message =
-              err instanceof Error ? err.message : "Unknown planning error.";
-            setPlanError(message);
-            toast.error(`Failed to start planning: ${message}`);
-          } finally {
-            setIsPlanning(false);
-          }
-        };
-        void triggerPlan();
-      }
+    // Do not run if SWR is loading, revalidating, we are already planning,
+    // there's a project ID missing, or an error has occurred.
+    if (
+      isLoadingProjectData ||
+      isValidating ||
+      isPlanning ||
+      !projectId ||
+      error
+    ) {
+      return;
     }
+
+    // At this point, loading is finished and there are no errors.
+    // We can now safely check the state of `projectData`.
+
+    // Case 1: `projectData` is undefined. This means SWR loaded, but
+    // the API returned nothing (e.g., 404, which *should* be an error,
+    // but we check anyway). This is an unexpected state.
+    if (projectData === undefined) {
+      // This might happen on the very first load if SWR hasn't
+      // returned the initial `undefined` data yet.
+      // The `isLoadingProjectData` guard should prevent this, but we double-check.
+      return;
+    }
+
+    // Case 2: `projectData` is loaded AND its `agentStatus` is `null`.
+    // This is the trigger. It means the DB has a record, but no plan
+    // has ever been created for it.
+    if (projectData.agentStatus === null) {
+      const triggerPlan = async () => {
+        setIsPlanning(true);
+        setPlanError(null);
+        logger.info(
+          "[BuildAgentPage] agentStatus is null. Triggering planning..."
+        );
+        try {
+          const res = await fetch(`/api/projects/${projectId}/agent/plan`, {
+            method: "POST",
+          });
+          if (!res.ok) {
+            const errData = await res
+              .json()
+              .catch(() => ({ error: "Failed to trigger plan" }));
+            throw new Error(errData.error || `API Error: ${res.status}`);
+          }
+          logger.info("[BuildAgentPage] Planning initiated. Revalidating...");
+          await revalidateProjectData();
+        } catch (err) {
+          const message =
+            err instanceof Error ? err.message : "Unknown planning error.";
+          logger.error("[BuildAgentPage] Error triggering plan:", err);
+          setPlanError(message);
+          toast.error(`Failed to start planning: ${message}`);
+        } finally {
+          setIsPlanning(false);
+        }
+      };
+      void triggerPlan();
+    }
+
+    // If projectData exists AND agentStatus is NOT null (e.g., it's "PENDING_USER_INPUT"),
+    // this hook does nothing, which is correct.
   }, [
     projectData,
     isLoadingProjectData,
+    isValidating,
     error,
     projectId,
     isPlanning,
     revalidateProjectData,
   ]);
+  // *** END OF CORRECTED LOGIC ***
 
   // --- Callbacks ---
   const handleActionComplete = useCallback(async () => {
     logger.info(
       "[BuildAgentPage] Action complete, revalidating project data..."
     );
-    // Revalidate immediately and update UI optimistically if needed
     await revalidateProjectData();
-    // You might show a toast or other feedback here
   }, [revalidateProjectData]);
 
   const handleExecuteNextStep = useCallback(async () => {
-    // ... (existing handleExecuteNextStep logic - unchanged) ...
     if (!projectId || isExecutingStep) return;
     setIsExecutingStep(true);
     logger.info(
@@ -251,19 +267,16 @@ export default function BuildAgentPage() {
         "message" in resultJson &&
         typeof (resultJson as { message: unknown }).message === "string"
           ? (resultJson as { message: string }).message
-          : "Step executed.";
+          : "Step execution queued.";
       logger.info(`[BuildAgentPage] Execute step response: ${statusMessage}`);
-      toast.success(statusMessage); // Give user feedback
-      await revalidateProjectData(); // Revalidate data
+      toast.success(statusMessage);
+      await revalidateProjectData();
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to execute step.";
-      logger.error(
-        "[BuildAgentPage] Error executing step:",
-        err instanceof Error ? err : undefined
-      );
+      logger.error("[BuildAgentPage] Error executing step:", err);
       toast.error(message);
-      await revalidateProjectData(); // Ensure error status is fetched
+      await revalidateProjectData();
     } finally {
       setIsExecutingStep(false);
     }
@@ -283,7 +296,7 @@ export default function BuildAgentPage() {
   );
 
   // --- Render Logic ---
-  const isLoading = isLoadingProjectData || isPlanning; // Combined loading state
+  const isLoading = isLoadingProjectData || isPlanning;
 
   if (isLoading) {
     return <LoadingSkeleton />;
@@ -303,16 +316,15 @@ export default function BuildAgentPage() {
     );
   }
   if (!projectData) {
-    return <div className="p-4">Project data not found or initializing...</div>;
+    // This is the state we are stuck in.
+    return <div className="p-4">Initializing agent...</div>;
   }
 
-  // Determine which main component to show based on status
   const agentStatus = projectData.agentStatus;
   const showPlanner = agentStatus === "PENDING_USER_INPUT";
   const showConfigurator = agentStatus === "PENDING_CONFIGURATION";
-  // Show controls for ready, executing, paused, error, or complete states
   const showControls =
-    !showPlanner && !showConfigurator && agentStatus !== null; // Show controls unless planning/configuring or not started
+    !showPlanner && !showConfigurator && agentStatus !== null;
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-8">
@@ -327,7 +339,7 @@ export default function BuildAgentPage() {
           questions={projectData.agentClarificationQuestions}
           initialAgentStatus={agentStatus}
           onActionComplete={() => void handleActionComplete()}
-          onExecuteStart={() => void handleExecuteNextStep()} // This might still be useful if planning yields no questions/env vars
+          onExecuteStart={handleExecuteNextStep}
           onSubmissionError={(errMsg) =>
             toast.error(`Submission Error: ${errMsg}`)
           }

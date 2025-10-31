@@ -8,54 +8,57 @@ import { z } from "zod";
 import { AITaskType, executeAITaskSimple } from "@/lib/ai-orchestrator";
 import { logger } from "@/lib/logger";
 
-// --- Enhanced AI Response Schema ---
-// Now includes requiredEnvKeys
 const aiPlanResponseSchema = z.object({
   plan: z
-    .array(
-      z.object({
-        task: z.string().min(1),
-      })
-    )
+    .array(z.object({ task: z.string().min(1) }))
     .min(1, "Plan must contain at least one task."),
   questions: z
     .array(
       z.object({
-        id: z.string().min(1), // e.g., "tech_stack", "db_choice", "payment_provider"
+        id: z.string().min(1),
         text: z.string().min(1),
-        // NEW: Optional field for choices, useful for tech stack questions
         options: z.array(z.string()).optional(),
-        // NEW: Indicate if user can let agent decide
         allowAgentDecision: z.boolean().optional().default(false),
       })
     )
     .optional()
     .default([]),
-  // NEW: List of required environment variable keys
   requiredEnvKeys: z
     .array(
       z
         .string()
         .min(1)
-        .regex(/^[A-Z0-9_]+$/, "Invalid ENV key format") // Basic format check
+        .regex(/^[A-Z0-9_]+$/, "Invalid ENV key format")
     )
     .optional()
     .default([]),
 });
 type AIPlanResponse = z.infer<typeof aiPlanResponseSchema>;
 
-// --- API Route ---
+/**
+ * Extracts a JSON object from a string, stripping markdown fences (```json ... ```)
+ * if they are present.
+ */
+function extractJsonFromString(text: string): string {
+  const jsonRegex = /```json\s*([\s\S]*?)\s*```/;
+  const match = text.match(jsonRegex);
+  if (match && match[1]) {
+    // Found markdown fences, return the clean JSON content
+    return match[1];
+  }
+  // No fences found, assume the whole string is the JSON
+  return text;
+}
+
 export async function POST(
   req: NextRequest,
-  context: { params: Promise<{ projectId: string }> }
+  { params }: { params: Promise<{ projectId: string }> } // *** CORRECTED SIGNATURE ***
 ) {
   const log = logger.child({ api: "/api/projects/[projectId]/agent/plan" });
   try {
-    const params = await context.params;
-    const { projectId } = params;
+    const { projectId } = await params; // *** CORRECTED PARAM ACCESS ***
     log.info(`Plan generation request for project ${projectId}`);
 
-    // 1. --- Authentication & Authorization ---
     const session = await auth();
     if (!session?.user?.id) {
       log.warn("Unauthorized access attempt.");
@@ -64,14 +67,14 @@ export async function POST(
     const userId = session.user.id;
     log.info(`Authenticated user: ${userId}`);
 
-    // 2. --- Fetch Project Blueprint ---
     const project = await prisma.landingPage.findFirst({
       where: { id: projectId, userId: userId },
       include: {
         conversation: {
           include: {
             messages: {
-              where: { role: "assistant" }, // Assuming 'assistant' role holds the final blueprint
+              // Look for the first AI-generated message
+              where: { role: { in: ["assistant", "model"] } },
               orderBy: { createdAt: "asc" },
               take: 1,
             },
@@ -87,17 +90,22 @@ export async function POST(
         { status: 404 }
       );
     }
-    if (!project.conversation?.messages?.[0]?.content) {
-      log.error(`Blueprint content missing for project ${projectId}.`);
+
+    const blueprintContent = project.conversation?.messages?.[0]?.content;
+
+    if (!blueprintContent) {
+      log.error(
+        `Blueprint content missing for project ${projectId}. Searched messages for role 'assistant' or 'model'.`
+      );
       return NextResponse.json(
-        { error: "Blueprint not found for this project" },
+        {
+          error:
+            "Blueprint not found for this project. Please generate a blueprint first.",
+        },
         { status: 400 }
       );
     }
-    const blueprintContent = project.conversation.messages[0].content;
 
-    // 3. --- Construct Enhanced AI Prompt ---
-    // This prompt now asks for env keys and considers tech choices
     const planningPrompt = `
 You are an AI Engineering Lead analyzing a startup blueprint to create a technical build plan. Your goals are:
 
@@ -121,7 +129,6 @@ ${blueprintContent}
   "plan": [
     { "task": "Step 1 description (e.g., Setup Next.js project with Tailwind CSS)" },
     { "task": "Step 2 description (e.g., Define Prisma schema: User, Project models)" }
-    // ... 5-10 steps total
   ],
   "questions": [
     {
@@ -129,46 +136,41 @@ ${blueprintContent}
       "text": "Which UI component library should we use?",
       "options": ["Tailwind CSS (Default)", "Shadcn UI", "Material UI"],
       "allowAgentDecision": true
-    },
-    {
-      "id": "payment_provider",
-      "text": "The blueprint mentions payments. Which provider will you use?",
-      "options": ["Stripe (Recommended)", "Lemon Squeezy", "Paddle"],
-      "allowAgentDecision": false // User MUST provide keys later
     }
-    // ... up to 3 questions
   ],
   "requiredEnvKeys": [
     "DATABASE_URL",
     "NEXTAUTH_SECRET",
     "GOOGLE_CLIENT_ID",
-    "GOOGLE_CLIENT_SECRET",
-    "STRIPE_SECRET_KEY", // Only if Stripe is implied/chosen
-    "RESEND_API_KEY" // Only if email is implied/chosen
-    // ... other keys based on analysis
+    "GOOGLE_CLIENT_SECRET"
   ]
 }
 \`\`\`
 Ensure the JSON is perfectly valid. "plan" must have at least one task. "questions" and "requiredEnvKeys" can be empty arrays [].
 `;
 
-    // 4. --- Call AI Orchestrator ---
     log.info(
       `Requesting enhanced plan generation from AI for project ${projectId}`
     );
-    const aiResponseJson = await executeAITaskSimple(
-      AITaskType.AGENT_PLANNING, // Use the existing type, the prompt is enhanced
+    const aiResponseString = await executeAITaskSimple(
+      AITaskType.AGENT_PLANNING,
       {
         prompt: planningPrompt,
-        responseFormat: { type: "json_object" }, // Request JSON output
+        responseFormat: { type: "json_object" },
       }
     );
 
-    // 5. --- Parse and Validate AI Response ---
     let parsedResponse: AIPlanResponse;
     try {
-      const rawJsonResponse: unknown = JSON.parse(aiResponseJson);
-      parsedResponse = aiPlanResponseSchema.parse(rawJsonResponse); // Validate against updated Zod schema
+      // *** THIS IS THE FIX ***
+      // 1. Clean the string to remove markdown fences
+      const cleanedJsonString = extractJsonFromString(aiResponseString);
+
+      // 2. Parse the clean string
+      const rawJsonResponse = JSON.parse(cleanedJsonString) as unknown;
+      // *** END FIX ***
+
+      parsedResponse = aiPlanResponseSchema.parse(rawJsonResponse);
       log.info(
         `AI response parsed successfully. Plan steps: ${parsedResponse.plan.length}, Questions: ${parsedResponse.questions.length}, EnvKeys: ${parsedResponse.requiredEnvKeys.length}`
       );
@@ -177,7 +179,7 @@ Ensure the JSON is perfectly valid. "plan" must have at least one task. "questio
         `Failed to parse or validate AI JSON response for ${projectId}:`,
         parseError instanceof Error ? parseError : undefined
       );
-      log.error(`Raw AI Response: ${aiResponseJson}`); // Log raw response for debugging
+      log.error(`Raw AI Response (that failed parsing): ${aiResponseString}`); // Log the raw, problematic string
       return NextResponse.json(
         {
           error:
@@ -187,30 +189,28 @@ Ensure the JSON is perfectly valid. "plan" must have at least one task. "questio
       );
     }
 
-    // 6. --- Determine Next Agent Status ---
     const { plan, questions, requiredEnvKeys } = parsedResponse;
     let nextAgentStatus: string;
 
     if (questions.length > 0) {
       nextAgentStatus = "PENDING_USER_INPUT";
     } else if (requiredEnvKeys.length > 0) {
-      nextAgentStatus = "PENDING_CONFIGURATION"; // Skip questions, go straight to ENV config
+      nextAgentStatus = "PENDING_CONFIGURATION";
     } else {
-      nextAgentStatus = "READY_TO_EXECUTE"; // No questions, no ENV vars needed
+      nextAgentStatus = "READY_TO_EXECUTE";
     }
     log.info(`Determined next agent status: ${nextAgentStatus}`);
 
-    // 7. --- Save Plan, Questions, Keys & Status to Database ---
     await prisma.landingPage.update({
       where: { id: projectId },
       data: {
-        agentPlan: plan as Prisma.InputJsonValue, // Prisma expects InputJsonValue
-        agentClarificationQuestions: questions as Prisma.InputJsonValue,
-        agentRequiredEnvKeys: requiredEnvKeys as Prisma.InputJsonValue, // Save the identified keys
-        agentUserResponses: Prisma.JsonNull, // Clear previous responses
-        agentCurrentStep: 0, // Reset to step 0
+        agentPlan: plan as any,
+        agentClarificationQuestions: questions as any,
+        agentRequiredEnvKeys: requiredEnvKeys as any,
+        agentUserResponses: Prisma.JsonNull,
+        agentCurrentStep: 0,
         agentStatus: nextAgentStatus,
-        agentExecutionHistory: Prisma.JsonNull, // Clear previous history on new plan
+        agentExecutionHistory: Prisma.JsonNull,
       },
     });
 
@@ -218,12 +218,11 @@ Ensure the JSON is perfectly valid. "plan" must have at least one task. "questio
       `Plan generated and saved for project ${projectId}. Status: ${nextAgentStatus}`
     );
 
-    // 8. --- Return Relevant Data to Frontend ---
     return NextResponse.json(
       {
         plan: plan,
         questions: questions,
-        requiredEnvKeys: requiredEnvKeys, // Send keys for potential immediate configuration if no questions
+        requiredEnvKeys: requiredEnvKeys,
         agentStatus: nextAgentStatus,
       },
       { status: 200 }

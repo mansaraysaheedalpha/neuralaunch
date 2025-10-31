@@ -147,12 +147,12 @@ function decryptData(encryptedString: string): string {
 // *** FIXED ROUTE HANDLER SIGNATURE ***
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } } // Correct App Router context
+  { params }: { params: Promise<{ projectId: string }> } // Correct App Router context
 ) {
   const log = logger.child({ api: "/api/projects/[projectId]/deploy" });
   try {
     // *** FIXED PARAM ACCESS ***
-    const { projectId } = params; // No await, direct destructuring
+    const { projectId } = await params; // No await, direct destructuring
     log.info(`Deployment request received for project ${projectId}`);
 
     if (
