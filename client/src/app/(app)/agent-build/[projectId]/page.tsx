@@ -1,12 +1,9 @@
 // src/app/(app)/agent-build/[projectId]/page.tsx
 
 "use client";
-
-"use client";
-
 import { useState, useCallback, useEffect } from "react";
 import { useParams } from "next/navigation";
-import useSWR, { mutate, useSWRConfig } from "swr";
+import useSWR from "swr";
 import { logger } from "@/lib/logger";
 import { projectAgentDataSchema, type ValidatedProjectAgentData } from "@/types/agent-schemas";
 
@@ -41,10 +38,10 @@ const fetcher = async (url: string): Promise<ValidatedProjectAgentData> => {
   if (!validationResult.success) {
     logger.error(
       "[BuildAgentPage] API data validation failed:",
-      validationResult.error.format()
+      validationResult.error
     );
     throw new Error(
-      `Invalid data structure received from API: ${validationResult.error.errors[0]?.message || "Validation failed"}`
+      `Invalid data structure received from API: ${validationResult.error.issues[0]?.message || "Validation failed"}`
     );
   }
   return validationResult.data;
@@ -58,7 +55,6 @@ export default function BuildAgentPage() {
     ? `/api/projects/${projectId}/agent/state`
     : null;
 
-  const { cache } = useSWRConfig();
 
   const {
     data: projectData,
@@ -102,10 +98,17 @@ export default function BuildAgentPage() {
           method: "POST",
         });
         if (!res.ok) {
-          const errData = await res
+          const errData: unknown = await res
             .json()
             .catch(() => ({ error: "Failed to trigger plan" }));
-          throw new Error(errData.error || `API Error: ${res.status}`);
+          const message =
+            typeof errData === "object" &&
+            errData !== null &&
+            "error" in errData &&
+            typeof (errData as { error: unknown }).error === "string"
+              ? (errData as { error: string }).error
+              : `API Error: ${res.status}`;
+          throw new Error(message);
         }
         logger.info(
           "[BuildAgentPage] Planning initiated. Revalidating data..."
@@ -114,7 +117,7 @@ export default function BuildAgentPage() {
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Unknown planning error.";
-        logger.error("[BuildAgentPage] Error triggering plan:", err);
+        logger.error("[BuildAgentPage] Error triggering plan:", err instanceof Error ? err : undefined);
         setPlanError(message);
         toast.error(`Failed to start planning: ${message}`);
         setIsPlanInitiated(false); // Reset latch on failure to allow retry
@@ -194,7 +197,7 @@ export default function BuildAgentPage() {
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to execute step.";
-      logger.error("[BuildAgentPage] Error executing step:", err);
+      logger.error("[BuildAgentPage] Error executing step:", err instanceof Error ? err : undefined);
       toast.error(message);
       await revalidateProjectData();
     } finally {
@@ -259,7 +262,7 @@ export default function BuildAgentPage() {
           questions={projectData.agentClarificationQuestions}
           initialAgentStatus={agentStatus}
           onActionComplete={() => void handleActionComplete()}
-          onExecuteStart={handleExecuteNextStep}
+          onExecuteStart={() => void handleExecuteNextStep()}
           onSubmissionError={(errMsg) =>
             toast.error(`Submission Error: ${errMsg}`)
           }
@@ -300,9 +303,27 @@ export default function BuildAgentPage() {
           lastStepResult={
             projectData.agentExecutionHistory &&
             projectData.agentExecutionHistory.length > 0
-              ? projectData.agentExecutionHistory[
-                  projectData.agentExecutionHistory.length - 1
-                ]
+              ? {
+                  ...projectData.agentExecutionHistory[
+                    projectData.agentExecutionHistory.length - 1
+                  ],
+                  filesWritten:
+                    projectData.agentExecutionHistory[
+                      projectData.agentExecutionHistory.length - 1
+                    ].filesWritten ?? undefined,
+                  commandsRun:
+                    projectData.agentExecutionHistory[
+                      projectData.agentExecutionHistory.length - 1
+                    ].commandsRun ?? undefined,
+                  errorMessage:
+                    projectData.agentExecutionHistory[
+                      projectData.agentExecutionHistory.length - 1
+                    ].errorMessage ?? undefined,
+                  errorDetails:
+                    projectData.agentExecutionHistory[
+                      projectData.agentExecutionHistory.length - 1
+                    ].errorDetails ?? undefined,
+                }
               : null
           }
           onExecuteNextStep={handleExecuteNextStep}

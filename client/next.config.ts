@@ -25,7 +25,10 @@ const nextConfig: NextJsConfig = {
     // Ignore native modules that cause build errors
     if (!isServer) {
       // Client-side: ignore server-only packages
-      config.externals.push("ssh2");
+      config.externals = config.externals || [];
+      if (Array.isArray(config.externals)) {
+        config.externals.push("ssh2");
+      }
       config.resolve = config.resolve || {};
       config.resolve.fallback = {
         ...config.resolve.fallback,

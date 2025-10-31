@@ -204,9 +204,9 @@ Ensure the JSON is perfectly valid. "plan" must have at least one task. "questio
     await prisma.landingPage.update({
       where: { id: projectId },
       data: {
-        agentPlan: plan as any,
-        agentClarificationQuestions: questions as any,
-        agentRequiredEnvKeys: requiredEnvKeys as any,
+        agentPlan: plan,
+        agentClarificationQuestions: questions,
+        agentRequiredEnvKeys: requiredEnvKeys,
         agentUserResponses: Prisma.JsonNull,
         agentCurrentStep: 0,
         agentStatus: nextAgentStatus,

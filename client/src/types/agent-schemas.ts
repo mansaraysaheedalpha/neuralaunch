@@ -53,7 +53,7 @@ export const projectAgentDataSchema = z.object({
     .nullable()
     .default([]),
   agentClarificationQuestions: z.array(questionSchema).nullable().default([]),
-  agentUserResponses: z.record(z.string()).nullable(),
+  agentUserResponses: z.record(z.string(), z.string()).nullable(),
   agentCurrentStep: z.number().nullable(),
   agentStatus: z.string().nullable(),
   agentExecutionHistory: z.array(stepResultSchema).nullable().default([]),
