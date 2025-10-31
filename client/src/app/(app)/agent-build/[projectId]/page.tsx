@@ -234,6 +234,12 @@ export default function BuildAgentPage() {
         }
       };
       void triggerPlan();
+    } else if (projectData.agentStatus !== null && planningInitiatedRef.current) {
+      // Reset the ref when planning is complete (agentStatus is no longer null)
+      logger.info(
+        "[BuildAgentPage] Planning complete, resetting planning ref."
+      );
+      planningInitiatedRef.current = false;
     }
 
     // If projectData exists AND agentStatus is NOT null (e.g., it's "PENDING_USER_INPUT"),
