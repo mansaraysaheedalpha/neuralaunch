@@ -90,11 +90,11 @@ export default function AgentPlanner({
     !showQuestionsSection && initialAgentStatus === "READY_TO_EXECUTE";
 
   // Check if all *required* questions are answered (not empty and not agent decision)
-  const allRequiredAnswered = validQuestions
-    .filter((q) => !q.allowAgentDecision) // Filter for required questions
-    .every(
-      (q) => answers[q.id]?.trim() && answers[q.id] !== AGENT_DECISION_MARKER
-    );
+ const allRequiredAnswered = validQuestions
+   .filter((q) => q.allowAgentDecision === false) // Only required if EXPLICITLY false
+   .every(
+     (q) => answers[q.id]?.trim() && answers[q.id] !== AGENT_DECISION_MARKER
+   );
 
   // Check if all questions have *some* answer (including agent decision)
   const allQuestionsTouched = validQuestions.every(

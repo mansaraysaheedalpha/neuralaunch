@@ -2,17 +2,13 @@
 
 "use client";
 
+"use client";
+
 import { useState, useCallback, useEffect } from "react";
 import { useParams } from "next/navigation";
 import useSWR, { mutate, useSWRConfig } from "swr";
 import { logger } from "@/lib/logger";
-import { z } from "zod";
-import type {
-  PlanStep,
-  Question,
-  StepResult,
-  AccountInfo,
-} from "@/types/agent";
+import { projectAgentDataSchema, type ValidatedProjectAgentData } from "@/types/agent-schemas";
 
 // Import Components
 import AgentControl from "@/components/agent/AgentControl";
@@ -23,78 +19,6 @@ import AgentEnvConfigurator from "@/components/agent/AgentEnvConfigurator";
 import LoadingSkeleton from "@/components/LoadingSkeleton";
 import toast from "react-hot-toast";
 
-// --- Zod Schema for Data Validation ---
-const stepResultSchema = z.object({
-  startTime: z.string(),
-  endTime: z.string(),
-  taskIndex: z.number(),
-  taskDescription: z.string(),
-  status: z.enum(["success", "error"]),
-  summary: z.string(),
-  filesWritten: z
-    .array(
-      z.object({
-        path: z.string(),
-        success: z.boolean(),
-        message: z.string().optional(),
-      })
-    )
-    .optional()
-    .nullable(),
-  commandsRun: z
-    .array(
-      z.object({
-        command: z.string(),
-        attempt: z.number(),
-        exitCode: z.number(),
-        stdout: z.string().optional(),
-        stderr: z.string().optional(),
-        correctedCommand: z.string().optional(),
-      })
-    )
-    .optional()
-    .nullable(),
-  errorMessage: z.string().optional().nullable(),
-  errorDetails: z.string().optional().nullable(),
-  prUrl: z.string().nullable().optional(),
-});
-
-const questionSchema = z.object({
-  id: z.string(),
-  text: z.string(),
-  options: z.array(z.string()).nullable().optional(),
-  allowAgentDecision: z.boolean().nullable().optional(),
-});
-
-const projectAgentDataSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  agentPlan: z
-    .array(z.object({ task: z.string() }))
-    .nullable()
-    .default([]),
-  agentClarificationQuestions: z.array(questionSchema).nullable().default([]),
-  agentUserResponses: z.record(z.string()).nullable(),
-  agentCurrentStep: z.number().nullable(),
-  agentStatus: z.string().nullable(),
-  agentExecutionHistory: z.array(stepResultSchema).nullable().default([]),
-  agentRequiredEnvKeys: z.array(z.string()).optional().nullable().default([]),
-  githubRepoUrl: z.string().nullable(),
-  githubRepoName: z.string().nullable(),
-  vercelProjectId: z.string().nullable(),
-  vercelProjectUrl: z.string().nullable(),
-  vercelDeploymentUrl: z.string().nullable(),
-  accounts: z
-    .array(
-      z.object({
-        provider: z.string(),
-        providerAccountId: z.string(),
-      })
-    )
-    .default([]),
-});
-
-type ValidatedProjectAgentData = z.infer<typeof projectAgentDataSchema>;
 
 // --- SWR Fetcher with Validation ---
 const fetcher = async (url: string): Promise<ValidatedProjectAgentData> => {
@@ -143,22 +67,18 @@ export default function BuildAgentPage() {
     isValidating,
     mutate: revalidateProjectData,
   } = useSWR<ValidatedProjectAgentData, Error>(projectApiUrl, fetcher, {
-    refreshInterval: 5000,
-    isPaused: (): boolean => {
-      const data = projectApiUrl
-        ? (cache.get(projectApiUrl)?.data as
-            | ValidatedProjectAgentData
-            | undefined)
-        : undefined;
-      // If there's no data yet, we should NOT pause, to allow the initial fetch.
-      if (!data) {
-        return false;
-      }
-      // If data exists, pause polling unless the agent is in an active state.
-      return (
-        data.agentStatus !== "EXECUTING" && data.agentStatus !== "PLANNING"
-      );
-    },
+    // This function-based interval will poll every 5s ONLY if the agent
+    // is in an active state. Otherwise, it will stop polling (return 0).
+    refreshInterval: (data) => {
+      if (!data) return 5000; // Poll if no data yet
+      const status = data.agentStatus; // Active states that require polling:
+      if (status === "EXECUTING" || status === "PLANNING" || status === null) {
+        return 5000;
+      } // Resting states (PENDING_USER_INPUT, PENDING_CONFIGURATION, COMPLETE, ERROR, etc.)
+      // Stop polling. We will trigger revalidation manually.
+      return 0;
+    }, // By REMOVING the `isPaused` function, our manual calls to
+    // `revalidateProjectData()` will no longer be blocked.
   });
 
   const [isPlanning, setIsPlanning] = useState(false);
@@ -315,7 +235,7 @@ export default function BuildAgentPage() {
       </div>
     );
   }
-  if (!projectData) {
+  if (!projectData || projectData.agentStatus === null) {
     // This is the state we are stuck in.
     return <div className="p-4">Initializing agent...</div>;
   }

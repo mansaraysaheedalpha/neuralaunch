@@ -6,7 +6,6 @@ import { useState } from "react";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import {
   HelpCircle,
-  ChevronDown,
   Loader2,
   Lock,
   AlertCircle,

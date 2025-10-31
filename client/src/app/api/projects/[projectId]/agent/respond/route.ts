@@ -106,7 +106,7 @@ export async function POST(
     }
     // Ensure all non-agent-decision questions got a real answer
     const requiredAnswers = clarificationQuestions
-      .filter((q) => !q.allowAgentDecision)
+      .filter((q) => q.allowAgentDecision === false) // Only required if EXPLICITLY false
       .map((q) => q.id);
 
     if (

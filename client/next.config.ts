@@ -2,6 +2,7 @@ import type { NextConfig as NextJsConfig } from "next";
 import type { Configuration } from "webpack";
 
 const nextConfig: NextJsConfig = {
+  reactStrictMode: false,
   productionBrowserSourceMaps: false, // Keep this
   images: {
     remotePatterns: [
