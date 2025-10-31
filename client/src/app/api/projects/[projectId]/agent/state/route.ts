@@ -7,7 +7,7 @@ import { logger } from "@/lib/logger";
 
 /**
  * GET /api/projects/[projectId]/agent/state
- * 
+ *
  * Fetches the complete state of the agent builder for a specific project,
  * including plan, questions, responses, execution history, and connected accounts.
  */
@@ -42,6 +42,7 @@ export async function GET(
         vercelProjectId: true,
         vercelProjectUrl: true,
         vercelDeploymentUrl: true,
+        agentRequiredEnvKeys: true,
       },
     });
 
@@ -76,6 +77,7 @@ export async function GET(
       vercelProjectId: project.vercelProjectId,
       vercelProjectUrl: project.vercelProjectUrl,
       vercelDeploymentUrl: project.vercelDeploymentUrl,
+      agentRequiredEnvKeys: project.agentRequiredEnvKeys,
       accounts: accounts,
     };
 

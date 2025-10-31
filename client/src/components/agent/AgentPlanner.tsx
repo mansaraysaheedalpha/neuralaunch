@@ -79,11 +79,13 @@ export default function AgentPlanner({
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [currentAgentStatus, setCurrentAgentStatus] =
+    useState(initialAgentStatus);
 
   // --- Derived State ---
   const validQuestions = Array.isArray(questions) ? questions : [];
   const showQuestionsSection =
-    validQuestions.length > 0 && initialAgentStatus === "PENDING_USER_INPUT";
+    validQuestions.length > 0 && currentAgentStatus === "PENDING_USER_INPUT";
   const showStartButton = // Show start only if agent is ready and there were no questions/config steps
     !showQuestionsSection && initialAgentStatus === "READY_TO_EXECUTE";
 
@@ -117,8 +119,12 @@ export default function AgentPlanner({
 
   // Submit answers to the backend
   const handleSubmitAnswers = async () => {
-    if (!canSubmitAnswers) {
-      setLocalError("Please answer all required questions before submitting.");
+    if (isSubmitting || !canSubmitAnswers) {
+      if (!canSubmitAnswers) {
+        setLocalError(
+          "Please answer all required questions before submitting."
+        );
+      }
       return;
     }
 
@@ -148,6 +154,9 @@ export default function AgentPlanner({
       logger.info(
         `Answers submitted successfully for ${projectId}. New status: ${parsed.agentStatus}`
       );
+      if (parsed.agentStatus) {
+        setCurrentAgentStatus(parsed.agentStatus);
+      }
       onActionComplete(); // Notify parent to revalidate data
     } catch (error) {
       const message =

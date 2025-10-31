@@ -40,8 +40,7 @@ const stepResultSchema = z.object({
       })
     )
     .optional()
-    .nullable()
-    .transform((val) => val ?? undefined),
+    .nullable(),
   commandsRun: z
     .array(
       z.object({
@@ -54,8 +53,7 @@ const stepResultSchema = z.object({
       })
     )
     .optional()
-    .nullable()
-    .transform((val) => val ?? undefined),
+    .nullable(),
   errorMessage: z.string().optional().nullable(),
   errorDetails: z.string().optional().nullable(),
   prUrl: z.string().nullable().optional(),
@@ -71,24 +69,29 @@ const questionSchema = z.object({
 const projectAgentDataSchema = z.object({
   id: z.string(),
   title: z.string(),
-  agentPlan: z.array(z.object({ task: z.string() })).nullable(),
-  agentClarificationQuestions: z.array(questionSchema).nullable(),
+  agentPlan: z
+    .array(z.object({ task: z.string() }))
+    .nullable()
+    .default([]),
+  agentClarificationQuestions: z.array(questionSchema).nullable().default([]),
   agentUserResponses: z.record(z.string()).nullable(),
   agentCurrentStep: z.number().nullable(),
   agentStatus: z.string().nullable(),
-  agentExecutionHistory: z.array(stepResultSchema).nullable(),
-  agentRequiredEnvKeys: z.array(z.string()).nullable(),
+  agentExecutionHistory: z.array(stepResultSchema).nullable().default([]),
+  agentRequiredEnvKeys: z.array(z.string()).optional().nullable().default([]),
   githubRepoUrl: z.string().nullable(),
   githubRepoName: z.string().nullable(),
   vercelProjectId: z.string().nullable(),
   vercelProjectUrl: z.string().nullable(),
   vercelDeploymentUrl: z.string().nullable(),
-  accounts: z.array(
-    z.object({
-      provider: z.string(),
-      providerAccountId: z.string(),
-    })
-  ),
+  accounts: z
+    .array(
+      z.object({
+        provider: z.string(),
+        providerAccountId: z.string(),
+      })
+    )
+    .default([]),
 });
 
 type ValidatedProjectAgentData = z.infer<typeof projectAgentDataSchema>;
@@ -147,82 +150,77 @@ export default function BuildAgentPage() {
             | ValidatedProjectAgentData
             | undefined)
         : undefined;
+      // If there's no data yet, we should NOT pause, to allow the initial fetch.
+      if (!data) {
+        return false;
+      }
+      // If data exists, pause polling unless the agent is in an active state.
       return (
-        data?.agentStatus !== "EXECUTING" && data?.agentStatus !== "PLANNING"
+        data.agentStatus !== "EXECUTING" && data.agentStatus !== "PLANNING"
       );
     },
   });
 
   const [isPlanning, setIsPlanning] = useState(false);
+  const [isPlanInitiated, setIsPlanInitiated] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
   const [isExecutingStep, setIsExecutingStep] = useState(false);
 
   // --- Trigger Initial Planning ---
   useEffect(() => {
-    // *** THIS IS THE CORRECTED LOGIC ***
+    const triggerPlan = async () => {
+      // This function is now only called when we are sure we need to plan.
+      // The isPlanInitiated flag prevents re-entry from the same client state.
+      if (isPlanInitiated) return;
+      setIsPlanInitiated(true); // Set latch immediately
 
-    // Do not run if SWR is loading, revalidating, we are already planning,
-    // there's a project ID missing, or an error has occurred.
+      setIsPlanning(true);
+      setPlanError(null);
+      logger.info("[BuildAgentPage] Triggering initial agent planning...");
+      try {
+        const res = await fetch(`/api/projects/${projectId}/agent/plan`, {
+          method: "POST",
+        });
+        if (!res.ok) {
+          const errData = await res
+            .json()
+            .catch(() => ({ error: "Failed to trigger plan" }));
+          throw new Error(errData.error || `API Error: ${res.status}`);
+        }
+        logger.info(
+          "[BuildAgentPage] Planning initiated. Revalidating data..."
+        );
+        await revalidateProjectData(); // SWR will refetch the state
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Unknown planning error.";
+        logger.error("[BuildAgentPage] Error triggering plan:", err);
+        setPlanError(message);
+        toast.error(`Failed to start planning: ${message}`);
+        setIsPlanInitiated(false); // Reset latch on failure to allow retry
+      } finally {
+        setIsPlanning(false);
+      }
+    };
+
+    // Do not run if SWR is loading/validating, a plan is already being created,
+    // a plan has already been initiated, or there's an error.
     if (
       isLoadingProjectData ||
       isValidating ||
       isPlanning ||
+      isPlanInitiated ||
       !projectId ||
       error
     ) {
       return;
     }
 
-    // At this point, loading is finished and there are no errors.
-    // We can now safely check the state of `projectData`.
-
-    // Case 1: `projectData` is undefined. This means SWR loaded, but
-    // the API returned nothing (e.g., 404, which *should* be an error,
-    // but we check anyway). This is an unexpected state.
-    if (projectData === undefined) {
-      // This might happen on the very first load if SWR hasn't
-      // returned the initial `undefined` data yet.
-      // The `isLoadingProjectData` guard should prevent this, but we double-check.
-      return;
-    }
-
-    // Case 2: `projectData` is loaded AND its `agentStatus` is `null`.
-    // This is the trigger. It means the DB has a record, but no plan
-    // has ever been created for it.
-    if (projectData.agentStatus === null) {
-      const triggerPlan = async () => {
-        setIsPlanning(true);
-        setPlanError(null);
-        logger.info(
-          "[BuildAgentPage] agentStatus is null. Triggering planning..."
-        );
-        try {
-          const res = await fetch(`/api/projects/${projectId}/agent/plan`, {
-            method: "POST",
-          });
-          if (!res.ok) {
-            const errData = await res
-              .json()
-              .catch(() => ({ error: "Failed to trigger plan" }));
-            throw new Error(errData.error || `API Error: ${res.status}`);
-          }
-          logger.info("[BuildAgentPage] Planning initiated. Revalidating...");
-          await revalidateProjectData();
-        } catch (err) {
-          const message =
-            err instanceof Error ? err.message : "Unknown planning error.";
-          logger.error("[BuildAgentPage] Error triggering plan:", err);
-          setPlanError(message);
-          toast.error(`Failed to start planning: ${message}`);
-        } finally {
-          setIsPlanning(false);
-        }
-      };
+    // After loading, if there is NO project data, or if the project data
+    // exists but has a `null` status, we should initiate planning.
+    if (projectData === undefined || projectData.agentStatus === null) {
       void triggerPlan();
     }
-
-    // If projectData exists AND agentStatus is NOT null (e.g., it's "PENDING_USER_INPUT"),
-    // this hook does nothing, which is correct.
   }, [
     projectData,
     isLoadingProjectData,
@@ -231,8 +229,8 @@ export default function BuildAgentPage() {
     projectId,
     isPlanning,
     revalidateProjectData,
+    isPlanInitiated,
   ]);
-  // *** END OF CORRECTED LOGIC ***
 
   // --- Callbacks ---
   const handleActionComplete = useCallback(async () => {

@@ -1,7 +1,7 @@
 // src/middleware.ts
 /**
  * Next.js Middleware
- * 
+ *
  * Applies security headers and other middleware to all requests
  */
 
@@ -12,7 +12,7 @@ export function middleware(_request: NextRequest) {
   const response = NextResponse.next();
 
   // Security Headers
-  
+
   // Content Security Policy (CSP)
   // Adjust as needed for your specific third-party integrations
   const cspHeader = [
@@ -21,12 +21,12 @@ export function middleware(_request: NextRequest) {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' blob: data: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "connect-src 'self' https://vercel.live https://vitals.vercel-insights.com https://www.google-analytics.com https://www.googletagmanager.com https://*.hotjar.com https://*.contentsquare.net",
+    "connect-src 'self' https://vercel.live https://vitals.vercel-insights.com https://www.google-analytics.com https://www.googletagmanager.com https://*.hotjar.com https://*.contentsquare.net wss://ws-mt1.pusher.com https://sockjs-mt1.pusher.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
   ].join("; ");
-  
+
   response.headers.set("Content-Security-Policy", cspHeader);
 
   // Prevent clickjacking
