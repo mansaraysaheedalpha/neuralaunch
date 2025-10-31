@@ -253,6 +253,9 @@ export default function BuildAgentPage() {
     isPlanning,
     revalidateProjectData,
   ]);
+  // Note: planningInitiatedRef is intentionally NOT in the dependency array
+  // because refs don't trigger re-renders and are meant for synchronous state
+  // tracking across renders. Including it would be redundant and incorrect.
   // *** END OF CORRECTED LOGIC ***
 
   // --- Callbacks ---
