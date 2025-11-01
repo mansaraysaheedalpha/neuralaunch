@@ -28,6 +28,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       allowDangerousEmailAccountLinking: true,
     }),
     GitHub({
+      clientId: env.GITHUB_CLIENT_ID,
+      clientSecret: env.GITHUB_CLIENT_SECRET,
+      allowDangerousEmailAccountLinking: true,
+      authorization: {
+        params: {
+          scope: "repo workflow", // Scopes for repo creation
+        },
+      },
     }),
     {
       id: "vercel",
@@ -36,10 +44,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientId: env.VERCEL_CLIENT_ID,
       clientSecret: env.VERCEL_CLIENT_SECRET,
       authorization: {
-        url: "https://vercel.com/oauth/authorize",
+        url: "https://api.vercel.com/oauth/authorize",
         params: {
           // *** REMOVED "offline_access" as per your research ***
-          scope: "projects:read-write deployments:read-write teams:read",
+          scope:
+            "projects:read-write deployments:read-write teams:read project-env-vars:read-write",
         },
       },
       token: "https://api.vercel.com/v2/oauth/access_token",
