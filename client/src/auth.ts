@@ -6,16 +6,7 @@ import GitHub from "next-auth/providers/github";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import prisma from "@/lib/prisma";
 import type { Adapter } from "next-auth/adapters";
-import type { OAuthConfig } from "next-auth/providers";
-import { logger } from "./lib/logger"; // Keep logger
-
-interface VercelProfile {
-  uid: string;
-  name?: string | null;
-  username?: string | null;
-  email?: string | null;
-  avatar?: string | null;
-}
+import { logger } from "./lib/logger";
 import { trackEvent } from "@/lib/analytics";
 import { env } from "@/lib/env";
 
@@ -33,55 +24,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       allowDangerousEmailAccountLinking: true,
       authorization: {
         params: {
-          scope: "repo workflow", // Scopes for repo creation
+          scope: "repo workflow",
         },
       },
     }),
-    {
-      id: "vercel",
-      name: "Vercel",
-      type: "oauth",
-      clientId: env.VERCEL_CLIENT_ID,
-      clientSecret: env.VERCEL_CLIENT_SECRET,
-      allowDangerousEmailAccountLinking: true,
-      authorization: {
-        url: "https://api.vercel.com/oauth/authorize",
-        params: {
-          // *** REMOVED "offline_access" as per your research ***
-          scope:
-            "projects:read-write deployments:read-write teams:read project-env-vars:read-write",
-        },
-      },
-      token: "https://api.vercel.com/v2/oauth/access_token",
-      userinfo: {
-        url: "https://api.vercel.com/v2/user",
-        async request({ tokens }: { tokens: { access_token?: string } }) {
-          const response = await fetch("https://api.vercel.com/v2/user", {
-            headers: { Authorization: `Bearer ${tokens.access_token}` },
-          });
-          if (!response.ok) {
-            const errorData: unknown = await response.json().catch(() => ({}));
-            logger.error(
-              `Vercel userinfo request failed: ${JSON.stringify(errorData)}`
-            );
-            throw new Error("Failed to fetch Vercel user info.");
-          }
-          // The response has a 'user' property
-          const data = (await response.json()) as {
-            user: VercelProfile;
-          };
-          return data.user;
-        },
-      },
-      profile(profile: VercelProfile) {
-        return {
-          id: profile.uid, // Map 'uid' to 'id'
-          name: profile.name || profile.username || null,
-          email: profile.email,
-          image: profile.avatar,
-        };
-      },
-    } as OAuthConfig<VercelProfile>,
+
+    // --- VERCEL OAUTH PROVIDER REMOVED ---
   ],
   secret: env.NEXTAUTH_SECRET,
   callbacks: {
@@ -93,7 +41,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
   },
   events: {
-    // Keep events simple
     createUser: ({ user }) => {
       logger.info(`New user created: ${user.id}, Email: ${user.email}`);
       trackEvent("sign_up", { userId: user.id });
@@ -103,12 +50,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         `User signed in: ${user.id}, Provider: ${account?.provider ?? "unknown"}, New User: ${isNewUser}`
       );
     },
-    // *** REMOVED THE linkAccount LOGIC ***
     linkAccount: ({ user, account }) => {
       logger.info(`Linked ${account.provider} account for user ${user.id}.`);
     },
   },
   pages: {
     signIn: "/signin",
+    error: "/auth/error", // A custom error page
   },
 });

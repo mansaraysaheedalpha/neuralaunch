@@ -6,7 +6,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import crypto from "crypto";
 import { getVercelTeamId } from "@/lib/vercel";
-import { env } from "@/lib/env";
+import { env } from "@/lib/env"; // We import this for the encryption key
 
 // --- Vercel API Config & Types ---
 const VERCEL_API_BASE = "https://api.vercel.com";
@@ -20,37 +20,16 @@ interface VercelErrorResponse {
 // --- Encryption/Decryption Config ---
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;
-const KEY_LENGTH = 32;
 // Access the key (validated on startup by lib/env.ts)
 const encryptionKey = env.ENCRYPTION_KEY;
 
-// --- Helper: Fetch Vercel Account Token ---
-async function getVercelToken(userId: string): Promise<string | null> {
-  const account = await prisma.account.findFirst({
-    where: { userId: userId, provider: "vercel" },
-    select: {
-      access_token: true,
-    },
-  });
-
-  if (!account?.access_token) {
-    logger.error(
-      `[Vercel Deploy] Vercel access token not found for user ${userId}.`
-    );
-    return null;
-  }
-  return account.access_token;
-}
-
 // --- Helper: Make Authenticated Vercel API Calls ---
-// Replaced 'any' with 'unknown' for better type safety
 async function fetchVercelAPI(
   endpoint: string,
-  token: string,
+  token: string, // This will be the decrypted VERCEL_ACCESS_TOKEN
   options: RequestInit = {},
   teamId?: string | null
 ): Promise<unknown> {
-  // Changed from 'any' to 'unknown'
   const url = `${VERCEL_API_BASE}${endpoint}${teamId ? `?teamId=${teamId}` : ""}`;
   const response = await fetch(url, {
     ...options,
@@ -82,12 +61,11 @@ async function fetchVercelAPI(
     const error = new Error(
       `Vercel API Error (${response.status}): ${errorMessage}`
     );
-    // Attach code to the error object in a type-safe way
     Object.assign(error, { code: errorCode });
     throw error;
   }
 
-  if (response.status === 204) return null; // Handle No Content
+  if (response.status === 204) return null;
   return response.json();
 }
 
@@ -123,15 +101,14 @@ function decryptData(encryptedString: string): string {
     if (iv.length !== IV_LENGTH)
       throw new Error("Invalid IV length during decryption.");
 
-    // *** REMOVED hardcoded authTag.length check ***
-    // The decipher will throw an "Unsupported state" or "Invalid auth tag"
-    // error if the tag is invalid, which is more reliable.
+    // Note: GCM auth tag length can vary, but 16 bytes (128 bits) is common
+    // We rely on the decipher.final() call to throw if the tag is invalid.
 
     const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
     decipher.setAuthTag(authTag);
 
     let decrypted = decipher.update(encryptedBase64, "base64", "utf8");
-    decrypted += decipher.final("utf8");
+    decrypted += decipher.final("utf8"); // Throws here if authTag is invalid
 
     return decrypted;
   } catch (error) {
@@ -145,32 +122,48 @@ function decryptData(encryptedString: string): string {
   }
 }
 
+/**
+ * Fetches and decrypts all ENV vars from the database for a project.
+ * @returns A record of decrypted keys/values, or null if not found/error.
+ */
+async function getDecryptedEnvVars(
+  projectId: string,
+  userId: string
+): Promise<Record<string, string> | null> {
+  const project = await prisma.landingPage.findFirst({
+    where: { id: projectId, userId: userId },
+    select: { encryptedEnvVars: true },
+  });
+
+  if (!project?.encryptedEnvVars) {
+    logger.error(
+      `[Deploy] No encrypted ENV vars found for project ${projectId}.`
+    );
+    return null;
+  }
+
+  try {
+    const decryptedJson = decryptData(project.encryptedEnvVars);
+    return JSON.parse(decryptedJson) as Record<string, string>;
+  } catch (e) {
+    logger.error(
+      `[Deploy] Failed to decrypt/parse ENV vars for project ${projectId}.`,
+      e instanceof Error ? e : undefined
+    );
+    return null;
+  }
+}
+
 // --- MAIN DEPLOY ROUTE ---
-// *** FIXED ROUTE HANDLER SIGNATURE ***
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> } // Correct App Router context
+  { params }: { params: { projectId: string } }
 ) {
   const log = logger.child({ api: "/api/projects/[projectId]/deploy" });
   try {
-    // *** FIXED PARAM ACCESS ***
-    const { projectId } = await params; // No await, direct destructuring
+    const { projectId } = params;
     log.info(`Deployment request received for project ${projectId}`);
 
-    if (
-      !encryptionKey ||
-      Buffer.from(encryptionKey, "base64").length !== KEY_LENGTH
-    ) {
-      log.error(
-        "Server configuration error: Encryption key missing or invalid during deploy request."
-      );
-      return NextResponse.json(
-        { error: "Internal server configuration error." },
-        { status: 500 }
-      );
-    }
-
-    // 1. --- Authentication & Authorization ---
     const session = await auth();
     if (!session?.user?.id) {
       log.warn("Unauthorized deploy request attempt.");
@@ -179,8 +172,8 @@ export async function POST(
     const userId = session.user.id;
     log.info(`Authenticated user: ${userId}`);
 
-    // --- 1. FETCH ALL DATA IN PARALLEL ---
-    const [project, user, vercelToken] = await Promise.all([
+    // --- 1. Fetch Project Data & Decrypted ENV Vars ---
+    const [project, user, allEnvVars] = await Promise.all([
       prisma.landingPage.findFirst({
         where: { id: projectId, userId: userId },
         select: {
@@ -190,14 +183,14 @@ export async function POST(
           githubRepoUrl: true,
           vercelProjectId: true,
           vercelProjectUrl: true,
-          encryptedEnvVars: true,
+          // We fetch encryptedEnvVars separately via the helper
         },
       }),
       prisma.user.findUnique({
         where: { id: userId },
         select: { vercelTeamId: true },
       }),
-      getVercelToken(userId), // This just reads from the Account table
+      getDecryptedEnvVars(projectId, userId), // Decrypts and returns the env var object
     ]);
 
     // --- 2. VALIDATE DATA ---
@@ -215,24 +208,34 @@ export async function POST(
         { status: 400 }
       );
     }
+    if (!allEnvVars) {
+      return NextResponse.json(
+        {
+          error:
+            "Environment variables are not configured for this project. Please configure them via the agent.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const vercelToken = allEnvVars["VERCEL_ACCESS_TOKEN"];
     if (!vercelToken) {
       return NextResponse.json(
-        { error: "Vercel connection invalid or missing. Please reconnect." },
+        {
+          error:
+            "Vercel Access Token not found in configuration. Please re-run the agent configuration.",
+        },
         { status: 401 }
       );
     }
 
-    // --- 3. GET VERCEL TEAM ID (LAZILY) ---
+    // --- 3. Get Vercel Team ID (Fetch and store if not present) ---
     let vercelTeamId: string | null = user?.vercelTeamId || null;
-
-    // If we haven't stored a teamId yet, fetch it now and save it
     if (vercelTeamId === null) {
       log.info(
         `Vercel Team ID not found in DB for user ${userId}. Fetching...`
       );
-      vercelTeamId = await getVercelTeamId(vercelToken); // Call the helper
-
-      // If we found one, update the user record
+      vercelTeamId = await getVercelTeamId(vercelToken);
       if (vercelTeamId) {
         await prisma.user.update({
           where: { id: userId },
@@ -243,13 +246,12 @@ export async function POST(
         );
       }
     }
-
     log.info(`Using Vercel Team ID: ${vercelTeamId || "Personal Account"}`);
 
     let vercelProjectId = project.vercelProjectId;
     let vercelProjectUrl = project.vercelProjectUrl;
 
-    // --- 4. CREATE VERCEL PROJECT (if needed) ---
+    // --- 4. Create Vercel Project (if needed) ---
     if (!vercelProjectId) {
       log.info(`Creating new Vercel project for ${projectId}...`);
       try {
@@ -275,42 +277,18 @@ export async function POST(
           `Vercel project created: ID ${vercelProjectId}, URL ${vercelProjectUrl || "N/A"}`
         );
 
-        // --- Decrypt and Set Environment Variables ---
-        let userEnvVars: Record<string, string> = {};
-        if (project.encryptedEnvVars) {
-          log.info(
-            `Decrypting environment variables for Vercel project ${vercelProjectId}...`
-          );
-          try {
-            const decryptedJson = decryptData(project.encryptedEnvVars);
-            userEnvVars = JSON.parse(decryptedJson) as Record<string, string>;
-            log.info(
-              `Successfully decrypted ${Object.keys(userEnvVars).length} environment variables.`
-            );
-          } catch (decryptionError) {
-            log.error(
-              `Failed to decrypt/parse ENV vars for project ${projectId}:`,
-              decryptionError instanceof Error ? decryptionError : undefined
-            );
-            return NextResponse.json(
-              {
-                error: `Failed to decrypt configuration: ${decryptionError instanceof Error ? decryptionError.message : "Unknown decryption error"}. Please reconfigure.`,
-              },
-              { status: 500 }
-            );
-          }
-        } else {
-          log.warn(
-            `No encrypted environment variables found for project ${projectId}. Proceeding without setting user ENV vars.`
-          );
-        }
+        // --- Set Environment Variables ---
+
+        // **IMPORTANT:** Do NOT send VERCEL_ACCESS_TOKEN back to Vercel
+        const { VERCEL_ACCESS_TOKEN, ...envVarsToUpload } = allEnvVars;
 
         const finalVercelProjectUrl =
           vercelProjectUrl || `https://${vercelProjectId}.vercel.app`;
-        userEnvVars["NEXT_PUBLIC_APP_URL"] = finalVercelProjectUrl;
-        userEnvVars["NEXTAUTH_URL"] = finalVercelProjectUrl;
+        // Inject system-managed URLs
+        envVarsToUpload["NEXT_PUBLIC_APP_URL"] = finalVercelProjectUrl;
+        envVarsToUpload["NEXTAUTH_URL"] = finalVercelProjectUrl;
 
-        const envPayload = Object.entries(userEnvVars)
+        const envPayload = Object.entries(envVarsToUpload)
           .filter(([_, value]) => value != null && value !== "")
           .map(([key, value]) => ({
             type: "encrypted",
@@ -346,9 +324,8 @@ export async function POST(
           error instanceof Error ? error : undefined
         );
         if (
-          (error as { code?: string }).code === "repository_not_found" ||
-          (error instanceof Error &&
-            error.message?.includes("Git Repository not found"))
+          (typeof error === "object" && error !== null && "code" in error && (error as { code: string }).code === "repository_not_found") ||
+          (error instanceof Error && error.message?.includes("Git Repository not found"))
         ) {
           return NextResponse.json(
             {
@@ -358,17 +335,17 @@ export async function POST(
           );
         }
         return NextResponse.json(
-          {
-            error: `Failed to create Vercel project: ${error instanceof Error ? error.message : "Unknown error"}`,
-          },
+          { error: `Failed to create Vercel project: ${error.message}` },
           { status: 500 }
         );
       }
     } else {
       log.info(`Using existing Vercel project ID: ${vercelProjectId}`);
+      // We do not update ENV vars on existing projects for simplicity.
+      // User must manage them on Vercel or re-run config if needed.
     }
 
-    // 4. --- Trigger Deployment ---
+    // --- 5. Trigger Deployment ---
     log.info(`Triggering deployment for Vercel project ${vercelProjectId}...`);
     try {
       const deployResponse = (await fetchVercelAPI(
@@ -379,7 +356,7 @@ export async function POST(
           body: JSON.stringify({
             name: project.githubRepoName.split("/")[1],
             projectId: vercelProjectId,
-            target: "production",
+            target: "production", // This is a production deploy from the 'main' branch
             gitSource: {
               type: "github",
               repoId: project.githubRepoName,
@@ -388,7 +365,7 @@ export async function POST(
           }),
         },
         vercelTeamId
-      )) as { url: string; alias?: { domain: string }[] }; // Added type assertion
+      )) as { url: string; alias?: { domain: string }[] };
 
       const deploymentUrl = `https://${deployResponse.url}`;
       const finalProjectUrl =
@@ -406,7 +383,6 @@ export async function POST(
         },
       });
 
-      // 5. --- Return Success Response ---
       return NextResponse.json(
         {
           message: "Deployment to Vercel triggered successfully.",
@@ -416,15 +392,14 @@ export async function POST(
         },
         { status: 200 }
       );
-    } catch (error: unknown) {
+    } catch (error: any) {
       log.error(
         `Failed to trigger deployment for Vercel project ${vercelProjectId}:`,
-        error instanceof Error ? error : undefined
+        error
       );
       if (
-        (error as { code?: string }).code === "repository_not_found" ||
-        (error instanceof Error &&
-          error.message?.includes("Git Repository not found"))
+        error.code === "repository_not_found" ||
+        error.message?.includes("Git Repository not found")
       ) {
         return NextResponse.json(
           {
@@ -434,28 +409,24 @@ export async function POST(
         );
       }
       if (
-        (error as { code?: string }).code === "forbidden" ||
+        (typeof error === "object" && error !== null && "code" in error && (error as { code: string }).code === "forbidden") ||
         (error instanceof Error && error.message.includes("403")) ||
         (error instanceof Error && error.message.includes("401"))
       ) {
         log.warn(
-          `Vercel token likely invalid for user ${userId} during deployment trigger.`
+          `Vercel token invalid for user ${userId}. Token may be expired or revoked.`
         );
-        await prisma.account.deleteMany({
-          where: { userId: userId, provider: "vercel" },
-        });
+        // We don't delete the token, just inform the user.
         return NextResponse.json(
           {
             error:
-              "Vercel authentication failed. Please reconnect your Vercel account.",
+              "Vercel Access Token is invalid or expired. Please re-configure it via the agent.",
           },
           { status: 401 }
         );
       }
       return NextResponse.json(
-        {
-          error: `Failed to trigger deployment: ${error instanceof Error ? error.message : "Unknown error"}`,
-        },
+        { error: `Failed to trigger deployment: ${error instanceof Error ? error.message : 'Unknown error'}` },
         { status: 500 }
       );
     }

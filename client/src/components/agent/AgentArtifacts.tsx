@@ -4,7 +4,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Github, Box, ExternalLink, Loader2, AlertCircle } from "lucide-react"; // 'Download' icon removed
+import { Github, Box, ExternalLink, Loader2, AlertCircle } from "lucide-react";
 import { logger } from "@/lib/logger";
 
 // --- Helper Function Types ---
@@ -12,7 +12,6 @@ type CreateRepoResponse = { repoUrl: string; repoName: string };
 type DeployResponse = { projectUrl: string; deploymentUrl: string };
 
 // --- Helper Functions ---
-
 function parseErrorMessage(data: unknown, fallback: string): string {
   if (data && typeof data === "object") {
     const maybeError = (data as Record<string, unknown>)["error"];
@@ -40,8 +39,6 @@ function isDeployResponse(data: unknown): data is DeployResponse {
     typeof (data as Record<string, unknown>)["deploymentUrl"] === "string"
   );
 }
-
-// *** triggerDownload function REMOVED ***
 
 async function triggerCreateRepo(
   projectId: string,
@@ -106,11 +103,10 @@ interface AgentArtifactsProps {
   vercelDeploymentUrl: string | null;
   agentStatus: string | null;
   isGitHubConnected: boolean;
-  isVercelConnected: boolean;
+  // isVercelConnected prop REMOVED
   onActionComplete: () => void;
 }
 
-// Animation variants
 const fadeIn = {
   hidden: { opacity: 0, y: 10 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
@@ -124,30 +120,22 @@ export default function AgentArtifacts({
   vercelDeploymentUrl,
   agentStatus,
   isGitHubConnected,
-  isVercelConnected,
   onActionComplete,
 }: AgentArtifactsProps) {
-  // *** isDownloading state REMOVED ***
   const [isCreatingRepo, setIsCreatingRepo] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [suggestedRepoName, _setSuggestedRepoName] = useState("");
-
-  // *** handleDownload function REMOVED ***
 
   const handleCreateRepo = async () => {
     setIsCreatingRepo(true);
     setError(null);
     try {
-      await triggerCreateRepo(projectId, suggestedRepoName || undefined);
+      await triggerCreateRepo(projectId);
       onActionComplete();
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Repository creation failed.";
-      logger.error(
-        "[Artifacts] Create repo error:",
-        err instanceof Error ? err : undefined
-      );
+      logger.error("[Artifacts] Create repo error:", err instanceof Error ? err : undefined);
       setError(message);
     } finally {
       setIsCreatingRepo(false);
@@ -162,11 +150,10 @@ export default function AgentArtifacts({
       onActionComplete();
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Deployment trigger failed.";
-      logger.error(
-        "[Artifacts] Deploy error:",
-        err instanceof Error ? err : undefined
-      );
+        err instanceof Error
+          ? err.message
+          : "Deployment trigger failed. Have you configured your Vercel Access Token in the agent's settings?";
+      logger.error("[Artifacts] Deploy error:", err instanceof Error ? err : undefined);
       setError(message);
     } finally {
       setIsDeploying(false);
@@ -184,15 +171,12 @@ export default function AgentArtifacts({
         Project Artifacts & Deployment
       </h3>
 
-      {/* Error Display */}
       {error && (
         <div className="p-3 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-md text-sm text-red-700 dark:text-red-300 flex items-center gap-2">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <span>{error}</span>
         </div>
       )}
-
-      {/* *** Download Button REMOVED *** */}
 
       {/* GitHub Section */}
       <div className="pt-4 border-t border-border">
@@ -248,12 +232,9 @@ export default function AgentArtifacts({
         <h4 className="text-md font-semibold text-foreground mb-2 flex items-center gap-2">
           <Box className="w-5 h-5" /> Vercel Deployment
         </h4>
-        {!isVercelConnected ? (
-          <p className="text-sm text-muted-foreground">
-            Connect your Vercel account in profile settings to enable
-            deployment.
-          </p>
-        ) : !githubRepoUrl ? (
+        {/* *** UPDATED LOGIC *** */}
+        {/* We no longer check isVercelConnected. We just check if the repo exists. */}
+        {!githubRepoUrl ? (
           <p className="text-sm text-muted-foreground italic">
             Create a GitHub repository first to enable Vercel deployment.
           </p>
@@ -322,7 +303,7 @@ export default function AgentArtifacts({
                   viewBox="0 0 75 65"
                 >
                   <path d="M37.59.25l36.95 64H.64l36.95-64z"></path>
-                </svg> // Vercel logo
+                </svg>
               )}
               {isDeploying ? "Deploying..." : "Deploy to Vercel"}
             </motion.button>
@@ -333,6 +314,7 @@ export default function AgentArtifacts({
             )}
           </div>
         )}
+        {/* *** END UPDATED LOGIC *** */}
       </div>
     </motion.div>
   );

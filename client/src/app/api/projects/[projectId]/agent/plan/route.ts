@@ -37,26 +37,23 @@ type AIPlanResponse = z.infer<typeof aiPlanResponseSchema>;
 
 /**
  * Extracts a JSON object from a string, stripping markdown fences (```json ... ```)
- * if they are present.
  */
 function extractJsonFromString(text: string): string {
   const jsonRegex = /```json\s*([\s\S]*?)\s*```/;
   const match = text.match(jsonRegex);
   if (match && match[1]) {
-    // Found markdown fences, return the clean JSON content
     return match[1];
   }
-  // No fences found, assume the whole string is the JSON
   return text;
 }
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> } // *** CORRECTED SIGNATURE ***
+  { params }: { params: { projectId: string } }
 ) {
   const log = logger.child({ api: "/api/projects/[projectId]/agent/plan" });
   try {
-    const { projectId } = await params; // *** CORRECTED PARAM ACCESS ***
+    const { projectId } = params;
     log.info(`Plan generation request for project ${projectId}`);
 
     const session = await auth();
@@ -73,7 +70,6 @@ export async function POST(
         conversation: {
           include: {
             messages: {
-              // Look for the first AI-generated message
               where: { role: { in: ["assistant", "model"] } },
               orderBy: { createdAt: "asc" },
               take: 1,
@@ -110,13 +106,14 @@ export async function POST(
 You are an AI Engineering Lead analyzing a startup blueprint to create a technical build plan. Your goals are:
 
 1.  **Analyze Blueprint:** Understand the core features, target users, and implied technical needs (database, auth, payments, external APIs, etc.).
-2.  **Create Build Plan:** Generate a concise, step-by-step technical plan (5-10 steps) for building the MVP. Focus on backend setup (framework, DB schema), auth, core features, and essential frontend components. Assume a standard Next.js + Prisma setup unless otherwise implied or specified.
-3.  **Identify Required ENV Keys:** List the environment variable keys essential for the project based on the plan (e.g., DATABASE_URL, NEXTAUTH_SECRET, GOOGLE_CLIENT_ID, STRIPE_SECRET_KEY, RESEND_API_KEY). Be specific. ALWAYS include DATABASE_URL and NEXTAUTH_SECRET if auth is involved.
-4.  **Formulate Clarifying Questions:** Identify 1-3 critical ambiguities or technical decisions needed from the user.
-    * **Tech Choices:** If the stack is ambiguous (e.g., UI library, specific payment provider if multiple mentioned), formulate a question with clear options. Include a common default. Mark these questions with \`"allowAgentDecision": true\`.
-    * **Feature Focus:** Ask about core feature prioritization if unclear.
-    * **Assign unique IDs** (e.g., "ui_library", "payment_provider").
-5.  **If no questions or ENV keys are needed, return empty arrays.**
+2.  **Create Build Plan:** Generate a concise, step-by-step technical plan (5-10 steps) for building the MVP.
+3.  **Identify Required ENV Keys:** List *all* environment variable keys essential for the project based on the plan (e.g., DATABASE_URL, NEXTAUTH_SECRET, GOOGLE_CLIENT_ID, STRIPE_SECRET_KEY, RESEND_API_KEY).
+    * **You MUST ALWAYS include 'VERCEL_ACCESS_TOKEN' in this list.** This is required for deployment.
+    * **You MUST ALWAYS include 'DATABASE_URL', 'NEXTAUTH_SECRET', and 'NEXTAUTH_URL'.**
+4.  **Formulate Clarifying Questions:** Identify 1-3 critical ambiguities or technical decisions needed from the user (e.g., UI library, feature priority).
+    * Assign unique IDs (e.g., "ui_library").
+    * Mark questions as \`"allowAgentDecision": true\` if the agent can pick a default.
+5.  **If no questions are needed, return an empty array.**
 
 **Blueprint:**
 ---
@@ -127,26 +124,29 @@ ${blueprintContent}
 \`\`\`json
 {
   "plan": [
-    { "task": "Step 1 description (e.g., Setup Next.js project with Tailwind CSS)" },
-    { "task": "Step 2 description (e.g., Define Prisma schema: User, Project models)" }
+    { "task": "Step 1 description..." },
+    { "task": "Step 2 description..." }
   ],
   "questions": [
     {
       "id": "ui_library",
       "text": "Which UI component library should we use?",
-      "options": ["Tailwind CSS (Default)", "Shadcn UI", "Material UI"],
+      "options": ["Shadcn UI (Recommended)", "Plain Tailwind", "Material UI"],
       "allowAgentDecision": true
     }
   ],
   "requiredEnvKeys": [
+    "VERCEL_ACCESS_TOKEN",
     "DATABASE_URL",
     "NEXTAUTH_SECRET",
+    "NEXTAUTH_URL",
     "GOOGLE_CLIENT_ID",
-    "GOOGLE_CLIENT_SECRET"
+    "GOOGLE_CLIENT_SECRET",
+    "STRIPE_SECRET_KEY"
   ]
 }
 \`\`\`
-Ensure the JSON is perfectly valid. "plan" must have at least one task. "questions" and "requiredEnvKeys" can be empty arrays [].
+Ensure the JSON is perfectly valid.
 `;
 
     log.info(
@@ -162,15 +162,20 @@ Ensure the JSON is perfectly valid. "plan" must have at least one task. "questio
 
     let parsedResponse: AIPlanResponse;
     try {
-      // *** THIS IS THE FIX ***
-      // 1. Clean the string to remove markdown fences
       const cleanedJsonString = extractJsonFromString(aiResponseString);
-
-      // 2. Parse the clean string
       const rawJsonResponse = JSON.parse(cleanedJsonString) as unknown;
-      // *** END FIX ***
-
       parsedResponse = aiPlanResponseSchema.parse(rawJsonResponse);
+
+      // *** ROBUSTNESS CHECK ***
+      // Ensure VERCEL_ACCESS_TOKEN is always in the list, even if the AI forgets.
+      if (!parsedResponse.requiredEnvKeys.includes("VERCEL_ACCESS_TOKEN")) {
+        logger.warn(
+          "AI plan response missing VERCEL_ACCESS_TOKEN, adding it manually."
+        );
+        parsedResponse.requiredEnvKeys.push("VERCEL_ACCESS_TOKEN");
+      }
+      // *** END CHECK ***
+
       log.info(
         `AI response parsed successfully. Plan steps: ${parsedResponse.plan.length}, Questions: ${parsedResponse.questions.length}, EnvKeys: ${parsedResponse.requiredEnvKeys.length}`
       );
@@ -179,7 +184,7 @@ Ensure the JSON is perfectly valid. "plan" must have at least one task. "questio
         `Failed to parse or validate AI JSON response for ${projectId}:`,
         parseError instanceof Error ? parseError : undefined
       );
-      log.error(`Raw AI Response (that failed parsing): ${aiResponseString}`); // Log the raw, problematic string
+      log.error(`Raw AI Response (that failed parsing): ${aiResponseString}`);
       return NextResponse.json(
         {
           error:
@@ -204,9 +209,9 @@ Ensure the JSON is perfectly valid. "plan" must have at least one task. "questio
     await prisma.landingPage.update({
       where: { id: projectId },
       data: {
-        agentPlan: plan,
-        agentClarificationQuestions: questions,
-        agentRequiredEnvKeys: requiredEnvKeys,
+        agentPlan: plan as Prisma.InputJsonValue,
+        agentClarificationQuestions: questions as Prisma.InputJsonValue,
+        agentRequiredEnvKeys: requiredEnvKeys as Prisma.InputJsonValue,
         agentUserResponses: Prisma.JsonNull,
         agentCurrentStep: 0,
         agentStatus: nextAgentStatus,

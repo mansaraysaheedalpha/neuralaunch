@@ -258,9 +258,7 @@ export default function BuildAgentPage() {
   const isGitHubConnected = !!projectData?.accounts?.some(
     (acc) => acc.provider === "github"
   );
-  const isVercelConnected = !!projectData?.accounts?.some(
-    (acc) => acc.provider === "vercel"
-  );
+ 
 
   // --- Render Logic ---
   const isLoading = isLoadingProjectData || isPlanning;
@@ -420,7 +418,6 @@ export default function BuildAgentPage() {
             vercelDeploymentUrl={projectData.vercelDeploymentUrl}
             agentStatus={agentStatus}
             isGitHubConnected={isGitHubConnected}
-            isVercelConnected={isVercelConnected}
             onActionComplete={() => void handleActionComplete()}
           />
         </>

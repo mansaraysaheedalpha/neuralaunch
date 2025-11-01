@@ -26,8 +26,6 @@ const envSchema = z.object({
   // OAuth Providers
   GOOGLE_CLIENT_ID: z.string().min(1, "GOOGLE_CLIENT_ID is required"),
   GOOGLE_CLIENT_SECRET: z.string().min(1, "GOOGLE_CLIENT_SECRET is required"),
-  VERCEL_CLIENT_ID: z.string().min(1, "VERCEL_CLIENT_ID is required"),
-  VERCEL_CLIENT_SECRET: z.string().min(1, "VERCEL_CLIENT_SECRET is required"),
   GITHUB_CLIENT_ID: z.string().min(1, "GITHUB_CLIENT_ID is required"),
   GITHUB_CLIENT_SECRET: z.string().min(1, "GITHUB_CLIENT_SECRET is required"),
 
