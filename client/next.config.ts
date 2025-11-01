@@ -43,6 +43,9 @@ const nextConfig: NextJsConfig = {
     }
 
     // Ignore binary files from ssh2 and dockerode
+    if (Array.isArray(config.externals)) {
+      config.externals.push("ssh2");
+    }
     config.module = config.module || {};
     config.module.rules = config.module.rules || [];
     config.module.rules.push({

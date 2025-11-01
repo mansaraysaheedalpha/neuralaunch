@@ -5,6 +5,8 @@ import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import crypto from "crypto";
+import { getVercelTeamId } from "@/lib/vercel";
+import { env } from "@/lib/env";
 
 // --- Vercel API Config & Types ---
 const VERCEL_API_BASE = "https://api.vercel.com";
@@ -20,7 +22,7 @@ const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;
 const KEY_LENGTH = 32;
 // Access the key (validated on startup by lib/env.ts)
-const encryptionKey = process.env.ENCRYPTION_KEY;
+const encryptionKey = env.ENCRYPTION_KEY;
 
 // --- Helper: Fetch Vercel Account Token ---
 async function getVercelToken(userId: string): Promise<string | null> {
@@ -177,31 +179,30 @@ export async function POST(
     const userId = session.user.id;
     log.info(`Authenticated user: ${userId}`);
 
-    // 2. --- Fetch Project Details, User TeamID, & Vercel Token ---
-    const project = await prisma.landingPage.findFirst({
-      where: { id: projectId, userId: userId },
-      select: {
-        id: true,
-        title: true,
-        githubRepoName: true,
-        githubRepoUrl: true,
-        vercelProjectId: true,
-        vercelProjectUrl: true,
-        encryptedEnvVars: true,
-      },
-    });
+    // --- 1. FETCH ALL DATA IN PARALLEL ---
+    const [project, user, vercelToken] = await Promise.all([
+      prisma.landingPage.findFirst({
+        where: { id: projectId, userId: userId },
+        select: {
+          id: true,
+          title: true,
+          githubRepoName: true,
+          githubRepoUrl: true,
+          vercelProjectId: true,
+          vercelProjectUrl: true,
+          encryptedEnvVars: true,
+        },
+      }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { vercelTeamId: true },
+      }),
+      getVercelToken(userId), // This just reads from the Account table
+    ]);
 
-    // *** FIXED PRISMA QUERY ***
-    // We now fetch vercelTeamId from the User model
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { vercelTeamId: true },
-    });
-
+    // --- 2. VALIDATE DATA ---
     if (!project) {
-      log.warn(
-        `Project ${projectId} not found or forbidden for user ${userId}.`
-      );
+      log.warn(`Project ${projectId} not found or forbidden.`);
       return NextResponse.json(
         { error: "Project not found or forbidden" },
         { status: 404 }
@@ -214,25 +215,41 @@ export async function POST(
         { status: 400 }
       );
     }
-
-    const vercelToken = await getVercelToken(userId);
     if (!vercelToken) {
       return NextResponse.json(
-        {
-          error:
-            "Vercel connection invalid or missing. Please connect your Vercel account.",
-        },
+        { error: "Vercel connection invalid or missing. Please reconnect." },
         { status: 401 }
       );
     }
 
-    const vercelTeamId: string | null = user?.vercelTeamId || null;
+    // --- 3. GET VERCEL TEAM ID (LAZILY) ---
+    let vercelTeamId: string | null = user?.vercelTeamId || null;
+
+    // If we haven't stored a teamId yet, fetch it now and save it
+    if (vercelTeamId === null) {
+      log.info(
+        `Vercel Team ID not found in DB for user ${userId}. Fetching...`
+      );
+      vercelTeamId = await getVercelTeamId(vercelToken); // Call the helper
+
+      // If we found one, update the user record
+      if (vercelTeamId) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: { vercelTeamId: vercelTeamId },
+        });
+        log.info(
+          `Fetched and saved Vercel Team ID ${vercelTeamId} for user ${userId}.`
+        );
+      }
+    }
+
     log.info(`Using Vercel Team ID: ${vercelTeamId || "Personal Account"}`);
 
     let vercelProjectId = project.vercelProjectId;
     let vercelProjectUrl = project.vercelProjectUrl;
 
-    // 3. --- Create Vercel Project (if needed) ---
+    // --- 4. CREATE VERCEL PROJECT (if needed) ---
     if (!vercelProjectId) {
       log.info(`Creating new Vercel project for ${projectId}...`);
       try {
@@ -244,14 +261,11 @@ export async function POST(
             body: JSON.stringify({
               name: project.githubRepoName.split("/")[1],
               framework: "nextjs",
-              gitRepository: {
-                type: "github",
-                repo: project.githubRepoName,
-              },
+              gitRepository: { type: "github", repo: project.githubRepoName },
             }),
           },
           vercelTeamId
-        )) as { id: string; alias?: { domain: string }[] }; // Added type assertion
+        )) as { id: string; alias?: { domain: string }[] };
 
         vercelProjectId = createProjectResponse.id;
         vercelProjectUrl = createProjectResponse.alias?.[0]?.domain
@@ -333,7 +347,8 @@ export async function POST(
         );
         if (
           (error as { code?: string }).code === "repository_not_found" ||
-          (error instanceof Error && error.message?.includes("Git Repository not found"))
+          (error instanceof Error &&
+            error.message?.includes("Git Repository not found"))
         ) {
           return NextResponse.json(
             {
@@ -343,7 +358,9 @@ export async function POST(
           );
         }
         return NextResponse.json(
-          { error: `Failed to create Vercel project: ${error instanceof Error ? error.message : "Unknown error"}` },
+          {
+            error: `Failed to create Vercel project: ${error instanceof Error ? error.message : "Unknown error"}`,
+          },
           { status: 500 }
         );
       }
@@ -406,7 +423,8 @@ export async function POST(
       );
       if (
         (error as { code?: string }).code === "repository_not_found" ||
-        (error instanceof Error && error.message?.includes("Git Repository not found"))
+        (error instanceof Error &&
+          error.message?.includes("Git Repository not found"))
       ) {
         return NextResponse.json(
           {
@@ -435,7 +453,9 @@ export async function POST(
         );
       }
       return NextResponse.json(
-        { error: `Failed to trigger deployment: ${error instanceof Error ? error.message : "Unknown error"}` },
+        {
+          error: `Failed to trigger deployment: ${error instanceof Error ? error.message : "Unknown error"}`,
+        },
         { status: 500 }
       );
     }

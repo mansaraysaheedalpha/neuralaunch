@@ -1,12 +1,14 @@
 // src/lib/services/sandbox-service.ts
 
 import Docker from "dockerode";
+import { platform } from "os";
 import prisma from "@/lib/prisma";
 import { sanitizeUserInput } from "@/lib/sanitize";
 import { logger } from "../logger";
+import { env } from "../env";
 
 // --- CONFIGURATION ---
-const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const IS_PRODUCTION = env.NODE_ENV === "production";
 const SANDBOX_IMAGE_NAME = "neuralaunch-sandbox:latest"; // Image you pushed to Artifact Registry
 const SANDBOX_INTERNAL_PORT = "8080";
 const WORKSPACE_DIR_INSIDE_CONTAINER = "/workspace";
@@ -18,10 +20,10 @@ const DOCKER_NETWORK_NAME = "neuralaunch-net";
 // These are read from process.env, which Vercel populates
 const prodDockerHost =
   process.env.DOCKER_HOST_URL?.split("://")[1].split(":")[0]; // e.g., 34.123.45.67
-const prodDockerPort = process.env.DOCKER_HOST_URL?.split(":")[2] || 2376;
-const prodDockerCACert = process.env.DOCKER_CA_CERT;
-const prodDockerClientCert = process.env.DOCKER_CLIENT_CERT;
-const prodDockerClientKey = process.env.DOCKER_CLIENT_KEY;
+const prodDockerPort = env.DOCKER_HOST_URL?.split(":")[2] || 2376;
+const prodDockerCACert = env.DOCKER_CA_CERT;
+const prodDockerClientCert = env.DOCKER_CLIENT_CERT;
+const prodDockerClientKey = env.DOCKER_CLIENT_KEY;
 
 // --- TYPES ---
 interface ExecResult {
@@ -57,52 +59,52 @@ class SandboxServiceClass {
         logger.error(
           "FATAL: Production Docker environment variables (DOCKER_HOST_URL, _CA_CERT, _CLIENT_CERT, _CLIENT_KEY) are not fully set."
         );
-        // Create a non-functional client to prevent hard crashes on init,
-        // but all subsequent operations will fail.
-        // The startup check in lib/env.ts should ideally prevent this.
-        this.docker = new Docker();
+        this.docker = new Docker(); // Non-functional
       } else {
-        // Configure Docker client for secure remote TLS connection to GCE VM
         this.docker = new Docker({
           host: prodDockerHost,
           port: prodDockerPort,
-          ca: prodDockerCACert, // Certificate Authority
-          cert: prodDockerClientCert, // Client Certificate
-          key: prodDockerClientKey, // Client Private Key
-          protocol: "https", // Use HTTPS (TLS)
+          ca: prodDockerCACert,
+          cert: prodDockerClientCert,
+          key: prodDockerClientKey,
+          protocol: "https",
         });
         logger.info(
           `[SandboxService] Production Mode: Configured remote Docker client for ${prodDockerHost}.`
         );
       }
     } else {
-      // --- DEVELOPMENT CONSTRUCTOR ---
+      // --- DEVELOPMENT CONSTRUCTOR (FIXED FOR WINDOWS) ---
       try {
-        this.docker = new Docker({
-          socketPath: process.env.DOCKER_SOCKET_PATH || "/var/run/docker.sock",
-        });
-        logger.info(
-          "[SandboxService] Development Mode: Connected to Docker via socket."
-        );
+        // Check if running on Windows
+        const isWindows = platform() === "win32";
+
+        if (isWindows) {
+          logger.info(
+            "[SandboxService] Windows OS detected. Connecting via default named pipe..."
+          );
+          // On Windows, Dockerode uses the named pipe by default if no socketPath is given.
+          // Or you can be explicit: new Docker({ socketPath: '//./pipe/docker-desktop' });
+          this.docker = new Docker();
+        } else {
+          // On Linux/macOS, use the socket path
+          logger.info(
+            "[SandboxService] Linux/macOS detected. Connecting via socket path..."
+          );
+          this.docker = new Docker({
+            socketPath:
+              process.env.DOCKER_SOCKET_PATH || "/var/run/docker.sock",
+          });
+        }
+
+        logger.info("[SandboxService] Development Mode: Connected to Docker.");
         void this.ensureNetworkExists();
       } catch (error) {
-        logger.warn(
-          "[SandboxService] Failed to connect via socket, trying default Docker connection:",
-          { error: error instanceof Error ? error.message : String(error) }
+        logger.error(
+          "[SandboxService] FATAL: Could not connect to Docker in development.",
+          error instanceof Error ? error : undefined
         );
-        try {
-          this.docker = new Docker(); // Fallback for Windows/Mac
-          logger.info(
-            "[SandboxService] Development Mode: Connected to Docker via default."
-          );
-          void this.ensureNetworkExists();
-        } catch (defaultError) {
-          logger.error(
-            "[SandboxService] FATAL: Could not connect to Docker in development.",
-            defaultError instanceof Error ? defaultError : undefined
-          );
-          this.docker = new Docker(); // Non-functional client
-        }
+        this.docker = new Docker(); // Non-functional
       }
     }
   }
@@ -298,10 +300,10 @@ class SandboxServiceClass {
         },
         Env: [
           `PROJECT_ID=${projectId}`, // For Pusher channel (used by sandbox-server.js)
-          `PUSHER_APP_ID=${process.env.PUSHER_APP_ID || ""}`,
-          `PUSHER_KEY=${process.env.NEXT_PUBLIC_PUSHER_KEY || ""}`,
-          `PUSHER_SECRET=${process.env.PUSHER_SECRET || ""}`,
-          `PUSHER_CLUSTER=${process.env.NEXT_PUBLIC_PUSHER_CLUSTER || ""}`,
+          `PUSHER_APP_ID=${env.PUSHER_APP_ID || ""}`,
+          `PUSHER_KEY=${env.NEXT_PUBLIC_PUSHER_KEY || ""}`,
+          `PUSHER_SECRET=${env.PUSHER_SECRET || ""}`,
+          `PUSHER_CLUSTER=${env.NEXT_PUBLIC_PUSHER_CLUSTER || ""}`,
         ],
       };
 
@@ -778,7 +780,7 @@ class SandboxServiceClass {
       };
     }
   }
-  
+
   /** Configures git remote and pushes the specified branch to origin. */
   async gitPushToBranch(
     projectId: string,
