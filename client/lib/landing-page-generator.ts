@@ -1,30 +1,35 @@
-//client/ lib/landing-page-generator.ts
-// FIXED VERSION - Proper slug generation and better AI prompts
+// client/lib/landing-page-generator.ts
+// CORRECT VERSION - Based on official @google/genai v1.28.0 documentation
 
 import { AI_MODELS } from "@/lib/models";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+// Initialize the Google Gen AI client
+const genAI = new GoogleGenAI({
+  apiKey: process.env.GOOGLE_API_KEY || "",
+});
 
-// 3. Define a Zod schema matching LandingPageContent for safe parsing
 const landingPageContentSchema = z.object({
   headline: z.string().min(1),
   subheadline: z.string().min(1),
   problemStatement: z.string().min(1),
   solutionStatement: z.string().min(1),
-  features: z.array(z.object({
-    title: z.string().min(1),
-    description: z.string().min(1),
-    icon: z.string().min(1),
-  })).length(3, { message: "Must have exactly 3 features" }), // Ensure exactly 3 features
+  features: z
+    .array(
+      z.object({
+        title: z.string().min(1),
+        description: z.string().min(1),
+        icon: z.string().min(1),
+      })
+    )
+    .length(3),
   ctaText: z.string().min(1),
   metaTitle: z.string().min(1),
   metaDescription: z.string().min(1),
 });
 
-// Infer the TypeScript type from the Zod schema
 export type LandingPageContent = z.infer<typeof landingPageContentSchema>;
 
 export interface DesignVariant {
@@ -109,7 +114,6 @@ export const DESIGN_VARIANTS: DesignVariant[] = [
   },
 ];
 
-// IMPROVED AI Prompt with better instructions
 function getLandingPagePrompt(
   blueprint: string,
   targetMarket: string,
@@ -196,61 +200,64 @@ export async function generateLandingPageContent(
   targetMarket: "b2b" | "b2c" = "b2b"
 ): Promise<LandingPageContent> {
   try {
-    const model = genAI.getGenerativeModel({ model: AI_MODELS.FAST });
     const prompt = getLandingPagePrompt(blueprint, targetMarket, startupTitle);
-    const result = await model.generateContent(prompt);
-    // Assuming .text() returns a Promise<string>
-    const text: string = result.response.text();
 
-    let jsonString = "";
-    // Robust JSON extraction logic remains the same
-    const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    if (codeBlockMatch?.[1]) {
-      jsonString = codeBlockMatch[1];
-    } else {
-      const fallbackMatch = text.match(/(\{[\s\S]*\})/);
-      if (fallbackMatch?.[0]) {
-        jsonString = fallbackMatch[0];
-      }
+    // Official Google Gen AI SDK pattern for Gemini 2.0
+    const result = await genAI.models.generateContent({
+      model: AI_MODELS.FAST,
+      contents: prompt,
+    });
+
+    // Extract text from response
+    const text = result.text;
+
+    if (!text) {
+      throw new Error("No text content in AI response");
     }
 
-    if (!jsonString) {
-      throw new Error("No valid JSON object found in AI response.");
-    }
-
-    // --- FIX: Use Zod for safe parsing ---
-    // This parses the string and validates against the schema
-    const parseResult = landingPageContentSchema.safeParse(
-      JSON.parse(jsonString)
-    );
-
-    if (!parseResult.success) {
-      console.error(
-        "AI response failed validation:",
-        parseResult.error.format()
-      );
-      throw new Error("Invalid content structure from AI after parsing.");
-    }
-    // Now 'content' is guaranteed to match the LandingPageContent type
-    const content = parseResult.data;
-    // ------------------------------------
-
-    return content;
-  } catch (error: unknown) {
-    // Type the error
-    console.error(
-      "❌ Generation error:",
-      error instanceof Error ? error.message : error
-    );
+    return processAIResponse(text, startupTitle);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("❌ Generation error:", errorMessage);
     console.log("⚠️ Using fallback content generation...");
-    // generateFallbackContent remains unchanged, but ensure it matches LandingPageContent type
     return generateFallbackContent(startupTitle);
   }
 }
 
-// IMPROVED: Fallback with better content
+function processAIResponse(
+  text: string,
+  _startupTitle: string
+): LandingPageContent {
+  let jsonString = "";
+
+  // Robust JSON extraction
+  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (codeBlockMatch?.[1]) {
+    jsonString = codeBlockMatch[1];
+  } else {
+    const fallbackMatch = text.match(/(\{[\s\S]*\})/);
+    if (fallbackMatch?.[0]) {
+      jsonString = fallbackMatch[0];
+    }
+  }
+
+  if (!jsonString) {
+    throw new Error("No valid JSON object found in AI response.");
+  }
+
+  const parseResult = landingPageContentSchema.safeParse(
+    JSON.parse(jsonString)
+  );
+
+  if (!parseResult.success) {
+    console.error("AI response failed validation:", parseResult.error.format());
+    throw new Error("Invalid content structure from AI after parsing.");
+  }
+
+  return parseResult.data;
+}
+
 function generateFallbackContent(startupTitle: string): LandingPageContent {
-  // Extract some info from blueprint
   return {
     headline: `${startupTitle}: Turn Your Vision Into Reality`,
     subheadline:
@@ -288,55 +295,37 @@ function generateFallbackContent(startupTitle: string): LandingPageContent {
 
 export function generateSlug(title: string): string {
   if (!title) return "";
-
   const lower = title.toLowerCase();
-
-  // Replace spaces, underscores, colons, and commas with a hyphen
   const withHyphens = lower.replace(/[\s_:,]+/g, "-");
-
-  // Remove any character that is not a letter, number, or hyphen
   const sanitized = withHyphens.replace(/[^a-z0-9-]/g, "");
-
-  // Replace multiple hyphens in a row with a single one
   const singleHyphens = sanitized.replace(/-+/g, "-");
-
-  // Remove any leading or trailing hyphens
   const trimmed = singleHyphens.replace(/^-|-$/g, "");
-
-  // Limit the length for cleanliness
   return trimmed.substring(0, 75);
 }
 
-// Check if slug is available
 export async function isSlugAvailable(
   slug: string,
-  prisma: PrismaClient // Use the imported type
+  prisma: PrismaClient
 ): Promise<boolean> {
-  // Use await here as findUnique is async
   const existing = await prisma.landingPage.findUnique({
     where: { slug },
   });
   return !existing;
 }
 
-// Generate unique slug with counter if needed
 export async function generateUniqueSlug(
-  baseSlugInput: string, // Rename to avoid conflict
-  prisma: PrismaClient // Use the imported type
+  baseSlugInput: string,
+  prisma: PrismaClient
 ): Promise<string> {
-  // Generate base slug from input first
   const baseSlug = generateSlug(baseSlugInput);
   let slug = baseSlug;
   let counter = 1;
 
-  // Pass prisma client correctly
   while (!(await isSlugAvailable(slug, prisma))) {
     slug = `${baseSlug}-${counter}`;
     counter++;
     if (counter > 100) {
-      // Add a safety break
       console.warn("generateUniqueSlug reached max attempts for:", baseSlug);
-      // Return with timestamp as a last resort
       return `${baseSlug}-${Date.now()}`;
     }
   }
