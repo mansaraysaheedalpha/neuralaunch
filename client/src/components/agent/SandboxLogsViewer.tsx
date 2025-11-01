@@ -5,7 +5,8 @@
 import { useEffect, useState, useRef } from "react";
 import Pusher from "pusher-js";
 import { motion } from "framer-motion";
-import { logger } from "@/lib/logger"; // Assuming client-side logger or use console
+import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 
 interface SandboxLogsViewerProps {
   projectId: string; // The ID of the LandingPage/Project
@@ -22,8 +23,8 @@ export default function SandboxLogsViewer({
 
   useEffect(() => {
     // Ensure Pusher environment variables are available on the client
-    const pusherKey = process.env.NEXT_PUBLIC_PUSHER_KEY;
-    const pusherCluster = process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
+    const pusherKey = env.NEXT_PUBLIC_PUSHER_KEY;
+    const pusherCluster = env.NEXT_PUBLIC_PUSHER_CLUSTER;
 
     if (!pusherKey || !pusherCluster) {
       logger.error(

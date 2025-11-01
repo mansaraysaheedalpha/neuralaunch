@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stopIdleSandboxes } from "@/lib/jobs/cleanup-sandboxes"; // Import the job function
 import { logger } from "@/lib/logger"; // Your logger
+import { env } from "@/lib/env";
 
 // This function will handle GET requests triggered by Vercel Cron
 export async function GET(request: NextRequest) {
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
     .split("Bearer ")
     .at(1);
 
-  if (!process.env.CRON_SECRET) {
+  if (!env.CRON_SECRET) {
     logger.error(
       "[Cron Trigger] CRON_SECRET environment variable is not set. Cannot verify request."
     );
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (authToken !== process.env.CRON_SECRET) {
+  if (authToken !== env.CRON_SECRET) {
     logger.warn("[Cron Trigger] Unauthorized attempt to access cron endpoint.");
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }

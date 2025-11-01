@@ -4,10 +4,12 @@
  *
  * This module validates all required environment variables at application startup
  * using Zod to fail fast and provide clear error messages.
+ *
+ * It exports a single `env` object that MUST be used by the rest of the application
+ * instead of `process.env`.
  */
 
 import { z } from "zod";
-import { logger } from "./logger"; // Assuming logger is available
 
 const KEY_LENGTH = 32; // Bytes for AES-256
 
@@ -32,7 +34,7 @@ const envSchema = z.object({
   // AI Services
   GOOGLE_API_KEY: z.string().min(1, "GOOGLE_API_KEY is required for Gemini AI"),
   OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required"),
-  ANTHROPIC_API_KEY: z.string().optional(), // Make optional if not always required
+  ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY is required"), // Made this required
 
   // Email Service
   RESEND_API_KEY: z.string().min(1, "RESEND_API_KEY is required"),
@@ -61,9 +63,24 @@ const envSchema = z.object({
   CRON_SECRET: z
     .string()
     .min(1, "CRON_SECRET is required for Vercel Cron jobs"),
-  INNGEST_EVENT_KEY: z
+  INNGEST_EVENT_KEY: z.string().min(1, "INNGEST_EVENT_KEY is required"),
+  INNGEST_SIGNING_KEY: z
     .string()
-    .min(1, "INNGEST_EVENT_KEY is required for background jobs"), // *** ADDED ***
+    .min(1, "INNGEST_SIGNING_KEY is required for production"),
+
+  // Sandbox
+  DOCKER_HOST_URL: z
+    .string()
+    .min(1, "DOCKER_HOST_URL is required for production sandbox"),
+  DOCKER_CA_CERT: z
+    .string()
+    .min(1, "DOCKER_CA_CERT is required for production sandbox"),
+  DOCKER_CLIENT_CERT: z
+    .string()
+    .min(1, "DOCKER_CLIENT_CERT is required for production sandbox"),
+  DOCKER_CLIENT_KEY: z
+    .string()
+    .min(1, "DOCKER_CLIENT_KEY is required for production sandbox"),
 
   // Node Environment
   NODE_ENV: z
@@ -73,70 +90,32 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>;
 
-let validatedEnv: Env | null = null;
-
-export function validateEnv(): Env {
-  if (validatedEnv) {
-    return validatedEnv;
-  }
-  logger.info("⚙️ Validating environment variables...");
+/**
+ * Validates process.env and returns a typed Env object.
+ * This function is called immediately when the module is loaded.
+ */
+function validateEnv(): Env {
   try {
-    validatedEnv = envSchema.parse({
-      DATABASE_URL: process.env.DATABASE_URL,
-      NEXTAUTH_URL: process.env.NEXTAUTH_URL,
-      NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
-      GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
-      GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
-      VERCEL_CLIENT_ID: process.env.VERCEL_CLIENT_ID,
-      VERCEL_CLIENT_SECRET: process.env.VERCEL_CLIENT_SECRET,
-      GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
-      GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
-      GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
-      OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
-      RESEND_API_KEY: process.env.RESEND_API_KEY,
-      NEXT_PUBLIC_PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY,
-      NEXT_PUBLIC_PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
-      PUSHER_APP_ID: process.env.PUSHER_APP_ID,
-      PUSHER_SECRET: process.env.PUSHER_SECRET,
-      ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
-      CRON_SECRET: process.env.CRON_SECRET,
-      INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY, // *** ADDED ***
-      NODE_ENV: process.env.NODE_ENV,
-    });
-    logger.info("✅ Environment variables validated successfully.");
-    return validatedEnv;
+    // Zod will automatically parse process.env.
+    // It will throw an error if any variable is missing or invalid.
+    return envSchema.parse(process.env);
   } catch (error) {
     if (error instanceof z.ZodError) {
       const missingVars = error.issues
         .map((e) => `  - ${e.path.join(".")}: ${e.message}`)
         .join("\n");
-      const fullErrorMessage = `❌ FATAL: Environment validation failed:\n${missingVars}\n\nPlease check your environment configuration.`;
-      logger.error(fullErrorMessage);
+      const fullErrorMessage = `❌ FATAL: Environment validation failed:\n${missingVars}\n\nPlease check your .env.local file (for dev) or Vercel Environment Variables (for prod).`;
+      console.error(fullErrorMessage); // Use console.error for startup errors
       throw new Error(fullErrorMessage);
     }
-    logger.error(
-      "❌ Unexpected error during environment validation:",
-      error instanceof Error ? error : undefined
-    );
+    console.error("❌ Unexpected error during environment validation:", error);
     throw error;
   }
 }
 
-export function getEnv(): Env {
-  if (!validatedEnv) {
-    return validateEnv();
-  }
-  return validatedEnv;
-}
+// --- THIS IS THE FIX ---
+// Validate the environment immediately on module load and export the result.
+// All other files will import this `env` object.
+export const env = validateEnv();
 
-// Trigger validation on application load
-try {
-  validateEnv();
-  logger.info("Environment loaded and validated on startup.");
-} catch {
-  if (process.env.NODE_ENV === "production") {
-    console.error("Halting process due to invalid environment configuration.");
-    process.exit(1);
-  }
-}
+// We no longer need getEnv() or the old try/catch block at the end.

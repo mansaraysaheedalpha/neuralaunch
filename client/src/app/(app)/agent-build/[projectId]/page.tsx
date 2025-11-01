@@ -309,7 +309,7 @@ export default function BuildAgentPage() {
           </pre>
         </details>
         <button
-          onClick={() => revalidateProjectData()}
+          onClick={() => void revalidateProjectData()}
           className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
         >
           Retry

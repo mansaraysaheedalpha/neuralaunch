@@ -7,6 +7,7 @@ import {
   Tool,
 } from "@google/genai";
 // ******************************************************
+import { env } from "./env";
 
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
@@ -37,13 +38,13 @@ type AIProvider = "GOOGLE" | "OPENAI" | "ANTHROPIC";
 // ==================== CLIENT INITIALIZATION ====================
 // The new SDK uses 'new GoogleGenAI()'
 const genAI = new GoogleGenAI({
-  apiKey: process.env.GOOGLE_API_KEY || ""
+  apiKey: env.GOOGLE_API_KEY || ""
 });
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "dummy-key-for-build",
+  apiKey: env.OPENAI_API_KEY || "dummy-key-for-build",
 });
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: env.ANTHROPIC_API_KEY,
 });
 
 // ==================== ROUTING LOGIC ====================
@@ -119,7 +120,7 @@ async function callGemini(
       "[callGemini] Streaming is not supported with tool calls. Returning non-streamed result."
     );
   }
-  if (!process.env.GOOGLE_API_KEY) {
+  if (!env.GOOGLE_API_KEY) {
     throw new Error(
       "Google API Key (GEMINI_API_KEY or GOOGLE_API_KEY) is missing."
     );
@@ -205,7 +206,7 @@ async function callOpenAI(
   responseFormat?: { type: "json_object" },
   stream?: boolean
 ): Promise<string | AsyncIterable<string>> {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!env.OPENAI_API_KEY) {
     throw new Error(
       "OPENAI_API_KEY environment variable is required for OpenAI operations"
     );
@@ -289,7 +290,7 @@ async function callClaude(
   systemPrompt?: string,
   stream?: boolean
 ): Promise<string | AsyncIterable<string>> {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!env.ANTHROPIC_API_KEY) {
     throw new Error(
       "ANTHROPIC_API_KEY environment variable is required for Claude operations"
     );
