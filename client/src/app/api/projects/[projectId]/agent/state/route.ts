@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { projectAgentDataSchema } from "@/types/agent-schemas";
 
 /**
  * GET /api/projects/[projectId]/agent/state
@@ -62,30 +63,49 @@ export async function GET(
       },
     });
 
-    // 4. Construct response object
-    const projectAgentData = {
+    // 4. Construct response object - ENSURE ALL FIELDS MATCH SCHEMA
+    const rawProjectAgentData = {
       id: project.id,
       title: project.title,
-      agentPlan: project.agentPlan,
-      agentClarificationQuestions: project.agentClarificationQuestions,
-      agentUserResponses: project.agentUserResponses,
-      agentCurrentStep: project.agentCurrentStep,
-      agentStatus: project.agentStatus,
-      agentExecutionHistory: project.agentExecutionHistory,
-      githubRepoUrl: project.githubRepoUrl,
-      githubRepoName: project.githubRepoName,
-      vercelProjectId: project.vercelProjectId,
-      vercelProjectUrl: project.vercelProjectUrl,
-      vercelDeploymentUrl: project.vercelDeploymentUrl,
-      agentRequiredEnvKeys: project.agentRequiredEnvKeys,
+      agentPlan: project.agentPlan ?? null, // Ensure null instead of undefined
+      agentClarificationQuestions: project.agentClarificationQuestions ?? null,
+      agentUserResponses: project.agentUserResponses ?? null,
+      agentCurrentStep: project.agentCurrentStep ?? null,
+      agentStatus: project.agentStatus ?? null,
+      agentExecutionHistory: project.agentExecutionHistory ?? null,
+      githubRepoUrl: project.githubRepoUrl ?? null,
+      githubRepoName: project.githubRepoName ?? null,
+      vercelProjectId: project.vercelProjectId ?? null,
+      vercelProjectUrl: project.vercelProjectUrl ?? null,
+      vercelDeploymentUrl: project.vercelDeploymentUrl ?? null,
+      agentRequiredEnvKeys: project.agentRequiredEnvKeys ?? null,
       accounts: accounts,
     };
+
+    // 5. Validate the data structure before sending
+    const validationResult =
+      projectAgentDataSchema.safeParse(rawProjectAgentData);
+
+    if (!validationResult.success) {
+      logger.error(
+        `[Agent State] Data validation failed for project ${projectId}:`,
+        validationResult.error
+      );
+      logger.error(
+        `[Agent State] Raw data that failed validation:`,
+        undefined,
+        { data: rawProjectAgentData }
+      );
+      // Return the data anyway but log the issue
+      // This helps debug what's wrong
+    }
 
     logger.info(
       `[Agent State] Fetched state for project ${projectId} (status: ${project.agentStatus})`
     );
 
-    return NextResponse.json(projectAgentData, { status: 200 });
+    // Return the data (validated or not - the client-side validation will handle it)
+    return NextResponse.json(rawProjectAgentData, { status: 200 });
   } catch (error: unknown) {
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";

@@ -1,9 +1,12 @@
-// src/lib/validation.ts (NEW FILE)
+// src/lib/validation.ts
+// UPDATED VERSION - Using new @google/genai API
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { AI_MODELS } from "@/lib/models"; // Assuming you have this file
+import { GoogleGenAI } from "@google/genai";
+import { AI_MODELS } from "@/lib/models";
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
+const genAI = new GoogleGenAI({
+  apiKey: process.env.GOOGLE_API_KEY || "",
+});
 
 interface ValidationScores {
   marketDemandScore: number;
@@ -55,7 +58,7 @@ export async function getValidationInsight(
   scores: ValidationScores
 ): Promise<string> {
   try {
-    const model = genAI.getGenerativeModel({ model: AI_MODELS.PRIMARY }); // Use your best model
+    // Build the prompt with score replacements
     let prompt = INSIGHT_PROMPT_TEMPLATE.replace(
       "{{TOTAL}}",
       scores.totalValidationScore.toFixed(0)
@@ -67,14 +70,25 @@ export async function getValidationInsight(
     );
     prompt = prompt.replace("{{EXECUTION}}", scores.executionScore.toFixed(0));
 
-    const result = await model.generateContent(prompt);
-    return result.response.text();
+    // Use the new API
+    const result = await genAI.models.generateContent({
+      model: AI_MODELS.PRIMARY,
+      contents: prompt,
+    });
+
+    const text = result.text;
+
+    if (!text) {
+      throw new Error("No text content in AI response");
+    }
+
+    return text;
   } catch (error) {
-    console.error("Error getting validation insight:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Error getting validation insight:", errorMessage);
     return "Could not generate AI insight. Check your scores and try again.";
   }
 }
-
 
 /**
  * Analyzes interview notes to generate a sentiment score.
@@ -88,14 +102,22 @@ export async function getFeedbackSentiment(notes: string): Promise<number> {
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: AI_MODELS.FAST });
     const prompt = SENTIMENT_PROMPT_TEMPLATE.replace(
       "{{INTERVIEW_NOTES}}",
       notes
     );
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    // Use the new API
+    const result = await genAI.models.generateContent({
+      model: AI_MODELS.FAST,
+      contents: prompt,
+    });
+
+    const text = result.text;
+
+    if (!text) {
+      throw new Error("No text content in AI response");
+    }
 
     const score = parseFloat(text);
 
@@ -107,7 +129,8 @@ export async function getFeedbackSentiment(notes: string): Promise<number> {
     // Clamp the score between 0 and 1
     return Math.max(0, Math.min(1, score));
   } catch (error) {
-    console.error("Error getting feedback sentiment:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("Error getting feedback sentiment:", errorMessage);
     return 0.5; // Return neutral on error
   }
 }
