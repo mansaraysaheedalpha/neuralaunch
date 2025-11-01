@@ -43,6 +43,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       type: "oauth",
       clientId: env.VERCEL_CLIENT_ID,
       clientSecret: env.VERCEL_CLIENT_SECRET,
+      allowDangerousEmailAccountLinking: true,
       authorization: {
         url: "https://api.vercel.com/oauth/authorize",
         params: {
