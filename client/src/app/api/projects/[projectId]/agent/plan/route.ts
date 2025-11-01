@@ -49,11 +49,11 @@ function extractJsonFromString(text: string): string {
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   const log = logger.child({ api: "/api/projects/[projectId]/agent/plan" });
   try {
-    const { projectId } = params;
+    const { projectId } = await params;
     log.info(`Plan generation request for project ${projectId}`);
 
     const session = await auth();

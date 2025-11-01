@@ -157,11 +157,11 @@ async function getDecryptedEnvVars(
 // --- MAIN DEPLOY ROUTE ---
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   const log = logger.child({ api: "/api/projects/[projectId]/deploy" });
   try {
-    const { projectId } = params;
+    const { projectId } = await params;
     log.info(`Deployment request received for project ${projectId}`);
 
     const session = await auth();
@@ -280,7 +280,8 @@ export async function POST(
         // --- Set Environment Variables ---
 
         // **IMPORTANT:** Do NOT send VERCEL_ACCESS_TOKEN back to Vercel
-        const { VERCEL_ACCESS_TOKEN, ...envVarsToUpload } = allEnvVars;
+         
+        const { VERCEL_ACCESS_TOKEN: _VERCEL_ACCESS_TOKEN, ...envVarsToUpload } = allEnvVars;
 
         const finalVercelProjectUrl =
           vercelProjectUrl || `https://${vercelProjectId}.vercel.app`;
@@ -335,7 +336,7 @@ export async function POST(
           );
         }
         return NextResponse.json(
-          { error: `Failed to create Vercel project: ${error.message}` },
+          { error: `Failed to create Vercel project: ${error instanceof Error ? error.message : 'Unknown error'}` },
           { status: 500 }
         );
       }
@@ -392,14 +393,14 @@ export async function POST(
         },
         { status: 200 }
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       log.error(
         `Failed to trigger deployment for Vercel project ${vercelProjectId}:`,
-        error
+        error instanceof Error ? error : undefined
       );
       if (
-        error.code === "repository_not_found" ||
-        error.message?.includes("Git Repository not found")
+        (typeof error === "object" && error !== null && "code" in error && (error as { code: string }).code === "repository_not_found") ||
+        (error instanceof Error && error.message?.includes("Git Repository not found"))
       ) {
         return NextResponse.json(
           {
