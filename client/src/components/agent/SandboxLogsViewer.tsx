@@ -1,6 +1,6 @@
-// src/components/agent/SandboxLogsViewer.tsx (New File or update existing placeholder)
+// src/components/agent/SandboxLogsViewer.tsx
 
-"use client"; // Required for hooks like useEffect, useState, useRef
+"use client";
 
 import { useEffect, useState, useRef } from "react";
 import Pusher from "pusher-js";
@@ -9,107 +9,90 @@ import { logger } from "@/lib/logger";
 import { publicEnv } from "@/lib/env.public";
 
 interface SandboxLogsViewerProps {
-  projectId: string; // The ID of the LandingPage/Project
+  projectId: string;
 }
 
 export default function SandboxLogsViewer({
   projectId,
 }: SandboxLogsViewerProps) {
-  const [logs, setLogs] = useState<string>(""); // Store logs as a single string
+  const [logs, setLogs] = useState<string>("");
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const logsEndRef = useRef<null | HTMLDivElement>(null);
-  const pusherClientRef = useRef<Pusher | null>(null);
-  const channelName = `sandbox-logs-${projectId}`; // Pusher channel name specific to this project
+  const channelName = `sandbox-logs-${projectId}`;
 
   useEffect(() => {
-    // Ensure Pusher environment variables are available on the client
     const pusherKey = publicEnv.NEXT_PUBLIC_PUSHER_KEY;
     const pusherCluster = publicEnv.NEXT_PUBLIC_PUSHER_CLUSTER;
 
     if (!pusherKey || !pusherCluster) {
-      logger.error(
-        "[SandboxLogsViewer] Pusher environment variables (NEXT_PUBLIC_PUSHER_KEY, NEXT_PUBLIC_PUSHER_CLUSTER) are not set."
-      );
+      logger.error("[SandboxLogsViewer] Pusher configuration missing");
       setLogs("[Error: Pusher configuration missing. Cannot display logs.]\n");
       setIsConnected(false);
       return;
     }
 
-    // Only initialize if the ref is empty
-  if (!pusherClientRef.current) {
-    try {
-      pusherClientRef.current = new Pusher(pusherKey, {
-        cluster: pusherCluster,
-      });
+    logger.info(`[SandboxLogsViewer] Initializing Pusher for ${channelName}`);
 
-      const channel = pusherClientRef.current.subscribe(channelName);
+    // Initialize Pusher with proper configuration
+    const pusher = new Pusher(pusherKey, {
+      cluster: pusherCluster,
+      enabledTransports: ["ws", "wss"],
+    });
 
-      channel.bind("pusher:subscription_succeeded", () => {
-        logger.info(
-          `[SandboxLogsViewer] Successfully subscribed to Pusher channel: ${channelName}`
-        );
-        setIsConnected(true);
-        setLogs((prev) => prev || "[Connected to sandbox logs...]\n");
-      });
+    // Connection state monitoring
+    pusher.connection.bind("connected", () => {
+      logger.info("[SandboxLogsViewer] Pusher connected");
+    });
 
-      // Failed subscription
-      channel.bind(
-        "pusher:subscription_error",
-        (status: { error?: { message?: string }; status?: string | number }) => {
-          logger.error(
-            `[SandboxLogsViewer] Pusher subscription error for ${channelName}:`,
-            undefined,
-            { status }
-          );
-          setIsConnected(false);
-          setLogs(
-            (prev) =>
-              prev +
-              `\n[Error subscribing to logs: ${status.error?.message ?? status.status}]\n`
-          );
-        }
+    pusher.connection.bind("error", (err: unknown) => {
+      logger.error(
+        "[SandboxLogsViewer] Pusher connection error:",
+        err instanceof Error ? err : undefined
       );
+    });
 
-      // Receiving log messages
-      channel.bind("log-message", (data: { message: string }) => {
-        // Append new message, ensuring it exists and is a string
-        if (data && typeof data.message === "string") {
-          setLogs((prev) => prev + data.message);
-        }
-      });
+    const channel = pusher.subscribe(channelName);
 
-        logger.info(
-          `[SandboxLogsViewer] Attempting to subscribe to Pusher channel: ${channelName}`
-        );
-        setLogs("[Connecting to sandbox logs...]\n"); // Initial connecting message
-      } catch (error) {
-        logger.error(
-          "[SandboxLogsViewer] Failed to initialize Pusher:",
-          error instanceof Error ? error : undefined
-        );
-        setLogs((prev) => prev + "[Error initializing log connection.]\n");
+    channel.bind("pusher:subscription_succeeded", () => {
+      logger.info(`[SandboxLogsViewer] Subscribed to ${channelName}`);
+      setIsConnected(true);
+      setLogs("[Connected to sandbox logs...]\n");
+    });
+
+    channel.bind(
+      "pusher:subscription_error",
+      (status: { error?: { message?: string }; status?: string | number }) => {
+        logger.error(`[SandboxLogsViewer] Subscription error:`, undefined, {
+          status,
+        });
         setIsConnected(false);
+        setLogs(
+          (prev) =>
+            prev +
+            `\n[Error subscribing to logs: ${status.error?.message ?? status.status}]\n`
+        );
       }
-    }
-  
-      // --- Cleanup Function ---
-      return () => {
-    if (pusherClientRef.current) {
-      logger.info(
-        `[SandboxLogsViewer] Unsubscribing from Pusher channel: ${channelName}`
-      );
-      pusherClientRef.current.unsubscribe(channelName);
-      pusherClientRef.current.disconnect();
-      pusherClientRef.current = null; // <-- Set ref to null on cleanup
-      setIsConnected(false);
-    }
-  };
-  }, [projectId, channelName]); // Rerun effect if projectId changes
+    );
+
+    channel.bind("log-message", (data: { message: string }) => {
+      if (data?.message) {
+        setLogs((prev) => prev + data.message);
+      }
+    });
+
+    // Cleanup
+    return () => {
+      logger.info(`[SandboxLogsViewer] Cleaning up Pusher connection`);
+      channel.unbind_all();
+      pusher.unsubscribe(channelName);
+      pusher.disconnect();
+    };
+  }, [channelName]); // Only depend on channelName
 
   // Auto-scroll effect
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logs]); // Scroll whenever logs update
+  }, [logs]);
 
   return (
     <motion.div
@@ -125,13 +108,15 @@ export default function SandboxLogsViewer({
         }`}
         title={isConnected ? "Connected to Logs" : "Disconnected from Logs"}
       />
+
       {/* Log Content */}
       <pre className="whitespace-pre-wrap break-words">
         <code>
           {logs ||
-            (isConnected ? "Waiting for logs..." : "Attempting to connect...")}
+            (isConnected ? "Waiting for logs..." : "Connecting to sandbox...")}
         </code>
       </pre>
+
       {/* Invisible element to target for scrolling */}
       <div ref={logsEndRef} />
     </motion.div>

@@ -85,6 +85,7 @@ export async function POST(
     if (
       projectData.agentStatus !== "READY_TO_EXECUTE" &&
       projectData.agentStatus !== "PAUSED_AFTER_STEP" &&
+      projectData.agentStatus !== "PAUSED_FOR_PREVIEW" &&
       projectData.agentStatus !== "ERROR"
     ) {
       log.warn(
@@ -116,12 +117,20 @@ export async function POST(
       }
     }
 
-    // 5. --- Send Event to Inngest ---
+    // 5. --- CRITICAL: Update Status to EXECUTING IMMEDIATELY ---
+    await prisma.landingPage.update({
+      where: { id: projectId },
+      data: { agentStatus: "EXECUTING" },
+    });
+    log.info("Status updated to EXECUTING before sending Inngest event.");
+
+    // 6. --- Send Event to Inngest ---
     log.info(
       `Sending event 'agent/execute.step.requested' for step ${currentStep}`
     );
     await inngest.send({
       name: "agent/execute.step.requested",
+      id: `${projectId}-step-${currentStep}-${Date.now()}`, // Idempotency key
       // Add user context for Inngest dashboard
       user: { id: userId },
       data: {

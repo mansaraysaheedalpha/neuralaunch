@@ -194,6 +194,9 @@ model LandingPage {
   @@index([userId])
   @@index([isPublished])
   @@index([createdAt])
+  @@index([userId, agentStatus]) // *** NEW: For filtering by status ***
+  @@index([sandboxContainerId]) // *** NEW: For sandbox lookups ***
+  @@index([sandboxLastAccessedAt]) // *** NEW: For cleanup job queries ***
 }
 
 model EmailSignup {

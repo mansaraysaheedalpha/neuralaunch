@@ -53,6 +53,7 @@ export const executeAgentStep = inngest.createFunction(
     id: "execute-agent-step", // Unique ID for this function
     name: "Execute AI Agent Build Step", // Human-readable name
     retries: 2, // Configure retries for transient errors
+    timeouts: { start: "30m" },
   },
   { event: "agent/execute.step.requested" }, // Triggered by this event
   async ({ event, step }) => {
@@ -75,7 +76,7 @@ export const executeAgentStep = inngest.createFunction(
       projectId,
       userId,
       stepIndex,
-      runId: event.id
+      runId: event.id,
     });
 
     log.info(`Executing step ${stepIndex}: "${taskDescription}"`);
@@ -116,6 +117,33 @@ export const executeAgentStep = inngest.createFunction(
           `History length mismatch. Event data: ${currentHistoryLength}, DB: ${currentHistory.length}. Proceeding.`
         );
       }
+
+ await step.run("verify-sandbox-health", async () => {
+   log.info("Verifying sandbox health before execution...");
+   try {
+     const healthCheck = await SandboxService.execCommand(
+       projectId,
+       userId,
+       "echo 'health-check'",
+       5 // 5 second timeout
+     );
+
+     if (healthCheck.status === "error") {
+       throw new Error(`Sandbox health check failed: ${healthCheck.stderr}`);
+     }
+
+     log.info("Sandbox health check passed.");
+     return { healthy: true };
+   } catch (error) {
+     log.error(
+       "Sandbox health check failed:",
+       error instanceof Error ? error : undefined
+     );
+     throw new Error(
+       `Sandbox is not reachable: ${error instanceof Error ? error.message : "Unknown error"}`
+     );
+   }
+ });
 
       // --- Update Status to EXECUTING ---
       await step.run("update-status-executing", async () => {
