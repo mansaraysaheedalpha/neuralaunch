@@ -13,7 +13,7 @@ app.use(express.json());
 const PORT = 8080;
 const WORKSPACE_DIR = "/workspace"; // Matches the volume mount
 
-// --- Pusher Configuration (Reads ENV Vars passed from SandboxService) ---
+// --- Pusher Configuration ---
 let pusher;
 if (process.env.PUSHER_APP_ID && process.env.PUSHER_KEY && process.env.PUSHER_SECRET && process.env.PUSHER_CLUSTER) {
     pusher = new Pusher({
@@ -28,7 +28,7 @@ if (process.env.PUSHER_APP_ID && process.env.PUSHER_KEY && process.env.PUSHER_SE
     console.warn("[Sandbox Pusher] Pusher ENV variables not set. Log streaming disabled.");
 }
 
-const projectId = process.env.PROJECT_ID || "unknown-project"; // Get projectId passed from SandboxService
+const projectId = process.env.PROJECT_ID || "unknown-project";
 const pusherChannel = `sandbox-logs-${projectId}`;
 
 let activeShell = null;
@@ -52,16 +52,18 @@ app.post("/exec", (req, res) => {
     console.log(`[Sandbox Exec] Running command: ${command}`);
     if (pusher) {
          pusher.trigger(pusherChannel, 'log-message', { message: `\n$ ${command}\n` })
-             .catch(error => console.error("Pusher trigger error:", error));
+              .catch(error => console.error("Pusher trigger error:", error));
     }
 
-
-    const shell = pty.spawn("bash", [], {
+    // *** THIS IS THE FIX ***
+    // Use 'sh' (which exists in Alpine) instead of 'bash'
+    const shell = pty.spawn("sh", [], {
+    // ***********************
         name: "xterm-color",
         cols: 120,
         rows: 40,
         cwd: WORKSPACE_DIR,
-        env: process.env, // Pass environment variables
+        env: process.env,
     });
 
     activeShell = { process: shell, stdout: "", stderr: "" };
@@ -75,7 +77,7 @@ app.post("/exec", (req, res) => {
             hasExited = true;
             if (pusher) {
                 pusher.trigger(pusherChannel, 'log-message', { message: "\n[Sandbox] Process timed out.\n" })
-                    .catch(error => console.error("Pusher trigger error:", error));
+                      .catch(error => console.error("Pusher trigger error:", error));
             }
             res.status(200).json({
                 status: "error",
@@ -90,11 +92,9 @@ app.post("/exec", (req, res) => {
     shell.onData((data) => {
         const dataStr = data.toString();
         if (activeShell) activeShell.stdout += dataStr;
-
-        // Push logs to Pusher
         if (pusher) {
             pusher.trigger(pusherChannel, 'log-message', { message: dataStr })
-                .catch(error => console.error("Pusher trigger error:", error));
+                  .catch(error => console.error("Pusher trigger error:", error));
         }
     });
 
@@ -114,14 +114,19 @@ app.post("/exec", (req, res) => {
 
         if (pusher) {
             pusher.trigger(pusherChannel, 'log-message', { message: `\n[Sandbox] Process exited with code ${exitCode}\n` })
-                .catch(error => console.error("Pusher trigger error:", error));
+                  .catch(error => console.error("Pusher trigger error:", error));
         }
 
         res.status(200).json(result);
         activeShell = null;
     });
 
+    // Send the command and a newline to execute it
     shell.write(command + "\r");
+    
+    // Send an extra command to print a unique boundary after the command finishes.
+    // This helps capture all stdout/stderr, but for pty it's often not needed
+    // shell.write("echo '__COMMAND_COMPLETE__'\r");
 });
 
 // --- File System Write Endpoint ---
