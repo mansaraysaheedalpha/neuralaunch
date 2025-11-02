@@ -39,7 +39,6 @@ app.get("/health", (req, res) => {
 });
 
 // --- Terminal Execution Endpoint ---
-// --- Terminal Execution Endpoint ---
 app.post("/exec", (req, res) => {
     const { command, timeout = 300 } = req.body;
 
@@ -50,18 +49,21 @@ app.post("/exec", (req, res) => {
         return res.status(409).json({ status: "error", exitCode: -1, stdout: "", stderr: "Another command is already running." });
     }
 
-    console.log(`[Sandbox Exec] Running command: ${command}`);
+    // *** THIS IS THE NEW FIX ***
+    // We append '; exit $?' to the command.
+    // This forces the shell to run the command AND THEN immediately exit,
+    // which will properly trigger the 'onExit' event.
+    // 'exit $?' exits with the exit code of the *previous* command.
+    const commandWithExit = `${command}; exit $?`;
+    // **************************
+
+    console.log(`[Sandbox Exec] Running command: ${commandWithExit}`);
     if (pusher) {
         pusher.trigger(pusherChannel, 'log-message', { message: `\n$ ${command}\n` })
             .catch(error => console.error("Pusher trigger error:", error));
     }
 
-    // *** THIS IS THE FIX ***
-    // We pass the command to `sh -c` directly.
-    // This tells the shell to "execute this command string, and then exit."
-    // This ensures the `onExit` event will fire correctly.
-    const shell = pty.spawn("sh", ["-c", command], {
-    // ***********************
+    const shell = pty.spawn("sh", ["-c", commandWithExit], { // <-- Use commandWithExit
         name: "xterm-color",
         cols: 120,
         rows: 40,
@@ -73,7 +75,7 @@ app.post("/exec", (req, res) => {
         },
     });
 
-    activeShell = { process: shell, stdout: "", stderr: "" };
+    activeShell = { process: shell }; // We only need to track the process
     let timer;
     let hasExited = false;
     
@@ -98,7 +100,7 @@ app.post("/exec", (req, res) => {
             });
             activeShell = null;
         }
-    }, timeout * 1000);
+    }, timeout * 1000); // Use the timeout from the request (5s for health check)
 
     shell.onData((data) => {
         const dataStr = data.toString();
@@ -113,16 +115,20 @@ app.post("/exec", (req, res) => {
         if (hasExited) return;
 
         console.log(`[Sandbox Exec] Command finished with exit code ${exitCode}: ${command}`);
-        clearTimeout(timer);
+        clearTimeout(timer); // <-- This is the crucial part that stops the timeout
         hasExited = true;
+
+        // Clean the output buffer of the shell prompt and control codes
+        // This regex removes the '/workspace $ [6n' noise
+        const cleanedOutput = outputBuffer
+            .replace(/\/workspace\s\$\s([6n)?/g, '') // Remove prompt
+            .trim();
 
         const result = {
             status: exitCode === 0 ? "success" : "error",
             exitCode: exitCode,
-            // Use the final buffered output
-            stdout: outputBuffer,
-            // stderr is not reliable with pty, stdout contains both
-            stderr: exitCode === 0 ? "" : outputBuffer, 
+            stdout: cleanedOutput,
+            stderr: exitCode === 0 ? "" : cleanedOutput, 
         };
 
         if (pusher) {
@@ -133,10 +139,7 @@ app.post("/exec", (req, res) => {
         res.status(200).json(result);
         activeShell = null;
     });
-
-    // We no longer need shell.write() because the command is passed to spawn()
 });
-
 // --- File System Write Endpoint ---
 app.post("/fs/write", async (req, res) => {
     const { path: relativePath, content } = req.body;
