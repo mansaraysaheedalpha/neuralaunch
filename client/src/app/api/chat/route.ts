@@ -1,4 +1,4 @@
-//src/app/api/chat/route.ts 
+//src/app/api/chat/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import {
@@ -9,10 +9,10 @@ import {
 import prisma from "@/lib/prisma"; //
 import { z } from "zod";
 import { saveMemory } from "@/lib/ai-memory";
-import { 
-  AITaskType, 
-  executeAITaskSimple, 
-  executeAITaskStream 
+import {
+  AITaskType,
+  executeAITaskSimple,
+  executeAITaskStream,
 } from "@/lib/ai-orchestrator";
 
 const chatRequestSchema = z.object({
