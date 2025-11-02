@@ -275,6 +275,32 @@ class SandboxServiceClass {
     }
 
     try {
+      try {
+        logger.info(
+          `[SandboxService] Pulling latest image: ${SANDBOX_IMAGE_NAME}`
+        );
+        // We add an empty {} for options and a callback to make it awaitable
+        await new Promise((resolve, reject) => {
+          this.docker.pull(SANDBOX_IMAGE_NAME, {}, (err, stream) => {
+            if (err) return reject(err instanceof Error ? err : new Error(String(err)));
+            if (!stream) return reject(new Error('No stream returned from docker.pull'));
+            // We must wait for the stream to end to know the pull is complete
+            this.docker.modem.followProgress(stream, (err, res) => {
+              if (err) return reject(err instanceof Error ? err : new Error(String(err)));
+              return resolve(res);
+            });
+          });
+        });
+        logger.info(`[SandboxService] Successfully pulled latest image.`);
+      } catch (pullError: unknown) {
+        logger.error(
+          `[SandboxService] FATAL: Failed to pull sandbox image:`,
+          pullError instanceof Error ? pullError : undefined
+        );
+        throw new Error(
+          `Failed to pull sandbox image: ${pullError instanceof Error ? pullError.message : String(pullError)}`
+        );
+      }
       const containerConfig: Docker.ContainerCreateOptions = {
         Image: SANDBOX_IMAGE_NAME,
         Labels: {
