@@ -3,7 +3,7 @@
 const express = require("express");
 const http = require("http");
 const Pusher = require("pusher");
-const pty = require("node-pty");
+const { exec } = require("child_process"); // <-- Use Node's built-in 'exec'
 const fs = require("fs").promises;
 const path = require("path");
 
@@ -31,120 +31,96 @@ if (process.env.PUSHER_APP_ID && process.env.PUSHER_KEY && process.env.PUSHER_SE
 const projectId = process.env.PROJECT_ID || "unknown-project";
 const pusherChannel = `sandbox-logs-${projectId}`;
 
-let activeShell = null;
-
 // --- Health Check Endpoint ---
 app.get("/health", (req, res) => {
     res.status(200).json({ status: "ok" });
 });
 
-// --- Terminal Execution Endpoint ---
+// --- Terminal Execution Endpoint (New Version) ---
 app.post("/exec", (req, res) => {
-    const { command, timeout = 300 } = req.body;
+    const { command, timeout = 300 } = req.body; // 300s = 5 min default
 
     if (!command || typeof command !== 'string') {
         return res.status(400).json({ error: "Invalid 'command' provided." });
     }
-    if (activeShell) {
-        return res.status(409).json({ status: "error", exitCode: -1, stdout: "", stderr: "Another command is already running." });
-    }
 
-    // *** THIS IS THE NEW FIX ***
-    // We append '; exit $?' to the command.
-    // This forces the shell to run the command AND THEN immediately exit,
-    // which will properly trigger the 'onExit' event.
-    // 'exit $?' exits with the exit code of the *previous* command.
-    const commandWithExit = `${command}; exit $?`;
-    // **************************
-
-    console.log(`[Sandbox Exec] Running command: ${commandWithExit}`);
+    console.log(`[Sandbox Exec] Running command: ${command}`);
     if (pusher) {
         pusher.trigger(pusherChannel, 'log-message', { message: `\n$ ${command}\n` })
             .catch(error => console.error("Pusher trigger error:", error));
     }
 
-    const shell = pty.spawn("sh", ["-c", commandWithExit], { // <-- Use commandWithExit
-        name: "xterm-color",
-        cols: 120,
-        rows: 40,
+    // Use child_process.exec which is designed for this
+    const process = exec(command, {
         cwd: WORKSPACE_DIR,
         env: {
             ...process.env,
-            // Explicitly set a sane PATH for the non-root user
-            PATH: "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+            PATH: "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin", // Set the path
         },
-    });
-
-    activeShell = { process: shell }; // We only need to track the process
-    let timer;
-    let hasExited = false;
-    
-    // Buffer for stdout/stderr to handle split data
-    let outputBuffer = "";
-
-    timer = setTimeout(() => {
-        if (!hasExited) {
-            console.log(`[Sandbox Exec] Command timed out: ${command}`);
-            shell.kill();
-            hasExited = true;
-            if (pusher) {
-                pusher.trigger(pusherChannel, 'log-message', { message: "\n[Sandbox] Process timed out.\n" })
-                    .catch(error => console.error("Pusher trigger error:", error));
+        timeout: timeout * 1000, // Built-in timeout (5000ms for health check)
+        shell: "sh" // Use the alpine shell
+    }, (error, stdout, stderr) => {
+        // This single callback handles success, error, and timeout
+        
+        if (error) {
+            console.error(`[Sandbox Exec] Error: ${error.message}`);
+            // Check if it was a timeout
+            if (error.signal === 'SIGTERM' || error.killed) {
+                console.log(`[Sandbox Exec] Command timed out: ${command}`);
+                const timeoutMsg = "\n[Sandbox] Process timed out.";
+                if (pusher) pusher.trigger(pusherChannel, 'log-message', { message: timeoutMsg }).catch(e => console.error(e));
+                
+                return res.status(200).json({
+                    status: "error",
+                    exitCode: -1, // Use -1 for timeout
+                    stdout: stdout,
+                    stderr: (stderr || "") + timeoutMsg,
+                });
             }
-            // Use the buffered output on timeout
-            res.status(200).json({
+            
+            // It was a regular non-zero exit code
+            console.log(`[Sandbox Exec] Command failed with code ${error.code}: ${command}`);
+            if (pusher) pusher.trigger(pusherChannel, 'log-message', { message: `\n[Sandbox] Process exited with code ${error.code}\n` }).catch(e => console.error(e));
+            return res.status(200).json({
                 status: "error",
-                exitCode: -1,
-                stdout: outputBuffer, // Send whatever we got
-                stderr: "\n[Sandbox] Process timed out.",
+                exitCode: error.code || 1,
+                stdout: stdout,
+                stderr: stderr,
             });
-            activeShell = null;
         }
-    }, timeout * 1000); // Use the timeout from the request (5s for health check)
 
-    shell.onData((data) => {
-        const dataStr = data.toString();
-        outputBuffer += dataStr; // Add all data to a single buffer
+        // Success (error is null)
+        console.log(`[Sandbox Exec] Command succeeded: ${command}`);
+        if (pusher) pusher.trigger(pusherChannel, 'log-message', { message: `\n[Sandbox] Process exited with code 0\n` }).catch(e => console.error(e));
+        res.status(200).json({
+            status: "success",
+            exitCode: 0,
+            stdout: stdout,
+            stderr: stderr,
+        });
+    });
+
+    // --- Stream stdout/stderr to Pusher in real-time ---
+    // This still works, giving you live logs!
+    process.stdout.on('data', (data) => {
         if (pusher) {
-            pusher.trigger(pusherChannel, 'log-message', { message: dataStr })
+            pusher.trigger(pusherChannel, 'log-message', { message: data.toString() })
                 .catch(error => console.error("Pusher trigger error:", error));
         }
     });
-
-    shell.onExit(({ exitCode }) => {
-        if (hasExited) return;
-
-        console.log(`[Sandbox Exec] Command finished with exit code ${exitCode}: ${command}`);
-        clearTimeout(timer); // <-- This is the crucial part that stops the timeout
-        hasExited = true;
-
-        // Clean the output buffer of the shell prompt and control codes
-        // This regex removes the '/workspace $ [6n' noise
-        const cleanedOutput = outputBuffer
-            .replace(/\/workspace\s\$\s([6n)?/g, '') // Remove prompt
-            .trim();
-
-        const result = {
-            status: exitCode === 0 ? "success" : "error",
-            exitCode: exitCode,
-            stdout: cleanedOutput,
-            stderr: exitCode === 0 ? "" : cleanedOutput, 
-        };
-
+    process.stderr.on('data', (data) => {
         if (pusher) {
-            pusher.trigger(pusherChannel, 'log-message', { message: `\n[Sandbox] Process exited with code ${exitCode}\n` })
+            pusher.trigger(pusherChannel, 'log-message', { message: data.toString() })
                 .catch(error => console.error("Pusher trigger error:", error));
         }
-
-        res.status(200).json(result);
-        activeShell = null;
     });
 });
-// --- File System Write Endpoint ---
+
+// --- File System Write Endpoint (Unchanged) ---
 app.post("/fs/write", async (req, res) => {
     const { path: relativePath, content } = req.body;
 
-    if (!relativePath || typeof relativePath !== "string" || content === undefined) {
+    if (!relativePath || typeof relativePath !== 'string' || content === undefined) {
         return res.status(400).json({ status: "error", path: relativePath, message: "Invalid 'path' or 'content' provided." });
     }
     if (relativePath.includes("..") || relativePath.startsWith("/")) {

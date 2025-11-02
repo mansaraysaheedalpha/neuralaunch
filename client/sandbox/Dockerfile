@@ -4,7 +4,7 @@ FROM node:20-alpine
 
 # Install Python, make, and g++ needed for node-gyp (node-pty dependency)
 # Also install git, as the agent might need it
-RUN apk add --no-cache python3 make g++ git
+RUN apk add --no-cache git
 
 # --- Create Non-Root User ---
 # Create a group and user named 'sandboxuser'
@@ -18,7 +18,7 @@ WORKDIR /app
 
 # Install dependencies (node-pty will now build successfully)
 # Add 'pusher' for the log streaming
-RUN npm install express node-pty pusher
+RUN npm install express pusher
 
 # Copy our sandbox's internal API server code into the container
 # *** Change ownership of the copied file to the new user/group ***
