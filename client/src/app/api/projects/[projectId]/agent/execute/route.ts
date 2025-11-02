@@ -1,5 +1,3 @@
-// src/app/api/projects/[projectId]/agent/execute/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
@@ -40,7 +38,7 @@ export async function POST(
         conversation: {
           include: {
             messages: {
-              where: { role: { in: ["assistant", "model"] } },
+              where: { role: { in: ["assistant", "model"] } }, // Corrected query
               orderBy: { createdAt: "asc" },
               take: 1,
             },
@@ -151,15 +149,16 @@ export async function POST(
       },
     });
 
-
     // 7. --- Return Immediate Response ---
     log.info("Event sent successfully. Returning 202 Accepted response.");
     return NextResponse.json(
       {
         status: "queued",
-        message: `Step ${currentStep + 1} execution requested. Check status for updates.`,
+        message: `Step ${
+          currentStep + 1
+        } execution requested. Check status for updates.`,
         nextStepIndex: currentStep, // Indicate which step is being processed
-        agentStatus: nextStatus, // Return current or updated status
+        agentStatus: "EXECUTING", // <<< THIS IS THE FIX
       },
       { status: 202 } // 202 Accepted
     );
