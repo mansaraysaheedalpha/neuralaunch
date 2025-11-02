@@ -7,8 +7,9 @@
 import {
   GoogleGenerativeAI,
   FunctionCallingMode,
-  type ModelParams,
-} from "@google/generative-ai";
+  type ModelParams, // Use ModelParams from the old SDK
+} from "@google/generative-ai"; // This is the old SDK
+import { env } from "./env"; // Import validated env
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { AI_MODELS } from "./models";
@@ -16,10 +17,6 @@ import { ExternalServiceError, withTimeout } from "./api-error";
 import { logger } from "./logger";
 
 // ==================== TASK TYPE DEFINITIONS ====================
-
-/**
- * Enum defining all distinct AI task types in the application
- */
 export enum AITaskType {
   BLUEPRINT_GENERATION = "BLUEPRINT_GENERATION",
   TITLE_GENERATION = "TITLE_GENERATION",
@@ -37,31 +34,21 @@ export enum AITaskType {
 }
 
 // ==================== PROVIDER TYPE ====================
-
 type AIProvider = "GOOGLE" | "OPENAI" | "ANTHROPIC";
 
 // ==================== CLIENT INITIALIZATION ====================
-
-const genAI = new GoogleGenerativeAI(
-  process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || ""
-);
-
+const genAI = new GoogleGenerativeAI(env.GOOGLE_API_KEY); // Use validated env
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "dummy-key-for-build",
+  apiKey: env.OPENAI_API_KEY,
 });
-
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: env.ANTHROPIC_API_KEY,
 });
 
 // ==================== ROUTING LOGIC ====================
-
-/**
- * Routes a task to the appropriate AI model based on task type
- */
 function routeTaskToModel(
   taskType: AITaskType,
-  payload?: unknown
+  _payload?: unknown
 ): {
   modelId: string;
   provider: AIProvider;
@@ -69,103 +56,47 @@ function routeTaskToModel(
 } {
   switch (taskType) {
     case AITaskType.BLUEPRINT_GENERATION:
-      console.log(
-        `🎯 Routing ${taskType} to ${AI_MODELS.PRIMARY} (Gemini 2.5 Pro - complex generation)`
-      );
+    case AITaskType.AGENT_PLANNING:
+      logger.debug(`🎯 Routing ${taskType} to ${AI_MODELS.PRIMARY} (Google)`);
       return { modelId: AI_MODELS.PRIMARY, provider: "GOOGLE" };
 
     case AITaskType.TITLE_GENERATION:
-      console.log(
-        `🎯 Routing ${taskType} to ${AI_MODELS.FAST} (Gemini Flash - speed)`
-      );
+    case AITaskType.LANDING_PAGE_COPY:
+    case AITaskType.SURVEY_QUESTION_GENERATION:
+    case AITaskType.PRICING_TIER_GENERATION:
+      logger.debug(`🎯 Routing ${taskType} to ${AI_MODELS.FAST} (Google)`);
       return { modelId: AI_MODELS.FAST, provider: "GOOGLE" };
 
-    case AITaskType.AGENT_PLANNING:
-      console.log(`🎯 Routing ${taskType} to ${AI_MODELS.PRIMARY}`);
-      return { modelId: AI_MODELS.PRIMARY, provider: "GOOGLE" };
-
+    case AITaskType.COFOUNDER_CHAT_RESPONSE:
     case AITaskType.AGENT_EXECUTE_STEP:
-      console.log(`🎯 Routing ${taskType} to ${AI_MODELS.CLAUDE}`);
+      logger.debug(`🎯 Routing ${taskType} to ${AI_MODELS.CLAUDE} (Anthropic)`);
       return { modelId: AI_MODELS.CLAUDE, provider: "ANTHROPIC" };
 
+    case AITaskType.BLUEPRINT_PARSING:
+    case AITaskType.CODE_GENERATION_MVP:
     case AITaskType.AGENT_DEBUG_COMMAND:
-      console.log(`🎯 Routing ${taskType} to ${AI_MODELS.OPENAI}`);
+      logger.debug(`🎯 Routing ${taskType} to ${AI_MODELS.OPENAI} (OpenAI)`);
       return { modelId: AI_MODELS.OPENAI, provider: "OPENAI" };
 
-    // --- NEW CASE for Guidance ---
+    case AITaskType.SPRINT_TASK_ASSISTANCE:
+      logger.debug(
+        `🎯 Routing ${taskType} (general) to ${AI_MODELS.CLAUDE} (Anthropic)`
+      );
+      return { modelId: AI_MODELS.CLAUDE, provider: "ANTHROPIC" };
+
     case AITaskType.GET_API_KEY_GUIDANCE:
       logger.debug(
         `🎯 Routing ${taskType} to ${AI_MODELS.PRIMARY} (Google) with Search Tool`
       );
-      // Route to a Gemini model that supports Function Calling/Tools
       return {
-        modelId: AI_MODELS.PRIMARY, // Use Pro for reliable tool use
+        modelId: AI_MODELS.PRIMARY,
         provider: "GOOGLE",
-        enableSearchTool: true, // Signal that the search tool should be enabled
+        enableSearchTool: true,
       };
-
-    case AITaskType.LANDING_PAGE_COPY:
-    case AITaskType.SURVEY_QUESTION_GENERATION:
-    case AITaskType.PRICING_TIER_GENERATION:
-      console.log(
-        `🎯 Routing ${taskType} to ${AI_MODELS.FAST} (Gemini Flash - speed/efficiency for structured output)`
-      );
-      return { modelId: AI_MODELS.FAST, provider: "GOOGLE" };
-
-    case AITaskType.COFOUNDER_CHAT_RESPONSE:
-      console.log(
-        `🎯 Routing ${taskType} to ${AI_MODELS.CLAUDE} (Sonnet - nuance, safety, better chat)`
-      );
-      return { modelId: AI_MODELS.CLAUDE, provider: "ANTHROPIC" };
-
-    case AITaskType.BLUEPRINT_PARSING:
-      // Strong reasoning/JSON handling - use OpenAI
-      console.log(
-        `🎯 Routing ${taskType} to ${AI_MODELS.OPENAI} (GPT-4o - strong reasoning/JSON handling)`
-      );
-      return { modelId: AI_MODELS.OPENAI, provider: "OPENAI" };
-
-    case AITaskType.SPRINT_TASK_ASSISTANCE: {
-      // Check if the task is code-related based on payload
-      const taskPayload = payload as
-        | { taskType?: string; description?: string }
-        | undefined;
-      const description = taskPayload?.description?.toLowerCase() || "";
-      const codeKeywords = [
-        "code",
-        "script",
-        "function",
-        "html",
-        "css",
-        "javascript",
-        "react",
-        "component",
-        "python",
-        "api",
-      ];
-
-      if (codeKeywords.some((keyword) => description.includes(keyword))) {
-        console.log(
-          `🎯 Routing ${taskType} (code-related) to ${AI_MODELS.OPENAI} (GPT-4o - coding abilities)`
-        );
-        return { modelId: AI_MODELS.OPENAI, provider: "OPENAI" };
-      }
-
-      console.log(
-        `🎯 Routing ${taskType} (general) to ${AI_MODELS.CLAUDE} (Sonnet - general tasks)`
-      );
-      return { modelId: AI_MODELS.CLAUDE, provider: "ANTHROPIC" };
-    }
-
-    case AITaskType.CODE_GENERATION_MVP:
-      console.log(
-        `🎯 Routing ${taskType} to ${AI_MODELS.OPENAI} (GPT-4o - strong coding abilities)`
-      );
-      return { modelId: AI_MODELS.OPENAI, provider: "OPENAI" };
 
     default: {
       const _exhaustiveCheck: never = taskType;
-      console.log(
+      logger.warn(
         `⚠️ Unknown task type ${String(_exhaustiveCheck)}, defaulting to ${AI_MODELS.PRIMARY}`
       );
       return { modelId: AI_MODELS.PRIMARY, provider: "GOOGLE" };
@@ -176,37 +107,33 @@ function routeTaskToModel(
 // ==================== PROVIDER HELPER FUNCTIONS ====================
 
 /**
- * Call Google Generative AI (Gemini) - UPDATED FOR TOOL USE
+ * Call Google Generative AI (Gemini) using the @google/generative-ai SDK syntax
  */
 async function callGemini(
   modelId: string,
   prompt: string,
   systemInstruction?: string,
-  stream?: boolean, // Stream not typically used with tool calls
-  enableSearchTool?: boolean // NEW parameter
-): Promise<string> {
-  // Removed stream return type for simplicity with tool calls
-  if (stream && enableSearchTool) {
-    logger.warn(
-      "Streaming is not directly supported with tool calls in this implementation. Returning non-streamed result."
-    );
-  }
-  if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_API_KEY) {
-    throw new Error(
-      "Google API Key (GEMINI_API_KEY or GOOGLE_API_KEY) is missing."
-    );
+  stream?: boolean,
+  enableSearchTool?: boolean
+): Promise<string | AsyncIterable<string>> {
+  // <-- Returns stream OR string
+  if (!env.GOOGLE_API_KEY) {
+    throw new Error("Google API Key is missing.");
   }
 
   try {
+    // --- THIS IS THE CORRECT, OLD SDK SYNTAX ---
+
+    // 1. Build the model configuration
     const modelConfig: ModelParams = {
       model: modelId,
+      // The old SDK correctly accepts systemInstruction as a string
       ...(systemInstruction && { systemInstruction }),
     };
 
-    // --- Configure Tools ---
     if (enableSearchTool) {
-      modelConfig.tools = [{ googleSearchRetrieval: {} }]; // Use Google Search tool
-      // Mode 'AUTO' lets the model decide when to use the tool based on the prompt.
+      // Use the old tool name 'googleSearchRetrieval'
+      modelConfig.tools = [{ googleSearchRetrieval: {} }];
       modelConfig.toolConfig = {
         functionCallingConfig: { mode: FunctionCallingMode.AUTO },
       };
@@ -215,35 +142,70 @@ async function callGemini(
       );
     }
 
+    // 2. Get the model instance
     const model = genAI.getGenerativeModel(modelConfig);
 
-    // --- Generate Content ---
-    // Tool calls require generateContent, not generateContentStream usually
+    // 3. Handle Streaming (for chat)
+    if (stream && !enableSearchTool) {
+      logger.info(`[callGemini] Starting stream for model ${modelId}`);
+      const result = await withTimeout(
+        model.generateContentStream(prompt), // Pass prompt string
+        90000,
+        `Gemini streaming (${modelId})`
+      );
+
+      return (async function* () {
+        try {
+          for await (const chunk of result.stream) {
+            const chunkText = chunk.text();
+            if (chunkText) {
+              yield chunkText;
+            }
+          }
+        } catch (streamError) {
+          logger.error(
+            `Gemini stream error (${modelId})`,
+            streamError instanceof Error ? streamError : undefined
+          );
+          throw new ExternalServiceError(
+            "Google",
+            `Streaming failed: ${streamError instanceof Error ? streamError.message : String(streamError)}`
+          );
+        }
+      })();
+    }
+
+    // 4. Handle Non-Streaming (for plan, guidance, etc.)
+    if (stream && enableSearchTool) {
+      logger.warn(
+        "[callGemini] Search tool enabled, streaming is disabled. Returning full response."
+      );
+    }
+
+    logger.info(
+      `[callGemini] Generating non-streamed content for model ${modelId}`
+    );
+
     const result = await withTimeout(
-      model.generateContent(prompt),
-      90000, // Slightly longer timeout for potential tool calls
+      model.generateContent(prompt), // Pass prompt string
+      90000,
       `Gemini generation (${modelId}) ${enableSearchTool ? "with Search" : ""}`
     );
 
     const response = result.response;
-    const responseText = response.text(); // Get the final text response after tool execution
+    const responseText = response.text();
 
     if (!responseText) {
-      // Log function calls if needed for debugging, but don't return them
       const functionCalls = response.functionCalls();
       if (functionCalls && functionCalls.length > 0) {
         logger.warn(
-          `[callGemini] Model returned function calls but no final text response for prompt related to "${prompt.substring(0, 50)}..."`
+          `[callGemini] Model returned function calls but no final text response.`
         );
-        // You might want more sophisticated handling if the tool call itself is the desired output
         return "The AI needed to search but didn't provide a final answer.";
       }
-      logger.warn(
-        `[callGemini] Model returned an empty text response for prompt related to "${prompt.substring(0, 50)}..."`
-      );
-      return ""; // Return empty string if no text
+      logger.warn(`[callGemini] Model returned an empty text response.`);
+      return "";
     }
-
     return responseText;
   } catch (error) {
     logger.error(
@@ -253,21 +215,24 @@ async function callGemini(
     if (error instanceof ExternalServiceError) {
       throw error;
     }
-    // Check for specific API key errors if possible
     const errorMessage = error instanceof Error ? error.message : String(error);
     if (errorMessage.includes("API key not valid")) {
       throw new ExternalServiceError(
         "Google",
         "Invalid Google API Key provided."
-      ); // Use default status
+      );
     }
-    throw new ExternalServiceError("Google", errorMessage);
+    if (errorMessage.includes("400 Bad Request")) {
+      // This will catch the 'google_search_retrieval' vs 'google_search' error
+      throw new ExternalServiceError("Google", errorMessage);
+    }
+    throw new ExternalServiceError(
+      "Google",
+      `Gemini API request failed: ${errorMessage}`
+    );
   }
 }
 
-/**
- * Call OpenAI API
- */
 async function callOpenAI(
   modelId: string,
   messages: Array<{ role: string; content: string }>,
@@ -275,7 +240,7 @@ async function callOpenAI(
   responseFormat?: { type: "json_object" },
   stream?: boolean
 ): Promise<string | AsyncIterable<string>> {
-  if (!process.env.OPENAI_API_KEY) {
+  if (!env.OPENAI_API_KEY) {
     throw new Error(
       "OPENAI_API_KEY environment variable is required for OpenAI operations"
     );
@@ -287,7 +252,6 @@ async function callOpenAI(
       : messages;
 
     if (stream) {
-      // ... (streaming logic remains the same) ...
       const completion = await withTimeout(
         openai.chat.completions.create({
           model: modelId,
@@ -297,6 +261,7 @@ async function callOpenAI(
         120000,
         `OpenAI streaming (${modelId})`
       );
+
       return (async function* () {
         try {
           for await (const chunk of completion) {
@@ -346,20 +311,20 @@ async function callOpenAI(
         "Invalid OpenAI API Key provided."
       );
     }
-    throw new ExternalServiceError("OpenAI", errorMessage);
+    throw new ExternalServiceError(
+      "OpenAI",
+      `OpenAI API request failed: ${errorMessage}`
+    );
   }
 }
 
-/**
- * Call Anthropic Claude API
- */
 async function callClaude(
   modelId: string,
   messages: Array<{ role: string; content: string }>,
   systemPrompt?: string,
   stream?: boolean
 ): Promise<string | AsyncIterable<string>> {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!env.ANTHROPIC_API_KEY) {
     throw new Error(
       "ANTHROPIC_API_KEY environment variable is required for Claude operations"
     );
@@ -372,13 +337,13 @@ async function callClaude(
     })) as Array<{ role: "user" | "assistant"; content: string }>;
 
     if (stream) {
-      // ... (streaming logic remains the same) ...
       const response = anthropic.messages.stream({
         model: modelId,
-        max_tokens: 8192, // Consider adjusting based on task
+        max_tokens: 8192,
         messages: claudeMessages,
         ...(systemPrompt && { system: systemPrompt }),
       });
+
       return (async function* () {
         try {
           for await (const chunk of response) {
@@ -405,7 +370,7 @@ async function callClaude(
     const response = await withTimeout(
       anthropic.messages.create({
         model: modelId,
-        max_tokens: 8192, // Consider adjusting
+        max_tokens: 8192,
         messages: claudeMessages,
         ...(systemPrompt && { system: systemPrompt }),
       }),
@@ -430,7 +395,10 @@ async function callClaude(
         "Invalid Anthropic API Key provided."
       );
     }
-    throw new ExternalServiceError("Claude", errorMessage);
+    throw new ExternalServiceError(
+      "Claude",
+      `Claude API request failed: ${errorMessage}`
+    );
   }
 }
 
@@ -443,12 +411,9 @@ export async function executeAITask(
     systemInstruction?: string;
     stream?: boolean;
     responseFormat?: { type: "json_object" };
-    [key: string]: unknown; // Allow extra properties if needed by specific callers
+    [key: string]: unknown;
   }
 ): Promise<string | AsyncIterable<string>> {
-  // Return type might simplify if guidance doesn't stream
-
-  // Destructure enableSearchTool from routing result
   const { modelId, provider, enableSearchTool } = routeTaskToModel(
     taskType,
     payload
@@ -463,13 +428,11 @@ export async function executeAITask(
           payload.prompt ||
           payload.messages?.map((m) => m.content).join("\n") ||
           "";
-        // Pass enableSearchTool flag to callGemini
-        // Note: callGemini now only returns string when tools are potentially involved
         result = await callGemini(
           modelId,
           prompt,
           payload.systemInstruction,
-          payload.stream, // Pass stream flag but callGemini might ignore it if tool enabled
+          payload.stream,
           enableSearchTool
         );
         break;
@@ -499,13 +462,11 @@ export async function executeAITask(
         );
         break;
       }
-      default: {
-        const _exhaustiveCheck: never = provider;
-        throw new Error(`Unknown provider: ${String(_exhaustiveCheck)}`);
-      }
+      default:
+        // This should be unreachable if all providers are handled
+        throw new Error(`Unknown provider: ${String(provider)}`);
     }
 
-    // Logging remains the same
     if (typeof result === "string") {
       logger.info(`${provider} (${taskType}) completed successfully`, {
         responseLength: result.length,
@@ -521,9 +482,8 @@ export async function executeAITask(
       { taskType, provider }
     );
 
-    // Fallback mechanism remains the same (Optional: disable fallback for guidance task?)
+    // Fallback mechanism
     if (provider !== "GOOGLE") {
-      // ... (Fallback logic - unchanged) ...
       logger.info(
         `Attempting fallback to ${AI_MODELS.PRIMARY} (Google) for ${taskType}`
       );
@@ -532,13 +492,12 @@ export async function executeAITask(
           payload.prompt ||
           payload.messages?.map((m) => m.content).join("\n") ||
           "";
-        // Fallback won't use search tool unless explicitly configured
         const fallbackResult = await callGemini(
           AI_MODELS.PRIMARY,
           prompt,
           payload.systemInstruction,
           payload.stream,
-          false // Explicitly disable search for basic fallback
+          false // No search on fallback
         );
         logger.info(`Fallback successful for ${taskType}`);
         return fallbackResult;
@@ -547,20 +506,14 @@ export async function executeAITask(
           `Fallback also failed for ${taskType}`,
           fallbackError instanceof Error ? fallbackError : undefined
         );
-        throw fallbackError; // Re-throw the fallback error
+        throw fallbackError;
       }
     }
-    throw error; // Re-throw original error if initial provider was Google or fallback failed
+    throw error;
   }
 }
 
 // ==================== CONVENIENCE FUNCTIONS ====================
-// --- executeAITaskStream and executeAITaskSimple remain unchanged ---
-// Note: executeAITaskSimple will now correctly receive string from callGemini even with tools
-
-/**
- * Execute a task that requires streaming response
- */
 export async function executeAITaskStream(
   taskType: AITaskType,
   payload: {
@@ -572,23 +525,16 @@ export async function executeAITaskStream(
 ): Promise<AsyncIterable<string>> {
   const result = await executeAITask(taskType, { ...payload, stream: true });
   if (typeof result === "string") {
-    // This might happen if callGemini ignored streaming due to tool use
     logger.warn(
-      `executeAITaskStream received string for task ${taskType}, potentially due to tool use. Returning as single-item async iterable.`
+      `executeAITaskStream received string for task ${taskType}, converting to async iterable.`
     );
-    // Convert string to an async iterable yielding a single chunk
     return (async function* () {
-      // Ensure at least one await to satisfy async generator requirements
-      await Promise.resolve();
-      yield result;
+      yield await Promise.resolve(result);
     })();
   }
   return result;
 }
 
-/**
- * Execute a task that expects a simple string response
- */
 export async function executeAITaskSimple(
   taskType: AITaskType,
   payload: {
@@ -601,9 +547,8 @@ export async function executeAITaskSimple(
 ): Promise<string> {
   const result = await executeAITask(taskType, { ...payload, stream: false });
   if (typeof result !== "string") {
-    // This case should be less likely now, maybe only if streaming errors occur?
     logger.error(
-      `executeAITaskSimple received stream for task ${taskType}. Attempting to collect.`
+      `executeAITaskSimple received stream for task ${taskType}. Collecting...`
     );
     let collected = "";
     try {
@@ -616,7 +561,7 @@ export async function executeAITaskSimple(
         streamError instanceof Error ? streamError : undefined
       );
       throw new Error(
-        `Stream collection failed in simple task execution: ${streamError instanceof Error ? streamError.message : String(streamError)}`
+        `Stream collection failed: ${streamError instanceof Error ? streamError.message : String(streamError)}`
       );
     }
     return collected;
