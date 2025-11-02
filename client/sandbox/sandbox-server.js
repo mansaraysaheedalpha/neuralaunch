@@ -11,7 +11,7 @@ const app = express();
 app.use(express.json());
 
 const PORT = 8080;
-const WORKSPACE_DIR = "/workspace"; // Matches the volume mount
+const WORKSPACE_DIR = "/workspace";
 
 // --- Pusher Configuration ---
 let pusher;
@@ -36,7 +36,7 @@ app.get("/health", (req, res) => {
     res.status(200).json({ status: "ok" });
 });
 
-// --- Terminal Execution Endpoint (New Version) ---
+// --- Terminal Execution Endpoint (Robust Version) ---
 app.post("/exec", (req, res) => {
     const { command, timeout = 300 } = req.body; // 300s = 5 min default
 
@@ -50,42 +50,45 @@ app.post("/exec", (req, res) => {
             .catch(error => console.error("Pusher trigger error:", error));
     }
 
-    // Use child_process.exec which is designed for this
-    const process = exec(command, {
+    // Store the original process.env
+    const originalEnv = process.env;
+
+    const childProcess = exec(command, {
         cwd: WORKSPACE_DIR,
         env: {
-            ...process.env,
+            ...originalEnv, // Use the stored env
             PATH: "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin", // Set the path
+            TERM: "xterm", // Add TERM to avoid escape sequence issues
         },
-        timeout: timeout * 1000, // Built-in timeout (5000ms for health check)
-        shell: "sh" // Use the alpine shell
+        timeout: timeout * 1000, // Built-in timeout
+        shell: "/bin/sh", // Explicitly use /bin/sh (Alpine's shell)
+        encoding: 'utf8',
+        maxBuffer: 10 * 1024 * 1024, // 10MB buffer
     }, (error, stdout, stderr) => {
         // This single callback handles success, error, and timeout
         
         if (error) {
             console.error(`[Sandbox Exec] Error: ${error.message}`);
-            // Check if it was a timeout
             if (error.signal === 'SIGTERM' || error.killed) {
                 console.log(`[Sandbox Exec] Command timed out: ${command}`);
-                const timeoutMsg = "\n[Sandbox] Process timed out.";
+                const timeoutMsg = "\n[Sandbox] Process timed out.\n";
                 if (pusher) pusher.trigger(pusherChannel, 'log-message', { message: timeoutMsg }).catch(e => console.error(e));
                 
                 return res.status(200).json({
                     status: "error",
-                    exitCode: -1, // Use -1 for timeout
-                    stdout: stdout,
+                    exitCode: -1,
+                    stdout: stdout || "", // Send whatever output we got
                     stderr: (stderr || "") + timeoutMsg,
                 });
             }
             
-            // It was a regular non-zero exit code
             console.log(`[Sandbox Exec] Command failed with code ${error.code}: ${command}`);
             if (pusher) pusher.trigger(pusherChannel, 'log-message', { message: `\n[Sandbox] Process exited with code ${error.code}\n` }).catch(e => console.error(e));
             return res.status(200).json({
                 status: "error",
                 exitCode: error.code || 1,
-                stdout: stdout,
-                stderr: stderr,
+                stdout: stdout || "",
+                stderr: stderr || "",
             });
         }
 
@@ -95,20 +98,19 @@ app.post("/exec", (req, res) => {
         res.status(200).json({
             status: "success",
             exitCode: 0,
-            stdout: stdout,
-            stderr: stderr,
+            stdout: stdout || "",
+            stderr: stderr || "",
         });
     });
 
     // --- Stream stdout/stderr to Pusher in real-time ---
-    // This still works, giving you live logs!
-    process.stdout.on('data', (data) => {
+    childProcess.stdout.on('data', (data) => {
         if (pusher) {
             pusher.trigger(pusherChannel, 'log-message', { message: data.toString() })
                 .catch(error => console.error("Pusher trigger error:", error));
         }
     });
-    process.stderr.on('data', (data) => {
+    childProcess.stderr.on('data', (data) => {
         if (pusher) {
             pusher.trigger(pusherChannel, 'log-message', { message: data.toString() })
                 .catch(error => console.error("Pusher trigger error:", error));
