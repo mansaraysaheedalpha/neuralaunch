@@ -100,9 +100,11 @@ export async function POST(
     }
 
     const currentTask = plan[currentStep];
-    const blueprintSummary =
-      projectData.conversation?.messages?.[0]?.content.substring(0, 1500) +
-        "..." || "No blueprint summary available.";
+    const blueprintContent = projectData.conversation?.messages?.[0]?.content;
+    const blueprintSummary = blueprintContent
+      ? blueprintContent.substring(0, 1500) +
+        (blueprintContent.length > 1500 ? "..." : "")
+      : "No blueprint summary available."; // Fallback
 
     // 4. --- Get GitHub token if needed ---
     let githubToken: string | null = null;
@@ -150,14 +152,20 @@ export async function POST(
     });
 
     // 6. --- Update Status (If retrying from ERROR) ---
-    let nextStatus = projectData.agentStatus; // Keep current status usually
-    if (projectData.agentStatus === "ERROR") {
-      nextStatus = "EXECUTING"; // Mark as executing immediately on retry
+    let nextStatus = "EXECUTING"; // Set status to EXECUTING immediately
+    if (
+      projectData.agentStatus === "READY_TO_EXECUTE" ||
+      projectData.agentStatus === "PAUSED_AFTER_STEP" ||
+      projectData.agentStatus === "PAUSED_FOR_PREVIEW" ||
+      projectData.agentStatus === "ERROR"
+    ) {
       await prisma.landingPage.update({
         where: { id: projectId },
         data: { agentStatus: nextStatus },
       });
-      log.info("Resetting status from ERROR to EXECUTING for retry.");
+      log.info(
+        `Status updated from ${projectData.agentStatus} to ${nextStatus}.`
+      );
     }
 
     // 7. --- Return Immediate Response ---
