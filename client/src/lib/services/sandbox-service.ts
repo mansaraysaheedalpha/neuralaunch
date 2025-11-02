@@ -9,7 +9,8 @@ import { env } from "../env";
 
 // --- CONFIGURATION ---
 const IS_PRODUCTION = env.NODE_ENV === "production";
-const SANDBOX_IMAGE_NAME = "neuralaunch-sandbox:latest"; // Image you pushed to Artifact Registry
+const SANDBOX_IMAGE_NAME =
+  "us-central1-docker.pkg.dev/gen-lang-client-0239783733/neuralaunch-images/neuralaunch-sandbox:latest";
 const SANDBOX_INTERNAL_PORT = "8080";
 const WORKSPACE_DIR_INSIDE_CONTAINER = "/workspace";
 
