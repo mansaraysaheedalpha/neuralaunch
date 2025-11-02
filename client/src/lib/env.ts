@@ -79,6 +79,7 @@ const envSchema = z.object({
   DOCKER_CLIENT_KEY: z
     .string()
     .min(1, "DOCKER_CLIENT_KEY is required for production sandbox"),
+  DOCKER_SOCKET_PATH: z.string().optional(),
 
   // Node Environment
   NODE_ENV: z
@@ -96,7 +97,7 @@ function validateEnv(): Env {
   try {
     // Zod will automatically parse process.env.
     // It will throw an error if any variable is missing or invalid.
-    return envSchema.parse(process.env);
+   return envSchema.parse(process.env);
   } catch (error) {
     if (error instanceof z.ZodError) {
       const missingVars = error.issues

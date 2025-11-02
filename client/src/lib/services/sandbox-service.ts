@@ -5,7 +5,7 @@ import { platform } from "os";
 import prisma from "@/lib/prisma";
 import { sanitizeUserInput } from "@/lib/sanitize";
 import { logger } from "../logger";
-import { env } from "../env";
+import { env } from "../env"; // Use validated env
 
 // --- CONFIGURATION ---
 const IS_PRODUCTION = env.NODE_ENV === "production";
@@ -18,10 +18,8 @@ const WORKSPACE_DIR_INSIDE_CONTAINER = "/workspace";
 const DOCKER_NETWORK_NAME = "neuralaunch-net";
 
 // --- PRODUCTION CONFIG (from Vercel ENV) ---
-// These are read from process.env, which Vercel populates
-const prodDockerHost =
-  process.env.DOCKER_HOST_URL?.split("://")[1].split(":")[0]; // e.g., 34.123.45.67
-const prodDockerPort = env.DOCKER_HOST_URL?.split(":")[2] || 2376;
+const prodDockerHost = env.DOCKER_HOST_URL.split("://")[1].split(":")[0];
+const prodDockerPort = env.DOCKER_HOST_URL.split(":")[2] || 2376;
 const prodDockerCACert = env.DOCKER_CA_CERT;
 const prodDockerClientCert = env.DOCKER_CLIENT_CERT;
 const prodDockerClientKey = env.DOCKER_CLIENT_KEY;
@@ -58,7 +56,7 @@ class SandboxServiceClass {
         !prodDockerClientKey
       ) {
         logger.error(
-          "FATAL: Production Docker environment variables (DOCKER_HOST_URL, _CA_CERT, _CLIENT_CERT, _CLIENT_KEY) are not fully set."
+          "FATAL: Production Docker environment variables are not fully set."
         );
         this.docker = new Docker(); // Non-functional
       } else {
@@ -75,37 +73,31 @@ class SandboxServiceClass {
         );
       }
     } else {
-      // --- DEVELOPMENT CONSTRUCTOR (FIXED FOR WINDOWS) ---
+      // --- DEVELOPMENT CONSTRUCTOR ---
       try {
-        // Check if running on Windows
         const isWindows = platform() === "win32";
-
         if (isWindows) {
           logger.info(
-            "[SandboxService] Windows OS detected. Connecting via default named pipe..."
+            "[SandboxService] Windows OS detected. Connecting via default Docker pipe..."
           );
-          // On Windows, Dockerode uses the named pipe by default if no socketPath is given.
-          // Or you can be explicit: new Docker({ socketPath: '//./pipe/docker-desktop' });
           this.docker = new Docker();
         } else {
-          // On Linux/macOS, use the socket path
+          const socketPath = env.DOCKER_SOCKET_PATH || "/var/run/docker.sock";
           logger.info(
-            "[SandboxService] Linux/macOS detected. Connecting via socket path..."
+            `[SandboxService] Linux/macOS detected. Connecting via socket path: ${socketPath}`
           );
-          this.docker = new Docker({
-            socketPath:
-              process.env.DOCKER_SOCKET_PATH || "/var/run/docker.sock",
-          });
+          this.docker = new Docker({ socketPath: socketPath });
         }
-
-        logger.info("[SandboxService] Development Mode: Connected to Docker.");
+        logger.info(
+          "[SandboxService] Development Mode: Docker client initialized."
+        );
         void this.ensureNetworkExists();
       } catch (error) {
         logger.error(
-          "[SandboxService] FATAL: Could not connect to Docker in development.",
+          "[SandboxService] FATAL: Could not connect to local Docker Desktop. Is it running?",
           error instanceof Error ? error : undefined
         );
-        this.docker = new Docker(); // Non-functional
+        throw new Error("SandboxService failed to connect to Docker.");
       }
     }
   }
@@ -113,6 +105,17 @@ class SandboxServiceClass {
   /** Checks if the required Docker network exists, creates if not. (Dev only) */
   private async ensureNetworkExists(): Promise<void> {
     if (IS_PRODUCTION) return;
+    try {
+      await this.docker.ping();
+      logger.info("[SandboxService] Docker ping successful.");
+    } catch (pingError) {
+      logger.error(
+        "[SandboxService] Docker ping failed. Is Docker Desktop running?",
+        pingError instanceof Error ? pingError : undefined
+      );
+      return;
+    }
+
     try {
       await this.docker.getNetwork(DOCKER_NETWORK_NAME).inspect();
       logger.info(
@@ -133,11 +136,15 @@ class SandboxServiceClass {
           logger.info(
             `[SandboxService] Docker network "${DOCKER_NETWORK_NAME}" created successfully.`
           );
-        } catch (createError) {
+        } catch (createError: unknown) {
+          const error = createError instanceof Error ? createError : undefined;
           logger.error(
             `[SandboxService] Failed to create Docker network "${DOCKER_NETWORK_NAME}":`,
-            createError instanceof Error ? createError : undefined
+            error
           );
+           throw new Error(
+             `Failed to create docker network: ${createError instanceof Error ? createError.message : String(createError)}`
+           );
         }
       } else {
         logger.error(
@@ -149,8 +156,8 @@ class SandboxServiceClass {
   }
 
   /**
-   * Finds a running sandbox container URL or creates a new one.
-   * This logic is now universal for both Dev and Prod.
+   * Finds a running sandbox URL or creates a new one.
+   * Returns the PUBLICLY ACCESSIBLE URL for the sandbox.
    */
   private async findOrCreateSandbox(
     projectId: string,
@@ -158,86 +165,81 @@ class SandboxServiceClass {
   ): Promise<string> {
     const project = await prisma.landingPage.findFirst({
       where: { id: projectId, userId: userId },
-      select: { id: true, userId: true, sandboxContainerId: true }, // Select only what's needed
+      select: {
+        id: true,
+        userId: true,
+        sandboxContainerId: true,
+        sandboxHostPort: true,
+      },
     });
     if (!project)
       throw new Error("Project not found or user does not have access.");
+
+    // Determine the public host IP (VM in prod, localhost in dev)
+    // NOTE: This assumes dev is running on localhost, which is fine for Docker Desktop
+    const hostIp = IS_PRODUCTION ? prodDockerHost : "localhost";
 
     if (project.sandboxContainerId) {
       try {
         const container = this.docker.getContainer(project.sandboxContainerId);
         const inspectData = await container.inspect();
 
-        let containerIp: string | undefined;
+        let containerUrl: string | null = null;
 
         if (IS_PRODUCTION) {
-          // In production, connected to GCE VM, get internal IP on default 'bridge' network
-          containerIp = inspectData.NetworkSettings.IPAddress;
-          if (!containerIp && inspectData.NetworkSettings.Networks) {
-            containerIp =
-              inspectData.NetworkSettings.Networks[
-                Object.keys(inspectData.NetworkSettings.Networks)[0]
-              ]?.IPAddress;
+          // --- PRODUCTION: Check existing container ---
+          const hostPortCandidate = project.sandboxHostPort as unknown;
+          const hostPort: string | null =
+            typeof hostPortCandidate === "string" || typeof hostPortCandidate === "number"
+              ? String(hostPortCandidate)
+              : null; // The *public* port
+          if (inspectData.State.Running && hostPort && hostIp) {
+            containerUrl = `http://${hostIp}:${hostPort}`;
           }
         } else {
-          // In development, get IP from our custom network
-          containerIp =
-            inspectData.NetworkSettings.Networks[DOCKER_NETWORK_NAME]
-              ?.IPAddress;
+          // --- DEVELOPMENT: Check existing container ---
+          // We get the *internal* IP, but we must also find the *mapped host port*
+          const portBindings = inspectData.HostConfig.PortBindings as Record<string, Array<{ HostIp?: string; HostPort?: string }>> | undefined;
+          const hostPort =
+            portBindings?.[`${SANDBOX_INTERNAL_PORT}/tcp`]?.[0]?.HostPort;
+
+          if (inspectData.State.Running && hostPort) {
+            // In dev, we connect via localhost to the mapped port
+            containerUrl = `http://localhost:${hostPort}`;
+          } else if (inspectData.State.Running && !hostPort) {
+            // Dev mode but using internal network (e.g. Linux)
+            const containerIp =
+              inspectData.NetworkSettings.Networks[DOCKER_NETWORK_NAME]
+                ?.IPAddress;
+            if (containerIp) {
+              containerUrl = `http://${containerIp}:${SANDBOX_INTERNAL_PORT}`;
+            }
+          }
         }
 
-        if (inspectData.State.Running && containerIp) {
-          const healthUrl = `http://${containerIp}:${SANDBOX_INTERNAL_PORT}/health`;
+        // We have a URL, let's health check it
+        if (containerUrl) {
           try {
-            const health = await fetch(healthUrl, {
+            const health = await fetch(`${containerUrl}/health`, {
               signal: AbortSignal.timeout(2000),
             });
             if (health.ok) {
-              return `http://${containerIp}:${SANDBOX_INTERNAL_PORT}`; // Healthy and running
+              logger.info(
+                `[SandboxService] Found healthy sandbox for ${projectId} at ${containerUrl}`
+              );
+              return containerUrl; // Healthy and running
             }
-          } catch (healthError) {
+          } catch {
             logger.warn(
-              `[SandboxService] Sandbox ${project.sandboxContainerId} found but unhealthy (failed health check at ${healthUrl}). Will recreate.`,
-              {
-                error:
-                  healthError instanceof Error
-                    ? healthError.message
-                    : String(healthError),
-              }
-            );
-          }
-        } else if (!inspectData.State.Running) {
-          logger.info(
-            `[SandboxService] Found stopped sandbox ${project.sandboxContainerId}. Starting...`
-          );
-          await container.start();
-          const postStartData = await container.inspect();
-
-          let postStartIp: string | undefined;
-          if (IS_PRODUCTION) {
-            postStartIp = postStartData.NetworkSettings.IPAddress;
-            if (!postStartIp && postStartData.NetworkSettings.Networks) {
-              postStartIp =
-                postStartData.NetworkSettings.Networks[
-                  Object.keys(postStartData.NetworkSettings.Networks)[0]
-                ]?.IPAddress;
-            }
-          } else {
-            postStartIp =
-              postStartData.NetworkSettings.Networks[DOCKER_NETWORK_NAME]
-                ?.IPAddress;
-          }
-
-          if (postStartIp) {
-            await this.updateSandboxIp(projectId, postStartIp);
-            await new Promise((resolve) => setTimeout(resolve, 2500)); // Wait for server boot
-            return `http://${postStartIp}:${SANDBOX_INTERNAL_PORT}`;
-          } else {
-            logger.error(
-              `[SandboxService] Started container ${project.sandboxContainerId} but failed to get IP.`
+              `[SandboxService] Sandbox ${project.sandboxContainerId} found but unhealthy (failed health check at ${containerUrl}). Will recreate.`
             );
           }
         }
+
+        logger.warn(
+          `[SandboxService] Sandbox ${project.sandboxContainerId} is in a bad state. Removing and recreating...`
+        );
+        await this.removeSandbox(projectId, userId); // This also clears the DB record
       } catch (error) {
         if (
           error &&
@@ -254,9 +256,8 @@ class SandboxServiceClass {
             error instanceof Error ? error : undefined
           );
         }
+        await this.clearSandboxRecord(projectId); // Clear bad record
       }
-      // If any check fails, clear the bad record and create a new container
-      await this.clearSandboxRecord(projectId);
     }
 
     // --- Create a new container (Prod or Dev) ---
@@ -265,7 +266,7 @@ class SandboxServiceClass {
     );
     const volumeName = `neuralaunch_workspace_${projectId}`;
 
-    // Ensure volume exists (needed for both prod/dev)
+    // Ensure volume exists
     try {
       await this.docker.getVolume(volumeName).inspect();
     } catch (error) {
@@ -289,8 +290,9 @@ class SandboxServiceClass {
           "neuralaunch.projectId": projectId,
           "neuralaunch.userId": userId,
         },
+        ExposedPorts: { [`${SANDBOX_INTERNAL_PORT}/tcp`]: {} }, // Expose the internal port
         HostConfig: {
-          AutoRemove: false, // Keep container for restart
+          AutoRemove: false,
           Mounts: [
             {
               Type: "volume",
@@ -298,64 +300,68 @@ class SandboxServiceClass {
               Target: WORKSPACE_DIR_INSIDE_CONTAINER,
             },
           ],
+          // *** THIS IS THE KEY FIX ***
+          // Bind the internal 8080 port to a RANDOM, available port on the host
+          PortBindings: {
+            [`${SANDBOX_INTERNAL_PORT}/tcp`]: [{ HostPort: "" }], // "" means assign a random available port
+          },
         },
         Env: [
-          `PROJECT_ID=${projectId}`, // For Pusher channel (used by sandbox-server.js)
-          `PUSHER_APP_ID=${env.PUSHER_APP_ID || ""}`,
-          `PUSHER_KEY=${env.NEXT_PUBLIC_PUSHER_KEY || ""}`,
-          `PUSHER_SECRET=${env.PUSHER_SECRET || ""}`,
-          `PUSHER_CLUSTER=${env.NEXT_PUBLIC_PUSHER_CLUSTER || ""}`,
+          `PROJECT_ID=${projectId}`,
+          `PUSHER_APP_ID=${env.PUSHER_APP_ID}`,
+          `PUSHER_KEY=${env.NEXT_PUBLIC_PUSHER_KEY}`,
+          `PUSHER_SECRET=${env.PUSHER_SECRET}`,
+          `PUSHER_CLUSTER=${env.NEXT_PUBLIC_PUSHER_CLUSTER}`,
         ],
       };
 
-      // Add network config *only* for development
       if (!IS_PRODUCTION) {
+        // Only use the custom network in development
         containerConfig.HostConfig!.NetworkMode = DOCKER_NETWORK_NAME;
       }
 
       const container = await this.docker.createContainer(containerConfig);
-
       await container.start();
       const inspectData = await container.inspect();
 
-      let internalIp: string | undefined;
-      if (IS_PRODUCTION) {
-        internalIp = inspectData.NetworkSettings.IPAddress;
-        if (!internalIp && inspectData.NetworkSettings.Networks) {
-          internalIp =
-            inspectData.NetworkSettings.Networks[
-              Object.keys(inspectData.NetworkSettings.Networks)[0]
-            ]?.IPAddress;
-        }
-      } else {
-        internalIp =
-          inspectData.NetworkSettings.Networks[DOCKER_NETWORK_NAME]?.IPAddress;
-      }
+      // --- Get the Publicly Accessible URL ---
+      const hostPort =
+        inspectData.NetworkSettings.Ports[`${SANDBOX_INTERNAL_PORT}/tcp`]?.[0]
+          ?.HostPort;
+      const internalIp = IS_PRODUCTION
+        ? inspectData.NetworkSettings.IPAddress // Default bridge IP
+        : inspectData.NetworkSettings.Networks[DOCKER_NETWORK_NAME]?.IPAddress; // Custom net IP
 
-      if (!internalIp) {
+      if (!hostPort || !hostIp) {
         throw new Error(
-          "Container started but could not retrieve its IP address."
+          "Container started but failed to get HostPort mapping or Host IP."
         );
       }
+
+      // We always use the HOST IP (public VM IP or localhost) + the MAPPED port
+      const publicUrl = `http://${hostIp}:${hostPort}`;
 
       await prisma.landingPage.update({
         where: { id: projectId },
         data: {
           sandboxContainerId: container.id,
-          sandboxInternalIp: internalIp,
-          sandboxLastAccessedAt: new Date(), // Set last accessed time on creation
+          sandboxInternalIp: internalIp, // Store internal IP for logging/debug
+          sandboxHostPort: hostPort, // Save the new public port
+          sandboxLastAccessedAt: new Date(),
         },
       });
 
       logger.info(
-        `[SandboxService] New sandbox ${container.id} for ${projectId} running at ${internalIp}`
+        `[SandboxService] New sandbox ${container.id} for ${projectId} running at ${publicUrl}`
       );
-      await new Promise((resolve) => setTimeout(resolve, 2500)); // Wait for internal server boot
-      return `http://${internalIp}:${SANDBOX_INTERNAL_PORT}`;
-    } catch (createError) {
+      await new Promise((resolve) => setTimeout(resolve, 2500)); // Wait for server boot
+
+      return publicUrl; // Return the *publicly accessible* URL
+    } catch (createError: unknown) {
+      const error = createError instanceof Error ? createError : undefined;
       logger.error(
         `[SandboxService] FATAL: Failed to create/start sandbox container for ${projectId}:`,
-        createError instanceof Error ? createError : undefined
+        error
       );
       throw new Error(
         `Failed to initialize sandbox environment: ${createError instanceof Error ? createError.message : String(createError)}`
@@ -376,7 +382,6 @@ class SandboxServiceClass {
         throw new Error("Could not find or create sandbox environment.");
       }
 
-      // Update last accessed time
       void prisma.landingPage.update({
         where: { id: projectId },
         data: { sandboxLastAccessedAt: new Date() },
@@ -441,7 +446,6 @@ class SandboxServiceClass {
         throw new Error("Could not find or create sandbox environment.");
       }
 
-      // Update last accessed time
       void prisma.landingPage.update({
         where: { id: projectId },
         data: { sandboxLastAccessedAt: new Date() },
@@ -503,7 +507,7 @@ class SandboxServiceClass {
         `[Sandbox Git] Initializing Git repository for ${projectId}...`
       );
       const initCmd =
-        'git init -b main && git config user.email "agent@neuralaunch.ai" && git config user.name "NeuraLaunch Agent"'; // Init with 'main' branch
+        'git init -b main && git config user.email "agent@neuralaunch.ai" && git config user.name "NeuraLaunch Agent"';
       const initResult = await this.execCommand(projectId, userId, initCmd, 60);
 
       if (initResult.status === "error") {
@@ -560,10 +564,7 @@ class SandboxServiceClass {
       }
       return { success: true, message: "Changes staged successfully." };
     } catch (error) {
-      logger.error(
-        `[Sandbox Git] Error in gitAddAll for ${projectId}:`,
-        error instanceof Error ? error : undefined
-      );
+      logger.error(`[Sandbox Git] Error in gitAddAll for ${projectId}:`, error instanceof Error ? error : undefined);
       return {
         success: false,
         message: "An unexpected error occurred staging changes.",
@@ -585,7 +586,6 @@ class SandboxServiceClass {
   }> {
     try {
       const safeMessage = message.replace(/"/g, '\\"');
-      // --allow-empty-message in case summary is empty
       const commitCmd = `git commit --allow-empty-message -m "${safeMessage}"`;
       const commitResult = await this.execCommand(
         projectId,
@@ -624,10 +624,7 @@ class SandboxServiceClass {
         details: commitResult.stderr,
       };
     } catch (error) {
-      logger.error(
-        `[Sandbox Git] Error in gitCommit for ${projectId}:`,
-        error instanceof Error ? error : undefined
-      );
+      logger.error(`[Sandbox Git] Error in gitCommit for ${projectId}:`, error instanceof Error ? error : undefined);
       return {
         success: false,
         committed: false,
@@ -637,11 +634,7 @@ class SandboxServiceClass {
     }
   }
 
-  /**
-   * *** CLEANED UP ***
-   * Creates a new branch in the sandbox, checking out from 'origin/main'.
-   * Ensures it fetches the latest state from remote.
-   */
+  /** Creates a new branch in the sandbox, checking out from 'origin/main'. */
   async gitCreateBranch(
     projectId: string,
     userId: string,
@@ -651,7 +644,7 @@ class SandboxServiceClass {
       `[Sandbox Git] Creating/switching to branch '${branchName}' for ${projectId}`
     );
     try {
-      // 1. Fetch latest from origin. This relies on the remote being configured.
+      // 1. Fetch latest from origin.
       const fetchCmd = "git fetch origin";
       const fetchResult = await this.execCommand(
         projectId,
@@ -660,7 +653,6 @@ class SandboxServiceClass {
         60
       );
       if (fetchResult.status === "error") {
-        // This will fail if the remote isn't configured yet (first run). This is OK.
         if (
           !fetchResult.stderr.includes(
             "fatal: 'origin' does not appear to be a git repository"
@@ -686,8 +678,6 @@ class SandboxServiceClass {
           logger.warn(
             `[Sandbox Git] Branch '${branchName}' already exists. Checking it out and resetting to origin/main...`
           );
-          // Branch exists, check it out and reset it to match remote 'main'
-          // This assumes 'git fetch' worked. If not, 'origin/main' will fail.
           const checkoutCmd = `git checkout "${branchName}" && git reset --hard "origin/main"`;
           const checkoutResult = await this.execCommand(
             projectId,
@@ -696,7 +686,6 @@ class SandboxServiceClass {
             60
           );
           if (checkoutResult.status === "error") {
-            // Fallback if 'origin/main' doesn't exist (e.g., first run)
             if (
               checkoutResult.stderr?.includes("origin/main' is not a commit")
             ) {
@@ -729,7 +718,6 @@ class SandboxServiceClass {
             message: `Branch already exists, checked out and reset.`,
           };
         }
-        // If fetch failed, origin/main might not exist. Try creating branch from local main.
         if (branchResult.stderr?.includes("origin/main' is not a commit")) {
           logger.warn(
             "[Sandbox Git] 'origin/main' not found. Creating branch from local 'main'."
@@ -746,7 +734,7 @@ class SandboxServiceClass {
               logger.warn(
                 `[Sandbox Git] Branch '${branchName}' already exists. Checking it out...`
               );
-              const checkoutCmd = `git checkout "${branchName}"`; // Just checkout
+              const checkoutCmd = `git checkout "${branchName}"`;
               await this.execCommand(projectId, userId, checkoutCmd, 60);
               return {
                 success: true,
@@ -762,7 +750,6 @@ class SandboxServiceClass {
             message: `Branch ${branchName} created from local main.`,
           };
         }
-        // Other error
         throw new Error(branchResult.stderr);
       }
       return {
@@ -770,10 +757,7 @@ class SandboxServiceClass {
         message: `Branch ${branchName} created and checked out from origin/main.`,
       };
     } catch (error) {
-      logger.error(
-        `[Sandbox Git] Error creating branch ${branchName}:`,
-        error instanceof Error ? error : undefined
-      );
+      logger.error(`[Sandbox Git] Error creating branch ${branchName}:`, error instanceof Error ? error : undefined);
       return {
         success: false,
         message: "Failed to create branch.",
@@ -802,7 +786,6 @@ class SandboxServiceClass {
         `https://${githubToken}@`
       );
 
-      // 1. Configure the remote 'origin'
       const remoteCmd = `git remote remove origin 2>/dev/null || true && git remote add origin "${authenticatedUrl}"`;
       const remoteResult = await this.execCommand(
         projectId,
@@ -821,8 +804,6 @@ class SandboxServiceClass {
         };
       }
 
-      // 2. Push the specified branch
-      // -u sets upstream, -f forces push (necessary if agent re-runs a step on an existing branch)
       const pushCmd = `git push -u -f origin "${branchName}"`;
       const pushResult = await this.execCommand(
         projectId,
@@ -833,9 +814,6 @@ class SandboxServiceClass {
 
       if (pushResult.status === "error") {
         if (pushResult.stderr?.includes("Authentication failed")) {
-          logger.error(
-            `[Sandbox Git] Authentication failed during push for ${projectId}. Token might be invalid.`
-          );
           return {
             success: false,
             message:
@@ -847,15 +825,11 @@ class SandboxServiceClass {
           pushResult.stderr?.includes("src refspec") &&
           pushResult.stderr?.includes("does not match any")
         ) {
-          logger.warn(
-            `[Sandbox Git] Push failed for ${projectId}: Branch '${branchName}' not found locally (maybe no commits?). Skipping push.`
-          );
           return {
             success: true,
             message: `Skipped push: No commits found on local branch '${branchName}'.`,
           };
         }
-        // Other errors
         logger.error(
           `[Sandbox Git] Failed to push branch ${branchName}: ${pushResult.stderr}`
         );
@@ -885,7 +859,6 @@ class SandboxServiceClass {
       };
     }
   }
-
   // --- Cleanup Functions ---
 
   /** Stops the Docker container associated with a project sandbox. */
@@ -899,7 +872,7 @@ class SandboxServiceClass {
     });
     if (!project?.sandboxContainerId) {
       logger.warn(
-        `[SandboxService] No active container found in DB for project ${projectId}. Nothing to stop.`
+        `[SandboxService] No active container found in DB for project ${projectId}.`
       );
       return true;
     }
@@ -910,7 +883,7 @@ class SandboxServiceClass {
         logger.info(
           `[SandboxService] Stopping container ${project.sandboxContainerId}...`
         );
-        await container.stop({ t: 30 }); // 30 sec grace period
+        await container.stop({ t: 30 });
         logger.info(
           `[SandboxService] Container ${project.sandboxContainerId} stopped.`
         );
@@ -928,10 +901,10 @@ class SandboxServiceClass {
         error.statusCode === 404
       ) {
         logger.warn(
-          `[SandboxService] Container ${project.sandboxContainerId} not found in Docker during stop. Clearing DB record.`
+          `[SandboxService] Container ${project.sandboxContainerId} not found in Docker. Clearing DB record.`
         );
         await this.clearSandboxRecord(projectId);
-        return true; // Effectively stopped
+        return true;
       } else {
         logger.error(
           `[SandboxService] Error stopping container ${project.sandboxContainerId}:`,
@@ -953,70 +926,63 @@ class SandboxServiceClass {
     });
 
     const containerId = project?.sandboxContainerId;
-    const volumeName = `neuralaunch_workspace_${projectId}`; // Standard volume name
+    const volumeName = `neuralaunch_workspace_${projectId}`;
 
-    // Always try to remove the volume, even if container ID is missing (orphaned volume)
     try {
       const volume = this.docker.getVolume(volumeName);
-      await volume.inspect(); // Check if it exists
+      await volume.inspect();
       logger.info(`[SandboxService] Removing volume ${volumeName}...`);
       await volume.remove();
       logger.info(`[SandboxService] Volume ${volumeName} removed.`);
-    } catch (volError) {
+    } catch (volError: unknown) {
       if (
         volError &&
         typeof volError === "object" &&
         "statusCode" in volError &&
         volError.statusCode === 404
       ) {
-        logger.info(
-          `[SandboxService] Volume ${volumeName} not found, likely already removed.`
-        );
+        logger.info(`[SandboxService] Volume ${volumeName} not found.`);
       } else {
         logger.error(
-          `[SandboxService] Error removing volume ${volumeName} (might be in use or not found):`,
+          `[SandboxService] Error removing volume ${volumeName}:`,
           volError instanceof Error ? volError : undefined
         );
       }
     }
 
-    // Now, try to remove the container if its ID is known
-    if (!containerId) {
-      logger.warn(
-        `[SandboxService] No container ID found in DB for project ${projectId}. Volume cleanup (if any) is complete.`
-      );
-      return true;
-    }
-
-    try {
-      const container = this.docker.getContainer(containerId);
-      logger.info(
-        `[SandboxService] Forcing removal of container ${containerId}...`
-      );
-      await container.remove({ force: true }); // force=true stops it if running
-      logger.info(`[SandboxService] Container ${containerId} removed.`);
-    } catch (error) {
-      if (
-        error &&
-        typeof error === "object" &&
-        "statusCode" in error &&
-        error.statusCode === 404
-      ) {
-        logger.warn(
-          `[SandboxService] Container ${containerId} not found during removal.`
+    if (containerId) {
+      try {
+        const container = this.docker.getContainer(containerId);
+        logger.info(
+          `[SandboxService] Forcing removal of container ${containerId}...`
         );
-      } else {
-        logger.error(
-          `[SandboxService] Error removing container ${containerId}:`,
-          error instanceof Error ? error : undefined
-        );
-        // Don't return false yet, still try to clear DB record
+        await container.remove({ force: true });
+        logger.info(`[SandboxService] Container ${containerId} removed.`);
+      } catch (error) {
+        if (
+          error &&
+          typeof error === "object" &&
+          "statusCode" in error &&
+          error.statusCode === 404
+        ) {
+          logger.warn(
+            `[SandboxService] Container ${containerId} not found during removal.`
+          );
+        } else {
+          logger.error(
+            `[SandboxService] Error removing container ${containerId}:`,
+            error instanceof Error ? error : undefined
+          );
+        }
       }
+    } else {
+      logger.warn(
+        `[SandboxService] No container ID found in DB for project ${projectId}.`
+      );
     }
 
-    // Finally, clear the DB record
     await this.clearSandboxRecord(projectId);
-    return true; // Return true as the cleanup operation is complete
+    return true;
   }
 
   /** Updates the stored IP address if it changes. */
@@ -1034,7 +1000,11 @@ class SandboxServiceClass {
   private async clearSandboxRecord(projectId: string): Promise<void> {
     await prisma.landingPage.update({
       where: { id: projectId },
-      data: { sandboxContainerId: null, sandboxInternalIp: null },
+      data: {
+        sandboxContainerId: null,
+        sandboxInternalIp: null,
+        sandboxHostPort: null, // <-- Also clear the host port
+      },
     });
   }
 }

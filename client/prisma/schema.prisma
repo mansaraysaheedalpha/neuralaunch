@@ -172,6 +172,7 @@ model LandingPage {
   
   sandboxContainerId String? @unique
   sandboxInternalIp  String?
+  sandboxHostPort     String?
   sandboxLastAccessedAt DateTime?
 
 
