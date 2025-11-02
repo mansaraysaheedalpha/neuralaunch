@@ -58,13 +58,19 @@ app.post("/exec", (req, res) => {
     // *** THIS IS THE FIX ***
     // Use 'sh' (which exists in Alpine) instead of 'bash'
     const shell = pty.spawn("sh", [], {
-    // ***********************
-        name: "xterm-color",
-        cols: 120,
-        rows: 40,
-        cwd: WORKSPACE_DIR,
-        env: process.env,
-    });
+  // ***********************
+    name: "xterm-color",
+    cols: 120,
+    rows: 40,
+    cwd: WORKSPACE_DIR,
+    // --- ADD THIS BLOCK ---
+    env: {
+     ...process.env, // Inherit existing env vars (like PUSHER_APP_ID)
+     // Explicitly set a sane PATH for the non-root user
+     PATH: "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    },
+    // --- END OF BLOCK ---
+  });
 
     activeShell = { process: shell, stdout: "", stderr: "" };
     let timer;

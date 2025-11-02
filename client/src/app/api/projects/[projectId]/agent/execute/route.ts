@@ -40,7 +40,7 @@ export async function POST(
         conversation: {
           include: {
             messages: {
-              where: { role: "assistant" },
+              where: { role: { in: ["assistant", "model"] } },
               orderBy: { createdAt: "asc" },
               take: 1,
             },
@@ -151,22 +151,6 @@ export async function POST(
       },
     });
 
-    // 6. --- Update Status (If retrying from ERROR) ---
-    let nextStatus = "EXECUTING"; // Set status to EXECUTING immediately
-    if (
-      projectData.agentStatus === "READY_TO_EXECUTE" ||
-      projectData.agentStatus === "PAUSED_AFTER_STEP" ||
-      projectData.agentStatus === "PAUSED_FOR_PREVIEW" ||
-      projectData.agentStatus === "ERROR"
-    ) {
-      await prisma.landingPage.update({
-        where: { id: projectId },
-        data: { agentStatus: nextStatus },
-      });
-      log.info(
-        `Status updated from ${projectData.agentStatus} to ${nextStatus}.`
-      );
-    }
 
     // 7. --- Return Immediate Response ---
     log.info("Event sent successfully. Returning 202 Accepted response.");

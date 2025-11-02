@@ -160,6 +160,10 @@ export default function AgentArtifacts({
     }
   };
 
+  const isConfiguring =
+    agentStatus === "PENDING_USER_INPUT" ||
+    agentStatus === "PENDING_CONFIGURATION";
+
   return (
     <motion.div
       variants={fadeIn}
@@ -285,7 +289,7 @@ export default function AgentArtifacts({
               onClick={() => {
                 void handleDeploy();
               }}
-              disabled={isDeploying || agentStatus === "EXECUTING"}
+              disabled={isDeploying || agentStatus === "EXECUTING" || isConfiguring}
               whileHover={{
                 scale: isDeploying || agentStatus === "EXECUTING" ? 1 : 1.03,
               }}
