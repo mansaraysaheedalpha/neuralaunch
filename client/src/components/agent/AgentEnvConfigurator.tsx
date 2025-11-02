@@ -1,4 +1,4 @@
-// src/components/agent/AgentEnvConfigurator.tsx (New File)
+// src/components/agent/AgentEnvConfigurator.tsx
 
 "use client";
 
@@ -53,6 +53,7 @@ const keyMappings = new Map<RegExp, string>([
   [/^NEXTAUTH_SECRET$/, "nextauth_secret_generation"],
   [/^UPSTASH_REDIS_/, "upstash_redis"], // Matches UPSTASH_REDIS_URL, etc.
   [/^AWS_/, "aws_s3"], // Matches AWS_S3_BUCKET, AWS_ACCESS_KEY_ID, etc.
+  [/^VERCEL_/, "vercel"], // Matches VERCEL_ACCESS_TOKEN, VERCEL_TOKEN, etc.
   // Add more robust patterns here...
 ]);
 
@@ -91,7 +92,7 @@ export default function AgentEnvConfigurator({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
 
-  // --- NEW: Modal State ---
+  // --- Modal State ---
   const [modalOpen, setModalOpen] = useState(false);
   const [currentGuidanceKey, setCurrentGuidanceKey] = useState("");
   const [currentServiceId, setCurrentServiceId] = useState("");
@@ -102,7 +103,7 @@ export default function AgentEnvConfigurator({
     setSubmissionError(null);
   };
 
-  // --- NEW: Modal Trigger ---
+  // --- Modal Trigger ---
   const handleOpenGuidance = (key: string) => {
     setCurrentGuidanceKey(key);
     setCurrentServiceId(getServiceIdentifierForKey(key));
@@ -172,14 +173,13 @@ export default function AgentEnvConfigurator({
   // --- Render Logic ---
   return (
     <>
-      {/* --- NEW: Render the Modal --- */}
+      {/* Render the Modal */}
       <AgentGuidanceModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         serviceKey={currentGuidanceKey}
         serviceIdentifier={currentServiceId}
       />
-      {/* --- End Modal --- */}
 
       <motion.div
         variants={fadeIn}
@@ -208,7 +208,6 @@ export default function AgentEnvConfigurator({
                 >
                   {key}
                 </label>
-                {/* --- UPDATED: Button now opens modal --- */}
                 <button
                   type="button"
                   onClick={() => handleOpenGuidance(key)}
@@ -228,8 +227,6 @@ export default function AgentEnvConfigurator({
                 className="w-full px-3 py-2 bg-background border border-border rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-sm placeholder:text-muted-foreground/50 disabled:opacity-60"
                 placeholder={`Enter your ${key}`}
               />
-
-              {/* --- Collapsible section REMOVED --- */}
             </div>
           ))}
 

@@ -7,9 +7,9 @@
 import {
   GoogleGenerativeAI,
   FunctionCallingMode,
-  type ModelParams, // Use ModelParams from the old SDK
-} from "@google/generative-ai"; // This is the old SDK
-import { env } from "./env"; // Import validated env
+  type ModelParams,
+} from "@google/generative-ai";
+import { env } from "./env";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { AI_MODELS } from "./models";
@@ -37,7 +37,7 @@ export enum AITaskType {
 type AIProvider = "GOOGLE" | "OPENAI" | "ANTHROPIC";
 
 // ==================== CLIENT INITIALIZATION ====================
-const genAI = new GoogleGenerativeAI(env.GOOGLE_API_KEY); // Use validated env
+const genAI = new GoogleGenerativeAI(env.GOOGLE_API_KEY);
 const openai = new OpenAI({
   apiKey: env.OPENAI_API_KEY,
 });
@@ -116,40 +116,41 @@ async function callGemini(
   stream?: boolean,
   enableSearchTool?: boolean
 ): Promise<string | AsyncIterable<string>> {
-  // <-- Returns stream OR string
   if (!env.GOOGLE_API_KEY) {
     throw new Error("Google API Key is missing.");
   }
 
   try {
-    // --- THIS IS THE CORRECT, OLD SDK SYNTAX ---
-
-    // 1. Build the model configuration
+    // Build the model configuration
     const modelConfig: ModelParams = {
       model: modelId,
-      // The old SDK correctly accepts systemInstruction as a string
       ...(systemInstruction && { systemInstruction }),
     };
 
+    // FIXED: Proper search tool configuration with error handling
     if (enableSearchTool) {
-      // Use the old tool name 'googleSearchRetrieval'
-      modelConfig.tools = [{ googleSearchRetrieval: {} }];
-      modelConfig.toolConfig = {
-        functionCallingConfig: { mode: FunctionCallingMode.AUTO },
-      };
+      modelConfig.tools = [
+        {
+          googleSearchRetrieval: {},
+        },
+      ];
       logger.info(
         `[callGemini] Enabling Google Search tool for model ${modelId}.`
       );
+
+      modelConfig.toolConfig = {
+        functionCallingConfig: { mode: FunctionCallingMode.AUTO },
+      };
     }
 
-    // 2. Get the model instance
+    // Get the model instance
     const model = genAI.getGenerativeModel(modelConfig);
 
-    // 3. Handle Streaming (for chat)
+    // Handle Streaming (for chat)
     if (stream && !enableSearchTool) {
       logger.info(`[callGemini] Starting stream for model ${modelId}`);
       const result = await withTimeout(
-        model.generateContentStream(prompt), // Pass prompt string
+        model.generateContentStream(prompt),
         90000,
         `Gemini streaming (${modelId})`
       );
@@ -175,7 +176,7 @@ async function callGemini(
       })();
     }
 
-    // 4. Handle Non-Streaming (for plan, guidance, etc.)
+    // Handle Non-Streaming (for plan, guidance, etc.)
     if (stream && enableSearchTool) {
       logger.warn(
         "[callGemini] Search tool enabled, streaming is disabled. Returning full response."
@@ -183,11 +184,11 @@ async function callGemini(
     }
 
     logger.info(
-      `[callGemini] Generating non-streamed content for model ${modelId}`
+      `[callGemini] Generating non-streamed content for model ${modelId}${enableSearchTool ? " with Search" : ""}`
     );
 
     const result = await withTimeout(
-      model.generateContent(prompt), // Pass prompt string
+      model.generateContent(prompt),
       90000,
       `Gemini generation (${modelId}) ${enableSearchTool ? "with Search" : ""}`
     );
@@ -216,15 +217,22 @@ async function callGemini(
       throw error;
     }
     const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // Enhanced error handling for tool-related issues
     if (errorMessage.includes("API key not valid")) {
       throw new ExternalServiceError(
         "Google",
         "Invalid Google API Key provided."
       );
     }
-    if (errorMessage.includes("400 Bad Request")) {
-      // This will catch the 'google_search_retrieval' vs 'google_search' error
-      throw new ExternalServiceError("Google", errorMessage);
+    if (errorMessage.includes("400") || errorMessage.includes("tool")) {
+      logger.error(
+        `[callGemini] Tool configuration error: ${errorMessage}. Consider disabling search or updating SDK.`
+      );
+      throw new ExternalServiceError(
+        "Google",
+        "Search tool configuration error. Please check your Google AI SDK version."
+      );
     }
     throw new ExternalServiceError(
       "Google",
@@ -463,7 +471,6 @@ export async function executeAITask(
         break;
       }
       default:
-        // This should be unreachable if all providers are handled
         throw new Error(`Unknown provider: ${String(provider)}`);
     }
 
@@ -482,10 +489,10 @@ export async function executeAITask(
       { taskType, provider }
     );
 
-    // Fallback mechanism
-    if (provider !== "GOOGLE") {
+    // Fallback mechanism - but disable search on fallback
+    if (provider !== "GOOGLE" || enableSearchTool) {
       logger.info(
-        `Attempting fallback to ${AI_MODELS.PRIMARY} (Google) for ${taskType}`
+        `Attempting fallback to ${AI_MODELS.PRIMARY} (Google) WITHOUT search for ${taskType}`
       );
       try {
         const prompt =
@@ -497,7 +504,7 @@ export async function executeAITask(
           prompt,
           payload.systemInstruction,
           payload.stream,
-          false // No search on fallback
+          false // IMPORTANT: No search on fallback
         );
         logger.info(`Fallback successful for ${taskType}`);
         return fallbackResult;
