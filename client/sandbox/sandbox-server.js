@@ -39,6 +39,7 @@ app.get("/health", (req, res) => {
 });
 
 // --- Terminal Execution Endpoint ---
+// --- Terminal Execution Endpoint ---
 app.post("/exec", (req, res) => {
     const { command, timeout = 300 } = req.body;
 
@@ -51,30 +52,33 @@ app.post("/exec", (req, res) => {
 
     console.log(`[Sandbox Exec] Running command: ${command}`);
     if (pusher) {
-         pusher.trigger(pusherChannel, 'log-message', { message: `\n$ ${command}\n` })
-              .catch(error => console.error("Pusher trigger error:", error));
+        pusher.trigger(pusherChannel, 'log-message', { message: `\n$ ${command}\n` })
+            .catch(error => console.error("Pusher trigger error:", error));
     }
 
     // *** THIS IS THE FIX ***
-    // Use 'sh' (which exists in Alpine) instead of 'bash'
-    const shell = pty.spawn("sh", [], {
-  // ***********************
-    name: "xterm-color",
-    cols: 120,
-    rows: 40,
-    cwd: WORKSPACE_DIR,
-    // --- ADD THIS BLOCK ---
-    env: {
-     ...process.env, // Inherit existing env vars (like PUSHER_APP_ID)
-     // Explicitly set a sane PATH for the non-root user
-     PATH: "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
-    },
-    // --- END OF BLOCK ---
-  });
+    // We pass the command to `sh -c` directly.
+    // This tells the shell to "execute this command string, and then exit."
+    // This ensures the `onExit` event will fire correctly.
+    const shell = pty.spawn("sh", ["-c", command], {
+    // ***********************
+        name: "xterm-color",
+        cols: 120,
+        rows: 40,
+        cwd: WORKSPACE_DIR,
+        env: {
+            ...process.env,
+            // Explicitly set a sane PATH for the non-root user
+            PATH: "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+        },
+    });
 
     activeShell = { process: shell, stdout: "", stderr: "" };
     let timer;
     let hasExited = false;
+    
+    // Buffer for stdout/stderr to handle split data
+    let outputBuffer = "";
 
     timer = setTimeout(() => {
         if (!hasExited) {
@@ -83,13 +87,14 @@ app.post("/exec", (req, res) => {
             hasExited = true;
             if (pusher) {
                 pusher.trigger(pusherChannel, 'log-message', { message: "\n[Sandbox] Process timed out.\n" })
-                      .catch(error => console.error("Pusher trigger error:", error));
+                    .catch(error => console.error("Pusher trigger error:", error));
             }
+            // Use the buffered output on timeout
             res.status(200).json({
                 status: "error",
                 exitCode: -1,
-                stdout: activeShell.stdout,
-                stderr: activeShell.stderr + "\n[Sandbox] Process timed out.",
+                stdout: outputBuffer, // Send whatever we got
+                stderr: "\n[Sandbox] Process timed out.",
             });
             activeShell = null;
         }
@@ -97,10 +102,10 @@ app.post("/exec", (req, res) => {
 
     shell.onData((data) => {
         const dataStr = data.toString();
-        if (activeShell) activeShell.stdout += dataStr;
+        outputBuffer += dataStr; // Add all data to a single buffer
         if (pusher) {
             pusher.trigger(pusherChannel, 'log-message', { message: dataStr })
-                  .catch(error => console.error("Pusher trigger error:", error));
+                .catch(error => console.error("Pusher trigger error:", error));
         }
     });
 
@@ -114,25 +119,22 @@ app.post("/exec", (req, res) => {
         const result = {
             status: exitCode === 0 ? "success" : "error",
             exitCode: exitCode,
-            stdout: activeShell.stdout,
-            stderr: activeShell.stderr,
+            // Use the final buffered output
+            stdout: outputBuffer,
+            // stderr is not reliable with pty, stdout contains both
+            stderr: exitCode === 0 ? "" : outputBuffer, 
         };
 
         if (pusher) {
             pusher.trigger(pusherChannel, 'log-message', { message: `\n[Sandbox] Process exited with code ${exitCode}\n` })
-                  .catch(error => console.error("Pusher trigger error:", error));
+                .catch(error => console.error("Pusher trigger error:", error));
         }
 
         res.status(200).json(result);
         activeShell = null;
     });
 
-    // Send the command and a newline to execute it
-    shell.write(command + "\r");
-    
-    // Send an extra command to print a unique boundary after the command finishes.
-    // This helps capture all stdout/stderr, but for pty it's often not needed
-    // shell.write("echo '__COMMAND_COMPLETE__'\r");
+    // We no longer need shell.write() because the command is passed to spawn()
 });
 
 // --- File System Write Endpoint ---
