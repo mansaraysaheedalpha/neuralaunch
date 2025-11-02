@@ -118,32 +118,38 @@ export const executeAgentStep = inngest.createFunction(
         );
       }
 
- await step.run("verify-sandbox-health", async () => {
-   log.info("Verifying sandbox health before execution...");
-   try {
-     const healthCheck = await SandboxService.execCommand(
-       projectId,
-       userId,
-       "echo 'health-check'",
-       5 // 5 second timeout
-     );
+      await step.run(
+        "verify-sandbox-health",
+        
+        async () => {
+          log.info("Verifying sandbox health before execution...");
+          try {
+            const healthCheck = await SandboxService.execCommand(
+              projectId,
+              userId,
+              "echo 'health-check'",
+              5 // 5 second timeout
+            );
 
-     if (healthCheck.status === "error") {
-       throw new Error(`Sandbox health check failed: ${healthCheck.stderr}`);
-     }
+            if (healthCheck.status === "error") {
+              throw new Error(
+                `Sandbox health check failed: ${healthCheck.stderr}`
+              );
+            }
 
-     log.info("Sandbox health check passed.");
-     return { healthy: true };
-   } catch (error) {
-     log.error(
-       "Sandbox health check failed:",
-       error instanceof Error ? error : undefined
-     );
-     throw new Error(
-       `Sandbox is not reachable: ${error instanceof Error ? error.message : "Unknown error"}`
-     );
-   }
- });
+            log.info("Sandbox health check passed.");
+            return { healthy: true };
+          } catch (error) {
+            log.error(
+              "Sandbox health check failed:",
+              error instanceof Error ? error : undefined
+            );
+            throw new Error(
+              `Sandbox is not reachable: ${error instanceof Error ? error.message : "Unknown error"}`
+            );
+          }
+        }
+      );
 
       // --- Update Status to EXECUTING ---
       await step.run("update-status-executing", async () => {
