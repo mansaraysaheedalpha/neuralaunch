@@ -7,7 +7,6 @@ import { sanitizeUserInput } from "@/lib/sanitize";
 import { logger } from "../logger";
 import { env } from "../env"; // Use validated env
 
-
 // --- CONFIGURATION ---
 const IS_PRODUCTION = env.NODE_ENV === "production";
 const SANDBOX_IMAGE_NAME =
@@ -277,8 +276,9 @@ class SandboxServiceClass {
 
     try {
       // --- START: DOCKERODE INTERNAL AUTHENTICATION FIX ---
-      let authConfig: { auth: string; serveraddress?: string } | undefined =
-        undefined;
+      let authConfig:
+        | { username: string; password: string; serveraddress: string }
+        | undefined = undefined;
       const registryHost = "us-central1-docker.pkg.dev";
 
       if (IS_PRODUCTION) {
@@ -295,18 +295,12 @@ class SandboxServiceClass {
         }
 
         try {
-          // 1. Authenticate using the _json_key method for Google Artifact Registry (GCR)
-          const username = "_json_key";
-          const password = keyJson;
-
-          // Use Buffer.from for Base64 encoding the credentials
-          // Buffer is globally available in Node.js/Vercel
-          const authInput = `${username}:${password}`;
-          const authString = Buffer.from(authInput, "utf8").toString("base64"); // <-- FIX APPLIED HERE
-
+          // Authenticate using the _json_key method for Google Artifact Registry
+          // The password should be the entire JSON key as a string
           authConfig = {
-            auth: authString,
-            serveraddress: `https://${registryHost}`, // Required by Docker API
+            username: "_json_key",
+            password: keyJson,
+            serveraddress: registryHost, // No https:// prefix
           };
           logger.info(
             `[SandboxService] Dockerode credentials configured for ${registryHost}.`
