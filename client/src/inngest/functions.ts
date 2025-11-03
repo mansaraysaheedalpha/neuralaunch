@@ -120,7 +120,7 @@ export const executeAgentStep = inngest.createFunction(
 
       await step.run(
         "verify-sandbox-health",
-        
+
         async () => {
           log.info("Verifying sandbox health before execution...");
           try {
@@ -159,8 +159,22 @@ export const executeAgentStep = inngest.createFunction(
         });
       });
 
-      // --- Setup Git Remote (do this early) ---
-      // This configures the remote 'origin' for all subsequent git operations in this job
+      // --- Initialize Git Repository First ---
+      await step.run("git-init-repository", async () => {
+        log.info("Ensuring Git repository is initialized...");
+        const initResult = await SandboxService.gitInitIfNeeded(
+          projectId,
+          userId
+        );
+        if (!initResult.success) {
+          throw new Error(
+            `Failed to initialize git repository: ${initResult.details}`
+          );
+        }
+        log.info("Git repository initialized successfully.");
+      });
+
+      // --- Setup Git Remote (AFTER git init) ---
       if (githubRepoUrl && githubToken) {
         await step.run("git-setup-remote", async () => {
           log.info("Configuring Git remote 'origin'...");
@@ -555,13 +569,11 @@ Your Current Task (Step ${stepIndex + 1}): ${taskDescription}
       const finalDbUpdateResult = await step.run(
         "update-db-success",
         async () => {
-          // *** THIS IS THE FIXED BLOCK ***
           // Fetch the plan again to get the accurate total number of steps
           const finalProjectState = await prisma.landingPage.findUnique({
             where: { id: projectId, userId: userId },
             select: { agentPlan: true },
           });
-          // *** END OF FIXED BLOCK ***
 
           const plan = finalProjectState?.agentPlan as PlanStep[] | null;
           const totalSteps = plan?.length ?? stepIndex + 1;
