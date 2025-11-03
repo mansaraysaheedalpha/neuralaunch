@@ -16,11 +16,17 @@ RUN npm install express pusher
 # Copy our sandbox's internal API server code into the container
 COPY --chown=sandboxuser:sandboxgroup sandbox-server.js .
 
+# --- Create workspace directory and set permissions ---
+RUN mkdir -p /workspace && chown -R sandboxuser:sandboxgroup /workspace
+
 # --- Switch User ---
 USER sandboxuser
+
+# Set working directory to workspace for git operations
+WORKDIR /workspace
 
 # Expose the internal port for our API server
 EXPOSE 8080
 
 # The command to start our API server
-CMD ["node", "sandbox-server.js"]
+CMD ["node", "/app/sandbox-server.js"]
