@@ -302,9 +302,8 @@ class SandboxServiceClass {
 
           // Use Buffer.from for Base64 encoding the credentials
           // Buffer is globally available in Node.js/Vercel
-          const authString = Buffer.from(`${username}:${password}`).toString(
-            "base64"
-          );
+          const authInput = `${username}:${password}`;
+          const authString = Buffer.from(authInput, "utf8").toString("base64"); // <-- FIX APPLIED HERE
 
           authConfig = {
             auth: authString,
