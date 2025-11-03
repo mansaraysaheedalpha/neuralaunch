@@ -277,15 +277,17 @@ class SandboxServiceClass {
     }
 
     try {
-      // --- START: PRODUCTION AUTHENTICATION FIX ---
+      // --- START: DOCKERODE INTERNAL AUTHENTICATION FIX ---
+      let authConfig: { auth: string; serveraddress?: string } | undefined =
+        undefined;
+      const registryHost = "us-central1-docker.pkg.dev";
+
       if (IS_PRODUCTION) {
         logger.info(
-          "[SandboxService] Executing Artifact Registry login on Vercel host..."
+          "[SandboxService] Configuring Dockerode internal authentication..."
         );
 
-        const keyJson = env.GOOGLE_APPLICATION_CREDENTIALS_JSON; // Using 'env' for the variable
-        const keyPath = "/tmp/google-sa-key.json";
-        const registryHost = "us-central1-docker.pkg.dev";
+        const keyJson = env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
 
         if (!keyJson) {
           throw new Error(
@@ -294,51 +296,59 @@ class SandboxServiceClass {
         }
 
         try {
-          // 1. Write the JSON key to a temporary writable file path (/tmp is writable in Vercel)
-          fs.writeFileSync(keyPath, keyJson);
+          // 1. Authenticate using the _json_key method for Google Artifact Registry (GCR)
+          const username = "_json_key";
+          const password = keyJson;
 
-          // 2. Use Docker login with the JSON key file.
-          // This command runs on the Vercel server and generates credentials in a standard Docker location.
-          const loginCmd = `cat ${keyPath} | docker login -u _json_key --password-stdin ${registryHost}`;
-
-          execSync(loginCmd, { stdio: "pipe" }); // Execute the login
-          logger.info(
-            `[SandboxService] Docker login to ${registryHost} succeeded.`
+          // Use Buffer.from for Base64 encoding the credentials
+          // Buffer is globally available in Node.js/Vercel
+          const authString = Buffer.from(`${username}:${password}`).toString(
+            "base64"
           );
-        } catch (loginError) {
+
+          authConfig = {
+            auth: authString,
+            serveraddress: `https://${registryHost}`, // Required by Docker API
+          };
+          logger.info(
+            `[SandboxService] Dockerode credentials configured for ${registryHost}.`
+          );
+        } catch (authError) {
           logger.error(
-            "[SandboxService] FATAL: Docker login failed on Vercel.",
-            loginError instanceof Error ? loginError : undefined
+            "[SandboxService] FATAL: Failed to configure Dockerode auth.",
+            authError instanceof Error ? authError : undefined
           );
           throw new Error(
-            `Failed to authenticate Docker client to Artifact Registry: ${loginError instanceof Error ? loginError.message : String(loginError)}`
+            `Failed to configure Dockerode authentication: ${authError instanceof Error ? authError.message : String(authError)}`
           );
-        } finally {
-          // 3. Clean up the temporary file (important for security)
-          fs.unlinkSync(keyPath);
         }
       }
-      // --- END: PRODUCTION AUTHENTICATION FIX ---
+      // --- END: DOCKERODE INTERNAL AUTHENTICATION FIX ---
 
-      // The pull now relies on the credentials written by the login command above
+      // The pull operation now receives the credentials directly in the options object.
       try {
         logger.info(`[SandboxService] Pulling image: ${SANDBOX_IMAGE_NAME}`);
-        // We add an empty {} for options and a callback to make it awaitable
-        await new Promise((resolve, reject) => {
-          this.docker.pull(SANDBOX_IMAGE_NAME, {}, (err, stream) => {
+
+        // The options argument for docker.pull is used to pass auth credentials
+        const pullOptions = authConfig ? { authconfig: authConfig } : {};
+
+        await new Promise<void>((resolve, reject) => {
+          // Pass pullOptions directly to docker.pull
+          this.docker.pull(SANDBOX_IMAGE_NAME, pullOptions, (err, stream) => {
             if (err)
               return reject(
                 err instanceof Error ? err : new Error(String(err))
               );
             if (!stream)
               return reject(new Error("No stream returned from docker.pull"));
+
             // We must wait for the stream to end to know the pull is complete
             this.docker.modem.followProgress(stream, (err, res) => {
               if (err)
                 return reject(
                   err instanceof Error ? err : new Error(String(err))
                 );
-              return resolve(res);
+              resolve();
             });
           });
         });
