@@ -6,8 +6,7 @@ import prisma from "@/lib/prisma";
 import { sanitizeUserInput } from "@/lib/sanitize";
 import { logger } from "../logger";
 import { env } from "../env"; // Use validated env
-import fs from "fs"; // <-- NEW
-import { execSync } from "child_process";
+
 
 // --- CONFIGURATION ---
 const IS_PRODUCTION = env.NODE_ENV === "production";
