@@ -6,6 +6,8 @@ import prisma from "@/lib/prisma";
 import { sanitizeUserInput } from "@/lib/sanitize";
 import { logger } from "../logger";
 import { env } from "../env"; // Use validated env
+import fs from "fs"; // <-- NEW
+import { execSync } from "child_process";
 
 // --- CONFIGURATION ---
 const IS_PRODUCTION = env.NODE_ENV === "production";
@@ -275,18 +277,67 @@ class SandboxServiceClass {
     }
 
     try {
-      try {
+      // --- START: PRODUCTION AUTHENTICATION FIX ---
+      if (IS_PRODUCTION) {
         logger.info(
-          `[SandboxService] Pulling latest image: ${SANDBOX_IMAGE_NAME}`
+          "[SandboxService] Executing Artifact Registry login on Vercel host..."
         );
+
+        const keyJson = env.GOOGLE_APPLICATION_CREDENTIALS_JSON; // Using 'env' for the variable
+        const keyPath = "/tmp/google-sa-key.json";
+        const registryHost = "us-central1-docker.pkg.dev";
+
+        if (!keyJson) {
+          throw new Error(
+            "GOOGLE_APPLICATION_CREDENTIALS_JSON is missing from Vercel ENV."
+          );
+        }
+
+        try {
+          // 1. Write the JSON key to a temporary writable file path (/tmp is writable in Vercel)
+          fs.writeFileSync(keyPath, keyJson);
+
+          // 2. Use Docker login with the JSON key file.
+          // This command runs on the Vercel server and generates credentials in a standard Docker location.
+          const loginCmd = `cat ${keyPath} | docker login -u _json_key --password-stdin ${registryHost}`;
+
+          execSync(loginCmd, { stdio: "pipe" }); // Execute the login
+          logger.info(
+            `[SandboxService] Docker login to ${registryHost} succeeded.`
+          );
+        } catch (loginError) {
+          logger.error(
+            "[SandboxService] FATAL: Docker login failed on Vercel.",
+            loginError instanceof Error ? loginError : undefined
+          );
+          throw new Error(
+            `Failed to authenticate Docker client to Artifact Registry: ${loginError instanceof Error ? loginError.message : String(loginError)}`
+          );
+        } finally {
+          // 3. Clean up the temporary file (important for security)
+          fs.unlinkSync(keyPath);
+        }
+      }
+      // --- END: PRODUCTION AUTHENTICATION FIX ---
+
+      // The pull now relies on the credentials written by the login command above
+      try {
+        logger.info(`[SandboxService] Pulling image: ${SANDBOX_IMAGE_NAME}`);
         // We add an empty {} for options and a callback to make it awaitable
         await new Promise((resolve, reject) => {
           this.docker.pull(SANDBOX_IMAGE_NAME, {}, (err, stream) => {
-            if (err) return reject(err instanceof Error ? err : new Error(String(err)));
-            if (!stream) return reject(new Error('No stream returned from docker.pull'));
+            if (err)
+              return reject(
+                err instanceof Error ? err : new Error(String(err))
+              );
+            if (!stream)
+              return reject(new Error("No stream returned from docker.pull"));
             // We must wait for the stream to end to know the pull is complete
             this.docker.modem.followProgress(stream, (err, res) => {
-              if (err) return reject(err instanceof Error ? err : new Error(String(err)));
+              if (err)
+                return reject(
+                  err instanceof Error ? err : new Error(String(err))
+                );
               return resolve(res);
             });
           });
@@ -301,6 +352,7 @@ class SandboxServiceClass {
           `Failed to pull sandbox image: ${pullError instanceof Error ? pullError.message : String(pullError)}`
         );
       }
+
       const containerConfig: Docker.ContainerCreateOptions = {
         Image: SANDBOX_IMAGE_NAME,
         Labels: {

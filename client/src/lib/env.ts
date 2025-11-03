@@ -23,6 +23,12 @@ const envSchema = z.object({
     .string()
     .min(32, "NEXTAUTH_SECRET must be at least 32 characters"),
 
+  GOOGLE_APPLICATION_CREDENTIALS_JSON: z
+    .string()
+    .min(
+      1,
+      "GOOGLE_APPLICATION_CREDENTIALS_JSON is required for Artifact Registry login."
+    ),
   // OAuth Providers
   GOOGLE_CLIENT_ID: z.string().min(1, "GOOGLE_CLIENT_ID is required"),
   GOOGLE_CLIENT_SECRET: z.string().min(1, "GOOGLE_CLIENT_SECRET is required"),
