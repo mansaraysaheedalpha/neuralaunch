@@ -336,7 +336,19 @@ Your Current Task (Step ${stepIndex + 1}): ${taskDescription}
       // --- Parse and Validate AI JSON Response ---
       let aiParsedResponse: AiExecutionResponse;
       try {
-        const rawJson = JSON.parse(aiResponseJson) as unknown;
+        // Strip markdown code blocks if present
+        let cleanedJson = aiResponseJson.trim();
+        if (cleanedJson.startsWith("```json")) {
+          cleanedJson = cleanedJson
+            .replace(/^```json\s*\n?/, "")
+            .replace(/\n?```\s*$/, "");
+        } else if (cleanedJson.startsWith("```")) {
+          cleanedJson = cleanedJson
+            .replace(/^```\s*\n?/, "")
+            .replace(/\n?```\s*$/, "");
+        }
+
+        const rawJson = JSON.parse(cleanedJson) as unknown;
         aiParsedResponse = aiExecutionResponseSchema.parse(rawJson);
         stepResult.summary = aiParsedResponse.summary;
         log.info(
