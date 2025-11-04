@@ -514,8 +514,6 @@ class SandboxServiceClass {
         };
       }
 
-
-
       const sandboxUrl = await this.findOrCreateSandbox(projectId, userId);
       if (!sandboxUrl) {
         throw new Error("Could not find or create sandbox environment.");
@@ -715,14 +713,13 @@ class SandboxServiceClass {
     }
   }
 
-  /** Creates a new branch in the sandbox, checking out from 'origin/main'. */
   async gitCreateBranch(
     projectId: string,
     userId: string,
     branchName: string
   ): Promise<{ success: boolean; message: string; details?: string }> {
     logger.info(
-      `[Sandbox Git] Creating/switching to branch '${branchName}' for ${projectId}`
+      `[Sandbox Git] Attempting to create branch '${branchName}' from 'origin/main'`
     );
     try {
       // 1. Fetch latest from origin.
@@ -734,32 +731,32 @@ class SandboxServiceClass {
         60
       );
       if (fetchResult.status === "error") {
+        // If origin doesn't exist, that's a failure we need to report
         if (
-          !fetchResult.stderr.includes(
-            "fatal: 'origin' does not appear to be a git repository"
-          )
+          fetchResult.stderr.includes("does not appear to be a git repository")
         ) {
-          logger.warn(
-            `[Sandbox Git] 'git fetch origin' failed (but proceeding): ${fetchResult.stderr}`
-          );
-        }
-      }
+          throw new Error(fetchResult.stderr);
+        } // Other fetch errors are warnings
+        logger.warn(
+          `[Sandbox Git] 'git fetch origin' failed (but proceeding): ${fetchResult.stderr}`
+        );
+      } // 2. Try to create branch from origin/main
 
-      // 2. Try to create branch from origin/main
       const branchCmd = `git checkout -b "${branchName}" origin/main`;
       const branchResult = await this.execCommand(
         projectId,
         userId,
         branchCmd,
         60
-      );
+      ); // 3. Handle results
 
       if (branchResult.status === "error") {
+        // If it already exists, just check it out
         if (branchResult.stderr?.includes("already exists")) {
           logger.warn(
-            `[Sandbox Git] Branch '${branchName}' already exists. Checking it out and resetting to origin/main...`
+            `[Sandbox Git] Branch '${branchName}' already exists. Checking it out...`
           );
-          const checkoutCmd = `git checkout "${branchName}" && git reset --hard "origin/main"`;
+          const checkoutCmd = `git checkout "${branchName}"`;
           const checkoutResult = await this.execCommand(
             projectId,
             userId,
@@ -767,72 +764,18 @@ class SandboxServiceClass {
             60
           );
           if (checkoutResult.status === "error") {
-            if (
-              checkoutResult.stderr?.includes("origin/main' is not a commit")
-            ) {
-              logger.warn(
-                "[Sandbox Git] 'origin/main' not found. Just checking out branch."
-              );
-              const justCheckoutCmd = `git checkout "${branchName}"`;
-              const justCheckoutResult = await this.execCommand(
-                projectId,
-                userId,
-                justCheckoutCmd,
-                60
-              );
-              if (justCheckoutResult.status === "error") {
-                throw new Error(
-                  `Failed to checkout existing branch: ${justCheckoutResult.stderr}`
-                );
-              }
-              return {
-                success: true,
-                message: `Branch already exists, checked out.`,
-              };
-            }
             throw new Error(
-              `Failed to checkout/reset existing branch: ${checkoutResult.stderr}`
+              `Failed to checkout existing branch: ${checkoutResult.stderr}`
             );
           }
           return {
             success: true,
-            message: `Branch already exists, checked out and reset.`,
+            message: `Branch already exists, checked out.`,
           };
-        }
-        if (branchResult.stderr?.includes("origin/main' is not a commit")) {
-          logger.warn(
-            "[Sandbox Git] 'origin/main' not found. Creating branch from local 'main'."
-          );
-          const localBranchCmd = `git checkout -b "${branchName}" main`;
-          const localBranchResult = await this.execCommand(
-            projectId,
-            userId,
-            localBranchCmd,
-            60
-          );
-          if (localBranchResult.status === "error") {
-            if (localBranchResult.stderr?.includes("already exists")) {
-              logger.warn(
-                `[Sandbox Git] Branch '${branchName}' already exists. Checking it out...`
-              );
-              const checkoutCmd = `git checkout "${branchName}"`;
-              await this.execCommand(projectId, userId, checkoutCmd, 60);
-              return {
-                success: true,
-                message: `Branch already exists, checked out.`,
-              };
-            }
-            throw new Error(
-              `Failed to create local branch: ${localBranchResult.stderr}`
-            );
-          }
-          return {
-            success: true,
-            message: `Branch ${branchName} created from local main.`,
-          };
-        }
+        } // Any other error (like "origin/main not found") is a failure
         throw new Error(branchResult.stderr);
-      }
+      } // Success
+
       return {
         success: true,
         message: `Branch ${branchName} created and checked out from origin/main.`,

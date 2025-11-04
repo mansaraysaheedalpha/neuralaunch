@@ -1,5 +1,3 @@
-// src/inngest/functions.ts
-
 import { inngest } from "./client"; // Import client and event types
 import prisma from "@/lib/prisma";
 import { SandboxService } from "@/lib/services/sandbox-service";
@@ -18,7 +16,7 @@ const aiExecutionResponseSchema = z.object({
       z.object({
         path: z
           .string()
-          .min(1, "File path cannot be empty.") // --- REPLACE THE OLD REFINE/TRANSFORM WITH THIS ---
+          .min(1, "File path cannot be empty.")
           .refine(
             (p) => !p.startsWith("/"),
             "Path must be relative (cannot start with '/')."
@@ -27,7 +25,6 @@ const aiExecutionResponseSchema = z.object({
             (p) => !p.split("/").includes(".."),
             "Path cannot contain '..' as a path segment."
           ),
-        // --- END REPLACEMENT ---
         content: z.string(), // Allow empty content
       })
     )
@@ -69,9 +66,8 @@ export const executeAgentStep = inngest.createFunction(
       githubToken,
       githubRepoUrl,
       currentHistoryLength,
-    } = event.data;
+    } = event.data; // --- Setup contextual logging ---
 
-    // --- Setup contextual logging ---
     const log = logger.child({
       inngestFunction: "executeAgentStep",
       projectId,
@@ -80,9 +76,8 @@ export const executeAgentStep = inngest.createFunction(
       runId: event.id,
     });
 
-    log.info(`Executing step ${stepIndex}: "${taskDescription}"`);
+    log.info(`Executing step ${stepIndex}: "${taskDescription}"`); // --- Initialize step result tracking ---
 
-    // --- Initialize step result tracking ---
     const startTime = new Date();
     let stepResult: Partial<StepResult> = {
       startTime: startTime.toISOString(),
@@ -146,21 +141,21 @@ export const executeAgentStep = inngest.createFunction(
               error instanceof Error ? error : undefined
             );
             throw new Error(
-              `Sandbox is not reachable: ${error instanceof Error ? error.message : "Unknown error"}`
+              `Sandbox is not reachable: ${
+                error instanceof Error ? error.message : "Unknown error"
+              }`
             );
           }
         }
-      );
+      ); // --- Update Status to EXECUTING ---
 
-      // --- Update Status to EXECUTING ---
       await step.run("update-status-executing", async () => {
         return await prisma.landingPage.update({
           where: { id: projectId, userId: userId },
           data: { agentStatus: "EXECUTING" },
         });
-      });
+      }); // --- Initialize Git Repository First ---
 
-      // --- Initialize Git Repository First ---
       await step.run("git-init-repository", async () => {
         log.info("Ensuring Git repository is initialized...");
         const initResult = await SandboxService.gitInitIfNeeded(
@@ -173,9 +168,8 @@ export const executeAgentStep = inngest.createFunction(
           );
         }
         log.info("Git repository initialized successfully.");
-      });
+      }); // --- Setup Git Remote (AFTER git init) ---
 
-      // --- Setup Git Remote (AFTER git init) ---
       if (githubRepoUrl && githubToken) {
         await step.run("git-setup-remote", async () => {
           log.info("Configuring Git remote 'origin'...");
@@ -197,52 +191,98 @@ export const executeAgentStep = inngest.createFunction(
           }
           log.info("Git remote 'origin' configured successfully.");
         });
-      }
+      } // --- START NEW: .gitignore FIX ---
+      // We create this *before* creating the branch or running AI commands
+      // to ensure node_modules is never committed.
 
+      const gitignoreContent = `
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
+.next
+dist
+.output
+
+# Local environment variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Misc
+.DS_Store
+`;
+
+      await step.run("ensure-gitignore", async () => {
+        log.info("Ensuring .gitignore exists...");
+        return await SandboxService.writeFile(
+          projectId,
+          userId,
+          ".gitignore",
+          gitignoreContent
+        );
+      }); // --- END NEW: .gitignore FIX ---
+      // --- START NEW: git-create-branch FIX ---
+      // This logic replaces the old, buggy "git-create-branch" step
       const safeTaskDesc = taskDescription
         .toLowerCase()
         .replace(/[^a-z0-9\s]/g, "")
         .replace(/\s+/g, "-")
         .substring(0, 40);
-      const branchName = `feat/step-${stepIndex + 1}-${safeTaskDesc || "agent-update"}`;
+      const branchName = `feat/step-${stepIndex + 1}-${
+        safeTaskDesc || "agent-update"
+      }`;
       log.info(`Using Git branch: ${branchName}`);
 
       await step.run("git-create-branch", async () => {
-        // First check if the repo is empty (no commits)
-        const checkCommitsResult = await SandboxService.execCommand(
+        log.info(`Attempting to create/checkout branch: ${branchName}`); // 1. First, try to create the branch from 'origin/main'
+
+        const branchResult = await SandboxService.gitCreateBranch(
           projectId,
           userId,
-          "git rev-parse HEAD 2>/dev/null",
-          30
-        );
+          branchName
+        ); // 2. Check if it failed because the repo is empty
 
-        if (checkCommitsResult.status === "error") {
-          // Repository is empty, create initial commit on main
-          log.info("Repository is empty, creating initial commit...");
+        if (
+          !branchResult.success &&
+          (branchResult.details?.includes("origin/main' is not a commit") ||
+            branchResult.details?.includes(
+              "does not appear to be a git repository"
+            ))
+        ) {
+          log.warn(
+            "Remote 'origin/main' not found. Repo appears to be empty. Creating initial commit."
+          ); // 3. Create initial commit (we already wrote .gitignore)
 
-          // Create a README
-          await SandboxService.writeFile(
-            projectId,
-            userId,
-            "README.md",
-            `# ${taskDescription}\n\nGenerated by NeuraLaunch AI Agent`
-          );
-
-          // Stage and commit
-          await SandboxService.gitAddAll(projectId, userId);
-          const initialCommit = await SandboxService.gitCommit(
-            projectId,
-            userId,
-            "Initial commit: Project setup"
-          );
-
-          if (!initialCommit.success) {
+          const addResult = await SandboxService.gitAddAll(projectId, userId);
+          if (!addResult.success) {
             throw new Error(
-              `Failed to create initial commit: ${initialCommit.details}`
+              `Failed to git add .gitignore: ${addResult.details}`
             );
           }
 
-          // Push to main first
+          const commitResult = await SandboxService.gitCommit(
+            projectId,
+            userId,
+            "Initial commit: Add .gitignore"
+          );
+
+          if (!commitResult.success || !commitResult.committed) {
+            log.warn(
+              `Initial commit failed or was empty: ${commitResult.details}`
+            ); // Don't throw, maybe .gitignore already exists
+          } // 4. Push the new 'main' branch
+
           if (githubRepoUrl && githubToken) {
             const pushMain = await SandboxService.gitPushToBranch(
               projectId,
@@ -252,28 +292,32 @@ export const executeAgentStep = inngest.createFunction(
               "main"
             );
             if (!pushMain.success) {
-              log.warn(`Failed to push main branch: ${pushMain.message}`);
+              throw new Error(
+                `Failed to push initial 'main' branch: ${pushMain.message}`
+              );
             }
+            log.info("Successfully pushed initial 'main' branch.");
+          } // 5. Now, try creating the feature branch again.
+
+          const secondAttempt = await SandboxService.gitCreateBranch(
+            projectId,
+            userId,
+            branchName
+          );
+          if (!secondAttempt.success) {
+            throw new Error(
+              `Failed to create feature branch after initial commit: ${secondAttempt.details}`
+            );
           }
-
-          log.info("Initial commit created successfully.");
-        }
-
-        // Now create the feature branch
-        const branchResult = await SandboxService.gitCreateBranch(
-          projectId,
-          userId,
-          branchName
-        );
-
-        if (!branchResult.success) {
+        } else if (!branchResult.success) {
+          // It failed for some other reason
           throw new Error(
             `Failed to create git branch '${branchName}': ${branchResult.details}`
           );
         }
-        log.info(`Successfully checked out branch: ${branchName}`);
-      });
 
+        log.info(`Successfully on branch: ${branchName}`);
+      }); // --- END NEW: git-create-branch FIX ---
       // --- Construct AI Prompt for Execution (Requesting JSON) ---
       const previousStepsSummary =
         currentHistory.length > 0
@@ -303,29 +347,28 @@ Your Current Task (Step ${stepIndex + 1}): ${taskDescription}
 3. Provide your response ONLY as a valid JSON object matching the following structure:
 \`\`\`json
 {
-  "files_to_write": [
-    {
-      "path": "src/components/NewComponent.tsx",
-      "content": "Full file content here..."
-    }
-  ],
-  "commands_to_run": [
-    "npm install zod",
-    "npx prisma generate"
-  ],
-  "summary": "Brief summary (1-2 sentences) of actions taken for this step."
+ "files_to_write": [
+  {
+   "path": "src/components/NewComponent.tsx",
+   "content": "Full file content here..."
+  }
+ ],
+ "commands_to_run": [
+  "npm install zod",
+  "npx prisma generate"
+ ],
+ "summary": "Brief summary (1-2 sentences) of actions taken for this step."
 }
 \`\`\`
 4. CRITICAL: All file paths MUST be relative from '/workspace' root. Do NOT use '../' or absolute paths starting with '/'. 
-   Examples of VALID paths: "src/app/page.tsx", "package.json", "lib/auth.ts"
-   Examples of INVALID paths: "/src/app/page.tsx", "../package.json", "./src/../app/page.tsx"
+ Examples of VALID paths: "src/app/page.tsx", "package.json", "lib/auth.ts"
+ Examples of INVALID paths: "/src/app/page.tsx", "../package.json", "./src/../app/page.tsx"
 5. If no files need writing, provide an empty \`"files_to_write": []\`.
 6. If no commands need running, provide an empty \`"commands_to_run": []\`.
 7. Ensure the \`summary\` is present and accurately reflects the changes.
 8. Focus ONLY on the current task. Ensure the JSON is perfectly valid.
-`;
+`; // --- Call AI Orchestrator (Requesting JSON) ---
 
-      // --- Call AI Orchestrator (Requesting JSON) ---
       const aiResponseJson = await step.run(
         "call-ai-for-execution",
         async () => {
@@ -334,9 +377,8 @@ Your Current Task (Step ${stepIndex + 1}): ${taskDescription}
             responseFormat: { type: "json_object" },
           });
         }
-      );
+      ); // --- Parse and Validate AI JSON Response ---
 
-      // --- Parse and Validate AI JSON Response ---
       let aiParsedResponse: AiExecutionResponse;
       try {
         // Strip markdown code blocks if present
@@ -364,47 +406,14 @@ Your Current Task (Step ${stepIndex + 1}): ${taskDescription}
           { rawResponse: aiResponseJson }
         );
         throw new Error(
-          `AI returned invalid JSON structure: ${parseError instanceof Error ? parseError.message : "Validation failed"}`
+          `AI returned invalid JSON structure: ${
+            parseError instanceof Error
+              ? parseError.message
+              : "Validation failed"
+          }`
         );
-      }
-
-      const gitignoreContent = `
-# Dependencies
-node_modules
-.pnpm-store
-
-# Build outputs
-.next
-dist
-.output
-
-# Local environment variables
-.env
-.env.local
-.env.development
-.env.test
-.env.production
-
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-pnpm-debug.log*
-
-# Misc
-.DS_Store
-`;
-      await step.run("ensure-gitignore", async () => {
-        log.info("Ensuring .gitignore exists..."); // We write this *after* parsing the AI response, in case
-        // the AI also tried to write one. Ours will overwrite it.
-        return await SandboxService.writeFile(
-          projectId,
-          userId,
-          ".gitignore",
-          gitignoreContent
-        );
-      }); // Filter out rogue git commands from the AI response
+      } // --- START NEW: Rogue Git Filter ---
+      // Filter out rogue git commands from the AI response
 
       const originalCommandCount = aiParsedResponse.commands_to_run.length;
       aiParsedResponse.commands_to_run =
@@ -414,13 +423,17 @@ pnpm-debug.log*
       const filteredCommandCount = aiParsedResponse.commands_to_run.length;
       if (originalCommandCount !== filteredCommandCount) {
         log.warn(
-          `Filtered ${originalCommandCount - filteredCommandCount} rogue 'git' commands from AI response.`
+          `Filtered ${
+            originalCommandCount - filteredCommandCount
+          } rogue 'git' commands from AI response.`
         );
-      }
+      } // --- END NEW: Rogue Git Filter ---
       // --- Execute Sandbox Actions ---
       // Write files
       for (const fileToWrite of aiParsedResponse.files_to_write) {
-        const fileStepId = `write-file-${stepIndex}-${fileToWrite.path.replace(/[^a-zA-Z0-9]/g, "-").substring(0, 50)}`;
+        const fileStepId = `write-file-${stepIndex}-${fileToWrite.path
+          .replace(/[^a-zA-Z0-9]/g, "-")
+          .substring(0, 50)}`;
         const writeOpResult = await step.run(fileStepId, async () => {
           log.debug(`Writing file via SandboxService: ${fileToWrite.path}`);
           return await SandboxService.writeFile(
@@ -440,9 +453,8 @@ pnpm-debug.log*
             `Sandbox failed to write file "${fileToWrite.path}": ${writeOpResult.message}`
           );
         }
-      }
+      } // Run commands with self-correction
 
-      // Run commands with self-correction
       for (let i = 0; i < aiParsedResponse.commands_to_run.length; i++) {
         const command = aiParsedResponse.commands_to_run[i];
         let currentCommand = command;
@@ -478,11 +490,13 @@ pnpm-debug.log*
             log.info(`Command successful: "${currentCommand}"`);
             commandSuccessful = true;
             break;
-          }
+          } // --- Self-Correction on Failure ---
 
-          // --- Self-Correction on Failure ---
           log.warn(
-            `Command failed (Attempt ${attempt}): "${currentCommand}". Error snippet: ${execOpResult.stderr.substring(0, 500)}...`
+            `Command failed (Attempt ${attempt}): "${currentCommand}". Error snippet: ${execOpResult.stderr.substring(
+              0,
+              500
+            )}...`
           );
           if (attempt >= maxAttempts) {
             throw new Error(
@@ -491,7 +505,7 @@ pnpm-debug.log*
           }
 
           const debugStepId = `debug-cmd-${stepIndex}-cmd${i}-attempt${attempt}`;
-          const fixPrompt = `The shell command failed inside a Docker container:\n\`\`\`sh\n${currentCommand}\n\`\`\`\nExit Code: ${execOpResult.exitCode}\nError Output (stderr):\n\`\`\`\n${execOpResult.stderr}\n\`\`\`\nOutput (stdout):\n\`\`\`\n${execOpResult.stdout}\n\`\`\`\nBased ONLY on this error and the original task ("${taskDescription}"), provide the corrected shell command(s) in a JSON object or respond ONLY with \`{"fix": "Cannot fix."}\`. Structure:\n\`\`\`json\n{\n  "fix": ["corrected command here"]\n}\n\`\`\``;
+          const fixPrompt = `The shell command failed inside a Docker container:\n\`\`\`sh\n${currentCommand}\n\`\`\`\nExit Code: ${execOpResult.exitCode}\nError Output (stderr):\n\`\`\`\n${execOpResult.stderr}\n\`\`\`\nOutput (stdout):\n\`\`\`\n${execOpResult.stdout}\n\`\`\`\nBased ONLY on this error and the original task ("${taskDescription}"), provide the corrected shell command(s) in a JSON object or respond ONLY with \`{"fix": "Cannot fix."}\`. Structure:\n\`\`\`json\n{\n  "fix": ["corrected command here"]\n}\n\`\`\``;
 
           const fixResponseJson = await step.run(debugStepId, async () => {
             return await executeAITaskSimple(AITaskType.AGENT_DEBUG_COMMAND, {
@@ -547,19 +561,19 @@ pnpm-debug.log*
           );
         }
       } // End for loop
-
       // --- Git Operations ---
+
       if (githubRepoUrl && githubToken) {
         await step.run(`git-ops-${stepIndex}`, async () => {
-          log.info("Performing Git operations (add, commit, push)...");
-
-          // Note: gitInitIfNeeded and git-setup-remote (earlier) handle init and remote config
+          log.info("Performing Git operations (add, commit, push)..."); // Note: gitInitIfNeeded and git-setup-remote (earlier) handle init and remote config
 
           const addCheck = await SandboxService.gitAddAll(projectId, userId);
           if (!addCheck.success)
             throw new Error(`Git add failed: ${addCheck.details}`);
 
-          const commitMsg = `Feat(agent): Step ${stepIndex + 1} - ${taskDescription.substring(0, 50)}`;
+          const commitMsg = `Feat(agent): Step ${
+            stepIndex + 1
+          } - ${taskDescription.substring(0, 50)}`;
           const commitResult = await SandboxService.gitCommit(
             projectId,
             userId,
@@ -580,16 +594,23 @@ pnpm-debug.log*
               githubRepoUrl,
               githubToken,
               branchName
-            );
+            ); // --- START NEW: "False Success" FIX ---
+
             if (!pushResult.success) {
-              // Log error but allow step to succeed (best effort push)
+              // Log error AND THROW to fail the step
               log.error(
-                `Git push failed: ${pushResult.message} ${pushResult.details || ""}`
+                `Git push failed: ${pushResult.message} ${
+                  pushResult.details || ""
+                }`
               );
-              stepResult.summary += " (Warning: Git push failed)";
+              throw new Error(
+                `Git push failed: ${pushResult.message} ${
+                  pushResult.details || ""
+                }`
+              );
             } else {
               log.info("Git push successful.");
-            }
+            } // --- END NEW: "False Success" FIX ---
           } else {
             log.info("No changes to commit or push for this step.");
           }
@@ -598,10 +619,9 @@ pnpm-debug.log*
         log.info(
           "Skipping Git/PR operations: Repo URL or GitHub Token not provided."
         );
-      }
-
-      // --- Create GitHub Pull Request ---
+      } // --- Create GitHub Pull Request ---
       // Only if code was pushed (or no changes) and token/repo exist
+
       if (
         githubRepoUrl &&
         githubToken &&
@@ -610,8 +630,7 @@ pnpm-debug.log*
         const prUrl = await step.run(`create-pr-${stepIndex}`, async () => {
           log.info(`Creating GitHub Pull Request for branch ${branchName}...`);
           try {
-            const octokit = new Octokit({ auth: githubToken });
-            // Fetch project again *inside step.run* to get repo name
+            const octokit = new Octokit({ auth: githubToken }); // Fetch project again *inside step.run* to get repo name
             const project = await prisma.landingPage.findUnique({
               where: { id: projectId },
               select: { githubRepoName: true },
@@ -626,9 +645,8 @@ pnpm-debug.log*
               throw new Error(`Invalid githubRepoName format: ${repoNameFull}`);
 
             const prTitle = `Agent: Step ${stepIndex + 1} - ${taskDescription}`;
-            const prBody = `This PR was automatically generated by the NeuraLaunch AI agent.\n\n**Task:**\n${taskDescription}\n\n**Summary:**\n${stepResult.summary}\n\nA Vercel preview deployment should be available here shortly.`;
+            const prBody = `This PR was automatically generated by the NeuraLaunch AI agent.\n\n**Task:**\n${taskDescription}\n\n**Summary:**\n${stepResult.summary}\n\nA Vercel preview deployment should be available here shortly.`; // Check if a PR for this branch already exists
 
-            // Check if a PR for this branch already exists
             const { data: existingPRs } = await octokit.rest.pulls.list({
               owner,
               repo,
@@ -639,8 +657,7 @@ pnpm-debug.log*
             if (existingPRs.length > 0) {
               log.warn(
                 `PR for branch ${branchName} already exists. Returning existing PR URL.`
-              );
-              // Optionally update the PR body
+              ); // Optionally update the PR body
               await octokit.rest.pulls.update({
                 owner,
                 repo,
@@ -648,9 +665,8 @@ pnpm-debug.log*
                 body: prBody,
               });
               return existingPRs[0].html_url;
-            }
+            } // Create new PR
 
-            // Create new PR
             const { data: newPR } = await octokit.rest.pulls.create({
               owner,
               repo,
@@ -674,14 +690,12 @@ pnpm-debug.log*
         if (prUrl) {
           stepResult.summary = `${stepResult.summary} View [Pull Request & Preview](${prUrl})`;
         }
-      }
+      } // --- Mark Step as Success ---
 
-      // --- Mark Step as Success ---
       stepResult.status = "success";
       stepResult.endTime = new Date().toISOString();
-      log.info(`Step ${stepIndex} completed successfully.`);
+      log.info(`Step ${stepIndex} completed successfully.`); // --- Final DB Update on Success ---
 
-      // --- Final DB Update on Success ---
       const finalDbUpdateResult = await step.run(
         "update-db-success",
         async () => {
@@ -697,7 +711,6 @@ pnpm-debug.log*
           const finalAgentStatus = isComplete
             ? "COMPLETE"
             : "PAUSED_FOR_PREVIEW";
-
           return await prisma.landingPage.update({
             where: { id: projectId },
             data: {
