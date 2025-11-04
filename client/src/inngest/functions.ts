@@ -368,6 +368,55 @@ Your Current Task (Step ${stepIndex + 1}): ${taskDescription}
         );
       }
 
+      const gitignoreContent = `
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
+.next
+dist
+.output
+
+# Local environment variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Misc
+.DS_Store
+`;
+      await step.run("ensure-gitignore", async () => {
+        log.info("Ensuring .gitignore exists..."); // We write this *after* parsing the AI response, in case
+        // the AI also tried to write one. Ours will overwrite it.
+        return await SandboxService.writeFile(
+          projectId,
+          userId,
+          ".gitignore",
+          gitignoreContent
+        );
+      }); // Filter out rogue git commands from the AI response
+
+      const originalCommandCount = aiParsedResponse.commands_to_run.length;
+      aiParsedResponse.commands_to_run =
+        aiParsedResponse.commands_to_run.filter(
+          (cmd) => !cmd.trim().startsWith("git ")
+        );
+      const filteredCommandCount = aiParsedResponse.commands_to_run.length;
+      if (originalCommandCount !== filteredCommandCount) {
+        log.warn(
+          `Filtered ${originalCommandCount - filteredCommandCount} rogue 'git' commands from AI response.`
+        );
+      }
       // --- Execute Sandbox Actions ---
       // Write files
       for (const fileToWrite of aiParsedResponse.files_to_write) {
