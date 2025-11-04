@@ -189,7 +189,7 @@ async function callGemini(
 
     const result = await withTimeout(
       model.generateContent(prompt),
-      90000,
+      180000,
       `Gemini generation (${modelId}) ${enableSearchTool ? "with Search" : ""}`
     );
 
@@ -299,7 +299,7 @@ async function callOpenAI(
           response_format: { type: "json_object" as const },
         }),
       }),
-      60000,
+      90000,
       `OpenAI generation (${modelId})`
     );
 
@@ -382,7 +382,7 @@ async function callClaude(
         messages: claudeMessages,
         ...(systemPrompt && { system: systemPrompt }),
       }),
-      60000,
+      180000,
       `Claude generation (${modelId})`
     );
 
@@ -490,7 +490,11 @@ export async function executeAITask(
     );
 
     // Fallback mechanism - but disable search on fallback
-    if (provider !== "GOOGLE" || enableSearchTool) {
+    if (
+      (provider !== "GOOGLE" || enableSearchTool) &&
+      taskType !== AITaskType.AGENT_EXECUTE_STEP && // <-- ADD THIS LINE
+      taskType !== AITaskType.AGENT_DEBUG_COMMAND
+    ) {
       logger.info(
         `Attempting fallback to ${AI_MODELS.PRIMARY} (Google) WITHOUT search for ${taskType}`
       );
