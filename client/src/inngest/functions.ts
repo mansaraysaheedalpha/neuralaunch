@@ -19,11 +19,17 @@ const aiExecutionResponseSchema = z.object({
         path: z
           .string()
           .min(1, "File path cannot be empty.")
-          // Ensure path is relative and safe
           .refine(
-            (p) => !p.startsWith("/") && !p.includes(".."),
-            "Path must be relative and cannot contain '..'."
-          ),
+            (p) => !p.startsWith("/"),
+            "Path must be relative (cannot start with '/')."
+          )
+          .transform((p) => {
+            // Normalize path: remove any ../ sequences and clean up
+            return p
+              .replace(/\.\.\//g, "")
+              .replace(/\/\.\.\//g, "/")
+              .replace(/^\.\.\//, "");
+          }),
         content: z.string(), // Allow empty content
       })
     )
@@ -315,7 +321,9 @@ Your Current Task (Step ${stepIndex + 1}): ${taskDescription}
   "summary": "Brief summary (1-2 sentences) of actions taken for this step."
 }
 \`\`\`
-4. Ensure \`path\` is relative, safe, and does not use '..'.
+4. CRITICAL: All file paths MUST be relative from '/workspace' root. Do NOT use '../' or absolute paths starting with '/'. 
+   Examples of VALID paths: "src/app/page.tsx", "package.json", "lib/auth.ts"
+   Examples of INVALID paths: "/src/app/page.tsx", "../package.json", "./src/../app/page.tsx"
 5. If no files need writing, provide an empty \`"files_to_write": []\`.
 6. If no commands need running, provide an empty \`"commands_to_run": []\`.
 7. Ensure the \`summary\` is present and accurately reflects the changes.
