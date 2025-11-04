@@ -17,7 +17,7 @@ COPY sandbox-server.js .
 RUN mkdir -p /workspace
 
 # Set working directory to workspace for git operations
-WORKDIR /workspace
+WORKDIR /app
 
 # Expose the internal port for our API server
 EXPOSE 8080

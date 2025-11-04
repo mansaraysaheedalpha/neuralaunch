@@ -34,7 +34,7 @@ const pusherChannel = `sandbox-logs-${projectId}`;
 // --- Fix workspace permissions on startup ---
 try {
     // Ensure the workspace directory is writable by all users
-    execSync(`chmod -R 777 ${WORKSPACE_DIR}`, { stdio: 'ignore' });
+    execSync(`chmod -R 777 ${WORKSPACE_DIR}`);
     console.log(`[NeuraLaunch Sandbox] Workspace permissions fixed.`);
 } catch (error) {
     console.warn(`[NeuraLaunch Sandbox] Could not fix permissions:`, error.message);
