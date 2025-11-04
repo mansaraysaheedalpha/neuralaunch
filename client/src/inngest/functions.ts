@@ -39,10 +39,7 @@ const aiExecutionResponseSchema = z.object({
     .array(z.string().min(1, "Command cannot be empty."))
     .optional()
     .default([]),
-  summary: z
-    .string()
-    .min(1, "Summary cannot be empty.")
-    .max(250, "Summary too long."), // Enforce summary presence and length
+  summary: z.string().min(1, "Summary cannot be empty."),
 });
 type AiExecutionResponse = z.infer<typeof aiExecutionResponseSchema>;
 
