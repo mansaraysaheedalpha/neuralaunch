@@ -325,7 +325,6 @@ async function callOpenAI(
     );
   }
 }
-
 async function callClaude(
   modelId: string,
   messages: Array<{ role: string; content: string }>,
@@ -347,7 +346,7 @@ async function callClaude(
     if (stream) {
       const response = anthropic.messages.stream({
         model: modelId,
-        max_tokens: 8192,
+        max_tokens: 16384, // ✅ CHANGED FROM 8192
         messages: claudeMessages,
         ...(systemPrompt && { system: systemPrompt }),
       });
@@ -378,11 +377,11 @@ async function callClaude(
     const response = await withTimeout(
       anthropic.messages.create({
         model: modelId,
-        max_tokens: 8192,
+        max_tokens: 16384, // ✅ CHANGED FROM 8192
         messages: claudeMessages,
         ...(systemPrompt && { system: systemPrompt }),
       }),
-      180000,
+      180000, // ✅ You should have already changed this from 60000
       `Claude generation (${modelId})`
     );
 
@@ -409,7 +408,6 @@ async function callClaude(
     );
   }
 }
-
 // ==================== MAIN ORCHESTRATION FUNCTION ====================
 export async function executeAITask(
   taskType: AITaskType,

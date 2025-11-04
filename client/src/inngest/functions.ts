@@ -363,11 +363,16 @@ Your Current Task (Step ${stepIndex + 1}): ${taskDescription}
 4. CRITICAL: All file paths MUST be relative from '/workspace' root. Do NOT use '../' or absolute paths starting with '/'. 
  Examples of VALID paths: "src/app/page.tsx", "package.json", "lib/auth.ts"
  Examples of INVALID paths: "/src/app/page.tsx", "../package.json", "./src/../app/page.tsx"
-5. If no files need writing, provide an empty \`"files_to_write": []\`.
-6. If no commands need running, provide an empty \`"commands_to_run": []\`.
-7. Ensure the \`summary\` is present and accurately reflects the changes.
-8. Focus ONLY on the current task. Ensure the JSON is perfectly valid.
-`; // --- Call AI Orchestrator (Requesting JSON) ---
+5. CRITICAL: All file paths MUST be relative from '/workspace' root. Do NOT use '../' or absolute paths starting with '/'. 
+   Examples of VALID paths: "src/app/page.tsx", "package.json", "lib/auth.ts"
+   Examples of INVALID paths: "/src/app/page.tsx", "../package.json", "./src/../app/page.tsx"
+6. If no files need writing, provide an empty \`"files_to_write": []\`.
+7. If no commands need running, provide an empty \`"commands_to_run": []\`.
+8. Ensure the \`summary\` is present and accurately reflects the changes.
+9. Focus ONLY on the current task. Ensure the JSON is perfectly valid and complete.
+10. **IMPORTANT: Ensure your JSON response ends with the closing brace }. Do not let your response be truncated.**
+`;
+ // --- Call AI Orchestrator (Requesting JSON) ---
 
       const aiResponseJson = await step.run(
         "call-ai-for-execution",
@@ -391,6 +396,39 @@ Your Current Task (Step ${stepIndex + 1}): ${taskDescription}
           cleanedJson = cleanedJson
             .replace(/^```\s*\n?/, "")
             .replace(/\n?```\s*$/, "");
+        }
+
+        // NEW: Try to repair incomplete JSON
+        // Check if JSON is truncated (common with token limits)
+        if (!cleanedJson.trim().endsWith("}")) {
+          log.warn(
+            "Detected potentially truncated JSON response. Attempting repair..."
+          );
+
+          // Try to find the last complete object/array closure
+          let repairAttempt = cleanedJson;
+
+          // If we're in a string that wasn't closed, try to close it
+          const unclosedStringMatch = repairAttempt.match(/"([^"\\]|\\.)*$/);
+          if (unclosedStringMatch) {
+            repairAttempt =
+              repairAttempt.substring(0, unclosedStringMatch.index) + '"';
+          }
+
+          // Close any unclosed arrays or objects
+          const openBraces = (repairAttempt.match(/\{/g) || []).length;
+          const closeBraces = (repairAttempt.match(/\}/g) || []).length;
+          const openBrackets = (repairAttempt.match(/\[/g) || []).length;
+          const closeBrackets = (repairAttempt.match(/\]/g) || []).length;
+
+          // Add missing closing brackets/braces
+          repairAttempt += "]".repeat(
+            Math.max(0, openBrackets - closeBrackets)
+          );
+          repairAttempt += "}".repeat(Math.max(0, openBraces - closeBraces));
+
+          cleanedJson = repairAttempt;
+          log.info("JSON repair attempted. Trying to parse...");
         }
 
         const rawJson = JSON.parse(cleanedJson) as unknown;
