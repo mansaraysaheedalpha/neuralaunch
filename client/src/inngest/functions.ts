@@ -344,31 +344,32 @@ Your Current Task (Step ${stepIndex + 1}): ${taskDescription}
 1. Determine the code modifications OR shell commands required to COMPLETE **only this specific task**.
 2. Assume root directory '/workspace' of a standard Next.js + Prisma project.
 3. **CRITICAL: Keep your response CONCISE. Do NOT include full file contents for large files like package.json or node_modules. Only include the MINIMAL code changes needed.**
-4. **IMPORTANT DATABASE RULE: DO NOT run 'npx prisma db push', 'npx prisma migrate', or any commands that require a live database connection. The sandbox does not have database access. Only run 'npx prisma generate' to generate the Prisma Client types.**
-5. Provide your response ONLY as a valid JSON object matching the following structure:
+4. **IMPORTANT DATABASE RULE: DO NOT run 'npx prisma db push' or 'npx prisma migrate'. The sandbox does not have database access. Only run 'npx prisma generate' to generate Prisma Client types.**
+5. **PRISMA SCHEMA RULE: When defining a '@relation', valid 'onDelete' and 'onUpdate' actions are 'Cascade', 'Restrict', 'NoAction', 'SetNull', or 'SetDefault'. Do NOT use 'List' or any other value.**
+6. Provide your response ONLY as a valid JSON object matching the following structure:
 \`\`\`json
 {
-  "files_to_write": [
-    {
-      "path": "src/components/NewComponent.tsx",
-      "content": "Full file content here..."
-    }
-  ],
-  "commands_to_run": [
-    "npm install @prisma/client",
-    "npx prisma generate"
-  ],
-  "summary": "Brief summary (1-2 sentences) of actions taken for this step."
+  "files_to_write": [
+    {
+      "path": "src/components/NewComponent.tsx",
+      "content": "Full file content here..."
+    }
+  ],
+  "commands_to_run": [
+    "npm install zod",
+    "npx prisma generate"
+  ],
+  "summary": "Brief summary (1-2 sentences) of actions taken for this step."
 }
 \`\`\`
-6. CRITICAL: All file paths MUST be relative from '/workspace' root. Do NOT use '../' or absolute paths starting with '/'. 
-   Examples of VALID paths: "src/app/page.tsx", "package.json", "lib/auth.ts", "prisma/schema.prisma"
-   Examples of INVALID paths: "/src/app/page.tsx", "../package.json", "./src/../app/page.tsx"
-7. If no files need writing, provide an empty \`"files_to_write": []\`.
-8. If no commands need running, provide an empty \`"commands_to_run": []\`.
-9. Ensure the \`summary\` is present and accurately reflects the changes.
-10. Focus ONLY on the current task. Ensure the JSON is perfectly valid and complete.
-11. **IMPORTANT: Ensure your JSON response ends with the closing brace }. Do not let your response be truncated.**
+7. CRITICAL: All file paths MUST be relative from '/workspace' root. Do NOT use '../' or absolute paths starting with '/'. 
+   Examples of VALID paths: "src/app/page.tsx", "package.json", "lib/auth.ts"
+   Examples of INVALID paths: "/src/app/page.tsx", "../package.json", "./src/../app/page.tsx"
+8. If no files need writing, provide an empty \`"files_to_write": []\`.
+9. If no commands need running, provide an empty \`"commands_to_run": []\`.
+10. Ensure the \`summary\` is present and accurately reflects the changes.
+11. Focus ONLY on the current task. Ensure the JSON is perfectly valid and complete.
+12. **IMPORTANT: Ensure your JSON response ends with the closing brace }. Do not let your response be truncated.**
 `;
       // --- Call AI Orchestrator (Requesting JSON) ---
 
