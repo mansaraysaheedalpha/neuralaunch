@@ -134,8 +134,12 @@ app.post("/fs/write", async (req, res) => {
     if (!relativePath || typeof relativePath !== 'string' || content === undefined) {
         return res.status(400).json({ status: "error", path: relativePath, message: "Invalid 'path' or 'content' provided." });
     }
-    if (relativePath.includes("..") || relativePath.startsWith("/")) {
-        return res.status(403).json({ status: "error", path: relativePath, message: "Forbidden: Path is not relative or contains '..'." });
+    if (relativePath.startsWith("/")) {
+        return res.status(403).json({ status: "error", path: relativePath, message: "Forbidden: Path must be relative." });
+    }
+    // Check for actual path traversal (../) but allow [...nextauth] style brackets
+    if (relativePath.includes("../") || relativePath.startsWith("../")) {
+        return res.status(403).json({ status: "error", path: relativePath, message: "Forbidden: Path contains '..' traversal." });
     }
 
     const safeFilePath = path.join(WORKSPACE_DIR, relativePath);
