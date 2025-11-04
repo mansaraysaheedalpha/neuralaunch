@@ -3,7 +3,7 @@
 const express = require("express");
 const http = require("http");
 const Pusher = require("pusher");
-const { exec } = require("child_process"); // <-- Use Node's built-in 'exec'
+const { exec, execSync } = require("child_process"); // <-- Added execSync
 const fs = require("fs").promises;
 const path = require("path");
 
@@ -30,6 +30,15 @@ if (process.env.PUSHER_APP_ID && process.env.PUSHER_KEY && process.env.PUSHER_SE
 
 const projectId = process.env.PROJECT_ID || "unknown-project";
 const pusherChannel = `sandbox-logs-${projectId}`;
+
+// --- Fix workspace permissions on startup ---
+try {
+    // Ensure the workspace directory is writable by all users
+    execSync(`chmod -R 777 ${WORKSPACE_DIR}`, { stdio: 'ignore' });
+    console.log(`[NeuraLaunch Sandbox] Workspace permissions fixed.`);
+} catch (error) {
+    console.warn(`[NeuraLaunch Sandbox] Could not fix permissions:`, error.message);
+}
 
 // --- Health Check Endpoint ---
 app.get("/health", (req, res) => {
