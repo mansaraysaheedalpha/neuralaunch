@@ -514,15 +514,7 @@ class SandboxServiceClass {
         };
       }
 
-      // Check for actual path traversal attempts (../ in the middle)
-      // But allow [...nextauth] style Next.js dynamic routes
-      if (cleanPath.includes("../") || cleanPath.startsWith("../")) {
-        return {
-          status: "error",
-          path: relativePath,
-          message: "Invalid path: Cannot contain '../' path traversal.",
-        };
-      }
+
 
       const sandboxUrl = await this.findOrCreateSandbox(projectId, userId);
       if (!sandboxUrl) {

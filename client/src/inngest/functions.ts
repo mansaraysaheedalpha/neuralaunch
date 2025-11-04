@@ -18,18 +18,16 @@ const aiExecutionResponseSchema = z.object({
       z.object({
         path: z
           .string()
-          .min(1, "File path cannot be empty.")
+          .min(1, "File path cannot be empty.") // --- REPLACE THE OLD REFINE/TRANSFORM WITH THIS ---
           .refine(
             (p) => !p.startsWith("/"),
             "Path must be relative (cannot start with '/')."
           )
-          .transform((p) => {
-            // Normalize path: remove any ../ sequences and clean up
-            return p
-              .replace(/\.\.\//g, "")
-              .replace(/\/\.\.\//g, "/")
-              .replace(/^\.\.\//, "");
-          }),
+          .refine(
+            (p) => !p.split("/").includes(".."),
+            "Path cannot contain '..' as a path segment."
+          ),
+        // --- END REPLACEMENT ---
         content: z.string(), // Allow empty content
       })
     )
