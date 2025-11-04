@@ -495,7 +495,6 @@ class SandboxServiceClass {
     }
   }
 
-  /** Writes a file inside the project's specific sandbox. */
   async writeFile(
     projectId: string,
     userId: string,
@@ -503,11 +502,25 @@ class SandboxServiceClass {
     content: string
   ): Promise<FileWriteResult> {
     try {
-      if (relativePath.includes("..") || relativePath.startsWith("/")) {
+      // Clean and normalize the path
+      let cleanPath = relativePath.trim();
+
+      // Remove leading slashes
+      if (cleanPath.startsWith("/")) {
         return {
           status: "error",
           path: relativePath,
-          message: "Invalid path: Must be relative and cannot contain '..'.",
+          message: "Invalid path: Must be relative (cannot start with '/').",
+        };
+      }
+
+      // Check for actual path traversal attempts (../ in the middle)
+      // But allow [...nextauth] style Next.js dynamic routes
+      if (cleanPath.includes("../") || cleanPath.startsWith("../")) {
+        return {
+          status: "error",
+          path: relativePath,
+          message: "Invalid path: Cannot contain '../' path traversal.",
         };
       }
 
