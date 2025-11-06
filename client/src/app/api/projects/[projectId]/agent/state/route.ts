@@ -6,19 +6,12 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { projectAgentDataSchema } from "@/types/agent-schemas";
 
-/**
- * GET /api/projects/[projectId]/agent/state
- *
- * Fetches the complete state of the agent builder for a specific project,
- * including plan, questions, responses, execution history, and connected accounts.
- */
 export async function GET(
   req: NextRequest,
   context: { params: Promise<{ projectId: string }> }
 ) {
   try {
     const params = await context.params;
-    // 1. Authentication & Authorization
     const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -26,12 +19,17 @@ export async function GET(
     const userId = session.user.id;
     const { projectId } = params;
 
-    // 2. Fetch project data with all agent-related fields
     const project = await prisma.landingPage.findFirst({
       where: { id: projectId, userId: userId },
       select: {
         id: true,
         title: true,
+        // 🆕 NEW FIELDS
+        projectPlatform: true,
+        projectPrimaryLanguage: true,
+        agentArchitectPreferences: true,
+        agentArchitecturePlan: true,
+        // EXISTING FIELDS
         agentPlan: true,
         agentClarificationQuestions: true,
         agentUserResponses: true,
@@ -54,7 +52,6 @@ export async function GET(
       );
     }
 
-    // 3. Fetch user's connected accounts
     const accounts = await prisma.account.findMany({
       where: { userId: userId },
       select: {
@@ -63,11 +60,16 @@ export async function GET(
       },
     });
 
-    // 4. Construct response object - ENSURE ALL FIELDS MATCH SCHEMA
     const rawProjectAgentData = {
       id: project.id,
       title: project.title,
-      agentPlan: project.agentPlan ?? null, // Ensure null instead of undefined
+      // 🆕 NEW FIELDS
+      projectPlatform: project.projectPlatform ?? null,
+      projectPrimaryLanguage: project.projectPrimaryLanguage ?? null,
+      agentArchitectPreferences: project.agentArchitectPreferences ?? null,
+      agentArchitecturePlan: project.agentArchitecturePlan ?? null,
+      // EXISTING FIELDS
+      agentPlan: project.agentPlan ?? null,
       agentClarificationQuestions: project.agentClarificationQuestions ?? null,
       agentUserResponses: project.agentUserResponses ?? null,
       agentCurrentStep: project.agentCurrentStep ?? null,
@@ -82,7 +84,6 @@ export async function GET(
       accounts: accounts,
     };
 
-    // 5. Validate the data structure before sending
     const validationResult =
       projectAgentDataSchema.safeParse(rawProjectAgentData);
 
@@ -96,15 +97,12 @@ export async function GET(
         undefined,
         { data: rawProjectAgentData }
       );
-      // Return the data anyway but log the issue
-      // This helps debug what's wrong
     }
 
     logger.info(
       `[Agent State] Fetched state for project ${projectId} (status: ${project.agentStatus})`
     );
 
-    // Return the data (validated or not - the client-side validation will handle it)
     return NextResponse.json(rawProjectAgentData, { status: 200 });
   } catch (error: unknown) {
     const errorMessage =

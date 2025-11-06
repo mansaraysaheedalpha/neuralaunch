@@ -558,6 +558,54 @@ class SandboxServiceClass {
     }
   }
 
+  /** Reads a file from the sandbox workspace. */
+  async readFile(
+    projectId: string,
+    userId: string,
+    relativePath: string
+  ): Promise<{
+    status: "success" | "error";
+    content?: string;
+    message?: string;
+  }> {
+    try {
+      const sandboxUrl = await this.findOrCreateSandbox(projectId, userId);
+      if (!sandboxUrl) {
+        throw new Error("Could not find or create sandbox environment.");
+      }
+
+      const response = await fetch(`${sandboxUrl}/fs/read`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: relativePath }),
+        signal: AbortSignal.timeout(10000),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        return {
+          status: "error",
+          message: `Failed to read file: ${response.status} - ${errorBody}`,
+        };
+      }
+
+      const result = (await response.json()) as {
+        status: string;
+        content: string;
+      };
+      return { status: "success", content: result.content };
+    } catch (error) {
+      logger.error(
+        `[SandboxService.readFile] Error reading ${relativePath}:`,
+        error instanceof Error ? error : undefined
+      );
+      return {
+        status: "error",
+        message: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
   /** Checks if git repo exists, initializes if not. Sets basic config. */
   async gitInitIfNeeded(
     projectId: string,

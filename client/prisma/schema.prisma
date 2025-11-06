@@ -175,6 +175,11 @@ model LandingPage {
   sandboxHostPort     String?
   sandboxLastAccessedAt DateTime?
 
+  projectPlatform         String?  // "web", "mobile", "backend", "desktop", "multi"
+  projectPrimaryLanguage  String?
+
+  agentArchitectPreferences Json?
+   agentArchitecturePlan Json?
 
   agentPlan                   Json?   
   agentClarificationQuestions Json?  
@@ -191,6 +196,8 @@ model LandingPage {
 
   encryptedEnvVars String? @db.Text // Store as an encrypted JSON string or blob
   agentRequiredEnvKeys Json?
+
+  
 
   @@index([userId])
   @@index([isPublished])

@@ -26,11 +26,16 @@ export enum AITaskType {
   COFOUNDER_CHAT_RESPONSE = "COFOUNDER_CHAT_RESPONSE",
   BLUEPRINT_PARSING = "BLUEPRINT_PARSING",
   SPRINT_TASK_ASSISTANCE = "SPRINT_TASK_ASSISTANCE",
-  CODE_GENERATION_MVP = "CODE_GENERATION_MVP",
+  // CODE_GENERATION_MVP = "CODE_GENERATION_MVP",
   AGENT_PLANNING = "AGENT_PLANNING",
   AGENT_EXECUTE_STEP = "AGENT_EXECUTE_STEP",
   AGENT_DEBUG_COMMAND = "AGENT_DEBUG_COMMAND",
   GET_API_KEY_GUIDANCE = "GET_API_KEY_GUIDANCE",
+  // 🆕 NEW AUTONOMOUS TASK TYPES
+  AGENT_VERIFY_STEP = "AGENT_VERIFY_STEP", // Verify own work
+  AGENT_READ_WORKSPACE = "AGENT_READ_WORKSPACE", // Read files to understand state
+  AGENT_DEBUG_FULL = "AGENT_DEBUG_FULL", // Debug errors by reading context
+  AGENT_REFLECT = "AGENT_REFLECT",
 }
 
 // ==================== PROVIDER TYPE ====================
@@ -56,9 +61,12 @@ function routeTaskToModel(
 } {
   switch (taskType) {
     case AITaskType.BLUEPRINT_GENERATION:
-    case AITaskType.AGENT_PLANNING:
       logger.debug(`🎯 Routing ${taskType} to ${AI_MODELS.PRIMARY} (Google)`);
       return { modelId: AI_MODELS.PRIMARY, provider: "GOOGLE" };
+
+    case AITaskType.AGENT_PLANNING: // ✅ NOW GOING TO CLAUDE
+      logger.debug(`🎯 Routing ${taskType} to ${AI_MODELS.CLAUDE} (Anthropic)`);
+      return { modelId: AI_MODELS.CLAUDE, provider: "ANTHROPIC" };
 
     case AITaskType.TITLE_GENERATION:
     case AITaskType.LANDING_PAGE_COPY:
@@ -72,8 +80,17 @@ function routeTaskToModel(
       logger.debug(`🎯 Routing ${taskType} to ${AI_MODELS.CLAUDE} (Anthropic)`);
       return { modelId: AI_MODELS.CLAUDE, provider: "ANTHROPIC" };
 
+    // 🆕 NEW: Route autonomous tasks to Claude (best reasoning)
+    case AITaskType.AGENT_VERIFY_STEP:
+    case AITaskType.AGENT_READ_WORKSPACE:
+    case AITaskType.AGENT_DEBUG_FULL:
+    case AITaskType.AGENT_REFLECT:
+      logger.debug(
+        `🎯 Routing ${taskType} (autonomous) to ${AI_MODELS.CLAUDE} (Anthropic)`
+      );
+      return { modelId: AI_MODELS.CLAUDE, provider: "ANTHROPIC" };
+
     case AITaskType.BLUEPRINT_PARSING:
-    case AITaskType.CODE_GENERATION_MVP:
     case AITaskType.AGENT_DEBUG_COMMAND:
       logger.debug(`🎯 Routing ${taskType} to ${AI_MODELS.OPENAI} (OpenAI)`);
       return { modelId: AI_MODELS.OPENAI, provider: "OPENAI" };
@@ -114,7 +131,8 @@ async function callGemini(
   prompt: string,
   systemInstruction?: string,
   stream?: boolean,
-  enableSearchTool?: boolean
+  enableSearchTool?: boolean,
+  json?: boolean
 ): Promise<string | AsyncIterable<string>> {
   if (!env.GOOGLE_API_KEY) {
     throw new Error("Google API Key is missing.");
@@ -126,6 +144,13 @@ async function callGemini(
       model: modelId,
       ...(systemInstruction && { systemInstruction }),
     };
+
+    if (json) {
+      modelConfig.generationConfig = {
+        responseMimeType: "application/json",
+      };
+      logger.info(`[callGemini] Forcing JSON output mode for ${modelId}.`);
+    }
 
     // FIXED: Proper search tool configuration with error handling
     if (enableSearchTool) {
@@ -381,7 +406,7 @@ async function callClaude(
         messages: claudeMessages,
         ...(systemPrompt && { system: systemPrompt }),
       }),
-      180000, // ✅ You should have already changed this from 60000
+      600000, // ✅ You should have already changed this from 60000
       `Claude generation (${modelId})`
     );
 
@@ -439,7 +464,8 @@ export async function executeAITask(
           prompt,
           payload.systemInstruction,
           payload.stream,
-          enableSearchTool
+          enableSearchTool,
+         !!payload.responseFormat
         );
         break;
       }
@@ -506,7 +532,8 @@ export async function executeAITask(
           prompt,
           payload.systemInstruction,
           payload.stream,
-          false // IMPORTANT: No search on fallback
+          false, // IMPORTANT: No search on fallback
+          !!payload.responseFormat
         );
         logger.info(`Fallback successful for ${taskType}`);
         return fallbackResult;

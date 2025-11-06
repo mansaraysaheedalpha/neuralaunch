@@ -11,9 +11,14 @@ import {
   Loader2,
   Play,
   Brain,
-} from "lucide-react"; // Added Brain icon
+} from "lucide-react";
 import { logger } from "@/lib/logger";
-import type { PlanStep, Question } from "@/types/agent"; // Ensure Question type includes 'options' and 'allowAgentDecision'
+// ------------------------------------------------------------------
+// ✅ FIX #1: Import the FULL task type, not the old simple one.
+// (Assuming you exported it from your types index)
+// ------------------------------------------------------------------
+import type { ActionableTask, Question } from "@/types/agent-schemas"; // Corrected import path
+import ActionableTaskItem from "./ActionableTaskItem"; // ✅ FIX #2: Import new component
 
 // --- Types ---
 type SubmitAnswersResponse = {
@@ -21,35 +26,29 @@ type SubmitAnswersResponse = {
   error?: string;
 };
 
-// Type guard for API response
 function isSubmitAnswersResponse(
   value: unknown
 ): value is SubmitAnswersResponse {
   if (typeof value !== "object" || value === null) return false;
   const obj = value as Record<string, unknown>;
-  // Check types loosely, allowing undefined
   const hasStatus =
     "agentStatus" in obj &&
     (typeof obj.agentStatus === "string" || obj.agentStatus === undefined);
   const hasError =
     "error" in obj &&
     (typeof obj.error === "string" || obj.error === undefined);
-  return hasStatus || hasError; // It's valid if it has at least one, or potentially both
+  return hasStatus || hasError;
 }
 
-// Special value to indicate agent should decide
 const AGENT_DECISION_MARKER = "__AGENT_DECISION__";
 
 interface AgentPlannerProps {
   projectId: string;
-  plan: PlanStep[] | null;
-  questions: Question[] | null; // Expects the enhanced Question type
+  plan: ActionableTask[] | null;
+  questions: Question[] | null;
   initialAgentStatus: string | null;
-  // Callback now just needs to revalidate data (parent handles status)
   onActionComplete: () => void;
-  // Callback to trigger first execution step (used if no questions/config needed)
   onExecuteStart: () => void;
-  // Optional: Callback if submitting answers fails
   onSubmissionError?: (error: string) => void;
 }
 
@@ -72,31 +71,29 @@ export default function AgentPlanner({
   plan,
   questions,
   initialAgentStatus,
-  onActionComplete, // Renamed from onAnswersSubmit for clarity
+  onActionComplete,
   onExecuteStart,
   onSubmissionError,
 }: AgentPlannerProps) {
+  // ... (All state and handler logic from your file is perfectly fine) ...
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [currentAgentStatus, setCurrentAgentStatus] =
     useState(initialAgentStatus);
 
-  // --- Derived State ---
   const validQuestions = Array.isArray(questions) ? questions : [];
   const showQuestionsSection =
     validQuestions.length > 0 && currentAgentStatus === "PENDING_USER_INPUT";
-  const showStartButton = // Show start only if agent is ready and there were no questions/config steps
+  const showStartButton =
     !showQuestionsSection && initialAgentStatus === "READY_TO_EXECUTE";
 
-  // Check if all *required* questions are answered (not empty and not agent decision)
- const allRequiredAnswered = validQuestions
-   .filter((q) => q.allowAgentDecision === false) // Only required if EXPLICITLY false
-   .every(
-     (q) => answers[q.id]?.trim() && answers[q.id] !== AGENT_DECISION_MARKER
-   );
+  const allRequiredAnswered = validQuestions
+    .filter((q) => q.allowAgentDecision === false)
+    .every(
+      (q) => answers[q.id]?.trim() && answers[q.id] !== AGENT_DECISION_MARKER
+    );
 
-  // Check if all questions have *some* answer (including agent decision)
   const allQuestionsTouched = validQuestions.every(
     (q) => answers[q.id] !== undefined
   );
@@ -104,20 +101,15 @@ export default function AgentPlanner({
   const canSubmitAnswers =
     showQuestionsSection && allRequiredAnswered && allQuestionsTouched;
 
-  // --- Event Handlers ---
-
-  // Update answer state (for textareas or selected options)
   const handleAnswerChange = (questionId: string, value: string) => {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
-    setLocalError(null); // Clear error on input change
+    setLocalError(null);
   };
 
-  // Handle "Let Agent Decide" button click
   const handleAgentDecision = (questionId: string) => {
     handleAnswerChange(questionId, AGENT_DECISION_MARKER);
   };
 
-  // Submit answers to the backend
   const handleSubmitAnswers = async () => {
     if (isSubmitting || !canSubmitAnswers) {
       if (!canSubmitAnswers) {
@@ -157,7 +149,7 @@ export default function AgentPlanner({
       if (parsed.agentStatus) {
         setCurrentAgentStatus(parsed.agentStatus);
       }
-      onActionComplete(); // Notify parent to revalidate data
+      onActionComplete();
     } catch (error) {
       const message =
         error instanceof Error
@@ -176,16 +168,13 @@ export default function AgentPlanner({
     }
   };
 
-  // Trigger first execution step
   const handleStartExecution = () => {
     onExecuteStart();
   };
 
   // --- Render Logic ---
 
-  // Only render if there's a plan or questions to show
   if (!plan && !showQuestionsSection) {
-    // Could show a loading state if planning hasn't finished yet
     return (
       <div className="p-6 text-center text-muted-foreground italic">
         Waiting for agent plan...
@@ -200,34 +189,37 @@ export default function AgentPlanner({
       animate="visible"
       className="mb-6 space-y-6"
     >
-      {/* Plan Overview (No Changes Needed Here) */}
+      {/* ------------------------------------------------------------------ */}
+      {/* ✅ FIX #4: Updated Plan Overview Section                          */}
+      {/* ------------------------------------------------------------------ */}
       {plan && plan.length > 0 && (
         <motion.div
           variants={fadeIn}
           className="p-6 bg-card border border-border rounded-lg shadow-sm"
         >
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-4">
             <ListChecks className="w-5 h-5 text-primary" />
             <h3 className="text-lg font-semibold text-foreground">
-              Generated Plan
+              Generated Plan ({plan.length} steps)
             </h3>
           </div>
           <motion.ol
             variants={staggerContainer}
             initial="hidden"
             animate="visible"
-            className="list-decimal list-inside space-y-2 text-sm text-muted-foreground pl-2"
+            className="space-y-4" // Use ol for numbering, but style as list
           >
             {plan.map((step, index) => (
-              <motion.li key={index} variants={fadeIn}>
-                {step.task}
-              </motion.li>
+              <ActionableTaskItem key={index} task={step} index={index} />
             ))}
           </motion.ol>
         </motion.div>
       )}
+      {/* ------------------------------------------------------------------ */}
+      {/* End of Fix                                                       */}
+      {/* ------------------------------------------------------------------ */}
 
-      {/* Enhanced Questions Section */}
+      {/* Enhanced Questions Section (Your existing code is great) */}
       <AnimatePresence>
         {showQuestionsSection && (
           <motion.div
@@ -238,6 +230,7 @@ export default function AgentPlanner({
             exit="hidden"
             className="p-6 bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-lg shadow-sm space-y-4"
           >
+            {/* ... (Your entire questions section is perfect, no changes needed) ... */}
             <div className="flex items-center gap-2 mb-3">
               <HelpCircle className="w-5 h-5 text-primary" />
               <h3 className="text-lg font-semibold text-foreground">
@@ -248,13 +241,11 @@ export default function AgentPlanner({
               The AI agent needs answers before building. For optional choices,
               you can let the agent decide.
             </p>
-
-            {/* Map through questions */}
             <motion.div
               variants={staggerContainer}
               initial="hidden"
               animate="visible"
-              className="space-y-6" // Increased spacing between questions
+              className="space-y-6"
             >
               {validQuestions.map((q) => (
                 <motion.div key={q.id} variants={fadeIn} className="space-y-2">
@@ -265,13 +256,9 @@ export default function AgentPlanner({
                     {q.text}
                     {!q.allowAgentDecision && (
                       <span className="text-red-500 ml-1">*</span>
-                    )}{" "}
-                    {/* Indicate required */}
+                    )}
                   </label>
-
-                  {/* Render Options or Textarea */}
                   {q.options && q.options.length > 0 ? (
-                    // Display Options (e.g., as buttons)
                     <div className="flex flex-wrap gap-2">
                       {q.options.map((option) => (
                         <motion.button
@@ -306,7 +293,6 @@ export default function AgentPlanner({
                       ))}
                     </div>
                   ) : (
-                    // Display Textarea
                     <textarea
                       id={q.id}
                       rows={2}
@@ -314,7 +300,7 @@ export default function AgentPlanner({
                         answers[q.id] === AGENT_DECISION_MARKER
                           ? ""
                           : answers[q.id] || ""
-                      } // Don't show marker in textarea
+                      }
                       onChange={(e) => handleAnswerChange(q.id, e.target.value)}
                       disabled={
                         isSubmitting || answers[q.id] === AGENT_DECISION_MARKER
@@ -323,8 +309,6 @@ export default function AgentPlanner({
                       placeholder="Your answer..."
                     />
                   )}
-
-                  {/* "Let Agent Decide" Button */}
                   {q.allowAgentDecision && (
                     <motion.button
                       onClick={() => handleAgentDecision(q.id)}
@@ -346,14 +330,11 @@ export default function AgentPlanner({
                 </motion.div>
               ))}
             </motion.div>
-
             {localError && (
               <p className="text-sm text-red-600 dark:text-red-400 mt-2">
                 {localError}
               </p>
             )}
-
-            {/* Submit Button */}
             <motion.button
               onClick={() => void handleSubmitAnswers()}
               disabled={!canSubmitAnswers || isSubmitting}
@@ -376,7 +357,7 @@ export default function AgentPlanner({
         )}
       </AnimatePresence>
 
-      {/* Start Execution Button (Only if agent is ready) */}
+      {/* Start Execution Button (Your existing code is fine) */}
       {showStartButton && (
         <motion.button
           onClick={handleStartExecution}

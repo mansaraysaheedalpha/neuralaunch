@@ -1,5 +1,5 @@
 // src/app/(app)/agent-build/[projectId]/page.tsx
-// DIAGNOSTIC VERSION - Better error messages
+// ENHANCED VERSION with Platform Selection & Architect Preferences
 
 "use client";
 import { useState, useCallback, useEffect } from "react";
@@ -12,6 +12,8 @@ import {
 } from "@/types/agent-schemas";
 
 // Import Components
+import PlatformSelector from "@/components/agent/PlatformSelector";
+import ArchitectPreferences from "@/components/agent/ArchitectPreferences";
 import AgentControl from "@/components/agent/AgentControl";
 import AgentPlanner from "@/components/agent/AgentPlanner";
 import SandboxLogsViewer from "@/components/agent/SandboxLogsViewer";
@@ -38,11 +40,8 @@ const fetcher = async (url: string): Promise<ValidatedProjectAgentData> => {
     }
 
     const data: unknown = await res.json();
-
-    // Log the raw data for debugging
     logger.info("[BuildAgentPage] Raw API response received:", { data });
 
-    // Validate the data
     const validationResult = projectAgentDataSchema.safeParse(data);
 
     if (!validationResult.success) {
@@ -51,13 +50,11 @@ const fetcher = async (url: string): Promise<ValidatedProjectAgentData> => {
         validationResult.error
       );
 
-      // Log detailed error information
       logger.error("[BuildAgentPage] Validation errors:", undefined, {
         issues: validationResult.error.issues,
         receivedData: data,
       });
 
-      // Create a more helpful error message
       const firstIssue = validationResult.error.issues[0];
       const fieldPath = firstIssue?.path.join(".") || "unknown field";
       const errorMsg = firstIssue?.message || "Validation failed";
@@ -68,11 +65,9 @@ const fetcher = async (url: string): Promise<ValidatedProjectAgentData> => {
     logger.info("[BuildAgentPage] Data validated successfully");
     return validationResult.data;
   } catch (error) {
-    // Enhanced error logging
     if (error instanceof Error) {
       logger.error("[BuildAgentPage] Fetcher error:", error);
 
-      // Check if it's a Zod error
       if (error.message.includes("_zod")) {
         throw new Error(
           "Schema validation error: There's an issue with the data structure definition. " +
@@ -110,93 +105,67 @@ export default function BuildAgentPage() {
       return 0;
     },
     onError: (err) => {
-      // Log SWR errors
       logger.error("[BuildAgentPage] SWR error:", err);
     },
     onSuccess: (data) => {
-      // Log successful data fetch
       logger.info("[BuildAgentPage] SWR data fetch successful", {
         status: data?.agentStatus,
       });
     },
   });
 
-  const [isPlanning, setIsPlanning] = useState(false);
-  const [isPlanInitiated, setIsPlanInitiated] = useState(false);
+ 
+  // 🆕 NEW: State for multi-step flow
+  const [currentStep, setCurrentStep] = useState<
+    "platform" | "architect" | "building"
+  >("platform");
+  const [_selectedPlatform, setSelectedPlatform] = useState<string | null>(null);
+
+  const [isPlanning, _setIsPlanning] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
   const [isExecutingStep, setIsExecutingStep] = useState(false);
 
-  // --- Trigger Initial Planning ---
+  // 🆕 NEW: Determine current step based on project data
   useEffect(() => {
-    const triggerPlan = async () => {
-      if (isPlanInitiated) return;
-      setIsPlanInitiated(true);
+    if (!projectData) return;
 
-      setIsPlanning(true);
-      setPlanError(null);
-      logger.info("[BuildAgentPage] Triggering initial agent planning...");
-      try {
-        const res = await fetch(`/api/projects/${projectId}/agent/plan`, {
-          method: "POST",
-        });
-        if (!res.ok) {
-          const errData: unknown = await res
-            .json()
-            .catch(() => ({ error: "Failed to trigger plan" }));
-          const message =
-            typeof errData === "object" &&
-            errData !== null &&
-            "error" in errData &&
-            typeof (errData as { error: unknown }).error === "string"
-              ? (errData as { error: string }).error
-              : `API Error: ${res.status}`;
-          throw new Error(message);
-        }
-        logger.info(
-          "[BuildAgentPage] Planning initiated. Revalidating data..."
-        );
-        await revalidateProjectData();
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Unknown planning error.";
-        logger.error(
-          "[BuildAgentPage] Error triggering plan:",
-          err instanceof Error ? err : undefined
-        );
-        setPlanError(message);
-        toast.error(`Failed to start planning: ${message}`);
-        setIsPlanInitiated(false);
-      } finally {
-        setIsPlanning(false);
-      }
-    };
+    // Check if platform is selected
+    const hasPlatform = projectData.projectPlatform !== null;
 
-    if (
-      isLoadingProjectData ||
-      isValidating ||
-      isPlanning ||
-      isPlanInitiated ||
-      !projectId ||
-      error
-    ) {
-      return;
+    // Check if architect preferences are configured
+    const hasArchitectPrefs = projectData.agentArchitectPreferences !== null;
+
+    // Check if plan exists
+    const hasPlan = projectData.agentPlan !== null;
+
+    if (!hasPlatform) {
+      setCurrentStep("platform");
+    } else if (!hasArchitectPrefs) {
+      setCurrentStep("architect");
+      setSelectedPlatform(projectData.projectPlatform);
+    } else if (hasPlan || projectData.agentStatus !== null) {
+      setCurrentStep("building");
+      setSelectedPlatform(projectData.projectPlatform);
     }
-
-    if (projectData === undefined || projectData.agentStatus === null) {
-      void triggerPlan();
-    }
-  }, [
-    projectData,
-    isLoadingProjectData,
-    isValidating,
-    error,
-    projectId,
-    isPlanning,
-    revalidateProjectData,
-    isPlanInitiated,
-  ]);
+  }, [projectData]);
 
   // --- Callbacks ---
+  const handlePlatformSelected = useCallback(
+    async (platform: string) => {
+      logger.info(`[BuildAgentPage] Platform selected: ${platform}`);
+      setSelectedPlatform(platform);
+      setCurrentStep("architect");
+      await revalidateProjectData();
+    },
+    [revalidateProjectData]
+  );
+
+  const handleArchitectComplete = useCallback(async () => {
+    logger.info("[BuildAgentPage] Architect configuration complete");
+    setCurrentStep("building");
+    await revalidateProjectData();
+  }, [revalidateProjectData]);
+
   const handleActionComplete = useCallback(async () => {
     logger.info(
       "[BuildAgentPage] Action complete, revalidating project data..."
@@ -208,7 +177,9 @@ export default function BuildAgentPage() {
     if (!projectId || isExecutingStep) return;
     setIsExecutingStep(true);
     logger.info(
-      `[BuildAgentPage] Triggering execution for step ${projectData?.agentCurrentStep ?? 0}...`
+      `[BuildAgentPage] Triggering execution for step ${
+        projectData?.agentCurrentStep ?? 0
+      }...`
     );
     try {
       const response = await fetch(`/api/projects/${projectId}/agent/execute`, {
@@ -258,7 +229,6 @@ export default function BuildAgentPage() {
   const isGitHubConnected = !!projectData?.accounts?.some(
     (acc) => acc.provider === "github"
   );
- 
 
   // --- Render Logic ---
   const isLoading = isLoadingProjectData || isPlanning;
@@ -275,7 +245,6 @@ export default function BuildAgentPage() {
         <button
           onClick={() => {
             setPlanError(null);
-            setIsPlanInitiated(false);
           }}
           className="mt-4 px-4 py-2 bg-blue-500 text-white rounded"
         >
@@ -316,6 +285,32 @@ export default function BuildAgentPage() {
     );
   }
 
+  // 🆕 NEW: Multi-step rendering
+  // STEP 1: Platform Selection
+  if (currentStep === "platform") {
+    return (
+      <div className="container mx-auto">
+        <PlatformSelector
+          projectId={projectId}
+          onPlatformSelected={(platform) => void handlePlatformSelected(platform)}
+        />
+      </div>
+    );
+  }
+
+  // STEP 2: Architect Preferences
+  if (currentStep === "architect") {
+    return (
+      <div className="container mx-auto">
+        <ArchitectPreferences
+          projectId={projectId}
+          onComplete={() => void handleArchitectComplete()}
+        />
+      </div>
+    );
+  }
+
+  // STEP 3: Building Phase (existing logic)
   if (!projectData || projectData.agentStatus === null) {
     return <div className="p-4">Initializing agent...</div>;
   }
@@ -387,11 +382,15 @@ export default function BuildAgentPage() {
                   filesWritten:
                     projectData.agentExecutionHistory[
                       projectData.agentExecutionHistory.length - 1
-                    ].filesWritten ?? undefined,
+                    ].filesWritten ?? [],
                   commandsRun:
                     projectData.agentExecutionHistory[
                       projectData.agentExecutionHistory.length - 1
-                    ].commandsRun ?? undefined,
+                    ].commandsRun?.map(cmd => ({
+                      ...cmd,
+                      stdout: cmd.stdout ?? "",
+                      stderr: cmd.stderr ?? ""
+                    })) ?? [],
                   errorMessage:
                     projectData.agentExecutionHistory[
                       projectData.agentExecutionHistory.length - 1
@@ -404,6 +403,8 @@ export default function BuildAgentPage() {
               : null
           }
           onExecuteNextStep={handleExecuteNextStep}
+          fullPlan={projectData.agentPlan}
+          questions={projectData.agentClarificationQuestions}
         />
       )}
 

@@ -159,6 +159,53 @@ app.post("/fs/write", async (req, res) => {
     }
 });
 
+// --- File System Read Endpoint (NEW) ---
+app.post("/fs/read", async (req, res) => {
+  const { path: relativePath } = req.body;
+
+  if (!relativePath || typeof relativePath !== 'string') {
+    return res.status(400).json({ 
+      status: "error", 
+      message: "Invalid 'path' provided." 
+    });
+  }
+
+  if (relativePath.startsWith("/") || relativePath.includes("../")) {
+    return res.status(403).json({ 
+      status: "error", 
+      message: "Forbidden: Path must be relative and cannot traverse." 
+    });
+  }
+
+  const safeFilePath = path.join(WORKSPACE_DIR, relativePath);
+  const normalizedSandboxDir = path.normalize(WORKSPACE_DIR);
+  const normalizedFilePath = path.normalize(safeFilePath);
+
+  if (!normalizedFilePath.startsWith(normalizedSandboxDir)) {
+    return res.status(403).json({ 
+      status: "error", 
+      message: "Forbidden: Path is outside of sandbox." 
+    });
+  }
+
+  try {
+    const content = await fs.readFile(safeFilePath, "utf8");
+    res.status(200).json({ status: "success", content });
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      res.status(404).json({ 
+        status: "error", 
+        message: "File not found." 
+      });
+    } else {
+      res.status(500).json({ 
+        status: "error", 
+        message: error.message 
+      });
+    }
+  }
+});
+
 // --- Start the HTTP server ---
 const server = http.createServer(app);
 server.listen(PORT, () => {

@@ -1,3 +1,4 @@
+// src/app/api/sandbox/cleanup/route.ts
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
@@ -13,7 +14,10 @@ export async function POST(req: Request) {
     const projectIdUnknown = (body as Record<string, unknown>).projectId;
     if (typeof projectIdUnknown !== "string") {
       return NextResponse.json(
-        { success: false, error: "Invalid request body: projectId must be a string" },
+        {
+          success: false,
+          error: "Invalid request body: projectId must be a string",
+        },
         { status: 400 }
       );
     }
