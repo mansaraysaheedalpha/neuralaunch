@@ -215,10 +215,15 @@ To verify your installation is working correctly:
 
 ## 📖 Documentation
 
-- **[Platform Features Guide](./PLATFORM_FEATURES.md)** - 📘 **Complete guide to all features from idea to execution** - Start here!
+### 🎯 Feature Documentation
+- **[Features Quick Reference](./FEATURES_SUMMARY.md)** - ⚡ **One-page overview** - Perfect for quick sharing!
+- **[Complete Features Guide](./PLATFORM_FEATURES.md)** - 📘 **Detailed guide to all features** - Comprehensive 1,300+ line documentation
+
+### 🚀 Technical Documentation
 - **[Deployment Guide](./DEPLOYMENT.md)** - Complete production deployment instructions for Vercel and other platforms
 - **[Production Checklist](./PRODUCTION_CHECKLIST.md)** - Pre-launch verification checklist
 - **[AI Co-Founder Persistence](./COFOUNDER_PERSISTENCE.md)** - Deep dive into RAG implementation
+- **[MVP Generator User Guide](./client/docs/MVP_GENERATOR_USER_GUIDE.md)** - How to use the MVP code generator
 - **[API Documentation](#-api-documentation)** - API endpoints and usage examples
 - **[Architecture](#️-architecture)** - System design and data flow diagrams
 
