@@ -215,6 +215,7 @@ To verify your installation is working correctly:
 
 ## 📖 Documentation
 
+- **[Platform Features Guide](./PLATFORM_FEATURES.md)** - 📘 **Complete guide to all features from idea to execution** - Start here!
 - **[Deployment Guide](./DEPLOYMENT.md)** - Complete production deployment instructions for Vercel and other platforms
 - **[Production Checklist](./PRODUCTION_CHECKLIST.md)** - Pre-launch verification checklist
 - **[AI Co-Founder Persistence](./COFOUNDER_PERSISTENCE.md)** - Deep dive into RAG implementation
