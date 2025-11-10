@@ -91,3 +91,30 @@ export function createContextError(
   
   return error;
 }
+
+/**
+ * Extended Error types for agent operations
+ */
+export interface AgentError extends Error {
+  taskId?: string;
+  projectId?: string;
+  error?: unknown;
+  duration?: number;
+  tool?: string;
+}
+
+/**
+ * Create an agent error with taskId
+ */
+export function createAgentError(
+  message: string,
+  context: { taskId?: string; projectId?: string; error?: unknown; duration?: number; tool?: string }
+): AgentError {
+  const error = new Error(message) as AgentError;
+  if (context.taskId) error.taskId = context.taskId;
+  if (context.projectId) error.projectId = context.projectId;
+  if (context.error) error.error = context.error;
+  if (context.duration !== undefined) error.duration = context.duration;
+  if (context.tool) error.tool = context.tool;
+  return error;
+}

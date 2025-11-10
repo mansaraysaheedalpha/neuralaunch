@@ -9,6 +9,7 @@
 import { inngest } from "../client";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
+import { toError, createAgentError } from "@/lib/error-utils";
 
 export const fixCriticalIssuesFunction = inngest.createFunction(
   {
@@ -155,7 +156,7 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
               const agentEvent = getAgentEventName(task.agentName);
 
               await inngest.send({
-                name: agentEvent,
+                name: agentEvent as any,
                 data: {
                   taskId: `${task.id}-fix-${attempt}`,
                   projectId,
@@ -168,12 +169,8 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
                     attempt,
                     waveNumber,
                   },
-                  context: {
-                    techStack: criticReport.tasks.find(
-                      (t: any) => t.id === task.id
-                    )?.techStack,
-                  },
-                },
+                  priority: 1,
+                } as any,
               });
 
               results.push({
@@ -209,8 +206,7 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
                     event: eventName as any,
                     timeout: "15m",
                     match: `data.taskId`,
-                    if: `async.data.taskId == "${result.taskId}-fix-${attempt}"`,
-                  }
+                  } as any
                 );
 
                 completions.push({
@@ -221,7 +217,7 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
               } catch (error) {
                 log.error(
                   `[Wave ${waveNumber}] Agent ${result.agentName} timeout`,
-                  error
+                  toError(error)
                 );
                 completions.push({
                   taskId: result.taskId,
@@ -279,12 +275,12 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
               }
             );
 
-            return criticResult.data;
+            return criticResult?.data ?? null;
           }
         );
 
         // Step 3.4: Check if fixes were successful
-        if (verificationResult.approved && verificationResult.success) {
+        if (verificationResult && verificationResult.approved && verificationResult.success) {
           log.info(
             `[Wave ${waveNumber}] Fixes successful on attempt ${attempt}!`,
             {
@@ -301,7 +297,7 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
             },
           });
         } else {
-          lastError = `Critic still found issues after attempt ${attempt}. Score: ${verificationResult.score}`;
+          lastError = `Critic still found issues after attempt ${attempt}. Score: ${verificationResult?.score ?? 'N/A'}`;
           log.warn(`[Wave ${waveNumber}] ${lastError}`);
 
           // Check if we should continue trying
@@ -428,9 +424,7 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
 
-      log.error(`[Wave ${waveNumber}] Auto-fix workflow failed`, {
-        error: errorMessage,
-      });
+      log.error(`[Wave ${waveNumber}] Auto-fix workflow failed`, toError(error));
 
       // Send failure event
       await inngest.send({

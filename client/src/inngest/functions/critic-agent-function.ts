@@ -40,7 +40,7 @@ export const criticAgentFunction = inngest.createFunction(
         data: {
           taskId,
           projectId,
-          waveNumber: taskInput.waveNumber,
+          waveNumber: taskInput.waveNumber ?? 0,
           success: true,
           approved: true,
         },
@@ -67,10 +67,10 @@ export const criticAgentFunction = inngest.createFunction(
     // Step 3: Execute Critic Agent
     const result = await step.run("perform-code-review", async () => {
       return await criticAgent.execute({
-        taskId,
+        taskId: taskId!,
         projectId,
-        userId,
-        conversationId,
+        userId: userId!,
+        conversationId: conversationId!,
         taskDetails: {
           title: "Code Review",
           description: "Automated code quality and security review",
@@ -195,7 +195,7 @@ ${report.approved ? "✅ **Code review passed!**" : "❌ **Code review failed - 
         data: {
           taskId,
           projectId,
-          waveNumber: taskInput.waveNumber,
+          waveNumber: taskInput.waveNumber ?? 0,
           success: result.success,
           approved: result.data?.approved,
           score: result.data?.report?.overallScore,

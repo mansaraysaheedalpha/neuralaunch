@@ -11,6 +11,7 @@ export type AgentEvents = {
       userId: string;
       stepIndex: number;
       taskDescription: string;
+      taskId?: string;
       // Pass context needed by the execution function
       blueprintSummary: string; // Keep it concise
       userResponses: Record<string, string> | null;
