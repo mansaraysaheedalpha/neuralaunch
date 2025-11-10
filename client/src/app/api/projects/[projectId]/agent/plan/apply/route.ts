@@ -19,10 +19,12 @@ const applyFeedbackSchema = z.object({
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   const logger = createApiLogger({
-    path: `/api/projects/${params.projectId}/plan/apply`,
+    path: `/api/projects/${projectId}/plan/apply`,
     method: "POST",
   });
 
@@ -41,7 +43,7 @@ export async function POST(
 
     // 3. Verify project ownership
     const projectContext = await prisma.projectContext.findUnique({
-      where: { projectId: params.projectId },
+      where: { projectId: projectId },
       select: { userId: true, currentPhase: true },
     });
 
@@ -56,12 +58,12 @@ export async function POST(
     // 4. Handle revert action
     if (validatedBody.action === "revert") {
       logger.info("Reverting to original plan", {
-        projectId: params.projectId,
+        projectId: projectId,
       });
 
       // Get original plan (before any revisions)
       const originalPlan = await prisma.projectContext.findUnique({
-        where: { projectId: params.projectId },
+        where: { projectId: projectId },
         select: { executionPlan: true },
       });
 
@@ -73,16 +75,16 @@ export async function POST(
     }
 
     // 5. Apply feedback changes
-    logger.info("Applying feedback to plan", { projectId: params.projectId });
+    logger.info("Applying feedback to plan", { projectId: projectId });
 
     const result = await planningAgent.applyFeedback(
-      params.projectId,
+      projectId,
       validatedBody.feedback,
       validatedBody.analysisResult
     );
 
     logger.info("Feedback applied successfully", {
-      projectId: params.projectId,
+      projectId: projectId,
       taskCount: result.plan?.tasks.length,
     });
 

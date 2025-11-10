@@ -39,7 +39,15 @@ const nextConfig: NextJsConfig = {
         stream: false,
         os: false,
         path: false,
+        "@sendgrid/mail": false,
+        "@aws-sdk/client-ses": false,
       };
+    } else {
+      // Server-side: externalize optional email providers
+      config.externals = config.externals || [];
+      if (Array.isArray(config.externals)) {
+        config.externals.push("@sendgrid/mail", "@aws-sdk/client-ses");
+      }
     }
 
     // Ignore binary files from ssh2 and dockerode

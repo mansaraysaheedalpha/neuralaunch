@@ -16,10 +16,12 @@ const approveSchema = z.object({
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   const logger = createApiLogger({
-    path: `/api/projects/${params.projectId}/plan/approve`,
+    path: `/api/projects/${projectId}/plan/approve`,
     method: "POST",
   });
 
@@ -38,7 +40,7 @@ export async function POST(
 
     // 3. Verify project ownership
     const projectContext = await prisma.projectContext.findUnique({
-      where: { projectId: params.projectId },
+      where: { projectId: projectId },
       select: {
         userId: true,
         currentPhase: true,
@@ -75,7 +77,7 @@ export async function POST(
 
     // 6. Update plan approval status
     await prisma.projectContext.update({
-      where: { projectId: params.projectId },
+      where: { projectId: projectId },
       data: {
         planApprovalStatus: "approved",
         currentPhase: "wave_execution", // NEW phase
@@ -83,14 +85,14 @@ export async function POST(
     });
 
     logger.info("Plan approved, triggering Wave 1", {
-      projectId: params.projectId,
+      projectId: projectId,
     });
 
     // 7. Trigger Wave 1 execution via Inngest
     await inngest.send({
       name: "agent/wave.start",
       data: {
-        projectId: params.projectId,
+        projectId: projectId,
         userId,
         conversationId: validatedBody.conversationId,
         waveNumber: 1,
@@ -125,10 +127,12 @@ export async function POST(
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   const logger = createApiLogger({
-    path: `/api/projects/${params.projectId}/plan/approve`,
+    path: `/api/projects/${projectId}/plan/approve`,
     method: "GET",
   });
 
@@ -139,7 +143,7 @@ export async function GET(
     }
 
     const projectContext = await prisma.projectContext.findUnique({
-      where: { projectId: params.projectId },
+      where: { projectId: projectId },
       select: {
         userId: true,
         currentPhase: true,
@@ -157,7 +161,7 @@ export async function GET(
     }
 
     return NextResponse.json({
-      projectId: params.projectId,
+      projectId: projectId,
       currentPhase: projectContext.currentPhase,
       approvalStatus: projectContext.planApprovalStatus,
       revisionCount: projectContext.planRevisionCount,

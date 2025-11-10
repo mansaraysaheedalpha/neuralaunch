@@ -23,10 +23,12 @@ const reviewActionSchema = z.object({
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string; reviewId: string } }
+  { params }: { params: Promise<{ projectId: string, reviewId: string }> }
 ) {
+  const { projectId, reviewId } = await params;
+
   const logger = createApiLogger({
-    path: `/api/projects/${params.projectId}/reviews/${params.reviewId}/actions`,
+    path: `/api/projects/${projectId}/reviews/${reviewId}/actions`,
     method: "POST",
   });
 
@@ -44,7 +46,7 @@ export async function POST(
 
     // Verify project ownership
     const projectContext = await prisma.projectContext.findUnique({
-      where: { projectId: params.projectId },
+      where: { projectId: projectId },
       select: { userId: true },
     });
 
@@ -58,14 +60,14 @@ export async function POST(
 
     // Get review
     const review = await prisma.humanReviewRequest.findUnique({
-      where: { id: params.reviewId },
+      where: { id: reviewId },
     });
 
     if (!review) {
       return NextResponse.json({ error: "Review not found" }, { status: 404 });
     }
 
-    if (review.projectId !== params.projectId) {
+    if (review.projectId !== projectId) {
       return NextResponse.json(
         { error: "Review does not belong to this project" },
         { status: 400 }
@@ -77,7 +79,7 @@ export async function POST(
       case "approve":
         // Mark as resolved and continue to next wave
         await prisma.humanReviewRequest.update({
-          where: { id: params.reviewId },
+          where: { id: reviewId },
           data: {
             status: "resolved",
             resolution: "approved_by_human",
@@ -90,7 +92,7 @@ export async function POST(
         await prisma.executionWave.update({
           where: {
             projectId_waveNumber: {
-              projectId: params.projectId,
+              projectId: projectId,
               waveNumber: review.waveNumber,
             },
           },
@@ -102,7 +104,7 @@ export async function POST(
 
         // Update project context
         await prisma.projectContext.update({
-          where: { projectId: params.projectId },
+          where: { projectId: projectId },
           data: {
             humanReviewRequired: false,
           },
@@ -111,7 +113,7 @@ export async function POST(
         // Trigger next wave
         const pendingTasksCount = await prisma.agentTask.count({
           where: {
-            projectId: params.projectId,
+            projectId: projectId,
             status: "pending",
             waveNumber: null,
           },
@@ -121,7 +123,7 @@ export async function POST(
           await inngest.send({
             name: "agent/wave.start",
             data: {
-              projectId: params.projectId,
+              projectId: projectId,
               userId,
               conversationId: validatedBody.conversationId,
               waveNumber: review.waveNumber + 1,
@@ -130,7 +132,7 @@ export async function POST(
         }
 
         logger.info("Review approved, continuing execution", {
-          reviewId: params.reviewId,
+          reviewId: reviewId,
           nextWave: review.waveNumber + 1,
         });
 
@@ -144,7 +146,7 @@ export async function POST(
       case "reject":
         // Mark as resolved but stop execution
         await prisma.humanReviewRequest.update({
-          where: { id: params.reviewId },
+          where: { id: reviewId },
           data: {
             status: "resolved",
             resolution: "rejected_by_human",
@@ -157,7 +159,7 @@ export async function POST(
         await prisma.executionWave.update({
           where: {
             projectId_waveNumber: {
-              projectId: params.projectId,
+              projectId: projectId,
               waveNumber: review.waveNumber,
             },
           },
@@ -167,7 +169,7 @@ export async function POST(
         });
 
         logger.info("Review rejected", {
-          reviewId: params.reviewId,
+          reviewId: reviewId,
         });
 
         return NextResponse.json({
@@ -179,7 +181,7 @@ export async function POST(
       case "request_changes":
         // Keep review open, expecting manual fixes
         await prisma.humanReviewRequest.update({
-          where: { id: params.reviewId },
+          where: { id: reviewId },
           data: {
             status: "in_review",
             resolverNotes: validatedBody.notes || "Changes requested",
@@ -188,7 +190,7 @@ export async function POST(
         });
 
         logger.info("Changes requested on review", {
-          reviewId: params.reviewId,
+          reviewId: reviewId,
         });
 
         return NextResponse.json({
@@ -200,7 +202,7 @@ export async function POST(
       case "retry_autofix":
         // Retry auto-fix with higher attempt limit
         await prisma.humanReviewRequest.update({
-          where: { id: params.reviewId },
+          where: { id: reviewId },
           data: {
             status: "in_review",
             resolverNotes: (validatedBody.notes || "") + " - Retrying auto-fix",
@@ -212,7 +214,7 @@ export async function POST(
         await inngest.send({
           name: "agent/quality.fix-issues",
           data: {
-            projectId: params.projectId,
+            projectId: projectId,
             userId,
             conversationId: validatedBody.conversationId,
             waveNumber: review.waveNumber,
@@ -224,7 +226,7 @@ export async function POST(
         });
 
         logger.info("Retrying auto-fix", {
-          reviewId: params.reviewId,
+          reviewId: reviewId,
           extendedRetries: 10,
         });
 

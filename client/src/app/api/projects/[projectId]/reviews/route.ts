@@ -10,6 +10,7 @@ import { createApiLogger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { sendReviewNotification } from "@/lib/notifications/notification-service";
+import { toLogContext } from "@/lib/error-utils";
 
 const createReviewSchema = z.object({
   waveNumber: z.number().int().positive(),
@@ -26,10 +27,12 @@ const createReviewSchema = z.object({
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   const logger = createApiLogger({
-    path: `/api/projects/${params.projectId}/reviews`,
+    path: `/api/projects/${projectId}/reviews`,
     method: "GET",
   });
 
@@ -44,7 +47,7 @@ export async function GET(
 
     // 2. Verify project ownership
     const projectContext = await prisma.projectContext.findUnique({
-      where: { projectId: params.projectId },
+      where: { projectId: projectId },
       select: { userId: true },
     });
 
@@ -64,7 +67,7 @@ export async function GET(
     // 4. Fetch review requests
     const reviews = await prisma.humanReviewRequest.findMany({
       where: {
-        projectId: params.projectId,
+        projectId: projectId,
         ...(status && { status }),
         ...(priority && { priority }),
       },
@@ -72,17 +75,17 @@ export async function GET(
         { priority: "asc" }, // critical first
         { createdAt: "desc" }, // newest first
       ],
-      include: {
-        _count: {
-          select: {
-            // If you add comments model later
-          },
-        },
-      },
+      // include: {
+      //   _count: {
+      //     select: {
+      //       // If you add comments model later
+      //     },
+      //   },
+      // },
     });
 
     logger.info("Review requests retrieved", {
-      projectId: params.projectId,
+      projectId: projectId,
       count: reviews.length,
     });
 
@@ -125,10 +128,12 @@ export async function GET(
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   const logger = createApiLogger({
-    path: `/api/projects/${params.projectId}/reviews`,
+    path: `/api/projects/${projectId}/reviews`,
     method: "POST",
   });
 
@@ -147,7 +152,7 @@ export async function POST(
 
     // 3. Verify project ownership
     const projectContext = await prisma.projectContext.findUnique({
-      where: { projectId: params.projectId },
+      where: { projectId: projectId },
       select: { userId: true },
     });
 
@@ -163,7 +168,7 @@ export async function POST(
     const existingReview = await prisma.humanReviewRequest.findUnique({
       where: {
         projectId_waveNumber: {
-          projectId: params.projectId,
+          projectId: projectId,
           waveNumber: validatedBody.waveNumber,
         },
       },
@@ -182,7 +187,7 @@ export async function POST(
     // 5. Create review request
     const review = await prisma.humanReviewRequest.create({
       data: {
-        projectId: params.projectId,
+        projectId: projectId,
         waveNumber: validatedBody.waveNumber,
         reason: validatedBody.reason,
         description: validatedBody.description,
@@ -195,7 +200,7 @@ export async function POST(
 
     logger.info("Review request created", {
       reviewId: review.id,
-      projectId: params.projectId,
+      projectId: projectId,
       waveNumber: validatedBody.waveNumber,
       priority: validatedBody.priority,
     });
@@ -205,7 +210,7 @@ export async function POST(
       await sendReviewNotification({
         userId,
         reviewId: review.id,
-        projectId: params.projectId,
+        projectId: projectId,
         waveNumber: validatedBody.waveNumber,
         priority: validatedBody.priority,
         reason: validatedBody.reason,
@@ -220,7 +225,7 @@ export async function POST(
         },
       });
     } catch (notifError) {
-      logger.warn("Failed to send review notification", notifError);
+      logger.warn("Failed to send review notification", toLogContext(notifError));
       // Don't fail the request if notification fails
     }
 

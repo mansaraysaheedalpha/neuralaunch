@@ -24,10 +24,12 @@ const updateReviewSchema = z.object({
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { projectId: string; reviewId: string } }
+  { params }: { params: Promise<{ projectId: string, reviewId: string }> }
 ) {
+  const { projectId, reviewId } = await params;
+
   const logger = createApiLogger({
-    path: `/api/projects/${params.projectId}/reviews/${params.reviewId}`,
+    path: `/api/projects/${projectId}/reviews/${reviewId}`,
     method: "GET",
   });
 
@@ -41,7 +43,7 @@ export async function GET(
 
     // Verify project ownership
     const projectContext = await prisma.projectContext.findUnique({
-      where: { projectId: params.projectId },
+      where: { projectId: projectId },
       select: { userId: true },
     });
 
@@ -55,14 +57,14 @@ export async function GET(
 
     // Get review
     const review = await prisma.humanReviewRequest.findUnique({
-      where: { id: params.reviewId },
+      where: { id: reviewId },
     });
 
     if (!review) {
       return NextResponse.json({ error: "Review not found" }, { status: 404 });
     }
 
-    if (review.projectId !== params.projectId) {
+    if (review.projectId !== projectId) {
       return NextResponse.json(
         { error: "Review does not belong to this project" },
         { status: 400 }
@@ -73,7 +75,7 @@ export async function GET(
     const wave = await prisma.executionWave.findUnique({
       where: {
         projectId_waveNumber: {
-          projectId: params.projectId,
+          projectId: projectId,
           waveNumber: review.waveNumber,
         },
       },
@@ -82,7 +84,7 @@ export async function GET(
     // Get tasks in the wave
     const tasks = await prisma.agentTask.findMany({
       where: {
-        projectId: params.projectId,
+        projectId: projectId,
         waveNumber: review.waveNumber,
       },
       select: {
@@ -98,7 +100,7 @@ export async function GET(
     });
 
     logger.info("Review details retrieved", {
-      reviewId: params.reviewId,
+      reviewId: reviewId,
       status: review.status,
     });
 
@@ -156,10 +158,12 @@ export async function GET(
  */
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { projectId: string; reviewId: string } }
+  { params }: { params: Promise<{ projectId: string, reviewId: string }> }
 ) {
+  const { projectId, reviewId } = await params;
+
   const logger = createApiLogger({
-    path: `/api/projects/${params.projectId}/reviews/${params.reviewId}`,
+    path: `/api/projects/${projectId}/reviews/${reviewId}`,
     method: "PATCH",
   });
 
@@ -177,7 +181,7 @@ export async function PATCH(
 
     // Verify project ownership
     const projectContext = await prisma.projectContext.findUnique({
-      where: { projectId: params.projectId },
+      where: { projectId: projectId },
       select: { userId: true },
     });
 
@@ -191,14 +195,14 @@ export async function PATCH(
 
     // Get existing review
     const existingReview = await prisma.humanReviewRequest.findUnique({
-      where: { id: params.reviewId },
+      where: { id: reviewId },
     });
 
     if (!existingReview) {
       return NextResponse.json({ error: "Review not found" }, { status: 404 });
     }
 
-    if (existingReview.projectId !== params.projectId) {
+    if (existingReview.projectId !== projectId) {
       return NextResponse.json(
         { error: "Review does not belong to this project" },
         { status: 400 }
@@ -207,7 +211,7 @@ export async function PATCH(
 
     // Update review
     const updatedReview = await prisma.humanReviewRequest.update({
-      where: { id: params.reviewId },
+      where: { id: reviewId },
       data: {
         ...validatedBody,
         updatedAt: new Date(),
@@ -218,7 +222,7 @@ export async function PATCH(
     });
 
     logger.info("Review updated", {
-      reviewId: params.reviewId,
+      reviewId: reviewId,
       status: updatedReview.status,
       assignedTo: updatedReview.assignedTo,
     });
@@ -257,10 +261,12 @@ export async function PATCH(
  */
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { projectId: string; reviewId: string } }
+  { params }: { params: Promise<{ projectId: string, reviewId: string }> }
 ) {
+  const { projectId, reviewId } = await params;
+
   const logger = createApiLogger({
-    path: `/api/projects/${params.projectId}/reviews/${params.reviewId}`,
+    path: `/api/projects/${projectId}/reviews/${reviewId}`,
     method: "DELETE",
   });
 
@@ -274,7 +280,7 @@ export async function DELETE(
 
     // Verify project ownership
     const projectContext = await prisma.projectContext.findUnique({
-      where: { projectId: params.projectId },
+      where: { projectId: projectId },
       select: { userId: true },
     });
 
@@ -288,14 +294,14 @@ export async function DELETE(
 
     // Check review exists
     const review = await prisma.humanReviewRequest.findUnique({
-      where: { id: params.reviewId },
+      where: { id: reviewId },
     });
 
     if (!review) {
       return NextResponse.json({ error: "Review not found" }, { status: 404 });
     }
 
-    if (review.projectId !== params.projectId) {
+    if (review.projectId !== projectId) {
       return NextResponse.json(
         { error: "Review does not belong to this project" },
         { status: 400 }
@@ -304,7 +310,7 @@ export async function DELETE(
 
     // Soft delete by marking as cancelled
     await prisma.humanReviewRequest.update({
-      where: { id: params.reviewId },
+      where: { id: reviewId },
       data: {
         status: "cancelled",
         updatedAt: new Date(),
@@ -312,7 +318,7 @@ export async function DELETE(
     });
 
     logger.info("Review cancelled", {
-      reviewId: params.reviewId,
+      reviewId: reviewId,
     });
 
     return NextResponse.json({

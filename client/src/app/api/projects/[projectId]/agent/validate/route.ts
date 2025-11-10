@@ -82,7 +82,7 @@ export async function POST(
     }
 
     // 5. Execute validation agent
-    logger.info("Executing validation agent", { projectId: params.projectId });
+    logger.info("Executing validation agent", { projectId: projectId });
 
     const result = await validationAgent.execute({
       projectId: projectId,
@@ -91,10 +91,7 @@ export async function POST(
     });
 
     if (!result.success) {
-      logger.error("Validation execution failed", {
-        projectId: projectId,
-        error: result.message,
-      });
+      logger.error("Validation execution failed", new Error(result.message), { projectId: projectId });
       return NextResponse.json({ error: result.message }, { status: 500 });
     }
 
@@ -133,10 +130,12 @@ export async function POST(
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   const logger = createApiLogger({
-    path: `/api/projects/${params.projectId}/agent/validate`,
+    path: `/api/projects/${projectId}/agent/validate`,
     method: "GET",
   });
 
@@ -151,7 +150,7 @@ export async function GET(
 
     // 2. Get project context with validation results
     const projectContext = await prisma.projectContext.findUnique({
-      where: { projectId: params.projectId },
+      where: { projectId: projectId },
       select: {
         userId: true,
         currentPhase: true,
@@ -174,7 +173,7 @@ export async function GET(
 
     if (!validation) {
       logger.info("No validation results found", {
-        projectId: params.projectId,
+        projectId: projectId,
       });
       return NextResponse.json({
         hasValidation: false,
@@ -186,7 +185,7 @@ export async function GET(
     // 4. Get latest execution log
     const latestExecution = await prisma.agentExecution.findFirst({
       where: {
-        projectId: params.projectId,
+        projectId: projectId,
         agentName: "ValidationAgent",
       },
       orderBy: { createdAt: "desc" },
@@ -199,7 +198,7 @@ export async function GET(
     });
 
     logger.info("Validation results retrieved", {
-      projectId: params.projectId,
+      projectId: projectId,
       hasValidation: true,
     });
 

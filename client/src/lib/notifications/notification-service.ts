@@ -289,7 +289,7 @@ async function sendWithResend(params: {
 }
 
 /**
- * Send with SendGrid
+ * Send with SendGrid (optional dependency)
  */
 async function sendWithSendGrid(params: {
   to: string;
@@ -297,10 +297,10 @@ async function sendWithSendGrid(params: {
   html: string;
   text: string;
 }): Promise<void> {
-  const sgMail = await import("@sendgrid/mail");
-  sgMail.default.setApiKey(process.env.SENDGRID_API_KEY!);
-
   try {
+    const sgMail = await import("@sendgrid/mail");
+    sgMail.default.setApiKey(process.env.SENDGRID_API_KEY!);
+
     await sgMail.default.send({
       from: process.env.EMAIL_FROM || "noreply@neuralaunch.com",
       to: params.to,
@@ -311,13 +311,17 @@ async function sendWithSendGrid(params: {
 
     logger.info("Email sent via SendGrid", { to: params.to });
   } catch (error) {
+    if ((error as any)?.code === 'MODULE_NOT_FOUND') {
+      logger.warn("SendGrid not installed, skipping email", { to: params.to });
+      return;
+    }
     logger.error("SendGrid email failed", error);
     throw error;
   }
 }
 
 /**
- * Send with AWS SES
+ * Send with AWS SES (optional dependency)
  */
 async function sendWithSES(params: {
   to: string;
@@ -325,17 +329,17 @@ async function sendWithSES(params: {
   html: string;
   text: string;
 }): Promise<void> {
-  const { SESClient, SendEmailCommand } = await import("@aws-sdk/client-ses");
-
-  const sesClient = new SESClient({
-    region: process.env.AWS_REGION || "us-east-1",
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-    },
-  });
-
   try {
+    const { SESClient, SendEmailCommand } = await import("@aws-sdk/client-ses");
+
+    const sesClient = new SESClient({
+      region: process.env.AWS_REGION || "us-east-1",
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+      },
+    });
+
     const command = new SendEmailCommand({
       Source: process.env.EMAIL_FROM || "noreply@neuralaunch.com",
       Destination: {
@@ -360,6 +364,10 @@ async function sendWithSES(params: {
 
     logger.info("Email sent via AWS SES", { to: params.to });
   } catch (error) {
+    if ((error as any)?.code === 'MODULE_NOT_FOUND') {
+      logger.warn("AWS SES SDK not installed, skipping email", { to: params.to });
+      return;
+    }
     logger.error("AWS SES email failed", error);
     throw error;
   }

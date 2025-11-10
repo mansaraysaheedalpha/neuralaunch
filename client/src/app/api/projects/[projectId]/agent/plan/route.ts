@@ -17,10 +17,12 @@ const planRequestSchema = z.object({
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   const logger = createApiLogger({
-    path: `/api/projects/${params.projectId}/agent/plan`,
+    path: `/api/projects/${projectId}/agent/plan`,
     method: "POST",
   });
 
@@ -35,7 +37,7 @@ export async function POST(
     const userId = session.user.id;
     logger.info("Planning request received", {
       userId,
-      projectId: params.projectId,
+      projectId: projectId,
     });
 
     // 2. Parse and validate request body
@@ -44,7 +46,7 @@ export async function POST(
 
     // 3. Verify project exists and user owns it
     const projectContext = await prisma.projectContext.findUnique({
-      where: { projectId: params.projectId },
+      where: { projectId: projectId },
       select: {
         userId: true,
         currentPhase: true,
@@ -53,13 +55,13 @@ export async function POST(
     });
 
     if (!projectContext) {
-      logger.warn("Project not found", { projectId: params.projectId });
+      logger.warn("Project not found", { projectId: projectId });
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
     if (projectContext.userId !== userId) {
       logger.warn("Unauthorized project access attempt", {
-        projectId: params.projectId,
+        projectId: projectId,
         userId,
       });
       return NextResponse.json(
@@ -74,7 +76,7 @@ export async function POST(
       projectContext.currentPhase !== "planning"
     ) {
       logger.warn("Planning attempted before validation phase", {
-        projectId: params.projectId,
+        projectId: projectId,
         currentPhase: projectContext.currentPhase,
       });
       return NextResponse.json(
@@ -92,7 +94,7 @@ export async function POST(
 
     if (!validation || !validation.feasible) {
       logger.warn("Planning attempted on non-feasible project", {
-        projectId: params.projectId,
+        projectId: projectId,
       });
       return NextResponse.json(
         {
@@ -105,24 +107,23 @@ export async function POST(
     }
 
     // 6. Execute planning agent
-    logger.info("Executing planning agent", { projectId: params.projectId });
+    logger.info("Executing planning agent", { projectId: projectId });
 
     const result = await planningAgent.execute({
-      projectId: params.projectId,
+      projectId: projectId,
       userId,
       conversationId: validatedBody.conversationId,
     });
 
     if (!result.success) {
-      logger.error("Planning execution failed", {
-        projectId: params.projectId,
-        error: result.message,
+      logger.error("Planning execution failed", new Error(result.message), {
+        projectId: projectId,
       });
       return NextResponse.json({ error: result.message }, { status: 500 });
     }
 
     logger.info("Planning completed successfully", {
-      projectId: params.projectId,
+      projectId: projectId,
       taskCount: result.plan?.tasks.length,
       executionId: result.executionId,
     });
@@ -156,10 +157,12 @@ export async function POST(
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   const logger = createApiLogger({
-    path: `/api/projects/${params.projectId}/agent/plan`,
+    path: `/api/projects/${projectId}/agent/plan`,
     method: "GET",
   });
 
@@ -174,7 +177,7 @@ export async function GET(
 
     // 2. Get project context with planning results
     const projectContext = await prisma.projectContext.findUnique({
-      where: { projectId: params.projectId },
+      where: { projectId: projectId },
       select: {
         userId: true,
         currentPhase: true,
@@ -193,7 +196,7 @@ export async function GET(
 
     // 3. Check if plan exists
     if (!projectContext.executionPlan) {
-      logger.info("No planning results found", { projectId: params.projectId });
+      logger.info("No planning results found", { projectId: projectId });
       return NextResponse.json({
         hasPlan: false,
         currentPhase: projectContext.currentPhase,
@@ -204,7 +207,7 @@ export async function GET(
     // 4. Get latest execution log
     const latestExecution = await prisma.agentExecution.findFirst({
       where: {
-        projectId: params.projectId,
+        projectId: projectId,
         agentName: "PlanningAgent",
       },
       orderBy: { createdAt: "desc" },
@@ -219,12 +222,12 @@ export async function GET(
     // 5. Get task statistics
     const taskStats = await prisma.agentTask.groupBy({
       by: ["status"],
-      where: { projectId: params.projectId },
+      where: { projectId: projectId },
       _count: true,
     });
 
     logger.info("Planning results retrieved", {
-      projectId: params.projectId,
+      projectId: projectId,
       hasPlan: true,
     });
 

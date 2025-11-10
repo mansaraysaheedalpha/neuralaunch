@@ -40,10 +40,12 @@ const feedbackSchema = z.object({
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   const logger = createApiLogger({
-    path: `/api/projects/${params.projectId}/plan/feedback`,
+    path: `/api/projects/${projectId}/plan/feedback`,
     method: "POST",
   });
 
@@ -62,7 +64,7 @@ export async function POST(
 
     // 3. Verify project ownership
     const projectContext = await prisma.projectContext.findUnique({
-      where: { projectId: params.projectId },
+      where: { projectId: projectId },
       select: { userId: true, currentPhase: true },
     });
 
@@ -86,15 +88,15 @@ export async function POST(
     }
 
     // 5. Analyze feedback (this does NOT apply changes yet)
-    logger.info("Analyzing feedback", { projectId: params.projectId });
+    logger.info("Analyzing feedback", { projectId: projectId });
 
-    const analysis = await planningAgent.analyzeFeedback(params.projectId, {
+    const analysis = await planningAgent.analyzeFeedback(projectId, {
       freeformFeedback: validatedBody.freeformFeedback,
       structuredChanges: validatedBody.structuredChanges,
     });
 
     logger.info("Feedback analysis complete", {
-      projectId: params.projectId,
+      projectId: projectId,
       feasible: analysis.feasible,
       warnings: analysis.warnings.length,
       blockers: analysis.blockers.length,

@@ -11,10 +11,12 @@ import prisma from "@/lib/prisma";
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+  
   const logger = createApiLogger({
-    path: `/api/orchestrator/status/${params.projectId}`,
+    path: `/api/orchestrator/status/${projectId}`,
     method: "GET",
   });
 
@@ -29,7 +31,7 @@ export async function GET(
 
     // 2. Verify project exists and user owns it
     const projectContext = await prisma.projectContext.findUnique({
-      where: { projectId: params.projectId },
+      where: { projectId },
       select: {
         userId: true,
         currentPhase: true,
@@ -46,11 +48,11 @@ export async function GET(
     }
 
     // 3. Get orchestration status
-    const status = await orchestrator.getStatus(params.projectId);
+    const status = await orchestrator.getStatus(projectId);
 
     // 4. Get execution logs for each phase
     const executions = await prisma.agentExecution.findMany({
-      where: { projectId: params.projectId },
+      where: { projectId: projectId },
       orderBy: { createdAt: "asc" },
       select: {
         agentName: true,
@@ -68,13 +70,13 @@ export async function GET(
     const progressPercentage = Math.round((completedCount / totalPhases) * 100);
 
     logger.info("Status retrieved", {
-      projectId: params.projectId,
+      projectId,
       currentPhase: status.currentPhase,
       progress: progressPercentage,
     });
 
     return NextResponse.json({
-      projectId: params.projectId,
+      projectId,
       currentPhase: status.currentPhase,
       completedPhases: status.completedPhases,
       progress: progressPercentage,
@@ -104,10 +106,12 @@ export async function GET(
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+  
   const logger = createApiLogger({
-    path: `/api/orchestrator/status/${params.projectId}/resume`,
+    path: `/api/orchestrator/status/${projectId}/resume`,
     method: "POST",
   });
 
@@ -122,7 +126,7 @@ export async function POST(
 
     // 2. Get conversation ID from project
     const projectContext = await prisma.projectContext.findUnique({
-      where: { projectId: params.projectId },
+      where: { projectId },
       select: {
         userId: true,
         conversationId: true,
@@ -147,19 +151,19 @@ export async function POST(
     }
 
     logger.info("Resuming orchestration", {
-      projectId: params.projectId,
+      projectId,
       currentPhase: projectContext.currentPhase,
     });
 
     // 4. Resume orchestration
     const result = await orchestrator.resume(
-      params.projectId,
+      projectId,
       userId,
       projectContext.conversationId
     );
 
     logger.info("Orchestration resumed", {
-      projectId: params.projectId,
+      projectId,
       success: result.success,
     });
 

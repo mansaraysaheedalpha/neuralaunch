@@ -30,10 +30,12 @@ const deploySchema = z.object({
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   const logger = createApiLogger({
-    path: `/api/projects/${params.projectId}/deploy`,
+    path: `/api/projects/${projectId}/deploy`,
     method: "POST",
   });
 
@@ -52,7 +54,7 @@ export async function POST(
 
     // 3. Verify project ownership
     const projectContext = await prisma.projectContext.findUnique({
-      where: { projectId: params.projectId },
+      where: { projectId: projectId },
       select: {
         userId: true,
         currentPhase: true,
@@ -78,7 +80,7 @@ export async function POST(
     // 5. Check if project is ready for deployment
     const incompleteTasks = await prisma.agentTask.count({
       where: {
-        projectId: params.projectId,
+        projectId: projectId,
         status: { in: ["pending", "in_progress", "failed"] },
       },
     });
@@ -96,7 +98,7 @@ export async function POST(
 
     // 6. Trigger Deploy Agent
     logger.info("Triggering Deploy Agent", {
-      projectId: params.projectId,
+      projectId: projectId,
       platform,
       environment: validatedBody.environment,
     });
@@ -104,8 +106,8 @@ export async function POST(
     await inngest.send({
       name: "agent/deployment.deploy",
       data: {
-        taskId: `deploy-${params.projectId}-${validatedBody.environment}-${Date.now()}`,
-        projectId: params.projectId,
+        taskId: `deploy-${projectId}-${validatedBody.environment}-${Date.now()}`,
+        projectId: projectId,
         userId,
         conversationId: validatedBody.conversationId,
         environment: validatedBody.environment as 'staging' | 'production' | 'preview',
@@ -121,7 +123,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       message: `Deployment to ${platform} triggered`,
-      projectId: params.projectId,
+      projectId: projectId,
       platform,
       environment: validatedBody.environment,
     });
@@ -148,10 +150,12 @@ export async function POST(
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
+  const { projectId } = await params;
+
   const logger = createApiLogger({
-    path: `/api/projects/${params.projectId}/deploy`,
+    path: `/api/projects/${projectId}/deploy`,
     method: "GET",
   });
 
@@ -162,7 +166,7 @@ export async function GET(
     }
 
     const projectContext = await prisma.projectContext.findUnique({
-      where: { projectId: params.projectId },
+      where: { projectId: projectId },
       select: {
         userId: true,
         codebase: true,
@@ -182,7 +186,7 @@ export async function GET(
     const deployments = codebase?.deployments || {};
 
     return NextResponse.json({
-      projectId: params.projectId,
+      projectId: projectId,
       currentPhase: projectContext.currentPhase,
       deployments: {
         staging: deployments.staging || null,
