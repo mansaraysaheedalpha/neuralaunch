@@ -108,6 +108,7 @@ export async function POST(
         projectId: params.projectId,
         userId,
         conversationId: validatedBody.conversationId,
+        environment: validatedBody.environment as 'staging' | 'production' | 'preview',
         taskInput: {
           platform,
           environment: validatedBody.environment,

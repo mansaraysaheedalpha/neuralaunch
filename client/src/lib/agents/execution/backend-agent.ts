@@ -594,7 +594,7 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
         if (!result.success) {
           logger.warn(
             `[${this.config.name}] File write failed: ${file.path}`,
-            result.error
+            { error: result.error }
           );
         }
       } catch (error) {
@@ -665,7 +665,7 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
         if (!result.success) {
           logger.warn(
             `[${this.config.name}] Command failed: ${command}`,
-            result.error
+            { error: result.error }
           );
         }
       } catch (error) {

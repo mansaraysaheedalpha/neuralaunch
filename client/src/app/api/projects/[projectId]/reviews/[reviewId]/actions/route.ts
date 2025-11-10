@@ -216,6 +216,8 @@ export async function POST(
             userId,
             conversationId: validatedBody.conversationId,
             waveNumber: review.waveNumber,
+            issues: [], // Will be populated from review data
+            attempt: 1,
             criticResult: {}, // Will be fetched from database
             maxRetries: 10, // Extended retry limit
           },

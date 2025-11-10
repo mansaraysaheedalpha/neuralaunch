@@ -179,7 +179,7 @@ export const backendAgentFunction = inngest.createFunction(
           );
 
           if (!pushResult.success) {
-            log.warn("[Backend Agent V2] Git push failed", pushResult.error);
+            log.warn("[Backend Agent V2] Git push failed", { error: pushResult.error });
           }
         });
       }

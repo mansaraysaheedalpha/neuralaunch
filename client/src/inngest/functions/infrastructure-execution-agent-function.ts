@@ -166,7 +166,7 @@ export const infrastructureExecutionAgentFunction = inngest.createFunction(
           );
 
           if (!pushResult.success) {
-            log.warn("[Infrastructure Execution Agent] Git push failed", pushResult.error);
+            log.warn("[Infrastructure Execution Agent] Git push failed", { error: pushResult.error });
           }
         });
       }

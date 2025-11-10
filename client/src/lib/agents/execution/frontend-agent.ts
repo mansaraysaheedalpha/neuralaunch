@@ -1028,7 +1028,7 @@ export default function UserCard(props: UserCardProps) {
         if (!result.success) {
           logger.warn(
             `[${this.config.name}] File write failed: ${file.path}`,
-            result.error
+            { error: result.error }
           );
         }
       } catch (error) {
@@ -1088,7 +1088,7 @@ export default function UserCard(props: UserCardProps) {
         if (!result.success) {
           logger.warn(
             `[${this.config.name}] Command failed: ${command}`,
-            result.error
+            { error: result.error }
           );
         }
       } catch (error) {

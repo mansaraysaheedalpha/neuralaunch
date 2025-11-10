@@ -174,7 +174,7 @@ export const frontendAgentFunction = inngest.createFunction(
           );
 
           if (!pushResult.success) {
-            log.warn("[Frontend Agent] Git push failed", pushResult.error);
+            log.warn("[Frontend Agent] Git push failed", { error: pushResult.error });
           }
         });
       }
