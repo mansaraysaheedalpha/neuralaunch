@@ -53,7 +53,7 @@ export class AnalyzerAgent {
       );
 
       if (!validation.valid) {
-        logger.warn(`[${this.name}] Validation issues:`, validation.errors);
+        logger.warn(`[${this.name}] Validation issues:`, { errors: validation.errors });
       }
 
       // Step 3: Determine or create projectId

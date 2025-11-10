@@ -626,7 +626,7 @@ Respond with ONLY valid JSON, no markdown or explanations.
 
       return parsed as ExecutionPlan;
     } catch (error) {
-      logger.error(`[${this.name}] Failed to parse AI response:`, responseText);
+      logger.error(`[${this.name}] Failed to parse AI response: ${responseText}`);
       throw new Error(
         "Failed to parse planning response. AI returned invalid format."
       );
@@ -751,8 +751,6 @@ Respond with ONLY valid JSON, no markdown or explanations.
           estimatedHours: task.estimatedHours,
         },
       } as any,
-      output: null,
-      error: null,
     }));
 
     await prisma.agentTask.createMany({
@@ -851,7 +849,7 @@ Respond with ONLY valid JSON, no markdown or explanations.
         throw new Error("No execution plan found");
       }
 
-      const currentPlan = context.executionPlan as ExecutionPlan;
+      const currentPlan = context.executionPlan as unknown as ExecutionPlan;
 
       // Step 2: Build AI prompt for analysis
       const prompt = this.buildFeedbackAnalysisPrompt(
@@ -981,10 +979,10 @@ Analyze the user's requested changes and determine:
 
       return JSON.parse(cleaned);
     } catch (error) {
-      logger.error(`[${this.name}] Failed to parse feedback analysis`, {
-        error,
-        preview: responseText.substring(0, 500),
-      });
+      logger.error(`[${this.name}] Failed to parse feedback analysis`, 
+        error instanceof Error ? error : new Error(String(error)),
+        { preview: responseText.substring(0, 500) }
+      );
 
       // Fallback
       return {
@@ -1019,7 +1017,7 @@ Analyze the user's requested changes and determine:
         throw new Error("No execution plan found");
       }
 
-      const currentPlan = context.executionPlan as ExecutionPlan;
+      const currentPlan = context.executionPlan as unknown as ExecutionPlan;
 
       // If regeneration required, start from scratch
       if (analysisResult.requiresRegeneration) {

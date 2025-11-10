@@ -154,7 +154,7 @@ export const integrationAgentFunction = inngest.createFunction(
           await prisma.agentTask.create({
             data: {
               projectId,
-              agentName: this.determineFixAgent(issue.category),
+              agentName: determineFixAgent(issue.category),
               status: "pending",
               input: {
                 type: "fix_integration_issue",

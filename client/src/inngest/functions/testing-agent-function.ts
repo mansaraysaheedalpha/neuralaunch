@@ -122,7 +122,7 @@ export const testingAgentFunction = inngest.createFunction(
               data: {
                 status: "pending",
                 input: {
-                  ...task.input,
+                  ...(typeof task.input === 'object' && task.input !== null ? task.input : {}),
                   _testFailures: result.data.testResults.failures,
                   _retryReason: "test_failures",
                 } as any,
@@ -133,15 +133,15 @@ export const testingAgentFunction = inngest.createFunction(
             const eventName = `agent/execution.${task.agentName.toLowerCase().replace("agent", "")}`;
 
             await inngest.send({
-              name: eventName,
+              name: eventName as any,
               data: {
                 taskId: task.id,
                 projectId,
                 userId,
-                conversationId,
+                conversationId: conversationId || undefined,
                 taskInput: task.input,
                 waveNumber: taskInput.waveNumber,
-              },
+              } as any,
             });
           }
         }

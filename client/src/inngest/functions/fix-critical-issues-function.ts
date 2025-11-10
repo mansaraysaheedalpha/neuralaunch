@@ -211,7 +211,7 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
 
                 completions.push({
                   taskId: result.taskId,
-                  success: completion.data.success,
+                  success: completion?.data?.success ?? false,
                   agentName: result.agentName,
                 });
               } catch (error) {

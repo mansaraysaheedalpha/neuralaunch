@@ -38,7 +38,7 @@ export const criticAgentFunction = inngest.createFunction(
       await inngest.send({
         name: "agent/quality.critic.complete",
         data: {
-          taskId,
+          taskId: taskId || "",
           projectId,
           waveNumber: taskInput.waveNumber ?? 0,
           success: true,
@@ -193,7 +193,7 @@ ${report.approved ? "✅ **Code review passed!**" : "❌ **Code review failed - 
       await inngest.send({
         name: "agent/quality.critic.complete",
         data: {
-          taskId,
+          taskId: taskId || "",
           projectId,
           waveNumber: taskInput.waveNumber ?? 0,
           success: result.success,

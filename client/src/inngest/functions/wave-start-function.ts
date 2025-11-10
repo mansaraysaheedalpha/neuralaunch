@@ -177,9 +177,7 @@ export const waveStartFunction = inngest.createFunction(
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      log.error(`[Wave ${waveNumber}] Failed to start wave`, {
-        error: errorMessage,
-      });
+      log.error(`[Wave ${waveNumber}] Failed to start wave: ${errorMessage}`);
 
       // Mark wave as failed
       await prisma.executionWave.update({

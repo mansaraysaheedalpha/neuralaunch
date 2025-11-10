@@ -657,7 +657,7 @@ export class DeployAgent extends BaseAgent {
     } catch (error) {
       logger.error(
         `[${this.config.name}] DigitalOcean deployment error`,
-        error
+        error instanceof Error ? error : new Error(String(error))
       );
 
       return {
@@ -765,7 +765,7 @@ export class DeployAgent extends BaseAgent {
 
       return isHealthy;
     } catch (error) {
-      logger.warn(`[${this.config.name}] Health check failed`, error);
+      logger.warn(`[${this.config.name}] Health check failed`, { error: error instanceof Error ? error.message : String(error) });
       return false;
     }
   }

@@ -141,7 +141,7 @@ export class DocumentationAgent extends BaseAgent {
 
     try {
       // Step 1: Load project context and tech stack
-      const projectContext = await this.loadProjectContext(projectId);
+      const projectContext = await this.loadProjectContextData(projectId);
 
       // Step 2: Load entire project structure
       const projectStructure = await this.loadProjectStructure(
@@ -268,10 +268,10 @@ export class DocumentationAgent extends BaseAgent {
         data: result,
       } as AgentExecutionOutput;
     } catch (error) {
-      logger.error(`[${this.name}] Documentation generation failed`, {
-        taskId,
-        error,
-      });
+      logger.error(`[${this.name}] Documentation generation failed`, 
+        error instanceof Error ? error : new Error(String(error)),
+        { taskId }
+      );
 
       return {
         success: false,
@@ -284,7 +284,7 @@ export class DocumentationAgent extends BaseAgent {
   /**
    * Load project context from database
    */
-  private async loadProjectContext(projectId: string): Promise<any> {
+  private async loadProjectContextData(projectId: string): Promise<any> {
     const context = await prisma.projectContext.findUnique({
       where: { projectId },
       select: {
@@ -418,7 +418,9 @@ Respond ONLY with valid JSON array, no markdown.`;
         endpoints.push(...parsed);
       }
     } catch (error) {
-      logger.error(`[${this.name}] Failed to extract API endpoints`, { error });
+      logger.error(`[${this.name}] Failed to extract API endpoints`, 
+        error instanceof Error ? error : new Error(String(error))
+      );
     }
 
     logger.info(`[${this.name}] Extracted ${endpoints.length} API endpoints`);
@@ -504,7 +506,9 @@ Respond ONLY with valid JSON array, no markdown.`;
         components.push(...parsed);
       }
     } catch (error) {
-      logger.error(`[${this.name}] Failed to extract components`, { error });
+      logger.error(`[${this.name}] Failed to extract components`, 
+        error instanceof Error ? error : new Error(String(error))
+      );
     }
 
     logger.info(`[${this.name}] Extracted ${components.length} components`);
@@ -604,9 +608,9 @@ Respond ONLY with valid JSON array, no markdown.`;
           envVariables.push(...parsed);
         }
       } catch (error) {
-        logger.error(`[${this.name}] Failed to extract env vars from code`, {
-          error,
-        });
+        logger.error(`[${this.name}] Failed to extract env vars from code`, 
+          error instanceof Error ? error : new Error(String(error))
+        );
       }
     }
 
@@ -719,7 +723,9 @@ Generate ONLY the README.md content, no explanations.`;
         .replace(/```\n?$/g, "")
         .trim();
     } catch (error) {
-      logger.error(`[${this.name}] Failed to generate README`, { error });
+      logger.error(`[${this.name}] Failed to generate README`, 
+        error instanceof Error ? error : new Error(String(error))
+      );
       return this.getFallbackREADME(techStack);
     }
   }
@@ -774,7 +780,9 @@ Generate ONLY the API.md content, no explanations.`;
         .replace(/```\n?$/g, "")
         .trim();
     } catch (error) {
-      logger.error(`[${this.name}] Failed to generate API docs`, { error });
+      logger.error(`[${this.name}] Failed to generate API docs`, 
+        error instanceof Error ? error : new Error(String(error))
+      );
       return this.getFallbackAPIDocs(apiEndpoints);
     }
   }
@@ -828,9 +836,9 @@ Generate ONLY the ARCHITECTURE.md content, no explanations.`;
         .replace(/```\n?$/g, "")
         .trim();
     } catch (error) {
-      logger.error(`[${this.name}] Failed to generate architecture docs`, {
-        error,
-      });
+      logger.error(`[${this.name}] Failed to generate architecture docs`, 
+        error instanceof Error ? error : new Error(String(error))
+      );
       return this.getFallbackArchitectureDocs(projectContext);
     }
   }
@@ -887,9 +895,9 @@ Generate ONLY the DEPLOYMENT.md content, no explanations.`;
         .replace(/```\n?$/g, "")
         .trim();
     } catch (error) {
-      logger.error(`[${this.name}] Failed to generate deployment docs`, {
-        error,
-      });
+      logger.error(`[${this.name}] Failed to generate deployment docs`, 
+        error instanceof Error ? error : new Error(String(error))
+      );
       return this.getFallbackDeploymentDocs(techStack);
     }
   }
@@ -940,9 +948,9 @@ Generate ONLY the DEVELOPMENT.md content, no explanations.`;
         .replace(/```\n?$/g, "")
         .trim();
     } catch (error) {
-      logger.error(`[${this.name}] Failed to generate development docs`, {
-        error,
-      });
+      logger.error(`[${this.name}] Failed to generate development docs`, 
+        error instanceof Error ? error : new Error(String(error))
+      );
       return this.getFallbackDevelopmentDocs(techStack);
     }
   }
@@ -993,7 +1001,9 @@ Generate ONLY the USER_GUIDE.md content, no explanations.`;
         .replace(/```\n?$/g, "")
         .trim();
     } catch (error) {
-      logger.error(`[${this.name}] Failed to generate user guide`, { error });
+      logger.error(`[${this.name}] Failed to generate user guide`, 
+        error instanceof Error ? error : new Error(String(error))
+      );
       return "# User Guide\n\n*Coming soon*";
     }
   }
@@ -1128,7 +1138,10 @@ Generate ONLY the USER_GUIDE.md content, no explanations.`;
 
       logger.info(`[${this.name}] Stored documentation results`, { taskId });
     } catch (error) {
-      logger.error(`[${this.name}] Failed to store results`, { taskId, error });
+      logger.error(`[${this.name}] Failed to store results`, 
+        error instanceof Error ? error : new Error(String(error)),
+        { taskId }
+      );
     }
   }
 

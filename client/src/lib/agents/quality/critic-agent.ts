@@ -278,7 +278,7 @@ export class CriticAgent extends BaseAgent {
       } catch (error) {
         logger.warn(
           `[${this.config.name}] Failed to load file: ${filePath}`,
-          error
+          { error: error instanceof Error ? error.message : String(error) }
         );
       }
     }
@@ -314,7 +314,7 @@ export class CriticAgent extends BaseAgent {
       } catch (error) {
         logger.warn(
           `[${this.config.name}] Failed to analyze: ${file.path}`,
-          error
+          { error: error instanceof Error ? error.message : String(error) }
         );
       }
     }
@@ -456,7 +456,7 @@ export class CriticAgent extends BaseAgent {
       } catch (error) {
         logger.warn(
           `[${this.config.name}] Static analysis failed for ${lang}`,
-          error
+          { error: error instanceof Error ? error.message : String(error) }
         );
       }
     }
@@ -645,7 +645,9 @@ export class CriticAgent extends BaseAgent {
           } catch {}
         }
       } catch (error) {
-        logger.warn(`[${this.config.name}] Bandit scan failed`, error);
+        logger.warn(`[${this.config.name}] Bandit scan failed`, 
+          { error: error instanceof Error ? error.message : String(error) }
+        );
       }
     }
 
@@ -896,10 +898,10 @@ Respond with ONLY valid JSON:
         scores: parsed.scores || {},
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Failed to parse AI review`, {
-        error,
-        preview: responseText.substring(0, 500),
-      });
+      logger.error(`[${this.config.name}] Failed to parse AI review`, 
+        error instanceof Error ? error : new Error(String(error)),
+        { preview: responseText.substring(0, 500) }
+      );
       return { issues: [], suggestions: [], scores: {} };
     }
   }
@@ -1005,7 +1007,11 @@ Respond with ONLY valid JSON:
       await prisma.projectContext.update({
         where: { projectId },
         data: {
-          lastReview: report as any,
+          codebase: {
+            ...(await prisma.projectContext.findUnique({ where: { projectId } })).codebase as any,
+            lastReview: report,
+          } as any,
+          lastReviewScore: report.overallScore,
           updatedAt: new Date(),
         },
       });
@@ -1014,7 +1020,7 @@ Respond with ONLY valid JSON:
     } catch (error) {
       logger.warn(
         `[${this.config.name}] Failed to store review results`,
-        error
+        { error: error instanceof Error ? error.message : String(error) }
       );
     }
   }
