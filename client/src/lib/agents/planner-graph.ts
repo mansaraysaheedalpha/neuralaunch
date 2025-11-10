@@ -27,6 +27,7 @@ import type {
 import prisma from "@/lib/prisma";
 import { logger } from "../logger";
 import { Prisma } from "@prisma/client";
+import { toError } from "../error-utils";
 
 // --- 1. Define the State for our Graph ---
 export interface PlannerGraphState {
@@ -67,7 +68,15 @@ async function* runAnalyzer(
   try {
     const architectPrompt = generateArchitectPrompt(
       state.blueprint,
-      state.preferences
+      {
+        ...state.preferences,
+        framework: state.preferences.framework ?? undefined,
+        uiLibrary: state.preferences.uiLibrary ?? undefined,
+        authentication: state.preferences.authentication ?? undefined,
+        database: state.preferences.database ?? undefined,
+        deployment: state.preferences.deployment ?? undefined,
+        additionalContext: state.preferences.additionalContext ?? undefined,
+      }
     );
 
     const aiResponseString = await executeAITaskSimple(
@@ -95,7 +104,7 @@ async function* runAnalyzer(
   } catch (error) {
     logger.error(
       `[Graph] Project ${state.projectId}: Analyzer FAILED`,
-      error as Error
+      toError(error)
     );
     yield {
       status: "ERROR",
@@ -170,7 +179,7 @@ async function* runResearcher(
   } catch (error) {
     logger.error(
       `[Graph] Project ${state.projectId}: Researcher FAILED`,
-      error as Error
+      toError(error)
     );
     // Non-critical, just yield a warning and continue
     yield {
@@ -248,7 +257,7 @@ async function* runPlanner(
   } catch (error) {
     logger.error(
       `[Graph] Project ${state.projectId}: Planner FAILED`,
-      error as Error
+      toError(error)
     );
     yield {
       status: "ERROR",
@@ -332,38 +341,38 @@ const workflow = new StateGraph<PlannerGraphState>({
 
     // These channels should UPDATE to the latest value from any node
     // (a, b) => b ?? a  means: "Use the new value (b) if it exists, otherwise keep the old one (a)"
-    analyzedStack: { value: (a, b) => b ?? a, default: () => undefined },
-    researchedStack: { value: (a, b) => b ?? a, default: () => undefined },
-    atomicPlan: { value: (a, b) => b ?? a, default: () => undefined },
-    questions: { value: (a, b) => b ?? a, default: () => undefined },
-    envKeys: { value: (a, b) => b ?? a, default: () => undefined },
-    fullArchitecturePlan: { value: (a, b) => b ?? a, default: () => undefined },
-    error: { value: (a, b) => b ?? a, default: () => undefined },
+    analyzedStack: { value: (a: any, b: any) => b ?? a, default: () => undefined },
+    researchedStack: { value: (a: any, b: any) => b ?? a, default: () => undefined },
+    atomicPlan: { value: (a: any, b: any) => b ?? a, default: () => undefined },
+    questions: { value: (a: any, b: any) => b ?? a, default: () => undefined },
+    envKeys: { value: (a: any, b: any) => b ?? a, default: () => undefined },
+    fullArchitecturePlan: { value: (a: any, b: any) => b ?? a, default: () => undefined },
+    error: { value: (a: any, b: any) => b ?? a, default: () => undefined },
 
     // 'status' should always be the most recent update
-    status: { value: (a, b) => b, default: () => "ANALYZING" },
+    status: { value: (a: any, b: any) => b, default: () => "ANALYZING" as const },
     
     // 'reasoningLog' should ACCUMULATE new messages
-    reasoningLog: { value: (a, b) => b, default: () => [] },
+    reasoningLog: { value: (a: any, b: any) => b, default: () => [] },
   },
 });
 
 // Add nodes (these are now generators)
-workflow.addNode("analyzer", runAnalyzer);
-workflow.addNode("researcher", runResearcher);
-workflow.addNode("planner", runPlanner);
-workflow.addNode("save_to_db", savePlanToDb); // This one is a normal function
+workflow.addNode("analyzer", runAnalyzer as any);
+workflow.addNode("researcher", runResearcher as any);
+workflow.addNode("planner", runPlanner as any);
+workflow.addNode("save_to_db", savePlanToDb as any); // This one is a normal function
 
 // Define edges (how the agents are connected)
-workflow.addEdge(START, "analyzer");
-workflow.addConditionalEdges("analyzer", (state) =>
+workflow.addEdge(START, "analyzer" as any);
+workflow.addConditionalEdges("analyzer" as any, ((state: any) =>
   state.status === "ERROR" ? "save_to_db" : "researcher"
-);
-workflow.addConditionalEdges("researcher", (state) =>
+) as any);
+workflow.addConditionalEdges("researcher" as any, ((state: any) =>
   state.status === "ERROR" ? "save_to_db" : "planner"
-);
-workflow.addConditionalEdges("planner", (state) => "save_to_db");
-workflow.addEdge("save_to_db", END);
+) as any);
+workflow.addConditionalEdges("planner" as any, ((_state: any) => "save_to_db") as any);
+workflow.addEdge("save_to_db" as any, END);
 
 // Compile the graph
 export const app = workflow.compile();
@@ -375,7 +384,7 @@ export const app = workflow.compile();
 export const runPlannerGraphStream = async (
   initialState: PlannerGraphState
 ) => {
-  return app.stream(initialState, {
+  return app.stream(initialState as any, {
     // We want to see the output of *every* node as it runs
     streamMode: "values",
   });

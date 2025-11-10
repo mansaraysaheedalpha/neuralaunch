@@ -25,6 +25,7 @@ import {
   errorRecoverySystem,
   FailureAttempt,
 } from "../error-recovery/error-recovery-system";
+import { toError, toLogContext } from "@/lib/error-utils";
 
 export interface BaseAgentConfig {
   name: string;
@@ -225,7 +226,7 @@ export abstract class BaseAgent {
 
           logger.error(
             `[${this.config.name}] Iteration ${iteration} failed`,
-            error
+            toError(error)
           );
 
           const totalDuration = Date.now() - startTime;
@@ -291,7 +292,7 @@ export abstract class BaseAgent {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      logger.error(`[${this.config.name}] Execution framework error`, error);
+      logger.error(`[${this.config.name}] Execution framework error`, toError(error));
 
       return {
         success: false,
@@ -339,7 +340,7 @@ export abstract class BaseAgent {
     } catch (error) {
       logger.warn(
         `[${this.config.name}] Failed to load project context`,
-        error
+        toLogContext(error)
       );
     }
   }
@@ -390,7 +391,7 @@ export abstract class BaseAgent {
     } catch (error) {
       logger.warn(
         `[${this.config.name}] Web search for solution failed`,
-        error
+        toLogContext(error)
       );
     }
   }
@@ -427,7 +428,7 @@ export abstract class BaseAgent {
         input.context._typeErrors = `**TypeScript Errors:**\n${topErrors}`;
       }
     } catch (error) {
-      logger.warn(`[${this.config.name}] Code analysis failed`, error);
+      logger.warn(`[${this.config.name}] Code analysis failed`, toLogContext(error));
     }
   }
 
@@ -494,7 +495,7 @@ export abstract class BaseAgent {
     } catch (error) {
       logger.warn(
         `[${this.config.name}] Failed to store in vector memory`,
-        error
+        toLogContext(error)
       );
     }
   }
@@ -534,7 +535,7 @@ export abstract class BaseAgent {
         );
       }
     } catch (error) {
-      logger.warn(`[${this.config.name}] Failed to verify deployment`, error);
+      logger.warn(`[${this.config.name}] Failed to verify deployment`, toLogContext(error));
     }
   }
 
@@ -606,7 +607,7 @@ export abstract class BaseAgent {
         },
       });
     } catch (logError) {
-      logger.error(`[${this.config.name}] Failed to log execution`, logError);
+      logger.error(`[${this.config.name}] Failed to log execution`, toError(logError));
     }
   }
 }
