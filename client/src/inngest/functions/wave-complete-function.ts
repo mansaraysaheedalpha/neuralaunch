@@ -98,6 +98,11 @@ export const waveCompleteFunction = inngest.createFunction(
         }
       );
 
+      // Validate critic result
+      if (!criticResult.data || typeof criticResult.data.approved === 'undefined') {
+        throw new Error("Invalid critic result: missing 'approved' field");
+      }
+
       log.info(`[Wave ${waveNumber}] Critic review complete`, {
         approved: criticResult.data.approved,
         score: criticResult.data.score,

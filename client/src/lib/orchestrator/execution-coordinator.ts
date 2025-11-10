@@ -121,7 +121,7 @@ export class ExecutionCoordinator {
       }
 
       // Step 4: 🔥 CREATE WAVE - Limit tasks per agent
-      const wave = this.createWave(readyTasks);
+      const wave = this.createWaveWithLimit(readyTasks, 1);
 
       logger.info(
         `[${this.name}] Wave created: ${wave.tasks.length} tasks across ${wave.agentAssignments.size} agents`

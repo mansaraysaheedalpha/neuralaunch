@@ -204,46 +204,42 @@ export async function POST(
     }
 
     // Step 9: Check if this was the last wave
-    const hasMoreTasks = await step.run("check-more-waves", async () => {
-      const pendingCount = await prisma.agentTask.count({
-        where: { projectId, status: "pending", waveNumber: null },
-      });
-      return pendingCount > 0;
+    const pendingCount = await prisma.agentTask.count({
+      where: { projectId: params.projectId, status: "pending", waveNumber: null },
     });
+    const hasMoreTasks = pendingCount > 0;
 
-    // ✅ ADD THIS: If no more waves, trigger deployment
+    // ✅ If no more waves, trigger deployment
     if (!hasMoreTasks) {
-      await step.run("trigger-deployment", async () => {
-        logger.info(`[Wave Approve] All waves complete! Triggering deployment`);
+      logger.info(`[Wave Approve] All waves complete! Triggering deployment`);
 
-        // Get deployment platform from project context
-        const projectContext = await prisma.projectContext.findUnique({
-          where: { projectId: params.projectId },
-          select: { architecture: true },
-        });
-
-        const architecture = projectContext?.architecture as any;
-        const platform =
-          architecture?.infrastructureArchitecture?.hosting?.toLowerCase() ||
-          "vercel";
-
-        await inngest.send({
-          name: "agent/deployment.deploy",
-          data: {
-            taskId: `deploy-${params.projectId}-production`,
-            projectId: params.projectId,
-            userId,
-            conversationId: validatedBody.conversationId,
-            taskInput: {
-              platform, // Use platform from architecture
-              environment: "production",
-              runMigrations: true,
-            },
-          },
-        });
-
-        logger.info(`[Wave Approve] Deployment triggered to ${platform}`);
+      // Get deployment platform from project context
+      const deployProjectContext = await prisma.projectContext.findUnique({
+        where: { projectId: params.projectId },
+        select: { architecture: true },
       });
+
+      const architecture = deployProjectContext?.architecture as any;
+      const platform =
+        architecture?.infrastructureArchitecture?.hosting?.toLowerCase() ||
+        "vercel";
+
+      await inngest.send({
+        name: "agent/deployment.deploy",
+        data: {
+          taskId: `deploy-${params.projectId}-production`,
+          projectId: params.projectId,
+          userId,
+          conversationId: validatedBody.conversationId,
+          taskInput: {
+            platform,
+            environment: "production",
+            runMigrations: true,
+          },
+        },
+      });
+
+      logger.info(`[Wave Approve] Deployment triggered to ${platform}`);
     }
 
     return NextResponse.json({

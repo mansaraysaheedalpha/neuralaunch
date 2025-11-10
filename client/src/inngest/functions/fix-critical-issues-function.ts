@@ -27,9 +27,13 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
       userId,
       conversationId,
       waveNumber,
-      criticReport,
-      maxRetries,
+      criticResult,
     } = event.data;
+
+    // Validate required fields
+    if (!projectId || !waveNumber) {
+      throw new Error("Missing required fields: projectId and waveNumber");
+    }
 
     const log = logger.child({
       inngestFunction: "fixCriticalIssues",
@@ -38,8 +42,7 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
     });
 
     log.info(`[Wave ${waveNumber}] Starting auto-fix workflow`, {
-      criticalIssues: criticReport.totalCriticalIssues,
-      maxRetries,
+      criticResult: criticResult ? 'present' : 'missing',
     });
 
     try {
@@ -149,7 +152,7 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
               if (taskIssues.length === 0) continue;
 
               // Trigger the agent to fix issues
-              const agentEvent = this.getAgentEventName(task.agentName);
+              const agentEvent = getAgentEventName(task.agentName);
 
               await inngest.send({
                 name: agentEvent,
@@ -200,7 +203,7 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
             for (const result of fixResults) {
               try {
                 const completion = await step.waitForEvent(
-                  this.getAgentCompleteEventName(result.agentName),
+                  getAgentCompleteEventName(result.agentName),
                   {
                     timeout: "15m",
                     match: `data.taskId`,
@@ -444,10 +447,8 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
   }
 );
 
-// Helper methods
-fixCriticalIssuesFunction.prototype.getAgentEventName = function (
-  agentName: string
-): string {
+// Helper utility functions
+function getAgentEventName(agentName: string): string {
   const eventMap: Record<string, string> = {
     BackendAgent: "agent/execution.backend",
     FrontendAgent: "agent/execution.frontend",
@@ -455,11 +456,9 @@ fixCriticalIssuesFunction.prototype.getAgentEventName = function (
   };
 
   return eventMap[agentName] || "agent/execution.generic";
-};
+}
 
-fixCriticalIssuesFunction.prototype.getAgentCompleteEventName = function (
-  agentName: string
-): string {
+function getAgentCompleteEventName(agentName: string): string {
   const eventMap: Record<string, string> = {
     BackendAgent: "agent/execution.backend.complete",
     FrontendAgent: "agent/execution.frontend.complete",
@@ -467,4 +466,4 @@ fixCriticalIssuesFunction.prototype.getAgentCompleteEventName = function (
   };
 
   return eventMap[agentName] || "agent/execution.generic.complete";
-};
+}

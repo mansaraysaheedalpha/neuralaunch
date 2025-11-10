@@ -63,6 +63,7 @@ export interface MCPToolExecutionResponse {
 export class MCPToolAdapter extends BaseTool {
   public readonly name: string;
   public readonly description: string;
+  public readonly parameters: ToolParameter[];
   private mcpSchema: MCPToolSchema;
   private serverUrl: string;
   private serverName: string;
@@ -74,12 +75,13 @@ export class MCPToolAdapter extends BaseTool {
     this.mcpSchema = mcpSchema;
     this.serverUrl = serverUrl;
     this.serverName = serverName;
+    this.parameters = this.getParameters();
   }
 
   /**
    * Get tool parameters from MCP schema
    */
-  protected getParameters(): ToolParameter[] {
+  private getParameters(): ToolParameter[] {
     const params: ToolParameter[] = [];
     const schema = this.mcpSchema.inputSchema;
 
