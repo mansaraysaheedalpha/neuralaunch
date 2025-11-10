@@ -19,10 +19,11 @@ const approveWaveSchema = z.object({
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { projectId: string; waveNumber: string } }
+  { params }: { params: Promise<{ projectId: string; waveNumber: string }> }
 ) {
+  const { projectId, waveNumber: waveNumberStr } = await params;
   const logger = createApiLogger({
-    path: `/api/projects/${params.projectId}/waves/${params.waveNumber}/approve`,
+    path: `/api/projects/${projectId}/waves/${waveNumberStr}/approve`,
     method: "POST",
   });
 
@@ -34,7 +35,7 @@ export async function POST(
     }
 
     const userId = session.user.id;
-    const waveNumber = parseInt(params.waveNumber);
+    const waveNumber = parseInt(waveNumberStr);
 
     // 2. Validate request
     const body = await req.json();
@@ -42,7 +43,7 @@ export async function POST(
 
     // 3. Verify project ownership
     const projectContext = await prisma.projectContext.findUnique({
-      where: { projectId: params.projectId },
+      where: { projectId },
       select: {
         userId: true,
         currentPhase: true,
@@ -62,7 +63,7 @@ export async function POST(
     const wave = await prisma.executionWave.findUnique({
       where: {
         projectId_waveNumber: {
-          projectId: params.projectId,
+          projectId,
           waveNumber,
         },
       },
@@ -85,7 +86,7 @@ export async function POST(
     // 5. Get PR info
     const waveTask = await prisma.agentTask.findFirst({
       where: {
-        projectId: params.projectId,
+        projectId,
         waveNumber,
         prNumber: { not: null },
       },
@@ -138,7 +139,7 @@ export async function POST(
       });
 
       mergeResult = await githubAgent.mergePullRequest({
-        projectId: params.projectId,
+        projectId,
         repoName,
         prNumber: waveTask.prNumber,
         githubToken,
@@ -158,7 +159,7 @@ export async function POST(
       // Update task review status
       await prisma.agentTask.updateMany({
         where: {
-          projectId: params.projectId,
+          projectId,
           waveNumber,
         },
         data: {
@@ -175,7 +176,7 @@ export async function POST(
     // 7. Check if more waves needed
     const pendingTaskCount = await prisma.agentTask.count({
       where: {
-        projectId: params.projectId,
+        projectId,
         status: "pending",
         waveNumber: null, // Not yet assigned to a wave
       },
@@ -193,7 +194,7 @@ export async function POST(
       await inngest.send({
         name: "agent/wave.start",
         data: {
-          projectId: params.projectId,
+          projectId,
           userId,
           conversationId: validatedBody.conversationId,
           waveNumber: nextWaveNumber,
@@ -205,7 +206,7 @@ export async function POST(
 
     // Step 9: Check if this was the last wave
     const pendingCount = await prisma.agentTask.count({
-      where: { projectId: params.projectId, status: "pending", waveNumber: null },
+      where: { projectId, status: "pending", waveNumber: null },
     });
     const hasMoreTasks = pendingCount > 0;
 
@@ -215,7 +216,7 @@ export async function POST(
 
       // Get deployment platform from project context
       const deployProjectContext = await prisma.projectContext.findUnique({
-        where: { projectId: params.projectId },
+        where: { projectId },
         select: { architecture: true },
       });
 
@@ -227,8 +228,8 @@ export async function POST(
       await inngest.send({
         name: "agent/deployment.deploy",
         data: {
-          taskId: `deploy-${params.projectId}-production`,
-          projectId: params.projectId,
+          taskId: `deploy-${projectId}-production`,
+          projectId,
           userId,
           conversationId: validatedBody.conversationId,
           environment: "production",
@@ -278,10 +279,11 @@ export async function POST(
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { projectId: string; waveNumber: string } }
+  { params }: { params: Promise<{ projectId: string; waveNumber: string }> }
 ) {
+  const { projectId, waveNumber: waveNumberStr } = await params;
   const logger = createApiLogger({
-    path: `/api/projects/${params.projectId}/waves/${params.waveNumber}/approve`,
+    path: `/api/projects/${projectId}/waves/${waveNumberStr}/approve`,
     method: "GET",
   });
 
@@ -291,13 +293,13 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const waveNumber = parseInt(params.waveNumber);
+    const waveNumber = parseInt(waveNumberStr);
 
     // Get wave info
     const wave = await prisma.executionWave.findUnique({
       where: {
         projectId_waveNumber: {
-          projectId: params.projectId,
+          projectId,
           waveNumber,
         },
       },
@@ -310,7 +312,7 @@ export async function GET(
     // Get tasks in this wave
     const tasks = await prisma.agentTask.findMany({
       where: {
-        projectId: params.projectId,
+        projectId,
         waveNumber,
       },
       select: {
@@ -331,7 +333,7 @@ export async function GET(
       tasks.reduce((sum, t) => sum + (t.reviewScore || 0), 0) / tasks.length;
 
     return NextResponse.json({
-      projectId: params.projectId,
+      projectId,
       waveNumber,
       status: wave.status,
       readyForApproval: allTasksComplete && wave.status === "completed",
