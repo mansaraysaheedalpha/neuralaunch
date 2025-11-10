@@ -169,7 +169,7 @@ export class FrontendAgent extends BaseAgent {
       const existingFiles = await this.loadFilesToFix(
         projectId,
         userId,
-        uniqueFiles
+        uniqueFiles as string[]
       );
 
       // Step 2: Generate fixes using AI
@@ -280,7 +280,7 @@ export class FrontendAgent extends BaseAgent {
       } catch (error) {
         logger.warn(
           `[${this.config.name}] Failed to load file: ${filePath}`,
-          error
+          { error: error instanceof Error ? error.message : String(error) }
         );
       }
     }
@@ -543,10 +543,10 @@ Type Safety:
         explanation: parsed.explanation || "No explanation provided",
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Failed to parse fix response`, {
-        error,
-        preview: responseText.substring(0, 500),
-      });
+      logger.error(`[${this.config.name}] Failed to parse fix response`, 
+        error instanceof Error ? error : new Error(String(error)),
+        { preview: responseText.substring(0, 500) }
+      );
       return null;
     }
   }
@@ -989,10 +989,10 @@ export default function UserCard(props: UserCardProps) {
         explanation: parsed.explanation || "No explanation provided",
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Failed to parse AI response`, {
-        error,
-        preview: responseText.substring(0, 500),
-      });
+      logger.error(`[${this.config.name}] Failed to parse AI response`, 
+        error instanceof Error ? error : new Error(String(error)),
+        { preview: responseText.substring(0, 500) }
+      );
       return null;
     }
   }
@@ -1035,7 +1035,7 @@ export default function UserCard(props: UserCardProps) {
       } catch (error) {
         logger.error(
           `[${this.config.name}] File write error: ${file.path}`,
-          error
+          error instanceof Error ? error : new Error(String(error))
         );
         results.push({
           path: file.path,

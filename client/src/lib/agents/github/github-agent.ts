@@ -144,7 +144,7 @@ export class GitHubAgent {
       } catch (error) {
         logger.warn(
           `[${this.name}] Could not enable branch protection:`,
-          error
+          { error: error instanceof Error ? error.message : String(error) }
         );
         // Non-fatal, continue
       }
@@ -391,7 +391,9 @@ export class GitHubAgent {
         },
       });
     } catch (logError) {
-      logger.error(`[${this.name}] Failed to log execution:`, logError);
+      logger.error(`[${this.name}] Failed to log execution:`, 
+        logError instanceof Error ? logError : new Error(String(logError))
+      );
     }
   }
 

@@ -147,7 +147,7 @@ export class IntegrationAgent extends BaseAgent {
 
     try {
       // Step 1: Load project context and tech stack
-      const projectContext = await this.loadProjectContext(projectId);
+      const projectContext = await this.loadProjectContextData(projectId);
 
       // Step 2: Discover frontend and backend files
       const projectFiles = await this.discoverProjectStructure(
@@ -250,10 +250,10 @@ export class IntegrationAgent extends BaseAgent {
         data: result,
       } as AgentExecutionOutput;
     } catch (error) {
-      logger.error(`[${this.name}] Integration verification failed`, {
-        taskId,
-        error,
-      });
+      logger.error(`[${this.name}] Integration verification failed`, 
+        error instanceof Error ? error : new Error(String(error)),
+        { taskId }
+      );
 
       return {
         success: false,
@@ -266,7 +266,7 @@ export class IntegrationAgent extends BaseAgent {
   /**
    * Load project context from database
    */
-  private async loadProjectContext(projectId: string): Promise<any> {
+  private async loadProjectContextData(projectId: string): Promise<any> {
     const context = await prisma.projectContext.findUnique({
       where: { projectId },
       select: {
@@ -427,9 +427,9 @@ Respond ONLY with valid JSON array, no markdown.`;
         contracts.push(...parsed);
       }
     } catch (error) {
-      logger.error(`[${this.name}] Failed to extract frontend contracts`, {
-        error,
-      });
+      logger.error(`[${this.name}] Failed to extract frontend contracts`, 
+        error instanceof Error ? error : new Error(String(error))
+      );
     }
 
     logger.info(`[${this.name}] Extracted ${contracts.length} API contracts`);
@@ -497,9 +497,9 @@ Respond ONLY with valid JSON array, no markdown.`;
         endpoints.push(...parsed);
       }
     } catch (error) {
-      logger.error(`[${this.name}] Failed to extract backend endpoints`, {
-        error,
-      });
+      logger.error(`[${this.name}] Failed to extract backend endpoints`, 
+        error instanceof Error ? error : new Error(String(error))
+      );
     }
 
     logger.info(
@@ -688,7 +688,9 @@ Respond ONLY with valid JSON array, no markdown.`;
         }
       }
     } catch (error) {
-      logger.error(`[${this.name}] Failed to verify data models`, { error });
+      logger.error(`[${this.name}] Failed to verify data models`, 
+        error instanceof Error ? error : new Error(String(error))
+      );
     }
 
     logger.info(`[${this.name}] Found ${issues.length} data model issues`);
@@ -997,7 +999,10 @@ Respond ONLY with valid JSON array, no markdown.`;
 
       logger.info(`[${this.name}] Stored verification results`, { taskId });
     } catch (error) {
-      logger.error(`[${this.name}] Failed to store results`, { taskId, error });
+      logger.error(`[${this.name}] Failed to store results`, 
+        error instanceof Error ? error : new Error(String(error)),
+        { taskId }
+      );
     }
   }
 }

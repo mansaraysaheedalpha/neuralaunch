@@ -1,0 +1,187 @@
+{
+  "version": "1.0.0",
+  "description": "MCP Server Configuration for NeuraLaunch - Connects AI agents to external tools and services",
+  "servers": [
+    {
+      "name": "github",
+      "enabled": true,
+      "description": "GitHub integration for repository management, code review, and CI/CD",
+      "url": "https://api.github.com/mcp",
+      "protocol": "http",
+      "authentication": {
+        "type": "bearer",
+        "envVar": "GITHUB_MCP_TOKEN"
+      },
+      "capabilities": [
+        "repository_management",
+        "code_review",
+        "pull_requests",
+        "issues",
+        "actions",
+        "webhooks"
+      ],
+      "agents": [
+        "github-agent",
+        "deployment-agent",
+        "backend-agent",
+        "frontend-agent",
+        "critic-agent"
+      ],
+      "rateLimits": {
+        "requestsPerHour": 5000,
+        "burstSize": 100
+      }
+    },
+    {
+      "name": "brave-search",
+      "enabled": true,
+      "description": "Brave Search API for web research and documentation lookup",
+      "url": "https://api.search.brave.com/res/v1/web/search",
+      "protocol": "http",
+      "authentication": {
+        "type": "apiKey",
+        "envVar": "BRAVE_SEARCH_API_KEY",
+        "header": "X-Subscription-Token"
+      },
+      "capabilities": [
+        "web_search",
+        "documentation_lookup",
+        "technology_research",
+        "best_practices_discovery"
+      ],
+      "agents": [
+        "research-agent",
+        "analyzer-agent",
+        "documentation-agent",
+        "planning-agent"
+      ],
+      "rateLimits": {
+        "requestsPerMonth": 15000,
+        "requestsPerSecond": 1
+      }
+    },
+    {
+      "name": "filesystem",
+      "enabled": true,
+      "description": "Local filesystem operations for code generation and file management",
+      "url": "local://filesystem",
+      "protocol": "local",
+      "authentication": {
+        "type": "none"
+      },
+      "capabilities": [
+        "file_read",
+        "file_write",
+        "directory_operations",
+        "file_search",
+        "git_operations"
+      ],
+      "agents": [
+        "backend-agent",
+        "frontend-agent",
+        "infrastructure-agent",
+        "documentation-agent",
+        "optimization-agent"
+      ],
+      "security": {
+        "allowedPaths": [
+          "/workspace",
+          "/tmp/neuralaunch",
+          "/projects"
+        ],
+        "deniedPaths": [
+          "/etc",
+          "/sys",
+          "/root",
+          "/.env"
+        ]
+      }
+    },
+    {
+      "name": "postgres",
+      "enabled": false,
+      "description": "PostgreSQL database operations for schema management and data operations",
+      "url": "postgres://localhost:5432",
+      "protocol": "postgres",
+      "authentication": {
+        "type": "connectionString",
+        "envVar": "DATABASE_URL"
+      },
+      "capabilities": [
+        "schema_management",
+        "query_execution",
+        "migration_management",
+        "data_seeding"
+      ],
+      "agents": [
+        "backend-agent",
+        "infrastructure-agent",
+        "integration-agent"
+      ],
+      "rateLimits": {
+        "maxConnections": 20,
+        "queryTimeout": 30000
+      }
+    },
+    {
+      "name": "slack",
+      "enabled": false,
+      "description": "Slack integration for team notifications and collaboration",
+      "url": "https://slack.com/api",
+      "protocol": "http",
+      "authentication": {
+        "type": "bearer",
+        "envVar": "SLACK_BOT_TOKEN"
+      },
+      "capabilities": [
+        "send_messages",
+        "create_channels",
+        "file_upload",
+        "notifications"
+      ],
+      "agents": [
+        "monitoring-agent",
+        "deployment-agent",
+        "critic-agent"
+      ],
+      "rateLimits": {
+        "tier": "tier2",
+        "requestsPerMinute": 20
+      }
+    },
+    {
+      "name": "notion",
+      "enabled": false,
+      "description": "Notion integration for documentation and knowledge management",
+      "url": "https://api.notion.com/v1",
+      "protocol": "http",
+      "authentication": {
+        "type": "bearer",
+        "envVar": "NOTION_API_KEY"
+      },
+      "capabilities": [
+        "page_management",
+        "database_operations",
+        "documentation_sync"
+      ],
+      "agents": [
+        "documentation-agent",
+        "planning-agent"
+      ],
+      "rateLimits": {
+        "requestsPerSecond": 3
+      }
+    }
+  ],
+  "defaultConfig": {
+    "timeout": 30000,
+    "retries": 3,
+    "retryDelay": 1000,
+    "connectionPoolSize": 10
+  },
+  "monitoring": {
+    "enableMetrics": true,
+    "enableTracing": true,
+    "logLevel": "info"
+  }
+}

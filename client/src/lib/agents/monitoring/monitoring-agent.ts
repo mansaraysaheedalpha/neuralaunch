@@ -244,10 +244,10 @@ export class MonitoringAgent extends BaseAgent {
         data: report,
       } as AgentExecutionOutput;
     } catch (error) {
-      logger.error(`[${this.name}] Monitoring failed`, {
-        taskId,
-        error,
-      });
+      logger.error(`[${this.name}] Monitoring failed`, 
+        error instanceof Error ? error : new Error(String(error)),
+        { taskId }
+      );
 
       return {
         success: false,
@@ -899,7 +899,10 @@ Write in professional, concise style. No markdown formatting.`;
 
       logger.info(`[${this.name}] Stored monitoring report`, { taskId });
     } catch (error) {
-      logger.error(`[${this.name}] Failed to store report`, { taskId, error });
+      logger.error(`[${this.name}] Failed to store report`, 
+        error instanceof Error ? error : new Error(String(error)),
+        { taskId }
+      );
     }
   }
 
@@ -934,10 +937,10 @@ Write in professional, concise style. No markdown formatting.`;
 
     // For now, just log
     for (const alert of criticalAlerts) {
-      logger.error(`[CRITICAL ALERT] ${alert.title}`, {
-        description: alert.description,
-        recommendation: alert.recommendation,
-      });
+      logger.error(`[CRITICAL ALERT] ${alert.title}: ${alert.description}`, 
+        undefined,
+        { recommendation: alert.recommendation }
+      );
     }
   }
 
