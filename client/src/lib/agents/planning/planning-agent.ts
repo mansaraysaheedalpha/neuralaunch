@@ -9,6 +9,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { AI_MODELS } from "@/lib/models";
 import { z } from "zod";
+import { toError, toLogContext } from "@/lib/error-utils";
 
 // ==========================================
 // TYPES & INTERFACES
@@ -233,7 +234,7 @@ export class PlanningAgent {
         error instanceof Error ? error.message : "Unknown error";
       const duration = Date.now() - startTime;
 
-      logger.error(`[${this.name}] Planning failed:`, error);
+      logger.error(`[${this.name}] Planning failed:`, toError(error));
 
       await this.logExecution(input, null, false, duration, errorMessage);
 
@@ -874,7 +875,7 @@ Respond with ONLY valid JSON, no markdown or explanations.
 
       return analysis;
     } catch (error) {
-      logger.error(`[${this.name}] Feedback analysis failed`, error);
+      logger.error(`[${this.name}] Feedback analysis failed`, toError(error));
       throw error;
     }
   }
@@ -1059,7 +1060,7 @@ Analyze the user's requested changes and determine:
         plan: updatedPlan,
       };
     } catch (error) {
-      logger.error(`[${this.name}] Failed to apply feedback`, error);
+      logger.error(`[${this.name}] Failed to apply feedback`, toError(error));
       throw error;
     }
   }

@@ -12,6 +12,7 @@ import {
 } from "../base/base-agent";
 import { AI_MODELS } from "@/lib/models";
 import { logger } from "@/lib/logger";
+import { toError, toLogContext } from "@/lib/error-utils";
 
 export class FrontendAgent extends BaseAgent {
   constructor() {
@@ -138,7 +139,7 @@ export class FrontendAgent extends BaseAgent {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      logger.error(`[${this.config.name}] Task execution failed`, error);
+      logger.error(`[${this.config.name}] Task execution failed`, toError(error));
 
       return {
         success: false,
@@ -240,7 +241,7 @@ export class FrontendAgent extends BaseAgent {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      logger.error(`[${this.config.name}] Fix mode failed`, error);
+      logger.error(`[${this.config.name}] Fix mode failed`, toError(error));
 
       return {
         success: false,
@@ -563,7 +564,7 @@ Type Safety:
 
       return this.parseImplementation(responseText);
     } catch (error) {
-      logger.error(`[${this.config.name}] AI generation failed`, error);
+      logger.error(`[${this.config.name}] AI generation failed`, toError(error));
       return null;
     }
   }
@@ -896,7 +897,7 @@ ${styling === "Tailwind CSS" ? "- Tailwind classes on elements" : ""}
 
 **Example Structure:**
 \`\`\`tsx
-import { createSignal } from 'solid-js';
+import { toError, toLogContext } from "@/lib/error-utils";
 
 interface UserCardProps {
   name: string;
@@ -1092,7 +1093,7 @@ export default function UserCard(props: UserCardProps) {
           );
         }
       } catch (error) {
-        logger.error(`[${this.config.name}] Command error: ${command}`, error);
+        logger.error(`[${this.config.name}] Command error: ${command}`, toError(error));
         results.push({
           command,
           success: false,

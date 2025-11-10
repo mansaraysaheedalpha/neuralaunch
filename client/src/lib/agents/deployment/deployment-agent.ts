@@ -20,6 +20,7 @@ import {
 } from "../base/base-agent";
 import { AI_MODELS } from "@/lib/models";
 import { logger } from "@/lib/logger";
+import { toError, toLogContext } from "@/lib/error-utils";
 
 // ==========================================
 // TYPES & INTERFACES
@@ -118,7 +119,7 @@ export class DeployAgent extends BaseAgent {
         data: deploymentResult,
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Deployment failed`, error);
+      logger.error(`[${this.config.name}] Deployment failed`, toError(error));
 
       return {
         success: false,
@@ -334,7 +335,7 @@ export class DeployAgent extends BaseAgent {
         durationMs: Date.now() - startTime,
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Vercel deployment error`, error);
+      logger.error(`[${this.config.name}] Vercel deployment error`, toError(error));
 
       return {
         success: false,
@@ -402,7 +403,7 @@ export class DeployAgent extends BaseAgent {
         durationMs: Date.now() - startTime,
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Railway deployment error`, error);
+      logger.error(`[${this.config.name}] Railway deployment error`, toError(error));
 
       return {
         success: false,
@@ -466,7 +467,7 @@ export class DeployAgent extends BaseAgent {
         durationMs: Date.now() - startTime,
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Render deployment error`, error);
+      logger.error(`[${this.config.name}] Render deployment error`, toError(error));
 
       return {
         success: false,
@@ -525,7 +526,7 @@ export class DeployAgent extends BaseAgent {
         durationMs: Date.now() - startTime,
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Fly.io deployment error`, error);
+      logger.error(`[${this.config.name}] Fly.io deployment error`, toError(error));
 
       return {
         success: false,
@@ -596,7 +597,7 @@ export class DeployAgent extends BaseAgent {
         durationMs: Date.now() - startTime,
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Netlify deployment error`, error);
+      logger.error(`[${this.config.name}] Netlify deployment error`, toError(error));
 
       return {
         success: false,
@@ -727,7 +728,7 @@ export class DeployAgent extends BaseAgent {
         durationMs: Date.now() - startTime,
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Docker deployment error`, error);
+      logger.error(`[${this.config.name}] Docker deployment error`, toError(error));
 
       return {
         success: false,

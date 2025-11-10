@@ -23,6 +23,7 @@ import {
 import { AI_MODELS } from "@/lib/models";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
+import { toError, toLogContext } from "@/lib/error-utils";
 
 // ==========================================
 // TYPES & INTERFACES
@@ -236,7 +237,7 @@ export class CriticAgent extends BaseAgent {
         },
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Code review failed`, error);
+      logger.error(`[${this.config.name}] Code review failed`, toError(error));
 
       return {
         success: false,
@@ -762,7 +763,7 @@ export class CriticAgent extends BaseAgent {
 
       return this.parseReviewResponse(responseText);
     } catch (error) {
-      logger.error(`[${this.config.name}] AI review failed`, error);
+      logger.error(`[${this.config.name}] AI review failed`, toError(error));
       return { issues: [], suggestions: [], scores: {} };
     }
   }

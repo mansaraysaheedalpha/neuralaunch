@@ -12,6 +12,7 @@ import {
   AgentExecutionOutput,
 } from "../base/base-agent";
 import { logger } from "@/lib/logger";
+import { toError, toLogContext } from "@/lib/error-utils";
 
 export class BackendAgent extends BaseAgent {
   constructor() {
@@ -138,7 +139,7 @@ export class BackendAgent extends BaseAgent {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      logger.error(`[${this.config.name}] Task execution failed`, error);
+      logger.error(`[${this.config.name}] Task execution failed`, toError(error));
 
       return {
         success: false,
@@ -240,7 +241,7 @@ export class BackendAgent extends BaseAgent {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      logger.error(`[${this.config.name}] Fix mode failed`, error);
+      logger.error(`[${this.config.name}] Fix mode failed`, toError(error));
 
       return {
         success: false,
@@ -442,7 +443,7 @@ Generate the fixes now.
 
       return this.parseImplementation(responseText);
     } catch (error) {
-      logger.error(`[${this.config.name}] AI generation failed`, error);
+      logger.error(`[${this.config.name}] AI generation failed`, toError(error));
       return null;
     }
   }
@@ -669,7 +670,7 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
           );
         }
       } catch (error) {
-        logger.error(`[${this.config.name}] Command error: ${command}`, error);
+        logger.error(`[${this.config.name}] Command error: ${command}`, toError(error));
         results.push({
           command,
           success: false,

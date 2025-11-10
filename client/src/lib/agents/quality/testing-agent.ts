@@ -23,6 +23,7 @@ import {
 import { AI_MODELS } from "@/lib/models";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
+import { toError, toLogContext } from "@/lib/error-utils";
 
 // ==========================================
 // TYPES & INTERFACES
@@ -190,7 +191,7 @@ export class TestingAgent extends BaseAgent {
         },
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Test generation failed`, error);
+      logger.error(`[${this.config.name}] Test generation failed`, toError(error));
 
       return {
         success: false,
@@ -696,7 +697,7 @@ describe('${parsed.description || "Test Suite"}', () => {
       // Parse test results
       return this.parseTestResults(result.data?.stdout || "", framework);
     } catch (error) {
-      logger.error(`[${this.config.name}] Failed to run tests`, error);
+      logger.error(`[${this.config.name}] Failed to run tests`, toError(error));
 
       return {
         passed: 0,

@@ -108,7 +108,7 @@ async function* runAnalyzer(
     );
     yield {
       status: "ERROR",
-      error: (error as Error).message,
+      error: (toError(error)).message,
       reasoningLog: [...state.reasoningLog, "Analysis failed."],
     };
   }
@@ -261,7 +261,7 @@ async function* runPlanner(
     );
     yield {
       status: "ERROR",
-      error: (error as Error).message,
+      error: (toError(error)).message,
       reasoningLog: [
         ...state.reasoningLog,
         "Critical error: Failed to generate plan.",

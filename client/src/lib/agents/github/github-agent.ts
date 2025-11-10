@@ -8,6 +8,7 @@
 import { Octokit } from "@octokit/rest";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
+import { toError, toLogContext } from "@/lib/error-utils";
 
 // ==========================================
 // TYPES & INTERFACES
@@ -178,7 +179,7 @@ export class GitHubAgent {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      logger.error(`[${this.name}] Repository setup failed:`, error);
+      logger.error(`[${this.name}] Repository setup failed:`, toError(error));
 
       const duration = Date.now() - startTime;
       await this.logExecution(
@@ -248,7 +249,7 @@ export class GitHubAgent {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      logger.error(`[${this.name}] PR creation failed:`, error);
+      logger.error(`[${this.name}] PR creation failed:`, toError(error));
 
       return {
         success: false,
@@ -286,7 +287,7 @@ export class GitHubAgent {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      logger.error(`[${this.name}] PR merge failed:`, error);
+      logger.error(`[${this.name}] PR merge failed:`, toError(error));
 
       return {
         success: false,
@@ -322,7 +323,7 @@ export class GitHubAgent {
         message: "Comment added successfully",
       };
     } catch (error) {
-      logger.error(`[${this.name}] Failed to comment on PR:`, error);
+      logger.error(`[${this.name}] Failed to comment on PR:`, toError(error));
 
       return {
         success: false,

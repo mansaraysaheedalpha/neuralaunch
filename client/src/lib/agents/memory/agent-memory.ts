@@ -6,6 +6,7 @@
 
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
+import { toError, toLogContext } from "@/lib/error-utils";
 
 // ==========================================
 // TYPES
@@ -92,7 +93,7 @@ export class AgentMemory {
 
       return memory.id;
     } catch (error) {
-      logger.error(`[${this.name}] Failed to store memory`, error);
+      logger.error(`[${this.name}] Failed to store memory`, toError(error));
       throw error;
     }
   }
@@ -167,7 +168,7 @@ export class AgentMemory {
 
       return memories;
     } catch (error) {
-      logger.error(`[${this.name}] Failed to retrieve memories`, error);
+      logger.error(`[${this.name}] Failed to retrieve memories`, toError(error));
       return [];
     }
   }
@@ -291,7 +292,7 @@ export class AgentMemory {
 
       return insights;
     } catch (error) {
-      logger.error(`[${this.name}] Failed to generate insights`, error);
+      logger.error(`[${this.name}] Failed to generate insights`, toError(error));
       return [];
     }
   }

@@ -12,6 +12,7 @@ import {
 } from "../base/base-agent";
 import { AI_MODELS } from "@/lib/models";
 import { logger } from "@/lib/logger";
+import { toError, toLogContext } from "@/lib/error-utils";
 
 export class InfrastructureAgent extends BaseAgent {
   constructor() {
@@ -97,7 +98,7 @@ export class InfrastructureAgent extends BaseAgent {
         },
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Infrastructure task failed`, error);
+      logger.error(`[${this.config.name}] Infrastructure task failed`, toError(error));
 
       return {
         success: false,
@@ -190,7 +191,7 @@ export class InfrastructureAgent extends BaseAgent {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      logger.error(`[${this.config.name}] Infrastructure fix failed`, error);
+      logger.error(`[${this.config.name}] Infrastructure fix failed`, toError(error));
 
       return {
         success: false,
@@ -422,7 +423,7 @@ Generate the requested infrastructure configuration now.
 
       return parsed.files || [];
     } catch (error) {
-      logger.error(`[${this.config.name}] Failed to parse AI response`, error);
+      logger.error(`[${this.config.name}] Failed to parse AI response`, toError(error));
       throw new Error("Failed to parse infrastructure configuration");
     }
   }

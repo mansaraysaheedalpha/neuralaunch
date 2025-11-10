@@ -7,6 +7,7 @@
 
 import { BaseTool, ToolParameter, ToolResult, ToolContext } from "../base-tool";
 import { logger } from "@/lib/logger";
+import { toError, toLogContext } from "@/lib/error-utils";
 
 // ==========================================
 // MCP TYPES (Based on Anthropic's MCP spec)
@@ -373,7 +374,7 @@ export class MCPClient {
 
       return adapters;
     } catch (error) {
-      logger.error(`[MCP Client] Connection failed`, error);
+      logger.error(`[MCP Client] Connection failed`, toError(error));
       throw error;
     }
   }

@@ -8,6 +8,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { AI_MODELS } from "@/lib/models";
+import { toError, toLogContext } from "@/lib/error-utils";
 
 // ==========================================
 // TYPES & INTERFACES
@@ -161,7 +162,7 @@ export class ValidationAgent {
         error instanceof Error ? error.message : "Unknown error";
       const duration = Date.now() - startTime;
 
-      logger.error(`[${this.name}] Validation failed:`, error);
+      logger.error(`[${this.name}] Validation failed:`, toError(error));
 
       await this.logExecution(input, null, false, duration, errorMessage);
 

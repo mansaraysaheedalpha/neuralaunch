@@ -8,6 +8,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { AI_MODELS } from "@/lib/models";
+import { toError, toLogContext } from "@/lib/error-utils";
 
 // ==========================================
 // TYPES
@@ -132,7 +133,7 @@ export class ErrorRecoverySystem {
         nextAction: this.formatNextAction(strategy),
       };
     } catch (error) {
-      logger.error(`[${this.name}] Recovery analysis failed`, error);
+      logger.error(`[${this.name}] Recovery analysis failed`, toError(error));
 
       // Fallback: Escalate to human
       return {
@@ -182,7 +183,7 @@ export class ErrorRecoverySystem {
         simplificationNeeded: parsed.simplificationNeeded ?? false,
       };
     } catch (error) {
-      logger.error(`[${this.name}] Failed to parse AI analysis`, error);
+      logger.error(`[${this.name}] Failed to parse AI analysis`, toError(error));
 
       // Fallback analysis
       return {

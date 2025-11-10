@@ -10,6 +10,7 @@ import { logger } from "@/lib/logger";
 import { AI_MODELS } from "@/lib/models";
 import prisma from "@/lib/prisma";
 import OpenAI from "openai";
+import { toError, toLogContext } from "@/lib/error-utils";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY!,
@@ -116,7 +117,7 @@ export class VectorMemory {
       logger.info(`[${this.name}] Memory stored successfully`);
       return "memory_stored"; // ID would come from RETURNING clause in real implementation
     } catch (error) {
-      logger.error(`[${this.name}] Failed to store memory`, error);
+      logger.error(`[${this.name}] Failed to store memory`, toError(error));
       throw error;
     }
   }
@@ -204,7 +205,7 @@ export class VectorMemory {
         createdAt: m.createdAt,
       }));
     } catch (error) {
-      logger.error(`[${this.name}] Failed to find similar tasks`, error);
+      logger.error(`[${this.name}] Failed to find similar tasks`, toError(error));
       return [];
     }
   }
@@ -277,7 +278,7 @@ export class VectorMemory {
 
       return response.data[0].embedding;
     } catch (error) {
-      logger.error(`[${this.name}] Embedding generation failed`, error);
+      logger.error(`[${this.name}] Embedding generation failed`, toError(error));
       throw error;
     }
   }
@@ -367,7 +368,7 @@ export class VectorMemory {
         topTechStacks,
       };
     } catch (error) {
-      logger.error(`[${this.name}] Failed to get stats`, error);
+      logger.error(`[${this.name}] Failed to get stats`, toError(error));
       return {
         totalMemories: 0,
         successRate: 0,

@@ -21,6 +21,7 @@ import { BaseTool, ToolParameter, ToolResult, ToolContext } from "./base-tool";
 import { SandboxService } from "@/lib/services/sandbox-service";
 import { logger } from "@/lib/logger";
 import * as ts from "typescript";
+import { toError, toLogContext } from "@/lib/error-utils";
 
 // ==========================================
 // TYPES
@@ -443,7 +444,7 @@ print(json.dumps(result))
 
       throw new Error("Python analysis failed");
     } catch (error) {
-      logger.error("Python parsing failed", error);
+      logger.error("Python parsing failed", toError(error));
       return this.parseGeneric(content);
     }
   }
