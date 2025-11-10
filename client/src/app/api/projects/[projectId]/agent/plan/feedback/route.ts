@@ -17,7 +17,7 @@ const feedbackSchema = z.object({
           z.object({
             taskId: z.string(),
             action: z.enum(["modify", "remove", "add"]),
-            changes: z.record(z.any()).optional(),
+            changes: z.record(z.string(), z.any()).optional(),
           })
         )
         .optional(),
@@ -29,7 +29,7 @@ const feedbackSchema = z.object({
           })
         )
         .optional(),
-      techStackChanges: z.record(z.any()).optional(),
+      techStackChanges: z.record(z.string(), z.any()).optional(),
     })
     .optional(),
 });

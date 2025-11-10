@@ -5,7 +5,7 @@
  */
 
 import { inngest } from "../client";
-import { deployAgent } from "@/lib/agents/deployment/deploy-agent";
+import { deployAgent } from "@/lib/agents/deployment/deployment-agent";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 

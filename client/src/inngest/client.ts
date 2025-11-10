@@ -142,7 +142,7 @@ export type AgentEvents = {
       userId: string;
       conversationId: string;
       taskInput: any;
-      priority: number;
+      priority?: number;
     };
   };
 
@@ -309,6 +309,7 @@ export type AgentEvents = {
       issues: any[];
       attempt: number;
       criticResult?: any;
+      maxRetries?: number;
     };
   };
 
@@ -331,6 +332,7 @@ export type AgentEvents = {
       environment: 'staging' | 'production' | 'preview';
       waveNumber?: number;
       taskId?: string;
+      taskInput?: any;
     };
   };
 
@@ -376,6 +378,8 @@ export type AgentEvents = {
       projectId: string;
       userId: string;
       conversationId: string;
+      taskId?: string;
+      taskInput?: any;
     };
   };
 
@@ -393,6 +397,8 @@ export type AgentEvents = {
       projectId: string;
       userId: string;
       conversationId: string;
+      taskId?: string;
+      taskInput?: any;
     };
   };
 
