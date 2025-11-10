@@ -36,6 +36,8 @@ export enum AITaskType {
   AGENT_READ_WORKSPACE = "AGENT_READ_WORKSPACE", // Read files to understand state
   AGENT_DEBUG_FULL = "AGENT_DEBUG_FULL", // Debug errors by reading context
   AGENT_REFLECT = "AGENT_REFLECT",
+  AGENT_ARCHITECT_ANALYZE = "AGENT_ARCHITECT_ANALYZE",
+  AGENT_TECH_RESEARCHER = "AGENT_TECH_RESEARCHER",
 }
 
 // ==================== PROVIDER TYPE ====================
@@ -62,12 +64,27 @@ function routeTaskToModel(
   switch (taskType) {
     case AITaskType.BLUEPRINT_GENERATION:
       logger.debug(`🎯 Routing ${taskType} to ${AI_MODELS.PRIMARY} (Google)`);
-      return { modelId: AI_MODELS.PRIMARY, provider: "GOOGLE" };
+      return {
+        modelId: AI_MODELS.PRIMARY,
+        provider: "GOOGLE",
+        enableSearchTool: false,
+      };
 
     case AITaskType.AGENT_PLANNING: // ✅ NOW GOING TO CLAUDE
+    case AITaskType.AGENT_ARCHITECT_ANALYZE:
       logger.debug(`🎯 Routing ${taskType} to ${AI_MODELS.CLAUDE} (Anthropic)`);
       return { modelId: AI_MODELS.CLAUDE, provider: "ANTHROPIC" };
 
+    // 🆕 ADD THIS CASE
+    case AITaskType.AGENT_TECH_RESEARCHER:
+      logger.debug(
+        `🎯 Routing ${taskType} to ${AI_MODELS.PRIMARY} (Google) with Search`
+      );
+      return {
+        modelId: AI_MODELS.PRIMARY,
+        provider: "GOOGLE",
+        enableSearchTool: true,
+      };
     case AITaskType.TITLE_GENERATION:
     case AITaskType.LANDING_PAGE_COPY:
     case AITaskType.SURVEY_QUESTION_GENERATION:
@@ -154,6 +171,7 @@ async function callGemini(
 
     // FIXED: Proper search tool configuration with error handling
     if (enableSearchTool) {
+      // Configure Google Search Retrieval tool per @google/generative-ai typings
       modelConfig.tools = [
         {
           googleSearchRetrieval: {},

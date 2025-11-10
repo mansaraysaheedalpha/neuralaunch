@@ -1,31 +1,31 @@
 // prisma/schema.prisma
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
-  
 }
 
 datasource db {
-  provider   =   "postgresql"
-  url        =   env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
   extensions = [pgvector(map: "vector")]
 }
 
 // --- AUTH & USER MODELS (UNCHANGED) ---
 model User {
-  id            String         @id @default(cuid())
-  name          String?
-  email         String?        @unique
-  emailVerified DateTime?
-  image         String?
-  accounts      Account[]
-  sessions      Session[]
-  conversations Conversation[]
-  landingPages  LandingPage[]
-  achievements  Achievement[]
-  memories      AiMemory[]
-  vercelTeamId String?
+  id              String           @id @default(cuid())
+  name            String?
+  email           String?          @unique
+  emailVerified   DateTime?
+  image           String?
+  accounts        Account[]
+  sessions        Session[]
+  conversations   Conversation[]
+  projectContexts ProjectContext[]
+  landingPages    LandingPage[]
+  achievements    Achievement[]
+  memories        AiMemory[]
+  vercelTeamId    String?
 }
 
 model Account {
@@ -64,24 +64,26 @@ model VerificationToken {
 
 // --- CORE APP MODELS ---
 model Conversation {
-  id          String    @id @default(cuid())
-  title       String
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages    Message[]
+  id                String             @id @default(cuid())
+  title             String
+  userId            String
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages          Message[]
+  projectContexts   ProjectContext[]
   cofounderMessages CofounderMessage[]
-  landingPage LandingPage?
-  tasks       Task[]
-  validationHub ValidationHub?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  landingPage       LandingPage?
+  tasks             Task[]
+  validationHub     ValidationHub?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   // ===================== THIS IS THE CHANGE =====================
   // The 'tags' field now points to the new join table.
-  tags        TagsOnConversations[]
-  memories      AiMemory[]
-  @@index([createdAt])
+  tags     TagsOnConversations[]
+  memories AiMemory[]
   // ==============================================================
+
+  @@index([createdAt])
 }
 
 model Message {
@@ -96,15 +98,14 @@ model Message {
 model CofounderMessage {
   id             String       @id @default(cuid())
   content        String       @db.Text
-  role           String       // "user" or "cofounder"
+  role           String // "user" or "cofounder"
   createdAt      DateTime     @default(now())
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  
+
   @@index([conversationId])
   @@index([createdAt])
 }
-
 
 // ===================== THIS IS THE CHANGE =====================
 // The old 'IdeaTag' model is replaced with these two new models.
@@ -125,79 +126,77 @@ model TagsOnConversations {
   tag            Tag          @relation(fields: [tagId], references: [id], onDelete: Cascade)
   tagId          String
   assignedAt     DateTime     @default(now())
-  
+
   // This creates a unique link for each conversation-tag pair.
   @@id([conversationId, tagId])
 }
-// ==============================================================
 
+// ==============================================================
 
 // --- ALL OTHER MODELS BELOW ARE UNCHANGED ---
 
 // --- LANDING PAGE MODELS (Phase 1) ---
 model LandingPage {
-  id                String        @id @default(cuid())
+  id                String                @id @default(cuid())
   userId            String
-  conversationId    String        @unique
-  slug              String        @unique
+  conversationId    String                @unique
+  slug              String                @unique
   title             String
   headline          String
   subheadline       String
   problemStatement  String?
   solutionStatement String?
   features          Json
-  ctaText           String        @default("Join Waitlist")
+  ctaText           String                @default("Join Waitlist")
   designVariant     String
   colorScheme       Json
   metaTitle         String?
   metaDescription   String?
   ogImage           String?
-  isPublished       Boolean       @default(false)
+  isPublished       Boolean               @default(false)
   publishedAt       DateTime?
-  surveyQuestion1   String?  @db.Text
-  surveyQuestion2   String?  @db.Text
-  calendlyUrl       String?  @db.Text
+  surveyQuestion1   String?               @db.Text
+  surveyQuestion2   String?               @db.Text
+  calendlyUrl       String?               @db.Text
   pricingTiers      Json?
-  abTestVariants    Json?     // Stores A/B test definitions, e.g., {"headline": ["v1", "v2"]}
+  abTestVariants    Json? // Stores A/B test definitions, e.g., {"headline": ["v1", "v2"]}
   preorderLink      String?
-  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  conversation      Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation      Conversation          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   emailSignups      EmailSignup[]
   pageViews         PageView[]
-  feedback        LandingPageFeedback[]
+  feedback          LandingPageFeedback[]
   smokeTests        FeatureSmokeTest[]
 
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  
-  sandboxContainerId String? @unique
-  sandboxInternalIp  String?
-  sandboxHostPort     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sandboxContainerId    String?   @unique
+  sandboxInternalIp     String?
+  sandboxHostPort       String?
   sandboxLastAccessedAt DateTime?
 
-  projectPlatform         String?  // "web", "mobile", "backend", "desktop", "multi"
-  projectPrimaryLanguage  String?
-
+  projectPlatform           String? // "web", "mobile", "backend", "desktop", "multi"
+  projectPrimaryLanguage    String?
+  agentAnalyzedStack        Json?
   agentArchitectPreferences Json?
-   agentArchitecturePlan Json?
+  agentArchitecturePlan     Json?
 
-  agentPlan                   Json?   
-  agentClarificationQuestions Json?  
-  agentUserResponses          Json? 
-  agentCurrentStep            Int? 
+  agentPlan                   Json?
+  agentClarificationQuestions Json?
+  agentUserResponses          Json?
+  agentCurrentStep            Int?
   agentStatus                 String?
   agentExecutionHistory       Json?
-  githubRepoUrl      String? 
-  githubRepoName     String?
+  githubRepoUrl               String?
+  githubRepoName              String?
 
-  vercelProjectId    String?
-  vercelProjectUrl   String?
+  vercelProjectId     String?
+  vercelProjectUrl    String?
   vercelDeploymentUrl String?
 
-  encryptedEnvVars String? @db.Text // Store as an encrypted JSON string or blob
+  encryptedEnvVars     String? @db.Text // Store as an encrypted JSON string or blob
   agentRequiredEnvKeys Json?
-
-  
 
   @@index([userId])
   @@index([isPublished])
@@ -208,19 +207,19 @@ model LandingPage {
 }
 
 model EmailSignup {
-  id            String      @id @default(cuid())
-  landingPageId String
-  email         String
-  sessionId     String?
-  name          String?
-  source        String?
-  userAgent     String?
-  ipAddress     String?
-  landingPage   LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
-  surveyResponse1 String? @db.Text // Example field for question 1
-  surveyResponse2 String? @db.Text
-  referredBy    String?
-  createdAt     DateTime    @default(now())
+  id              String      @id @default(cuid())
+  landingPageId   String
+  email           String
+  sessionId       String?
+  name            String?
+  source          String?
+  userAgent       String?
+  ipAddress       String?
+  landingPage     LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+  surveyResponse1 String?     @db.Text // Example field for question 1
+  surveyResponse2 String?     @db.Text
+  referredBy      String?
+  createdAt       DateTime    @default(now())
 
   @@index([landingPageId])
   @@index([email])
@@ -281,33 +280,33 @@ model TaskOutput {
 }
 
 model ValidationHub {
-  id               String   @id @default(cuid())
-  conversationId   String   @unique // Enforces one-to-one with Conversation
-  conversation     Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  id             String       @id @default(cuid())
+  conversationId String       @unique // Enforces one-to-one with Conversation
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   // --- 1. USER INPUTS ---
   // The user will manually provide this data
-  customerInterviewCount Int      @default(0)
-  interviewNotes         String?  @db.Text // User pastes their raw notes here
+  customerInterviewCount Int     @default(0)
+  interviewNotes         String? @db.Text // User pastes their raw notes here
 
   // --- 2. AI-DERIVED SCORE ---
   // We will run an AI on 'interviewNotes' to get this
-  feedbackSentimentScore Float?   // A score, e.g., 0.0 to 1.0
+  feedbackSentimentScore Float? // A score, e.g., 0.0 to 1.0
 
   // --- 3. CALCULATED SUB-SCORES ---
   // Storing these makes the UI dashboard much easier to build
-  marketDemandScore      Float?   // Calculated from (Signups / Views)
-  problemValidationScore Float?   // Calculated from (Interview Count + Sentiment)
-  executionScore         Float?   // Calculated from (Sprint Completion %)
+  marketDemandScore      Float? // Calculated from (Signups / Views)
+  problemValidationScore Float? // Calculated from (Interview Count + Sentiment)
+  executionScore         Float? // Calculated from (Sprint Completion %)
 
   // --- 4. THE FINAL SCORE ---
-  totalValidationScore   Float?   // The final 0-100 score
+  totalValidationScore Float? // The final 0-100 score
 
   // --- 5. NEW AI INSIGHT ---
-  aiInsight              String?  @db.Text // <-- ADD THIS LINE
+  aiInsight String? @db.Text // <-- ADD THIS LINE
 
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt // Tracks the last time the score was calculated
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt // Tracks the last time the score was calculated
 }
 
 enum TaskStatus {
@@ -334,40 +333,39 @@ model Achievement {
   unlockedAt      DateTime @default(now())
   metadata        Json? // e.g., { taskTitle: "Create Landing Page" }
 
-  conversationId  String?
+  conversationId String?
 
-  
   @@index([userId])
   @@index([conversationId])
 }
 
 model Sprint {
-  id               String    @id @default(cuid())
-  conversationId   String    @unique
-  userId           String
-  startedAt        DateTime  @default(now())
-  targetEndAt      DateTime // 72 hours from start
-  completedAt      DateTime?
-  totalTasks       Int       @default(0)
-  completedTasks   Int       @default(0)
-  aiAssistsUsed    Int       @default(0) // We'll use this in a future step
-  timeSpent        Int       @default(0) // We'll use this in a future step
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id             String    @id @default(cuid())
+  conversationId String    @unique
+  userId         String
+  startedAt      DateTime  @default(now())
+  targetEndAt    DateTime // 72 hours from start
+  completedAt    DateTime?
+  totalTasks     Int       @default(0)
+  completedTasks Int       @default(0)
+  aiAssistsUsed  Int       @default(0) // We'll use this in a future step
+  timeSpent      Int       @default(0) // We'll use this in a future step
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([userId])
 }
 
 model TaskReminder {
-  id           String     @id @default(cuid())
+  id           String    @id @default(cuid())
   taskId       String
   userId       String // To easily find all reminders for a user
   scheduledFor DateTime // The time this reminder should be sent
-  sent         Boolean    @default(false)
+  sent         Boolean   @default(false)
   sentAt       DateTime?
   reminderType String // e.g., "SPRINT_PROGRESS_CHECK"
-  task         Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  createdAt    DateTime   @default(now())
+  task         Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
 
   @@index([userId])
   @@index([scheduledFor])
@@ -375,7 +373,7 @@ model TaskReminder {
 }
 
 model AiMemory {
-  id        String @id @default(cuid())
+  id        String                       @id @default(cuid())
   content   String // The raw text we want to remember (e.g., "User's goal is...")
   embedding Unsupported("vector(1536)")? // The vector (numeric) representation of the content
   // We use 1536 because that's the size for OpenAI's 'text-embedding-3-small' model, a great default.
@@ -397,9 +395,9 @@ model AiMemory {
 model LandingPageFeedback {
   id            String   @id @default(cuid())
   landingPageId String
-  sessionId     String?  // Optional: Link to PageView session if available
-  feedbackType  String   // e.g., 'problem_rating', 'solution_rating', 'feature_vote'
-  value         String   // Can store rating, vote, choice, etc.
+  sessionId     String? // Optional: Link to PageView session if available
+  feedbackType  String // e.g., 'problem_rating', 'solution_rating', 'feature_vote'
+  value         String // Can store rating, vote, choice, etc.
   createdAt     DateTime @default(now())
 
   landingPage LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
@@ -411,8 +409,8 @@ model LandingPageFeedback {
 model FeatureSmokeTest {
   id            String   @id @default(cuid())
   landingPageId String
-  featureName   String   // e.g., "Dashboard Analytics", "Team Collaboration"
-  sessionId     String?  // To link to a unique visitor
+  featureName   String // e.g., "Dashboard Analytics", "Team Collaboration"
+  sessionId     String? // To link to a unique visitor
   clickCount    Int      @default(1)
   createdAt     DateTime @default(now())
 
@@ -420,4 +418,287 @@ model FeatureSmokeTest {
 
   @@unique([landingPageId, featureName, sessionId]) // Track clicks per feature per session
   @@index([landingPageId])
+}
+
+// ==========================================
+// AGENT SYSTEM TABLES
+// ==========================================
+
+model ProjectContext {
+  id             String @id @default(cuid())
+  projectId      String @unique
+  userId         String
+  conversationId String
+  currentPhase   String @default("analysis")
+  blueprint      Json?
+  techStack      Json?
+  architecture   Json?
+  tasks          Json?
+  executionPlan  Json?
+  codebase       Json? // This now includes: lastReview, escalation, deployments
+
+  planApprovalStatus String? @default("pending")
+  planFeedback       Json?
+  planRevisionCount  Int     @default(0)
+
+  documentationGenerated   Boolean?  @default(false)
+  documentationGeneratedAt DateTime?
+
+  // ✅ NEW: Quality tracking fields
+  lastReviewScore     Int? // Most recent critic score
+  totalEscalations    Int       @default(0) // Total times escalated to human
+  lastEscalationAt    DateTime? // When was last escalation
+  humanReviewRequired Boolean   @default(false) // Does this project need human attention?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  version   Int      @default(1)
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([conversationId])
+  @@index([currentPhase])
+  @@index([humanReviewRequired]) // NEW: For filtering projects needing review
+}
+
+model AgentTask {
+  id        String @id @default(cuid())
+  projectId String
+  agentName String
+  status    String @default("pending")
+
+  priority       Int     @default(5)
+  prNumber       Int?
+  reviewStatus   String?
+  branchName     String?
+  waveNumber     Int?
+  complexity     String?
+  estimatedLines Int?
+  prUrl          String?
+
+  reviewScore    Int?
+  reviewApproved Boolean?
+  criticalIssues Int?
+  securityScore  Int?
+
+  // ✅ NEW: Auto-fix tracking per task
+  fixAttempts     Int       @default(0) // How many times this task was fixed
+  lastFixedAt     DateTime? // When was the last fix
+  fixHistory      Json? // Array of { attempt, issues, result, timestamp }
+  originalIssues  Json? // Original issues found by critic
+  remainingIssues Json? // Issues still not fixed
+
+  input  Json
+  output Json?
+  error  String? @db.Text
+
+  startedAt   DateTime?
+  completedAt DateTime?
+  durationMs  Int?
+  retryCount  Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  @@index([projectId])
+  @@index([status])
+  @@index([agentName])
+  @@index([priority])
+  @@index([projectId, status])
+  @@index([projectId, waveNumber])
+  @@index([reviewStatus])
+  @@index([fixAttempts]) // NEW: For tracking fix attempts
+}
+
+model AgentExecution {
+  id        String @id @default(cuid())
+  projectId String
+  agentName String
+  phase     String
+
+  input      Json
+  output     Json?
+  tokensUsed Int?
+  durationMs Int?
+
+  success Boolean
+  error   String? @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([projectId])
+  @@index([agentName])
+  @@index([phase])
+  @@index([createdAt])
+}
+
+model ExecutionWave {
+  id         String @id @default(cuid())
+  projectId  String
+  waveNumber Int
+  status     String @default("in_progress") // in_progress, completed, failed
+
+  taskCount      Int // Total tasks in this wave
+  completedCount Int @default(0)
+  failedCount    Int @default(0)
+
+  fixAttempts      Int       @default(0) // How many fix attempts were made
+  lastFixAttempt   DateTime? // When was the last fix attempt
+  escalatedToHuman Boolean   @default(false) // Was this escalated to human?
+  escalationReason String?   @db.Text // Why was it escalated?
+
+  // ✅ NEW: Quality metrics
+  finalReviewScore    Int? // Final critic score
+  criticalIssuesCount Int  @default(0) // Number of critical issues found
+  mediumIssuesCount   Int  @default(0) // Number of medium issues found
+
+  // ✅ NEW: Preview deployment tracking
+  previewUrl        String? // Preview URL for UAT
+  previewDeployedAt DateTime? // When preview was deployed
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@unique([projectId, waveNumber])
+  @@index([projectId])
+  @@index([status])
+  @@index([escalatedToHuman]) // NEW: For filtering escalated waves
+}
+
+model AgentMemory {
+  id String @id @default(cuid())
+
+  // Agent identification
+  agentName String // "FrontendAgent", "BackendAgent", etc.
+  taskType  String // "execution", "quality", "deployment"
+
+  // Task details
+  taskTitle       String
+  taskDescription String @db.Text
+  techStack       Json // Array of technologies used
+  complexity      String // "simple", "medium", "complex"
+  estimatedLines  Int?
+
+  // Execution results
+  success    Boolean
+  iterations Int
+  durationMs Int
+  error      String? @db.Text
+
+  // Code artifacts
+  filesCreated Json? // Array of file paths created
+  codeSnippets Json? // Array of { file, content } for reference
+  commandsRun  Json? // Array of commands executed
+
+  // Learning & insights
+  learnings     Json // Array of strings with key learnings
+  errorsSolved  Json? // Array of errors that were fixed
+  bestPractices Json? // Array of best practices discovered
+
+  // Vector embedding for semantic search
+  // Using 3072 dimensions for text-embedding-3-large
+  embedding Unsupported("vector(3072)")?
+
+  // Metadata
+  projectId String? // Optional: link to specific project
+  userId    String? // Optional: link to user
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agentName])
+  @@index([taskType])
+  @@index([success])
+  @@index([agentName, taskType])
+  @@index([createdAt])
+}
+
+model MonitoringSnapshot {
+  id              String   @id @default(cuid())
+  projectId       String
+  healthStatus    String
+  uptime          Float
+  avgResponseTime Float
+  errorRate       Float
+  timestamp       DateTime @default(now())
+
+  @@index([projectId, timestamp])
+}
+
+// ==========================================
+// NEW: IssueFixAttempt Model (Optional - for detailed tracking)
+// ==========================================
+
+model IssueFixAttempt {
+  id         String @id @default(cuid())
+  projectId  String
+  waveNumber Int
+  taskId     String // Which task was being fixed
+  attempt    Int // Which attempt (1-5)
+
+  issuesFound Json // Array of issues that were found
+  fixStrategy String @db.Text // What strategy was used to fix
+
+  agentUsed String // Which agent did the fixing
+  success   Boolean // Was this attempt successful
+
+  // Metrics
+  durationMs Int?
+  tokensUsed Int?
+
+  // Results
+  issuesResolved   Int @default(0)
+  issuesRemaining  Int @default(0)
+  newIssuesCreated Int @default(0) // Sometimes fixes create new issues!
+
+  error String? @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([projectId, waveNumber])
+  @@index([taskId])
+  @@index([attempt])
+  @@index([success])
+}
+
+// ==========================================
+// NEW: HumanReviewRequest Model
+// ==========================================
+
+model HumanReviewRequest {
+  id         String @id @default(cuid())
+  projectId  String
+  waveNumber Int
+
+  // Request details
+  reason      String // "critical_issues_unfixed", "integration_failed", etc.
+  description String @db.Text
+  priority    String @default("high") // "critical", "high", "medium"
+
+  // Issues requiring review
+  criticalIssues Json // Array of critical issues
+  attempts       Int // How many auto-fix attempts were made
+
+  // Status
+  status     String  @default("pending") // "pending", "in_review", "resolved", "cancelled"
+  assignedTo String? // User ID of who's reviewing
+
+  // Resolution
+  resolvedAt    DateTime?
+  resolution    String?   @db.Text // How was it resolved
+  resolverNotes String?   @db.Text
+
+  // Notifications
+  notificationSent   Boolean   @default(false)
+  notificationSentAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, waveNumber]) // One review request per wave
+  @@index([projectId])
+  @@index([status])
+  @@index([priority])
+  @@index([createdAt])
 }

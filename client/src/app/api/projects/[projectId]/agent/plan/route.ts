@@ -1,246 +1,251 @@
 // src/app/api/projects/[projectId]/agent/plan/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { planningAgent } from "@/lib/agents/planning/planning-agent";
+import { createApiLogger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
 import { z } from "zod";
-import { AITaskType, executeAITaskSimple } from "@/lib/ai-orchestrator";
-import { logger } from "@/lib/logger";
 
-const aiPlanResponseSchema = z.object({
-  plan: z
-    .array(z.object({ task: z.string().min(1) }))
-    .min(1, "Plan must contain at least one task."),
-  questions: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        text: z.string().min(1),
-        options: z.array(z.string()).optional(),
-        allowAgentDecision: z.boolean().optional().default(false),
-      })
-    )
-    .optional()
-    .default([]),
-  requiredEnvKeys: z
-    .array(
-      z
-        .string()
-        .min(1)
-        .regex(/^[A-Z0-9_]+$/, "Invalid ENV key format")
-    )
-    .optional()
-    .default([]),
+// Request validation schema
+const planRequestSchema = z.object({
+  conversationId: z.string().min(1, "Conversation ID is required"),
 });
-type AIPlanResponse = z.infer<typeof aiPlanResponseSchema>;
 
 /**
- * Extracts a JSON object from a string, stripping markdown fences (```json ... ```)
+ * POST /api/projects/[projectId]/agent/plan
+ * Execute planning agent on a project
  */
-function extractJsonFromString(text: string): string {
-  const jsonRegex = /```json\s*([\s\S]*?)\s*```/;
-  const match = text.match(jsonRegex);
-  if (match && match[1]) {
-    return match[1];
-  }
-  return text;
-}
-
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ projectId: string }> }
+  { params }: { params: { projectId: string } }
 ) {
-  const log = logger.child({ api: "/api/projects/[projectId]/agent/plan" });
-  try {
-    const { projectId } = await params;
-    log.info(`Plan generation request for project ${projectId}`);
+  const logger = createApiLogger({
+    path: `/api/projects/${params.projectId}/agent/plan`,
+    method: "POST",
+  });
 
+  try {
+    // 1. Authenticate user
     const session = await auth();
     if (!session?.user?.id) {
-      log.warn("Unauthorized access attempt.");
+      logger.warn("Unauthorized planning attempt");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    const userId = session.user.id;
-    log.info(`Authenticated user: ${userId}`);
 
-    const project = await prisma.landingPage.findFirst({
-      where: { id: projectId, userId: userId },
-      include: {
-        conversation: {
-          include: {
-            messages: {
-              where: { role: { in: ["assistant", "model"] } },
-              orderBy: { createdAt: "asc" },
-              take: 1,
-            },
-          },
-        },
+    const userId = session.user.id;
+    logger.info("Planning request received", {
+      userId,
+      projectId: params.projectId,
+    });
+
+    // 2. Parse and validate request body
+    const body = await req.json();
+    const validatedBody = planRequestSchema.parse(body);
+
+    // 3. Verify project exists and user owns it
+    const projectContext = await prisma.projectContext.findUnique({
+      where: { projectId: params.projectId },
+      select: {
+        userId: true,
+        currentPhase: true,
+        architecture: true,
       },
     });
 
-    if (!project) {
-      log.warn(`Project ${projectId} not found or forbidden.`);
+    if (!projectContext) {
+      logger.warn("Project not found", { projectId: params.projectId });
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    if (projectContext.userId !== userId) {
+      logger.warn("Unauthorized project access attempt", {
+        projectId: params.projectId,
+        userId,
+      });
       return NextResponse.json(
-        { error: "Project not found or forbidden" },
-        { status: 404 }
+        { error: "Unauthorized access to this project" },
+        { status: 403 }
       );
     }
 
-    const blueprintContent = project.conversation?.messages?.[0]?.content;
-
-    if (!blueprintContent) {
-      log.error(
-        `Blueprint content missing for project ${projectId}. Searched messages for role 'assistant' or 'model'.`
-      );
+    // 4. Check if prerequisites are met (Validation must run first)
+    if (
+      projectContext.currentPhase !== "validation" &&
+      projectContext.currentPhase !== "planning"
+    ) {
+      logger.warn("Planning attempted before validation phase", {
+        projectId: params.projectId,
+        currentPhase: projectContext.currentPhase,
+      });
       return NextResponse.json(
         {
-          error:
-            "Blueprint not found for this project. Please generate a blueprint first.",
+          error: "Cannot plan yet. Please run Validation Agent first.",
+          currentPhase: projectContext.currentPhase,
         },
         { status: 400 }
       );
     }
 
-    const planningPrompt = `
-You are an AI Engineering Lead analyzing a startup blueprint to create a technical build plan. Your goals are:
+    // 5. Check if project is feasible
+    const architecture = projectContext.architecture as any;
+    const validation = architecture?.validation;
 
-1.  **Analyze Blueprint:** Understand the core features, target users, and implied technical needs (database, auth, payments, external APIs, etc.).
-2.  **Create Build Plan:** Generate a concise, step-by-step technical plan (5-10 steps) for building the MVP.
-3.  **Identify Required ENV Keys:** List *all* environment variable keys essential for the project based on the plan (e.g., DATABASE_URL, NEXTAUTH_SECRET, GOOGLE_CLIENT_ID, STRIPE_SECRET_KEY, RESEND_API_KEY).
-    * **You MUST ALWAYS include 'VERCEL_ACCESS_TOKEN' in this list.** This is required for deployment.
-    * **You MUST ALWAYS include 'DATABASE_URL', 'NEXTAUTH_SECRET', and 'NEXTAUTH_URL'.**
-4.  **Formulate Clarifying Questions:** Identify 1-3 critical ambiguities or technical decisions needed from the user (e.g., UI library, feature priority).
-    * Assign unique IDs (e.g., "ui_library").
-    * Mark questions as \`"allowAgentDecision": true\` if the agent can pick a default.
-5.  **If no questions are needed, return an empty array.**
-
-**Blueprint:**
----
-${blueprintContent}
----
-
-**Response Format:** Respond ONLY with a valid JSON object matching this structure:
-\`\`\`json
-{
-  "plan": [
-    { "task": "Step 1 description..." },
-    { "task": "Step 2 description..." }
-  ],
-  "questions": [
-    {
-      "id": "ui_library",
-      "text": "Which UI component library should we use?",
-      "options": ["Shadcn UI (Recommended)", "Plain Tailwind", "Material UI"],
-      "allowAgentDecision": true
-    }
-  ],
-  "requiredEnvKeys": [
-    "VERCEL_ACCESS_TOKEN",
-    "DATABASE_URL",
-    "NEXTAUTH_SECRET",
-    "NEXTAUTH_URL",
-    "GOOGLE_CLIENT_ID",
-    "GOOGLE_CLIENT_SECRET",
-    "STRIPE_SECRET_KEY"
-  ]
-}
-\`\`\`
-Ensure the JSON is perfectly valid.
-`;
-
-    log.info(
-      `Requesting enhanced plan generation from AI for project ${projectId}`
-    );
-    const aiResponseString = await executeAITaskSimple(
-      AITaskType.AGENT_PLANNING,
-      {
-        prompt: planningPrompt,
-        responseFormat: { type: "json_object" },
-      }
-    );
-
-    let parsedResponse: AIPlanResponse;
-    try {
-      const cleanedJsonString = extractJsonFromString(aiResponseString);
-      const rawJsonResponse = JSON.parse(cleanedJsonString) as unknown;
-      parsedResponse = aiPlanResponseSchema.parse(rawJsonResponse);
-
-      // *** ROBUSTNESS CHECK ***
-      // Ensure VERCEL_ACCESS_TOKEN is always in the list, even if the AI forgets.
-      if (!parsedResponse.requiredEnvKeys.includes("VERCEL_ACCESS_TOKEN")) {
-        logger.warn(
-          "AI plan response missing VERCEL_ACCESS_TOKEN, adding it manually."
-        );
-        parsedResponse.requiredEnvKeys.push("VERCEL_ACCESS_TOKEN");
-      }
-      // *** END CHECK ***
-
-      log.info(
-        `AI response parsed successfully. Plan steps: ${parsedResponse.plan.length}, Questions: ${parsedResponse.questions.length}, EnvKeys: ${parsedResponse.requiredEnvKeys.length}`
-      );
-    } catch (parseError) {
-      log.error(
-        `Failed to parse or validate AI JSON response for ${projectId}:`,
-        parseError instanceof Error ? parseError : undefined
-      );
-      log.error(`Raw AI Response (that failed parsing): ${aiResponseString}`);
+    if (!validation || !validation.feasible) {
+      logger.warn("Planning attempted on non-feasible project", {
+        projectId: params.projectId,
+      });
       return NextResponse.json(
         {
           error:
-            "AI failed to generate a valid plan structure. Please try again.",
+            "Cannot plan a non-feasible project. Address validation blockers first.",
+          validation: validation,
         },
-        { status: 500 }
+        { status: 400 }
       );
     }
 
-    const { plan, questions, requiredEnvKeys } = parsedResponse;
-    let nextAgentStatus: string;
+    // 6. Execute planning agent
+    logger.info("Executing planning agent", { projectId: params.projectId });
 
-    if (questions.length > 0) {
-      nextAgentStatus = "PENDING_USER_INPUT";
-    } else if (requiredEnvKeys.length > 0) {
-      nextAgentStatus = "PENDING_CONFIGURATION";
-    } else {
-      nextAgentStatus = "READY_TO_EXECUTE";
+    const result = await planningAgent.execute({
+      projectId: params.projectId,
+      userId,
+      conversationId: validatedBody.conversationId,
+    });
+
+    if (!result.success) {
+      logger.error("Planning execution failed", {
+        projectId: params.projectId,
+        error: result.message,
+      });
+      return NextResponse.json({ error: result.message }, { status: 500 });
     }
-    log.info(`Determined next agent status: ${nextAgentStatus}`);
 
-    await prisma.landingPage.update({
-      where: { id: projectId },
-      data: {
-        agentPlan: plan as Prisma.InputJsonValue,
-        agentClarificationQuestions: questions as Prisma.InputJsonValue,
-        agentRequiredEnvKeys: requiredEnvKeys as Prisma.InputJsonValue,
-        agentUserResponses: Prisma.JsonNull,
-        agentCurrentStep: 0,
-        agentStatus: nextAgentStatus,
-        agentExecutionHistory: Prisma.JsonNull,
+    logger.info("Planning completed successfully", {
+      projectId: params.projectId,
+      taskCount: result.plan?.tasks.length,
+      executionId: result.executionId,
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: result.message,
+      plan: result.plan,
+      executionId: result.executionId,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      logger.warn("Invalid request body", { errors: error.errors });
+      return NextResponse.json(
+        { error: "Invalid request body", details: error.errors },
+        { status: 400 }
+      );
+    }
+
+    logger.error("Planning endpoint error", error as Error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * GET /api/projects/[projectId]/agent/plan
+ * Get planning results for a project
+ */
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { projectId: string } }
+) {
+  const logger = createApiLogger({
+    path: `/api/projects/${params.projectId}/agent/plan`,
+    method: "GET",
+  });
+
+  try {
+    // 1. Authenticate user
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const userId = session.user.id;
+
+    // 2. Get project context with planning results
+    const projectContext = await prisma.projectContext.findUnique({
+      where: { projectId: params.projectId },
+      select: {
+        userId: true,
+        currentPhase: true,
+        executionPlan: true,
+        updatedAt: true,
       },
     });
 
-    log.info(
-      `Plan generated and saved for project ${projectId}. Status: ${nextAgentStatus}`
-    );
+    if (!projectContext) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
 
-    return NextResponse.json(
-      {
-        plan: plan,
-        questions: questions,
-        requiredEnvKeys: requiredEnvKeys,
-        agentStatus: nextAgentStatus,
+    if (projectContext.userId !== userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    // 3. Check if plan exists
+    if (!projectContext.executionPlan) {
+      logger.info("No planning results found", { projectId: params.projectId });
+      return NextResponse.json({
+        hasPlan: false,
+        currentPhase: projectContext.currentPhase,
+        message: "No planning results available. Run planning first.",
+      });
+    }
+
+    // 4. Get latest execution log
+    const latestExecution = await prisma.agentExecution.findFirst({
+      where: {
+        projectId: params.projectId,
+        agentName: "PlanningAgent",
       },
-      { status: 200 }
-    );
-  } catch (error: unknown) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error during planning";
-    log.error(
-      `Error: ${errorMessage}`,
-      error instanceof Error ? error : undefined
-    );
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        success: true,
+        durationMs: true,
+        createdAt: true,
+      },
+    });
+
+    // 5. Get task statistics
+    const taskStats = await prisma.agentTask.groupBy({
+      by: ["status"],
+      where: { projectId: params.projectId },
+      _count: true,
+    });
+
+    logger.info("Planning results retrieved", {
+      projectId: params.projectId,
+      hasPlan: true,
+    });
+
+    return NextResponse.json({
+      hasPlan: true,
+      currentPhase: projectContext.currentPhase,
+      plan: projectContext.executionPlan,
+      lastPlanned: projectContext.updatedAt,
+      execution: latestExecution,
+      taskStats: taskStats.reduce(
+        (acc, stat) => {
+          acc[stat.status] = stat._count;
+          return acc;
+        },
+        {} as Record<string, number>
+      ),
+    });
+  } catch (error) {
+    logger.error("Get planning error", error as Error);
     return NextResponse.json(
-      { error: "Internal Server Error", message: errorMessage },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

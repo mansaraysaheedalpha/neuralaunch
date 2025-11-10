@@ -40,6 +40,24 @@ export const questionSchema = z.object({
   priority: z.enum(["required", "optional"]).optional().nullable(),
 });
 
+export const verificationSchema = z.object({
+  commands: z.array(z.string()),
+  successCriteria: z.string(),
+});
+
+export const phaseSchema = z.object({
+  phase: z.string(),
+  tasks: z.array(actionableTaskSchema), // <-- Uses your existing schema!
+});
+
+export const strictAIPlanResponseSchema = z.object({
+  architecture: z.any().optional(),
+  plan: z.array(phaseSchema),
+  questions: z.array(questionSchema).optional().default([]), // Uses your existing schema
+  requiredEnvKeys: z.array(z.string()).optional().default([]),
+  conditionalEnvKeys: z.any().optional(),
+});
+
 export const accountInfoSchema = z.object({
   provider: z.string(),
   providerAccountId: z.string(),
@@ -88,6 +106,27 @@ export const architectPreferencesSchema = z.object({
   additionalContext: z.string().optional().nullable(),
 });
 
+export const analyzedStackItemSchema = z.object({
+  name: z
+    .string()
+    .describe("The name of the technology (e.g., 'Nuxt 3', 'Stripe')"),
+  rationale: z.string().describe("The architect's reason for choosing this."),
+});
+
+// This is the core "Dynamic Stack" object
+export const analyzedStackSchema = z.object({
+  framework: analyzedStackItemSchema,
+  ui: analyzedStackItemSchema,
+  database: analyzedStackItemSchema,
+  authentication: analyzedStackItemSchema,
+  payments: analyzedStackItemSchema
+    .optional()
+    .describe("Included only if the blueprint implies a business model."),
+  hosting: analyzedStackItemSchema,
+  // You can add more categories here later (e.g., 'email', 'storage')
+});
+
+
 // 7. Finally, define the main project schema
 export const projectAgentDataSchema = z.object({
   id: z.string(),
@@ -101,6 +140,7 @@ export const projectAgentDataSchema = z.object({
   agentArchitectPreferences: architectPreferencesSchema
     .nullable()
     .default(null),
+  agentAnalyzedStack: analyzedStackSchema.nullable().default(null),
   agentArchitecturePlan: z.any().nullable().default(null), // Full architectural plan (raw AI output)
 
   // ------------------------------------------------------------------
@@ -127,6 +167,53 @@ export const projectAgentDataSchema = z.object({
   accounts: z.array(accountInfoSchema).default([]),
 });
 
+/**
+ * Flattens the plan from phases to a single array of tasks.
+ */
+export function flattenPlan(plan: z.infer<typeof phaseSchema>[]): ActionableTask[] {
+  return plan.flatMap((phase) =>
+    phase.tasks.map((task) => ({
+      ...task,
+      dependencies: task.dependencies ?? [],
+      security: task.security ?? [],
+    }))
+  );
+}
+
+/**
+ * Consolidates all required and conditional env keys.
+ */
+export function consolidateEnvKeys(
+  parsed: z.infer<typeof strictAIPlanResponseSchema>
+): string[] {
+  const allKeys = new Set<string>();
+
+  if (Array.isArray(parsed.requiredEnvKeys)) {
+    parsed.requiredEnvKeys.forEach((key) => allKeys.add(key));
+  }
+
+  if (
+    parsed.conditionalEnvKeys &&
+    typeof parsed.conditionalEnvKeys === "object" &&
+    !Array.isArray(parsed.conditionalEnvKeys)
+  ) {
+    for (const keys of Object.values(
+      parsed.conditionalEnvKeys as Record<string, unknown>
+    )) {
+      if (Array.isArray(keys)) {
+        keys.forEach((key) => allKeys.add(key as string));
+      }
+    }
+  }
+
+  // Always include VERCEL_ACCESS_TOKEN for deployment
+  allKeys.add("VERCEL_ACCESS_TOKEN");
+
+  return Array.from(allKeys);
+}
+
+// Export the type for use in your routes
+export type AnalyzedStack = z.infer<typeof analyzedStackSchema>;
 // Export the inferred type
 export type ValidatedProjectAgentData = z.infer<typeof projectAgentDataSchema>;
 

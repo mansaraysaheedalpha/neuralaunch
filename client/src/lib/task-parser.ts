@@ -1,5 +1,5 @@
 // src/lib/task-parser.ts
-// Parse tasks from AI-generated blueprints
+// Parse tasks from AI-generated blueprints (supports both old and new formats)
 
 import { AssistantType } from "@prisma/client";
 
@@ -15,7 +15,9 @@ export interface ParsedTask {
  * Main function: Parse tasks from blueprint
  */
 export function parseTasksFromBlueprint(blueprint: string): ParsedTask[] {
-  console.log("🚀 Running new robust task parser...");
+  console.log(
+    "🚀 Running enhanced task parser (supports old & new formats)..."
+  );
 
   const sectionText = extract72HourSection(blueprint);
   if (!sectionText) {
@@ -25,10 +27,18 @@ export function parseTasksFromBlueprint(blueprint: string): ParsedTask[] {
     return generateDefaultTasks();
   }
 
-  const tasks = parseTaskList(sectionText);
+  // Try parsing new format first (checkbox style)
+  let tasks = parseNewFormat(sectionText);
+
+  // If new format fails, try old format (numbered style)
+  if (tasks.length === 0) {
+    console.log("📋 New format not found, trying old numbered format...");
+    tasks = parseOldFormat(sectionText);
+  }
+
   if (tasks.length === 0) {
     console.warn(
-      "⚠️ Found section but failed to parse tasks. Using default tasks."
+      "⚠️ Found section but failed to parse tasks in any format. Using default tasks."
     );
     return generateDefaultTasks();
   }
@@ -38,20 +48,23 @@ export function parseTasksFromBlueprint(blueprint: string): ParsedTask[] {
 }
 
 /**
- * Extract tasks from "Next 72 Hours" section
- */
-/**
  * Step 1: Reliably find the "Next 72 Hours" section in the blueprint.
+ * Updated to handle both ## and ### headers
  */
 function extract72HourSection(blueprint: string): string | null {
   const sectionPatterns = [
+    // New format with ## header
+    /## ✅ Your Next 72 Hours[\s\S]*?\n([\s\S]*?)(?=\n##|\n---|\n\*\*🎯|<!-- AGENT_METADATA|$)/i,
+    // Old format with ### header
     /### ✅ Your Next 72 Hours[\s\S]*?\n([\s\S]*?)(?=\n###|\n---|\n\*\*🎯|$)/i,
-    /Next 72 Hours[\s\S]*?\n([\s\S]*?)(?=\n###|\n---|\n\*\*🎯|$)/i,
+    // Fallback without emoji
+    /Next 72 Hours[\s\S]*?\n([\s\S]*?)(?=\n##|\n###|\n---|\n\*\*🎯|$)/i,
   ];
 
   for (const pattern of sectionPatterns) {
     const match = blueprint.match(pattern);
     if (match && match[1]) {
+      console.log("✅ Found '72 Hours' section");
       return match[1];
     }
   }
@@ -59,9 +72,70 @@ function extract72HourSection(blueprint: string): string | null {
 }
 
 /**
- * Step 2: Split the section into individual task blocks and parse each one.
+ * Parse NEW checkbox format:
+ * ### Hours 1-8: Build the Test
+ * - [ ] Task description
+ * - [ ] Task description
  */
-function parseTaskList(sectionText: string): ParsedTask[] {
+function parseNewFormat(sectionText: string): ParsedTask[] {
+  console.log("🆕 Attempting to parse new checkbox format...");
+  const tasks: ParsedTask[] = [];
+
+  // Match time block headers like "### Hours 1-8: Build the Test"
+  const timeBlockPattern =
+    /### Hours? (\d+(?:-\d+)?):([^\n]+)\n((?:- \[ \][^\n]+\n?)+)/gi;
+  const matches = [...sectionText.matchAll(timeBlockPattern)];
+
+  if (matches.length === 0) {
+    console.log("⚠️ No time blocks found in new format");
+    return [];
+  }
+
+  let orderIndex = 0;
+
+  for (const match of matches) {
+    const timeRange = match[1]; // e.g., "1-8" or "9-24"
+    const blockTitle = match[2].trim(); // e.g., "Build the Test"
+    const taskLines = match[3]; // All checkbox lines
+
+    // Extract individual checkbox tasks
+    const checkboxPattern = /- \[ \] ([^\n]+)/g;
+    const taskMatches = [...taskLines.matchAll(checkboxPattern)];
+
+    for (const taskMatch of taskMatches) {
+      const taskDescription = taskMatch[1].trim();
+
+      // Remove markdown formatting and extract clean description
+      const cleanDescription = taskDescription
+        .replace(/\[Specific task[^\]]*\]/gi, "") // Remove placeholder brackets
+        .replace(/e\.g\.,\s*/gi, "")
+        .trim();
+
+      if (cleanDescription.length > 10) {
+        // Ignore empty or very short tasks
+        tasks.push({
+          title: generateTitleFromDescription(cleanDescription),
+          description: cleanDescription,
+          timeEstimate: calculateTimeEstimate(timeRange),
+          orderIndex: orderIndex++,
+          aiAssistantType: determineAssistantType(cleanDescription),
+        });
+      }
+    }
+  }
+
+  console.log(`✅ Parsed ${tasks.length} tasks from new format`);
+  return tasks;
+}
+
+/**
+ * Parse OLD numbered format (backward compatibility):
+ * 1. **[Hour 1-8]:** Task description
+ * 2. **[Hour 9-24]:** Task description
+ */
+function parseOldFormat(sectionText: string): ParsedTask[] {
+  console.log("📜 Attempting to parse old numbered format...");
+
   // Split the text into blocks starting with "1.", "2.", "3.", etc.
   const taskBlocks = sectionText
     .split(/\n(?=\d+\.\s+\*\*)/)
@@ -86,6 +160,8 @@ function parseTaskList(sectionText: string): ParsedTask[] {
       });
     }
   }
+
+  console.log(`✅ Parsed ${tasks.length} tasks from old format`);
   return tasks;
 }
 
@@ -96,10 +172,15 @@ function generateTitleFromDescription(description: string): string {
   const firstSentence = description.split(".")[0];
   // Example: "Generate 50 target customer profiles" -> "Generate Customer Profiles"
   const title = firstSentence
-    .replace(/^(Create|Generate|Draft|Write|Begin|Design|Conduct)\s+/i, "")
+    .replace(
+      /^(Create|Generate|Draft|Write|Begin|Design|Conduct|Set up|Build|Record)\s+/i,
+      ""
+    )
     .replace(/(\d+\s+)/, "")
     .replace(/in your immediate network.*$/, "")
     .trim();
+
+  // Capitalize first letter
   return title.charAt(0).toUpperCase() + title.slice(1);
 }
 

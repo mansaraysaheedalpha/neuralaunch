@@ -1,4 +1,3 @@
-// src/components/agent/ArchitectPreferences.tsx
 "use client";
 
 import { useState } from "react";
@@ -15,7 +14,7 @@ import { toast } from "react-hot-toast";
 
 interface ArchitectPreferencesProps {
   projectId: string;
-  onComplete: () => void;
+  onComplete: () => void; // This prop now means "Agent has started, begin polling"
 }
 
 type TechStackPreferences = {
@@ -28,6 +27,7 @@ type TechStackPreferences = {
   additionalContext?: string;
 };
 
+// --- (All your constant options like FRAMEWORK_OPTIONS, UI_LIBRARY_OPTIONS, etc. are perfect) ---
 const FRAMEWORK_OPTIONS = [
   {
     value: "nextjs",
@@ -115,6 +115,7 @@ const DEPLOYMENT_OPTIONS = [
     description: "Docker + your server",
   },
 ];
+// --- (End of options) ---
 
 export default function ArchitectPreferences({
   projectId,
@@ -132,13 +133,17 @@ export default function ArchitectPreferences({
     setPreferences({ ...preferences, mode: selectedMode });
   };
 
+  /**
+   * ✅ REFACTORED: This now calls the single, robust "generate-plan" endpoint.
+   * It no longer needs to know about `analyzedStack`. It just sends preferences.
+   */
   const handleSubmit = async () => {
     setIsSubmitting(true);
 
     try {
-      // Save preferences and trigger planning
+      // Call the new single API endpoint
       const res = await fetch(
-        `/api/projects/${projectId}/architect/configure`,
+        `/api/projects/${projectId}/agent/generate-plan`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -146,25 +151,31 @@ export default function ArchitectPreferences({
         }
       );
 
-      if (!res.ok) {
-        throw new Error("Failed to save preferences");
+      // The new API returns 202 (Accepted) on success
+      if (res.status !== 202) {
+        const errorData = await res.json() as { error?: string };
+        throw new Error(
+          errorData.error || `Failed to start agent (${res.status})`
+        );
       }
 
+      // Show success and update the button text
       toast.success(
-        mode === "default"
-          ? "AI Architect will use best practices!"
-          : "Your preferences saved! Architect is planning..."
+        "Agent started! The architect is analyzing your blueprint..."
       );
 
+      // Tell the parent component to start polling the /state endpoint
       onComplete();
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to save preferences"
+        error instanceof Error ? error.message : "Failed to start the agent"
       );
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  // --- (All of your JSX and UI logic below is perfect and requires no changes) ---
 
   return (
     <motion.div
@@ -192,8 +203,7 @@ export default function ArchitectPreferences({
         <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg inline-block">
           <p className="text-sm text-amber-600 dark:text-amber-400 flex items-center gap-2">
             <Info className="w-4 h-4" />
-            <strong>Important:</strong> This choice is made once. The
-            architect's work is final.
+            <strong>Important:</strong> This choice starts the planning process.
           </p>
         </div>
       </div>
@@ -434,8 +444,9 @@ export default function ArchitectPreferences({
                       className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Example: "Use TypeScript strict mode", "Prefer server
-                      actions over API routes", "Must support offline mode"
+                      Example: &quot;Use TypeScript strict mode&quot;,
+                      &quot;Prefer server actions over API routes&quot;,
+                      &quot;Must support offline mode&quot;
                     </p>
                   </div>
                 </motion.div>
@@ -460,14 +471,14 @@ export default function ArchitectPreferences({
         {isSubmitting ? (
           <>
             <Loader2 className="w-5 h-5 animate-spin" />
-            Configuring Architect...
+            Starting Agent...
           </>
         ) : (
           <>
             <CheckCircle className="w-5 h-5" />
             {mode === "default"
               ? "Proceed with AI Recommendations"
-              : "Save Preferences & Generate Plan"}
+              : "Save Preferences & Start Agent"}
           </>
         )}
       </motion.button>

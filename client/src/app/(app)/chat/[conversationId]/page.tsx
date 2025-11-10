@@ -3,6 +3,7 @@
 
 import { useState, FormEvent, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useParams, useRouter } from "next/navigation";
 import TextareaAutosize from "react-textarea-autosize";
 import { motion } from "framer-motion";
@@ -356,8 +357,10 @@ export default function ChatPage() {
                             {message.content}
                           </p>
                         ) : (
-                          <div className="prose dark:prose-invert max-w-none prose-p:leading-relaxed">
-                            <ReactMarkdown>{message.content}</ReactMarkdown>
+                          <div className="prose dark:prose-invert max-w-none prose-p:leading-relaxed prose-table:border-collapse prose-th:border prose-th:border-gray-300 dark:prose-th:border-gray-700 prose-th:px-4 prose-th:py-2 prose-th:bg-gray-100 dark:prose-th:bg-gray-800 prose-td:border prose-td:border-gray-300 dark:prose-td:border-gray-700 prose-td:px-4 prose-td:py-2">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {message.content}
+                            </ReactMarkdown>
                           </div>
                         )}
                       </div>

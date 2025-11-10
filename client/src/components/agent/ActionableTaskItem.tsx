@@ -1,144 +1,172 @@
-// src/components/agent/ActionableTaskItem.tsx
-"use client";
-
 import { motion } from "framer-motion";
-import { FileCode, CheckCircle, AlertTriangle, Info } from "lucide-react";
-import type { ActionableTask } from "@/types/agent-schemas";
+import {
+  FileText,
+  Terminal,
+  Lightbulb,
+  CheckCircle,
+  Code,
+  Layout,
+  Shield,
+  Clock,
+} from "lucide-react";
+import type { ActionableTask } from "@/types/agent-schemas"; // Corrected import path
 
 interface ActionableTaskItemProps {
   task: ActionableTask;
   index: number;
 }
 
+const fadeIn = {
+  hidden: { opacity: 0, y: 10 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
+};
+
+const IconWrapper = ({ children }: { children: React.ReactNode }) => (
+  <div className="flex-shrink-0 w-5 h-5 text-muted-foreground">{children}</div>
+);
+
 export default function ActionableTaskItem({
   task,
   index,
 }: ActionableTaskItemProps) {
-  const complexityColors = {
-    low: "text-green-600 dark:text-green-400 bg-green-500/10",
-    medium: "text-yellow-600 dark:text-yellow-400 bg-yellow-500/10",
-    high: "text-red-600 dark:text-red-400 bg-red-500/10",
-  };
-
   return (
     <motion.li
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05 }}
-      className="relative pl-8 pb-6 border-l-2 border-border last:pb-0"
+      variants={fadeIn}
+      className="p-4 bg-card border border-border rounded-lg shadow-sm"
     >
-      {/* Step Number Badge */}
-      <div className="absolute -left-3 top-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
-        {index + 1}
-      </div>
+      <h4 className="text-md font-semibold text-foreground mb-3">
+        <span className="text-primary font-bold">{index + 1}.</span> {task.task}
+      </h4>
 
-      {/* Task Card */}
-      <div className="bg-card border border-border rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
-        {/* Header: Task Title + Complexity */}
-        <div className="flex items-start justify-between gap-4 mb-3">
-          <h4 className="text-sm font-semibold text-foreground flex-1">
-            {task.task}
-          </h4>
-          <span
-            className={`text-xs font-medium px-2 py-1 rounded-full ${
-              complexityColors[task.estimatedComplexity]
-            }`}
-          >
-            {task.estimatedComplexity}
-          </span>
-        </div>
-
+      <div className="space-y-3 pl-6">
         {/* Rationale */}
-        <p className="text-xs text-muted-foreground mb-3 italic">
-          <Info className="w-3 h-3 inline mr-1" />
-          {task.rationale}
-        </p>
-
-        {/* Files to Create/Modify */}
-        {task.files && task.files.length > 0 && (
-          <div className="mb-3">
-            <p className="text-xs font-medium text-foreground mb-1 flex items-center gap-1">
-              <FileCode className="w-3 h-3" />
-              Files:
-            </p>
-            <div className="flex flex-wrap gap-1">
-              {task.files.map((file, i) => (
-                <code
-                  key={i}
-                  className="text-xs bg-muted px-2 py-0.5 rounded text-muted-foreground"
-                >
-                  {file}
-                </code>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Pattern */}
-        <div className="mb-3">
-          <p className="text-xs font-medium text-foreground mb-1">Pattern:</p>
-          <p className="text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded">
-            {task.pattern}
+        <div className="flex items-start gap-3">
+          <IconWrapper>
+            <Lightbulb />
+          </IconWrapper>
+          <p className="text-sm text-muted-foreground">
+            <strong>Rationale:</strong> {task.rationale}
           </p>
         </div>
 
-        {/* Verification Commands */}
-        {task.verification && task.verification.commands.length > 0 && (
-          <div className="mb-3">
-            <p className="text-xs font-medium text-foreground mb-1 flex items-center gap-1">
-              <CheckCircle className="w-3 h-3" />
-              Verification:
-            </p>
-            <div className="space-y-1">
-              {task.verification.commands.map((cmd, i) => (
-                <code
-                  key={i}
-                  className="block text-xs bg-slate-900 text-green-400 px-2 py-1 rounded font-mono"
+        {/* Files */}
+        <div className="flex items-start gap-3">
+          <IconWrapper>
+            <FileText />
+          </IconWrapper>
+          <div>
+            <strong className="text-sm text-muted-foreground">Files:</strong>
+            <ul className="list-none pl-0 mt-1 space-y-1">
+              {task.files.map((file) => (
+                <li
+                  key={file}
+                  className="flex items-center gap-2 text-sm text-foreground"
                 >
-                  $ {cmd}
-                </code>
-              ))}
-              <p className="text-xs text-muted-foreground mt-1">
-                ✓ {task.verification.successCriteria}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Security Notes */}
-        {task.security && task.security.length > 0 && (
-          <div className="mb-3">
-            <p className="text-xs font-medium text-foreground mb-1 flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3 text-amber-500" />
-              Security:
-            </p>
-            <ul className="text-xs text-muted-foreground space-y-0.5 pl-4">
-              {task.security.map((note, i) => (
-                <li key={i} className="list-disc">
-                  {note}
+                  <Code className="w-4 h-4 text-sky-500" />
+                  <span className="font-mono bg-muted px-2 py-0.5 rounded">
+                    {file}
+                  </span>
                 </li>
               ))}
             </ul>
           </div>
-        )}
+        </div>
 
-        {/* UI Details (if applicable) */}
+        {/* Pattern */}
+        <div className="flex items-start gap-3">
+          <IconWrapper>
+            <Code />
+          </IconWrapper>
+          <p className="text-sm text-muted-foreground">
+            <strong>Pattern:</strong>{" "}
+            <span className="font-mono bg-muted px-2 py-0.5 rounded text-foreground">
+              {task.pattern}
+            </span>
+          </p>
+        </div>
+
+        {/* UI Details (if present) */}
         {task.uiDetails && (
-          <div className="mt-3 pt-3 border-t border-border">
-            <p className="text-xs font-medium text-primary mb-1">UI/UX:</p>
-            <p className="text-xs text-muted-foreground">{task.uiDetails}</p>
-          </div>
-        )}
-
-        {/* Dependencies */}
-        {task.dependencies && task.dependencies.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-border">
-            <p className="text-xs text-muted-foreground">
-              Depends on steps:{" "}
-              {task.dependencies.map((dep) => dep + 1).join(", ")}
+          <div className="flex items-start gap-3">
+            <IconWrapper>
+              <Layout />
+            </IconWrapper>
+            <p className="text-sm text-muted-foreground">
+              <strong>UI Details:</strong> {task.uiDetails}
             </p>
           </div>
         )}
+
+        {/* Security (if present) */}
+        {task.security.length > 0 && (
+          <div className="flex items-start gap-3">
+            <IconWrapper>
+              <Shield />
+            </IconWrapper>
+            <div>
+              <strong className="text-sm text-muted-foreground">
+                Security:
+              </strong>
+              <ul className="list-none pl-0 mt-1 space-y-1">
+                {task.security.map((item) => (
+                  <li
+                    key={item}
+                    className="flex items-center gap-2 text-sm text-foreground"
+                  >
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {/* Complexity */}
+        <div className="flex items-start gap-3">
+          <IconWrapper>
+            <Clock />
+          </IconWrapper>
+          <p className="text-sm text-muted-foreground">
+            <strong>Complexity:</strong>
+            <span
+              className={`ml-2 inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                task.estimatedComplexity === "high"
+                  ? "bg-red-100 text-red-800"
+                  : task.estimatedComplexity === "medium"
+                    ? "bg-yellow-100 text-yellow-800"
+                    : "bg-green-100 text-green-800"
+              }`}
+            >
+              {task.estimatedComplexity}
+            </span>
+          </p>
+        </div>
+
+        {/* Verification */}
+        <div className="flex items-start gap-3">
+          <IconWrapper>
+            <Terminal />
+          </IconWrapper>
+          <div>
+            <strong className="text-sm text-muted-foreground">
+              Verification:
+            </strong>
+            <div className="mt-1 font-mono text-xs bg-black text-green-400 p-3 rounded-md">
+              <p className="mb-2 text-gray-400"># Commands to run:</p>
+              {task.verification.commands.map((cmd) => (
+                <p key={cmd}>
+                  <span className="text-gray-500">$ </span>
+                  {cmd}
+                </p>
+              ))}
+              <p className="mt-3 text-gray-400"># Success Criteria:</p>
+              <p className="text-green-300">
+                {task.verification.successCriteria}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </motion.li>
   );

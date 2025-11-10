@@ -29,9 +29,148 @@ export type AgentEvents = {
     };
   };
 
-  // Example: You could add more events later
-  // "agent/deployment.requested": { data: { projectId: string; userId: string; vercelToken: string } }
-  // "agent/sandbox.cleanup.needed": { data: { projectId: string } }
+  "agent/orchestrator.run": {
+    data: {
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      blueprint: string;
+    };
+    user?: {
+      id: string;
+    };
+  };
+  "agent/orchestrator.resume": {
+    data: {
+      projectId: string;
+      userId: string;
+      conversationId: string;
+    };
+    user?: {
+      id: string;
+    };
+  };
+
+   // ==========================================
+  // EXECUTION AGENT EVENTS
+  // ==========================================
+  
+  "agent/execution.backend": {
+    data: {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      taskInput: any;
+      priority: number;
+    };
+    user?: {
+      id: string;
+    };
+  };
+
+  "agent/execution.frontend": {
+    data: {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      taskInput: any;
+      priority: number;
+    };
+    user?: {
+      id: string;
+    };
+  };
+
+  "agent/execution.infrastructure": {
+    data: {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      taskInput: any;
+      priority: number;
+    };
+    user?: {
+      id: string;
+    };
+  };
+
+  "agent/execution.database": {
+    data: {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      taskInput: any;
+      priority: number;
+    };
+    user?: {
+      id: string;
+    };
+  };
+
+  // ==========================================
+  // QUALITY AGENT EVENTS
+  // ==========================================
+
+  "agent/quality.start": {
+    data: {
+      projectId: string;
+    };
+  };
+
+  "agent/quality.integration": {
+    data: {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      taskInput: any;
+      priority: number;
+    };
+  };
+
+  "agent/quality.testing": {
+    data: {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      taskInput: any;
+      priority: number;
+    };
+  };
+
+  "agent/quality.critic": {
+    data: {
+      projectId: string;
+      userId: string;
+      conversationId: string;
+    };
+  };
+
+  // ==========================================
+  // DEPLOYMENT AGENT EVENTS
+  // ==========================================
+
+  "agent/deployment.start": {
+    data: {
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      environment: 'staging' | 'production';
+    };
+  };
+
+  "agent/documentation.generate": {
+    data: {
+      projectId: string;
+      userId: string;
+      conversationId: string;
+    };
+  };
 };
 
 // Create the Inngest client
