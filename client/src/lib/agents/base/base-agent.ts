@@ -73,6 +73,11 @@ export abstract class BaseAgent {
   protected retryConfig: RetryConfig | null = null;
   protected failures: FailureAttempt[] = [];
 
+  // Getter for agent name (for convenience)
+  protected get name(): string {
+    return this.config.name;
+  }
+
   constructor(config: BaseAgentConfig) {
     this.config = config;
 
