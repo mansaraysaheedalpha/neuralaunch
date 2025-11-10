@@ -256,9 +256,9 @@ export async function POST(
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      logger.warn("Invalid request", { errors: error.errors });
+      logger.warn("Invalid request", { errors: error.issues });
       return NextResponse.json(
-        { error: "Invalid request", details: error.errors },
+        { error: "Invalid request", details: error.issues },
         { status: 400 }
       );
     }

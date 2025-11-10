@@ -63,6 +63,7 @@ export type AgentEvents = {
       conversationId: string;
       taskInput: any;
       priority: number;
+      waveNumber?: number;
     };
     user?: {
       id: string;
@@ -77,6 +78,7 @@ export type AgentEvents = {
       conversationId: string;
       taskInput: any;
       priority: number;
+      waveNumber?: number;
     };
     user?: {
       id: string;
@@ -91,6 +93,7 @@ export type AgentEvents = {
       conversationId: string;
       taskInput: any;
       priority: number;
+      waveNumber?: number;
     };
     user?: {
       id: string;
@@ -148,6 +151,8 @@ export type AgentEvents = {
       projectId: string;
       userId: string;
       conversationId: string;
+      taskId?: string;
+      taskInput?: any;
     };
   };
 
@@ -169,6 +174,234 @@ export type AgentEvents = {
       projectId: string;
       userId: string;
       conversationId: string;
+      taskId?: string;
+      taskInput?: any;
+    };
+  };
+
+  // ==========================================
+  // WAVE MANAGEMENT EVENTS
+  // ==========================================
+
+  "agent/wave.start": {
+    data: {
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      waveNumber: number;
+    };
+    user?: {
+      id: string;
+    };
+  };
+
+  "agent/wave.complete": {
+    data: {
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      waveNumber: number;
+    };
+    user?: {
+      id: string;
+    };
+  };
+
+  // ==========================================
+  // COMPLETION EVENTS
+  // ==========================================
+
+  "agent/execution.backend.complete": {
+    data: {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      success: boolean;
+      output?: any;
+      error?: string;
+    };
+  };
+
+  "agent/execution.frontend.complete": {
+    data: {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      success: boolean;
+      output?: any;
+      error?: string;
+    };
+  };
+
+  "agent/execution.infrastructure.complete": {
+    data: {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      success: boolean;
+      output?: any;
+      error?: string;
+    };
+  };
+
+  "agent/execution.generic": {
+    data: {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      taskInput: any;
+      priority: number;
+    };
+  };
+
+  "agent/execution.generic.complete": {
+    data: {
+      taskId: string;
+      projectId: string;
+      success: boolean;
+      output?: any;
+      error?: string;
+    };
+  };
+
+  "agent/quality.testing.complete": {
+    data: {
+      taskId: string;
+      projectId: string;
+      success: boolean;
+      testResults?: any;
+      error?: string;
+    };
+  };
+
+  "agent/quality.critic.complete": {
+    data: {
+      taskId: string;
+      projectId: string;
+      success: boolean;
+      approved?: boolean;
+      score?: number;
+      issues?: any[];
+      error?: string;
+    };
+  };
+
+  "agent/quality.integration.complete": {
+    data: {
+      taskId: string;
+      projectId: string;
+      success: boolean;
+      output?: any;
+      error?: string;
+    };
+  };
+
+  "agent/quality.fix-issues": {
+    data: {
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      waveNumber: number;
+      issues: any[];
+      attempt: number;
+      criticResult?: any;
+    };
+  };
+
+  "agent/quality.fix-issues.complete": {
+    data: {
+      projectId: string;
+      waveNumber: number;
+      success: boolean;
+      fixedIssues?: any[];
+      remainingIssues?: any[];
+      error?: string;
+    };
+  };
+
+  "agent/deployment.deploy": {
+    data: {
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      environment: 'staging' | 'production' | 'preview';
+      waveNumber?: number;
+      taskId?: string;
+    };
+  };
+
+  "agent/deployment.deploy.complete": {
+    data: {
+      projectId: string;
+      success: boolean;
+      deploymentUrl?: string;
+      error?: string;
+    };
+  };
+
+  "agent/documentation.generate.complete": {
+    data: {
+      projectId: string;
+      success: boolean;
+      output?: any;
+      error?: string;
+    };
+  };
+
+  "agent/infrastructure.setup": {
+    data: {
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      taskId?: string;
+      taskInput?: any;
+    };
+  };
+
+  "agent/infrastructure.setup.complete": {
+    data: {
+      projectId: string;
+      success: boolean;
+      output?: any;
+      error?: string;
+    };
+  };
+
+  "agent/monitoring.start": {
+    data: {
+      projectId: string;
+      userId: string;
+      conversationId: string;
+    };
+  };
+
+  "agent/monitoring.complete": {
+    data: {
+      projectId: string;
+      success: boolean;
+      metrics?: any;
+      error?: string;
+    };
+  };
+
+  "agent/optimization.start": {
+    data: {
+      projectId: string;
+      userId: string;
+      conversationId: string;
+    };
+  };
+
+  "agent/optimization.complete": {
+    data: {
+      projectId: string;
+      success: boolean;
+      optimizations?: any;
+      error?: string;
     };
   };
 };

@@ -90,9 +90,9 @@ export async function POST(req: NextRequest) {
     }
   } catch (error) {
     if (error instanceof z.ZodError) {
-      logger.warn("Invalid request body", { errors: error.errors });
+      logger.warn("Invalid request body", { errors: error.issues });
       return NextResponse.json(
-        { error: "Invalid request body", details: error.errors },
+        { error: "Invalid request body", details: error.issues },
         { status: 400 }
       );
     }
