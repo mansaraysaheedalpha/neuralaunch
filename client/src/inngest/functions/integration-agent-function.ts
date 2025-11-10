@@ -12,6 +12,7 @@ import { inngest } from "../client";
 import { integrationAgent } from "@/lib/agents/integration/integration-agent";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { createAgentError } from "@/lib/error-utils";
 
 export const integrationAgentFunction = inngest.createFunction(
   {
@@ -82,10 +83,7 @@ export const integrationAgentFunction = inngest.createFunction(
 
     // Step 4: Handle verification result
     if (!result.success) {
-      logger.error(`[Inngest] Integration verification failed`, {
-        taskId: task.id,
-        error: result.error,
-      });
+      logger.error(`[Inngest] Integration verification failed`, createAgentError(result.error || "Unknown error", { taskId: task.id }));
 
       await step.run("mark-task-failed", async () => {
         await prisma.agentTask.update({

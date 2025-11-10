@@ -13,6 +13,7 @@ import { inngest } from "../client";
 import { optimizationAgent } from "@/lib/agents/optimization/optimization-agent";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { createAgentError } from "@/lib/error-utils";
 
 export const optimizationAgentFunction = inngest.createFunction(
   {
@@ -115,10 +116,7 @@ export const optimizationAgentFunction = inngest.createFunction(
 
     // Step 5: Handle optimization result
     if (!result.success) {
-      logger.error(`[Inngest] Optimization failed`, {
-        taskId: task.id,
-        error: result.error,
-      });
+      logger.error(`[Inngest] Optimization failed`, createAgentError(result.error || "Unknown error", { taskId: task.id }));
 
       await step.run("mark-task-failed", async () => {
         await prisma.agentTask.update({
@@ -186,6 +184,7 @@ export const optimizationAgentFunction = inngest.createFunction(
             projectId,
             userId,
             conversationId,
+            environment: "production" as const,
             taskInput: {
               environment: "production",
               runMigrations: false, // Don't run migrations for optimization

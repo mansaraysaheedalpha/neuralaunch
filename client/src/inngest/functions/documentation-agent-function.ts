@@ -8,6 +8,7 @@ import { inngest } from "../client";
 import { documentationAgent } from "@/lib/agents/documentation/documentation-agent";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { createAgentError } from "@/lib/error-utils";
 
 export const documentationAgentFunction = inngest.createFunction(
   {
@@ -65,10 +66,7 @@ export const documentationAgentFunction = inngest.createFunction(
 
       // Step 3: Handle result
       if (!result.success) {
-        logger.error(`[Inngest] Documentation generation failed`, {
-          projectId,
-          error: result.error,
-        });
+        logger.error(`[Inngest] Documentation generation failed`, createAgentError(result.error || "Documentation generation failed", { projectId }));
 
         throw new Error(result.error || "Documentation generation failed");
       }
@@ -155,10 +153,7 @@ Components: ${components.length}
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
 
-      logger.error(`[Inngest] Documentation Agent failed`, {
-        projectId,
-        error: errorMessage,
-      });
+      logger.error(`[Inngest] Documentation Agent failed`, createAgentError(errorMessage, { projectId }));
 
       // Send failure event
       await step.run("send-failure-event", async () => {

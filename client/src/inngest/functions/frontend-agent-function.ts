@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { executionCoordinator } from "@/lib/orchestrator/execution-coordinator";
 import { githubAgent } from "@/lib/agents/github/github-agent";
+import { createAgentError } from "@/lib/error-utils";
 
 /**
  * Frontend Agent Execution Function
@@ -300,10 +301,7 @@ ${taskDetails.acceptanceCriteria?.map((c: string) => `- [x] ${c}`).join("\n") ||
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
 
-      log.error("[Frontend Agent] Execution failed", {
-        taskId,
-        error: errorMessage,
-      });
+      log.error("[Frontend Agent] Execution failed", createAgentError(errorMessage, { taskId }));
 
       await step.run("mark-failed", async () => {
         const currentTask = await prisma.agentTask.findUnique({

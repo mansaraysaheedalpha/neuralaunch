@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { executionCoordinator } from "@/lib/orchestrator/execution-coordinator";
 import { githubAgent } from "@/lib/agents/github/github-agent";
+import { createAgentError } from "@/lib/error-utils";
 
 
 /**
@@ -306,10 +307,7 @@ ${taskDetails.acceptanceCriteria?.map((c: string) => `- [x] ${c}`).join("\n") ||
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
 
-      log.error("[Backend Agent V2] Execution failed", {
-        taskId,
-        error: errorMessage,
-      });
+      log.error("[Backend Agent V2] Execution failed", createAgentError(errorMessage, { taskId }));
 
       // Update task status (if not already updated by framework)
       await step.run("mark-failed", async () => {

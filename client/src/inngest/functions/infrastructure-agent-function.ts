@@ -8,6 +8,7 @@ import { inngest } from "../client";
 import { infrastructureAgent } from "@/lib/agents/infrastructure/infrastructure-agent";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { createAgentError } from "@/lib/error-utils";
 
 export const infrastructureAgentFunction = inngest.createFunction(
   {
@@ -45,10 +46,10 @@ export const infrastructureAgentFunction = inngest.createFunction(
       // Step 2: Execute Infrastructure Agent
       const result = await step.run("setup-infrastructure", async () => {
         return await infrastructureAgent.execute({
-          taskId,
+          taskId: taskId!,
           projectId,
-          userId,
-          conversationId,
+          userId: userId!,
+          conversationId: conversationId!,
           taskDetails: {
             title: "Infrastructure Setup",
             description: "Setup Docker, env config, database, and CI/CD",
@@ -155,10 +156,7 @@ Files: ${result.data.filesCreated.join(", ")}`;
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
 
-      logger.error(`[Inngest] Infrastructure Agent failed`, {
-        taskId,
-        error: errorMessage,
-      });
+      logger.error(`[Inngest] Infrastructure Agent failed`, createAgentError(errorMessage, { taskId }));
 
       throw error;
     }

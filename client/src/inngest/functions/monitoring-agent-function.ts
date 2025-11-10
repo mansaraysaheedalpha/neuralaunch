@@ -13,6 +13,7 @@ import { inngest } from "../client";
 import { monitoringAgent } from "@/lib/agents/monitoring/monitoring-agent";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { createAgentError } from "@/lib/error-utils";
 
 export const monitoringAgentFunction = inngest.createFunction(
   {
@@ -95,10 +96,7 @@ export const monitoringAgentFunction = inngest.createFunction(
 
     // Step 5: Handle monitoring result
     if (!result.success) {
-      logger.error(`[Inngest] Monitoring failed`, {
-        taskId: task.id,
-        error: result.error,
-      });
+      logger.error(`[Inngest] Monitoring failed`, createAgentError(result.error || "Unknown error", { taskId: task.id }));
 
       await step.run("mark-task-failed", async () => {
         await prisma.agentTask.update({

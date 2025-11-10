@@ -8,6 +8,7 @@ import { inngest } from "../client";
 import { deployAgent } from "@/lib/agents/deployment/deployment-agent";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { toError, toLogContext, createAgentError } from "@/lib/error-utils";
 
 export const deployAgentFunction = inngest.createFunction(
   {
@@ -119,10 +120,10 @@ export const deployAgentFunction = inngest.createFunction(
       // Step 5: Execute Deploy Agent
       const result = await step.run("deploy-to-platform", async () => {
         return await deployAgent.execute({
-          taskId,
+          taskId: taskId!,
           projectId,
-          userId,
-          conversationId,
+          userId: userId!,
+          conversationId: conversationId!,
           taskDetails: {
             title: `Deploy to ${deploymentPlatform}`,
             description: `Deploy application to ${deploymentPlatform} (${taskInput.environment})`,
@@ -192,7 +193,7 @@ export const deployAgentFunction = inngest.createFunction(
 
             return smokeTestPassed;
           } catch (error) {
-            logger.warn(`[Inngest] Smoke test failed`, error);
+            logger.warn(`[Inngest] Smoke test failed`, toLogContext(error));
             return false;
           }
         });
@@ -279,10 +280,7 @@ export const deployAgentFunction = inngest.createFunction(
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
 
-      logger.error(`[Inngest] Deploy Agent failed`, {
-        taskId,
-        error: errorMessage,
-      });
+      logger.error(`[Inngest] Deploy Agent failed`, createAgentError(errorMessage, { taskId }));
 
       // Send failure event
       await step.run("send-failure-event", async () => {
