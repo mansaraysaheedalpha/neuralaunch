@@ -10,6 +10,7 @@ import { analyzerAgent } from "../agents/analyzer/analyzer.agent";
 import { researchAgent } from "../agents/research/research.agent";
 import { validationAgent } from "../agents/validation/validation.agent";
 import { planningAgent } from "../agents/planning/planning-agent";
+import { toError } from "@/lib/error-utils";
 // ❌ REMOVE THIS IMPORT - We don't auto-start execution anymore
 // import { executionCoordinator } from "./execution-coordinator";
 
@@ -86,9 +87,7 @@ export class AgentOrchestrator {
         this.phaseResults.push(result);
 
         if (!result.success) {
-          logger.error(`[${this.name}] Pipeline failed at ${result.phase}`, {
-            error: result.error,
-          });
+          logger.error(`[${this.name}] Pipeline failed at ${result.phase}`, new Error(result.error || "Unknown error"));
 
           return {
             success: false,
@@ -131,7 +130,7 @@ export class AgentOrchestrator {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      logger.error(`[${this.name}] Orchestration failed:`, error);
+      logger.error(`[${this.name}] Orchestration failed:`, toError(error));
 
       return {
         success: false,

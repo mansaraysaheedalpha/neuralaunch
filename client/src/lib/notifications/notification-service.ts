@@ -6,6 +6,7 @@
 
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
+import { toError } from "@/lib/error-utils";
 
 export interface ReviewNotification {
   userId: string;
@@ -73,7 +74,7 @@ export async function sendReviewNotification(
       email: user.email,
     });
   } catch (error) {
-    logger.error("Failed to send review notification", error);
+    logger.error("Failed to send review notification", toError(error));
     throw error;
   }
 }
@@ -283,7 +284,7 @@ async function sendWithResend(params: {
 
     logger.info("Email sent via Resend", { to: params.to });
   } catch (error) {
-    logger.error("Resend email failed", error);
+    logger.error("Resend email failed", toError(error));
     throw error;
   }
 }
@@ -315,7 +316,7 @@ async function sendWithSendGrid(params: {
       logger.warn("SendGrid not installed, skipping email", { to: params.to });
       return;
     }
-    logger.error("SendGrid email failed", error);
+    logger.error("SendGrid email failed", toError(error));
     throw error;
   }
 }
@@ -368,7 +369,7 @@ async function sendWithSES(params: {
       logger.warn("AWS SES SDK not installed, skipping email", { to: params.to });
       return;
     }
-    logger.error("AWS SES email failed", error);
+    logger.error("AWS SES email failed", toError(error));
     throw error;
   }
 }
@@ -424,7 +425,7 @@ async function sendWebhookNotification(params: {
       webhookUrl,
     });
   } catch (error) {
-    logger.error("Webhook notification failed", error);
+    logger.error("Webhook notification failed", toError(error));
     // Don't throw - webhook failure shouldn't break the flow
   }
 }

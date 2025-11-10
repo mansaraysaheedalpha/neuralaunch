@@ -1,6 +1,7 @@
 import { orchestrator } from "@/lib/orchestrator/agent-orchestrator";
 import { inngest } from "../client";
 import { logger } from "@/lib/logger";
+import { createAgentError, toError } from "@/lib/error-utils";
 
 export const orchestratorRunFunction = inngest.createFunction(
   {
@@ -34,11 +35,10 @@ export const orchestratorRunFunction = inngest.createFunction(
       });
 
       if (!result.success) {
-        log.error("[Orchestrator] Pipeline failed", {
+        log.error("[Orchestrator] Pipeline failed", createAgentError(result.message, { 
           projectId,
-          failedAt: result.failedAt,
-          error: result.message,
-        });
+          error: result.failedAt 
+        }));
         throw new Error(result.message);
       }
 
@@ -69,18 +69,11 @@ export const orchestratorRunFunction = inngest.createFunction(
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
 
-      log.error("[Orchestrator] Pipeline error", {
-        projectId,
-        error: errorMessage,
-      });
+      log.error("[Orchestrator] Pipeline error", createAgentError(errorMessage, { projectId }));
 
       // Step 3: Send error notification
       await step.run("send-error-notification", async () => {
-        log.error("[Orchestrator] Error notification sent", {
-          projectId,
-          userId,
-          error: errorMessage,
-        });
+        log.error("[Orchestrator] Error notification sent", createAgentError(errorMessage, { projectId }));
         // TODO: Send error notification
       });
 
@@ -135,10 +128,7 @@ export const orchestratorResumeFunction = inngest.createFunction(
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      log.error("[Orchestrator] Resume error", {
-        projectId,
-        error: errorMessage,
-      });
+      log.error("[Orchestrator] Resume error", createAgentError(errorMessage, { projectId }));
       throw error;
     }
   }
