@@ -63,6 +63,7 @@ export const waveCompleteFunction = inngest.createFunction(
       );
 
       await step.waitForEvent("agent/quality.testing.complete", {
+        event: "agent/quality.testing.complete",
         timeout: "10m",
         match: "data.taskId",
       });
@@ -93,6 +94,7 @@ export const waveCompleteFunction = inngest.createFunction(
       const criticResult = await step.waitForEvent(
         "agent/quality.critic.complete",
         {
+          event: "agent/quality.critic.complete",
           timeout: "10m",
           match: "data.taskId",
         }
@@ -139,6 +141,7 @@ export const waveCompleteFunction = inngest.createFunction(
         const fixCompleteResult = await step.waitForEvent(
           "agent/quality.fix-issues.complete",
           {
+            event: "agent/quality.fix-issues.complete",
             timeout: "40m",
             match: "data.waveNumber",
           }
@@ -202,6 +205,7 @@ export const waveCompleteFunction = inngest.createFunction(
       const integrationResult = await step.waitForEvent(
         "agent/quality.integration.complete",
         {
+          event: "agent/quality.integration.complete",
           timeout: "10m",
           match: "data.taskId",
         }
@@ -281,6 +285,7 @@ export const waveCompleteFunction = inngest.createFunction(
       const deploymentResult = await step.waitForEvent(
         "agent/deployment.deploy.complete",
         {
+          event: "agent/deployment.deploy.complete",
           timeout: "15m",
           match: "data.taskId",
         }

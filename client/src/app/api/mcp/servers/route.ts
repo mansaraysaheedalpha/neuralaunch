@@ -49,18 +49,19 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Store in user preferences (optional)
-    await prisma.user.update({
-      where: { id: session.user.id },
-      data: {
-        preferences: {
-          ...(session.user as any).preferences,
-          mcpServers: [
-            ...((session.user as any).preferences?.mcpServers || []),
-            serverUrl,
-          ],
-        } as any,
-      },
-    });
+    // TODO: Add preferences field to User model in schema or use a separate UserPreferences table
+    // await prisma.user.update({
+    //   where: { id: session.user.id },
+    //   data: {
+    //     preferences: {
+    //       ...(session.user as any).preferences,
+    //       mcpServers: [
+    //         ...((session.user as any).preferences?.mcpServers || []),
+    //         serverUrl,
+    //       ],
+    //     } as any,
+    //   },
+    // });
 
     logger.info("MCP server connected", {
       serverUrl,

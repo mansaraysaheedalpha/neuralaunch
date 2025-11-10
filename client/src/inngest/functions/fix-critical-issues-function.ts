@@ -202,9 +202,11 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
 
             for (const result of fixResults) {
               try {
+                const eventName = getAgentCompleteEventName(result.agentName);
                 const completion = await step.waitForEvent(
-                  getAgentCompleteEventName(result.agentName),
+                  eventName as any,
                   {
+                    event: eventName as any,
                     timeout: "15m",
                     match: `data.taskId`,
                     if: `async.data.taskId == "${result.taskId}-fix-${attempt}"`,
@@ -271,6 +273,7 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
             const criticResult = await step.waitForEvent(
               "agent/quality.critic.complete",
               {
+                event: "agent/quality.critic.complete",
                 timeout: "10m",
                 match: "data.taskId",
               }
