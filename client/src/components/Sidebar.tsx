@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import toast from "react-hot-toast";
 import { useConversationStore } from "@/lib/stores/conversationStore";
-import { Award } from "lucide-react";
+import { Award, Rocket } from "lucide-react";
 import { useChatStore } from "@/lib/stores/chatStore";
 
 // Define the Conversation type to match what the API returns
@@ -247,6 +247,41 @@ export default function Sidebar({
               }`}
             >
               My Awards
+            </p>
+          </div>
+        </Link>
+
+        {/* --- ADD MY PROJECTS LINK --- */}
+        <Link
+          href="/projects"
+          onClick={() => setMobileMenuOpen(false)}
+          className={`group relative flex items-center px-3 py-3 rounded-xl transition-all duration-200 ${
+            pathname === "/projects" || pathname?.startsWith("/projects/")
+              ? "bg-primary/10"
+              : "hover:bg-muted"
+          }`}
+        >
+          {(pathname === "/projects" || pathname?.startsWith("/projects/")) && (
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full"></div>
+          )}
+          <div
+            className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center mr-3 transition-all duration-200 ${
+              pathname === "/projects" || pathname?.startsWith("/projects/")
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
+            }`}
+          >
+            <Rocket className="w-4 h-4" /> {/* Projects Icon */}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p
+              className={`text-sm font-medium truncate ${
+                pathname === "/projects" || pathname?.startsWith("/projects/")
+                  ? "text-primary font-semibold"
+                  : "text-foreground"
+              }`}
+            >
+              My Projects
             </p>
           </div>
         </Link>
