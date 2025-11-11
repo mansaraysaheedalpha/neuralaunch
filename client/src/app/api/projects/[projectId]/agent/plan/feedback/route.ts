@@ -79,12 +79,16 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    // 4. Check if project is in plan_review phase
-    if (projectContext.currentPhase !== "plan_review") {
+    // 4. Check if project has a plan (skip phase check to allow feedback from any phase)
+    const planData = await prisma.projectContext.findUnique({
+      where: { projectId: projectId },
+      select: { executionPlan: true },
+    });
+
+    if (!planData?.executionPlan) {
       return NextResponse.json(
         {
-          error: "Plan is not in review phase",
-          currentPhase: projectContext.currentPhase,
+          error: "No plan found for this project",
         },
         { status: 400 }
       );

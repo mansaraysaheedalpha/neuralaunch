@@ -13,6 +13,7 @@ import {
   Rocket,
   Activity,
   FileCheck,
+  FileText,
   Code,
   TrendingUp,
   FolderOpen,
@@ -114,6 +115,14 @@ export default function ProjectOverviewPage({ params }: ProjectOverviewPageProps
   const progress = status?.progress || project.progress || 0;
 
   const navigationCards = [
+    {
+      title: "Execution Plan",
+      description: "Review and modify your project execution plan",
+      icon: FileText,
+      href: `/projects/${projectId}/plan`,
+      color: "from-violet-500 to-purple-500",
+      stats: "Plan review",
+    },
     {
       title: "Execution",
       description: "Monitor AI agent progress and wave execution",

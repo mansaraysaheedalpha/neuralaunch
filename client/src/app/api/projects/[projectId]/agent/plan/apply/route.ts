@@ -65,15 +65,33 @@ export async function POST(
       });
 
       // Get original plan (before any revisions)
-      const originalPlan = await prisma.projectContext.findUnique({
+      const context = await prisma.projectContext.findUnique({
         where: { projectId: projectId },
-        select: { executionPlan: true },
+        select: { originalPlan: true, executionPlan: true },
+      });
+
+      if (!context?.originalPlan) {
+        return NextResponse.json(
+          { error: "No original plan found to revert to" },
+          { status: 404 }
+        );
+      }
+
+      // Restore original plan
+      await prisma.projectContext.update({
+        where: { projectId: projectId },
+        data: {
+          executionPlan: context.originalPlan,
+          planRevisionCount: 0,
+          planFeedback: null,
+          updatedAt: new Date(),
+        },
       });
 
       return NextResponse.json({
         success: true,
         message: "Reverted to original plan",
-        plan: originalPlan?.executionPlan,
+        plan: context.originalPlan,
       });
     }
 

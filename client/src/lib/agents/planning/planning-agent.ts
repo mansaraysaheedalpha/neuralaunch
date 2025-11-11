@@ -1217,6 +1217,12 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
       metadata: { sourceType, ...metadata },
     };
 
+    // Check if this is the first time storing a plan
+    const existingContext = await prisma.projectContext.findUnique({
+      where: { projectId },
+      select: { originalPlan: true, executionPlan: true },
+    });
+
     await prisma.projectContext.upsert({
       where: { projectId },
       create: {
@@ -1224,12 +1230,15 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
         userId: metadata.userId || "",
         conversationId: metadata.conversationId || `${sourceType}_${projectId}`,
         executionPlan: planWithMetadata as any,
-        currentPhase: "execution",
+        originalPlan: planWithMetadata as any, // Store as original plan
+        currentPhase: "plan_review", // Set to plan_review instead of execution
         updatedAt: new Date(),
       },
       update: {
         executionPlan: planWithMetadata as any,
-        currentPhase: "execution",
+        // Only update originalPlan if it doesn't exist yet
+        ...(existingContext?.originalPlan ? {} : { originalPlan: planWithMetadata as any }),
+        currentPhase: "plan_review",
         updatedAt: new Date(),
       },
     });
@@ -1454,6 +1463,7 @@ Return ONLY a valid JSON object with this structure (no markdown, no code blocks
       }
 
       const currentPlan = context.executionPlan as any;
+      const currentRevisionCount = context.planRevisionCount || 0;
 
       const prompt = `
 You are a software architect updating an execution plan based on user feedback.
@@ -1467,26 +1477,52 @@ ${feedback}
 ${analysisResult ? `ANALYSIS RESULT:\n${JSON.stringify(analysisResult, null, 2)}` : ""}
 
 Please provide an updated execution plan that addresses the user's feedback.
+IMPORTANT: Do NOT regenerate the entire plan from scratch. Instead:
+1. Keep all existing tasks and phases that are not affected by the feedback
+2. Only modify, add, or remove tasks/features as specifically requested in the feedback
+3. Maintain the existing task IDs and structure where possible
+4. Update dependencies if tasks are modified
+
 Return ONLY a valid JSON object (no markdown, no code blocks) with the complete plan structure.
 `;
 
       const responseText = await this.callClaude(prompt);
       const updatedPlan = this.extractAndParseJSON(responseText);
 
+      // Add metadata to track revision
+      const updatedPlanWithMetadata = {
+        ...updatedPlan,
+        metadata: {
+          ...updatedPlan.metadata,
+          revisionCount: currentRevisionCount + 1,
+          lastFeedback: feedback,
+          lastUpdated: new Date().toISOString(),
+        },
+      };
+
       await prisma.projectContext.update({
         where: { projectId },
         data: {
-          executionPlan: updatedPlan,
+          executionPlan: updatedPlanWithMetadata,
+          planRevisionCount: currentRevisionCount + 1,
+          planFeedback: {
+            feedback,
+            analysisResult,
+            appliedAt: new Date().toISOString(),
+          } as any,
           updatedAt: new Date(),
         },
       });
 
-      logger.info(`[${this.name}] Plan updated with feedback`, { projectId });
+      logger.info(`[${this.name}] Plan updated with feedback`, { 
+        projectId,
+        revisionCount: currentRevisionCount + 1,
+      });
 
       return {
         success: true,
         message: "Plan updated successfully based on feedback",
-        plan: updatedPlan,
+        plan: updatedPlanWithMetadata,
       };
     } catch (error) {
       logger.error(`[${this.name}] Failed to apply feedback`, toError(error));

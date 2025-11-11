@@ -440,6 +440,7 @@ model ProjectContext {
   planApprovalStatus String? @default("pending")
   planFeedback       Json?
   planRevisionCount  Int     @default(0)
+  originalPlan       Json? // Store original plan before any modifications
 
   documentationGenerated   Boolean?  @default(false)
   documentationGeneratedAt DateTime?
