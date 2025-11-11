@@ -541,6 +541,34 @@ export class PlanningAgent {
     });
 
     try {
+      // Add a STRONG JSON-only instruction at the end
+      const enhancedPrompt = `${prompt}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CRITICAL RESPONSE FORMAT REQUIREMENT:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+You MUST respond with ONLY a valid JSON object.
+
+DO NOT include:
+- NO markdown code blocks (\`\`\`json or \`\`\`)
+- NO explanations before the JSON
+- NO explanations after the JSON  
+- NO commentary
+- NO text outside the JSON object
+
+Your response must START with { and END with }
+
+Example of CORRECT response:
+{"architecture": {...}, "tasks": [...]}
+
+Example of WRONG response:
+\`\`\`json
+{"architecture": {...}}
+\`\`\`
+
+Start your response now:`;
+
       const response = await this.anthropic.messages.create({
         model: AI_MODELS.CLAUDE,
         max_tokens: 16000,
@@ -548,7 +576,7 @@ export class PlanningAgent {
         messages: [
           {
             role: "user",
-            content: prompt,
+            content: enhancedPrompt,
           },
         ],
       });
@@ -566,11 +594,13 @@ export class PlanningAgent {
         );
       }
 
-      logger.info(`[${this.name}] Claude API call completed`, {
-        duration: `${duration}ms`,
-        inputTokens: response.usage.input_tokens,
-        outputTokens: response.usage.output_tokens,
-      });
+      logger.info(
+        `[${this.name}] 💭 Claude API call completed in ${duration}ms`,
+        {
+          inputTokens: response.usage.input_tokens,
+          outputTokens: response.usage.output_tokens,
+        }
+      );
 
       const textContent = response.content.find((c) => c.type === "text");
       if (!textContent || textContent.type !== "text") {
@@ -585,7 +615,6 @@ export class PlanningAgent {
         error: toError(error),
       });
 
-      // Provide more helpful error messages for common issues
       if (error instanceof Error) {
         if (error.message.includes("timeout")) {
           throw new Error(
@@ -984,7 +1013,9 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
    */
   private extractAndParseJSON(responseText: string): any {
     // Log raw response for debugging
-    logger.info(`[${this.name}] 💭 Analyzing AI response and extracting plan structure...`);
+    logger.info(
+      `[${this.name}] 💭 Analyzing AI response and extracting plan structure...`
+    );
     logger.info(`[${this.name}] Raw AI response (first 500 chars):`, {
       preview: responseText.substring(0, 500),
       totalLength: responseText.length,
@@ -992,7 +1023,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
 
     // Remove markdown code blocks - be more aggressive
     let cleaned = responseText
-      .replace(/```json\n?/gi, "")  // Case insensitive
+      .replace(/```json\n?/gi, "") // Case insensitive
       .replace(/```javascript\n?/gi, "")
       .replace(/```\n?/g, "")
       .trim();
@@ -1067,7 +1098,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
       return parsed;
     } catch (firstError) {
       logger.info(`[${this.name}] First parse attempt failed, trying fixes...`);
-      
+
       // If that fails, try to fix common issues
 
       // Fix trailing commas
@@ -1085,7 +1116,9 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
       // Try parsing the fixed version
       try {
         const parsed = JSON.parse(fixed);
-        logger.info(`[${this.name}] ✅ Successfully parsed AI response after fixes`);
+        logger.info(
+          `[${this.name}] ✅ Successfully parsed AI response after fixes`
+        );
         return parsed;
       } catch (secondError) {
         // Step 5: Last resort - try to find and extract valid JSON with regex
