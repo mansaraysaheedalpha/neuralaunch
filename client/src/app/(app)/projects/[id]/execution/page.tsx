@@ -12,7 +12,9 @@ import {
   Loader2,
   Rocket,
   Activity,
-  FileCheck
+  FileCheck,
+  FileText,
+  ArrowRight
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -202,6 +204,38 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
           </div>
         </div>
       </div>
+
+      {/* Plan Review Banner */}
+      {currentPhase === "plan_review" && (
+        <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border-b border-green-200 dark:border-green-800">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center">
+                    <CheckCircle2 className="w-6 h-6 text-white" />
+                  </div>
+                </div>
+                <div>
+                  <h3 className="font-semibold text-green-900 dark:text-green-100">
+                    Planning Complete - Ready for Review
+                  </h3>
+                  <p className="text-sm text-green-700 dark:text-green-300">
+                    Your execution plan is ready. Review the plan, provide feedback, or start execution.
+                  </p>
+                </div>
+              </div>
+              <Link href={`/projects/${projectId}/plan`}>
+                <Button size="lg" className="bg-green-600 hover:bg-green-700 text-white">
+                  <FileText className="w-4 h-4 mr-2" />
+                  Review Plan
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">

@@ -9,10 +9,13 @@ import {
   ArrowRight,
   Brain,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  FileText
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
+import Link from "next/link";
 
 interface Thought {
   id: string;
@@ -355,16 +358,26 @@ export default function AgentPipeline({
             animate={{ opacity: 1, y: 0 }}
             className="mt-6 p-4 rounded-lg bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border-2 border-green-200 dark:border-green-800"
           >
-            <div className="flex items-center gap-3">
-              <span className="text-3xl">🎉</span>
-              <div>
-                <h3 className="font-bold text-green-700 dark:text-green-300">
-                  Planning Complete!
-                </h3>
-                <p className="text-sm text-green-600 dark:text-green-400">
-                  Your execution plan is ready for review
-                </p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">🎉</span>
+                <div>
+                  <h3 className="font-bold text-green-700 dark:text-green-300">
+                    Planning Complete!
+                  </h3>
+                  <p className="text-sm text-green-600 dark:text-green-400">
+                    Your execution plan is ready for review
+                  </p>
+                </div>
               </div>
+              {currentPhase === "plan_review" && projectId && (
+                <Link href={`/projects/${projectId}/plan`}>
+                  <Button className="bg-green-600 hover:bg-green-700">
+                    <FileText className="w-4 h-4 mr-2" />
+                    View & Edit Plan
+                  </Button>
+                </Link>
+              )}
             </div>
           </motion.div>
         )}
