@@ -1004,11 +1004,12 @@ Respond with ONLY valid JSON:
   ): Promise<void> {
     try {
       // Store in ProjectContext for tracking
+      const existingContext = await prisma.projectContext.findUnique({ where: { projectId } });
       await prisma.projectContext.update({
         where: { projectId },
         data: {
           codebase: {
-            ...(await prisma.projectContext.findUnique({ where: { projectId } })).codebase as any,
+            ...(existingContext?.codebase as any),
             lastReview: report,
           } as any,
           lastReviewScore: report.overallScore,

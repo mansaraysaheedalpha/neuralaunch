@@ -253,7 +253,7 @@ export class BrowserAutomationTool extends BaseTool {
 
       // Capture console errors
       const consoleErrors: string[] = [];
-      page.on("console", (msg) => {
+      page.on("console", (msg: any) => {
         if (msg.type() === "error") {
           consoleErrors.push(msg.text());
         }
@@ -493,7 +493,7 @@ export class BrowserAutomationTool extends BaseTool {
 
       if (selector) {
         // Extract specific element
-        extractedData = await page.evaluate((sel) => {
+        extractedData = await page.evaluate((sel: any) => {
           const element = document.querySelector(sel);
           if (!element) return null;
 
@@ -501,7 +501,7 @@ export class BrowserAutomationTool extends BaseTool {
             text: element.textContent?.trim(),
             html: element.innerHTML,
             attributes: Array.from(element.attributes).reduce(
-              (acc: any, attr) => {
+              (acc: any, attr: any) => {
                 acc[attr.name] = attr.value;
                 return acc;
               },
@@ -569,9 +569,9 @@ export class BrowserAutomationTool extends BaseTool {
       // Use Sparticuz Chromium for Vercel
       return await pptr.launch({
         args: chromium.args,
-        defaultViewport: chromium.defaultViewport,
+        defaultViewport: (chromium as any).defaultViewport,
         executablePath: await chromium.executablePath(),
-        headless: chromium.headless,
+        headless: (chromium as any).headless,
       });
     } else {
       // Local development - use system Chrome

@@ -58,7 +58,11 @@ export class DynamicRetryStrategy {
   };
 
   // AI model costs (approximate)
-  private readonly MODEL_COSTS = {
+  private readonly MODEL_COSTS: Record<string, {
+    inputPerMillion: number;
+    outputPerMillion: number;
+    avgTokensPerIteration: number;
+  }> = {
     "gemini-2.0-flash-exp": {
       inputPerMillion: 0.075, // $0.075 per 1M input tokens
       outputPerMillion: 0.3, // $0.30 per 1M output tokens

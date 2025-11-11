@@ -281,7 +281,7 @@ export class TestingAgent extends BaseAgent {
     } catch (error) {
       logger.warn(
         `[${this.config.name}] Failed to detect framework, defaulting to Jest`,
-        error
+        error as any
       );
     }
 
@@ -319,7 +319,7 @@ export class TestingAgent extends BaseAgent {
       } catch (error) {
         logger.warn(
           `[${this.config.name}] Failed to load file: ${filePath}`,
-          error
+          error as any
         );
       }
     }
@@ -355,7 +355,7 @@ export class TestingAgent extends BaseAgent {
       } catch (error) {
         logger.warn(
           `[${this.config.name}] Failed to analyze: ${file.path}`,
-          error
+          error as any
         );
       }
     }
@@ -400,7 +400,7 @@ export class TestingAgent extends BaseAgent {
       } catch (error) {
         logger.error(
           `[${this.config.name}] Failed to generate test for ${sourceFile.path}`,
-          error
+          error as any
         );
       }
     }
@@ -553,10 +553,7 @@ Respond with ONLY valid JSON (no markdown):
         fullCode,
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Failed to parse test response`, {
-        error,
-        preview: responseText.substring(0, 500),
-      });
+      logger.error(`[${this.config.name}] Failed to parse test response`, error as any);
       return null;
     }
   }
@@ -625,7 +622,7 @@ describe('${parsed.description || "Test Suite"}', () => {
       } catch (error) {
         logger.error(
           `[${this.config.name}] Failed to write test: ${test.filePath}`,
-          error
+          error as any
         );
         results.push({
           path: test.filePath,
@@ -666,7 +663,7 @@ describe('${parsed.description || "Test Suite"}', () => {
     } catch (error) {
       logger.warn(
         `[${this.config.name}] Failed to install dependencies`,
-        error
+        error as any
       );
     }
   }

@@ -141,10 +141,7 @@ export class MCPToolAdapter extends BaseTool {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
 
-      logger.error(`[MCP Tool] Execution failed`, {
-        tool: this.name,
-        error: errorMessage,
-      });
+      logger.error(`[MCP Tool] Execution failed`, error as any);
 
       return {
         success: false,
