@@ -867,24 +867,33 @@ Return only valid JSON, no markdown.
     sourceType: "vision" | "blueprint",
     metadata: any
   ): Promise<void> {
+    // Store the source type and metadata in the plan itself for reference
+    const planWithMetadata = {
+      ...plan,
+      metadata: { sourceType, ...metadata },
+    };
+
     await prisma.projectContext.upsert({
       where: { projectId },
       create: {
         projectId,
-        executionPlan: plan as any,
+        userId: metadata.userId || "",
+        conversationId: metadata.conversationId || `${sourceType}_${projectId}`,
+        executionPlan: planWithMetadata as any,
         currentPhase: "execution",
-        planningMetadata: { sourceType, ...metadata } as any,
         updatedAt: new Date(),
       },
       update: {
-        executionPlan: plan as any,
+        executionPlan: planWithMetadata as any,
         currentPhase: "execution",
-        planningMetadata: { sourceType, ...metadata } as any,
         updatedAt: new Date(),
       },
     });
 
-    logger.info(`[${this.name}] Stored execution plan in ProjectContext`);
+    logger.info(`[${this.name}] Stored execution plan in ProjectContext`, {
+      projectId,
+      sourceType,
+    });
   }
 
   /**
@@ -980,6 +989,199 @@ Return only valid JSON, no markdown.
       techStack: context.techStack,
       validation: validation,
     };
+  }
+
+  /**
+   * Analyze user feedback on a plan without applying changes
+   * @param projectId - The project identifier
+   * @param feedback - User's feedback object with freeform and structured changes
+   */
+  async analyzeFeedback(
+    projectId: string,
+    feedback: {
+      freeformFeedback?: string;
+      structuredChanges?: {
+        taskModifications?: Array<{
+          taskId: string;
+          action: "modify" | "remove" | "add";
+          changes?: Record<string, any>;
+        }>;
+        priorityChanges?: Array<{
+          taskId: string;
+          newPriority: number;
+        }>;
+        techStackChanges?: Record<string, any>;
+      };
+    }
+  ): Promise<{
+    feasible: boolean;
+    warnings: string[];
+    blockers: string[];
+    suggestedChanges: any[];
+  }> {
+    try {
+      logger.info(`[${this.name}] Analyzing feedback`, { projectId });
+
+      // Get the current plan from context
+      const context = await prisma.projectContext.findUnique({
+        where: { projectId },
+      });
+
+      if (!context || !context.executionPlan) {
+        return {
+          feasible: false,
+          warnings: [],
+          blockers: ["No existing plan found"],
+          suggestedChanges: [],
+        };
+      }
+
+      const currentPlan = context.executionPlan as any;
+
+      // Analyze feedback using AI
+      const prompt = `
+You are a software architect analyzing user feedback on an execution plan.
+
+CURRENT PLAN:
+${JSON.stringify(currentPlan, null, 2)}
+
+USER FEEDBACK:
+${feedback.freeformFeedback || 'No freeform feedback'}
+
+STRUCTURED CHANGES:
+${JSON.stringify(feedback.structuredChanges || {}, null, 2)}
+
+Analyze the feasibility of these changes and identify:
+1. Any warnings or concerns
+2. Any blocking issues that prevent implementation
+3. Suggested modifications to make the changes work better
+
+Return ONLY a valid JSON object with this structure:
+{
+  "feasible": true/false,
+  "warnings": ["warning1", "warning2"],
+  "blockers": ["blocker1"],
+  "suggestedChanges": [
+    { "type": "modify", "taskId": "task1", "suggestion": "..." }
+  ]
+}
+`;
+
+      const result = await this.model.generateContent(prompt);
+      const responseText = result.response.text();
+      
+      // Extract JSON from the response
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("Failed to extract analysis from AI response");
+      }
+
+      const analysis = JSON.parse(jsonMatch[0]);
+
+      logger.info(`[${this.name}] Feedback analysis complete`, { 
+        projectId,
+        feasible: analysis.feasible 
+      });
+
+      return analysis;
+    } catch (error) {
+      logger.error(`[${this.name}] Failed to analyze feedback`, toError(error));
+      return {
+        feasible: false,
+        warnings: ["Failed to analyze feedback"],
+        blockers: [toError(error).message],
+        suggestedChanges: [],
+      };
+    }
+  }
+
+  /**
+   * Apply user feedback to an existing plan
+   * @param projectId - The project identifier
+   * @param feedback - User's feedback on the plan
+   * @param analysisResult - Optional previous analysis result
+   */
+  async applyFeedback(
+    projectId: string,
+    feedback: string,
+    analysisResult?: any
+  ): Promise<{
+    success: boolean;
+    message: string;
+    plan?: ExecutionPlan;
+  }> {
+    try {
+      logger.info(`[${this.name}] Applying feedback to plan`, { projectId });
+
+      // Get the current plan from context
+      const context = await prisma.projectContext.findUnique({
+        where: { projectId },
+      });
+
+      if (!context || !context.executionPlan) {
+        return {
+          success: false,
+          message: "No existing plan found",
+        };
+      }
+
+      const currentPlan = context.executionPlan as any;
+
+      // Generate updated plan based on feedback
+      const prompt = `
+You are a software architect updating an execution plan based on user feedback.
+
+CURRENT PLAN:
+${JSON.stringify(currentPlan, null, 2)}
+
+USER FEEDBACK:
+${feedback}
+
+${analysisResult ? `ANALYSIS RESULT:\n${JSON.stringify(analysisResult, null, 2)}` : ''}
+
+Please provide an updated execution plan that addresses the user's feedback.
+Return ONLY a valid JSON object with this structure:
+{
+  "tasks": [ /* array of updated tasks */ ],
+  "architecture": { /* updated architecture */ },
+  "waves": { /* updated wave configuration */ }
+}
+`;
+
+      const result = await this.model.generateContent(prompt);
+      const responseText = result.response.text();
+      
+      // Extract JSON from the response
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error("Failed to extract plan from AI response");
+      }
+
+      const updatedPlan = JSON.parse(jsonMatch[0]);
+
+      // Update the plan in the database
+      await prisma.projectContext.update({
+        where: { projectId },
+        data: {
+          executionPlan: updatedPlan,
+          updatedAt: new Date(),
+        },
+      });
+
+      logger.info(`[${this.name}] Plan updated with feedback`, { projectId });
+
+      return {
+        success: true,
+        message: "Plan updated successfully based on feedback",
+        plan: updatedPlan,
+      };
+    } catch (error) {
+      logger.error(`[${this.name}] Failed to apply feedback`, toError(error));
+      return {
+        success: false,
+        message: `Failed to apply feedback: ${toError(error).message}`,
+      };
+    }
   }
 
   /**

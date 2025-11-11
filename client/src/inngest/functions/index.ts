@@ -4,6 +4,8 @@
 export {
   orchestratorRunFunction,
   orchestratorResumeFunction,
+  orchestratorVisionFunction,
+  orchestratorBlueprintFunction,
 } from "./orchestrator-functions";
 export { backendAgentFunction } from "./backend-agent-function";
 export { frontendAgentFunction } from "./frontend-agent-function";

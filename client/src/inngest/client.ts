@@ -51,6 +51,45 @@ export type AgentEvents = {
       id: string;
     };
   };
+  
+  // Vision-based orchestration (from Agentic Interface)
+  "agent/orchestrator.vision": {
+    data: {
+      projectId: string;
+      userId: string;
+      sourceType: "vision";
+      visionText: string;
+      projectName: string;
+      techPreferences?: {
+        frontend?: string;
+        backend?: string;
+        database?: string;
+        deployment?: string;
+      };
+    };
+    user?: {
+      id: string;
+    };
+  };
+  
+  // Blueprint-based orchestration (from SprintDashboard)
+  "agent/orchestrator.blueprint": {
+    data: {
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      sourceType: "blueprint";
+      blueprint: string;
+      sprintData?: {
+        completedTasks?: any[];
+        analytics?: any;
+        validationResults?: any;
+      };
+    };
+    user?: {
+      id: string;
+    };
+  };
 
    // ==========================================
   // EXECUTION AGENT EVENTS

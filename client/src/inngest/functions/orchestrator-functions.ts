@@ -133,3 +133,178 @@ export const orchestratorResumeFunction = inngest.createFunction(
     }
   }
 );
+
+/**
+ * Inngest function for vision-based orchestration (from Agentic Interface)
+ */
+export const orchestratorVisionFunction = inngest.createFunction(
+  {
+    id: "agent-orchestrator-vision",
+    name: "Agent Orchestrator - Vision to App Build",
+    retries: 3,
+    timeouts: { start: "30m" },
+  },
+  { event: "agent/orchestrator.vision" },
+  async ({ event, step }) => {
+    const { projectId, userId, visionText, projectName, techPreferences } = event.data;
+
+    const log = logger.child({
+      inngestFunction: "orchestratorVision",
+      projectId,
+      userId,
+      runId: event.id,
+    });
+
+    log.info("[Orchestrator] Starting vision-based build", { 
+      projectId,
+      projectName,
+      visionLength: visionText.length 
+    });
+
+    try {
+      // Step 1: Execute vision-based orchestration
+      const result = await step.run("execute-vision-orchestration", async () => {
+        return await orchestrator.executeVision({
+          projectId,
+          userId,
+          visionText,
+          projectName,
+          techPreferences,
+        });
+      });
+
+      if (!result.success) {
+        log.error("[Orchestrator] Vision build failed", createAgentError(result.message, { 
+          projectId,
+          error: result.failedAt 
+        }));
+        throw new Error(result.message);
+      }
+
+      log.info("[Orchestrator] Vision build completed successfully", {
+        projectId,
+        projectName,
+        phases: result.completedPhases?.length || 0,
+        duration: `${result.totalDuration}ms`,
+      });
+
+      // Step 2: Send completion notification
+      await step.run("send-completion-notification", async () => {
+        log.info("[Orchestrator] Vision build complete notification", {
+          projectId,
+          userId,
+        });
+        // TODO: Send notification to user
+      });
+
+      return {
+        success: true,
+        projectId,
+        projectName,
+        completedPhases: result.completedPhases?.map((p: any) => p.phase) || [],
+        currentPhase: result.currentPhase,
+        totalDuration: result.totalDuration,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+
+      log.error("[Orchestrator] Vision build error", createAgentError(errorMessage, { projectId }));
+
+      await step.run("send-error-notification", async () => {
+        log.error("[Orchestrator] Error notification sent", createAgentError(errorMessage, { projectId }));
+        // TODO: Send error notification
+      });
+
+      throw error;
+    }
+  }
+);
+
+/**
+ * Inngest function for blueprint-based orchestration (from SprintDashboard)
+ */
+export const orchestratorBlueprintFunction = inngest.createFunction(
+  {
+    id: "agent-orchestrator-blueprint",
+    name: "Agent Orchestrator - Blueprint to MVP Build",
+    retries: 3,
+    timeouts: { start: "30m" },
+  },
+  { event: "agent/orchestrator.blueprint" },
+  async ({ event, step }) => {
+    const { projectId, userId, conversationId, blueprint, sprintData } = event.data;
+
+    const log = logger.child({
+      inngestFunction: "orchestratorBlueprint",
+      projectId,
+      userId,
+      runId: event.id,
+    });
+
+    log.info("[Orchestrator] Starting blueprint-based build", { 
+      projectId,
+      conversationId,
+      hasSprintData: !!sprintData,
+      blueprintLength: blueprint.length 
+    });
+
+    try {
+      // Step 1: Execute blueprint-based orchestration
+      const result = await step.run("execute-blueprint-orchestration", async () => {
+        return await orchestrator.executeBlueprint({
+          projectId,
+          userId,
+          conversationId,
+          blueprint,
+          sprintData,
+        });
+      });
+
+      if (!result.success) {
+        log.error("[Orchestrator] Blueprint build failed", createAgentError(result.message, { 
+          projectId,
+          error: result.failedAt 
+        }));
+        throw new Error(result.message);
+      }
+
+      log.info("[Orchestrator] Blueprint build completed successfully", {
+        projectId,
+        conversationId,
+        phases: result.completedPhases?.length || 0,
+        duration: `${result.totalDuration}ms`,
+      });
+
+      // Step 2: Send completion notification
+      await step.run("send-completion-notification", async () => {
+        log.info("[Orchestrator] Blueprint build complete notification", {
+          projectId,
+          userId,
+        });
+        // TODO: Send notification to user
+      });
+
+      return {
+        success: true,
+        projectId,
+        conversationId,
+        completedPhases: result.completedPhases?.map((p: any) => p.phase) || [],
+        currentPhase: result.currentPhase,
+        totalDuration: result.totalDuration,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+
+      log.error("[Orchestrator] Blueprint build error", createAgentError(errorMessage, { projectId }));
+
+      await step.run("send-error-notification", async () => {
+        log.error("[Orchestrator] Error notification sent", createAgentError(errorMessage, { projectId }));
+        // TODO: Send error notification
+      });
+
+      throw error;
+    }
+  }
+);

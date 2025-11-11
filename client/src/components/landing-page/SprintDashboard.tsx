@@ -168,7 +168,7 @@ export default function SprintDashboard({
     try {
       // Calculate sprint analytics for priority hints
       const completedTasks =
-        data?.tasks.filter((t) => t.status === "completed") || [];
+        data?.tasks.filter((t) => t.status === "COMPLETE") || [];
       const sprintAnalytics = {
         completedCount: completedTasks.length,
         totalCount: data?.tasks.length || 0,
@@ -244,7 +244,7 @@ export default function SprintDashboard({
 
   const tasks = data?.tasks ?? [];
   const hasTasks = tasks.length > 0;
-  const completedCount = tasks.filter((t) => t.status === "completed").length;
+  const completedCount = tasks.filter((t) => t.status === "COMPLETE").length;
   const totalCount = tasks.length;
   const hasValidation = completedCount > 0;
 

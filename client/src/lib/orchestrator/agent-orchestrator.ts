@@ -416,6 +416,152 @@ export class AgentOrchestrator {
       startFromPhase: context.currentPhase as AgentPhase,
     });
   }
+
+  /**
+   * Execute vision-based orchestration (from Agentic Interface)
+   * Converts freeform vision text into a technical execution plan
+   */
+  async executeVision(input: {
+    projectId: string;
+    userId: string;
+    visionText: string;
+    projectName: string;
+    techPreferences?: {
+      frontend?: string;
+      backend?: string;
+      database?: string;
+      deployment?: string;
+    };
+  }): Promise<OrchestratorOutput> {
+    const startTime = Date.now();
+    logger.info(
+      `[${this.name}] Starting vision-based orchestration for project ${input.projectId}`
+    );
+
+    try {
+      // Convert vision to blueprint-like structure
+      // TODO: In a complete implementation, this would use a Vision Planner Agent
+      // For now, we'll create a simple blueprint from the vision text
+      const generatedBlueprint = `
+# ${input.projectName}
+
+## Project Vision
+${input.visionText}
+
+## Technical Requirements
+${input.techPreferences ? `
+### Tech Stack Preferences
+- Frontend: ${input.techPreferences.frontend || 'Auto-detect'}
+- Backend: ${input.techPreferences.backend || 'Auto-detect'}
+- Database: ${input.techPreferences.database || 'Auto-detect'}
+- Deployment: ${input.techPreferences.deployment || 'Auto-detect'}
+` : 'Tech stack will be auto-detected based on requirements.'}
+
+## Build Instructions
+Build a full-stack application based on the vision described above.
+`;
+
+      // Execute using the standard orchestration pipeline
+      // A conversationId is generated for vision-based projects
+      const conversationId = `vision_${input.projectId}`;
+
+      return await this.execute({
+        projectId: input.projectId,
+        userId: input.userId,
+        conversationId,
+        blueprint: generatedBlueprint,
+      });
+    } catch (error) {
+      logger.error(
+        `[${this.name}] Vision orchestration failed`,
+        toError(error)
+      );
+
+      return {
+        success: false,
+        message: `Vision orchestration failed: ${toError(error).message}`,
+        projectId: input.projectId,
+        completedPhases: this.phaseResults,
+        currentPhase: "analysis",
+        failedAt: "analysis",
+        totalDuration: Date.now() - startTime,
+      };
+    }
+  }
+
+  /**
+   * Execute blueprint-based orchestration (from SprintDashboard)
+   * Uses validated sprint data to inform the build
+   */
+  async executeBlueprint(input: {
+    projectId: string;
+    userId: string;
+    conversationId: string;
+    blueprint: string;
+    sprintData?: {
+      completedTasks?: any[];
+      analytics?: any;
+      validationResults?: any;
+    };
+  }): Promise<OrchestratorOutput> {
+    const startTime = Date.now();
+    logger.info(
+      `[${this.name}] Starting blueprint-based orchestration for project ${input.projectId}`,
+      {
+        hasSprintData: !!input.sprintData,
+        completedTasks: input.sprintData?.completedTasks?.length || 0,
+      }
+    );
+
+    try {
+      // If sprint data is provided, we can enhance the blueprint with validation insights
+      let enhancedBlueprint = input.blueprint;
+
+      if (input.sprintData?.completedTasks && input.sprintData.completedTasks.length > 0) {
+        enhancedBlueprint = `${input.blueprint}
+
+---
+
+## Sprint Validation Results
+
+### Completed Validation Tasks
+${input.sprintData.completedTasks.map((task: any, index: number) => 
+  `${index + 1}. ${task.title || task.id} - ${task.status}`
+).join('\n')}
+
+### Validation Insights
+- Total tasks completed: ${input.sprintData.completedTasks.length}
+- Completion rate: ${input.sprintData.analytics?.completionRate || 0}%
+- Validated features: ${input.sprintData.validationResults?.features?.join(', ') || 'N/A'}
+
+**Note**: Prioritize features that were successfully validated during the sprint.
+`;
+      }
+
+      // Execute using the standard orchestration pipeline
+      return await this.execute({
+        projectId: input.projectId,
+        userId: input.userId,
+        conversationId: input.conversationId,
+        blueprint: enhancedBlueprint,
+      });
+    } catch (error) {
+      logger.error(
+        `[${this.name}] Blueprint orchestration failed`,
+        toError(error)
+      );
+
+      return {
+        success: false,
+        message: `Blueprint orchestration failed: ${toError(error).message}`,
+        projectId: input.projectId,
+        completedPhases: this.phaseResults,
+        currentPhase: "analysis",
+        failedAt: "analysis",
+        totalDuration: Date.now() - startTime,
+      };
+    }
+  }
 }
 
 // ==========================================
