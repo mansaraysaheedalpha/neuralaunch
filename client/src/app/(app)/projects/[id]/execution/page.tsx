@@ -254,6 +254,7 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
               <AgentPipeline 
                 currentPhase={currentPhase}
                 completedPhases={status?.completedPhases || []}
+                projectId={projectId}
                 currentAgent={currentAgent}
               />
             )}
