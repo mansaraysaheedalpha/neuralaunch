@@ -146,7 +146,7 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
                       : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
                   }`}>
                     {project.status === "completed" && <CheckCircle2 className="w-3 h-3" />}
-                    {project.status === "executing" && <Loader2 className="w-3 h-3 animate-spin" />}
+                    {(project.status === "executing" || project.status === "initializing" || project.status === "planning") && <Loader2 className="w-3 h-3 animate-spin" />}
                     {project.status}
                   </span>
                   <span className="text-xs text-muted-foreground flex items-center gap-1">

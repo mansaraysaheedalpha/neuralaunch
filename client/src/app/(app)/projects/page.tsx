@@ -44,7 +44,7 @@ interface Project {
   id: string;
   name: string;
   description?: string;
-  status: "planning" | "executing" | "quality_check" | "deploying" | "completed" | "failed";
+  status: "initializing" | "planning" | "executing" | "quality_check" | "deploying" | "completed" | "failed";
   progress?: number;
   createdAt: string;
   updatedAt: string;
@@ -53,6 +53,11 @@ interface Project {
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 const statusConfig = {
+  initializing: {
+    label: "Initializing",
+    color: "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200",
+    icon: Loader2,
+  },
   planning: {
     label: "Planning",
     color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",

@@ -187,7 +187,7 @@ export default function ProjectOverviewPage({ params }: ProjectOverviewPageProps
                         }`}
                       >
                         {project.status === "completed" && <CheckCircle2 className="w-3 h-3" />}
-                        {project.status === "executing" && <Loader2 className="w-3 h-3 animate-spin" />}
+                        {(project.status === "executing" || project.status === "initializing" || project.status === "planning") && <Loader2 className="w-3 h-3 animate-spin" />}
                         {project.status || "active"}
                       </span>
                       <span className="text-sm text-muted-foreground flex items-center gap-1">
