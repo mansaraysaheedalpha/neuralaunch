@@ -14,6 +14,13 @@ import { AI_MODELS } from "@/lib/models";
 import { logger } from "@/lib/logger";
 import { toError, toLogContext } from "@/lib/error-utils";
 
+interface InfrastructureIssue {
+  file: string;
+  severity: string;
+  message: string;
+  suggestion: string;
+}
+
 export class InfrastructureAgent extends BaseAgent {
   constructor() {
     super({
@@ -44,7 +51,9 @@ export class InfrastructureAgent extends BaseAgent {
         `[${this.config.name}] FIX MODE: Fixing infrastructure issues`,
         {
           attempt: taskDetails.attempt,
-          issuesCount: taskDetails.issuesToFix?.length || 0,
+          issuesCount: Array.isArray(taskDetails.issuesToFix)
+            ? taskDetails.issuesToFix.length
+            : 0,
         }
       );
 
@@ -59,13 +68,30 @@ export class InfrastructureAgent extends BaseAgent {
 
     try {
       if (this.tools.has("context_loader")) {
-        await this.loadProjectContext(input);
+        await this.loadProjectContextInternal(input);
       }
 
       const prompt = this.buildTaskPrompt(taskDetails, context);
 
-      const result = await this.model.generateContent(prompt);
-      const responseText = result.response.text();
+      // Safely invoke model.generateContent with runtime checks to avoid unsafe any access
+      const modelCandidate: unknown = this.model;
+      const hasGenerate =
+        typeof modelCandidate === "object" &&
+        modelCandidate !== null &&
+        typeof (modelCandidate as { generateContent?: unknown }).generateContent === "function";
+      if (!hasGenerate) {
+        throw new Error("Underlying model does not implement generateContent");
+      }
+      const result: { response: { text(): string | undefined } } = await (
+        modelCandidate as {
+          generateContent: (prompt: string) => Promise<{ response: { text(): string | undefined } }>;
+        }
+      ).generateContent(prompt);
+      const rawResponse = result.response.text();
+      if (typeof rawResponse !== "string") {
+        throw new Error("Model did not return string content");
+      }
+      const responseText: string = rawResponse;
 
       const generatedFiles = this.parseGeneratedFiles(responseText);
 
@@ -98,7 +124,10 @@ export class InfrastructureAgent extends BaseAgent {
         },
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Infrastructure task failed`, toError(error));
+      logger.error(
+        `[${this.config.name}] Infrastructure task failed`,
+        toError(error)
+      );
 
       return {
         success: false,
@@ -120,9 +149,23 @@ export class InfrastructureAgent extends BaseAgent {
 
     try {
       // Step 1: Load infrastructure files that need fixing
-      const filesToFix = taskDetails.issuesToFix.map(
-        (issue: any) => issue.file
-      );
+      const isInfrastructureIssue = (value: unknown): value is InfrastructureIssue => {
+        if (typeof value !== "object" || value === null) return false;
+        const v = value as Record<string, unknown>;
+        return (
+          typeof v.file === "string" &&
+          typeof v.severity === "string" &&
+          typeof v.message === "string" &&
+          typeof v.suggestion === "string"
+        );
+      };
+
+      const rawIssues: unknown = taskDetails.issuesToFix;
+      const issuesToFix: InfrastructureIssue[] = Array.isArray(rawIssues)
+        ? (rawIssues as unknown[]).filter(isInfrastructureIssue)
+        : [];
+
+      const filesToFix = issuesToFix.map((issue) => issue.file);
       const uniqueFiles = Array.from(new Set(filesToFix));
 
       logger.info(
@@ -136,15 +179,37 @@ export class InfrastructureAgent extends BaseAgent {
       );
 
       // Step 2: Generate fixes
+      const attemptNum =
+        typeof taskDetails.attempt === "number"
+          ? taskDetails.attempt
+          : Number(taskDetails.attempt) || 1;
+
       const fixPrompt = this.buildInfraFixPrompt(
-        taskDetails.issuesToFix,
+        issuesToFix,
         existingFiles,
-        taskDetails.attempt,
+        attemptNum,
         context
       );
 
-      const result = await this.model.generateContent(fixPrompt);
-      const responseText = result.response.text();
+      // Safely invoke model.generateContent with runtime checks to avoid unsafe any access
+      const modelCandidate: unknown = this.model;
+      const hasGenerate =
+        typeof modelCandidate === "object" &&
+        modelCandidate !== null &&
+        typeof (modelCandidate as { generateContent?: unknown }).generateContent === "function";
+      if (!hasGenerate) {
+        throw new Error("Underlying model does not implement generateContent");
+      }
+      const result: { response: { text(): string | undefined } } = await (
+        modelCandidate as {
+          generateContent: (prompt: string) => Promise<{ response: { text(): string | undefined } }>;
+        }
+      ).generateContent(fixPrompt);
+      const rawResponse = result.response.text();
+      if (typeof rawResponse !== "string") {
+        throw new Error("Model did not return string content");
+      }
+      const responseText: string = rawResponse;
 
       const fixes = this.parseGeneratedFiles(responseText);
 
@@ -173,25 +238,29 @@ export class InfrastructureAgent extends BaseAgent {
         writtenFiles.push(file.path);
       }
 
+      const issuesCount = issuesToFix.length;
       logger.info(`[${this.config.name}] Infrastructure fixes applied`, {
         filesFixed: writtenFiles.length,
-        issuesAddressed: taskDetails.issuesToFix.length,
+        issuesAddressed: issuesCount,
       });
 
       return {
         success: true,
-        message: `Fixed ${taskDetails.issuesToFix.length} infrastructure issues`,
+        message: `Fixed ${issuesCount} infrastructure issues`,
         iterations: 1,
         durationMs: 0,
         data: {
           filesCreated: writtenFiles,
-          issuesFixed: taskDetails.issuesToFix.length,
+          issuesFixed: issuesCount,
         },
       };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      logger.error(`[${this.config.name}] Infrastructure fix failed`, toError(error));
+      logger.error(
+        `[${this.config.name}] Infrastructure fix failed`,
+        toError(error)
+      );
 
       return {
         success: false,
@@ -221,16 +290,24 @@ export class InfrastructureAgent extends BaseAgent {
           { projectId, userId }
         );
 
-        if (result.success && result.data?.content) {
-          files.push({
-            path: filePath,
-            content: result.data.content,
-          });
+        if (
+          result.success &&
+          result.data &&
+          typeof result.data === "object" &&
+          "content" in result.data
+        ) {
+          const content = (result.data as { content: unknown }).content;
+          if (typeof content === "string") {
+            files.push({
+              path: filePath,
+              content: content,
+            });
+          }
         }
       } catch (error) {
         logger.warn(
           `[${this.config.name}] Failed to load file: ${filePath}`,
-          error
+          toLogContext(error)
         );
       }
     }
@@ -241,15 +318,18 @@ export class InfrastructureAgent extends BaseAgent {
   /**
    * Build infrastructure fix prompt
    */
+  /**
+   * Build infrastructure fix prompt
+   */
   private buildInfraFixPrompt(
-    issues: any[],
+    issues: InfrastructureIssue[],
     existingFiles: Array<{ path: string; content: string }>,
     attempt: number,
-    context: any
+    context: Record<string, unknown>
   ): string {
     const issuesSummary = issues
       .map(
-        (issue, i) => `
+        (issue: InfrastructureIssue, i: number): string => `
 **Issue ${i + 1}:**
 - File: ${issue.file}
 - Severity: ${issue.severity}
@@ -261,7 +341,7 @@ export class InfrastructureAgent extends BaseAgent {
 
     const filesSummary = existingFiles
       .map(
-        (file) => `
+        (file: { path: string; content: string }): string => `
 **File: ${file.path}**
 \`\`\`
 ${file.content}
@@ -335,7 +415,27 @@ Generate the fixed infrastructure configurations now.
    * Build AI prompt based on SPECIFIC task requirements
    * Adapts to whatever the Planning Agent requested
    */
-  private buildTaskPrompt(taskDetails: any, context: any): string {
+  private buildTaskPrompt(
+    taskDetails: AgentExecutionInput["taskDetails"],
+    context: Record<string, unknown>
+  ): string {
+    // Safely narrow technicalDetails before accessing its properties
+    type TechDetails = { files?: string[]; technologies?: string[] };
+    const techDetailsUnknown: unknown = taskDetails.technicalDetails as unknown;
+
+    let filesList = "Determine based on task";
+    let technologiesList = "Determine from context";
+
+    if (typeof techDetailsUnknown === "object" && techDetailsUnknown !== null) {
+      const td = techDetailsUnknown as Partial<TechDetails>;
+      if (Array.isArray(td.files)) {
+        filesList = td.files.join(", ");
+      }
+      if (Array.isArray(td.technologies)) {
+        technologiesList = td.technologies.join(", ");
+      }
+    }
+
     return `
 You are an expert DevOps engineer. Generate infrastructure configuration files for this SPECIFIC task.
 
@@ -344,10 +444,10 @@ Title: ${taskDetails.title}
 Description: ${taskDetails.description}
 
 **FILES TO CREATE:**
-${taskDetails.technicalDetails?.files?.join(", ") || "Determine based on task"}
+${filesList}
 
 **TECHNOLOGIES:**
-${taskDetails.technicalDetails?.technologies?.join(", ") || "Determine from context"}
+${technologiesList}
 
 **TECH STACK (for context):**
 ${JSON.stringify(context.techStack, null, 2)}
@@ -359,7 +459,7 @@ ${JSON.stringify(context.architecture, null, 2)}
 ${context._existingFiles ? `Files already exist: ${Object.keys(context._existingFiles).join(", ")}` : "Starting fresh"}
 
 **ACCEPTANCE CRITERIA:**
-${taskDetails.acceptanceCriteria?.map((c: string) => `- ${c}`).join("\n") || "Not specified"}
+${Array.isArray(taskDetails.acceptanceCriteria) ? taskDetails.acceptanceCriteria.map((c: string) => `- ${c}`).join("\n") : "Not specified"}
 
 **CRITICAL INSTRUCTIONS:**
 
@@ -419,19 +519,25 @@ Generate the requested infrastructure configuration now.
         .replace(/```\n?/g, "")
         .trim();
 
-      const parsed = JSON.parse(cleaned);
+      const parsed = JSON.parse(cleaned) as {
+        files?: Array<{ path: string; content: string; description: string }>;
+      };
 
       return parsed.files || [];
     } catch (error) {
-      logger.error(`[${this.config.name}] Failed to parse AI response`, toError(error));
+      logger.error(
+        `[${this.config.name}] Failed to parse AI response`,
+        toError(error)
+      );
       throw new Error("Failed to parse infrastructure configuration");
     }
   }
 
   /**
    * Load existing project context to avoid overwriting
+   * (renamed to avoid conflict with private member in BaseAgent)
    */
-  private async loadProjectContext(input: AgentExecutionInput): Promise<void> {
+  private async loadProjectContextInternal(input: AgentExecutionInput): Promise<void> {
     try {
       const contextResult = await this.executeTool(
         "context_loader",
@@ -448,14 +554,19 @@ Generate the requested infrastructure configuration now.
       );
 
       if (contextResult.success && contextResult.data) {
-        input.context._existingFiles = contextResult.data.existingFiles || {};
-        input.context._projectStructure = contextResult.data.structure;
-        input.context._dependencies = contextResult.data.dependencies;
+        const data = contextResult.data as {
+          existingFiles?: Record<string, unknown>;
+          structure?: unknown;
+          dependencies?: unknown;
+        };
+        input.context._existingFiles = data.existingFiles || {};
+        input.context._projectStructure = data.structure;
+        input.context._dependencies = data.dependencies;
       }
     } catch (error) {
       logger.warn(
         `[${this.config.name}] Failed to load project context`,
-        error
+        toLogContext(error)
       );
     }
   }
