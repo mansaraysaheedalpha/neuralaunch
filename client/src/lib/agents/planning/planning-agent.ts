@@ -3,9 +3,10 @@
  * Enhanced Planning Agent with Dual-Mode Support
  * - Vision Mode: Converts freeform vision text into technical plans
  * - Blueprint Mode: Parses structured blueprints with validation data
+ * - Uses Claude (Anthropic) for superior JSON generation
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Anthropic from "@anthropic-ai/sdk";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { AI_MODELS } from "@/lib/models";
@@ -137,26 +138,18 @@ export interface PlanningOutput {
 // ==========================================
 
 export class PlanningAgent {
-  private genAI: GoogleGenerativeAI;
-  private model: any;
+  private anthropic: Anthropic;
   public readonly name = "PlanningAgent";
   public readonly phase = "planning";
 
   constructor() {
-    const apiKey = process.env.GOOGLE_API_KEY;
+    const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      throw new Error("GOOGLE_API_KEY is required for PlanningAgent");
+      throw new Error("ANTHROPIC_API_KEY is required for PlanningAgent");
     }
 
-    this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({
-      model: AI_MODELS.PRIMARY,
-      generationConfig: {
-        temperature: 0.4,
-        topP: 0.95,
-        topK: 40,
-        maxOutputTokens: 8192,
-      },
+    this.anthropic = new Anthropic({
+      apiKey,
     });
   }
 
@@ -224,8 +217,7 @@ export class PlanningAgent {
       );
 
       logger.info(`[${this.name}] Generating vision-based execution plan...`);
-      const result = await this.model.generateContent(prompt);
-      const responseText = result.response.text();
+      const responseText = await this.callClaude(prompt);
 
       // Step 5: Parse and validate plan
       const plan = this.parsePlanningResponse(responseText);
@@ -304,8 +296,7 @@ export class PlanningAgent {
       logger.info(
         `[${this.name}] Generating blueprint-based execution plan...`
       );
-      const result = await this.model.generateContent(prompt);
-      const responseText = result.response.text();
+      const responseText = await this.callClaude(prompt);
 
       // Step 4: Parse and validate plan
       const plan = this.parsePlanningResponse(responseText);
@@ -394,8 +385,7 @@ export class PlanningAgent {
 
       // Step 4: Get AI planning analysis
       logger.info(`[${this.name}] Requesting AI planning analysis...`);
-      const result = await this.model.generateContent(prompt);
-      const responseText = result.response.text();
+      const responseText = await this.callClaude(prompt);
 
       // Step 5: Parse AI response
       const plan = this.parsePlanningResponse(responseText);
@@ -447,6 +437,34 @@ export class PlanningAgent {
   }
 
   // ==========================================
+  // CLAUDE API HELPER
+  // ==========================================
+
+  /**
+   * Call Claude API with a prompt and return the response text
+   */
+  private async callClaude(prompt: string): Promise<string> {
+    const response = await this.anthropic.messages.create({
+      model: AI_MODELS.CLAUDE,
+      max_tokens: 8192,
+      temperature: 0.3,
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+    });
+
+    const textContent = response.content.find((c) => c.type === "text");
+    if (!textContent || textContent.type !== "text") {
+      throw new Error("No text response from Claude");
+    }
+
+    return textContent.text;
+  }
+
+  // ==========================================
   // VISION PLANNING HELPERS
   // ==========================================
 
@@ -477,21 +495,11 @@ Extract and return JSON with:
   "complexity": "simple" | "medium" | "complex"
 }
 
-Return only valid JSON, no markdown.
+IMPORTANT: Return ONLY the JSON object, with no markdown formatting, no code blocks, no explanations.
 `;
 
-    const result = await this.model.generateContent(prompt);
-    const responseText = result.response.text();
-
-    try {
-      const cleaned = responseText
-        .replace(/```json\n?/g, "")
-        .replace(/```\n?/g, "")
-        .trim();
-      return JSON.parse(cleaned);
-    } catch {
-      throw new Error("Failed to parse vision analysis");
-    }
+    const responseText = await this.callClaude(prompt);
+    return this.extractAndParseJSON(responseText);
   }
 
   /**
@@ -582,7 +590,7 @@ Create a detailed execution plan that brings this vision to life.
 
 ${this.getSharedPlanningInstructions()}
 
-Return only valid JSON, no markdown.
+CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`json tags, no explanations before or after. Just pure JSON.
 `.trim();
   }
 
@@ -668,7 +676,7 @@ Create a detailed execution plan that implements this blueprint.
 
 ${this.getSharedPlanningInstructions()}
 
-Return only valid JSON, no markdown.
+CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`json tags, no explanations before or after. Just pure JSON.
 `.trim();
   }
 
@@ -690,7 +698,7 @@ ${JSON.stringify(context.validation, null, 2)}
 
 ${this.getSharedPlanningInstructions()}
 
-Return only valid JSON, no markdown.
+CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`json tags, no explanations before or after. Just pure JSON.
 `.trim();
   }
 
@@ -700,7 +708,6 @@ Return only valid JSON, no markdown.
 
   /**
    * Get shared planning instructions for AI prompts
-   * THIS IS THE COMPREHENSIVE VERSION FROM YOUR ORIGINAL FILE
    */
   private getSharedPlanningInstructions(): string {
     return `
@@ -740,7 +747,7 @@ Return only valid JSON, no markdown.
 - integration: Third-party APIs, external services
 - testing: Unit tests, integration tests, E2E tests
 
-**OUTPUT FORMAT (JSON only, no markdown):**
+**OUTPUT FORMAT (JSON only):**
 {
   "architecture": {
     "projectStructure": {
@@ -810,23 +817,82 @@ Return only valid JSON, no markdown.
   }
 
   /**
+   * Robust JSON extraction and parsing from AI responses
+   */
+  private extractAndParseJSON(responseText: string): any {
+    // Log raw response for debugging
+    logger.info(`[${this.name}] Raw AI response (first 500 chars):`, {
+      preview: responseText.substring(0, 500),
+      totalLength: responseText.length,
+    });
+
+    // Remove markdown code blocks
+    let cleaned = responseText
+      .replace(/```json\n?/g, "")
+      .replace(/```\n?/g, "")
+      .trim();
+
+    // Try to find JSON object boundaries if mixed with text
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      cleaned = jsonMatch[0];
+    }
+
+    // Try parsing
+    try {
+      return JSON.parse(cleaned);
+    } catch (firstError) {
+      // If that fails, try to fix common issues
+
+      // Fix trailing commas
+      cleaned = cleaned.replace(/,(\s*[}\]])/g, "$1");
+
+      // Fix unquoted keys (common in some AI responses)
+      cleaned = cleaned.replace(
+        /([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g,
+        '$1"$2":'
+      );
+
+      try {
+        return JSON.parse(cleaned);
+      } catch (secondError) {
+        // Log the problematic response for debugging
+        logger.error(`[${this.name}] Failed to parse AI response`, {
+          originalLength: responseText.length,
+          cleanedLength: cleaned.length,
+          preview: cleaned.substring(0, 500),
+          error: toError(secondError),
+        });
+
+        throw new Error(
+          `Failed to parse planning response. AI returned invalid format. Preview: ${cleaned.substring(0, 200)}...`
+        );
+      }
+    }
+  }
+
+  /**
    * Parse AI response into structured execution plan
    */
   private parsePlanningResponse(responseText: string): ExecutionPlan {
     try {
-      const cleanedText = responseText
-        .replace(/```json\n?/g, "")
-        .replace(/```\n?/g, "")
-        .trim();
-
-      const parsed = JSON.parse(cleanedText);
+      const parsed = this.extractAndParseJSON(responseText);
 
       if (
         !parsed.architecture ||
         !parsed.tasks ||
         !Array.isArray(parsed.tasks)
       ) {
-        throw new Error("Invalid planning response format");
+        logger.error(`[${this.name}] Invalid structure:`, {
+          hasArchitecture: !!parsed.architecture,
+          hasTasks: !!parsed.tasks,
+          tasksIsArray: Array.isArray(parsed.tasks),
+          keys: Object.keys(parsed),
+        });
+
+        throw new Error(
+          "Invalid planning response format - missing required fields"
+        );
       }
 
       return parsed as ExecutionPlan;
@@ -993,8 +1059,6 @@ Return only valid JSON, no markdown.
 
   /**
    * Analyze user feedback on a plan without applying changes
-   * @param projectId - The project identifier
-   * @param feedback - User's feedback object with freeform and structured changes
    */
   async analyzeFeedback(
     projectId: string,
@@ -1022,7 +1086,6 @@ Return only valid JSON, no markdown.
     try {
       logger.info(`[${this.name}] Analyzing feedback`, { projectId });
 
-      // Get the current plan from context
       const context = await prisma.projectContext.findUnique({
         where: { projectId },
       });
@@ -1038,7 +1101,6 @@ Return only valid JSON, no markdown.
 
       const currentPlan = context.executionPlan as any;
 
-      // Analyze feedback using AI
       const prompt = `
 You are a software architect analyzing user feedback on an execution plan.
 
@@ -1046,7 +1108,7 @@ CURRENT PLAN:
 ${JSON.stringify(currentPlan, null, 2)}
 
 USER FEEDBACK:
-${feedback.freeformFeedback || 'No freeform feedback'}
+${feedback.freeformFeedback || "No freeform feedback"}
 
 STRUCTURED CHANGES:
 ${JSON.stringify(feedback.structuredChanges || {}, null, 2)}
@@ -1056,7 +1118,7 @@ Analyze the feasibility of these changes and identify:
 2. Any blocking issues that prevent implementation
 3. Suggested modifications to make the changes work better
 
-Return ONLY a valid JSON object with this structure:
+Return ONLY a valid JSON object with this structure (no markdown, no code blocks):
 {
   "feasible": true/false,
   "warnings": ["warning1", "warning2"],
@@ -1067,20 +1129,12 @@ Return ONLY a valid JSON object with this structure:
 }
 `;
 
-      const result = await this.model.generateContent(prompt);
-      const responseText = result.response.text();
-      
-      // Extract JSON from the response
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error("Failed to extract analysis from AI response");
-      }
+      const responseText = await this.callClaude(prompt);
+      const analysis = this.extractAndParseJSON(responseText);
 
-      const analysis = JSON.parse(jsonMatch[0]);
-
-      logger.info(`[${this.name}] Feedback analysis complete`, { 
+      logger.info(`[${this.name}] Feedback analysis complete`, {
         projectId,
-        feasible: analysis.feasible 
+        feasible: analysis.feasible,
       });
 
       return analysis;
@@ -1097,9 +1151,6 @@ Return ONLY a valid JSON object with this structure:
 
   /**
    * Apply user feedback to an existing plan
-   * @param projectId - The project identifier
-   * @param feedback - User's feedback on the plan
-   * @param analysisResult - Optional previous analysis result
    */
   async applyFeedback(
     projectId: string,
@@ -1113,7 +1164,6 @@ Return ONLY a valid JSON object with this structure:
     try {
       logger.info(`[${this.name}] Applying feedback to plan`, { projectId });
 
-      // Get the current plan from context
       const context = await prisma.projectContext.findUnique({
         where: { projectId },
       });
@@ -1127,7 +1177,6 @@ Return ONLY a valid JSON object with this structure:
 
       const currentPlan = context.executionPlan as any;
 
-      // Generate updated plan based on feedback
       const prompt = `
 You are a software architect updating an execution plan based on user feedback.
 
@@ -1137,29 +1186,15 @@ ${JSON.stringify(currentPlan, null, 2)}
 USER FEEDBACK:
 ${feedback}
 
-${analysisResult ? `ANALYSIS RESULT:\n${JSON.stringify(analysisResult, null, 2)}` : ''}
+${analysisResult ? `ANALYSIS RESULT:\n${JSON.stringify(analysisResult, null, 2)}` : ""}
 
 Please provide an updated execution plan that addresses the user's feedback.
-Return ONLY a valid JSON object with this structure:
-{
-  "tasks": [ /* array of updated tasks */ ],
-  "architecture": { /* updated architecture */ },
-  "waves": { /* updated wave configuration */ }
-}
+Return ONLY a valid JSON object (no markdown, no code blocks) with the complete plan structure.
 `;
 
-      const result = await this.model.generateContent(prompt);
-      const responseText = result.response.text();
-      
-      // Extract JSON from the response
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error("Failed to extract plan from AI response");
-      }
+      const responseText = await this.callClaude(prompt);
+      const updatedPlan = this.extractAndParseJSON(responseText);
 
-      const updatedPlan = JSON.parse(jsonMatch[0]);
-
-      // Update the plan in the database
       await prisma.projectContext.update({
         where: { projectId },
         data: {
@@ -1189,8 +1224,8 @@ Return ONLY a valid JSON object with this structure:
    */
   async healthCheck(): Promise<boolean> {
     try {
-      const result = await this.model.generateContent("Test");
-      return !!result;
+      await this.callClaude("Test health check");
+      return true;
     } catch {
       return false;
     }

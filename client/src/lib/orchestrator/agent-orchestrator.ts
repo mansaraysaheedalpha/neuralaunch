@@ -11,8 +11,6 @@ import { researchAgent } from "../agents/research/research.agent";
 import { validationAgent } from "../agents/validation/validation.agent";
 import { planningAgent } from "../agents/planning/planning-agent";
 import { toError } from "@/lib/error-utils";
-// ❌ REMOVE THIS IMPORT - We don't auto-start execution anymore
-// import { executionCoordinator } from "./execution-coordinator";
 
 // ==========================================
 // TYPES & INTERFACES
@@ -23,8 +21,8 @@ export type AgentPhase =
   | "research"
   | "validation"
   | "planning"
-  | "plan_review" // ✅ NEW PHASE
-  | "wave_execution" // ✅ NEW PHASE
+  | "plan_review"
+  | "wave_execution"
   | "complete";
 
 export interface OrchestratorInput {
@@ -74,9 +72,9 @@ export class AgentOrchestrator {
     try {
       // Step 1: Determine starting phase
       const startPhase = input.startFromPhase || "analysis";
-      
-      // Step 2: Initialize or verify project context (passing the determined start phase)
-      await this.initializeProjectContext({ ...input, startFromPhase: startPhase });
+
+      // ✅ Step 2: Verify project context exists (it should have been created by the API route)
+      await this.verifyProjectContext(input.projectId, startPhase);
 
       logger.info(`[${this.name}] Starting from phase: ${startPhase}`);
 
@@ -88,7 +86,10 @@ export class AgentOrchestrator {
         this.phaseResults.push(result);
 
         if (!result.success) {
-          logger.error(`[${this.name}] Pipeline failed at ${result.phase}`, new Error(result.error || "Unknown error"));
+          logger.error(
+            `[${this.name}] Pipeline failed at ${result.phase}`,
+            new Error(result.error || "Unknown error")
+          );
 
           return {
             success: false,
@@ -125,7 +126,7 @@ export class AgentOrchestrator {
           "Planning complete! Please review the execution plan before starting Wave 1.",
         projectId: input.projectId,
         completedPhases: this.phaseResults,
-        currentPhase: "plan_review", // ✅ NEW: Indicates waiting for human
+        currentPhase: "plan_review",
         totalDuration,
       };
     } catch (error) {
@@ -145,68 +146,51 @@ export class AgentOrchestrator {
   }
 
   /**
-   * Initialize project context in database
+   * ✅ NEW: Verify project context exists (created by API route)
+   * This replaces the old initializeProjectContext which was causing timing issues
    */
-  private async initializeProjectContext(
-    input: OrchestratorInput
+  private async verifyProjectContext(
+    projectId: string,
+    expectedPhase: AgentPhase
   ): Promise<void> {
     const existing = await prisma.projectContext.findUnique({
-      where: { projectId: input.projectId },
+      where: { projectId },
     });
 
-    if (existing) {
-      logger.info(`[${this.name}] Project context already exists`, {
-        projectId: input.projectId,
-        currentPhase: existing.currentPhase,
-      });
-      
-      // If we're resuming from initializing, move to the starting phase
-      if (existing.currentPhase === "initializing" && input.startFromPhase) {
-        await prisma.projectContext.update({
-          where: { projectId: input.projectId },
-          data: {
-            currentPhase: input.startFromPhase,
-            updatedAt: new Date(),
-          },
-        });
-        logger.info(`[${this.name}] Transitioned from initializing to ${input.startFromPhase}`, {
-          projectId: input.projectId,
-        });
-      }
-      return;
+    if (!existing) {
+      throw new Error(
+        `Project context not found for ${projectId}. This should have been created by the API route.`
+      );
     }
 
-    // Determine initial phase - use startFromPhase or default to analysis
-    const initialPhase = input.startFromPhase || "analysis";
-
-    await prisma.projectContext.create({
-      data: {
-        projectId: input.projectId,
-        userId: input.userId,
-        conversationId: input.conversationId,
-        currentPhase: initialPhase,
-        blueprint: { raw: input.blueprint } as any,
-        version: 1,
-        planApprovalStatus: "pending", // ✅ NEW FIELD
-        planRevisionCount: 0, // ✅ NEW FIELD
-      },
+    logger.info(`[${this.name}] Project context verified`, {
+      projectId,
+      currentPhase: existing.currentPhase,
+      expectedPhase,
     });
 
-    logger.info(`[${this.name}] Created project context with phase: ${initialPhase}`, {
-      projectId: input.projectId,
-    });
+    // If the phase doesn't match expected, it means we're resuming
+    if (existing.currentPhase !== expectedPhase) {
+      logger.info(
+        `[${this.name}] Resuming from phase: ${existing.currentPhase}`,
+        {
+          projectId,
+        }
+      );
+    }
   }
 
   /**
    * Get agent pipeline based on starting phase
    */
-  private getAgentPipeline(startPhase: AgentPhase) {
-    const fullPipeline = [
-      { phase: "analysis" as AgentPhase, agentName: "AnalyzerAgent" },
-      { phase: "research" as AgentPhase, agentName: "ResearchAgent" },
-      { phase: "validation" as AgentPhase, agentName: "ValidationAgent" },
-      { phase: "planning" as AgentPhase, agentName: "PlanningAgent" },
-      // ❌ NO LONGER AUTO-START EXECUTION
+  private getAgentPipeline(
+    startPhase: AgentPhase
+  ): Array<{ phase: AgentPhase; agentName: string }> {
+    const fullPipeline: Array<{ phase: AgentPhase; agentName: string }> = [
+      { phase: "analysis", agentName: "AnalyzerAgent" },
+      { phase: "research", agentName: "ResearchAgent" },
+      { phase: "validation", agentName: "ValidationAgent" },
+      { phase: "planning", agentName: "PlanningAgent" },
     ];
 
     const startIndex = fullPipeline.findIndex((p) => p.phase === startPhase);
@@ -279,7 +263,7 @@ export class AgentOrchestrator {
   /**
    * Run Analyzer Agent
    */
-  private async runAnalyzer(input: OrchestratorInput) {
+  private async runAnalyzer(input: OrchestratorInput): Promise<any> {
     const result = await analyzerAgent.execute({
       projectId: input.projectId,
       userId: input.userId,
@@ -297,7 +281,7 @@ export class AgentOrchestrator {
   /**
    * Run Research Agent
    */
-  private async runResearch(input: OrchestratorInput) {
+  private async runResearch(input: OrchestratorInput): Promise<any> {
     const result = await researchAgent.execute({
       projectId: input.projectId,
       userId: input.userId,
@@ -314,7 +298,7 @@ export class AgentOrchestrator {
   /**
    * Run Validation Agent
    */
-  private async runValidation(input: OrchestratorInput) {
+  private async runValidation(input: OrchestratorInput): Promise<any> {
     const result = await validationAgent.execute({
       projectId: input.projectId,
       userId: input.userId,
@@ -331,7 +315,7 @@ export class AgentOrchestrator {
   /**
    * Run Planning Agent
    */
-  private async runPlanning(input: OrchestratorInput) {
+  private async runPlanning(input: OrchestratorInput): Promise<any> {
     const result = await planningAgent.execute({
       projectId: input.projectId,
       userId: input.userId,
@@ -346,7 +330,7 @@ export class AgentOrchestrator {
   }
 
   /**
-   * ✅ NEW: Mark plan as ready for review
+   * ✅ Mark plan as ready for review
    */
   private async markPlanReview(projectId: string): Promise<void> {
     await prisma.projectContext.update({
@@ -380,14 +364,14 @@ export class AgentOrchestrator {
     currentPhase: AgentPhase;
     completedPhases: string[];
     lastUpdated: Date | null;
-    planApprovalStatus?: string; // ✅ NEW
+    planApprovalStatus?: string;
   }> {
     const context = await prisma.projectContext.findUnique({
       where: { projectId },
       select: {
         currentPhase: true,
         updatedAt: true,
-        planApprovalStatus: true, // ✅ NEW
+        planApprovalStatus: true,
       },
     });
 
@@ -409,7 +393,7 @@ export class AgentOrchestrator {
       currentPhase: context.currentPhase as AgentPhase,
       completedPhases: executions.map((e) => e.phase),
       lastUpdated: context.updatedAt,
-      planApprovalStatus: context.planApprovalStatus || undefined, // ✅ NEW
+      planApprovalStatus: context.planApprovalStatus || undefined,
     };
   }
 
@@ -469,8 +453,6 @@ export class AgentOrchestrator {
 
     try {
       // Convert vision to blueprint-like structure
-      // TODO: In a complete implementation, this would use a Vision Planner Agent
-      // For now, we'll create a simple blueprint from the vision text
       const generatedBlueprint = `
 # ${input.projectName}
 
@@ -478,21 +460,24 @@ export class AgentOrchestrator {
 ${input.visionText}
 
 ## Technical Requirements
-${input.techPreferences ? `
+${
+  input.techPreferences
+    ? `
 ### Tech Stack Preferences
-- Frontend: ${input.techPreferences.frontend || 'Auto-detect'}
-- Backend: ${input.techPreferences.backend || 'Auto-detect'}
-- Database: ${input.techPreferences.database || 'Auto-detect'}
-- Deployment: ${input.techPreferences.deployment || 'Auto-detect'}
-` : 'Tech stack will be auto-detected based on requirements.'}
+- Frontend: ${input.techPreferences.frontend || "Auto-detect"}
+- Backend: ${input.techPreferences.backend || "Auto-detect"}
+- Database: ${input.techPreferences.database || "Auto-detect"}
+- Deployment: ${input.techPreferences.deployment || "Auto-detect"}
+`
+    : "Tech stack will be auto-detected based on requirements."
+}
 
 ## Build Instructions
 Build a full-stack application based on the vision described above.
 `;
 
       // Execute using the standard orchestration pipeline
-      // A conversationId is generated for vision-based projects
-      const conversationId = `vision_${input.projectId}`;
+      const conversationId = input.projectId; // Use projectId as conversationId for vision projects
 
       return await this.execute({
         projectId: input.projectId,
@@ -543,10 +528,13 @@ Build a full-stack application based on the vision described above.
     );
 
     try {
-      // If sprint data is provided, we can enhance the blueprint with validation insights
+      // If sprint data is provided, enhance the blueprint with validation insights
       let enhancedBlueprint = input.blueprint;
 
-      if (input.sprintData?.completedTasks && input.sprintData.completedTasks.length > 0) {
+      if (
+        input.sprintData?.completedTasks &&
+        input.sprintData.completedTasks.length > 0
+      ) {
         enhancedBlueprint = `${input.blueprint}
 
 ---
@@ -554,14 +542,17 @@ Build a full-stack application based on the vision described above.
 ## Sprint Validation Results
 
 ### Completed Validation Tasks
-${input.sprintData.completedTasks.map((task: any, index: number) => 
-  `${index + 1}. ${task.title || task.id} - ${task.status}`
-).join('\n')}
+${input.sprintData.completedTasks
+  .map(
+    (task: any, index: number) =>
+      `${index + 1}. ${task.title || task.id} - ${task.status}`
+  )
+  .join("\n")}
 
 ### Validation Insights
 - Total tasks completed: ${input.sprintData.completedTasks.length}
 - Completion rate: ${input.sprintData.analytics?.completionRate || 0}%
-- Validated features: ${input.sprintData.validationResults?.features?.join(', ') || 'N/A'}
+- Validated features: ${input.sprintData.validationResults?.features?.join(", ") || "N/A"}
 
 **Note**: Prioritize features that were successfully validated during the sprint.
 `;

@@ -153,17 +153,24 @@ async function handleVisionRequest(
     },
   });
 
-  // Create ProjectContext record immediately for status tracking
+  // ✅ FIX: Create ProjectContext with "analysis" phase instead of "initializing"
+  // This ensures the UI immediately shows the correct phase
   await prisma.projectContext.create({
     data: {
       projectId,
       userId,
       conversationId: projectId,
-      currentPhase: "initializing",
+      currentPhase: "analysis", // ✅ Changed from "initializing" to "analysis"
+      planApprovalStatus: "pending",
+      planRevisionCount: 0,
     },
   });
 
-  logger.info("Project records created", { projectId, conversationId: conversation.id });
+  logger.info("Project records created", {
+    projectId,
+    conversationId: conversation.id,
+    initialPhase: "analysis", // ✅ Log the initial phase
+  });
 
   if (body.async) {
     // Trigger Inngest function for async execution
@@ -243,7 +250,9 @@ async function handleBlueprintRequest(
     data: {
       id: projectId,
       userId,
-      title: existingConversation?.title ? `Build: ${existingConversation.title}` : "AI Agent Build",
+      title: existingConversation?.title
+        ? `Build: ${existingConversation.title}`
+        : "AI Agent Build",
       messages: {
         create: {
           role: "assistant",
@@ -253,17 +262,23 @@ async function handleBlueprintRequest(
     },
   });
 
-  // Create ProjectContext record immediately for status tracking
+  // ✅ FIX: Create ProjectContext with "analysis" phase instead of "initializing"
   await prisma.projectContext.create({
     data: {
       projectId,
       userId,
       conversationId: body.conversationId,
-      currentPhase: "initializing",
+      currentPhase: "analysis", // ✅ Changed from "initializing" to "analysis"
+      planApprovalStatus: "pending",
+      planRevisionCount: 0,
     },
   });
 
-  logger.info("Project records created", { projectId, conversationId: body.conversationId });
+  logger.info("Project records created", {
+    projectId,
+    conversationId: body.conversationId,
+    initialPhase: "analysis", // ✅ Log the initial phase
+  });
 
   if (body.async) {
     // Trigger Inngest function for async execution

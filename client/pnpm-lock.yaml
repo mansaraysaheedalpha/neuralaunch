@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       '@anthropic-ai/sdk':
-        specifier: ^0.67.0
+        specifier: ^0.67.1
         version: 0.67.1(zod@4.1.12)
       '@auth/core':
         specifier: ^0.41.1
