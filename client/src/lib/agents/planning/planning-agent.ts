@@ -941,47 +941,113 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
    */
   private extractAndParseJSON(responseText: string): any {
     // Log raw response for debugging
+    logger.info(`[${this.name}] 💭 Analyzing AI response and extracting plan structure...`);
     logger.info(`[${this.name}] Raw AI response (first 500 chars):`, {
       preview: responseText.substring(0, 500),
       totalLength: responseText.length,
     });
 
-    // Remove markdown code blocks
+    // Remove markdown code blocks - be more aggressive
     let cleaned = responseText
-      .replace(/```json\n?/g, "")
+      .replace(/```json\n?/gi, "")  // Case insensitive
+      .replace(/```javascript\n?/gi, "")
       .replace(/```\n?/g, "")
       .trim();
 
-    // Try to find JSON object boundaries if mixed with text
-    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      cleaned = jsonMatch[0];
+    // Try to find JSON object boundaries using proper brace matching
+    const jsonStart = cleaned.indexOf("{");
+    if (jsonStart === -1) {
+      logger.error(`[${this.name}] Failed to parse AI response`, {
+        reason: "No opening brace found",
+        preview: cleaned.substring(0, 200),
+      });
+      throw new Error(
+        `Failed to parse planning response. AI returned invalid format. No JSON object found.`
+      );
     }
+
+    // Find matching closing brace using a stack-based approach
+    let braceCount = 0;
+    let inString = false;
+    let escapeNext = false;
+    let jsonEnd = -1;
+
+    for (let i = jsonStart; i < cleaned.length; i++) {
+      const char = cleaned[i];
+
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+
+      if (char === "\\") {
+        escapeNext = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+
+      if (!inString) {
+        if (char === "{") {
+          braceCount++;
+        } else if (char === "}") {
+          braceCount--;
+          if (braceCount === 0) {
+            jsonEnd = i + 1;
+            break;
+          }
+        }
+      }
+    }
+
+    if (jsonEnd === -1) {
+      logger.error(`[${this.name}] Failed to parse AI response`, {
+        reason: "No matching closing brace found",
+        braceCount,
+        preview: cleaned.substring(0, 500),
+      });
+      throw new Error(
+        `Failed to parse planning response. AI returned invalid format. Unbalanced braces.`
+      );
+    }
+
+    // Extract the JSON object
+    cleaned = cleaned.substring(jsonStart, jsonEnd);
 
     // Try parsing
     try {
-      return JSON.parse(cleaned);
+      const parsed = JSON.parse(cleaned);
+      logger.info(`[${this.name}] ✅ Successfully parsed AI response`);
+      return parsed;
     } catch (firstError) {
+      logger.info(`[${this.name}] First parse attempt failed, trying fixes...`);
+      
       // If that fails, try to fix common issues
 
       // Fix trailing commas
-      cleaned = cleaned.replace(/,(\s*[}\]])/g, "$1");
+      let fixed = cleaned.replace(/,(\s*[}\]])/g, "$1");
 
       // Fix unquoted keys (common in some AI responses)
-      cleaned = cleaned.replace(
+      fixed = fixed.replace(
         /([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g,
         '$1"$2":'
       );
 
       try {
-        return JSON.parse(cleaned);
+        const parsed = JSON.parse(fixed);
+        logger.info(`[${this.name}] ✅ Successfully parsed AI response after fixes`);
+        return parsed;
       } catch (secondError) {
         // Log the problematic response for debugging
         logger.error(`[${this.name}] Failed to parse AI response`, {
           originalLength: responseText.length,
           cleanedLength: cleaned.length,
           preview: cleaned.substring(0, 500),
-          error: toError(secondError),
+          firstError: toError(firstError).message,
+          secondError: toError(secondError).message,
         });
 
         throw new Error(
