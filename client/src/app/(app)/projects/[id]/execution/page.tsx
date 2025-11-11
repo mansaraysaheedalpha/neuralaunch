@@ -9,7 +9,10 @@ import {
   Clock, 
   CheckCircle2, 
   AlertCircle,
-  Loader2 
+  Loader2,
+  Rocket,
+  Activity,
+  FileCheck
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -135,6 +138,28 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
                   </span>
                 </div>
               </div>
+            </div>
+            
+            {/* Navigation Links */}
+            <div className="flex items-center gap-2">
+              <Link href={`/projects/${projectId}/quality`}>
+                <Button variant="outline" size="sm">
+                  <FileCheck className="w-4 h-4 mr-2" />
+                  Quality
+                </Button>
+              </Link>
+              <Link href={`/projects/${projectId}/deployment`}>
+                <Button variant="outline" size="sm">
+                  <Rocket className="w-4 h-4 mr-2" />
+                  Deployment
+                </Button>
+              </Link>
+              <Link href={`/projects/${projectId}/monitoring`}>
+                <Button variant="outline" size="sm">
+                  <Activity className="w-4 h-4 mr-2" />
+                  Monitoring
+                </Button>
+              </Link>
             </div>
           </div>
         </div>

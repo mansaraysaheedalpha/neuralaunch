@@ -12,6 +12,9 @@ import {
   FileCheck,
   Loader2,
   ThumbsUp,
+  Rocket,
+  Activity,
+  Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -134,6 +137,28 @@ export default function QualityDashboardPage({ params }: QualityPageProps) {
                   Code quality, testing, and security metrics
                 </p>
               </div>
+            </div>
+            
+            {/* Navigation Links */}
+            <div className="flex items-center gap-2">
+              <Link href={`/projects/${projectId}/execution`}>
+                <Button variant="outline" size="sm">
+                  <Zap className="w-4 h-4 mr-2" />
+                  Execution
+                </Button>
+              </Link>
+              <Link href={`/projects/${projectId}/deployment`}>
+                <Button variant="outline" size="sm">
+                  <Rocket className="w-4 h-4 mr-2" />
+                  Deployment
+                </Button>
+              </Link>
+              <Link href={`/projects/${projectId}/monitoring`}>
+                <Button variant="outline" size="sm">
+                  <Activity className="w-4 h-4 mr-2" />
+                  Monitoring
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
