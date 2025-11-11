@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createApiLogger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
-import { inngest } from "@/inngest/client";
+import { executionCoordinator } from "@/lib/orchestrator/execution-coordinator";
 
 // Extend timeout for execution startup
 export const maxDuration = 60;
@@ -89,34 +89,39 @@ export async function POST(
       );
     }
 
-    // 5. Update phase to execution
-    await prisma.projectContext.update({
-      where: { projectId },
-      data: {
-        currentPhase: "execution",
-        updatedAt: new Date(),
-      },
-    });
-
     logger.info("Starting execution", { projectId });
 
-    // 6. Trigger execution via Inngest
-    await inngest.send({
-      name: "agent/execution.start",
-      data: {
-        projectId,
-        userId,
-        conversationId: projectContext.conversationId,
-        plan: projectContext.executionPlan,
-      },
+    // 5. Start execution using the execution coordinator
+    const result = await executionCoordinator.start({
+      projectId,
+      userId,
+      conversationId: projectContext.conversationId,
+      autoStart: true, // Automatically trigger wave 1
     });
 
-    logger.info("Execution triggered successfully", { projectId });
+    if (!result.success) {
+      logger.error("Execution coordination failed", { 
+        projectId, 
+        error: result.message 
+      });
+      return NextResponse.json(
+        { error: result.message },
+        { status: 500 }
+      );
+    }
+
+    logger.info("Execution triggered successfully", { 
+      projectId,
+      waveNumber: result.waveNumber,
+      tasksTriggered: result.triggeredTasks.length,
+    });
 
     return NextResponse.json({
       success: true,
-      message: "Execution started successfully",
+      message: result.message,
       projectId,
+      waveNumber: result.waveNumber,
+      stats: result.stats,
       executionDashboard: `/projects/${projectId}/execution`,
     });
   } catch (error) {
