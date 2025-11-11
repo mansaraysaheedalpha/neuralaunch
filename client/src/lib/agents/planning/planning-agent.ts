@@ -198,7 +198,7 @@ export class PlanningAgent {
 
     try {
       await thoughts.starting("vision-based execution planning");
-      
+
       logger.info(`[${this.name}] Starting vision planning`, {
         projectId: input.projectId,
         projectName: input.projectName,
@@ -229,7 +229,10 @@ export class PlanningAgent {
         architecture
       );
 
-      await thoughts.accessing("Claude AI", "Generating detailed task breakdown");
+      await thoughts.accessing(
+        "Claude AI",
+        "Generating detailed task breakdown"
+      );
       logger.info(`[${this.name}] Generating vision-based execution plan...`);
       const responseText = await this.callClaude(prompt, thoughts);
 
@@ -237,11 +240,15 @@ export class PlanningAgent {
       await thoughts.analyzing("AI response and validating plan structure");
       const plan = this.parsePlanningResponse(responseText);
       this.validatePlan(plan);
-      
-      await thoughts.emit("analyzing", `Generated ${plan.tasks.length} atomic tasks across ${plan.phases.length} phases`, {
-        taskCount: plan.tasks.length,
-        phaseCount: plan.phases.length,
-      });
+
+      await thoughts.emit(
+        "analyzing",
+        `Generated ${plan.tasks.length} atomic tasks across ${plan.phases.length} phases`,
+        {
+          taskCount: plan.tasks.length,
+          phaseCount: plan.phases.length,
+        }
+      );
 
       // Step 6: Store results
       await thoughts.accessing("database", "Storing execution plan");
@@ -258,8 +265,10 @@ export class PlanningAgent {
       await thoughts.executing("logging planning execution");
       const executionId = await this.logExecution(input, plan, true, duration);
 
-      await thoughts.completing(`Vision planning complete with ${plan.tasks.length} tasks in ${duration}ms`);
-      
+      await thoughts.completing(
+        `Vision planning complete with ${plan.tasks.length} tasks in ${duration}ms`
+      );
+
       logger.info(`[${this.name}] Vision planning completed`, {
         taskCount: plan.tasks.length,
         phases: plan.phases.length,
@@ -277,8 +286,10 @@ export class PlanningAgent {
         error instanceof Error ? error.message : "Unknown error";
       const duration = Date.now() - startTime;
 
-      await thoughts.error(errorMessage, { error: error instanceof Error ? error.stack : String(error) });
-      
+      await thoughts.error(errorMessage, {
+        error: error instanceof Error ? error.stack : String(error),
+      });
+
       logger.error(`[${this.name}] Vision planning failed:`, toError(error));
 
       await this.logExecution(input, null, false, duration, errorMessage);
@@ -385,24 +396,31 @@ export class PlanningAgent {
 
     try {
       await thoughts.starting("blueprint-based execution planning");
-      
+
       logger.info(
         `[${this.name}] Starting legacy planning for project ${input.projectId}`
       );
 
       // Step 1: Get project context (blueprint, tech stack, validation)
-      await thoughts.accessing("ProjectContext database", "Retrieving project data");
+      await thoughts.accessing(
+        "ProjectContext database",
+        "Retrieving project data"
+      );
       const context = await this.getProjectContext(input.projectId);
 
       if (!context) {
-        await thoughts.error("Project context not found - Previous agents must complete first");
+        await thoughts.error(
+          "Project context not found - Previous agents must complete first"
+        );
         throw new Error(
           "Project context not found. Run previous agents first."
         );
       }
 
       if (!context.validation) {
-        await thoughts.error("Validation results missing - Validation agent must run first");
+        await thoughts.error(
+          "Validation results missing - Validation agent must run first"
+        );
         throw new Error(
           "Validation results not found. Run Validation Agent first."
         );
@@ -411,12 +429,14 @@ export class PlanningAgent {
       // Step 2: Check if project is feasible
       await thoughts.analyzing("validation results and feasibility");
       if (!context.validation.feasible) {
-        await thoughts.error("Project not feasible - Blockers must be addressed first");
+        await thoughts.error(
+          "Project not feasible - Blockers must be addressed first"
+        );
         throw new Error(
           "Project is not feasible according to validation. Address blockers first."
         );
       }
-      
+
       await thoughts.deciding("Project is feasible - proceeding with planning");
 
       // Step 3: Generate planning prompt (using existing blueprint logic)
@@ -424,7 +444,10 @@ export class PlanningAgent {
       const prompt = this.buildLegacyPlanningPrompt(context);
 
       // Step 4: Get AI planning analysis
-      await thoughts.accessing("Claude AI", "Generating atomic tasks and phases");
+      await thoughts.accessing(
+        "Claude AI",
+        "Generating atomic tasks and phases"
+      );
       logger.info(`[${this.name}] Requesting AI planning analysis...`);
       const responseText = await this.callClaude(prompt, thoughts);
 
@@ -435,12 +458,16 @@ export class PlanningAgent {
       // Step 6: Validate plan structure
       await thoughts.thinking("validating task dependencies and critical path");
       this.validatePlan(plan);
-      
-      await thoughts.emit("analyzing", `Plan validated: ${plan.tasks.length} tasks, ${plan.phases.length} phases`, {
-        tasks: plan.tasks.length,
-        phases: plan.phases.length,
-        estimatedHours: plan.totalEstimatedHours,
-      });
+
+      await thoughts.emit(
+        "analyzing",
+        `Plan validated: ${plan.tasks.length} tasks, ${plan.phases.length} phases`,
+        {
+          tasks: plan.tasks.length,
+          phases: plan.phases.length,
+          estimatedHours: plan.totalEstimatedHours,
+        }
+      );
 
       // Step 7: Store results in database
       await thoughts.accessing("database", "Storing execution plan");
@@ -458,8 +485,10 @@ export class PlanningAgent {
       await thoughts.executing("logging planning results");
       const executionId = await this.logExecution(input, plan, true, duration);
 
-      await thoughts.completing(`Planning complete with ${plan.tasks.length} tasks (~${plan.totalEstimatedHours}h) in ${duration}ms`);
-      
+      await thoughts.completing(
+        `Planning complete with ${plan.tasks.length} tasks (~${plan.totalEstimatedHours}h) in ${duration}ms`
+      );
+
       logger.info(`[${this.name}] Legacy planning completed`, {
         projectId: input.projectId,
         taskCount: plan.tasks.length,
@@ -479,8 +508,10 @@ export class PlanningAgent {
         error instanceof Error ? error.message : "Unknown error";
       const duration = Date.now() - startTime;
 
-      await thoughts.error(errorMessage, { error: error instanceof Error ? error.stack : String(error) });
-      
+      await thoughts.error(errorMessage, {
+        error: error instanceof Error ? error.stack : String(error),
+      });
+
       logger.error(`[${this.name}] Legacy planning failed:`, toError(error));
 
       await this.logExecution(input, null, false, duration, errorMessage);
@@ -499,7 +530,10 @@ export class PlanningAgent {
   /**
    * Call Claude API with a prompt and return the response text
    */
-  private async callClaude(prompt: string, thoughts?: ReturnType<typeof createThoughtStream>): Promise<string> {
+  private async callClaude(
+    prompt: string,
+    thoughts?: ReturnType<typeof createThoughtStream>
+  ): Promise<string> {
     const startTime = Date.now();
     logger.info(`[${this.name}] Calling Claude API...`, {
       promptLength: prompt.length,
@@ -520,14 +554,18 @@ export class PlanningAgent {
       });
 
       const duration = Date.now() - startTime;
-      
+
       if (thoughts) {
-        await thoughts.emit("executing", `Claude API call completed in ${duration}ms`, {
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
-        });
+        await thoughts.emit(
+          "executing",
+          `Claude API call completed in ${duration}ms`,
+          {
+            inputTokens: response.usage.input_tokens,
+            outputTokens: response.usage.output_tokens,
+          }
+        );
       }
-      
+
       logger.info(`[${this.name}] Claude API call completed`, {
         duration: `${duration}ms`,
         inputTokens: response.usage.input_tokens,
@@ -572,11 +610,16 @@ export class PlanningAgent {
   /**
    * Analyze vision text to extract intent, features, and goals
    */
-  private async analyzeVision(visionText: string, thoughts?: ReturnType<typeof createThoughtStream>): Promise<any> {
+  private async analyzeVision(
+    visionText: string,
+    thoughts?: ReturnType<typeof createThoughtStream>
+  ): Promise<any> {
     if (thoughts) {
-      await thoughts.thinking("extracting project intent and core features from vision");
+      await thoughts.thinking(
+        "extracting project intent and core features from vision"
+      );
     }
-    
+
     const prompt = `
 Analyze this project vision and extract key information:
 
@@ -604,11 +647,11 @@ IMPORTANT: Return ONLY the JSON object, with no markdown formatting, no code blo
 `;
 
     const responseText = await this.callClaude(prompt, thoughts);
-    
+
     if (thoughts) {
       await thoughts.analyzing("vision analysis results");
     }
-    
+
     return this.extractAndParseJSON(responseText);
   }
 
@@ -941,51 +984,88 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
    */
   private extractAndParseJSON(responseText: string): any {
     // Log raw response for debugging
-    logger.info(`[${this.name}] Raw AI response (first 500 chars):`, {
+    logger.info(`[${this.name}] 💭 Raw AI response (first 500 chars):`, {
       preview: responseText.substring(0, 500),
       totalLength: responseText.length,
     });
 
-    // Remove markdown code blocks
+    // Step 1: Remove ALL markdown code block markers
     let cleaned = responseText
-      .replace(/```json\n?/g, "")
-      .replace(/```\n?/g, "")
+      .replace(/```json\s*/g, "") // Remove ```json with optional whitespace
+      .replace(/```javascript\s*/g, "") // Remove ```javascript
+      .replace(/```\s*/g, "") // Remove remaining ```
       .trim();
 
-    // Try to find JSON object boundaries if mixed with text
-    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      cleaned = jsonMatch[0];
+    // Step 2: Extract JSON if it's mixed with other text
+    // Look for the outermost JSON object
+    const jsonStart = cleaned.indexOf("{");
+    const jsonEnd = cleaned.lastIndexOf("}");
+
+    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+      cleaned = cleaned.substring(jsonStart, jsonEnd + 1);
     }
 
-    // Try parsing
+    // Step 3: Try parsing the cleaned JSON
     try {
-      return JSON.parse(cleaned);
+      const parsed = JSON.parse(cleaned);
+      logger.info(`[${this.name}] ✅ Successfully parsed JSON response`);
+      return parsed;
     } catch (firstError) {
-      // If that fails, try to fix common issues
+      logger.warn(`[${this.name}] First parse attempt failed, trying fixes...`);
 
-      // Fix trailing commas
-      cleaned = cleaned.replace(/,(\s*[}\]])/g, "$1");
+      // Step 4: Apply common JSON fixes
+      let fixed = cleaned;
 
-      // Fix unquoted keys (common in some AI responses)
-      cleaned = cleaned.replace(
-        /([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g,
+      // Fix 1: Remove trailing commas before closing braces/brackets
+      fixed = fixed.replace(/,(\s*[}\]])/g, "$1");
+
+      // Fix 2: Handle unquoted property names (shouldn't happen with Claude, but just in case)
+      fixed = fixed.replace(
+        /([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g,
         '$1"$2":'
       );
 
+      // Fix 3: Replace single quotes with double quotes (if any)
+      fixed = fixed.replace(/'/g, '"');
+
+      // Try parsing the fixed version
       try {
-        return JSON.parse(cleaned);
+        const parsed = JSON.parse(fixed);
+        logger.info(
+          `[${this.name}] ✅ Successfully parsed JSON after applying fixes`
+        );
+        return parsed;
       } catch (secondError) {
-        // Log the problematic response for debugging
+        // Step 5: Last resort - try to find and extract valid JSON with regex
+        logger.error(`[${this.name}] ❌ All parsing attempts failed`);
+
+        // Log detailed error information
         logger.error(`[${this.name}] Failed to parse AI response`, {
           originalLength: responseText.length,
           cleanedLength: cleaned.length,
+          fixedLength: fixed.length,
           preview: cleaned.substring(0, 500),
-          error: toError(secondError),
+          firstError:
+            firstError instanceof Error
+              ? firstError.message
+              : String(firstError),
+          secondError:
+            secondError instanceof Error
+              ? secondError.message
+              : String(secondError),
         });
 
+        // Try to provide helpful error message
+        if (cleaned.length > 50000) {
+          throw new Error(
+            `Claude response too large (${cleaned.length} chars). Try simplifying your project requirements.`
+          );
+        }
+
         throw new Error(
-          `Failed to parse planning response. AI returned invalid format. Preview: ${cleaned.substring(0, 200)}...`
+          `Failed to parse planning response. AI returned invalid JSON format. ` +
+            `Error: ${secondError instanceof Error ? secondError.message : String(secondError)}. ` +
+            `Preview: ${cleaned.substring(0, 300)}...`
         );
       }
     }
