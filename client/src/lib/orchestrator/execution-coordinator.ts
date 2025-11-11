@@ -29,6 +29,7 @@ export interface ExecutionTask {
   status: string;
   input: any;
   dependencies?: string[]; // Task IDs that must complete first
+  complexity?: "simple" | "medium";
 }
 
 export interface CoordinatorInput {
@@ -184,7 +185,7 @@ export class ExecutionCoordinator {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      logger.error(`[${this.name}] Coordination failed:`, error);
+      logger.error(`[${this.name}] Coordination failed:`, error as any);
 
       return {
         success: false,
@@ -255,7 +256,7 @@ export class ExecutionCoordinator {
       Array.from(tasksByAgent.entries()).map(([agent, tasks]) => ({
         agent,
         count: tasks.length,
-      }))
+      })) as any
     );
 
     return {
@@ -370,7 +371,7 @@ export class ExecutionCoordinator {
         triggeredTasks: triggeredTaskIds,
       };
     } catch (error) {
-      logger.error(`[${this.name}] Resume failed:`, error);
+      logger.error(`[${this.name}] Resume failed:`, error as any);
       throw error;
     }
   }
@@ -467,15 +468,14 @@ export class ExecutionCoordinator {
 
     try {
       await inngest.send({
-        name: eventName,
+        name: eventName as any,
         data: {
           taskId: task.id,
           projectId: input.projectId,
           userId: input.userId,
-          conversationId: input.conversationId,
           taskInput: task.input,
           priority: task.priority,
-        },
+        } as any,
       });
 
       // Update task status to 'in_progress'
@@ -489,7 +489,7 @@ export class ExecutionCoordinator {
 
       logger.info(`[${this.name}] Successfully triggered task ${task.id}`);
     } catch (error) {
-      logger.error(`[${this.name}] Failed to trigger task ${task.id}:`, error);
+      logger.error(`[${this.name}] Failed to trigger task ${task.id}:`, error as any);
       throw error;
     }
   }
@@ -547,7 +547,7 @@ export class ExecutionCoordinator {
 
       logger.info(`[${this.name}] Quality check triggered for ${projectId}`);
     } catch (error) {
-      logger.error(`[${this.name}] Failed to trigger quality check:`, error);
+      logger.error(`[${this.name}] Failed to trigger quality check:`, error as any);
     }
   }
 
@@ -721,16 +721,15 @@ export class ExecutionCoordinator {
           );
 
           await inngest.send({
-            name: eventName,
+            name: eventName as any,
             data: {
               taskId: task.id,
               projectId,
               userId,
-              conversationId,
               taskInput: task.input,
               waveNumber,
               githubBranch,
-            },
+            } as any,
           });
 
           // Update task status to in_progress
@@ -772,7 +771,7 @@ export class ExecutionCoordinator {
         waveBreakdown,
       };
     } catch (error) {
-      logger.error(`[${this.name}] Wave building failed`, error);
+      logger.error(`[${this.name}] Wave building failed`, error as any);
       throw error;
     }
   }

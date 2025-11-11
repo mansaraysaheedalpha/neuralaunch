@@ -286,7 +286,7 @@ IMPORTANT:
 
       return parsed as ValidationResult;
     } catch (error) {
-      logger.error(`[${this.name}] Failed to parse AI response:`, responseText);
+      logger.error(`[${this.name}] Failed to parse AI response:`, error as any);
       throw new Error(
         "Failed to parse validation response. AI returned invalid format."
       );
@@ -306,7 +306,7 @@ IMPORTANT:
         architecture: {
           validation: validation,
           validatedAt: new Date().toISOString(),
-        },
+        } as any,
         currentPhase: validation.feasible ? "planning" : "validation",
         updatedAt: new Date(),
       },

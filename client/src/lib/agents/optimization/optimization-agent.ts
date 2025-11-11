@@ -102,7 +102,7 @@ export class OptimizationAgent extends BaseAgent {
    */
   async executeTask(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
     const { taskId, projectId, userId, taskDetails } = input;
-    const optimizationInput = taskDetails as OptimizationInput;
+    const optimizationInput = taskDetails as unknown as OptimizationInput;
 
     logger.info(`[${this.name}] Starting optimization`, {
       taskId,

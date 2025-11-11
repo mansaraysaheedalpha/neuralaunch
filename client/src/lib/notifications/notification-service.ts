@@ -299,6 +299,7 @@ async function sendWithSendGrid(params: {
   text: string;
 }): Promise<void> {
   try {
+    // @ts-ignore - Optional dependency
     const sgMail = await import("@sendgrid/mail");
     sgMail.default.setApiKey(process.env.SENDGRID_API_KEY!);
 
@@ -331,6 +332,7 @@ async function sendWithSES(params: {
   text: string;
 }): Promise<void> {
   try {
+    // @ts-ignore - Optional dependency
     const { SESClient, SendEmailCommand } = await import("@aws-sdk/client-ses");
 
     const sesClient = new SESClient({

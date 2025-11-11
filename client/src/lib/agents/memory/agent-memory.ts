@@ -102,7 +102,7 @@ export class AgentMemory {
    * Retrieve relevant memories for a task
    */
   async retrieve(query: MemoryQuery): Promise<MemoryEntry[]> {
-    logger.info(`[${this.name}] Retrieving memories`, query);
+    logger.info(`[${this.name}] Retrieving memories`, query as any);
 
     try {
       // Build where clause

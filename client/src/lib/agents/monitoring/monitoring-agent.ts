@@ -133,7 +133,7 @@ export class MonitoringAgent extends BaseAgent {
    */
   async executeTask(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
     const { taskId, projectId, userId, taskDetails } = input;
-    const monitoringInput = taskDetails as MonitoringInput;
+    const monitoringInput = taskDetails as unknown as MonitoringInput;
 
     logger.info(`[${this.name}] Starting monitoring`, {
       taskId,

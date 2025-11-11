@@ -234,7 +234,7 @@ export class ContextLoaderTool extends BaseTool {
             }
           }
         } catch (error) {
-          logger.warn(`Failed to load file: ${path}`, error);
+          logger.warn(`Failed to load file: ${path}`, error as any);
         }
       }
 

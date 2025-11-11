@@ -17,12 +17,14 @@ export interface ToolParameter {
   description: string;
   required: boolean;
   default?: any;
+  enum?: string[];
 }
 
 export interface ToolResult {
   success: boolean;
   data?: any;
   error?: string;
+  duration?: number;
   metadata?: {
     executionTime?: number;
     tokensUsed?: number;

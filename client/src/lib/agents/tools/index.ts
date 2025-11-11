@@ -163,9 +163,7 @@ async function loadMCPToolsAsync(): Promise<void> {
     } catch (error) {
       logger.error(
         `[ToolRegistry] Failed to connect to MCP server: ${serverUrl}`,
-        {
-          error: error instanceof Error ? error.message : "Unknown error",
-        }
+        error as any
       );
       // Continue with other servers even if one fails
     }

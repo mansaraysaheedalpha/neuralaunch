@@ -1,7 +1,7 @@
 # NeuraLaunch Frontend Vision Document
 
-**Version:** 1.0  
-**Date:** November 10, 2025  
+**Version:** 2.0  
+**Date:** November 11, 2025  
 **Author:** AI Copilot Agent  
 **Purpose:** Complete frontend specification for NeuraLaunch agentic backend integration
 
@@ -10,32 +10,51 @@
 ## Table of Contents
 
 1. [Executive Summary](#executive-summary)
-2. [Backend Architecture Overview](#backend-architecture-overview)
-3. [Frontend Architecture](#frontend-architecture)
-4. [Design System](#design-system)
-5. [Core Features & User Flows](#core-features--user-flows)
-6. [API Integration Guide](#api-integration-guide)
-7. [Real-time Updates](#real-time-updates)
-8. [Component Specifications](#component-specifications)
-9. [State Management](#state-management)
-10. [Error Handling](#error-handling)
-11. [Implementation Roadmap](#implementation-roadmap)
+2. [Application Structure Overview](#application-structure-overview)
+3. [Landing Page & Agentic Interface](#landing-page--agentic-interface)
+4. [SprintDashboard Enhancement](#sprintdashboard-enhancement)
+5. [Planning Agent Architecture](#planning-agent-architecture)
+6. [Backend Architecture Overview](#backend-architecture-overview)
+7. [Frontend Architecture](#frontend-architecture)
+8. [Design System](#design-system)
+9. [Core Features & User Flows](#core-features--user-flows)
+10. [API Integration Guide](#api-integration-guide)
+11. [Real-time Updates](#real-time-updates)
+12. [Component Specifications](#component-specifications)
+13. [State Management](#state-management)
+14. [Error Handling](#error-handling)
+15. [Implementation Roadmap](#implementation-roadmap)
 
 ---
 
 ## 1. Executive Summary
 
-NeuraLaunch is an advanced AI-powered application development platform that orchestrates 13+ specialized AI agents to build, test, deploy, and maintain full-stack applications. This document provides complete specifications for building a world-class frontend that seamlessly integrates with the sophisticated agentic backend.
+NeuraLaunch is an advanced AI-powered application development platform that orchestrates 13+ specialized AI agents to build, test, deploy, and maintain full-stack applications. 
+
+**Version 2.0 Update:** This version expands the vision to clarify the overall application structure, distinguishing between the main Landing Page experience and the dedicated Agentic Backend Interface. The platform now features two distinct entry points for different user journeys, each with its own specialized AI planning agent flow.
 
 ### Key Features to Implement
 
-- **Project Creation Flow**: Blueprint-based project initialization
+#### Main Landing Page Features:
+- **AI Agent Builder Entry Point**: New dedicated button to access the agentic interface
+- **Vision-Based Project Creation**: Direct input for high-level project vision
+- **Validation Sprint Dashboard**: 72-hour structured validation tasks
+
+#### Agentic Interface Features:
+- **Vision Text Input**: Describe your project vision in natural language
+- **AI Planning Agent**: Converts vision into technical execution plan
 - **Real-time Agent Monitoring**: Live visualization of 13+ agents working in parallel
 - **Wave-based Execution Dashboard**: Track multi-wave development progress
 - **Quality Assurance Visualization**: Testing, code review, and auto-fix progress
 - **Deployment Management**: Preview and production deployment controls
 - **Documentation Hub**: Auto-generated project documentation
 - **Analytics Dashboard**: Project health, performance metrics, and insights
+
+#### SprintDashboard Features:
+- **Build with AI Agents**: Enhanced button with clearer naming
+- **Blueprint-to-MVP Flow**: Convert validated blueprints into full applications
+- **Sprint Task Management**: Track and complete validation tasks
+- **Export & Analytics**: Comprehensive sprint reports and metrics
 
 ### Technology Stack Alignment
 
@@ -58,7 +77,554 @@ NeuraLaunch is an advanced AI-powered application development platform that orch
 
 ---
 
-## 2. Backend Architecture Overview
+## 2. Application Structure Overview
+
+### 2.1 Two Main User Journeys
+
+NeuraLaunch provides two distinct pathways for users, each serving different needs:
+
+#### Journey 1: Landing Page → Agentic Interface
+**Purpose:** For users who want to build a full application using AI agents from a vision
+
+**Entry Point:** Main Landing Page (`/`)
+- Users click the **"AI Agent Builder"** button
+- Navigates to dedicated Agentic Interface
+- Input: High-level project vision (natural language description)
+- Output: Fully built application through multi-agent orchestration
+
+**Target Audience:** 
+- Founders with a clear product vision
+- Teams wanting rapid MVP development
+- Users needing production-ready applications
+
+**Flow:**
+```
+Landing Page → AI Agent Builder Button → Agentic Interface
+                                           ↓
+                                    Vision Input Field
+                                           ↓
+                                    Vision Planner Agent
+                                           ↓
+                                    Agent Orchestration
+                                           ↓
+                                    Full Application Build
+```
+
+#### Journey 2: Landing Page → Blueprint Generation → SprintDashboard
+**Purpose:** For users who want to validate their startup idea first
+
+**Entry Point:** Main Landing Page (`/`)
+- Users click **"Generate Your Blueprint"** button
+- Navigates to Blueprint Generation flow
+- Creates AI-generated startup blueprint
+- Executes 72-hour validation sprint
+- Optional: Convert validated blueprint to full MVP
+
+**Target Audience:**
+- Aspiring founders exploring ideas
+- Users needing market validation before building
+- Teams wanting structured validation methodology
+
+**Flow:**
+```
+Landing Page → Generate Blueprint → /generate → AI Blueprint Creation
+                                                        ↓
+                                                  SprintDashboard
+                                                        ↓
+                                              72-Hour Validation Sprint
+                                                        ↓
+                                        Build with AI Agents Button (Optional)
+                                                        ↓
+                                            Blueprint Planner Agent
+                                                        ↓
+                                            Agent Orchestration
+                                                        ↓
+                                        Full Application Build from Blueprint
+```
+
+### 2.2 Key Differences
+
+| Aspect | Agentic Interface | SprintDashboard Flow |
+|--------|-------------------|----------------------|
+| **Input** | Project vision (freeform text) | AI-generated blueprint (structured) |
+| **Primary Goal** | Build full application | Validate startup idea first |
+| **Planning Agent** | Vision Planner Agent | Blueprint Planner Agent |
+| **Timeline** | Immediate build (20-30 mins) | 72-hour validation → Optional build |
+| **Entry Button** | "AI Agent Builder" | "Generate Your Blueprint" |
+| **Route** | `/agentic` or `/agent-build` | `/generate` → `/build/[pageId]` |
+
+### 2.3 Unified Backend Architecture
+
+Both journeys converge on the same powerful backend infrastructure:
+- Same 13+ specialized AI agents
+- Same wave-based execution model
+- Same quality assurance pipeline
+- Same deployment infrastructure
+
+The difference is in the **input source** and **planning approach**:
+- **Vision Planner Agent**: Parses freeform vision text
+- **Blueprint Planner Agent**: Parses structured blueprint data
+
+---
+
+## 3. Landing Page & Agentic Interface
+
+### 3.1 Landing Page Enhancement
+
+**Current State:**
+- Hero section with "Generate Your Blueprint" CTA
+- Focused on validation sprint methodology
+- Target audience: Startup founders seeking validation
+
+**Enhancement Required:**
+Add a prominent secondary CTA for users who want to skip validation and build directly.
+
+#### New Button Specifications
+
+**Button Name:** "AI Agent Builder" (or alternatives: "Build with AI Agents", "Auto-Build My App")
+
+**Visual Design:**
+```tsx
+<motion.button
+  className="inline-flex items-center gap-2 px-8 py-4 
+             bg-gradient-to-r from-purple-600 to-blue-600 
+             text-white rounded-xl font-semibold shadow-lg 
+             hover:from-purple-700 hover:to-blue-700
+             transition-all duration-300"
+  whileHover={{ scale: 1.05 }}
+  whileTap={{ scale: 0.95 }}
+>
+  <Bot className="w-6 h-6" />
+  AI Agent Builder
+  <ArrowRight className="w-5 h-5" />
+</motion.button>
+```
+
+**Placement:**
+- Position: Below "Generate Your Blueprint" button or in a separate section
+- Layout: Two-column hero with both CTAs side-by-side on desktop
+- Mobile: Stacked vertically with clear visual hierarchy
+
+**User Experience:**
+1. User lands on homepage
+2. Sees two clear options:
+   - **Option A:** "Generate Your Blueprint" → Validation-first approach
+   - **Option B:** "AI Agent Builder" → Direct build approach
+3. Clicking "AI Agent Builder" navigates to `/agentic` or `/agent-build`
+4. Shows clean interface with:
+   - Vision input field (large textarea)
+   - Project name input
+   - Optional tech stack preferences
+   - "Start Building" CTA
+
+### 3.2 Agentic Interface Design
+
+**Route:** `/agentic` or `/agent-build/new`
+
+**Layout:**
+```
+┌────────────────────────────────────────────────────┐
+│ Header: NeuraLaunch | AI Agent Builder            │
+├────────────────────────────────────────────────────┤
+│                                                    │
+│  🤖 Describe Your Vision                          │
+│                                                    │
+│  ┌──────────────────────────────────────────────┐ │
+│  │ Tell us about the application you want to    │ │
+│  │ build. Be as detailed or high-level as you   │ │
+│  │ like - our AI agents will figure out the     │ │
+│  │ rest.                                         │ │
+│  │                                               │ │
+│  │ Example: "I want to build a task management  │ │
+│  │ app like Asana but focused on remote teams..." │
+│  └──────────────────────────────────────────────┘ │
+│                                                    │
+│  Project Name:                                     │
+│  ┌──────────────────────────────────────────────┐ │
+│  │ My Awesome App                                │ │
+│  └──────────────────────────────────────────────┘ │
+│                                                    │
+│  [Advanced Options ▼]                              │
+│                                                    │
+│  ┌────────────────────┐                           │
+│  │ 🚀 Start Building  │                           │
+│  └────────────────────┘                           │
+│                                                    │
+│  ⚡ Estimated time: 20-30 minutes                  │
+│  ✓ Full-stack application                         │
+│  ✓ Production-ready code                          │
+│  ✓ Automated testing                              │
+│  ✓ CI/CD pipeline                                 │
+│                                                    │
+└────────────────────────────────────────────────────┘
+```
+
+**Advanced Options (Collapsible):**
+- Tech Stack Preferences
+  - Frontend: React, Vue, Angular, etc.
+  - Backend: Node.js, Python, Go, etc.
+  - Database: PostgreSQL, MongoDB, etc.
+- Deployment Target
+  - Vercel, Railway, AWS, etc.
+- GitHub Integration
+  - Create new repo
+  - Use existing repo
+
+**After Submission:**
+- Redirect to `/agent-build/[projectId]/execution`
+- Show real-time execution dashboard (same as current design)
+- Display all 13+ agents working in parallel
+- Track wave-by-wave progress
+
+---
+
+## 4. SprintDashboard Enhancement
+
+### 4.1 Current State Analysis
+
+**Location:** `/build/[pageId]` - Displayed after blueprint generation
+
+**Current Features:**
+- 72-Hour Validation Sprint header
+- Task list with status tracking
+- "Engineer My MVP" button (triggers planning agent)
+- Export Report functionality
+- Sprint Analytics
+- Achievement tracking
+
+### 4.2 Required Changes
+
+#### Button Rename
+
+**Old Name:** "Engineer My MVP"  
+**New Name:** "Build with AI Agents"
+
+**Rationale:**
+- "Engineer" is too technical and ambiguous
+- "Build with AI Agents" is clearer and more exciting
+- Emphasizes the AI/automation aspect
+- More consistent with Landing Page terminology
+
+**Implementation:**
+```tsx
+<motion.button
+  onClick={handleNavigateToAgentBuild}
+  whileHover={{ scale: 1.03 }}
+  whileTap={{ scale: 0.98 }}
+  className="inline-flex items-center gap-2 px-4 py-2 
+             bg-gradient-to-r from-purple-600 to-blue-600 
+             text-white text-sm font-semibold rounded-lg 
+             hover:from-purple-700 hover:to-blue-700 
+             transition-all shadow-md"
+>
+  <Bot className="w-4 h-4" />
+  Build with AI Agents
+</motion.button>
+```
+
+#### Flow Enhancement
+
+**Current Flow:**
+1. User completes sprint tasks
+2. Clicks "Engineer My MVP"
+3. Navigates to agent builder
+4. Planning agent triggered
+
+**Enhanced Flow:**
+1. User completes sprint validation tasks
+2. Reviews sprint analytics and achievements
+3. Sees clear CTA: "Build with AI Agents"
+4. **Modal appears with confirmation:**
+   ```
+   🎉 Ready to Build Your Validated MVP?
+   
+   Your sprint data shows:
+   - ✓ 12/15 tasks completed
+   - ✓ Positive market signals
+   - ✓ Clear value proposition
+   
+   Our AI agents will now:
+   1. Analyze your blueprint and sprint results
+   2. Create a technical architecture
+   3. Build your full-stack application
+   4. Set up testing and deployment
+   
+   Estimated time: 20-30 minutes
+   
+   [Cancel] [Start Building →]
+   ```
+5. On confirmation, triggers Blueprint Planner Agent
+6. Redirects to `/agent-build/[projectId]/execution`
+7. Real-time execution dashboard with agent monitoring
+
+**Key Improvements:**
+- Clear confirmation step
+- Shows context from sprint validation
+- Sets expectations for build process
+- Provides estimated timeline
+- Links sprint data to agent build process
+
+### 4.3 Integration with Planning Agent
+
+**Data Flow:**
+```
+SprintDashboard
+     ↓
+"Build with AI Agents" clicked
+     ↓
+Collect Sprint Context:
+  - Blueprint text
+  - Completed tasks
+  - Sprint analytics
+  - User responses
+  - Market validation data
+     ↓
+Send to Blueprint Planner Agent:
+  POST /api/orchestrator/run
+  {
+    projectId: "new-uuid",
+    userId: "user-id",
+    conversationId: "sprint-conversation-id",
+    sourceType: "blueprint",
+    blueprint: "Full blueprint text...",
+    sprintData: {
+      completedTasks: [...],
+      analytics: {...},
+      validationResults: {...}
+    }
+  }
+     ↓
+Backend Planner Agent:
+  1. Parses blueprint structure
+  2. Analyzes sprint validation results
+  3. Creates execution plan
+  4. Generates waves
+  5. Triggers agent orchestration
+     ↓
+Execution Dashboard
+```
+
+---
+
+## 5. Planning Agent Architecture
+
+### 5.1 Two Planning Agent Modes
+
+The Planning Agent now operates in two distinct modes based on input source:
+
+#### Mode 1: Vision Planner (New)
+
+**Trigger:** From Agentic Interface (`/agentic`)
+
+**Input:**
+```typescript
+{
+  projectId: string;
+  userId: string;
+  conversationId: string;
+  sourceType: "vision";
+  visionText: string;  // Freeform natural language
+  projectName: string;
+  techPreferences?: {
+    frontend?: string;
+    backend?: string;
+    database?: string;
+  };
+}
+```
+
+**Processing Steps:**
+1. **Vision Analysis**
+   - Extract core features from freeform text
+   - Identify user intent and goals
+   - Determine application type (web, mobile, API, etc.)
+   
+2. **Requirements Extraction**
+   - Convert vision to technical requirements
+   - Infer necessary features and functionality
+   - Identify implicit needs (auth, database, API, etc.)
+   
+3. **Architecture Design**
+   - Propose tech stack based on requirements
+   - Design database schema
+   - Plan API structure
+   - Define component hierarchy
+   
+4. **Task Breakdown**
+   - Create atomic tasks for each agent
+   - Organize into waves
+   - Set dependencies
+   - Estimate complexity
+
+**Output:**
+- Same format as Blueprint Planner
+- Technical execution plan with waves
+- Ready for agent orchestration
+
+#### Mode 2: Blueprint Planner (Existing, Enhanced)
+
+**Trigger:** From SprintDashboard "Build with AI Agents" button
+
+**Input:**
+```typescript
+{
+  projectId: string;
+  userId: string;
+  conversationId: string;
+  sourceType: "blueprint";
+  blueprint: string;  // Structured AI-generated blueprint
+  sprintData?: {      // NEW: Include validation data
+    completedTasks: Task[];
+    analytics: SprintAnalytics;
+    validationResults: ValidationData;
+  };
+}
+```
+
+**Processing Steps:**
+1. **Blueprint Parsing**
+   - Parse structured sections (GTM, Technical, etc.)
+   - Extract explicit requirements
+   - Identify tech stack from blueprint
+   
+2. **Sprint Data Integration** (NEW)
+   - Analyze validation results
+   - Prioritize features based on sprint feedback
+   - Adjust scope based on completed validations
+   
+3. **Enhanced Planning**
+   - Create execution plan informed by validation
+   - Focus on validated features first
+   - Deprioritize unvalidated features
+   
+4. **Task Generation**
+   - Create atomic tasks
+   - Organize into waves
+   - Set dependencies
+   - Estimate complexity
+
+**Output:**
+- Technical execution plan with waves
+- Validated features marked as priority
+- Ready for agent orchestration
+
+### 5.2 Unified Planning Agent Implementation
+
+**Option A: Conditional Logic (Recommended)**
+
+Single Planning Agent with conditional branches:
+
+```typescript
+// src/lib/agents/planning/planning-agent.ts
+
+export async function executePlanningAgent(input: PlanningInput) {
+  if (input.sourceType === "vision") {
+    return await processVisionInput(input);
+  } else if (input.sourceType === "blueprint") {
+    return await processBlueprintInput(input);
+  }
+  throw new Error("Invalid source type");
+}
+
+async function processVisionInput(input: VisionPlanningInput) {
+  // Step 1: Vision Analysis with AI
+  const analysis = await analyzeVision(input.visionText);
+  
+  // Step 2: Extract Requirements
+  const requirements = await extractRequirements(analysis);
+  
+  // Step 3: Design Architecture
+  const architecture = await designArchitecture(requirements);
+  
+  // Step 4: Create Task Plan
+  const plan = await createExecutionPlan(architecture);
+  
+  return plan;
+}
+
+async function processBlueprintInput(input: BlueprintPlanningInput) {
+  // Step 1: Parse Blueprint Structure
+  const parsed = await parseBlueprint(input.blueprint);
+  
+  // Step 2: Integrate Sprint Data (if available)
+  const enhanced = input.sprintData
+    ? await enhanceWithSprintData(parsed, input.sprintData)
+    : parsed;
+  
+  // Step 3: Create Task Plan
+  const plan = await createExecutionPlan(enhanced);
+  
+  return plan;
+}
+```
+
+**Option B: Separate Agents**
+
+Create two specialized agents:
+- `vision-planning-agent.ts` - For vision text input
+- `blueprint-planning-agent.ts` - For blueprint input
+
+**Recommendation:** Use Option A (Conditional Logic) to:
+- Share common task generation logic
+- Maintain single source of truth
+- Easier to maintain and debug
+- Simpler API surface
+
+### 5.3 API Endpoints
+
+#### Start Agent Build
+
+```typescript
+POST /api/orchestrator/run
+
+// For Vision Input
+{
+  projectId: "new-uuid",
+  userId: "user-id",
+  conversationId: "conv-id",
+  sourceType: "vision",
+  visionText: "I want to build a task management app...",
+  projectName: "TaskFlow"
+}
+
+// For Blueprint Input
+{
+  projectId: "new-uuid",
+  userId: "user-id",
+  conversationId: "sprint-conv-id",
+  sourceType: "blueprint",
+  blueprint: "Full blueprint markdown...",
+  sprintData: {...}
+}
+
+Response:
+{
+  runId: "inngest-run-id",
+  projectId: "project-id",
+  status: "started",
+  estimatedDuration: "20-30 minutes"
+}
+```
+
+#### Get Planning Status
+
+```typescript
+GET /api/orchestrator/status/[projectId]
+
+Response:
+{
+  status: "running" | "completed" | "failed",
+  currentPhase: "planning" | "execution" | "quality" | "deployment",
+  progress: 45, // percentage
+  activeAgents: ["BackendAgent", "FrontendAgent"],
+  completedWaves: 2,
+  totalWaves: 4
+}
+```
+
+---
+
+## 6. Backend Architecture Overview
 
 ### 2.1 Multi-Agent System
 
