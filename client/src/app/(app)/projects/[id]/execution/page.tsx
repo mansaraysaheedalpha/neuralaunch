@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import WaveTimeline from "@/components/execution/WaveTimeline";
 import AgentGrid from "@/components/execution/AgentGrid";
 import ActivityFeed from "@/components/execution/ActivityFeed";
+import AgentPipeline from "@/components/execution/AgentPipeline";
 
 interface ExecutionPageProps {
   params: Promise<{
@@ -113,6 +114,11 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
 
   const completedTasks = tasks.filter((t: any) => t.status === "COMPLETE").length;
   const totalTasks = tasks.length;
+
+  // Determine if we're in the planning phase (before execution starts)
+  const currentPhase = status?.currentPhase || "initializing";
+  const isInPlanningPhase = ["initializing", "analysis", "research", "validation", "planning", "plan_review"].includes(currentPhase);
+  const currentAgent = status?.currentAgent;
 
   return (
     <div className="min-h-screen bg-background">
@@ -243,19 +249,30 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
 
           {/* Main Content Area */}
           <div className="space-y-6">
-            {/* Agent Grid */}
-            <Card>
-              <CardHeader>
-                <CardTitle>AI Agents</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <AgentGrid 
-                  tasks={tasks}
-                  activeAgents={activeAgents}
-                  currentWave={currentWave}
-                />
-              </CardContent>
-            </Card>
+            {/* Show Agent Pipeline during planning phase */}
+            {isInPlanningPhase && (
+              <AgentPipeline 
+                currentPhase={currentPhase}
+                completedPhases={status?.completedPhases || []}
+                currentAgent={currentAgent}
+              />
+            )}
+
+            {/* Show Agent Grid during execution phase */}
+            {!isInPlanningPhase && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>AI Agents</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <AgentGrid 
+                    tasks={tasks}
+                    activeAgents={activeAgents}
+                    currentWave={currentWave}
+                  />
+                </CardContent>
+              </Card>
+            )}
 
             {/* Activity Feed */}
             <Card>

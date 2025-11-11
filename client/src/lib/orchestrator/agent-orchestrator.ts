@@ -207,6 +207,16 @@ export class AgentOrchestrator {
     logger.info(`[${this.name}] Executing phase: ${phase}`);
 
     try {
+      // ✅ Update phase in database BEFORE running the agent
+      // This allows the UI to show real-time progress
+      await prisma.projectContext.update({
+        where: { projectId: input.projectId },
+        data: {
+          currentPhase: phase,
+          updatedAt: new Date(),
+        },
+      });
+
       let output: any;
 
       switch (phase) {

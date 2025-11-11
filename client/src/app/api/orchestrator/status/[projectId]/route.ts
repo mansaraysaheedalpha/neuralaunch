@@ -64,10 +64,52 @@ export async function GET(
       },
     });
 
-    // 5. Calculate progress percentage
+    // 5. Calculate progress percentage and determine current agent
+    const phaseOrder = ["initializing", "analysis", "research", "validation", "planning", "plan_review", "complete"];
     const totalPhases = 4; // analysis, research, validation, planning
     const completedCount = status.completedPhases.length;
     const progressPercentage = Math.round((completedCount / totalPhases) * 100);
+
+    // Determine current agent based on phase
+    const phaseToAgent: Record<string, { name: string; description: string; icon: string }> = {
+      initializing: {
+        name: "Initializing",
+        description: "Setting up your project...",
+        icon: "⚙️",
+      },
+      analysis: {
+        name: "Analyzer Agent",
+        description: "Analyzing project requirements and technical specifications",
+        icon: "🔍",
+      },
+      research: {
+        name: "Research Agent",
+        description: "Researching best practices and technology recommendations",
+        icon: "📚",
+      },
+      validation: {
+        name: "Validation Agent",
+        description: "Validating technical feasibility and requirements",
+        icon: "✅",
+      },
+      planning: {
+        name: "Planning Agent",
+        description: "Creating detailed execution plan and architecture",
+        icon: "📋",
+      },
+      plan_review: {
+        name: "Ready for Review",
+        description: "Plan completed! Ready for your review and approval",
+        icon: "👁️",
+      },
+      complete: {
+        name: "Complete",
+        description: "All phases completed successfully",
+        icon: "🎉",
+      },
+    };
+
+    const currentAgent = phaseToAgent[status.currentPhase] || phaseToAgent.initializing;
 
     logger.info("Status retrieved", {
       projectId,
@@ -80,8 +122,14 @@ export async function GET(
       currentPhase: status.currentPhase,
       completedPhases: status.completedPhases,
       progress: progressPercentage,
-      isComplete: status.currentPhase === "complete",
+      isComplete: status.currentPhase === "complete" || status.currentPhase === "plan_review",
       lastUpdated: status.lastUpdated,
+      currentAgent,
+      phaseDetails: {
+        order: phaseOrder,
+        total: totalPhases,
+        completed: completedCount,
+      },
       executions: executions.map((e) => ({
         agent: e.agentName,
         phase: e.phase,
