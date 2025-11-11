@@ -25,6 +25,11 @@ export async function GET(
             outputs: true, // Also fetch any generated outputs
           },
         },
+        messages: {
+          where: { role: "model" },
+          orderBy: { createdAt: "asc" },
+          take: 1,
+        },
       },
     });
 
@@ -32,7 +37,13 @@ export async function GET(
       return new NextResponse("Sprint not found", { status: 404 });
     }
 
-    return NextResponse.json(conversationWithTasks);
+    // Extract blueprint from the first model message
+    const blueprint = conversationWithTasks.messages?.[0]?.content || "";
+
+    return NextResponse.json({
+      ...conversationWithTasks,
+      blueprint,
+    });
   } catch (error) {
     console.error("[SPRINT_GET_ERROR]", error);
     return new NextResponse("Internal Server Error", { status: 500 });

@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 
 interface SprintData {
   tasks: Array<Task & { outputs: TaskOutput[] }>;
+  blueprint?: string;
 }
 
 interface ApiErrorResponse {
@@ -46,11 +47,9 @@ const fetcher = (url: string): Promise<SprintData> =>
 export default function SprintDashboard({
   conversationId,
   landingPageId,
-  blueprint, // NEW: Pass blueprint text
 }: {
   conversationId: string;
   landingPageId: string;
-  blueprint?: string; // Optional blueprint text
 }) {
   const router = useRouter();
   const [isStarting, setIsStarting] = useState(false);
@@ -163,6 +162,15 @@ export default function SprintDashboard({
       return;
     }
 
+    // Get blueprint from API response
+    const blueprint = data?.blueprint || "";
+    if (!blueprint) {
+      toast.error("Blueprint not found. Please start the sprint first.");
+      logger.error("[SprintDashboard] Missing blueprint for agent build.");
+      setShowConfirmModal(false);
+      return;
+    }
+
     setIsBuilding(true);
 
     try {
@@ -184,7 +192,7 @@ export default function SprintDashboard({
         body: JSON.stringify({
           sourceType: "blueprint",
           conversationId: conversationId,
-          blueprint: blueprint || "", // Use provided blueprint
+          blueprint: blueprint,
           sprintData: {
             completedTasks: completedTasks.map((t) => ({
               id: t.id,
@@ -202,11 +210,11 @@ export default function SprintDashboard({
       });
 
       if (!response.ok) {
-        const error = await response.json();
+        const error = (await response.json()) as ApiErrorResponse;
         throw new Error(error.message || "Failed to start build");
       }
 
-      const result = await response.json();
+      const result = (await response.json()) as { projectId: string };
 
       trackEvent("started_agent_build", {
         conversationId,
@@ -331,7 +339,7 @@ export default function SprintDashboard({
               Cancel
             </Button>
             <Button
-              onClick={handleConfirmBuild}
+              onClick={() => void handleConfirmBuild()}
               disabled={isBuilding}
               className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
             >

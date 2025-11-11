@@ -7,6 +7,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { AI_MODELS } from "@/lib/models";
@@ -140,20 +141,36 @@ export interface PlanningOutput {
 
 export class PlanningAgent {
   private anthropic: Anthropic;
+  private openai: OpenAI;
   public readonly name = "PlanningAgent";
   public readonly phase = "planning";
 
   constructor() {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error("ANTHROPIC_API_KEY is required for PlanningAgent");
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    const openaiKey = process.env.OPENAI_API_KEY;
+    
+    if (!openaiKey) {
+      throw new Error("OPENAI_API_KEY is required for PlanningAgent");
     }
 
-    this.anthropic = new Anthropic({
-      apiKey,
-      timeout: 180000, // 3 minutes (180 seconds) timeout for Claude API calls
-      maxRetries: 2, // Retry failed requests up to 2 times
+    // Initialize OpenAI (primary for JSON generation)
+    this.openai = new OpenAI({
+      apiKey: openaiKey,
+      timeout: 180000,
+      maxRetries: 2,
     });
+
+    // Keep Anthropic as fallback if needed
+    if (anthropicKey) {
+      this.anthropic = new Anthropic({
+        apiKey: anthropicKey,
+        timeout: 180000,
+        maxRetries: 2,
+      });
+    } else {
+      // Create a stub that throws if used
+      this.anthropic = null as any;
+    }
   }
 
   /**
@@ -181,7 +198,7 @@ export class PlanningAgent {
 
     // Legacy flow - treat as blueprint without validation data
     logger.info(`[${this.name}] Legacy planning flow for ${input.projectId}`);
-    return await this.executeLegacyPlanning(input as LegacyPlanningInput);
+    return await this.executeLegacyPlanning(input);
   }
 
   /**
@@ -524,61 +541,43 @@ export class PlanningAgent {
   }
 
   // ==========================================
-  // CLAUDE API HELPER
+  // GPT-4o API HELPER (Primary for JSON generation)
   // ==========================================
 
   /**
-   * Call Claude API with a prompt and return the response text
+   * Call GPT-4o API with JSON mode for reliable structured output
    */
   private async callClaude(
     prompt: string,
     thoughts?: ReturnType<typeof createThoughtStream>
   ): Promise<string> {
     const startTime = Date.now();
-    logger.info(`[${this.name}] Calling Claude API...`, {
+    logger.info(`[${this.name}] Calling GPT-4o API with JSON mode...`, {
       promptLength: prompt.length,
-      model: AI_MODELS.CLAUDE,
+      model: AI_MODELS.OPENAI,
     });
 
     try {
-      // Add a STRONG JSON-only instruction at the end
+      // GPT-4o's JSON mode ensures valid JSON output
       const enhancedPrompt = `${prompt}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CRITICAL RESPONSE FORMAT REQUIREMENT:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Your response must be a valid JSON object only. No other text.`;
 
-You MUST respond with ONLY a valid JSON object.
-
-DO NOT include:
-- NO markdown code blocks (\`\`\`json or \`\`\`)
-- NO explanations before the JSON
-- NO explanations after the JSON  
-- NO commentary
-- NO text outside the JSON object
-
-Your response must START with { and END with }
-
-Example of CORRECT response:
-{"architecture": {...}, "tasks": [...]}
-
-Example of WRONG response:
-\`\`\`json
-{"architecture": {...}}
-\`\`\`
-
-Start your response now:`;
-
-      const response = await this.anthropic.messages.create({
-        model: AI_MODELS.CLAUDE,
-        max_tokens: 16000,
-        temperature: 0.3,
+      const response = await this.openai.chat.completions.create({
+        model: AI_MODELS.OPENAI,
         messages: [
+          {
+            role: "system",
+            content: "You are a technical planning assistant. You always respond with valid JSON only, no markdown, no explanations."
+          },
           {
             role: "user",
             content: enhancedPrompt,
           },
         ],
+        response_format: { type: "json_object" }, // Forces valid JSON output
+        max_tokens: 16000,
+        temperature: 0.3,
       });
 
       const duration = Date.now() - startTime;
@@ -586,31 +585,31 @@ Start your response now:`;
       if (thoughts) {
         await thoughts.emit(
           "executing",
-          `Claude API call completed in ${duration}ms`,
+          `GPT-4o API call completed in ${duration}ms`,
           {
-            inputTokens: response.usage.input_tokens,
-            outputTokens: response.usage.output_tokens,
+            inputTokens: response.usage?.prompt_tokens,
+            outputTokens: response.usage?.completion_tokens,
           }
         );
       }
 
       logger.info(
-        `[${this.name}] 💭 Claude API call completed in ${duration}ms`,
+        `[${this.name}] 💭 GPT-4o API call completed in ${duration}ms`,
         {
-          inputTokens: response.usage.input_tokens,
-          outputTokens: response.usage.output_tokens,
+          inputTokens: response.usage?.prompt_tokens,
+          outputTokens: response.usage?.completion_tokens,
         }
       );
 
-      const textContent = response.content.find((c) => c.type === "text");
-      if (!textContent || textContent.type !== "text") {
-        throw new Error("No text response from Claude");
+      const content = response.choices[0]?.message?.content;
+      if (!content) {
+        throw new Error("No response from GPT-4o");
       }
 
-      return textContent.text;
+      return content;
     } catch (error) {
       const duration = Date.now() - startTime;
-      logger.error(`[${this.name}] Claude API call failed`, {
+      logger.error(`[${this.name}] GPT-4o API call failed`, {
         duration: `${duration}ms`,
         error: toError(error),
       });
@@ -618,7 +617,7 @@ Start your response now:`;
       if (error instanceof Error) {
         if (error.message.includes("timeout")) {
           throw new Error(
-            "Claude API request timed out. The planning task may be too complex. Try simplifying your project requirements."
+            "GPT-4o API request timed out. The planning task may be too complex. Try simplifying your project requirements."
           );
         }
         if (error.message.includes("rate limit")) {
