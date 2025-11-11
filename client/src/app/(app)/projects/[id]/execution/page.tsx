@@ -1,0 +1,241 @@
+// src/app/(app)/projects/[id]/execution/page.tsx
+"use client";
+
+import { use } from "react";
+import useSWR from "swr";
+import { motion } from "framer-motion";
+import { 
+  ArrowLeft, 
+  Clock, 
+  CheckCircle2, 
+  AlertCircle,
+  Loader2 
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import WaveTimeline from "@/components/execution/WaveTimeline";
+import AgentGrid from "@/components/execution/AgentGrid";
+import ActivityFeed from "@/components/execution/ActivityFeed";
+
+interface ExecutionPageProps {
+  params: Promise<{
+    id: string;
+  }>;
+}
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
+
+export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
+  const { id: projectId } = use(params);
+  const router = useRouter();
+
+  // Fetch project data with polling
+  const { data: project, error: projectError } = useSWR(
+    `/api/projects/${projectId}`,
+    fetcher,
+    { 
+      refreshInterval: 3000, // Poll every 3 seconds
+      revalidateOnFocus: true 
+    }
+  );
+
+  // Fetch tasks data
+  const { data: tasksData, error: tasksError } = useSWR(
+    `/api/projects/${projectId}/tasks`,
+    fetcher,
+    { refreshInterval: 2000 }
+  );
+
+  // Fetch orchestrator status
+  const { data: status } = useSWR(
+    `/api/orchestrator/status/${projectId}`,
+    fetcher,
+    { refreshInterval: 2000 }
+  );
+
+  if (projectError || tasksError) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="w-5 h-5" />
+              Error Loading Project
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground mb-4">
+              {projectError?.message || tasksError?.message || "Failed to load project data"}
+            </p>
+            <Button onClick={() => router.push("/")}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Home
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!project || !tasksData) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading project execution...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const tasks = tasksData?.tasks || [];
+  const waves = tasksData?.waves || [];
+  const currentWave = status?.currentWave || 0;
+  const progress = status?.progress || 0;
+  const activeAgents = status?.activeAgents || [];
+
+  const completedTasks = tasks.filter((t: any) => t.status === "COMPLETE").length;
+  const totalTasks = tasks.length;
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50 sticky top-0 z-10">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link href="/">
+                <Button variant="ghost" size="sm">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">
+                  {project.name || "Project Execution"}
+                </h1>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                    project.status === "completed" 
+                      ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
+                      : project.status === "failed"
+                      ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100"
+                      : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
+                  }`}>
+                    {project.status === "completed" && <CheckCircle2 className="w-3 h-3" />}
+                    {project.status === "executing" && <Loader2 className="w-3 h-3 animate-spin" />}
+                    {project.status}
+                  </span>
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Started {new Date(project.createdAt).toLocaleTimeString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Progress Overview */}
+      <div className="border-b bg-muted/30">
+        <div className="container mx-auto px-4 py-6">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">Overall Progress</span>
+              <span className="text-muted-foreground">{Math.round(progress)}%</span>
+            </div>
+            <Progress value={progress} className="h-3" />
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                {status?.currentPhase || "Initializing"} • {activeAgents.length} agents active
+              </span>
+              <span>
+                {completedTasks} / {totalTasks} tasks completed
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="container mx-auto px-4 py-8">
+        <div className="grid lg:grid-cols-[350px_1fr] gap-6">
+          {/* Left Sidebar */}
+          <div className="space-y-6">
+            {/* Wave Timeline */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Wave Timeline</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <WaveTimeline 
+                  waves={waves} 
+                  currentWave={currentWave} 
+                />
+              </CardContent>
+            </Card>
+
+            {/* Project Stats */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Statistics</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Tasks</span>
+                  <span className="text-sm font-medium">
+                    {completedTasks} / {totalTasks}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Waves</span>
+                  <span className="text-sm font-medium">
+                    {currentWave} / {waves.length}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Active Agents</span>
+                  <span className="text-sm font-medium">{activeAgents.length}</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Main Content Area */}
+          <div className="space-y-6">
+            {/* Agent Grid */}
+            <Card>
+              <CardHeader>
+                <CardTitle>AI Agents</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AgentGrid 
+                  tasks={tasks}
+                  activeAgents={activeAgents}
+                  currentWave={currentWave}
+                />
+              </CardContent>
+            </Card>
+
+            {/* Activity Feed */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Activity Feed</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ActivityFeed 
+                  projectId={projectId}
+                  tasks={tasks}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
