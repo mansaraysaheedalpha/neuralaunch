@@ -732,28 +732,26 @@ IMPORTANT: Return ONLY the JSON object, with no markdown formatting, no code blo
     analysis: any,
     architecture: any
   ): string {
+    // Condense analysis to key points only
+    const analysisText = analysis ? 
+      `Type: ${analysis.projectType || 'web app'}, Features: ${analysis.coreFeatures?.join(', ') || 'TBD'}, Complexity: ${analysis.complexity || 'medium'}` :
+      'Standard web application';
+    
+    // Condense architecture to essentials
+    const archText = `${architecture.frontend || 'React'} + ${architecture.backend || 'Node.js'} + ${architecture.database || 'PostgreSQL'}`;
+
     return `
-You are a world-class software architect creating an execution plan from a project vision.
+Create an execution plan for: ${input.projectName}
 
-**PROJECT VISION:**
-"${input.visionText}"
+VISION: ${input.visionText}
 
-**PROJECT NAME:** ${input.projectName}
+PROJECT TYPE: ${analysisText}
 
-**VISION ANALYSIS:**
-${JSON.stringify(analysis, null, 2)}
-
-**RECOMMENDED ARCHITECTURE:**
-${JSON.stringify(architecture, null, 2)}
-
-**USER TECH PREFERENCES:**
-${JSON.stringify(input.techPreferences || {}, null, 2)}
-
-Create a detailed execution plan that brings this vision to life.
+TECH: ${archText}
 
 ${this.getSharedPlanningInstructions()}
 
-CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`json tags, no explanations before or after. Just pure JSON.
+Return ONLY valid JSON.
 `.trim();
   }
 
@@ -815,31 +813,20 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
     enhanced: any,
     sprintData?: any
   ): string {
-    const sprintContext = sprintData
-      ? `
-**SPRINT VALIDATION DATA:**
-Completed Tasks: ${enhanced.priorityFeatures?.join(", ") || "None"}
-Validation Results: ${JSON.stringify(sprintData.validationResults || {}, null, 2)}
-
-**PRIORITY GUIDANCE:**
-Features validated in the sprint should be prioritized in Wave 1-2.
-Unvalidated features can be deprioritized to later waves.
-`
+    const sprintContext = sprintData?.completedTasks?.length > 0
+      ? `Prioritize these validated features: ${enhanced.priorityFeatures?.slice(0, 5).join(", ") || "None"}`
       : "";
 
     return `
-You are a world-class software architect creating an execution plan from a validated blueprint.
+Create execution plan for:
 
-**PROJECT BLUEPRINT:**
 ${blueprint}
 
 ${sprintContext}
 
-Create a detailed execution plan that implements this blueprint.
-
 ${this.getSharedPlanningInstructions()}
 
-CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`json tags, no explanations before or after. Just pure JSON.
+Return ONLY valid JSON.
 `.trim();
   }
 
@@ -847,21 +834,35 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
    * Build legacy planning prompt (from existing context)
    */
   private buildLegacyPlanningPrompt(context: any): string {
+    // Extract only essential information to minimize token usage
+    const blueprintText = context.blueprint?.raw || 
+                         (typeof context.blueprint === 'string' ? context.blueprint : JSON.stringify(context.blueprint));
+    
+    // Condensed tech stack - only list key technologies
+    const techStackSummary = context.techStack ? 
+      `Frontend: ${context.techStack.frontend || 'Auto'}, Backend: ${context.techStack.backend || 'Auto'}, Database: ${context.techStack.database || 'Auto'}` :
+      'Tech stack will be auto-selected';
+    
+    // Only include critical validation info
+    const validationSummary = context.validation?.feasible ? 
+      'Project validated as feasible' :
+      `Validation concerns: ${context.validation?.blockers?.join(', ') || 'Unknown'}`;
+
     return `
-You are a world-class software architect and technical planner. Create a comprehensive execution plan for this project.
+You are a software architect creating an execution plan.
 
-PROJECT BLUEPRINT:
-${JSON.stringify(context.blueprint, null, 2)}
+PROJECT:
+${blueprintText}
 
-RECOMMENDED TECH STACK:
-${JSON.stringify(context.techStack, null, 2)}
+TECH STACK:
+${techStackSummary}
 
-VALIDATION RESULTS:
-${JSON.stringify(context.validation, null, 2)}
+VALIDATION:
+${validationSummary}
 
 ${this.getSharedPlanningInstructions()}
 
-CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`json tags, no explanations before or after. Just pure JSON.
+Return ONLY valid JSON with no markdown formatting.
 `.trim();
   }
 
@@ -874,107 +875,27 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
    */
   private getSharedPlanningInstructions(): string {
     return `
-**CRITICAL - ATOMIC TASKS ONLY**: Each task MUST be truly atomic:
-   - ✅ Simple: 1 file, 1 endpoint, OR 1 component (50-150 lines max)
-   - ⚠️ Medium: 2-3 tightly related files (150-300 lines total)
-   - ❌ Complex: NEVER create tasks >300 lines - split them further!
+REQUIREMENTS:
+- Create ATOMIC tasks (1-6 hours each, preferably 1-3 hours)
+- Each task = single file/component/endpoint (50-300 lines max)
+- Use proper dependencies (no circular deps)
+- Organize into phases: Foundation → Core → Integration → Polish
+- Categories: frontend, backend, database, devops, integration, testing
+- Each task needs: id, title, description, category, priority (1-5), estimatedHours, estimatedLines, complexity (simple|medium), dependencies[], technicalDetails{files[], technologies[], endpoints[], components[]}, acceptanceCriteria[]
 
-**Task Granularity Examples:**
-   ✅ GOOD: "Create User model in Prisma schema"
-   ✅ GOOD: "Implement POST /api/users endpoint"
-   ✅ GOOD: "Create UserCard component with props"
-   ❌ BAD: "Build entire authentication system"
-   ❌ BAD: "Create all user management features"
-   ❌ BAD: "Implement frontend and backend for users"
-
-**Complexity Guidelines:**
-   - Simple (1-3 hours): Single file, clear scope, no external dependencies
-   - Medium (3-6 hours): 2-3 files, moderate integration
-   - Complex: SPLIT INTO SMALLER TASKS!
-
-**REQUIREMENTS:**
-1. Break features into ATOMIC tasks (each task = 1-6 hours max, preferably 1-3)
-2. Create proper dependencies (no circular dependencies)
-3. Organize tasks into logical phases (Foundation, Core Features, Integration, Polish)
-4. Be specific about files, endpoints, and components
-5. Include clear acceptance criteria for each task
-6. Prioritize tasks: 1 (must do first) to 5 (nice to have)
-7. Identify the critical path
-8. Include estimated lines of code for each task
-
-**CATEGORIES:**
-- frontend: UI components, pages, layouts
-- backend: API routes, server logic, business logic
-- database: Schema, migrations, queries
-- devops: Deployment, CI/CD, infrastructure
-- integration: Third-party APIs, external services
-- testing: Unit tests, integration tests, E2E tests
-
-**OUTPUT FORMAT (JSON only):**
+OUTPUT JSON STRUCTURE:
 {
   "architecture": {
-    "projectStructure": {
-      "directories": ["src/", "public/", etc.],
-      "rootFiles": ["package.json", ".env.example", etc.]
-    },
-    "frontendArchitecture": {
-      "framework": "Next.js 14",
-      "stateManagement": "React Context / Zustand",
-      "routing": "App Router",
-      "styling": "Tailwind CSS",
-      "keyComponents": ["Header", "Dashboard", etc.]
-    },
-    "backendArchitecture": {
-      "framework": "Next.js API Routes",
-      "apiPattern": "REST",
-      "authentication": "NextAuth.js",
-      "keyEndpoints": ["/api/users", "/api/projects", etc.]
-    },
-    "databaseArchitecture": {
-      "type": "PostgreSQL",
-      "orm": "Prisma",
-      "keyModels": ["User", "Project", etc.],
-      "relationships": ["User -> Projects (1:n)", etc.]
-    },
-    "infrastructureArchitecture": {
-      "hosting": "Vercel | Railway | Render | etc.",
-      "cicd": "GitHub Actions",
-      "monitoring": "Vercel Analytics | Sentry",
-      "scaling": "Serverless auto-scaling"
-    }
+    "projectStructure": {"directories": [], "rootFiles": []},
+    "frontendArchitecture": {"framework": "", "stateManagement": "", "routing": "", "styling": "", "keyComponents": []},
+    "backendArchitecture": {"framework": "", "apiPattern": "", "authentication": "", "keyEndpoints": []},
+    "databaseArchitecture": {"type": "", "orm": "", "keyModels": [], "relationships": []},
+    "infrastructureArchitecture": {"hosting": "", "cicd": "", "monitoring": "", "scaling": ""}
   },
-  "tasks": [
-    {
-      "id": "task-001",
-      "title": "Task title",
-      "description": "Detailed description",
-      "category": "frontend | backend | database | devops | integration | testing",
-      "priority": 1,
-      "estimatedHours": 2,
-      "estimatedLines": 150,
-      "complexity": "simple | medium",
-      "dependencies": ["task-000"],
-      "technicalDetails": {
-        "files": ["path/to/file.ts"],
-        "technologies": ["Next.js", "TypeScript"],
-        "endpoints": ["/api/example"],
-        "components": ["ComponentName"]
-      },
-      "acceptanceCriteria": [
-        "Criterion 1",
-        "Criterion 2"
-      ]
-    }
-  ],
-  "phases": [
-    {
-      "name": "Phase 1: Foundation",
-      "taskIds": ["task-001", "task-002"],
-      "estimatedDuration": "1 week"
-    }
-  ],
-  "totalEstimatedHours": 120,
-  "criticalPath": ["task-001", "task-002", "task-010"]
+  "tasks": [{"id": "task-001", "title": "", "description": "", "category": "frontend", "priority": 1, "estimatedHours": 2, "estimatedLines": 150, "complexity": "simple", "dependencies": [], "technicalDetails": {"files": [], "technologies": [], "endpoints": [], "components": []}, "acceptanceCriteria": []}],
+  "phases": [{"name": "Phase 1", "taskIds": [], "estimatedDuration": ""}],
+  "totalEstimatedHours": 0,
+  "criticalPath": []
 }
 `.trim();
   }
