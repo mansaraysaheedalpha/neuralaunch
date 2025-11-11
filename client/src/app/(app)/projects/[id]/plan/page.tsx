@@ -2,7 +2,6 @@
 
 import { use, useState } from "react";
 import useSWR, { mutate } from "swr";
-import { motion } from "framer-motion";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -31,17 +30,88 @@ interface PlanReviewPageProps {
   }>;
 }
 
+interface FeedbackAnalysisResult {
+  feasible: boolean;
+  warnings: string[];
+  blockers: string[];
+  suggestedChanges: unknown[];
+}
+
+interface Project {
+  conversationId: string;
+  [key: string]: unknown;
+}
+
+interface PlanData {
+  hasPlan: boolean;
+  plan?: {
+    tasks?: Task[];
+    phases?: Phase[];
+    totalEstimatedHours?: number;
+    criticalPath?: string[];
+    architecture?: Architecture;
+    metadata?: {
+      revisionCount?: number;
+      [key: string]: unknown;
+    };
+    [key: string]: unknown;
+  };
+}
+
+interface Task {
+  id: string;
+  title: string;
+  description: string;
+  complexity: string;
+  category: string;
+  priority: number;
+  estimatedHours: number;
+  estimatedLines: number;
+  dependencies?: string[];
+  acceptanceCriteria?: string[];
+  [key: string]: unknown;
+}
+
+interface Phase {
+  name: string;
+  taskIds?: string[];
+  estimatedDuration: string;
+  [key: string]: unknown;
+}
+
+interface Architecture {
+  frontendArchitecture?: {
+    framework: string;
+    stateManagement: string;
+    routing: string;
+    styling: string;
+    [key: string]: unknown;
+  };
+  backendArchitecture?: {
+    framework: string;
+    apiPattern: string;
+    authentication: string;
+    [key: string]: unknown;
+  };
+  databaseArchitecture?: {
+    type: string;
+    orm: string;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
 const fetcher = async (url: string) => {
   const res = await fetch(url);
   if (!res.ok) {
     const contentType = res.headers.get("content-type");
     if (contentType && contentType.includes("application/json")) {
-      const errorData = await res.json();
-      throw new Error(errorData.error || `HTTP ${res.status}`);
+      const errorData = await res.json() as { error?: string };
+      throw new Error(errorData.error ?? `HTTP ${res.status}`);
     }
     throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   }
-  return res.json();
+  return res.json() as Promise<unknown>;
 };
 
 export default function PlanReviewPage({ params }: PlanReviewPageProps) {
@@ -53,16 +123,16 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [analysisResult, setAnalysisResult] = useState<FeedbackAnalysisResult | null>(null);
 
   // Fetch project and plan data
-  const { data: project, error: projectError } = useSWR(
+  const { data: project, error: projectError } = useSWR<Project>(
     `/api/projects/${projectId}`,
     fetcher,
     { refreshInterval: 5000 }
   );
 
-  const { data: planData, error: planError } = useSWR(
+  const { data: planData, error: planError } = useSWR<PlanData>(
     `/api/projects/${projectId}/agent/plan`,
     fetcher,
     { refreshInterval: 5000 }
@@ -91,11 +161,12 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
         throw new Error(error.error || "Failed to analyze feedback");
       }
 
-      const result = await response.json();
+      const result = await response.json() as { analysis: FeedbackAnalysisResult };
       setAnalysisResult(result.analysis);
       toast.success("Feedback analyzed successfully");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to analyze feedback");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to analyze feedback";
+      toast.error(errorMessage);
       console.error("Feedback analysis error:", error);
     } finally {
       setIsAnalyzing(false);
@@ -140,9 +211,10 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
       setAnalysisResult(null);
       
       // Refresh plan data
-      mutate(`/api/projects/${projectId}/agent/plan`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to apply feedback");
+      void mutate(`/api/projects/${projectId}/agent/plan`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to apply feedback";
+      toast.error(errorMessage);
       console.error("Apply feedback error:", error);
     } finally {
       setIsApplying(false);
@@ -172,9 +244,10 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
       toast.success("Reverted to original plan");
       setFeedback("");
       setAnalysisResult(null);
-      mutate(`/api/projects/${projectId}/agent/plan`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to revert plan");
+      void mutate(`/api/projects/${projectId}/agent/plan`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to revert plan";
+      toast.error(errorMessage);
       console.error("Revert plan error:", error);
     } finally {
       setIsApplying(false);
@@ -200,8 +273,9 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
 
       toast.success("Execution started!");
       router.push(`/projects/${projectId}/execution`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to start execution");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to start execution";
+      toast.error(errorMessage);
       console.error("Start execution error:", error);
     } finally {
       setIsStarting(false);
@@ -365,7 +439,7 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      {plan.phases?.map((phase: any, index: number) => (
+                      {plan.phases?.map((phase, index: number) => (
                         <div
                           key={index}
                           className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
@@ -385,7 +459,7 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
               </TabsContent>
 
               <TabsContent value="tasks" className="space-y-4">
-                {plan.tasks?.map((task: any) => (
+                {plan.tasks?.map((task) => (
                   <Card key={task.id}>
                     <CardHeader>
                       <div className="flex items-start justify-between">
@@ -510,7 +584,7 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                   className="resize-none"
                 />
                 <Button
-                  onClick={handleAnalyzeFeedback}
+                  onClick={() => void handleAnalyzeFeedback()}
                   disabled={isAnalyzing || !feedback.trim()}
                   className="w-full"
                 >
@@ -579,7 +653,7 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
 
                   {analysisResult.feasible && (
                     <Button
-                      onClick={handleApplyFeedback}
+                      onClick={() => void handleApplyFeedback()}
                       disabled={isApplying}
                       className="w-full"
                     >
@@ -609,7 +683,7 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                 {revisionCount > 0 && (
                   <Button
                     variant="outline"
-                    onClick={handleRevertPlan}
+                    onClick={() => void handleRevertPlan()}
                     disabled={isApplying}
                     className="w-full"
                   >
