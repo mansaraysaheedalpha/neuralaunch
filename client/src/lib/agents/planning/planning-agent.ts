@@ -509,7 +509,7 @@ export class PlanningAgent {
     try {
       const response = await this.anthropic.messages.create({
         model: AI_MODELS.CLAUDE,
-        max_tokens: 8192,
+        max_tokens: 16000,
         temperature: 0.3,
         messages: [
           {
