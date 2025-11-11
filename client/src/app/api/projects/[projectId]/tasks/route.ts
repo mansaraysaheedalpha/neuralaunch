@@ -31,8 +31,8 @@ export async function GET(
 
     // 2. Return mock tasks for now
     // In a real implementation, this would fetch from the database
-    const tasks = [];
-    const waves = [];
+    const tasks: any[] = [];
+    const waves: any[] = [];
 
     logger.info("Tasks fetched successfully", { projectId, userId });
 

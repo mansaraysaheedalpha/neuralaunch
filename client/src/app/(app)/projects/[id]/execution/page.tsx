@@ -29,7 +29,18 @@ interface ExecutionPageProps {
   }>;
 }
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) {
+    const contentType = res.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      const errorData = await res.json();
+      throw new Error(errorData.error || `HTTP ${res.status}`);
+    }
+    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  }
+  return res.json();
+};
 
 export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
   const { id: projectId } = use(params);

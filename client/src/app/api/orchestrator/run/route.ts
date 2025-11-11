@@ -125,6 +125,9 @@ async function handleVisionRequest(
   userId: string,
   logger: any
 ) {
+  // Import prisma at function level to avoid circular dependencies
+  const prisma = (await import("@/lib/prisma")).default;
+
   // Generate unique project ID
   const projectId = `proj_vision_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
@@ -134,6 +137,33 @@ async function handleVisionRequest(
     visionLength: body.visionText.length,
     hasTechPreferences: !!body.techPreferences,
   });
+
+  // Create Conversation record immediately for the frontend to access
+  const conversation = await prisma.conversation.create({
+    data: {
+      id: projectId,
+      userId,
+      title: body.projectName,
+      messages: {
+        create: {
+          role: "user",
+          content: `Project Vision: ${body.visionText}`,
+        },
+      },
+    },
+  });
+
+  // Create ProjectContext record immediately for status tracking
+  await prisma.projectContext.create({
+    data: {
+      projectId,
+      userId,
+      conversationId: projectId,
+      currentPhase: "initializing",
+    },
+  });
+
+  logger.info("Project records created", { projectId, conversationId: conversation.id });
 
   if (body.async) {
     // Trigger Inngest function for async execution
@@ -189,6 +219,9 @@ async function handleBlueprintRequest(
   userId: string,
   logger: any
 ) {
+  // Import prisma at function level to avoid circular dependencies
+  const prisma = (await import("@/lib/prisma")).default;
+
   // Generate unique project ID
   const projectId = `proj_blueprint_${Date.now()}_${body.conversationId.slice(0, 8)}`;
 
@@ -198,6 +231,39 @@ async function handleBlueprintRequest(
     hasSprintData: !!body.sprintData,
     blueprintLength: body.blueprint.length,
   });
+
+  // Get existing conversation title
+  const existingConversation = await prisma.conversation.findUnique({
+    where: { id: body.conversationId },
+    select: { title: true },
+  });
+
+  // Create new Conversation record for the project build
+  await prisma.conversation.create({
+    data: {
+      id: projectId,
+      userId,
+      title: existingConversation?.title ? `Build: ${existingConversation.title}` : "AI Agent Build",
+      messages: {
+        create: {
+          role: "assistant",
+          content: `Building from validated blueprint...`,
+        },
+      },
+    },
+  });
+
+  // Create ProjectContext record immediately for status tracking
+  await prisma.projectContext.create({
+    data: {
+      projectId,
+      userId,
+      conversationId: body.conversationId,
+      currentPhase: "initializing",
+    },
+  });
+
+  logger.info("Project records created", { projectId, conversationId: body.conversationId });
 
   if (body.async) {
     // Trigger Inngest function for async execution
