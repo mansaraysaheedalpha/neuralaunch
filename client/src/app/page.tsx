@@ -175,6 +175,37 @@ const HeroSection = () => {
               <ArrowRight className="w-5 h-5" />
             </motion.span>
           </Link>
+
+          <Link href="/agentic" passHref>
+            <motion.span
+              whileHover={{
+                scale: 1.05,
+                boxShadow: "0px 10px 20px hsla(var(--secondary), 0.3)",
+              }}
+              whileTap={{ scale: 0.95 }}
+              className="text-lg inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-semibold shadow-lg transition-all duration-300 cursor-pointer border-2 border-purple-400/30"
+            >
+              <Bot className="w-5 h-5" />
+              AI Agent Builder
+              <Zap className="w-5 h-5" />
+            </motion.span>
+          </Link>
+        </motion.div>
+
+        {/* Add differentiator text below buttons */}
+        <motion.div
+          variants={fadeIn}
+          className="mt-6 flex flex-col sm:flex-row gap-6 justify-center text-sm text-muted-foreground"
+        >
+          <span className="flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            Validate first, then build
+          </span>
+          <span className="text-muted-foreground/50">or</span>
+          <span className="flex items-center gap-2">
+            <Zap className="w-4 h-4" />
+            Build immediately from vision
+          </span>
         </motion.div>
       </motion.div>
     </section>
