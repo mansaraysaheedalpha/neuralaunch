@@ -535,8 +535,10 @@ export class PlanningAgent {
     thoughts?: ReturnType<typeof createThoughtStream>
   ): Promise<string> {
     const startTime = Date.now();
+    const estimatedTokens = Math.ceil(prompt.length / 4); // Rough estimate: 1 token ≈ 4 chars
     logger.info(`[${this.name}] Calling Claude API...`, {
       promptLength: prompt.length,
+      estimatedTokens,
       model: AI_MODELS.CLAUDE,
     });
 
@@ -566,10 +568,11 @@ export class PlanningAgent {
         );
       }
 
-      logger.info(`[${this.name}] Claude API call completed`, {
-        duration: `${duration}ms`,
+      logger.info(`[${this.name}] 💭 Claude API call completed in ${duration}ms`, {
         inputTokens: response.usage.input_tokens,
         outputTokens: response.usage.output_tokens,
+        promptChars: prompt.length,
+        estimatedVsActual: `${estimatedTokens} est. vs ${response.usage.input_tokens} actual`,
       });
 
       const textContent = response.content.find((c) => c.type === "text");
@@ -838,15 +841,26 @@ Return ONLY valid JSON.
     const blueprintText = context.blueprint?.raw || 
                          (typeof context.blueprint === 'string' ? context.blueprint : JSON.stringify(context.blueprint));
     
-    // Condensed tech stack - only list key technologies
-    const techStackSummary = context.techStack ? 
-      `Frontend: ${context.techStack.frontend || 'Auto'}, Backend: ${context.techStack.backend || 'Auto'}, Database: ${context.techStack.database || 'Auto'}` :
-      'Tech stack will be auto-selected';
+    // Condensed tech stack - extract only key framework names from potentially large recommendation objects
+    let techStackSummary = 'Tech stack will be auto-selected';
+    if (context.techStack) {
+      if (context.techStack.recommendations && Array.isArray(context.techStack.recommendations)) {
+        // Research agent format: extract just the names
+        const techNames = context.techStack.recommendations
+          .map((rec: any) => rec.name)
+          .filter(Boolean)
+          .join(', ');
+        techStackSummary = techNames || 'Modern web stack';
+      } else if (typeof context.techStack === 'object') {
+        // Simple object format
+        techStackSummary = `${context.techStack.frontend || 'Auto'}, ${context.techStack.backend || 'Auto'}, ${context.techStack.database || 'Auto'}`;
+      }
+    }
     
     // Only include critical validation info
     const validationSummary = context.validation?.feasible ? 
-      'Project validated as feasible' :
-      `Validation concerns: ${context.validation?.blockers?.join(', ') || 'Unknown'}`;
+      'Validated as feasible' :
+      `Concerns: ${context.validation?.blockers?.slice(0, 3).join(', ') || 'Unknown'}`;
 
     return `
 You are a software architect creating an execution plan.
@@ -854,15 +868,13 @@ You are a software architect creating an execution plan.
 PROJECT:
 ${blueprintText}
 
-TECH STACK:
-${techStackSummary}
+TECH: ${techStackSummary}
 
-VALIDATION:
-${validationSummary}
+STATUS: ${validationSummary}
 
 ${this.getSharedPlanningInstructions()}
 
-Return ONLY valid JSON with no markdown formatting.
+Return ONLY valid JSON.
 `.trim();
   }
 
