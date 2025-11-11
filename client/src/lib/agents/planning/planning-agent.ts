@@ -984,44 +984,98 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
    */
   private extractAndParseJSON(responseText: string): any {
     // Log raw response for debugging
-    logger.info(`[${this.name}] 💭 Raw AI response (first 500 chars):`, {
+    logger.info(`[${this.name}] 💭 Analyzing AI response and extracting plan structure...`);
+    logger.info(`[${this.name}] Raw AI response (first 500 chars):`, {
       preview: responseText.substring(0, 500),
       totalLength: responseText.length,
     });
 
-    // Step 1: Remove ALL markdown code block markers
+    // Remove markdown code blocks - be more aggressive
     let cleaned = responseText
-      .replace(/```json\s*/g, "") // Remove ```json with optional whitespace
-      .replace(/```javascript\s*/g, "") // Remove ```javascript
-      .replace(/```\s*/g, "") // Remove remaining ```
+      .replace(/```json\n?/gi, "")  // Case insensitive
+      .replace(/```javascript\n?/gi, "")
+      .replace(/```\n?/g, "")
       .trim();
 
-    // Step 2: Extract JSON if it's mixed with other text
-    // Look for the outermost JSON object
+    // Try to find JSON object boundaries using proper brace matching
     const jsonStart = cleaned.indexOf("{");
-    const jsonEnd = cleaned.lastIndexOf("}");
-
-    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-      cleaned = cleaned.substring(jsonStart, jsonEnd + 1);
+    if (jsonStart === -1) {
+      logger.error(`[${this.name}] Failed to parse AI response`, {
+        reason: "No opening brace found",
+        preview: cleaned.substring(0, 200),
+      });
+      throw new Error(
+        `Failed to parse planning response. AI returned invalid format. No JSON object found.`
+      );
     }
 
-    // Step 3: Try parsing the cleaned JSON
+    // Find matching closing brace using a stack-based approach
+    let braceCount = 0;
+    let inString = false;
+    let escapeNext = false;
+    let jsonEnd = -1;
+
+    for (let i = jsonStart; i < cleaned.length; i++) {
+      const char = cleaned[i];
+
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+
+      if (char === "\\") {
+        escapeNext = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+
+      if (!inString) {
+        if (char === "{") {
+          braceCount++;
+        } else if (char === "}") {
+          braceCount--;
+          if (braceCount === 0) {
+            jsonEnd = i + 1;
+            break;
+          }
+        }
+      }
+    }
+
+    if (jsonEnd === -1) {
+      logger.error(`[${this.name}] Failed to parse AI response`, {
+        reason: "No matching closing brace found",
+        braceCount,
+        preview: cleaned.substring(0, 500),
+      });
+      throw new Error(
+        `Failed to parse planning response. AI returned invalid format. Unbalanced braces.`
+      );
+    }
+
+    // Extract the JSON object
+    cleaned = cleaned.substring(jsonStart, jsonEnd);
+
+    // Try parsing
     try {
       const parsed = JSON.parse(cleaned);
-      logger.info(`[${this.name}] ✅ Successfully parsed JSON response`);
+      logger.info(`[${this.name}] ✅ Successfully parsed AI response`);
       return parsed;
     } catch (firstError) {
-      logger.warn(`[${this.name}] First parse attempt failed, trying fixes...`);
+      logger.info(`[${this.name}] First parse attempt failed, trying fixes...`);
+      
+      // If that fails, try to fix common issues
 
-      // Step 4: Apply common JSON fixes
-      let fixed = cleaned;
+      // Fix trailing commas
+      let fixed = cleaned.replace(/,(\s*[}\]])/g, "$1");
 
-      // Fix 1: Remove trailing commas before closing braces/brackets
-      fixed = fixed.replace(/,(\s*[}\]])/g, "$1");
-
-      // Fix 2: Handle unquoted property names (shouldn't happen with Claude, but just in case)
+      // Fix unquoted keys (common in some AI responses)
       fixed = fixed.replace(
-        /([{,]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g,
+        /([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g,
         '$1"$2":'
       );
 
@@ -1031,9 +1085,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
       // Try parsing the fixed version
       try {
         const parsed = JSON.parse(fixed);
-        logger.info(
-          `[${this.name}] ✅ Successfully parsed JSON after applying fixes`
-        );
+        logger.info(`[${this.name}] ✅ Successfully parsed AI response after fixes`);
         return parsed;
       } catch (secondError) {
         // Step 5: Last resort - try to find and extract valid JSON with regex
@@ -1045,14 +1097,8 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
           cleanedLength: cleaned.length,
           fixedLength: fixed.length,
           preview: cleaned.substring(0, 500),
-          firstError:
-            firstError instanceof Error
-              ? firstError.message
-              : String(firstError),
-          secondError:
-            secondError instanceof Error
-              ? secondError.message
-              : String(secondError),
+          firstError: toError(firstError).message,
+          secondError: toError(secondError).message,
         });
 
         // Try to provide helpful error message
