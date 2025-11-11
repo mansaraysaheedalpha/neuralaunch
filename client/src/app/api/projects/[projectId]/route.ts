@@ -49,18 +49,62 @@ export async function GET(
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
+    // 3. Get project context to determine actual status
+    const projectContext = await prisma.projectContext.findUnique({
+      where: { projectId },
+      select: {
+        currentPhase: true,
+      },
+    });
+
+    // Determine status based on current phase
+    let status: "initializing" | "planning" | "executing" | "completed" | "failed";
+    let progress: number;
+
+    if (!projectContext) {
+      // No project context means this is just a conversation
+      status = "completed";
+      progress = 100;
+    } else {
+      const phase = projectContext.currentPhase;
+      
+      if (phase === "initializing") {
+        status = "initializing";
+        progress = 0;
+      } else if (["analysis", "research", "validation", "planning"].includes(phase)) {
+        status = "planning";
+        // Calculate progress through planning phases
+        const planningPhases = ["analysis", "research", "validation", "planning"];
+        const currentIndex = planningPhases.indexOf(phase);
+        progress = currentIndex >= 0 ? Math.round(((currentIndex + 1) / planningPhases.length) * 40) : 10;
+      } else if (phase === "plan_review") {
+        status = "planning";
+        progress = 40;
+      } else if (phase === "wave_execution") {
+        status = "executing";
+        progress = 70; // Mid-execution
+      } else if (phase === "complete") {
+        status = "completed";
+        progress = 100;
+      } else {
+        // Default for unknown phases
+        status = "executing";
+        progress = 50;
+      }
+    }
+
     // Transform to project format
     const project = {
       id: conversation.id,
       name: conversation.title || "Untitled Project",
       description: undefined,
-      status: "completed" as const,
-      progress: 100,
+      status,
+      progress,
       createdAt: conversation.createdAt.toISOString(),
       updatedAt: conversation.updatedAt.toISOString(),
     };
 
-    logger.info("Project fetched successfully", { projectId, userId });
+    logger.info("Project fetched successfully", { projectId, userId, status, progress });
 
     return NextResponse.json(project);
   } catch (error) {

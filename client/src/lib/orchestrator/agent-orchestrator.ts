@@ -72,11 +72,12 @@ export class AgentOrchestrator {
     );
 
     try {
-      // Step 1: Initialize or verify project context
-      await this.initializeProjectContext(input);
-
-      // Step 2: Determine starting phase
+      // Step 1: Determine starting phase
       const startPhase = input.startFromPhase || "analysis";
+      
+      // Step 2: Initialize or verify project context (passing the determined start phase)
+      await this.initializeProjectContext({ ...input, startFromPhase: startPhase });
+
       logger.info(`[${this.name}] Starting from phase: ${startPhase}`);
 
       // Step 3: Execute agent pipeline
@@ -156,16 +157,34 @@ export class AgentOrchestrator {
     if (existing) {
       logger.info(`[${this.name}] Project context already exists`, {
         projectId: input.projectId,
+        currentPhase: existing.currentPhase,
       });
+      
+      // If we're resuming from initializing, move to the starting phase
+      if (existing.currentPhase === "initializing" && input.startFromPhase) {
+        await prisma.projectContext.update({
+          where: { projectId: input.projectId },
+          data: {
+            currentPhase: input.startFromPhase,
+            updatedAt: new Date(),
+          },
+        });
+        logger.info(`[${this.name}] Transitioned from initializing to ${input.startFromPhase}`, {
+          projectId: input.projectId,
+        });
+      }
       return;
     }
+
+    // Determine initial phase - use startFromPhase or default to analysis
+    const initialPhase = input.startFromPhase || "analysis";
 
     await prisma.projectContext.create({
       data: {
         projectId: input.projectId,
         userId: input.userId,
         conversationId: input.conversationId,
-        currentPhase: "analysis",
+        currentPhase: initialPhase,
         blueprint: { raw: input.blueprint } as any,
         version: 1,
         planApprovalStatus: "pending", // ✅ NEW FIELD
@@ -173,7 +192,7 @@ export class AgentOrchestrator {
       },
     });
 
-    logger.info(`[${this.name}] Created project context`, {
+    logger.info(`[${this.name}] Created project context with phase: ${initialPhase}`, {
       projectId: input.projectId,
     });
   }
