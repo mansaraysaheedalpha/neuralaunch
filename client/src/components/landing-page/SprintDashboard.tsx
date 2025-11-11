@@ -218,7 +218,7 @@ export default function SprintDashboard({
 
       // Redirect to execution dashboard
       setTimeout(() => {
-        router.push(`/agent-build/${result.projectId}/execution`);
+        router.push(`/projects/${result.projectId}/execution`);
       }, 1500);
     } catch (error) {
       console.error("Build start error:", error);

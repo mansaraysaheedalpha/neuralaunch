@@ -160,7 +160,7 @@ async function handleVisionRequest(
       async: true,
       estimatedDuration: "20-30 minutes",
       statusEndpoint: `/api/orchestrator/status/${projectId}`,
-      executionDashboard: `/agent-build/${projectId}/execution`,
+      executionDashboard: `/projects/${projectId}/execution`,
     });
   } else {
     // Synchronous execution (not recommended for production)
@@ -225,7 +225,7 @@ async function handleBlueprintRequest(
       async: true,
       estimatedDuration: "20-30 minutes",
       statusEndpoint: `/api/orchestrator/status/${projectId}`,
-      executionDashboard: `/agent-build/${projectId}/execution`,
+      executionDashboard: `/projects/${projectId}/execution`,
     });
   } else {
     // Synchronous execution
