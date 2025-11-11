@@ -1,7 +1,7 @@
 // src/app/api/projects/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { prisma } from "@/lib/db";
+import prisma from "@/lib/prisma";
 import { createApiLogger } from "@/lib/logger";
 
 /**
