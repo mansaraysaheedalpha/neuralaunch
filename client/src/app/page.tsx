@@ -73,12 +73,10 @@ const iconPopIn: Variants = {
 };
 
 // --- Section Components ---
-
 const HeroSection = () => {
   const headlineWords = "Build the Right Thing, Faster.".split(" ");
   const primaryWordIndex = 5;
 
-  // Generate stable random values for particle animations
   const particleOffsets = useMemo(
     () => Array.from({ length: 8 }, () => Math.random() * 30 - 15),
     []
@@ -125,7 +123,7 @@ const HeroSection = () => {
           variants={staggerContainer}
           initial="hidden"
           animate="visible"
-          className="text-5xl md:text-7xl font-black tracking-tighter text-foreground mb-6 leading-tight"
+          className="text-5xl md:text-7xl font-black tracking-tighter text-foreground leading-tight"
         >
           {headlineWords.map((word, index) => (
             <motion.span
@@ -139,17 +137,23 @@ const HeroSection = () => {
             </motion.span>
           ))}
         </motion.h1>
+
         {/* Sub-headline */}
         <motion.p
           variants={fadeIn}
-          className="text-xl  text-muted-foreground mb-12 max-w-2xl mx-auto"
+          className="text-xl text-muted-foreground mb-12 max-w-2xl mx-auto"
         >
-          NeuraLaunch combines AI-driven blueprints with a structured validation
-          sprint, empowering founders to turn visionary ideas into market-ready
+          NeuraLaunch combines AI-driven blueprints with structured validation
+          sprints, empowering founders to turn visionary ideas into market-ready
           startups.
         </motion.p>
-        {/* Button */}
-        <motion.div variants={fadeIn}>
+
+        {/* ENHANCED: Dual CTA Buttons */}
+        <motion.div
+          variants={fadeIn}
+          className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8"
+        >
+          {/* Button 1: Generate Blueprint (Validation-First) */}
           <Link href="/generate" passHref>
             <motion.span
               whileHover={{
@@ -171,11 +175,13 @@ const HeroSection = () => {
               }}
               className="text-lg inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-primary to-secondary text-primary-foreground rounded-xl font-semibold shadow-lg transition-all duration-300 cursor-pointer"
             >
+              <FileText className="w-5 h-5" />
               Generate Your Blueprint
               <ArrowRight className="w-5 h-5" />
             </motion.span>
           </Link>
 
+          {/* Button 2: AI Agent Builder (Direct Build) */}
           <Link href="/agentic" passHref>
             <motion.span
               whileHover={{
@@ -183,7 +189,7 @@ const HeroSection = () => {
                 boxShadow: "0px 10px 20px hsla(var(--secondary), 0.3)",
               }}
               whileTap={{ scale: 0.95 }}
-              className="text-lg inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-semibold shadow-lg transition-all duration-300 cursor-pointer border-2 border-purple-400/30"
+              className="text-lg inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-semibold shadow-lg transition-all duration-300 cursor-pointer border-2 border-purple-400/30 hover:border-purple-400/50"
             >
               <Bot className="w-5 h-5" />
               AI Agent Builder
@@ -192,18 +198,18 @@ const HeroSection = () => {
           </Link>
         </motion.div>
 
-        {/* Add differentiator text below buttons */}
+        {/* NEW: Differentiator Text */}
         <motion.div
           variants={fadeIn}
-          className="mt-6 flex flex-col sm:flex-row gap-6 justify-center text-sm text-muted-foreground"
+          className="flex flex-col sm:flex-row gap-6 justify-center text-sm text-muted-foreground items-center"
         >
-          <span className="flex items-center gap-2">
-            <FileText className="w-4 h-4" />
+          <span className="flex items-center gap-2 px-4 py-2 bg-card/50 rounded-lg border border-border">
+            <CheckCircle className="w-4 h-4 text-primary" />
             Validate first, then build
           </span>
-          <span className="text-muted-foreground/50">or</span>
-          <span className="flex items-center gap-2">
-            <Zap className="w-4 h-4" />
+          <span className="text-muted-foreground/50 hidden sm:block">or</span>
+          <span className="flex items-center gap-2 px-4 py-2 bg-card/50 rounded-lg border border-border">
+            <Zap className="w-4 h-4 text-purple-500" />
             Build immediately from vision
           </span>
         </motion.div>

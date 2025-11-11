@@ -1,21 +1,56 @@
 // src/lib/agents/planning/planning-agent.ts
 /**
- * Planning Agent (Architect Agent)
- * Creates technical architecture and breaks features into atomic executable tasks
+ * Enhanced Planning Agent with Dual-Mode Support
+ * - Vision Mode: Converts freeform vision text into technical plans
+ * - Blueprint Mode: Parses structured blueprints with validation data
  */
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { AI_MODELS } from "@/lib/models";
-import { z } from "zod";
-import { toError, toLogContext } from "@/lib/error-utils";
+import { toError } from "@/lib/error-utils";
 
 // ==========================================
 // TYPES & INTERFACES
 // ==========================================
 
-export interface PlanningInput {
+// Base interface for common fields
+interface BasePlanningInput {
+  projectId: string;
+  userId: string;
+  conversationId: string;
+}
+
+// Vision-based planning (from Agentic Interface)
+export interface VisionPlanningInput extends BasePlanningInput {
+  sourceType: "vision";
+  visionText: string;
+  projectName: string;
+  techPreferences?: {
+    frontend?: string;
+    backend?: string;
+    database?: string;
+    deployment?: string;
+  };
+}
+
+// Blueprint-based planning (from SprintDashboard)
+export interface BlueprintPlanningInput extends BasePlanningInput {
+  sourceType: "blueprint";
+  blueprint: string;
+  sprintData?: {
+    completedTasks: any[];
+    analytics: any;
+    validationResults: any;
+  };
+}
+
+// Union type for all planning inputs
+export type PlanningInput = VisionPlanningInput | BlueprintPlanningInput;
+
+// Legacy interface for backward compatibility
+export interface LegacyPlanningInput {
   projectId: string;
   userId: string;
   conversationId: string;
@@ -32,16 +67,16 @@ export interface AtomicTask {
     | "devops"
     | "integration"
     | "testing";
-  priority: number; // 1 (highest) to 5 (lowest)
+  priority: number;
   estimatedHours: number;
-  estimatedLines: number; // NEW: Estimated lines of code
-  complexity: "simple" | "medium"; // NEW: Only simple or medium allowed!
-  dependencies: string[]; // Array of task IDs that must complete first
+  estimatedLines: number;
+  complexity: "simple" | "medium";
+  dependencies: string[];
   technicalDetails: {
-    files: string[]; // Files to create/modify
-    technologies: string[]; // Technologies to use
-    endpoints?: string[]; // API endpoints if applicable
-    components?: string[]; // React components if applicable
+    files: string[];
+    technologies: string[];
+    endpoints?: string[];
+    components?: string[];
   };
   acceptanceCriteria: string[];
 }
@@ -60,7 +95,7 @@ export interface TechnicalArchitecture {
   };
   backendArchitecture?: {
     framework: string;
-    apiPattern: string; // REST, GraphQL, tRPC, etc.
+    apiPattern: string;
     authentication: string;
     keyEndpoints: string[];
   };
@@ -78,14 +113,6 @@ export interface TechnicalArchitecture {
   };
 }
 
-export interface TaskComplexityAnalysis {
-  isAtomic: boolean;
-  complexity: "simple" | "medium" | "complex";
-  estimatedLines: number;
-  shouldSplit: boolean;
-  reason?: string;
-}
-
 export interface ExecutionPlan {
   architecture: TechnicalArchitecture;
   tasks: AtomicTask[];
@@ -95,7 +122,7 @@ export interface ExecutionPlan {
     estimatedDuration: string;
   }[];
   totalEstimatedHours: number;
-  criticalPath: string[]; // Task IDs in critical path
+  criticalPath: string[];
 }
 
 export interface PlanningOutput {
@@ -125,7 +152,7 @@ export class PlanningAgent {
     this.model = this.genAI.getGenerativeModel({
       model: AI_MODELS.PRIMARY,
       generationConfig: {
-        temperature: 0.4, // Balanced for creative yet structured planning
+        temperature: 0.4,
         topP: 0.95,
         topK: 40,
         maxOutputTokens: 8192,
@@ -134,15 +161,212 @@ export class PlanningAgent {
   }
 
   /**
-   * Main execution method
+   * Main execution method - Routes to vision or blueprint planning
    */
-  async execute(input: PlanningInput): Promise<PlanningOutput> {
+  async execute(
+    input: PlanningInput | LegacyPlanningInput
+  ): Promise<PlanningOutput> {
     const startTime = Date.now();
-    logger.info(
-      `[${this.name}] Starting planning for project ${input.projectId}`
-    );
+
+    // Type guard to determine input type
+    if ("sourceType" in input) {
+      if (input.sourceType === "vision") {
+        logger.info(
+          `[${this.name}] Vision-based planning for ${input.projectId}`
+        );
+        return await this.executeVisionPlanning(input);
+      } else if (input.sourceType === "blueprint") {
+        logger.info(
+          `[${this.name}] Blueprint-based planning for ${input.projectId}`
+        );
+        return await this.executeBlueprintPlanning(input);
+      }
+    }
+
+    // Legacy flow - treat as blueprint without validation data
+    logger.info(`[${this.name}] Legacy planning flow for ${input.projectId}`);
+    return await this.executeLegacyPlanning(input as LegacyPlanningInput);
+  }
+
+  /**
+   * VISION PLANNING MODE
+   * Converts freeform vision text into technical execution plan
+   */
+  private async executeVisionPlanning(
+    input: VisionPlanningInput
+  ): Promise<PlanningOutput> {
+    const startTime = Date.now();
 
     try {
+      logger.info(`[${this.name}] Starting vision planning`, {
+        projectId: input.projectId,
+        projectName: input.projectName,
+        hasTechPreferences: !!input.techPreferences,
+      });
+
+      // Step 1: Analyze vision text with AI
+      const analysis = await this.analyzeVision(input.visionText);
+
+      // Step 2: Extract technical requirements
+      const requirements = await this.extractRequirements(analysis, input);
+
+      // Step 3: Design architecture
+      const architecture = await this.designArchitecture(
+        requirements,
+        input.techPreferences
+      );
+
+      // Step 4: Generate execution plan
+      const prompt = this.buildVisionPlanningPrompt(
+        input,
+        analysis,
+        architecture
+      );
+
+      logger.info(`[${this.name}] Generating vision-based execution plan...`);
+      const result = await this.model.generateContent(prompt);
+      const responseText = result.response.text();
+
+      // Step 5: Parse and validate plan
+      const plan = this.parsePlanningResponse(responseText);
+      this.validatePlan(plan);
+
+      // Step 6: Store results
+      await this.storePlanningResults(input.projectId, plan, "vision", {
+        visionText: input.visionText,
+        projectName: input.projectName,
+        analysis,
+      });
+
+      await this.createAgentTasks(input.projectId, plan.tasks);
+
+      const duration = Date.now() - startTime;
+      const executionId = await this.logExecution(input, plan, true, duration);
+
+      logger.info(`[${this.name}] Vision planning completed`, {
+        taskCount: plan.tasks.length,
+        phases: plan.phases.length,
+        duration: `${duration}ms`,
+      });
+
+      return {
+        success: true,
+        message: `Vision analyzed! Generated ${plan.tasks.length} tasks to build "${input.projectName}".`,
+        plan,
+        executionId,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      const duration = Date.now() - startTime;
+
+      logger.error(`[${this.name}] Vision planning failed:`, toError(error));
+
+      await this.logExecution(input, null, false, duration, errorMessage);
+
+      return {
+        success: false,
+        message: `Vision planning failed: ${errorMessage}`,
+      };
+    }
+  }
+
+  /**
+   * BLUEPRINT PLANNING MODE
+   * Parses structured blueprint with optional sprint validation data
+   */
+  private async executeBlueprintPlanning(
+    input: BlueprintPlanningInput
+  ): Promise<PlanningOutput> {
+    const startTime = Date.now();
+
+    try {
+      logger.info(`[${this.name}] Starting blueprint planning`, {
+        projectId: input.projectId,
+        hasSprintData: !!input.sprintData,
+      });
+
+      // Step 1: Parse blueprint structure
+      const parsed = await this.parseBlueprint(input.blueprint);
+
+      // Step 2: Integrate sprint validation data (if available)
+      const enhanced = input.sprintData
+        ? await this.enhanceWithSprintData(parsed, input.sprintData)
+        : parsed;
+
+      // Step 3: Generate execution plan
+      const prompt = this.buildBlueprintPlanningPrompt(
+        input.blueprint,
+        enhanced,
+        input.sprintData
+      );
+
+      logger.info(
+        `[${this.name}] Generating blueprint-based execution plan...`
+      );
+      const result = await this.model.generateContent(prompt);
+      const responseText = result.response.text();
+
+      // Step 4: Parse and validate plan
+      const plan = this.parsePlanningResponse(responseText);
+      this.validatePlan(plan);
+
+      // Step 5: Store results
+      await this.storePlanningResults(input.projectId, plan, "blueprint", {
+        blueprint: input.blueprint,
+        sprintData: input.sprintData,
+      });
+
+      await this.createAgentTasks(input.projectId, plan.tasks);
+
+      const duration = Date.now() - startTime;
+      const executionId = await this.logExecution(input, plan, true, duration);
+
+      logger.info(`[${this.name}] Blueprint planning completed`, {
+        taskCount: plan.tasks.length,
+        phases: plan.phases.length,
+        sprintDataUsed: !!input.sprintData,
+        duration: `${duration}ms`,
+      });
+
+      return {
+        success: true,
+        message: `Blueprint analyzed! Generated ${plan.tasks.length} tasks${
+          input.sprintData ? " prioritized by validation data" : ""
+        }.`,
+        plan,
+        executionId,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      const duration = Date.now() - startTime;
+
+      logger.error(`[${this.name}] Blueprint planning failed:`, toError(error));
+
+      await this.logExecution(input, null, false, duration, errorMessage);
+
+      return {
+        success: false,
+        message: `Blueprint planning failed: ${errorMessage}`,
+      };
+    }
+  }
+
+  /**
+   * LEGACY PLANNING MODE (backward compatibility)
+   * Uses existing ProjectContext flow
+   */
+  private async executeLegacyPlanning(
+    input: LegacyPlanningInput
+  ): Promise<PlanningOutput> {
+    const startTime = Date.now();
+
+    try {
+      logger.info(
+        `[${this.name}] Starting legacy planning for project ${input.projectId}`
+      );
+
       // Step 1: Get project context (blueprint, tech stack, validation)
       const context = await this.getProjectContext(input.projectId);
 
@@ -165,8 +389,8 @@ export class PlanningAgent {
         );
       }
 
-      // Step 3: Generate planning prompt
-      const prompt = this.buildPlanningPrompt(context);
+      // Step 3: Generate planning prompt (using existing blueprint logic)
+      const prompt = this.buildLegacyPlanningPrompt(context);
 
       // Step 4: Get AI planning analysis
       logger.info(`[${this.name}] Requesting AI planning analysis...`);
@@ -176,37 +400,14 @@ export class PlanningAgent {
       // Step 5: Parse AI response
       const plan = this.parsePlanningResponse(responseText);
 
-      // Step 6: Validate task atomicity
-      const atomicityCheck = this.validateTaskAtomicity(plan.tasks);
-
-      if (!atomicityCheck.valid) {
-        logger.warn(`[${this.name}] Task atomicity issues found`, {
-          issues: atomicityCheck.issues,
-          suggestions: atomicityCheck.suggestions,
-        });
-
-        // Log issues but don't fail - we'll improve this iteratively
-        logger.warn(`[${this.name}] Proceeding despite atomicity warnings`);
-      }
-
-      // Log statistics
-      logger.info(`[${this.name}] Task complexity breakdown`, {
-        simple: plan.tasks.filter((t) => t.complexity === "simple").length,
-        medium: plan.tasks.filter((t) => t.complexity === "medium").length,
-        avgHours: (
-          plan.tasks.reduce((sum, t) => sum + t.estimatedHours, 0) /
-          plan.tasks.length
-        ).toFixed(1),
-        avgLines: (
-          plan.tasks.reduce((sum, t) => sum + t.estimatedLines, 0) /
-          plan.tasks.length
-        ).toFixed(0),
-      });
       // Step 6: Validate plan structure
       this.validatePlan(plan);
 
       // Step 7: Store results in database
-      await this.storePlanningResults(input.projectId, plan);
+      await this.storePlanningResults(input.projectId, plan, "blueprint", {
+        blueprint: context.blueprint,
+        techStack: context.techStack,
+      });
 
       // Step 8: Create AgentTask records for execution
       await this.createAgentTasks(input.projectId, plan.tasks);
@@ -215,7 +416,7 @@ export class PlanningAgent {
       const duration = Date.now() - startTime;
       const executionId = await this.logExecution(input, plan, true, duration);
 
-      logger.info(`[${this.name}] Planning completed`, {
+      logger.info(`[${this.name}] Legacy planning completed`, {
         projectId: input.projectId,
         taskCount: plan.tasks.length,
         phases: plan.phases.length,
@@ -234,7 +435,7 @@ export class PlanningAgent {
         error instanceof Error ? error.message : "Unknown error";
       const duration = Date.now() - startTime;
 
-      logger.error(`[${this.name}] Planning failed:`, toError(error));
+      logger.error(`[${this.name}] Legacy planning failed:`, toError(error));
 
       await this.logExecution(input, null, false, duration, errorMessage);
 
@@ -245,32 +446,236 @@ export class PlanningAgent {
     }
   }
 
+  // ==========================================
+  // VISION PLANNING HELPERS
+  // ==========================================
+
   /**
-   * Get project context from database
+   * Analyze vision text to extract intent, features, and goals
    */
-  private async getProjectContext(projectId: string) {
-    const context = await prisma.projectContext.findUnique({
-      where: { projectId },
-    });
+  private async analyzeVision(visionText: string): Promise<any> {
+    const prompt = `
+Analyze this project vision and extract key information:
 
-    if (!context) {
-      return null;
+VISION:
+${visionText}
+
+Extract and return JSON with:
+{
+  "projectType": "web app" | "mobile app" | "api" | "extension" | "desktop app",
+  "coreFeatures": ["feature 1", "feature 2", ...],
+  "targetAudience": "description",
+  "keyFunctionality": ["function 1", "function 2", ...],
+  "technicalNeeds": {
+    "authentication": true/false,
+    "database": true/false,
+    "realtime": true/false,
+    "payments": true/false,
+    "fileUploads": true/false,
+    "apiIntegrations": ["service1", "service2", ...]
+  },
+  "complexity": "simple" | "medium" | "complex"
+}
+
+Return only valid JSON, no markdown.
+`;
+
+    const result = await this.model.generateContent(prompt);
+    const responseText = result.response.text();
+
+    try {
+      const cleaned = responseText
+        .replace(/```json\n?/g, "")
+        .replace(/```\n?/g, "")
+        .trim();
+      return JSON.parse(cleaned);
+    } catch {
+      throw new Error("Failed to parse vision analysis");
     }
+  }
 
-    const architecture = context.architecture as any;
-    const validation = architecture?.validation;
-
+  /**
+   * Extract technical requirements from vision analysis
+   */
+  private async extractRequirements(
+    analysis: any,
+    input: VisionPlanningInput
+  ): Promise<any> {
     return {
-      blueprint: context.blueprint,
-      techStack: context.techStack,
-      validation: validation,
+      projectName: input.projectName,
+      projectType: analysis.projectType,
+      features: analysis.coreFeatures,
+      functionality: analysis.keyFunctionality,
+      technicalNeeds: analysis.technicalNeeds,
+      complexity: analysis.complexity,
+      userPreferences: input.techPreferences || {},
     };
   }
 
   /**
-   * Build planning prompt for AI
+   * Design technical architecture based on requirements
    */
-  private buildPlanningPrompt(context: any): string {
+  private async designArchitecture(
+    requirements: any,
+    techPreferences?: any
+  ): Promise<any> {
+    // Smart architecture design based on project type and requirements
+    const architecture: any = {
+      frontend: techPreferences?.frontend || this.inferFrontend(requirements),
+      backend: techPreferences?.backend || this.inferBackend(requirements),
+      database: techPreferences?.database || this.inferDatabase(requirements),
+      deployment:
+        techPreferences?.deployment || this.inferDeployment(requirements),
+    };
+
+    return architecture;
+  }
+
+  private inferFrontend(requirements: any): string {
+    if (requirements.projectType === "web app") return "Next.js";
+    if (requirements.projectType === "mobile app") return "React Native";
+    return "React";
+  }
+
+  private inferBackend(requirements: any): string {
+    if (requirements.technicalNeeds.realtime) return "Node.js + Socket.io";
+    return "Next.js API Routes";
+  }
+
+  private inferDatabase(requirements: any): string {
+    if (requirements.complexity === "simple") return "None (static)";
+    if (requirements.technicalNeeds.realtime) return "PostgreSQL + Redis";
+    return "PostgreSQL";
+  }
+
+  private inferDeployment(requirements: any): string {
+    if (this.inferFrontend(requirements).includes("Next.js")) return "Vercel";
+    return "Railway";
+  }
+
+  /**
+   * Build planning prompt for vision-based input
+   */
+  private buildVisionPlanningPrompt(
+    input: VisionPlanningInput,
+    analysis: any,
+    architecture: any
+  ): string {
+    return `
+You are a world-class software architect creating an execution plan from a project vision.
+
+**PROJECT VISION:**
+"${input.visionText}"
+
+**PROJECT NAME:** ${input.projectName}
+
+**VISION ANALYSIS:**
+${JSON.stringify(analysis, null, 2)}
+
+**RECOMMENDED ARCHITECTURE:**
+${JSON.stringify(architecture, null, 2)}
+
+**USER TECH PREFERENCES:**
+${JSON.stringify(input.techPreferences || {}, null, 2)}
+
+Create a detailed execution plan that brings this vision to life.
+
+${this.getSharedPlanningInstructions()}
+
+Return only valid JSON, no markdown.
+`.trim();
+  }
+
+  // ==========================================
+  // BLUEPRINT PLANNING HELPERS
+  // ==========================================
+
+  /**
+   * Parse structured blueprint text
+   */
+  private async parseBlueprint(blueprint: string): Promise<any> {
+    // Extract sections from markdown-style blueprint
+    const sections: any = {};
+
+    // Simple regex-based parsing
+    const sectionRegex = /##\s+([^\n]+)\n([\s\S]*?)(?=##\s+|$)/g;
+    let match;
+
+    while ((match = sectionRegex.exec(blueprint)) !== null) {
+      const title = match[1].trim();
+      const content = match[2].trim();
+      sections[title] = content;
+    }
+
+    return {
+      raw: blueprint,
+      sections,
+      hasTechnicalSection: !!sections["Technical Approach"],
+      hasGTMSection: !!sections["Go-To-Market Strategy"],
+    };
+  }
+
+  /**
+   * Enhance blueprint with sprint validation data
+   */
+  private async enhanceWithSprintData(
+    parsed: any,
+    sprintData: any
+  ): Promise<any> {
+    // Priority features based on completed validation tasks
+    const validatedFeatures =
+      sprintData.completedTasks
+        ?.filter((t: any) => t.status === "completed")
+        .map((t: any) => t.title) || [];
+
+    return {
+      ...parsed,
+      priorityFeatures: validatedFeatures,
+      validationResults: sprintData.validationResults,
+      analytics: sprintData.analytics,
+    };
+  }
+
+  /**
+   * Build planning prompt for blueprint-based input
+   */
+  private buildBlueprintPlanningPrompt(
+    blueprint: string,
+    enhanced: any,
+    sprintData?: any
+  ): string {
+    const sprintContext = sprintData
+      ? `
+**SPRINT VALIDATION DATA:**
+Completed Tasks: ${enhanced.priorityFeatures?.join(", ") || "None"}
+Validation Results: ${JSON.stringify(sprintData.validationResults || {}, null, 2)}
+
+**PRIORITY GUIDANCE:**
+Features validated in the sprint should be prioritized in Wave 1-2.
+Unvalidated features can be deprioritized to later waves.
+`
+      : "";
+
+    return `
+You are a world-class software architect creating an execution plan from a validated blueprint.
+
+**PROJECT BLUEPRINT:**
+${blueprint}
+
+${sprintContext}
+
+Create a detailed execution plan that implements this blueprint.
+
+${this.getSharedPlanningInstructions()}
+
+Return only valid JSON, no markdown.
+`.trim();
+  }
+
+  /**
+   * Build legacy planning prompt (from existing context)
+   */
+  private buildLegacyPlanningPrompt(context: any): string {
     return `
 You are a world-class software architect and technical planner. Create a comprehensive execution plan for this project.
 
@@ -283,92 +688,59 @@ ${JSON.stringify(context.techStack, null, 2)}
 VALIDATION RESULTS:
 ${JSON.stringify(context.validation, null, 2)}
 
-**INFRASTRUCTURE TASK RULES:**
+${this.getSharedPlanningInstructions()}
 
-Only create infrastructure tasks that are ACTUALLY NEEDED for this specific project:
+Return only valid JSON, no markdown.
+`.trim();
+  }
 
-✅ **CREATE infrastructure tasks if:**
-- Project needs containerization → "Create Dockerfile for [runtime]"
-- Project needs deployment config → "Configure [deployment platform] settings"
-- Project uses database migrations → "Setup [ORM] migration structure"
-- Project needs CI/CD → "Configure GitHub Actions for [language]"
-- Project needs environment variables → "Create .env.example with [specific vars]"
+  // ==========================================
+  // SHARED HELPERS (used by all modes)
+  // ==========================================
 
-❌ **DON'T CREATE infrastructure tasks if:**
-- Vercel/Netlify project (they handle deployment automatically)
-- No containerization needed (serverless, static sites)
-- Project doesn't use databases
-- Simple projects without CI/CD requirements
+  /**
+   * Get shared planning instructions for AI prompts
+   * THIS IS THE COMPREHENSIVE VERSION FROM YOUR ORIGINAL FILE
+   */
+  private getSharedPlanningInstructions(): string {
+    return `
+**CRITICAL - ATOMIC TASKS ONLY**: Each task MUST be truly atomic:
+   - ✅ Simple: 1 file, 1 endpoint, OR 1 component (50-150 lines max)
+   - ⚠️ Medium: 2-3 tightly related files (150-300 lines total)
+   - ❌ Complex: NEVER create tasks >300 lines - split them further!
 
-**EXAMPLE INFRASTRUCTURE TASKS:**
+**Task Granularity Examples:**
+   ✅ GOOD: "Create User model in Prisma schema"
+   ✅ GOOD: "Implement POST /api/users endpoint"
+   ✅ GOOD: "Create UserCard component with props"
+   ❌ BAD: "Build entire authentication system"
+   ❌ BAD: "Create all user management features"
+   ❌ BAD: "Implement frontend and backend for users"
 
-For Node.js API with PostgreSQL + Docker:
-{
-  "id": "task-infra-001",
-  "title": "Create Dockerfile for Node.js API",
-  "description": "Multi-stage Docker build for production deployment",
-  "category": "infrastructure",
-  "priority": 1,
-  "estimatedHours": 1,
-  "estimatedLines": 50,
-  "complexity": "simple",
-  "dependencies": [],
-  "technicalDetails": {
-    "files": ["Dockerfile", ".dockerignore"],
-    "technologies": ["Docker", "Node.js 20"],
-  },
-  "acceptanceCriteria": [
-    "Multi-stage build (builder + runner)",
-    "Non-root user for security",
-    "Health check included"
-  ]
-}
+**Complexity Guidelines:**
+   - Simple (1-3 hours): Single file, clear scope, no external dependencies
+   - Medium (3-6 hours): 2-3 files, moderate integration
+   - Complex: SPLIT INTO SMALLER TASKS!
 
-{
-  "id": "task-infra-002",
-  "title": "Setup Prisma migrations structure",
-  "description": "Initialize Prisma migration folder and seed script",
-  "category": "infrastructure",
-  "priority": 1,
-  "estimatedHours": 1,
-  "estimatedLines": 100,
-  "complexity": "simple",
-  "dependencies": [],
-  "technicalDetails": {
-    "files": ["prisma/migrations/.gitkeep", "prisma/seed.ts"],
-    "technologies": ["Prisma"],
-  },
-  "acceptanceCriteria": [
-    "Migration folder structure created",
-    "Seed script template created"
-  ]
-}
+**REQUIREMENTS:**
+1. Break features into ATOMIC tasks (each task = 1-6 hours max, preferably 1-3)
+2. Create proper dependencies (no circular dependencies)
+3. Organize tasks into logical phases (Foundation, Core Features, Integration, Polish)
+4. Be specific about files, endpoints, and components
+5. Include clear acceptance criteria for each task
+6. Prioritize tasks: 1 (must do first) to 5 (nice to have)
+7. Identify the critical path
+8. Include estimated lines of code for each task
 
-For Next.js on Vercel (NO DOCKER NEEDED):
-{
-  "id": "task-infra-001",
-  "title": "Create environment variable template",
-  "description": "Setup .env.example with Next.js environment variables",
-  "category": "infrastructure",
-  "priority": 1,
-  "estimatedHours": 0.5,
-  "estimatedLines": 30,
-  "complexity": "simple",
-  "dependencies": [],
-  "technicalDetails": {
-    "files": [".env.example", ".env.local.example"],
-    "technologies": ["Next.js"],
-  },
-  "acceptanceCriteria": [
-    "All required environment variables documented",
-    "Public vs private variables separated"
-  ]
-}
+**CATEGORIES:**
+- frontend: UI components, pages, layouts
+- backend: API routes, server logic, business logic
+- database: Schema, migrations, queries
+- devops: Deployment, CI/CD, infrastructure
+- integration: Third-party APIs, external services
+- testing: Unit tests, integration tests, E2E tests
 
-Generate tasks based on ACTUAL PROJECT NEEDS, not assumptions!
-
-Create a detailed execution plan with the following JSON structure:
-
+**OUTPUT FORMAT (JSON only, no markdown):**
 {
   "architecture": {
     "projectStructure": {
@@ -395,32 +767,32 @@ Create a detailed execution plan with the following JSON structure:
       "relationships": ["User -> Projects (1:n)", etc.]
     },
     "infrastructureArchitecture": {
-      "hosting": "Vercel",
+      "hosting": "Vercel | Railway | Render | etc.",
       "cicd": "GitHub Actions",
-      "monitoring": "Vercel Analytics",
+      "monitoring": "Vercel Analytics | Sentry",
       "scaling": "Serverless auto-scaling"
     }
   },
   "tasks": [
     {
       "id": "task-001",
-      "title": "Project Setup and Configuration",
-      "description": "Initialize Next.js project with TypeScript, configure Tailwind CSS, set up ESLint and Prettier",
-      "category": "devops",
+      "title": "Task title",
+      "description": "Detailed description",
+      "category": "frontend | backend | database | devops | integration | testing",
       "priority": 1,
       "estimatedHours": 2,
-      "dependencies": [],
+      "estimatedLines": 150,
+      "complexity": "simple | medium",
+      "dependencies": ["task-000"],
       "technicalDetails": {
-        "files": ["package.json", "tsconfig.json", "tailwind.config.js"],
-        "technologies": ["Next.js 14", "TypeScript", "Tailwind CSS"],
-        "endpoints": [],
-        "components": []
+        "files": ["path/to/file.ts"],
+        "technologies": ["Next.js", "TypeScript"],
+        "endpoints": ["/api/example"],
+        "components": ["ComponentName"]
       },
       "acceptanceCriteria": [
-        "Next.js 14 with App Router initialized",
-        "TypeScript configured with strict mode",
-        "Tailwind CSS working with custom config",
-        "Dev server runs without errors"
+        "Criterion 1",
+        "Criterion 2"
       ]
     }
   ],
@@ -434,171 +806,6 @@ Create a detailed execution plan with the following JSON structure:
   "totalEstimatedHours": 120,
   "criticalPath": ["task-001", "task-002", "task-010"]
 }
-
-**DEPLOYMENT PLATFORM SELECTION RULES:**
-
-Choose the BEST deployment platform based on project characteristics:
-
-✅ **Vercel** - Use when:
-- Next.js (App Router or Pages Router)
-- React/Vue/Angular static sites
-- Serverless functions
-- Needs edge computing
-- Fast global CDN required
-Example: "Next.js blog", "E-commerce storefront", "SaaS dashboard"
-
-✅ **Railway** - Use when:
-- Node.js/Python/Go backend APIs
-- Needs PostgreSQL/MySQL/Redis
-- Long-running processes
-- WebSocket support
-- Full server control needed
-Example: "Express API with PostgreSQL", "FastAPI backend", "Real-time chat API"
-
-✅ **Render** - Use when:
-- Full-stack apps with database
-- Background workers/cron jobs
-- Docker-based deployment
-- Static sites with API
-- Similar to Railway but different pricing
-Example: "Django app", "Ruby on Rails", "Microservices"
-
-✅ **Fly.io** - Use when:
-- Global edge deployment needed
-- Multi-region applications
-- Low-latency requirements
-- Docker containers
-Example: "Global API", "Multi-region database", "Edge computing apps"
-
-✅ **AWS (Amplify/ECS/Lambda)** - Use when:
-- Enterprise requirements
-- Complex infrastructure
-- Existing AWS ecosystem
-- Custom scaling needs
-Example: "Enterprise SaaS", "Complex microservices", "Data-intensive apps"
-
-✅ **Netlify** - Use when:
-- Static sites (no backend)
-- Jamstack applications
-- Serverless functions (simple)
-- CI/CD for static content
-Example: "Documentation sites", "Marketing pages", "Gatsby/Hugo sites"
-
-✅ **DigitalOcean App Platform** - Use when:
-- Simple full-stack apps
-- Developer-friendly setup
-- Affordable hosting
-- Managed databases
-Example: "Startup MVPs", "Side projects", "Simple CRUD apps"
-
-✅ **Self-hosted (Docker)** - Use when:
-- Full infrastructure control required
-- On-premises deployment
-- Custom security requirements
-- Cost optimization at scale
-Example: "Enterprise internal tools", "Compliance-heavy apps", "High-volume APIs"
-
-**DEPLOYMENT DECISION TREE:**
-
-1. Is it Next.js?
-   → YES: **Vercel** (unless needs custom server, then Railway)
-   
-2. Is it a static site (no backend)?
-   → YES: **Netlify** or **Vercel**
-   
-3. Is it a backend API with database?
-   → Node.js/Python/Go: **Railway** or **Render**
-   → Java/C#/.NET: **AWS** or **Render**
-   
-4. Does it need multi-region/edge?
-   → YES: **Fly.io** or **Cloudflare Workers**
-   
-5. Does it need complex infrastructure?
-   → YES: **AWS/GCP/Azure** or **Self-hosted Docker**
-
-6. Default for full-stack apps: **Railway** (easiest for most cases)
-
-**EXAMPLE ARCHITECTURE DECISIONS:**
-
-Project: "Next.js SaaS with Stripe"
-→ Hosting: "Vercel" (Next.js optimized)
-→ Database: "Vercel Postgres" or "Railway PostgreSQL"
-→ Reason: "Vercel provides best Next.js DX, edge functions, auto-scaling"
-
-Project: "Express API + PostgreSQL + Redis"
-→ Hosting: "Railway" (all services in one platform)
-→ Database: "Railway PostgreSQL"
-→ Cache: "Railway Redis"
-→ Reason: "Railway supports all services, easy setup, affordable"
-
-Project: "FastAPI + ML models + PostgreSQL"
-→ Hosting: "Render" (good Python support)
-→ Database: "Render PostgreSQL"
-→ Reason: "Render handles Python dependencies well, supports background workers"
-
-**INFRASTRUCTURE ARCHITECTURE FORMAT:**
-
-"infrastructureArchitecture": {
-  "hosting": "Railway",  // ← Must be one of: Vercel, Railway, Render, Fly.io, Netlify, AWS, GCP, Azure, DigitalOcean, Self-hosted
-  "cicd": "GitHub Actions",  // ← Usually GitHub Actions or GitLab CI
-  "monitoring": "Sentry + LogTail",  // ← Based on platform
-  "scaling": "Container auto-scaling",  // ← Based on platform capabilities
-  "deploymentReason": "Railway chosen for Node.js API with PostgreSQL - provides integrated database, auto-deploys, affordable pricing"  // ← REQUIRED: Explain why this platform
-}
-Project: "React SPA + Node API + MongoDB"
-→ Frontend: "Netlify" (static site)
-→ Backend: "Railway" (Node API)
-→ Database: "MongoDB Atlas" (managed)
-→ Reason: "Separation of concerns, optimal for each component"
-
-**INFRASTRUCTURE ARCHITECTURE FORMAT:**
-
-"infrastructureArchitecture": {
-  "hosting": "Railway",  // ← Must be one of: Vercel, Railway, Render, Fly.io, Netlify, AWS, GCP, Azure, DigitalOcean, Self-hosted
-  "cicd": "GitHub Actions",  // ← Usually GitHub Actions or GitLab CI
-  "monitoring": "Sentry + LogTail",  // ← Based on platform
-  "scaling": "Container auto-scaling",  // ← Based on platform capabilities
-  "deploymentReason": "Railway chosen for Node.js API with PostgreSQL - provides integrated database, auto-deploys, affordable pricing"  // ← REQUIRED: Explain why this platform
-}
-  
-REQUIREMENTS:
-1. **CRITICAL - ATOMIC TASKS ONLY**: Each task MUST be truly atomic:
-   - ✅ Simple: 1 file, 1 endpoint, OR 1 component (50-150 lines max)
-   - ⚠️ Medium: 2-3 tightly related files (150-300 lines total)
-   - ❌ Complex: NEVER create tasks >300 lines - split them further!
-
-2. **Task Granularity Examples:**
-   ✅ GOOD: "Create User model in Prisma schema"
-   ✅ GOOD: "Implement POST /api/users endpoint"
-   ✅ GOOD: "Create UserCard component with props"
-   ❌ BAD: "Build entire authentication system"
-   ❌ BAD: "Create all user management features"
-   ❌ BAD: "Implement frontend and backend for users"
-
-3. **Complexity Guidelines:**
-   - Simple (1-3 hours): Single file, clear scope, no external dependencies
-   - Medium (3-6 hours): 2-3 files, moderate integration
-   - Complex: SPLIT INTO SMALLER TASKS!
-
-4. Break features into ATOMIC tasks (each task = 1-6 hours max, preferably 1-3)
-5. Create proper dependencies (no circular dependencies)
-6. Organize tasks into logical phases (Foundation, Core Features, Integration, Polish)
-7. Be specific about files, endpoints, and components
-8. Include clear acceptance criteria for each task
-9. Prioritize tasks: 1 (must do first) to 5 (nice to have)
-10. Identify the critical path
-11. **ESTIMATED LINES**: Include estimated lines of code for each task
-
-
-CATEGORIES:
-- frontend: UI components, pages, layouts
-- backend: API routes, server logic, business logic
-- database: Schema, migrations, queries
-- devops: Deployment, CI/CD, infrastructure
-- integration: Third-party APIs, external services
-- testing: Unit tests, integration tests, E2E tests
-
-Respond with ONLY valid JSON, no markdown or explanations.
 `.trim();
   }
 
@@ -607,7 +814,6 @@ Respond with ONLY valid JSON, no markdown or explanations.
    */
   private parsePlanningResponse(responseText: string): ExecutionPlan {
     try {
-      // Remove markdown code blocks if present
       const cleanedText = responseText
         .replace(/```json\n?/g, "")
         .replace(/```\n?/g, "")
@@ -615,7 +821,6 @@ Respond with ONLY valid JSON, no markdown or explanations.
 
       const parsed = JSON.parse(cleanedText);
 
-      // Validate required fields
       if (
         !parsed.architecture ||
         !parsed.tasks ||
@@ -626,7 +831,10 @@ Respond with ONLY valid JSON, no markdown or explanations.
 
       return parsed as ExecutionPlan;
     } catch (error) {
-      logger.error(`[${this.name}] Failed to parse AI response: ${responseText}`);
+      logger.error(
+        `[${this.name}] Failed to parse AI response`,
+        toError(error)
+      );
       throw new Error(
         "Failed to parse planning response. AI returned invalid format."
       );
@@ -637,7 +845,6 @@ Respond with ONLY valid JSON, no markdown or explanations.
    * Validate plan structure
    */
   private validatePlan(plan: ExecutionPlan): void {
-    // Check for circular dependencies
     const taskIds = new Set(plan.tasks.map((t) => t.id));
 
     for (const task of plan.tasks) {
@@ -648,67 +855,7 @@ Respond with ONLY valid JSON, no markdown or explanations.
       }
     }
 
-    // Check for tasks with no path to completion
-    // (All tasks should either have no dependencies or depend on valid tasks)
-    // This is a simplified check - full cycle detection would be more complex
-
     logger.info(`[${this.name}] Plan validation passed`);
-  }
-
-  /**
-   * Validate tasks are truly atomic
-   */
-  private validateTaskAtomicity(tasks: AtomicTask[]): {
-    valid: boolean;
-    issues: string[];
-    suggestions: string[];
-  } {
-    const issues: string[] = [];
-    const suggestions: string[] = [];
-
-    for (const task of tasks) {
-      // Check 1: Complexity must be simple or medium only
-      if (task.complexity === ("complex" as any)) {
-        issues.push(`Task "${task.id}" is marked as complex - must be split!`);
-      }
-
-      // Check 2: Estimated hours should be reasonable
-      if (task.estimatedHours > 8) {
-        issues.push(
-          `Task "${task.id}" has ${task.estimatedHours}h estimate - too large!`
-        );
-        suggestions.push(`Split "${task.title}" into smaller sub-tasks`);
-      }
-
-      // Check 3: Estimated lines should be reasonable
-      if (task.estimatedLines > 300) {
-        issues.push(
-          `Task "${task.id}" has ${task.estimatedLines} lines estimate - too large!`
-        );
-        suggestions.push(`Break "${task.title}" into 2-3 smaller tasks`);
-      }
-
-      // Check 4: File count should be limited
-      if (task.technicalDetails.files.length > 3) {
-        issues.push(
-          `Task "${task.id}" affects ${task.technicalDetails.files.length} files - too many!`
-        );
-        suggestions.push(
-          `Create separate tasks for each file in "${task.title}"`
-        );
-      }
-
-      // Check 5: Should have clear acceptance criteria
-      if (task.acceptanceCriteria.length === 0) {
-        issues.push(`Task "${task.id}" has no acceptance criteria`);
-      }
-    }
-
-    return {
-      valid: issues.length === 0,
-      issues,
-      suggestions,
-    };
   }
 
   /**
@@ -716,13 +863,23 @@ Respond with ONLY valid JSON, no markdown or explanations.
    */
   private async storePlanningResults(
     projectId: string,
-    plan: ExecutionPlan
+    plan: ExecutionPlan,
+    sourceType: "vision" | "blueprint",
+    metadata: any
   ): Promise<void> {
-    await prisma.projectContext.update({
+    await prisma.projectContext.upsert({
       where: { projectId },
-      data: {
+      create: {
+        projectId,
         executionPlan: plan as any,
         currentPhase: "execution",
+        planningMetadata: { sourceType, ...metadata } as any,
+        updatedAt: new Date(),
+      },
+      update: {
+        executionPlan: plan as any,
+        currentPhase: "execution",
+        planningMetadata: { sourceType, ...metadata } as any,
         updatedAt: new Date(),
       },
     });
@@ -744,7 +901,6 @@ Respond with ONLY valid JSON, no markdown or explanations.
       priority: task.priority,
       input: {
         ...task,
-        // Add metadata for execution
         metadata: {
           complexity: task.complexity,
           estimatedLines: task.estimatedLines,
@@ -782,7 +938,7 @@ Respond with ONLY valid JSON, no markdown or explanations.
    * Log execution to AgentExecution table
    */
   private async logExecution(
-    input: PlanningInput,
+    input: PlanningInput | LegacyPlanningInput,
     plan: ExecutionPlan | null,
     success: boolean,
     durationMs: number,
@@ -804,362 +960,26 @@ Respond with ONLY valid JSON, no markdown or explanations.
     return execution.id;
   }
 
-  // src/lib/agents/planning/planning-agent.ts
-  // ADD these new methods to the existing PlanningAgent class
-
   /**
-   * Analyze user feedback and determine feasibility
-   * This is the "utility-based" intelligence you wanted
+   * Get project context from database (legacy support)
    */
-  async analyzeFeedback(
-    projectId: string,
-    feedback: {
-      freeformFeedback?: string;
-      structuredChanges?: {
-        taskModifications?: Array<{
-          taskId: string;
-          action: "modify" | "remove" | "add";
-          changes?: Partial<AtomicTask>;
-        }>;
-        priorityChanges?: Array<{
-          taskId: string;
-          newPriority: number;
-        }>;
-        techStackChanges?: Record<string, any>;
-      };
-    }
-  ): Promise<{
-    feasible: boolean;
-    warnings: string[];
-    blockers: string[];
-    recommendations: string[];
-    requiresRegeneration: boolean;
-    analysis: string;
-  }> {
-    logger.info(`[${this.name}] Analyzing user feedback for ${projectId}`);
-
-    try {
-      // Step 1: Get current plan
-      const context = await prisma.projectContext.findUnique({
-        where: { projectId },
-        select: { executionPlan: true, techStack: true },
-      });
-
-      if (!context?.executionPlan) {
-        throw new Error("No execution plan found");
-      }
-
-      const currentPlan = context.executionPlan as unknown as ExecutionPlan;
-
-      // Step 2: Build AI prompt for analysis
-      const prompt = this.buildFeedbackAnalysisPrompt(
-        currentPlan,
-        context.techStack,
-        feedback
-      );
-
-      // Step 3: Get AI analysis
-      const result = await this.model.generateContent(prompt);
-      const responseText = result.response.text();
-
-      // Step 4: Parse response
-      const analysis = this.parseFeedbackAnalysis(responseText);
-
-      logger.info(`[${this.name}] Feedback analysis complete`, {
-        feasible: analysis.feasible,
-        warnings: analysis.warnings.length,
-        blockers: analysis.blockers.length,
-      });
-
-      return analysis;
-    } catch (error) {
-      logger.error(`[${this.name}] Feedback analysis failed`, toError(error));
-      throw error;
-    }
-  }
-
-  /**
-   * Build prompt for feedback analysis
-   */
-  private buildFeedbackAnalysisPrompt(
-    currentPlan: ExecutionPlan,
-    techStack: any,
-    feedback: any
-  ): string {
-    return `
-You are a world-class software architect analyzing user feedback on an execution plan.
-
-**CURRENT EXECUTION PLAN:**
-${JSON.stringify(currentPlan, null, 2)}
-
-**CURRENT TECH STACK:**
-${JSON.stringify(techStack, null, 2)}
-
-**USER FEEDBACK:**
-${feedback.freeformFeedback || "No freeform feedback"}
-
-**STRUCTURED CHANGES:**
-${JSON.stringify(feedback.structuredChanges, null, 2)}
-
-**YOUR TASK:**
-Analyze the user's requested changes and determine:
-
-1. **Feasibility**: Can these changes be implemented safely?
-2. **Warnings**: What are the potential consequences?
-3. **Blockers**: What makes the changes impossible or dangerous?
-4. **Recommendations**: What alternative approaches would be better?
-5. **Regeneration**: Does the plan need full regeneration or just adjustments?
-
-**CRITICAL ANALYSIS POINTS:**
-
-🔍 **Dependency Impact:**
-- If user moves/removes a task, check if other tasks depend on it
-- Example: Moving "Create Auth System" from Wave 1 to Wave 3
-  ❌ BLOCKER: "User Dashboard" (Wave 2) depends on auth
-  💡 RECOMMENDATION: "Keep basic auth in Wave 1, move OAuth to Wave 3"
-
-🔍 **Technical Feasibility:**
-- If user requests tech stack changes, verify compatibility
-- Example: "Use Firebase Auth instead of NextAuth"
-  ⚠️ WARNING: "Requires new dependencies, may increase complexity"
-  ✅ FEASIBLE: "Can be done, but will add ~4 hours to Wave 1"
-
-🔍 **Complexity Impact:**
-- If changes increase task complexity beyond "medium"
-  ❌ BLOCKER: "This would create a 'complex' task (>300 lines)"
-  💡 RECOMMENDATION: "Split into 2 separate tasks"
-
-🔍 **Timeline Impact:**
-- Calculate how changes affect total estimated hours
-- Example: Adding new feature
-  ⚠️ WARNING: "Will increase timeline by 2 weeks"
-
-**OUTPUT FORMAT (JSON only, no markdown):**
-
-{
-  "feasible": true,
-  "warnings": [
-    "Moving authentication will delay 3 tasks in Wave 2",
-    "Firebase Auth requires ~4 additional hours for setup"
-  ],
-  "blockers": [],
-  "recommendations": [
-    "Keep core authentication in Wave 1 (login/logout/session)",
-    "Move advanced features (OAuth providers, 2FA) to Wave 3",
-    "This maintains dependencies while meeting your goal"
-  ],
-  "requiresRegeneration": false,
-  "analysis": "The requested changes are feasible with minor adjustments. I recommend keeping basic authentication in Wave 1 to avoid blocking dependent tasks, but we can move the advanced OAuth features to Wave 3 as you requested. This approach maintains the critical path while giving you the flexibility you want."
-}
-
-**IMPORTANT:**
-- Be honest about blockers - don't say "feasible" if it will break the plan
-- Provide specific, actionable recommendations
-- Explain consequences clearly so user can make informed decision
-- If user's request is dangerous/impossible, say so and explain why
-`.trim();
-  }
-
-  /**
-   * Parse AI feedback analysis
-   */
-  private parseFeedbackAnalysis(responseText: string): {
-    feasible: boolean;
-    warnings: string[];
-    blockers: string[];
-    recommendations: string[];
-    requiresRegeneration: boolean;
-    analysis: string;
-  } {
-    try {
-      const cleaned = responseText
-        .replace(/```json\n?/g, "")
-        .replace(/```\n?/g, "")
-        .trim();
-
-      return JSON.parse(cleaned);
-    } catch (error) {
-      logger.error(`[${this.name}] Failed to parse feedback analysis`, 
-        error instanceof Error ? error : new Error(String(error)),
-        { preview: responseText.substring(0, 500) }
-      );
-
-      // Fallback
-      return {
-        feasible: false,
-        warnings: [],
-        blockers: ["Failed to analyze feedback - please try again"],
-        recommendations: [],
-        requiresRegeneration: false,
-        analysis: "Analysis failed",
-      };
-    }
-  }
-
-  /**
-   * Apply feedback changes to plan
-   * Only called AFTER user reviews consequences and clicks "Proceed"
-   */
-  async applyFeedback(
-    projectId: string,
-    feedback: any,
-    analysisResult: any
-  ): Promise<PlanningOutput> {
-    logger.info(`[${this.name}] Applying feedback to plan for ${projectId}`);
-
-    try {
-      const context = await prisma.projectContext.findUnique({
-        where: { projectId },
-        select: { executionPlan: true, techStack: true, blueprint: true },
-      });
-
-      if (!context?.executionPlan) {
-        throw new Error("No execution plan found");
-      }
-
-      const currentPlan = context.executionPlan as unknown as ExecutionPlan;
-
-      // If regeneration required, start from scratch
-      if (analysisResult.requiresRegeneration) {
-        logger.info(`[${this.name}] Full regeneration required`);
-
-        return await this.regeneratePlanWithFeedback(
-          projectId,
-          context,
-          feedback
-        );
-      }
-
-      // Otherwise, apply incremental changes
-      const updatedPlan = await this.applyIncrementalChanges(
-        currentPlan,
-        feedback,
-        analysisResult
-      );
-
-      // Store updated plan
-      await this.storePlanningResults(projectId, updatedPlan);
-
-      // Update tasks in database
-      await this.updateAgentTasks(projectId, updatedPlan.tasks);
-
-      // Increment revision count
-      await prisma.projectContext.update({
-        where: { projectId },
-        data: {
-          planRevisionCount: { increment: 1 },
-          planFeedback: feedback as any,
-        },
-      });
-
-      return {
-        success: true,
-        message: "Plan updated successfully based on your feedback",
-        plan: updatedPlan,
-      };
-    } catch (error) {
-      logger.error(`[${this.name}] Failed to apply feedback`, toError(error));
-      throw error;
-    }
-  }
-
-  /**
-   * Apply incremental changes without full regeneration
-   */
-  private async applyIncrementalChanges(
-    currentPlan: ExecutionPlan,
-    feedback: any,
-    analysisResult: any
-  ): Promise<ExecutionPlan> {
-    const updatedPlan = JSON.parse(JSON.stringify(currentPlan)); // Deep clone
-
-    // Apply structured changes
-    if (feedback.structuredChanges?.taskModifications) {
-      for (const mod of feedback.structuredChanges.taskModifications) {
-        const taskIndex = updatedPlan.tasks.findIndex(
-          (t: AtomicTask) => t.id === mod.taskId
-        );
-
-        if (taskIndex === -1) continue;
-
-        if (mod.action === "remove") {
-          updatedPlan.tasks.splice(taskIndex, 1);
-        } else if (mod.action === "modify" && mod.changes) {
-          Object.assign(updatedPlan.tasks[taskIndex], mod.changes);
-        }
-      }
-    }
-
-    // Apply priority changes
-    if (feedback.structuredChanges?.priorityChanges) {
-      for (const change of feedback.structuredChanges.priorityChanges) {
-        const task = updatedPlan.tasks.find(
-          (t: AtomicTask) => t.id === change.taskId
-        );
-        if (task) {
-          task.priority = change.newPriority;
-        }
-      }
-    }
-
-    // Recalculate phases and critical path
-    updatedPlan.totalEstimatedHours = updatedPlan.tasks.reduce(
-      (sum: number, t: AtomicTask) => sum + t.estimatedHours,
-      0
-    );
-
-    return updatedPlan;
-  }
-
-  /**
-   * Regenerate entire plan with feedback incorporated
-   */
-  private async regeneratePlanWithFeedback(
-    projectId: string,
-    context: any,
-    feedback: any
-  ): Promise<PlanningOutput> {
-    logger.info(`[${this.name}] Regenerating plan with feedback`);
-
-    // Build enhanced prompt with feedback
-    const promptWithFeedback = `
-${this.buildPlanningPrompt(context)}
-
-**USER FEEDBACK TO INCORPORATE:**
-${feedback.freeformFeedback || ""}
-
-${JSON.stringify(feedback.structuredChanges, null, 2)}
-
-Please regenerate the execution plan taking the user's feedback into account.
-`;
-
-    const result = await this.model.generateContent(promptWithFeedback);
-    const responseText = result.response.text();
-    const newPlan = this.parsePlanningResponse(responseText);
-
-    return {
-      success: true,
-      message: "Plan regenerated with your feedback",
-      plan: newPlan,
-    };
-  }
-
-  /**
-   * Update existing AgentTask records
-   */
-  private async updateAgentTasks(
-    projectId: string,
-    updatedTasks: AtomicTask[]
-  ): Promise<void> {
-    // Delete all existing tasks
-    await prisma.agentTask.deleteMany({
-      where: { projectId, status: "pending" },
+  private async getProjectContext(projectId: string) {
+    const context = await prisma.projectContext.findUnique({
+      where: { projectId },
     });
 
-    // Create new tasks
-    await this.createAgentTasks(projectId, updatedTasks);
+    if (!context) {
+      return null;
+    }
 
-    logger.info(`[${this.name}] Updated ${updatedTasks.length} agent tasks`);
+    const architecture = context.architecture as any;
+    const validation = architecture?.validation;
+
+    return {
+      blueprint: context.blueprint,
+      techStack: context.techStack,
+      validation: validation,
+    };
   }
 
   /**

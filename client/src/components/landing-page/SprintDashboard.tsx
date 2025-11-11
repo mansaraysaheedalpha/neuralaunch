@@ -1,19 +1,28 @@
-// src/components/landing-page/SprintDashboard.tsx
+// src/components/landing-page/SprintDashboard.tsx - ENHANCED VERSION
 "use client";
 
 import { useState } from "react";
 import useSWR from "swr";
 import { motion } from "framer-motion";
-import { Task, TaskOutput } from "@prisma/client"; // Import TaskStatus
+import { Task, TaskOutput } from "@prisma/client";
 import TaskCard from "./TaskCard";
 import AIAssistantModal from "./AIAssistantModal";
 import SprintAnalytics from "./SprintAnalytics";
 import SprintAchievements from "./SprintAchievements";
-import { useRouter } from "next/navigation"; // *** ADDED: For navigation ***
-import { Bot } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Bot, ArrowRight, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
 import { trackEvent } from "@/lib/analytics";
 import { logger } from "@/lib/logger";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 interface SprintData {
   tasks: Array<Task & { outputs: TaskOutput[] }>;
@@ -36,10 +45,12 @@ const fetcher = (url: string): Promise<SprintData> =>
 
 export default function SprintDashboard({
   conversationId,
-  landingPageId, // This is the projectId for the agent
+  landingPageId,
+  blueprint, // NEW: Pass blueprint text
 }: {
   conversationId: string;
   landingPageId: string;
+  blueprint?: string; // Optional blueprint text
 }) {
   const router = useRouter();
   const [isStarting, setIsStarting] = useState(false);
@@ -48,13 +59,15 @@ export default function SprintDashboard({
     null
   );
 
-  // --- FIX: Use the defined SprintData type for the SWR hook with explicit error typing ---
+  // NEW: Confirmation modal state
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [isBuilding, setIsBuilding] = useState(false);
+
   const { data, error, mutate } = useSWR<SprintData, Error>(
     `/api/sprint/${conversationId}`,
     fetcher,
     { revalidateOnFocus: false }
   );
-  // -----------------------------------------------------------
 
   const handleStartSprint = async () => {
     setIsStarting(true);
@@ -72,10 +85,8 @@ export default function SprintDashboard({
       trackEvent("start_validation_sprint", {
         conversationId: conversationId,
       });
-      // Re-fetch data after starting
-      await mutate(); // Await the mutation to ensure data is updated
+      await mutate();
     } catch (err: unknown) {
-      // Type the error
       toast.error(
         err instanceof Error ? err.message : "An unknown error occurred."
       );
@@ -90,35 +101,29 @@ export default function SprintDashboard({
       const response = await fetch(`/api/sprint/export/${conversationId}`);
 
       if (!response.ok) {
-        // Attempt to read error message as text first
         let errorMessage = `Failed to export sprint (Status: ${response.status})`;
         try {
-          // Try parsing as JSON if Content-Type suggests it
           if (
             response.headers.get("Content-Type")?.includes("application/json")
           ) {
             const errorData = (await response.json()) as ApiErrorResponse;
             if (errorData.message) errorMessage = errorData.message;
           } else {
-            // Otherwise, read as plain text
             const errorText = await response.text();
-            if (errorText) errorMessage = errorText; // Use text if available
+            if (errorText) errorMessage = errorText;
           }
         } catch (parseError) {
-          // If parsing fails either way, stick with the status message
           console.error("Failed to parse error response:", parseError);
         }
         throw new Error(errorMessage);
       }
 
-      // If response is OK, process the PDF blob
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      // Extract filename from header if possible, otherwise use default
       const disposition = response.headers.get("Content-Disposition");
-      let filename = `neuralaunch-report-${conversationId}.pdf`; // Default
+      let filename = `neuralaunch-report-${conversationId}.pdf`;
       if (disposition && disposition.indexOf("attachment") !== -1) {
         const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
         const matches = filenameRegex.exec(disposition);
@@ -141,22 +146,90 @@ export default function SprintDashboard({
     }
   };
 
-  // *** ADDED: Navigation Handler ***
-  const handleNavigateToAgent = () => {
-    if (landingPageId) {
-      trackEvent("navigate_to_agent_build", {
-        conversationId,
-        projectId: landingPageId,
+  // NEW: Show confirmation modal
+  const handleOpenConfirmModal = () => {
+    setShowConfirmModal(true);
+    trackEvent("clicked_build_with_agents", {
+      conversationId,
+      projectId: landingPageId,
+    });
+  };
+
+  // NEW: Confirmed build action
+  const handleConfirmBuild = async () => {
+    if (!landingPageId) {
+      toast.error("Project ID is missing, cannot start build.");
+      logger.error("[SprintDashboard] Missing landingPageId for agent build.");
+      return;
+    }
+
+    setIsBuilding(true);
+
+    try {
+      // Calculate sprint analytics for priority hints
+      const completedTasks =
+        data?.tasks.filter((t) => t.status === "completed") || [];
+      const sprintAnalytics = {
+        completedCount: completedTasks.length,
+        totalCount: data?.tasks.length || 0,
+        completionRate: data?.tasks.length
+          ? (completedTasks.length / data.tasks.length) * 100
+          : 0,
+      };
+
+      // Call orchestrator API with blueprint source
+      const response = await fetch("/api/orchestrator/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceType: "blueprint",
+          conversationId: conversationId,
+          blueprint: blueprint || "", // Use provided blueprint
+          sprintData: {
+            completedTasks: completedTasks.map((t) => ({
+              id: t.id,
+              title: t.title,
+              status: t.status,
+            })),
+            analytics: sprintAnalytics,
+            validationResults: {
+              validated: completedTasks.length > 0,
+              features: completedTasks.map((t) => t.title),
+            },
+          },
+          async: true,
+        }),
       });
-      router.push(`/agent-build/${landingPageId}`); // Navigate to the agent page
-    } else {
-      toast.error("Project ID is missing, cannot navigate to agent builder.");
-      logger.error(
-        "[SprintDashboard] Missing landingPageId for agent navigation."
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to start build");
+      }
+
+      const result = await response.json();
+
+      trackEvent("started_agent_build", {
+        conversationId,
+        projectId: result.projectId,
+        validatedTasks: completedTasks.length,
+      });
+
+      toast.success("AI Agents are building your MVP! Redirecting...");
+
+      // Redirect to execution dashboard
+      setTimeout(() => {
+        router.push(`/agent-build/${result.projectId}/execution`);
+      }, 1500);
+    } catch (error) {
+      console.error("Build start error:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to start build"
       );
+      setIsBuilding(false);
+      setShowConfirmModal(false);
     }
   };
-  // Error state handling remains the same
+
   if (error) {
     return (
       <div className="text-red-500 p-8">
@@ -164,16 +237,16 @@ export default function SprintDashboard({
       </div>
     );
   }
-  // Loading state handling remains the same
+
   if (!data) {
     return <div className="text-center p-8">Loading Sprint Dashboard...</div>;
   }
 
-  // --- FIX: Safely access tasks from typed data ---
-  // Default to empty array if data.tasks is somehow undefined/null
   const tasks = data?.tasks ?? [];
   const hasTasks = tasks.length > 0;
-  // ------------------------------------------------
+  const completedCount = tasks.filter((t) => t.status === "completed").length;
+  const totalCount = tasks.length;
+  const hasValidation = completedCount > 0;
 
   return (
     <div>
@@ -182,10 +255,116 @@ export default function SprintDashboard({
         onClose={() => setActiveAssistantTask(null)}
       />
 
+      {/* NEW: Confirmation Modal */}
+      <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-2xl">
+              <Sparkles className="w-6 h-6 text-primary" />
+              Ready to Build Your MVP?
+            </DialogTitle>
+            <DialogDescription className="text-base pt-4">
+              {hasValidation ? (
+                <div className="space-y-4">
+                  <p className="text-foreground font-medium">
+                    Your sprint validation shows:
+                  </p>
+                  <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                      <span className="text-foreground">
+                        {completedCount} of {totalCount} tasks completed
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                      <span className="text-foreground">
+                        Positive market signals detected
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                      <span className="text-foreground">
+                        Clear value proposition validated
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <p className="text-foreground font-medium mb-2">
+                      Our AI agents will now:
+                    </p>
+                    <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                      <li>Analyze your blueprint and sprint results</li>
+                      <li>Create a technical architecture</li>
+                      <li>Build your full-stack application</li>
+                      <li>Set up testing and deployment</li>
+                    </ol>
+                  </div>
+
+                  <div className="pt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                    <span className="font-medium">Estimated time:</span>
+                    <span>20-30 minutes</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-foreground">
+                    You haven&apos;t completed any validation tasks yet. We
+                    recommend completing at least a few tasks to validate your
+                    idea before building.
+                  </p>
+                  <p className="text-muted-foreground">
+                    However, you can still proceed if you&apos;re confident in
+                    your vision.
+                  </p>
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowConfirmModal(false)}
+              disabled={isBuilding}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmBuild}
+              disabled={isBuilding}
+              className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+            >
+              {isBuilding ? (
+                <>
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{
+                      duration: 1,
+                      repeat: Infinity,
+                      ease: "linear",
+                    }}
+                    className="mr-2"
+                  >
+                    <Bot className="w-4 h-4" />
+                  </motion.div>
+                  Starting Agents...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Start Building
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Main Dashboard Header */}
       <div className="mb-8 p-6 bg-card border border-border rounded-2xl">
         <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
-          {" "}
-          {/* Adjusted layout for responsiveness */}
           <div>
             <h2 className="text-3xl font-bold text-foreground">
               🚀 72-Hour Validation Sprint
@@ -195,20 +374,24 @@ export default function SprintDashboard({
               idea.
             </p>
           </div>
-          {/* Action Buttons appear once sprint tasks exist */}
+
+          {/* Action Buttons - Shown once sprint tasks exist */}
           {hasTasks && (
             <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto self-start sm:self-center">
-
+              {/* ENHANCED: Build with AI Agents Button */}
               <motion.button
-                onClick={handleNavigateToAgent} // Use new handler
+                onClick={handleOpenConfirmModal}
+                disabled={isBuilding}
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.98 }}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm font-semibold rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-md disabled:opacity-50"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm font-semibold rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-md disabled:opacity-50 ring-2 ring-purple-400/30"
               >
-                <Bot className="w-4 h-4" /> {/* AI/Agent Icon */}
-                Engineer My MVP
+                <Bot className="w-5 h-5" />
+                Build with AI Agents
+                <ArrowRight className="w-4 h-4" />
               </motion.button>
-              {/* ********************* */}
+
+              {/* Export Report Button */}
               <button
                 onClick={() => void handleExport()}
                 disabled={isExporting}
@@ -221,7 +404,7 @@ export default function SprintDashboard({
         </div>
       </div>
 
-      {/* Sprint Start Button or Task List */}
+      {/* Sprint Start or Task List */}
       {!hasTasks ? (
         <div className="text-center py-12">
           <motion.button
