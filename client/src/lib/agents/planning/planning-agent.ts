@@ -150,6 +150,8 @@ export class PlanningAgent {
 
     this.anthropic = new Anthropic({
       apiKey,
+      timeout: 180000, // 3 minutes (180 seconds) timeout for Claude API calls
+      maxRetries: 2, // Retry failed requests up to 2 times
     });
   }
 
@@ -444,24 +446,61 @@ export class PlanningAgent {
    * Call Claude API with a prompt and return the response text
    */
   private async callClaude(prompt: string): Promise<string> {
-    const response = await this.anthropic.messages.create({
+    const startTime = Date.now();
+    logger.info(`[${this.name}] Calling Claude API...`, {
+      promptLength: prompt.length,
       model: AI_MODELS.CLAUDE,
-      max_tokens: 8192,
-      temperature: 0.3,
-      messages: [
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
     });
 
-    const textContent = response.content.find((c) => c.type === "text");
-    if (!textContent || textContent.type !== "text") {
-      throw new Error("No text response from Claude");
-    }
+    try {
+      const response = await this.anthropic.messages.create({
+        model: AI_MODELS.CLAUDE,
+        max_tokens: 8192,
+        temperature: 0.3,
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+      });
 
-    return textContent.text;
+      const duration = Date.now() - startTime;
+      logger.info(`[${this.name}] Claude API call completed`, {
+        duration: `${duration}ms`,
+        inputTokens: response.usage.input_tokens,
+        outputTokens: response.usage.output_tokens,
+      });
+
+      const textContent = response.content.find((c) => c.type === "text");
+      if (!textContent || textContent.type !== "text") {
+        throw new Error("No text response from Claude");
+      }
+
+      return textContent.text;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      logger.error(`[${this.name}] Claude API call failed`, {
+        duration: `${duration}ms`,
+        error: toError(error),
+      });
+
+      // Provide more helpful error messages for common issues
+      if (error instanceof Error) {
+        if (error.message.includes("timeout")) {
+          throw new Error(
+            "Claude API request timed out. The planning task may be too complex. Try simplifying your project requirements."
+          );
+        }
+        if (error.message.includes("rate limit")) {
+          throw new Error(
+            "API rate limit reached. Please wait a few moments and try again."
+          );
+        }
+      }
+
+      throw error;
+    }
   }
 
   // ==========================================

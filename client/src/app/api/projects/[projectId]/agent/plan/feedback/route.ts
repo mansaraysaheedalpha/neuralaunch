@@ -6,6 +6,9 @@ import { createApiLogger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 
+// Extend timeout for AI analysis operations
+export const maxDuration = 300; // 5 minutes
+
 // Request validation schema
 const feedbackSchema = z.object({
   conversationId: z.string().min(1),

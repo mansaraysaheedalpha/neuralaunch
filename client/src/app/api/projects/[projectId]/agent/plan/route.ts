@@ -6,6 +6,10 @@ import { createApiLogger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 
+// Extend timeout for long-running AI operations
+// Planning can take 1-3 minutes for Claude API calls
+export const maxDuration = 300; // 5 minutes (300 seconds) - max for Pro plan
+
 // Request validation schema
 const planRequestSchema = z.object({
   conversationId: z.string().min(1, "Conversation ID is required"),
