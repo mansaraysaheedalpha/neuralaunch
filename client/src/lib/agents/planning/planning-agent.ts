@@ -11,6 +11,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { AI_MODELS } from "@/lib/models";
 import { toError } from "@/lib/error-utils";
+import { createThoughtStream } from "@/lib/agents/thought-stream";
 
 // ==========================================
 // TYPES & INTERFACES
@@ -192,7 +193,12 @@ export class PlanningAgent {
   ): Promise<PlanningOutput> {
     const startTime = Date.now();
 
+    // Create thought stream
+    const thoughts = createThoughtStream(input.projectId, this.name);
+
     try {
+      await thoughts.starting("vision-based execution planning");
+      
       logger.info(`[${this.name}] Starting vision planning`, {
         projectId: input.projectId,
         projectName: input.projectName,
@@ -200,43 +206,60 @@ export class PlanningAgent {
       });
 
       // Step 1: Analyze vision text with AI
-      const analysis = await this.analyzeVision(input.visionText);
+      await thoughts.analyzing("project vision and extracting core features");
+      const analysis = await this.analyzeVision(input.visionText, thoughts);
 
       // Step 2: Extract technical requirements
+      await thoughts.thinking("technical requirements based on vision");
       const requirements = await this.extractRequirements(analysis, input);
 
       // Step 3: Design architecture
+      await thoughts.deciding("optimal technical architecture");
       const architecture = await this.designArchitecture(
         requirements,
-        input.techPreferences
+        input.techPreferences,
+        thoughts
       );
 
       // Step 4: Generate execution plan
+      await thoughts.thinking("building comprehensive execution plan prompt");
       const prompt = this.buildVisionPlanningPrompt(
         input,
         analysis,
         architecture
       );
 
+      await thoughts.accessing("Claude AI", "Generating detailed task breakdown");
       logger.info(`[${this.name}] Generating vision-based execution plan...`);
-      const responseText = await this.callClaude(prompt);
+      const responseText = await this.callClaude(prompt, thoughts);
 
       // Step 5: Parse and validate plan
+      await thoughts.analyzing("AI response and validating plan structure");
       const plan = this.parsePlanningResponse(responseText);
       this.validatePlan(plan);
+      
+      await thoughts.emit("analyzing", `Generated ${plan.tasks.length} atomic tasks across ${plan.phases.length} phases`, {
+        taskCount: plan.tasks.length,
+        phaseCount: plan.phases.length,
+      });
 
       // Step 6: Store results
+      await thoughts.accessing("database", "Storing execution plan");
       await this.storePlanningResults(input.projectId, plan, "vision", {
         visionText: input.visionText,
         projectName: input.projectName,
         analysis,
       });
 
+      await thoughts.executing("creating agent task records");
       await this.createAgentTasks(input.projectId, plan.tasks);
 
       const duration = Date.now() - startTime;
+      await thoughts.executing("logging planning execution");
       const executionId = await this.logExecution(input, plan, true, duration);
 
+      await thoughts.completing(`Vision planning complete with ${plan.tasks.length} tasks in ${duration}ms`);
+      
       logger.info(`[${this.name}] Vision planning completed`, {
         taskCount: plan.tasks.length,
         phases: plan.phases.length,
@@ -254,6 +277,8 @@ export class PlanningAgent {
         error instanceof Error ? error.message : "Unknown error";
       const duration = Date.now() - startTime;
 
+      await thoughts.error(errorMessage, { error: error instanceof Error ? error.stack : String(error) });
+      
       logger.error(`[${this.name}] Vision planning failed:`, toError(error));
 
       await this.logExecution(input, null, false, duration, errorMessage);
@@ -355,59 +380,86 @@ export class PlanningAgent {
   ): Promise<PlanningOutput> {
     const startTime = Date.now();
 
+    // Create thought stream
+    const thoughts = createThoughtStream(input.projectId, this.name);
+
     try {
+      await thoughts.starting("blueprint-based execution planning");
+      
       logger.info(
         `[${this.name}] Starting legacy planning for project ${input.projectId}`
       );
 
       // Step 1: Get project context (blueprint, tech stack, validation)
+      await thoughts.accessing("ProjectContext database", "Retrieving project data");
       const context = await this.getProjectContext(input.projectId);
 
       if (!context) {
+        await thoughts.error("Project context not found - Previous agents must complete first");
         throw new Error(
           "Project context not found. Run previous agents first."
         );
       }
 
       if (!context.validation) {
+        await thoughts.error("Validation results missing - Validation agent must run first");
         throw new Error(
           "Validation results not found. Run Validation Agent first."
         );
       }
 
       // Step 2: Check if project is feasible
+      await thoughts.analyzing("validation results and feasibility");
       if (!context.validation.feasible) {
+        await thoughts.error("Project not feasible - Blockers must be addressed first");
         throw new Error(
           "Project is not feasible according to validation. Address blockers first."
         );
       }
+      
+      await thoughts.deciding("Project is feasible - proceeding with planning");
 
       // Step 3: Generate planning prompt (using existing blueprint logic)
+      await thoughts.thinking("building comprehensive execution plan");
       const prompt = this.buildLegacyPlanningPrompt(context);
 
       // Step 4: Get AI planning analysis
+      await thoughts.accessing("Claude AI", "Generating atomic tasks and phases");
       logger.info(`[${this.name}] Requesting AI planning analysis...`);
-      const responseText = await this.callClaude(prompt);
+      const responseText = await this.callClaude(prompt, thoughts);
 
       // Step 5: Parse AI response
+      await thoughts.analyzing("AI response and extracting plan structure");
       const plan = this.parsePlanningResponse(responseText);
 
       // Step 6: Validate plan structure
+      await thoughts.thinking("validating task dependencies and critical path");
       this.validatePlan(plan);
+      
+      await thoughts.emit("analyzing", `Plan validated: ${plan.tasks.length} tasks, ${plan.phases.length} phases`, {
+        tasks: plan.tasks.length,
+        phases: plan.phases.length,
+        estimatedHours: plan.totalEstimatedHours,
+      });
 
       // Step 7: Store results in database
+      await thoughts.accessing("database", "Storing execution plan");
       await this.storePlanningResults(input.projectId, plan, "blueprint", {
         blueprint: context.blueprint,
         techStack: context.techStack,
       });
 
       // Step 8: Create AgentTask records for execution
+      await thoughts.executing("creating agent task records for execution");
       await this.createAgentTasks(input.projectId, plan.tasks);
 
       // Step 9: Log execution
       const duration = Date.now() - startTime;
+      await thoughts.executing("logging planning results");
       const executionId = await this.logExecution(input, plan, true, duration);
 
+      await thoughts.completing(`Planning complete with ${plan.tasks.length} tasks (~${plan.totalEstimatedHours}h) in ${duration}ms`);
+      
       logger.info(`[${this.name}] Legacy planning completed`, {
         projectId: input.projectId,
         taskCount: plan.tasks.length,
@@ -427,6 +479,8 @@ export class PlanningAgent {
         error instanceof Error ? error.message : "Unknown error";
       const duration = Date.now() - startTime;
 
+      await thoughts.error(errorMessage, { error: error instanceof Error ? error.stack : String(error) });
+      
       logger.error(`[${this.name}] Legacy planning failed:`, toError(error));
 
       await this.logExecution(input, null, false, duration, errorMessage);
@@ -445,7 +499,7 @@ export class PlanningAgent {
   /**
    * Call Claude API with a prompt and return the response text
    */
-  private async callClaude(prompt: string): Promise<string> {
+  private async callClaude(prompt: string, thoughts?: ReturnType<typeof createThoughtStream>): Promise<string> {
     const startTime = Date.now();
     logger.info(`[${this.name}] Calling Claude API...`, {
       promptLength: prompt.length,
@@ -466,6 +520,14 @@ export class PlanningAgent {
       });
 
       const duration = Date.now() - startTime;
+      
+      if (thoughts) {
+        await thoughts.emit("executing", `Claude API call completed in ${duration}ms`, {
+          inputTokens: response.usage.input_tokens,
+          outputTokens: response.usage.output_tokens,
+        });
+      }
+      
       logger.info(`[${this.name}] Claude API call completed`, {
         duration: `${duration}ms`,
         inputTokens: response.usage.input_tokens,
@@ -510,7 +572,11 @@ export class PlanningAgent {
   /**
    * Analyze vision text to extract intent, features, and goals
    */
-  private async analyzeVision(visionText: string): Promise<any> {
+  private async analyzeVision(visionText: string, thoughts?: ReturnType<typeof createThoughtStream>): Promise<any> {
+    if (thoughts) {
+      await thoughts.thinking("extracting project intent and core features from vision");
+    }
+    
     const prompt = `
 Analyze this project vision and extract key information:
 
@@ -537,7 +603,12 @@ Extract and return JSON with:
 IMPORTANT: Return ONLY the JSON object, with no markdown formatting, no code blocks, no explanations.
 `;
 
-    const responseText = await this.callClaude(prompt);
+    const responseText = await this.callClaude(prompt, thoughts);
+    
+    if (thoughts) {
+      await thoughts.analyzing("vision analysis results");
+    }
+    
     return this.extractAndParseJSON(responseText);
   }
 
@@ -564,7 +635,8 @@ IMPORTANT: Return ONLY the JSON object, with no markdown formatting, no code blo
    */
   private async designArchitecture(
     requirements: any,
-    techPreferences?: any
+    techPreferences?: any,
+    thoughts?: ReturnType<typeof createThoughtStream>
   ): Promise<any> {
     // Smart architecture design based on project type and requirements
     const architecture: any = {
@@ -574,6 +646,15 @@ IMPORTANT: Return ONLY the JSON object, with no markdown formatting, no code blo
       deployment:
         techPreferences?.deployment || this.inferDeployment(requirements),
     };
+
+    if (thoughts) {
+      await thoughts.emit("deciding", "Selected technical architecture", {
+        frontend: architecture.frontend,
+        backend: architecture.backend,
+        database: architecture.database,
+        deployment: architecture.deployment,
+      });
+    }
 
     return architecture;
   }

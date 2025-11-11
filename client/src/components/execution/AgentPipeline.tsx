@@ -1,18 +1,33 @@
 // src/components/execution/AgentPipeline.tsx
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   CheckCircle2, 
   Loader2, 
   Clock,
-  ArrowRight
+  ArrowRight,
+  Brain,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+
+interface Thought {
+  id: string;
+  agentName: string;
+  projectId: string;
+  type: string;
+  message: string;
+  timestamp: string;
+  metadata?: Record<string, any>;
+}
 
 interface AgentPipelineProps {
   currentPhase: string;
   completedPhases: string[];
+  projectId?: string;
   currentAgent?: {
     name: string;
     description: string;
@@ -51,8 +66,54 @@ const PHASE_PIPELINE = [
 export default function AgentPipeline({
   currentPhase,
   completedPhases,
+  projectId,
   currentAgent,
 }: AgentPipelineProps) {
+  const [thoughts, setThoughts] = useState<Thought[]>([]);
+  const [showThoughts, setShowThoughts] = useState(true);
+  const [isPolling, setIsPolling] = useState(false);
+
+  // Fetch thoughts from API
+  useEffect(() => {
+    if (!projectId) return;
+
+    const fetchThoughts = async () => {
+      try {
+        const response = await fetch(`/api/projects/${projectId}/thoughts`);
+        if (response.ok) {
+          const data = await response.json();
+          setThoughts(data.thoughts || []);
+        }
+      } catch (error) {
+        console.error("Failed to fetch thoughts:", error);
+      }
+    };
+
+    // Initial fetch
+    fetchThoughts();
+
+    // Poll for new thoughts while agent is active
+    if (currentPhase !== "plan_review" && currentPhase !== "complete") {
+      setIsPolling(true);
+      const interval = setInterval(fetchThoughts, 2000); // Poll every 2 seconds
+      return () => {
+        clearInterval(interval);
+        setIsPolling(false);
+      };
+    } else {
+      setIsPolling(false);
+    }
+  }, [projectId, currentPhase]);
+
+  // Get thoughts for current agent
+  const currentAgentThoughts = thoughts.filter(
+    (t) => t.agentName === currentAgent?.name || 
+           t.agentName === PHASE_PIPELINE.find(p => p.id === currentPhase)?.name.replace(" Agent", "")
+  );
+
+  // Get the most recent thought
+  const latestThought = currentAgentThoughts[currentAgentThoughts.length - 1];
+
   return (
     <Card>
       <CardHeader>
@@ -94,6 +155,20 @@ export default function AgentPipeline({
                 <p className="text-muted-foreground">
                   {currentAgent.description}
                 </p>
+                
+                {/* Current thought display */}
+                {latestThought && (
+                  <motion.div
+                    key={latestThought.id}
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-3 flex items-start gap-2 text-sm text-blue-600 dark:text-blue-400"
+                  >
+                    <Brain className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <span className="flex-1">{latestThought.message}</span>
+                  </motion.div>
+                )}
+                
                 <div className="mt-3 flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
                   <div className="flex gap-1">
                     <motion.div
@@ -117,6 +192,60 @@ export default function AgentPipeline({
               </div>
             </div>
           </motion.div>
+        )}
+
+        {/* Thought Process Section */}
+        {currentAgentThoughts.length > 0 && (
+          <div className="mb-6">
+            <button
+              onClick={() => setShowThoughts(!showThoughts)}
+              className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mb-3"
+            >
+              <Brain className="w-4 h-4" />
+              <span>Thought Process ({currentAgentThoughts.length})</span>
+              {showThoughts ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
+            </button>
+            
+            <AnimatePresence>
+              {showThoughts && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="space-y-2 max-h-64 overflow-y-auto rounded-lg bg-muted/30 p-3"
+                >
+                  {currentAgentThoughts.map((thought, index) => (
+                    <motion.div
+                      key={thought.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="flex items-start gap-2 text-xs"
+                    >
+                      <span className="text-muted-foreground mt-0.5">
+                        {getThoughtIcon(thought.type)}
+                      </span>
+                      <div className="flex-1">
+                        <span className="text-foreground/80">{thought.message}</span>
+                        {thought.metadata && Object.keys(thought.metadata).length > 0 && (
+                          <div className="text-muted-foreground mt-1 text-[10px]">
+                            {formatMetadata(thought.metadata)}
+                          </div>
+                        )}
+                      </div>
+                      <span className="text-muted-foreground text-[10px] whitespace-nowrap">
+                        {formatTime(thought.timestamp)}
+                      </span>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         )}
 
         {/* Phase Pipeline Progress */}
@@ -242,4 +371,39 @@ export default function AgentPipeline({
       </CardContent>
     </Card>
   );
+}
+
+// Helper function to get icon for thought type
+function getThoughtIcon(type: string): string {
+  const icons: Record<string, string> = {
+    starting: "🚀",
+    thinking: "🤔",
+    accessing: "🔌",
+    analyzing: "📊",
+    deciding: "💡",
+    executing: "⚙️",
+    completing: "✅",
+    error: "❌",
+  };
+  return icons[type] || "💭";
+}
+
+// Helper function to format metadata
+function formatMetadata(metadata: Record<string, any>): string {
+  const entries = Object.entries(metadata).filter(([key]) => !key.includes("error") && !key.includes("stack"));
+  if (entries.length === 0) return "";
+  
+  return entries
+    .map(([key, value]) => `${key}: ${typeof value === "object" ? JSON.stringify(value) : value}`)
+    .join(", ");
+}
+
+// Helper function to format timestamp
+function formatTime(timestamp: string): string {
+  try {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  } catch {
+    return "";
+  }
 }

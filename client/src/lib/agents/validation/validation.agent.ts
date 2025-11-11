@@ -9,6 +9,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { AI_MODELS } from "@/lib/models";
 import { toError, toLogContext } from "@/lib/error-utils";
+import { createThoughtStream } from "@/lib/agents/thought-stream";
 
 // ==========================================
 // TYPES & INTERFACES
@@ -109,32 +110,52 @@ export class ValidationAgent {
       `[${this.name}] Starting validation for project ${input.projectId}`
     );
 
+    // Create thought stream
+    const thoughts = createThoughtStream(input.projectId, this.name);
+
     try {
+      await thoughts.starting("feasibility validation and risk assessment");
+      
       // Step 1: Get project context
+      await thoughts.accessing("ProjectContext database", "Retrieving project blueprint and tech stack");
       const context = await this.getProjectContext(input.projectId);
 
       if (!context) {
+        await thoughts.error("Project context not found - Previous agents must complete first");
         throw new Error(
           "Project context not found. Run Analyzer and Research agents first."
         );
       }
 
+      await thoughts.analyzing("project requirements and proposed tech stack");
+      
       // Step 2: Generate validation prompt
+      await thoughts.thinking("building comprehensive validation criteria");
       const prompt = this.buildValidationPrompt(context);
 
       // Step 3: Get AI validation analysis
+      await thoughts.accessing("Google Gemini AI", "Requesting feasibility assessment");
       logger.info(`[${this.name}] Requesting AI validation analysis...`);
       const result = await this.model.generateContent(prompt);
       const responseText = result.response.text();
 
       // Step 4: Parse AI response
+      await thoughts.analyzing("AI validation results and risk factors");
       const validation = this.parseValidationResponse(responseText);
+      
+      await thoughts.emit("analyzing", `Feasibility score: ${validation.feasibilityScore.overall}/10`, {
+        feasible: validation.feasible,
+        risks: validation.risks.length,
+        blockers: validation.blockers.length,
+      });
 
       // Step 5: Store results in database
+      await thoughts.accessing("database", "Storing validation results");
       await this.storeValidationResults(input.projectId, validation);
 
       // Step 6: Log execution
       const duration = Date.now() - startTime;
+      await thoughts.executing("logging validation execution");
       const executionId = await this.logExecution(
         input,
         validation,
@@ -142,6 +163,12 @@ export class ValidationAgent {
         duration
       );
 
+      await thoughts.completing(
+        validation.feasible 
+          ? `Project validated as feasible (score: ${validation.feasibilityScore.overall}/10) in ${duration}ms`
+          : `Project has concerns (${validation.blockers.length} blockers found) in ${duration}ms`
+      );
+      
       logger.info(`[${this.name}] Validation completed`, {
         projectId: input.projectId,
         feasible: validation.feasible,
@@ -162,6 +189,8 @@ export class ValidationAgent {
         error instanceof Error ? error.message : "Unknown error";
       const duration = Date.now() - startTime;
 
+      await thoughts.error(errorMessage, { error: error instanceof Error ? error.stack : String(error) });
+      
       logger.error(`[${this.name}] Validation failed:`, toError(error));
 
       await this.logExecution(input, null, false, duration, errorMessage);

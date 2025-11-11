@@ -8,6 +8,7 @@ import { type ParsedBlueprint } from "@/lib/parsers/blueprint-parser";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { AITaskType, executeAITaskSimple } from "@/lib/ai-orchestrator";
+import { createThoughtStream } from "@/lib/agents/thought-stream";
 
 export interface TechRecommendation {
   category:
@@ -45,28 +46,48 @@ export class ResearchAgent {
       `[${this.name}] Starting research for project ${input.projectId}`
     );
 
+    // Create thought stream
+    const thoughts = createThoughtStream(input.projectId, this.name);
+
     try {
+      await thoughts.starting("technology research and analysis");
+      
       // Step 1: Get parsed blueprint from ProjectContext
+      await thoughts.accessing("ProjectContext database", "Retrieving analyzed blueprint");
       const context = await prisma.projectContext.findUnique({
         where: { projectId: input.projectId },
       });
 
       if (!context?.blueprint) {
+        await thoughts.error("No parsed blueprint found - Analyzer must run first");
         throw new Error("No parsed blueprint found. Run Analyzer first.");
       }
 
      const blueprintData = context.blueprint as any;
      const parsed = blueprintData.parsed || blueprintData;
-      logger.info(`[${this.name}] Retrieved blueprint: ${parsed.projectName}`);
+     
+     await thoughts.analyzing("project requirements", { 
+       projectName: parsed.projectName,
+       features: parsed.features?.length || 0,
+     });
+     logger.info(`[${this.name}] Retrieved blueprint: ${parsed.projectName}`);
 
       // Step 2: Research tech stack
+      await thoughts.thinking("optimal technology stack for project requirements");
       logger.info(`[${this.name}] Researching optimal tech stack...`);
-      const recommendations = await this.researchTechStack(parsed);
+      
+      await thoughts.accessing("AI Tech Researcher", "Consulting AI for technology recommendations");
+      const recommendations = await this.researchTechStack(parsed, thoughts);
 
       // Step 3: Determine architecture pattern
+      await thoughts.deciding("best architecture pattern for this project");
       const architecturePattern = this.determineArchitecturePattern(parsed);
+      await thoughts.emit("deciding", `Selected ${architecturePattern} architecture`, {
+        pattern: architecturePattern,
+      });
 
       // Step 4: Store in database
+      await thoughts.accessing("database", "Storing research recommendations");
       await this.storeInDatabase(
         input.projectId,
         recommendations,
@@ -75,6 +96,7 @@ export class ResearchAgent {
 
       // Step 5: Log execution
       const duration = Date.now() - startTime;
+      await thoughts.executing("logging research results");
       await this.logExecution(
         input.projectId,
         parsed,
@@ -83,6 +105,7 @@ export class ResearchAgent {
         duration
       );
 
+      await thoughts.completing(`Research complete with ${recommendations.length} technology recommendations in ${duration}ms`);
       logger.info(`[${this.name}] Research complete in ${duration}ms`);
 
       return {
@@ -92,6 +115,11 @@ export class ResearchAgent {
         message: `Successfully researched tech stack with ${recommendations.length} recommendations.`,
       };
     } catch (error) {
+      await thoughts.error(
+        error instanceof Error ? error.message : "Unknown error during research",
+        { error: error instanceof Error ? error.stack : String(error) }
+      );
+      
       logger.error(
         `[${this.name}] Research failed:`,
         error instanceof Error ? error : undefined
@@ -112,9 +140,15 @@ export class ResearchAgent {
    * Research optimal tech stack using AI
    */
   private async researchTechStack(
-    parsed: ParsedBlueprint
+    parsed: ParsedBlueprint,
+    thoughts?: ReturnType<typeof createThoughtStream>
   ): Promise<TechRecommendation[]> {
     const prompt = this.buildResearchPrompt(parsed);
+
+    if (thoughts) {
+      await thoughts.thinking("building research prompt for AI");
+      await thoughts.executing("querying AI for tech stack recommendations");
+    }
 
     const response = await executeAITaskSimple(
       AITaskType.AGENT_TECH_RESEARCHER,
@@ -125,6 +159,10 @@ export class ResearchAgent {
     );
 
     // Parse AI response
+    if (thoughts) {
+      await thoughts.analyzing("AI response and extracting recommendations");
+    }
+    
     const cleaned = this.cleanJsonResponse(response);
     const result = JSON.parse(cleaned);
 

@@ -12,6 +12,7 @@ import {
 } from "@/lib/parsers/blueprint-parser";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { createThoughtStream, type ThoughtStream } from "@/lib/agents/thought-stream";
 
 export interface AnalyzerInput {
   blueprint: string;
@@ -39,21 +40,42 @@ export class AnalyzerAgent {
       `[${this.name}] Starting analysis for conversation ${input.conversationId}`
     );
 
+    // Create thought stream for this execution
+    const thoughts = createThoughtStream(input.projectId || input.conversationId, this.name);
+
     try {
+      await thoughts.starting("blueprint analysis");
+      
       // Step 1: Parse the blueprint
+      await thoughts.accessing("blueprint parser", "Preparing to parse project blueprint");
       logger.info(`[${this.name}] Parsing blueprint...`);
+      
+      await thoughts.analyzing("blueprint structure and content");
       const parsed = parseBlueprint(input.blueprint);
 
       // Step 2: Get stats and validation
+      await thoughts.thinking("extracting statistics from parsed data");
       const stats = getBlueprintStats(parsed);
+      
+      await thoughts.thinking("validating blueprint completeness");
       const validation = validateParsedBlueprint(parsed);
 
+      await thoughts.emit("analyzing", `Found ${stats.featureCount} features and ${stats.techCount} technologies`, {
+        featureCount: stats.featureCount,
+        techCount: stats.techCount,
+      });
+      
       logger.info(
         `[${this.name}] Parsed ${stats.featureCount} features, ${stats.techCount} technologies`
       );
 
       if (!validation.valid) {
+        await thoughts.emit("deciding", `Found ${validation.errors.length} validation issues that need attention`, {
+          issues: validation.errors,
+        });
         logger.warn(`[${this.name}] Validation issues:`, { errors: validation.errors });
+      } else {
+        await thoughts.deciding("Blueprint validation passed - ready to proceed");
       }
 
       // Step 3: Determine or create projectId
@@ -62,13 +84,16 @@ export class AnalyzerAgent {
         `proj_${Date.now()}_${input.conversationId.slice(0, 8)}`;
 
       // Step 4: Store in database
+      await thoughts.accessing("database", "Storing analyzed data in ProjectContext");
       logger.info(`[${this.name}] Storing parsed data in ProjectContext...`);
       await this.storeInDatabase(projectId, input, parsed);
 
       // Step 5: Log execution
       const duration = Date.now() - startTime;
+      await thoughts.executing("logging analysis results");
       await this.logExecution(projectId, input, parsed, true, duration);
 
+      await thoughts.completing(`Analyzed blueprint with ${stats.featureCount} features in ${duration}ms`);
       logger.info(`[${this.name}] Analysis complete in ${duration}ms`);
 
       return {
@@ -82,6 +107,11 @@ export class AnalyzerAgent {
           : `Analysis complete with warnings: ${validation.errors.join(", ")}`,
       };
     } catch (error) {
+      await thoughts.error(
+        error instanceof Error ? error.message : "Unknown error occurred during analysis",
+        { error: error instanceof Error ? error.stack : String(error) }
+      );
+      
       logger.error(
         `[${this.name}] Analysis failed:`,
         error instanceof Error ? error : undefined
