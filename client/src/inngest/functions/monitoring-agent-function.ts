@@ -39,6 +39,8 @@ export const monitoringAgentFunction = inngest.createFunction(
         select: {
           techStack: true,
           architecture: true,
+          codebase: true,
+          currentPhase: true,
         },
       });
     });
@@ -47,9 +49,52 @@ export const monitoringAgentFunction = inngest.createFunction(
       throw new Error(`Project context not found for ${projectId}`);
     }
 
-    // Step 2: Validate deployment URL
+    // Step 2: Check if deployment exists before monitoring
+    // Monitoring should only run after successful deployment
+    const codebase = projectContext.codebase as any;
+    const hasDeployment = codebase?.deployments && 
+      Object.keys(codebase.deployments).length > 0;
+    
+    if (!hasDeployment && !taskInput.deploymentUrl) {
+      logger.warn(
+        `[Inngest] Monitoring skipped - no deployment exists yet`,
+        { projectId, currentPhase: projectContext.currentPhase }
+      );
+      
+      return {
+        success: false,
+        message: "Monitoring skipped: Application must be deployed before monitoring can start",
+        skipped: true,
+      };
+    }
+
+    // Step 3: Validate deployment URL
     if (!taskInput.deploymentUrl) {
-      throw new Error("Deployment URL is required for monitoring");
+      // Try to get deployment URL from stored deployments
+      const deployments = codebase?.deployments || {};
+      const productionDeployment = deployments.production || 
+        deployments.preview || 
+        Object.values(deployments)[0];
+      
+      if (!productionDeployment?.url) {
+        logger.warn(
+          `[Inngest] No deployment URL found for monitoring`,
+          { projectId }
+        );
+        
+        return {
+          success: false,
+          message: "Deployment URL is required for monitoring",
+          skipped: true,
+        };
+      }
+      
+      // Use the deployment URL from stored deployments
+      taskInput.deploymentUrl = productionDeployment.url as string;
+      logger.info(
+        `[Inngest] Using stored deployment URL for monitoring`,
+        { url: taskInput.deploymentUrl }
+      );
     }
 
     // Step 3: Create monitoring task
