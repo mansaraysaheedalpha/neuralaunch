@@ -351,3 +351,26 @@ function formatTimestamp(timestamp: string | Date): string {
     return "";
   }
 }
+
+// Export ThoughtStream as an alias for backward compatibility
+export const ThoughtStream = ThoughtStreamEnhanced;
+
+// Export skeleton component for loading states
+export function ThoughtStreamSkeleton() {
+  return (
+    <div className="space-y-3">
+      {[1, 2, 3].map((i) => (
+        <div
+          key={i}
+          className="flex items-start gap-3 p-3 rounded-lg bg-gray-100 dark:bg-gray-800 animate-pulse"
+        >
+          <div className="w-8 h-8 rounded-full bg-gray-300 dark:bg-gray-700" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-3/4" />
+            <div className="h-3 bg-gray-300 dark:bg-gray-700 rounded w-1/2" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
