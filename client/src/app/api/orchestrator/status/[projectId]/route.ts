@@ -65,10 +65,52 @@ export async function GET(
     });
 
     // 5. Calculate progress percentage and determine current agent
-    const phaseOrder = ["initializing", "analysis", "research", "validation", "planning", "plan_review", "complete"];
-    const totalPhases = 4; // analysis, research, validation, planning
-    const completedCount = status.completedPhases.length;
-    const progressPercentage = Math.round((completedCount / totalPhases) * 100);
+    // Full workflow: Planning (4 phases) -> Execution (waves) -> Deployment -> Monitoring
+    const phaseOrder = ["initializing", "analysis", "research", "validation", "planning", "plan_review", "wave_execution", "deployment", "monitoring", "complete"];
+    
+    // Calculate progress based on current phase
+    let progressPercentage = 0;
+    const currentPhase = status.currentPhase;
+    
+    if (currentPhase === "initializing") {
+      progressPercentage = 5;
+    } else if (currentPhase === "analysis") {
+      progressPercentage = 15;
+    } else if (currentPhase === "research") {
+      progressPercentage = 25;
+    } else if (currentPhase === "validation") {
+      progressPercentage = 35;
+    } else if (currentPhase === "planning") {
+      progressPercentage = 45;
+    } else if (currentPhase === "plan_review") {
+      progressPercentage = 50; // Planning complete, awaiting approval
+    } else if (currentPhase === "wave_execution") {
+      // During execution, progress from 50% to 80% based on wave completion
+      const totalWaves = await prisma.executionWave.count({
+        where: { projectId },
+      });
+      const completedWaves = await prisma.executionWave.count({
+        where: { projectId, status: "completed" },
+      });
+      
+      if (totalWaves > 0) {
+        const waveProgress = (completedWaves / totalWaves) * 30; // 30% allocated for execution
+        progressPercentage = 50 + Math.round(waveProgress);
+      } else {
+        progressPercentage = 55; // Default if no waves yet
+      }
+    } else if (currentPhase === "deployment") {
+      progressPercentage = 85;
+    } else if (currentPhase === "monitoring") {
+      progressPercentage = 95;
+    } else if (currentPhase === "complete") {
+      progressPercentage = 100;
+    } else {
+      // Fallback for unknown phases
+      const totalPhases = 4; // analysis, research, validation, planning
+      const completedCount = status.completedPhases.length;
+      progressPercentage = Math.min(50, Math.round((completedCount / totalPhases) * 50));
+    }
 
     // Determine current agent based on phase
     const phaseToAgent: Record<string, { name: string; description: string; icon: string }> = {
@@ -102,6 +144,21 @@ export async function GET(
         description: "Plan completed! Ready for your review and approval",
         icon: "👁️",
       },
+      wave_execution: {
+        name: "Execution Agents",
+        description: "Building your application in waves",
+        icon: "🚀",
+      },
+      deployment: {
+        name: "Deployment Agent",
+        description: "Deploying your application to production",
+        icon: "☁️",
+      },
+      monitoring: {
+        name: "Monitoring Agent",
+        description: "Monitoring application health and performance",
+        icon: "📊",
+      },
       complete: {
         name: "Complete",
         description: "All phases completed successfully",
@@ -122,13 +179,13 @@ export async function GET(
       currentPhase: status.currentPhase,
       completedPhases: status.completedPhases,
       progress: progressPercentage,
-      isComplete: status.currentPhase === "complete" || status.currentPhase === "plan_review",
+      isComplete: status.currentPhase === "complete",
       lastUpdated: status.lastUpdated,
       currentAgent,
       phaseDetails: {
         order: phaseOrder,
-        total: totalPhases,
-        completed: completedCount,
+        total: phaseOrder.length, // Total phases in the workflow
+        completed: status.completedPhases.length,
       },
       executions: executions.map((e) => ({
         agent: e.agentName,
