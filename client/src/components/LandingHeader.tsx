@@ -14,7 +14,7 @@ export default function LandingHeader() {
 
   return (
     // Fixed positioning for the landing page header
-    <header className="fixed top-0 left-0 right-0 z-50 p-4 sm:px-6 lg:px-8 py-5 bg-background/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-border/50">
+    <header className="fixed top-0 left-0 right-0 z-50 px-4 sm:px-6 lg:px-8 py-4 bg-background/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-border/30 shadow-sm">
       <div className="w-full max-w-7xl mx-auto flex items-center justify-between">
         {/* Logo and Title Section */}
         <Link href="/" className="flex items-center space-x-3 group">
@@ -43,18 +43,25 @@ export default function LandingHeader() {
         </Link>
 
         {/* Navigation Links and Action Buttons */}
-        <div className="flex items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-1 sm:gap-3">
           {/* About Us Link */}
           <Link
             href="/about"
-            className="hidden md:inline-flex items-center px-3 py-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors"
+            className="hidden md:inline-flex items-center px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors rounded-lg hover:bg-muted/50"
           >
             About Us
+          </Link>
+          {/* Pricing Link */}
+          <Link
+            href="/pricing"
+            className="hidden md:inline-flex items-center px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors rounded-lg hover:bg-muted/50"
+          >
+            Pricing
           </Link>
           {/* FAQ Link */}
           <Link
             href="/faq"
-            className="hidden md:inline-flex items-center px-3 py-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors"
+            className="hidden md:inline-flex items-center px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors rounded-lg hover:bg-muted/50"
           >
             FAQ
           </Link>
@@ -63,7 +70,7 @@ export default function LandingHeader() {
             href={FEEDBACK_FORM_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-foreground bg-muted hover:bg-border rounded-full transition-colors" // Adjusted style
+            className="hidden sm:inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground bg-muted/50 hover:bg-muted rounded-lg transition-colors"
           >
             <span>Feedback</span>
             <span>💬</span>
