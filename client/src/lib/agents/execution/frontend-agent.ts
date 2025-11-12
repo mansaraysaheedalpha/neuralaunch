@@ -13,6 +13,7 @@ import {
 import { AI_MODELS } from "@/lib/models";
 import { logger } from "@/lib/logger";
 import { toError, toLogContext } from "@/lib/error-utils";
+import { createThoughtStream } from "../thought-stream";
 
 export class FrontendAgent extends BaseAgent {
   constructor() {
@@ -37,6 +38,9 @@ export class FrontendAgent extends BaseAgent {
   async executeTask(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
     const { taskId, projectId, userId, taskDetails, context } = input;
 
+    // Create thought stream for real-time updates
+    const thoughts = createThoughtStream(projectId, this.config.name);
+
     // ✅ Check if this is a fix request
     const isFixMode = taskDetails.mode === "fix";
 
@@ -48,7 +52,7 @@ export class FrontendAgent extends BaseAgent {
           issuesCount: taskDetails.issuesToFix?.length || 0,
         }
       );
-
+      await thoughts.starting("fixing issues from code review");
       return await this.executeFixMode(input);
     }
 
@@ -58,9 +62,13 @@ export class FrontendAgent extends BaseAgent {
     );
 
     try {
+      await thoughts.starting(`frontend implementation: ${taskDetails.title}`);
+      await thoughts.analyzing("task requirements and dependencies");
+      
       const implementation = await this.generateImplementation(input);
 
       if (!implementation) {
+        await thoughts.error("Failed to generate implementation plan");
         return {
           success: false,
           message: "Failed to generate implementation",
@@ -70,12 +78,14 @@ export class FrontendAgent extends BaseAgent {
         };
       }
 
+      await thoughts.executing(`writing ${implementation.files.length} files`);
       const filesResult = await this.writeFiles(implementation.files, {
         projectId,
         userId,
       });
 
       if (!filesResult.success) {
+        await thoughts.error(`Failed to write files: ${filesResult.error}`);
         return {
           success: false,
           message: "Failed to write files",
@@ -86,6 +96,7 @@ export class FrontendAgent extends BaseAgent {
         };
       }
 
+      await thoughts.executing(`running ${implementation.commands.length} setup commands`);
       const commandsResult = await this.runCommands(implementation.commands, {
         projectId,
         userId,
@@ -105,6 +116,7 @@ export class FrontendAgent extends BaseAgent {
         };
       }
 
+      await thoughts.analyzing("verifying implementation quality");
       const verification = await this.verifyImplementation(
         filesResult.files,
         commandsResult.commands,
@@ -112,6 +124,7 @@ export class FrontendAgent extends BaseAgent {
       );
 
       if (!verification.passed) {
+        await thoughts.error(`Verification failed: ${verification.issues.join(", ")}`);
         return {
           success: false,
           message: "Verification failed",
@@ -124,6 +137,8 @@ export class FrontendAgent extends BaseAgent {
           },
         };
       }
+
+      await thoughts.completing(`Successfully implemented ${filesResult.files.length} files with ${commandsResult.commands.length} commands`);
 
       return {
         success: true,
@@ -140,6 +155,7 @@ export class FrontendAgent extends BaseAgent {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       logger.error(`[${this.config.name}] Task execution failed`, toError(error));
+      await thoughts.error(`Task execution failed: ${errorMessage}`);
 
       return {
         success: false,

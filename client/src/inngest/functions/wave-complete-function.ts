@@ -477,6 +477,45 @@ Test the changes live before approving this PR. The preview includes all code fr
         return pendingCount > 0;
       });
 
+      // ==========================================
+      // STEP 9: TRIGGER NEXT WAVE OR COMPLETE PROJECT
+      // ==========================================
+      if (hasMoreTasks) {
+        // More waves to execute - trigger next wave
+        await step.run("trigger-next-wave", async () => {
+          log.info(`[Wave ${waveNumber}] Triggering Wave ${waveNumber + 1}`);
+          
+          await inngest.send({
+            name: "agent/wave.start",
+            data: {
+              projectId,
+              userId,
+              conversationId,
+              waveNumber: waveNumber + 1,
+            },
+          });
+        });
+      } else {
+        // No more waves - project is complete
+        await step.run("mark-project-complete", async () => {
+          log.info(`[Project] All waves complete! Marking project as completed`);
+          
+          await prisma.projectContext.update({
+            where: { projectId },
+            data: { 
+              currentPhase: "completed",
+              updatedAt: new Date(),
+            },
+          });
+
+          // TODO: Could trigger additional completion tasks here:
+          // - Generate final documentation
+          // - Merge all wave PRs into main
+          // - Send completion notification to user
+          // - Trigger production deployment (if user approved)
+        });
+      }
+
       return {
         success: true,
         waveNumber,
@@ -486,7 +525,9 @@ Test the changes live before approving this PR. The preview includes all code fr
         hasMoreWaves: hasMoreTasks,
         criticScore: reviewScore,
         hasWarnings,
-        message: `Wave ${waveNumber} complete! Preview: ${previewUrl || "N/A"}`,
+        message: hasMoreTasks 
+          ? `Wave ${waveNumber} complete! Starting Wave ${waveNumber + 1}...`
+          : `Wave ${waveNumber} complete! All waves finished - project completed! 🎉`,
       };
     } catch (error) {
       const errorMessage =
