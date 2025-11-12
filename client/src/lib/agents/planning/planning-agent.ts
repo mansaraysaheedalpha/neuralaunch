@@ -551,33 +551,23 @@ export class PlanningAgent {
     thoughts?: ReturnType<typeof createThoughtStream>
   ): Promise<string> {
     const startTime = Date.now();
-    const estimatedTokens = Math.ceil(prompt.length / 4);
-    logger.info(`[${this.name}] Calling GPT-4o API with JSON mode...`, {
+    const estimatedTokens = Math.ceil(prompt.length / 4); // Rough estimate: 1 token ≈ 4 chars
+    logger.info(`[${this.name}] Calling GPT-4o API...`, {
       promptLength: prompt.length,
       estimatedTokens,
       model: AI_MODELS.OPENAI,
     });
 
     try {
-      // GPT-4o's JSON mode ensures valid JSON output
-      const enhancedPrompt = `${prompt}
-
-Your response must be a valid JSON object only. No other text.`;
-
       const response = await this.openai.chat.completions.create({
         model: AI_MODELS.OPENAI,
         messages: [
           {
-            role: "system",
-            content:
-              "You are a technical planning assistant. You always respond with valid JSON only, no markdown, no explanations.",
-          },
-          {
             role: "user",
-            content: enhancedPrompt,
+            content: prompt,
           },
         ],
-        response_format: { type: "json_object" }, // Forces valid JSON output
+        response_format: { type: "json_object" },
         max_tokens: 16000,
         temperature: 0.3,
       });
@@ -595,13 +585,12 @@ Your response must be a valid JSON object only. No other text.`;
         );
       }
 
-      logger.info(
-        `[${this.name}] 💭 GPT-4o API call completed in ${duration}ms`,
-        {
-          inputTokens: response.usage?.prompt_tokens,
-          outputTokens: response.usage?.completion_tokens,
-        }
-      );
+      logger.info(`[${this.name}] 💭 GPT-4o API call completed in ${duration}ms`, {
+        inputTokens: response.usage?.prompt_tokens,
+        outputTokens: response.usage?.completion_tokens,
+        promptChars: prompt.length,
+        estimatedVsActual: `${estimatedTokens} est. vs ${response.usage?.prompt_tokens} actual`,
+      });
 
       const content = response.choices[0]?.message?.content;
       if (!content) {
@@ -616,6 +605,7 @@ Your response must be a valid JSON object only. No other text.`;
         error: toError(error),
       });
 
+      // Provide more helpful error messages for common issues
       if (error instanceof Error) {
         if (error.message.includes("timeout")) {
           throw new Error(
