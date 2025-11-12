@@ -13,6 +13,13 @@ export const maxDuration = 300; // 5 minutes (300 seconds) - max for Pro plan
 // Request validation schema
 const planRequestSchema = z.object({
   conversationId: z.string().min(1, "Conversation ID is required"),
+  options: z
+    .object({
+      enableDeepDive: z.boolean().optional(),
+      useExtendedThinking: z.boolean().optional(),
+      useChainOfThought: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 /**
@@ -111,13 +118,19 @@ export async function POST(
     }
 
     // 6. Execute planning agent
-    logger.info("Executing planning agent", { projectId: projectId });
-
-    const result = await planningAgent.execute({
+    logger.info("Executing planning agent", { 
       projectId: projectId,
-      userId,
-      conversationId: validatedBody.conversationId,
+      options: validatedBody.options,
     });
+
+    const result = await planningAgent.execute(
+      {
+        projectId: projectId,
+        userId,
+        conversationId: validatedBody.conversationId,
+      },
+      validatedBody.options
+    );
 
     if (!result.success) {
       logger.error("Planning execution failed", new Error(result.message), {
