@@ -17,7 +17,19 @@ import {
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -106,7 +118,7 @@ const fetcher = async (url: string) => {
   if (!res.ok) {
     const contentType = res.headers.get("content-type");
     if (contentType && contentType.includes("application/json")) {
-      const errorData = await res.json() as { error?: string };
+      const errorData = (await res.json()) as { error?: string };
       throw new Error(errorData.error ?? `HTTP ${res.status}`);
     }
     throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -117,13 +129,14 @@ const fetcher = async (url: string) => {
 export default function PlanReviewPage({ params }: PlanReviewPageProps) {
   const { id: projectId } = use(params);
   const router = useRouter();
-  
+
   // State
   const [feedback, setFeedback] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<FeedbackAnalysisResult | null>(null);
+  const [analysisResult, setAnalysisResult] =
+    useState<FeedbackAnalysisResult | null>(null);
 
   // Fetch project and plan data
   const { data: project, error: projectError } = useSWR<Project>(
@@ -147,25 +160,31 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
 
     setIsAnalyzing(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}/agent/plan/feedback`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conversationId: project?.conversationId || projectId,
-          freeformFeedback: feedback,
-        }),
-      });
+      const response = await fetch(
+        `/api/projects/${projectId}/agent/plan/feedback`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            conversationId: project?.conversationId || projectId,
+            freeformFeedback: feedback,
+          }),
+        }
+      );
 
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to analyze feedback");
       }
 
-      const result = await response.json() as { analysis: FeedbackAnalysisResult };
+      const result = (await response.json()) as {
+        analysis: FeedbackAnalysisResult;
+      };
       setAnalysisResult(result.analysis);
       toast.success("Feedback analyzed successfully");
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to analyze feedback";
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to analyze feedback";
       toast.error(errorMessage);
       console.error("Feedback analysis error:", error);
     } finally {
@@ -187,16 +206,19 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
 
     setIsApplying(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}/agent/plan/apply`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conversationId: project?.conversationId || projectId,
-          feedback,
-          analysisResult,
-          action: "proceed",
-        }),
-      });
+      const response = await fetch(
+        `/api/projects/${projectId}/agent/plan/apply`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            conversationId: project?.conversationId || projectId,
+            feedback,
+            analysisResult,
+            action: "proceed",
+          }),
+        }
+      );
 
       if (!response.ok) {
         const error = await response.json();
@@ -205,15 +227,16 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
 
       const result = await response.json();
       toast.success("Plan updated successfully!");
-      
+
       // Clear feedback and analysis
       setFeedback("");
       setAnalysisResult(null);
-      
+
       // Refresh plan data
       void mutate(`/api/projects/${projectId}/agent/plan`);
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to apply feedback";
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to apply feedback";
       toast.error(errorMessage);
       console.error("Apply feedback error:", error);
     } finally {
@@ -225,16 +248,19 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
   const handleRevertPlan = async () => {
     setIsApplying(true);
     try {
-      const response = await fetch(`/api/projects/${projectId}/agent/plan/apply`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conversationId: project?.conversationId || projectId,
-          feedback: null,
-          analysisResult: null,
-          action: "revert",
-        }),
-      });
+      const response = await fetch(
+        `/api/projects/${projectId}/agent/plan/apply`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            conversationId: project?.conversationId || projectId,
+            feedback: null,
+            analysisResult: null,
+            action: "revert",
+          }),
+        }
+      );
 
       if (!response.ok) {
         const error = await response.json();
@@ -246,7 +272,8 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
       setAnalysisResult(null);
       void mutate(`/api/projects/${projectId}/agent/plan`);
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to revert plan";
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to revert plan";
       toast.error(errorMessage);
       console.error("Revert plan error:", error);
     } finally {
@@ -274,7 +301,8 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
       toast.success("Execution started!");
       router.push(`/projects/${projectId}/execution`);
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to start execution";
+      const errorMessage =
+        error instanceof Error ? error.message : "Failed to start execution";
       toast.error(errorMessage);
       console.error("Start execution error:", error);
     } finally {
@@ -295,7 +323,9 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground mb-4">
-              {projectError?.message || planError?.message || "Failed to load plan data"}
+              {projectError?.message ||
+                planError?.message ||
+                "Failed to load plan data"}
             </p>
             <Button onClick={() => router.push(`/projects/${projectId}`)}>
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -332,7 +362,8 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground mb-4">
-              No execution plan has been generated yet. Please run the planning agent first.
+              No execution plan has been generated yet. Please run the planning
+              agent first.
             </p>
             <Button onClick={() => router.push(`/projects/${projectId}`)}>
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -413,20 +444,34 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                   <CardContent className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <p className="text-sm text-muted-foreground">Total Tasks</p>
-                        <p className="text-2xl font-bold">{plan.tasks?.length || 0}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Total Tasks
+                        </p>
+                        <p className="text-2xl font-bold">
+                          {plan.tasks?.length || 0}
+                        </p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Phases</p>
-                        <p className="text-2xl font-bold">{plan.phases?.length || 0}</p>
+                        <p className="text-2xl font-bold">
+                          {plan.phases?.length || 0}
+                        </p>
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Estimated Hours</p>
-                        <p className="text-2xl font-bold">{plan.totalEstimatedHours || 0}h</p>
+                        <p className="text-sm text-muted-foreground">
+                          Estimated Hours
+                        </p>
+                        <p className="text-2xl font-bold">
+                          {plan.totalEstimatedHours || 0}h
+                        </p>
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Critical Path</p>
-                        <p className="text-2xl font-bold">{plan.criticalPath?.length || 0} tasks</p>
+                        <p className="text-sm text-muted-foreground">
+                          Critical Path
+                        </p>
+                        <p className="text-2xl font-bold">
+                          {plan.criticalPath?.length || 0} tasks
+                        </p>
                       </div>
                     </div>
                   </CardContent>
@@ -438,22 +483,58 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                     <CardTitle>Execution Phases</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-3">
+                    <Accordion type="multiple" className="w-full space-y-3">
                       {plan.phases?.map((phase, index: number) => (
-                        <div
+                        <AccordionItem
+                          value={`item-${index}`}
                           key={index}
-                          className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                          className="rounded-lg bg-muted/50 px-3"
                         >
-                          <div>
-                            <p className="font-semibold">{phase.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {phase.taskIds?.length || 0} tasks • {phase.estimatedDuration}
-                            </p>
-                          </div>
-                          <Badge variant="outline">{index + 1}</Badge>
-                        </div>
+                          <AccordionTrigger className="py-3">
+                            <div className="flex items-center justify-between w-full">
+                              <div>
+                                <p className="font-semibold text-left">
+                                  {phase.name}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                  {phase.taskIds?.length || 0} tasks •{" "}
+                                  {phase.estimatedDuration}
+                                </p>
+                              </div>
+                              <Badge variant="outline" className="mr-4">
+                                {index + 1}
+                              </Badge>
+                            </div>
+                          </AccordionTrigger>
+                          <AccordionContent className="pb-4">
+                            <div className="space-y-2 pl-2 border-l-2 border-primary/20">
+                              {phase.taskIds?.map((taskId) => {
+                                const task = plan.tasks?.find(
+                                  (t) => t.id === taskId
+                                );
+                                if (!task) return null;
+                                return (
+                                  <div key={task.id} className="pl-3">
+                                    <p className="font-medium text-sm">
+                                      {task.title}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {task.description}
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                              {(!phase.taskIds ||
+                                phase.taskIds.length === 0) && (
+                                <p className="text-sm text-muted-foreground pl-3">
+                                  No tasks in this phase.
+                                </p>
+                              )}
+                            </div>
+                          </AccordionContent>
+                        </AccordionItem>
                       ))}
-                    </div>
+                    </Accordion>
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -464,11 +545,17 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                     <CardHeader>
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <CardTitle className="text-lg">{task.title}</CardTitle>
+                          <CardTitle className="text-lg">
+                            {task.title}
+                          </CardTitle>
                           <CardDescription>{task.description}</CardDescription>
                         </div>
                         <Badge
-                          variant={task.complexity === "simple" ? "default" : "secondary"}
+                          variant={
+                            task.complexity === "simple"
+                              ? "default"
+                              : "secondary"
+                          }
                         >
                           {task.complexity}
                         </Badge>
@@ -477,28 +564,44 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                     <CardContent>
                       <div className="grid grid-cols-2 gap-4 mb-4">
                         <div>
-                          <p className="text-sm text-muted-foreground">Category</p>
+                          <p className="text-sm text-muted-foreground">
+                            Category
+                          </p>
                           <Badge variant="outline">{task.category}</Badge>
                         </div>
                         <div>
-                          <p className="text-sm text-muted-foreground">Priority</p>
+                          <p className="text-sm text-muted-foreground">
+                            Priority
+                          </p>
                           <Badge variant="outline">{task.priority}</Badge>
                         </div>
                         <div>
-                          <p className="text-sm text-muted-foreground">Est. Hours</p>
-                          <p className="font-semibold">{task.estimatedHours}h</p>
+                          <p className="text-sm text-muted-foreground">
+                            Est. Hours
+                          </p>
+                          <p className="font-semibold">
+                            {task.estimatedHours}h
+                          </p>
                         </div>
                         <div>
-                          <p className="text-sm text-muted-foreground">Est. Lines</p>
+                          <p className="text-sm text-muted-foreground">
+                            Est. Lines
+                          </p>
                           <p className="font-semibold">{task.estimatedLines}</p>
                         </div>
                       </div>
                       {task.dependencies?.length > 0 && (
                         <div className="mb-3">
-                          <p className="text-sm text-muted-foreground mb-1">Dependencies</p>
+                          <p className="text-sm text-muted-foreground mb-1">
+                            Dependencies
+                          </p>
                           <div className="flex flex-wrap gap-1">
                             {task.dependencies.map((dep: string) => (
-                              <Badge key={dep} variant="secondary" className="text-xs">
+                              <Badge
+                                key={dep}
+                                variant="secondary"
+                                className="text-xs"
+                              >
                                 {dep}
                               </Badge>
                             ))}
@@ -507,11 +610,15 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                       )}
                       {task.acceptanceCriteria?.length > 0 && (
                         <div>
-                          <p className="text-sm text-muted-foreground mb-2">Acceptance Criteria</p>
+                          <p className="text-sm text-muted-foreground mb-2">
+                            Acceptance Criteria
+                          </p>
                           <ul className="list-disc list-inside space-y-1 text-sm">
-                            {task.acceptanceCriteria.map((criteria: string, idx: number) => (
-                              <li key={idx}>{criteria}</li>
-                            ))}
+                            {task.acceptanceCriteria.map(
+                              (criteria: string, idx: number) => (
+                                <li key={idx}>{criteria}</li>
+                              )
+                            )}
                           </ul>
                         </div>
                       )}
@@ -530,10 +637,33 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                       <div>
                         <h4 className="font-semibold mb-2">Frontend</h4>
                         <div className="space-y-2 text-sm">
-                          <p><span className="text-muted-foreground">Framework:</span> {plan.architecture.frontendArchitecture.framework}</p>
-                          <p><span className="text-muted-foreground">State:</span> {plan.architecture.frontendArchitecture.stateManagement}</p>
-                          <p><span className="text-muted-foreground">Routing:</span> {plan.architecture.frontendArchitecture.routing}</p>
-                          <p><span className="text-muted-foreground">Styling:</span> {plan.architecture.frontendArchitecture.styling}</p>
+                          <p>
+                            <span className="text-muted-foreground">
+                              Framework:
+                            </span>{" "}
+                            {plan.architecture.frontendArchitecture.framework}
+                          </p>
+                          <p>
+                            <span className="text-muted-foreground">
+                              State:
+                            </span>{" "}
+                            {
+                              plan.architecture.frontendArchitecture
+                                .stateManagement
+                            }
+                          </p>
+                          <p>
+                            <span className="text-muted-foreground">
+                              Routing:
+                            </span>{" "}
+                            {plan.architecture.frontendArchitecture.routing}
+                          </p>
+                          <p>
+                            <span className="text-muted-foreground">
+                              Styling:
+                            </span>{" "}
+                            {plan.architecture.frontendArchitecture.styling}
+                          </p>
                         </div>
                       </div>
                     )}
@@ -541,9 +671,25 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                       <div>
                         <h4 className="font-semibold mb-2">Backend</h4>
                         <div className="space-y-2 text-sm">
-                          <p><span className="text-muted-foreground">Framework:</span> {plan.architecture.backendArchitecture.framework}</p>
-                          <p><span className="text-muted-foreground">API Pattern:</span> {plan.architecture.backendArchitecture.apiPattern}</p>
-                          <p><span className="text-muted-foreground">Auth:</span> {plan.architecture.backendArchitecture.authentication}</p>
+                          <p>
+                            <span className="text-muted-foreground">
+                              Framework:
+                            </span>{" "}
+                            {plan.architecture.backendArchitecture.framework}
+                          </p>
+                          <p>
+                            <span className="text-muted-foreground">
+                              API Pattern:
+                            </span>{" "}
+                            {plan.architecture.backendArchitecture.apiPattern}
+                          </p>
+                          <p>
+                            <span className="text-muted-foreground">Auth:</span>{" "}
+                            {
+                              plan.architecture.backendArchitecture
+                                .authentication
+                            }
+                          </p>
                         </div>
                       </div>
                     )}
@@ -551,8 +697,14 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                       <div>
                         <h4 className="font-semibold mb-2">Database</h4>
                         <div className="space-y-2 text-sm">
-                          <p><span className="text-muted-foreground">Type:</span> {plan.architecture.databaseArchitecture.type}</p>
-                          <p><span className="text-muted-foreground">ORM:</span> {plan.architecture.databaseArchitecture.orm}</p>
+                          <p>
+                            <span className="text-muted-foreground">Type:</span>{" "}
+                            {plan.architecture.databaseArchitecture.type}
+                          </p>
+                          <p>
+                            <span className="text-muted-foreground">ORM:</span>{" "}
+                            {plan.architecture.databaseArchitecture.orm}
+                          </p>
                         </div>
                       </div>
                     )}
@@ -572,7 +724,8 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                   Provide Feedback
                 </CardTitle>
                 <CardDescription>
-                  Suggest changes to the plan. The validation agent will check feasibility.
+                  Suggest changes to the plan. The validation agent will check
+                  feasibility.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -608,7 +761,13 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <CheckCircle2 className={analysisResult.feasible ? "w-5 h-5 text-green-500" : "w-5 h-5 text-red-500"} />
+                    <CheckCircle2
+                      className={
+                        analysisResult.feasible
+                          ? "w-5 h-5 text-green-500"
+                          : "w-5 h-5 text-red-500"
+                      }
+                    />
                     Analysis Result
                   </CardTitle>
                 </CardHeader>
@@ -617,7 +776,8 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                     <Alert>
                       <CheckCircle2 className="h-4 w-4" />
                       <AlertDescription>
-                        Your changes are feasible and can be applied to the plan.
+                        Your changes are feasible and can be applied to the
+                        plan.
                       </AlertDescription>
                     </Alert>
                   ) : (
@@ -633,9 +793,11 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                     <div>
                       <p className="text-sm font-semibold mb-2">Warnings</p>
                       <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-                        {analysisResult.warnings.map((warning: string, idx: number) => (
-                          <li key={idx}>{warning}</li>
-                        ))}
+                        {analysisResult.warnings.map(
+                          (warning: string, idx: number) => (
+                            <li key={idx}>{warning}</li>
+                          )
+                        )}
                       </ul>
                     </div>
                   )}
@@ -644,9 +806,11 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                     <div>
                       <p className="text-sm font-semibold mb-2">Blockers</p>
                       <ul className="list-disc list-inside space-y-1 text-sm text-destructive">
-                        {analysisResult.blockers.map((blocker: string, idx: number) => (
-                          <li key={idx}>{blocker}</li>
-                        ))}
+                        {analysisResult.blockers.map(
+                          (blocker: string, idx: number) => (
+                            <li key={idx}>{blocker}</li>
+                          )
+                        )}
                       </ul>
                     </div>
                   )}

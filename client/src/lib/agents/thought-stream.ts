@@ -1,22 +1,23 @@
-// src/lib/agents/thought-stream.ts
 /**
- * Thought Stream Service
- * Provides a way for agents to emit their thought processes in real-time
- * Similar to how GitHub Copilot shows "Starting GitHub MCP server", etc.
+ * Enhanced Thought Stream with Deep Dive Mode
+ * Supports both curated thoughts AND raw AI reasoning
  */
 
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 
-export type ThoughtType = 
-  | "starting"      // Agent is starting up
-  | "thinking"      // Agent is processing/analyzing
-  | "accessing"     // Agent is accessing a tool/service/database
-  | "analyzing"     // Agent is analyzing data
-  | "deciding"      // Agent is making a decision
-  | "executing"     // Agent is executing an action
-  | "completing"    // Agent is completing its work
-  | "error";        // Agent encountered an error
+export type ThoughtType =
+  | "starting"
+  | "thinking"
+  | "accessing"
+  | "analyzing"
+  | "deciding"
+  | "executing"
+  | "completing"
+  | "error"
+  | "deep_reasoning"; // ✅ NEW: For raw AI thoughts
+
+export type ThoughtMode = "curated" | "deep_dive" | "both";
 
 export interface Thought {
   id: string;
@@ -26,26 +27,45 @@ export interface Thought {
   message: string;
   timestamp: Date;
   metadata?: Record<string, any>;
+  mode: ThoughtMode; // ✅ NEW: Track thought source
+  rawReasoning?: string; // ✅ NEW: Store raw AI reasoning
 }
 
-/**
- * ThoughtStream class for managing agent thought processes
- */
 export class ThoughtStream {
   private projectId: string;
   private agentName: string;
   private thoughts: Thought[] = [];
   private listeners: ((thought: Thought) => void)[] = [];
+  private deepDiveEnabled: boolean = false; // ✅ NEW: Deep dive toggle
 
-  constructor(projectId: string, agentName: string) {
+  constructor(
+    projectId: string,
+    agentName: string,
+    enableDeepDive: boolean = false
+  ) {
     this.projectId = projectId;
     this.agentName = agentName;
+    this.deepDiveEnabled = enableDeepDive;
   }
 
   /**
-   * Emit a thought to all listeners and store it
+   * ✅ NEW: Enable/disable deep dive mode
    */
-  async emit(type: ThoughtType, message: string, metadata?: Record<string, any>): Promise<void> {
+  setDeepDiveMode(enabled: boolean): void {
+    this.deepDiveEnabled = enabled;
+    logger.info(
+      `[${this.agentName}] Deep dive mode: ${enabled ? "ON" : "OFF"}`
+    );
+  }
+
+  /**
+   * Emit a curated thought (user-friendly)
+   */
+  async emit(
+    type: ThoughtType,
+    message: string,
+    metadata?: Record<string, any>
+  ): Promise<void> {
     const thought: Thought = {
       id: `thought_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       agentName: this.agentName,
@@ -54,15 +74,82 @@ export class ThoughtStream {
       message,
       timestamp: new Date(),
       metadata,
+      mode: "curated",
     };
 
+    await this.persistAndNotify(thought);
+  }
+
+  /**
+   * ✅ NEW: Emit raw AI reasoning (deep dive)
+   */
+  async emitDeepReasoning(
+    rawReasoning: string,
+    context?: string
+  ): Promise<void> {
+    if (!this.deepDiveEnabled) {
+      // Skip if deep dive is disabled
+      return;
+    }
+
+    const thought: Thought = {
+      id: `thought_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      agentName: this.agentName,
+      projectId: this.projectId,
+      type: "deep_reasoning",
+      message: context || "AI Internal Reasoning",
+      timestamp: new Date(),
+      rawReasoning,
+      mode: "deep_dive",
+    };
+
+    await this.persistAndNotify(thought);
+  }
+
+  /**
+   * ✅ NEW: Emit both curated and raw reasoning
+   */
+  async emitBoth(
+    type: ThoughtType,
+    curatedMessage: string,
+    rawReasoning: string,
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    const thought: Thought = {
+      id: `thought_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      agentName: this.agentName,
+      projectId: this.projectId,
+      type,
+      message: curatedMessage,
+      timestamp: new Date(),
+      metadata,
+      rawReasoning: this.deepDiveEnabled ? rawReasoning : undefined,
+      mode: this.deepDiveEnabled ? "both" : "curated",
+    };
+
+    await this.persistAndNotify(thought);
+  }
+
+  /**
+   * Persist and notify listeners
+   */
+  private async persistAndNotify(thought: Thought): Promise<void> {
     this.thoughts.push(thought);
 
-    // Log to console for debugging
-    logger.info(`[${this.agentName}] 💭 ${message}`, metadata);
+    // Log to console
+    if (thought.mode === "deep_dive" || thought.mode === "both") {
+      logger.info(`[${this.agentName}] 🧠 Deep: ${thought.message}`, {
+        reasoning: thought.rawReasoning?.substring(0, 200),
+      });
+    } else {
+      logger.info(
+        `[${this.agentName}] 💭 ${thought.message}`,
+        thought.metadata
+      );
+    }
 
-    // Notify all listeners
-    this.listeners.forEach(listener => {
+    // Notify listeners
+    this.listeners.forEach((listener) => {
       try {
         listener(thought);
       } catch (error) {
@@ -70,29 +157,13 @@ export class ThoughtStream {
       }
     });
 
-    // Store in database asynchronously (don't await to avoid blocking)
-    this.persistThought(thought).catch(error => {
-      logger.error(`[ThoughtStream] Failed to persist thought:`, error as Error);
+    // Persist to database
+    this.persistThought(thought).catch((error) => {
+      logger.error(
+        `[ThoughtStream] Failed to persist thought:`,
+        error as Error
+      );
     });
-  }
-
-  /**
-   * Register a listener for real-time thought updates
-   */
-  onThought(listener: (thought: Thought) => void): () => void {
-    this.listeners.push(listener);
-    
-    // Return unsubscribe function
-    return () => {
-      this.listeners = this.listeners.filter(l => l !== listener);
-    };
-  }
-
-  /**
-   * Get all thoughts emitted so far
-   */
-  getThoughts(): Thought[] {
-    return [...this.thoughts];
   }
 
   /**
@@ -100,17 +171,47 @@ export class ThoughtStream {
    */
   private async persistThought(thought: Thought): Promise<void> {
     try {
-      // Store thoughts in AgentExecution metadata or a separate table
-      // For now, we'll just log them. In production, you might want to store them.
-      // await prisma.agentThought.create({ data: thought }); // If you add this table
+      await prisma.agentThought.create({
+        data: {
+          id: thought.id,
+          projectId: thought.projectId,
+          agentName: thought.agentName,
+          type: thought.type,
+          message: thought.message,
+          metadata: {
+            ...thought.metadata,
+            mode: thought.mode,
+            rawReasoning: thought.rawReasoning,
+          } as any,
+          timestamp: thought.timestamp,
+        },
+      });
     } catch (error) {
-      // Silent fail - thought persistence is not critical
+      logger.warn(`[ThoughtStream] Failed to persist thought to DB:`, {
+        error: error instanceof Error ? error.message : String(error),
+        thoughtId: thought.id,
+      });
     }
   }
 
   /**
-   * Helper methods for common thought patterns
+   * Register a listener
    */
+  onThought(listener: (thought: Thought) => void): () => void {
+    this.listeners.push(listener);
+    return () => {
+      this.listeners = this.listeners.filter((l) => l !== listener);
+    };
+  }
+
+  /**
+   * Get all thoughts
+   */
+  getThoughts(): Thought[] {
+    return [...this.thoughts];
+  }
+
+  // ✅ Helper methods (same as before, but now support deep dive)
 
   starting(action: string): Promise<void> {
     return this.emit("starting", `Starting ${action}...`);
@@ -121,7 +222,7 @@ export class ThoughtStream {
   }
 
   accessing(resource: string, details?: string): Promise<void> {
-    const message = details 
+    const message = details
       ? `Accessing ${resource}: ${details}`
       : `Accessing ${resource}...`;
     return this.emit("accessing", message);
@@ -150,62 +251,93 @@ export class ThoughtStream {
 
 /**
  * Global thought stream registry
- * Manages active thought streams for all agents
  */
 class ThoughtStreamRegistry {
   private streams: Map<string, ThoughtStream> = new Map();
 
-  /**
-   * Get or create a thought stream for a project and agent
-   */
-  getStream(projectId: string, agentName: string): ThoughtStream {
+  getStream(
+    projectId: string,
+    agentName: string,
+    enableDeepDive: boolean = false
+  ): ThoughtStream {
     const key = `${projectId}:${agentName}`;
-    
+
     if (!this.streams.has(key)) {
-      this.streams.set(key, new ThoughtStream(projectId, agentName));
+      this.streams.set(
+        key,
+        new ThoughtStream(projectId, agentName, enableDeepDive)
+      );
     }
 
     return this.streams.get(key)!;
   }
 
-  /**
-   * Get all thoughts for a project
-   */
-  getProjectThoughts(projectId: string): Thought[] {
-    const thoughts: Thought[] = [];
-    
-    for (const [key, stream] of this.streams.entries()) {
-      if (key.startsWith(projectId + ':')) {
-        thoughts.push(...stream.getThoughts());
-      }
-    }
+  async getProjectThoughts(projectId: string): Promise<Thought[]> {
+    try {
+      const dbThoughts = await prisma.agentThought.findMany({
+        where: { projectId },
+        orderBy: { timestamp: "asc" },
+      });
 
-    // Sort by timestamp
-    return thoughts.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      return dbThoughts.map((t) => ({
+        id: t.id,
+        agentName: t.agentName,
+        projectId: t.projectId,
+        type: t.type as ThoughtType,
+        message: t.message,
+        timestamp: t.timestamp,
+        metadata: (t.metadata as any)?.metadata || {},
+        mode: ((t.metadata as any)?.mode || "curated") as ThoughtMode,
+        rawReasoning: (t.metadata as any)?.rawReasoning,
+      }));
+    } catch (error) {
+      logger.error(
+        `[ThoughtStreamRegistry] Failed to fetch thoughts:`,
+        error as Error
+      );
+      return [];
+    }
   }
 
-  /**
-   * Clear streams for a project (cleanup)
-   */
   clearProject(projectId: string): void {
     const keysToDelete: string[] = [];
-    
+
     for (const key of this.streams.keys()) {
-      if (key.startsWith(projectId + ':')) {
+      if (key.startsWith(projectId + ":")) {
         keysToDelete.push(key);
       }
     }
 
-    keysToDelete.forEach(key => this.streams.delete(key));
+    keysToDelete.forEach((key) => this.streams.delete(key));
+  }
+
+  async deleteProjectThoughts(projectId: string): Promise<void> {
+    try {
+      await prisma.agentThought.deleteMany({
+        where: { projectId },
+      });
+      logger.info(
+        `[ThoughtStreamRegistry] Deleted all thoughts for project ${projectId}`
+      );
+    } catch (error) {
+      logger.error(
+        `[ThoughtStreamRegistry] Failed to delete thoughts:`,
+        error as Error
+      );
+      throw error;
+    }
   }
 }
 
-// Export singleton instance
 export const thoughtStreamRegistry = new ThoughtStreamRegistry();
 
 /**
- * Helper function to create a thought stream for an agent
+ * ✅ UPDATED: Helper function with deep dive support
  */
-export function createThoughtStream(projectId: string, agentName: string): ThoughtStream {
-  return thoughtStreamRegistry.getStream(projectId, agentName);
+export function createThoughtStream(
+  projectId: string,
+  agentName: string,
+  enableDeepDive: boolean = false
+): ThoughtStream {
+  return thoughtStreamRegistry.getStream(projectId, agentName, enableDeepDive);
 }

@@ -1,36 +1,38 @@
-// src/components/execution/AgentPipeline.tsx
+// components/execution/AgentPipeline.tsx - REFACTORED FOR REAL-TIME THOUGHTS
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  CheckCircle2, 
-  Loader2, 
+import {
+  CheckCircle2,
+  Loader2,
   Clock,
   ArrowRight,
-  Brain,
   ChevronDown,
   ChevronUp,
-  FileText
+  FileText,
+  Sparkles,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
-
-interface Thought {
-  id: string;
-  agentName: string;
-  projectId: string;
-  type: string;
-  message: string;
-  timestamp: string;
-  metadata?: Record<string, any>;
-}
+import {
+  ORCHESTRATOR_PHASES,
+  PHASE_METADATA,
+  isPlanningPhase,
+} from "@/lib/orchestrator/phases";
+import {
+  getAgentMetadata,
+  getAgentIcon,
+  getAgentColor,
+} from "@/lib/agents/agent-types";
+import { ThoughtStream, ThoughtStreamSkeleton } from "./ThoughtStream";
+import { useAgentThoughts } from "@/hooks/useAgentThoughts";
 
 interface AgentPipelineProps {
   currentPhase: string;
   completedPhases: string[];
-  projectId?: string;
+  projectId: string;
   currentAgent?: {
     name: string;
     description: string;
@@ -38,33 +40,22 @@ interface AgentPipelineProps {
   };
 }
 
-// Define the phase pipeline
-const PHASE_PIPELINE = [
-  {
-    id: "analysis",
-    name: "Analyzer Agent",
-    description: "Analyzing requirements",
-    icon: "🔍",
-  },
-  {
-    id: "research",
-    name: "Research Agent",
-    description: "Researching technologies",
-    icon: "📚",
-  },
-  {
-    id: "validation",
-    name: "Validation Agent",
-    description: "Validating feasibility",
-    icon: "✅",
-  },
-  {
-    id: "planning",
-    name: "Planning Agent",
-    description: "Creating execution plan",
-    icon: "📋",
-  },
-];
+// ✅ Generate phase pipeline dynamically from orchestrator phases
+const PLANNING_PIPELINE = [
+  ORCHESTRATOR_PHASES.ANALYSIS,
+  ORCHESTRATOR_PHASES.RESEARCH,
+  ORCHESTRATOR_PHASES.VALIDATION,
+  ORCHESTRATOR_PHASES.PLANNING,
+].map((phaseId) => {
+  const metadata = PHASE_METADATA[phaseId];
+  return {
+    id: phaseId,
+    name: metadata.name,
+    description: metadata.description,
+    icon: metadata.icon,
+    color: metadata.color,
+  };
+});
 
 export default function AgentPipeline({
   currentPhase,
@@ -72,188 +63,194 @@ export default function AgentPipeline({
   projectId,
   currentAgent,
 }: AgentPipelineProps) {
-  const [thoughts, setThoughts] = useState<Thought[]>([]);
   const [showThoughts, setShowThoughts] = useState(true);
-  const [isPolling, setIsPolling] = useState(false);
 
-  // Fetch thoughts from API
-  useEffect(() => {
-    if (!projectId) return;
+  // ✅ Real-time thought streaming with custom hook
+  const { thoughts, isLoading, error } = useAgentThoughts(projectId, {
+    enabled: isPlanningPhase(currentPhase),
+    pollingInterval: 1000, // 1 second
+    maxThoughts: 50,
+  });
 
-    const fetchThoughts = async () => {
-      try {
-        const response = await fetch(`/api/projects/${projectId}/thoughts`);
-        if (response.ok) {
-          const data = await response.json();
-          setThoughts(data.thoughts || []);
-        }
-      } catch (error) {
-        console.error("Failed to fetch thoughts:", error);
-      }
-    };
+  // Get current agent metadata from centralized types
+  const currentAgentMeta = currentAgent
+    ? getAgentMetadata(currentAgent.name)
+    : null;
+  const currentAgentIcon =
+    currentAgentMeta?.emoji || currentAgent?.icon || "🤖";
+  const currentAgentColor =
+    currentAgentMeta?.color || "from-blue-500 to-cyan-500";
 
-    // Initial fetch
-    fetchThoughts();
+  // Filter thoughts for current agent
+  const currentAgentThoughts = currentAgent
+    ? thoughts.filter(
+        (t) =>
+          t.agentName === currentAgent.name ||
+          t.agentName.toLowerCase().includes(currentAgent.name.toLowerCase())
+      )
+    : [];
 
-    // Poll for new thoughts while agent is active
-    if (currentPhase !== "plan_review" && currentPhase !== "complete") {
-      setIsPolling(true);
-      const interval = setInterval(fetchThoughts, 2000); // Poll every 2 seconds
-      return () => {
-        clearInterval(interval);
-        setIsPolling(false);
-      };
-    } else {
-      setIsPolling(false);
-    }
-  }, [projectId, currentPhase]);
-
-  // Get thoughts for current agent
-  const currentAgentThoughts = thoughts.filter(
-    (t) => t.agentName === currentAgent?.name || 
-           t.agentName === PHASE_PIPELINE.find(p => p.id === currentPhase)?.name.replace(" Agent", "")
-  );
-
-  // Get the most recent thought
   const latestThought = currentAgentThoughts[currentAgentThoughts.length - 1];
+
+  // ✅ Only show pipeline during planning phase
+  if (
+    !isPlanningPhase(currentPhase) &&
+    currentPhase !== ORCHESTRATOR_PHASES.PLAN_REVIEW
+  ) {
+    return null;
+  }
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
-          <span className="text-2xl">🤖</span>
-          Agent Pipeline
+          <Sparkles className="w-5 h-5 text-primary" />
+          AI Planning Pipeline
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {/* Current Agent Status - Large Card */}
-        {currentAgent && currentPhase !== "plan_review" && currentPhase !== "complete" && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 p-6 rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-2 border-blue-200 dark:border-blue-800"
-          >
-            <div className="flex items-start gap-4">
-              <motion.div
-                animate={{
-                  scale: [1, 1.1, 1],
-                  rotate: [0, 5, -5, 0],
-                }}
-                transition={{
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-                className="text-4xl"
-              >
-                {currentAgent.icon}
-              </motion.div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="text-xl font-bold text-foreground">
-                    {currentAgent.name}
-                  </h3>
-                  <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
-                </div>
-                <p className="text-muted-foreground">
-                  {currentAgent.description}
-                </p>
-                
-                {/* Current thought display */}
-                {latestThought && (
-                  <motion.div
-                    key={latestThought.id}
-                    initial={{ opacity: 0, y: -5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mt-3 flex items-start gap-2 text-sm text-blue-600 dark:text-blue-400"
-                  >
-                    <Brain className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                    <span className="flex-1">{latestThought.message}</span>
-                  </motion.div>
-                )}
-                
-                <div className="mt-3 flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
-                  <div className="flex gap-1">
-                    <motion.div
-                      className="w-2 h-2 bg-blue-500 rounded-full"
-                      animate={{ opacity: [0.4, 1, 0.4] }}
-                      transition={{ duration: 1, repeat: Infinity, delay: 0 }}
-                    />
-                    <motion.div
-                      className="w-2 h-2 bg-blue-500 rounded-full"
-                      animate={{ opacity: [0.4, 1, 0.4] }}
-                      transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
-                    />
-                    <motion.div
-                      className="w-2 h-2 bg-blue-500 rounded-full"
-                      animate={{ opacity: [0.4, 1, 0.4] }}
-                      transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
-                    />
+        {/* ✅ Current Agent Status - Large Prominent Card */}
+        {currentAgent &&
+          currentPhase !== ORCHESTRATOR_PHASES.PLAN_REVIEW &&
+          currentPhase !== ORCHESTRATOR_PHASES.COMPLETE && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`
+              mb-6 p-6 rounded-lg border-2
+              bg-gradient-to-br ${currentAgentColor} bg-opacity-5
+              border-blue-200 dark:border-blue-800
+              shadow-sm hover:shadow-md transition-shadow
+            `}
+            >
+              <div className="flex items-start gap-4">
+                {/* Animated Agent Icon */}
+                <motion.div
+                  animate={{
+                    scale: [1, 1.1, 1],
+                    rotate: [0, 5, -5, 0],
+                  }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                  className="text-4xl"
+                >
+                  {currentAgentIcon}
+                </motion.div>
+
+                <div className="flex-1">
+                  {/* Agent Name & Status */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-xl font-bold text-foreground">
+                      {currentAgent.name}
+                    </h3>
+                    <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
                   </div>
-                  <span>Working...</span>
+
+                  {/* Agent Description */}
+                  <p className="text-sm text-muted-foreground">
+                    {currentAgent.description}
+                  </p>
+
+                  {/* Latest Thought Preview */}
+                  {latestThought && (
+                    <motion.div
+                      key={latestThought.id}
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-3 p-3 rounded-lg bg-white/50 dark:bg-black/20 backdrop-blur-sm"
+                    >
+                      <div className="flex items-start gap-2">
+                        <span className="text-lg mt-0.5">💭</span>
+                        <span className="text-sm font-medium text-blue-600 dark:text-blue-400 leading-relaxed">
+                          {latestThought.message}
+                        </span>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Processing Indicator */}
+                  <div className="mt-3 flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
+                    <div className="flex gap-1">
+                      {[0, 1, 2].map((i) => (
+                        <motion.div
+                          key={i}
+                          className="w-2 h-2 bg-blue-500 rounded-full"
+                          animate={{ opacity: [0.4, 1, 0.4] }}
+                          transition={{
+                            duration: 1,
+                            repeat: Infinity,
+                            delay: i * 0.2,
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <span className="font-medium">Processing...</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </motion.div>
-        )}
+            </motion.div>
+          )}
 
-        {/* Thought Process Section */}
+        {/* ✅ Real-Time Thought Process Section */}
         {currentAgentThoughts.length > 0 && (
           <div className="mb-6">
             <button
               onClick={() => setShowThoughts(!showThoughts)}
-              className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mb-3"
+              className="flex items-center gap-2 text-sm font-semibold text-foreground hover:text-primary transition-colors mb-3 group"
             >
-              <Brain className="w-4 h-4" />
-              <span>Thought Process ({currentAgentThoughts.length})</span>
+              <span className="text-xl group-hover:scale-110 transition-transform">
+                💭
+              </span>
+              <span>Thought Process</span>
+              <span className="text-xs text-muted-foreground font-normal">
+                ({currentAgentThoughts.length})
+              </span>
               {showThoughts ? (
-                <ChevronUp className="w-4 h-4" />
+                <ChevronUp className="w-4 h-4 ml-auto" />
               ) : (
-                <ChevronDown className="w-4 h-4" />
+                <ChevronDown className="w-4 h-4 ml-auto" />
               )}
             </button>
-            
+
             <AnimatePresence>
               {showThoughts && (
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: "auto", opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  className="space-y-2 max-h-64 overflow-y-auto rounded-lg bg-muted/30 p-3"
+                  transition={{ duration: 0.3 }}
+                  className="overflow-hidden rounded-lg bg-muted/20 p-3"
                 >
-                  {currentAgentThoughts.map((thought, index) => (
-                    <motion.div
-                      key={thought.id}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="flex items-start gap-2 text-xs"
-                    >
-                      <span className="text-muted-foreground mt-0.5">
-                        {getThoughtIcon(thought.type)}
-                      </span>
-                      <div className="flex-1">
-                        <span className="text-foreground/80">{thought.message}</span>
-                        {thought.metadata && Object.keys(thought.metadata).length > 0 && (
-                          <div className="text-muted-foreground mt-1 text-[10px]">
-                            {formatMetadata(thought.metadata)}
-                          </div>
-                        )}
+                  <div className="max-h-[400px] overflow-y-auto">
+                    {isLoading ? (
+                      <ThoughtStreamSkeleton count={3} />
+                    ) : error ? (
+                      <div className="text-center py-4 text-red-500 text-sm">
+                        <p>Failed to load thoughts</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {error}
+                        </p>
                       </div>
-                      <span className="text-muted-foreground text-[10px] whitespace-nowrap">
-                        {formatTime(thought.timestamp)}
-                      </span>
-                    </motion.div>
-                  ))}
+                    ) : (
+                      <ThoughtStream
+                        thoughts={currentAgentThoughts}
+                        maxVisible={15}
+                        showMetadata={true}
+                      />
+                    )}
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
         )}
 
-        {/* Phase Pipeline Progress */}
+        {/* ✅ Phase Progress Pipeline */}
         <div className="space-y-3">
-          {PHASE_PIPELINE.map((phase, index) => {
+          {PLANNING_PIPELINE.map((phase, index) => {
             const isCompleted = completedPhases.includes(phase.id);
             const isCurrent = currentPhase === phase.id;
             const isPending = !isCompleted && !isCurrent;
@@ -264,13 +261,16 @@ export default function AgentPipeline({
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.1 }}
-                  className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
-                    isCurrent
-                      ? "bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800"
-                      : isCompleted
-                      ? "bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800"
-                      : "bg-muted/30"
-                  }`}
+                  className={`
+                    flex items-center gap-3 p-4 rounded-lg transition-all duration-200
+                    ${
+                      isCurrent
+                        ? "bg-blue-50 dark:bg-blue-950/30 border-2 border-blue-200 dark:border-blue-800 shadow-sm"
+                        : isCompleted
+                          ? "bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800"
+                          : "bg-muted/30 border border-transparent"
+                    }
+                  `}
                 >
                   {/* Status Icon */}
                   <div className="flex-shrink-0">
@@ -289,17 +289,17 @@ export default function AgentPipeline({
                     )}
                   </div>
 
-                  {/* Agent Info */}
+                  {/* Phase Info */}
                   <div className="flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 mb-1">
                       <span className="text-lg">{phase.icon}</span>
                       <span
                         className={`font-semibold ${
                           isCurrent
-                            ? "text-blue-700 dark:text-blue-300"
+                            ? phase.color
                             : isCompleted
-                            ? "text-green-700 dark:text-green-300"
-                            : "text-muted-foreground"
+                              ? "text-green-700 dark:text-green-300"
+                              : "text-muted-foreground"
                         }`}
                       >
                         {phase.name}
@@ -307,7 +307,9 @@ export default function AgentPipeline({
                     </div>
                     <p
                       className={`text-sm ${
-                        isPending ? "text-muted-foreground" : "text-foreground/80"
+                        isPending
+                          ? "text-muted-foreground"
+                          : "text-foreground/80"
                       }`}
                     >
                       {phase.description}
@@ -317,17 +319,17 @@ export default function AgentPipeline({
                   {/* Status Badge */}
                   <div className="flex-shrink-0">
                     {isCompleted && (
-                      <span className="text-xs font-medium text-green-600 dark:text-green-400">
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200">
                         Complete
                       </span>
                     )}
                     {isCurrent && (
-                      <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
                         Active
                       </span>
                     )}
                     {isPending && (
-                      <span className="text-xs font-medium text-muted-foreground">
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
                         Pending
                       </span>
                     )}
@@ -335,13 +337,13 @@ export default function AgentPipeline({
                 </motion.div>
 
                 {/* Arrow between phases */}
-                {index < PHASE_PIPELINE.length - 1 && (
-                  <div className="flex justify-center py-1">
+                {index < PLANNING_PIPELINE.length - 1 && (
+                  <div className="flex justify-center py-2">
                     <ArrowRight
-                      className={`w-4 h-4 ${
+                      className={`w-4 h-4 transition-colors ${
                         isCompleted
                           ? "text-green-400"
-                          : "text-muted-foreground/40"
+                          : "text-muted-foreground/30"
                       }`}
                     />
                   </div>
@@ -351,72 +353,48 @@ export default function AgentPipeline({
           })}
         </div>
 
-        {/* Completion Message */}
-        {(currentPhase === "plan_review" || currentPhase === "complete") && (
+        {/* ✅ Completion Message - Plan Review */}
+        {currentPhase === ORCHESTRATOR_PHASES.PLAN_REVIEW && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mt-6 p-4 rounded-lg bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border-2 border-green-200 dark:border-green-800"
+            className="mt-6 p-5 rounded-lg bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border-2 border-green-200 dark:border-green-800 shadow-sm"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className="text-3xl">🎉</span>
+                <motion.span
+                  className="text-4xl"
+                  animate={{
+                    scale: [1, 1.2, 1],
+                  }}
+                  transition={{
+                    duration: 1,
+                    repeat: Infinity,
+                    repeatDelay: 2,
+                  }}
+                >
+                  🎉
+                </motion.span>
                 <div>
-                  <h3 className="font-bold text-green-700 dark:text-green-300">
+                  <h3 className="font-bold text-lg text-green-700 dark:text-green-300">
                     Planning Complete!
                   </h3>
                   <p className="text-sm text-green-600 dark:text-green-400">
-                    Your execution plan is ready for review
+                    Your execution plan is ready for review and approval
                   </p>
                 </div>
               </div>
-              {currentPhase === "plan_review" && projectId && (
-                <Link href={`/projects/${projectId}/plan`}>
-                  <Button className="bg-green-600 hover:bg-green-700">
-                    <FileText className="w-4 h-4 mr-2" />
-                    View & Edit Plan
-                  </Button>
-                </Link>
-              )}
+              <Link href={`/projects/${projectId}/plan`}>
+                <Button className="bg-green-600 hover:bg-green-700 shadow-sm">
+                  <FileText className="w-4 h-4 mr-2" />
+                  Review Plan
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </Link>
             </div>
           </motion.div>
         )}
       </CardContent>
     </Card>
   );
-}
-
-// Helper function to get icon for thought type
-function getThoughtIcon(type: string): string {
-  const icons: Record<string, string> = {
-    starting: "🚀",
-    thinking: "🤔",
-    accessing: "🔌",
-    analyzing: "📊",
-    deciding: "💡",
-    executing: "⚙️",
-    completing: "✅",
-    error: "❌",
-  };
-  return icons[type] || "💭";
-}
-
-// Helper function to format metadata
-function formatMetadata(metadata: Record<string, any>): string {
-  const entries = Object.entries(metadata).filter(([key]) => !key.includes("error") && !key.includes("stack"));
-  if (entries.length === 0) return "";
-  
-  return entries
-    .map(([key, value]) => `${key}: ${typeof value === "object" ? JSON.stringify(value) : value}`)
-    .join(", ");
-}
-
-// Helper function to format timestamp
-function formatTime(timestamp: string): string {
-  try {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  } catch {
-    return "";
-  }
 }

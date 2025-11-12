@@ -4,6 +4,15 @@ import { auth } from "@/auth";
 import { orchestrator } from "@/lib/orchestrator/agent-orchestrator";
 import { createApiLogger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
+import {
+  ORCHESTRATOR_PHASES,
+  PLANNING_PHASES,
+  EXECUTION_PHASES,
+  getPhaseMetadata,
+  calculatePhaseProgress,
+  isPlanningPhase,
+  isExecutionPhase,
+} from "@/lib/orchestrator/phases";
 
 /**
  * GET /api/orchestrator/status/[projectId]
@@ -14,7 +23,7 @@ export async function GET(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   const { projectId } = await params;
-  
+
   const logger = createApiLogger({
     path: `/api/orchestrator/status/${projectId}`,
     method: "GET",
@@ -64,52 +73,62 @@ export async function GET(
       },
     });
 
-    // 5. Calculate progress percentage and determine current agent
-    const phaseOrder = ["initializing", "analysis", "research", "validation", "planning", "plan_review", "complete"];
-    const totalPhases = 4; // analysis, research, validation, planning
-    const completedCount = status.completedPhases.length;
-    const progressPercentage = Math.round((completedCount / totalPhases) * 100);
+    // 5. Calculate progress percentage using new phase system
+    const currentPhase = status.currentPhase;
+    const progressPercentage = calculatePhaseProgress(currentPhase);
 
-    // Determine current agent based on phase
-    const phaseToAgent: Record<string, { name: string; description: string; icon: string }> = {
-      initializing: {
-        name: "Initializing",
-        description: "Setting up your project...",
-        icon: "⚙️",
-      },
-      analysis: {
-        name: "Analyzer Agent",
-        description: "Analyzing project requirements and technical specifications",
-        icon: "🔍",
-      },
-      research: {
-        name: "Research Agent",
-        description: "Researching best practices and technology recommendations",
-        icon: "📚",
-      },
-      validation: {
-        name: "Validation Agent",
-        description: "Validating technical feasibility and requirements",
-        icon: "✅",
-      },
-      planning: {
-        name: "Planning Agent",
-        description: "Creating detailed execution plan and architecture",
-        icon: "📋",
-      },
-      plan_review: {
-        name: "Ready for Review",
-        description: "Plan completed! Ready for your review and approval",
-        icon: "👁️",
-      },
-      complete: {
-        name: "Complete",
-        description: "All phases completed successfully",
-        icon: "🎉",
-      },
-    };
+    // 6. Get current agent metadata
+    const phaseMetadata = getPhaseMetadata(currentPhase);
+    const currentAgent = phaseMetadata
+      ? {
+          name: phaseMetadata.name,
+          description: phaseMetadata.description,
+          icon: phaseMetadata.icon,
+          color: phaseMetadata.color,
+          category: phaseMetadata.category,
+        }
+      : {
+          name: "Unknown",
+          description: "Processing...",
+          icon: "⚙️",
+          color: "text-gray-500",
+          category: "planning" as const,
+        };
 
-    const currentAgent = phaseToAgent[status.currentPhase] || phaseToAgent.initializing;
+    // 7. Determine active agents (for execution phase only)
+    let activeAgents: string[] = [];
+    if (isExecutionPhase(currentPhase)) {
+      // Get currently running tasks
+      const activeTasks = await prisma.agentTask.findMany({
+        where: {
+          projectId,
+          status: "in_progress",
+        },
+        select: {
+          agentName: true,
+        },
+        distinct: ["agentName"],
+      });
+      activeAgents = activeTasks.map((t) => t.agentName);
+    }
+
+    // 8. Get current wave number (if in execution)
+    let currentWave = 0;
+    if (isExecutionPhase(currentPhase)) {
+      const latestWave = await prisma.executionWave.findFirst({
+        where: {
+          projectId,
+          status: "in_progress",
+        },
+        orderBy: {
+          waveNumber: "desc",
+        },
+        select: {
+          waveNumber: true,
+        },
+      });
+      currentWave = latestWave?.waveNumber || 0;
+    }
 
     logger.info("Status retrieved", {
       projectId,
@@ -122,13 +141,20 @@ export async function GET(
       currentPhase: status.currentPhase,
       completedPhases: status.completedPhases,
       progress: progressPercentage,
-      isComplete: status.currentPhase === "complete" || status.currentPhase === "plan_review",
+      isComplete: currentPhase === ORCHESTRATOR_PHASES.COMPLETE,
+      isPlanReview: currentPhase === ORCHESTRATOR_PHASES.PLAN_REVIEW,
+      isPlanning: isPlanningPhase(currentPhase),
+      isExecuting: isExecutionPhase(currentPhase),
       lastUpdated: status.lastUpdated,
       currentAgent,
+      activeAgents,
+      currentWave,
       phaseDetails: {
-        order: phaseOrder,
-        total: totalPhases,
-        completed: completedCount,
+        planningPhases: PLANNING_PHASES,
+        executionPhases: EXECUTION_PHASES,
+        totalPlanning: PLANNING_PHASES.length,
+        totalExecution: EXECUTION_PHASES.length,
+        completedCount: status.completedPhases.length,
       },
       executions: executions.map((e) => ({
         agent: e.agentName,
@@ -157,7 +183,7 @@ export async function POST(
   { params }: { params: Promise<{ projectId: string }> }
 ) {
   const { projectId } = await params;
-  
+
   const logger = createApiLogger({
     path: `/api/orchestrator/status/${projectId}/resume`,
     method: "POST",
@@ -191,7 +217,7 @@ export async function POST(
     }
 
     // 3. Check if already complete
-    if (projectContext.currentPhase === "complete") {
+    if (projectContext.currentPhase === ORCHESTRATOR_PHASES.COMPLETE) {
       return NextResponse.json(
         { error: "Orchestration already complete" },
         { status: 400 }

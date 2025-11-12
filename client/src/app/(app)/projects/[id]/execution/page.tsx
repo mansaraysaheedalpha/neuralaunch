@@ -1,20 +1,20 @@
-// src/app/(app)/projects/[id]/execution/page.tsx
+// app/(app)/projects/[id]/execution/page.tsx - UPDATED FOR REAL-TIME THOUGHTS
 "use client";
 
 import { use } from "react";
 import useSWR from "swr";
 import { motion } from "framer-motion";
-import { 
-  ArrowLeft, 
-  Clock, 
-  CheckCircle2, 
+import {
+  ArrowLeft,
+  Clock,
+  CheckCircle2,
   AlertCircle,
   Loader2,
   Rocket,
   Activity,
   FileCheck,
   FileText,
-  ArrowRight
+  ArrowRight,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -25,6 +25,10 @@ import WaveTimeline from "@/components/execution/WaveTimeline";
 import AgentGrid from "@/components/execution/AgentGrid";
 import ActivityFeed from "@/components/execution/ActivityFeed";
 import AgentPipeline from "@/components/execution/AgentPipeline";
+import {
+  isPlanningPhase,
+  ORCHESTRATOR_PHASES,
+} from "@/lib/orchestrator/phases";
 
 interface ExecutionPageProps {
   params: Promise<{
@@ -53,9 +57,9 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
   const { data: project, error: projectError } = useSWR(
     `/api/projects/${projectId}`,
     fetcher,
-    { 
+    {
       refreshInterval: 3000, // Poll every 3 seconds
-      revalidateOnFocus: true 
+      revalidateOnFocus: true,
     }
   );
 
@@ -85,7 +89,9 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground mb-4">
-              {projectError?.message || tasksError?.message || "Failed to load project data"}
+              {projectError?.message ||
+                tasksError?.message ||
+                "Failed to load project data"}
             </p>
             <Button onClick={() => router.push("/")}>
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -114,12 +120,15 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
   const progress = status?.progress || 0;
   const activeAgents = status?.activeAgents || [];
 
-  const completedTasks = tasks.filter((t: any) => t.status === "COMPLETE").length;
+  const completedTasks = tasks.filter(
+    (t: any) => t.status === "COMPLETE" || t.status === "completed"
+  ).length;
   const totalTasks = tasks.length;
 
-  // Determine if we're in the planning phase (before execution starts)
+  // ✅ Get current phase and agent info from status API
   const currentPhase = status?.currentPhase || "initializing";
-  const isInPlanningPhase = ["initializing", "analysis", "research", "validation", "planning", "plan_review"].includes(currentPhase);
+  const isInPlanningPhase = isPlanningPhase(currentPhase);
+  const isPlanReview = currentPhase === ORCHESTRATOR_PHASES.PLAN_REVIEW;
   const currentAgent = status?.currentAgent;
 
   return (
@@ -140,15 +149,23 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
                   {project.name || "Project Execution"}
                 </h1>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                    project.status === "completed" 
-                      ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
-                      : project.status === "failed"
-                      ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100"
-                      : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
-                  }`}>
-                    {project.status === "completed" && <CheckCircle2 className="w-3 h-3" />}
-                    {(project.status === "executing" || project.status === "initializing" || project.status === "planning") && <Loader2 className="w-3 h-3 animate-spin" />}
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                      project.status === "completed"
+                        ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
+                        : project.status === "failed"
+                          ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100"
+                          : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100"
+                    }`}
+                  >
+                    {project.status === "completed" && (
+                      <CheckCircle2 className="w-3 h-3" />
+                    )}
+                    {(project.status === "executing" ||
+                      project.status === "initializing" ||
+                      project.status === "planning") && (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    )}
                     {project.status}
                   </span>
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -158,7 +175,7 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
                 </div>
               </div>
             </div>
-            
+
             {/* Navigation Links */}
             <div className="flex items-center gap-2">
               <Link href={`/projects/${projectId}/quality`}>
@@ -190,12 +207,15 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="font-medium">Overall Progress</span>
-              <span className="text-muted-foreground">{Math.round(progress)}%</span>
+              <span className="text-muted-foreground">
+                {Math.round(progress)}%
+              </span>
             </div>
             <Progress value={progress} className="h-3" />
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>
-                {status?.currentPhase || "Initializing"} • {activeAgents.length} agents active
+                {currentAgent?.name || currentPhase} • {activeAgents.length}{" "}
+                agents active
               </span>
               <span>
                 {completedTasks} / {totalTasks} tasks completed
@@ -205,8 +225,8 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
         </div>
       </div>
 
-      {/* Plan Review Banner */}
-      {currentPhase === "plan_review" && (
+      {/* ✅ Plan Review Banner */}
+      {isPlanReview && (
         <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 border-b border-green-200 dark:border-green-800">
           <div className="container mx-auto px-4 py-4">
             <div className="flex items-center justify-between">
@@ -221,12 +241,16 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
                     Planning Complete - Ready for Review
                   </h3>
                   <p className="text-sm text-green-700 dark:text-green-300">
-                    Your execution plan is ready. Review the plan, provide feedback, or start execution.
+                    Your execution plan is ready. Review the plan, provide
+                    feedback, or start execution.
                   </p>
                 </div>
               </div>
               <Link href={`/projects/${projectId}/plan`}>
-                <Button size="lg" className="bg-green-600 hover:bg-green-700 text-white">
+                <Button
+                  size="lg"
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
                   <FileText className="w-4 h-4 mr-2" />
                   Review Plan
                   <ArrowRight className="w-4 h-4 ml-2" />
@@ -248,10 +272,7 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
                 <CardTitle className="text-lg">Wave Timeline</CardTitle>
               </CardHeader>
               <CardContent>
-                <WaveTimeline 
-                  waves={waves} 
-                  currentWave={currentWave} 
-                />
+                <WaveTimeline waves={waves} currentWave={currentWave} />
               </CardContent>
             </Card>
 
@@ -274,33 +295,47 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Active Agents</span>
-                  <span className="text-sm font-medium">{activeAgents.length}</span>
+                  <span className="text-sm text-muted-foreground">
+                    Active Agents
+                  </span>
+                  <span className="text-sm font-medium">
+                    {activeAgents.length}
+                  </span>
                 </div>
+                {totalTasks > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      Completion
+                    </span>
+                    <span className="text-sm font-medium">
+                      {Math.round((completedTasks / totalTasks) * 100)}%
+                    </span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
 
           {/* Main Content Area */}
           <div className="space-y-6">
-            {/* Show Agent Pipeline during planning phase */}
-            {isInPlanningPhase && (
-              <AgentPipeline 
+            {/* ✅ Show Agent Pipeline with Real-Time Thoughts during planning */}
+            {isInPlanningPhase || isPlanReview ? (
+              <AgentPipeline
                 currentPhase={currentPhase}
                 completedPhases={status?.completedPhases || []}
                 projectId={projectId}
                 currentAgent={currentAgent}
               />
-            )}
+            ) : null}
 
             {/* Show Agent Grid during execution phase */}
-            {!isInPlanningPhase && (
+            {!isInPlanningPhase && !isPlanReview && totalTasks > 0 && (
               <Card>
                 <CardHeader>
                   <CardTitle>AI Agents</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <AgentGrid 
+                  <AgentGrid
                     tasks={tasks}
                     activeAgents={activeAgents}
                     currentWave={currentWave}
@@ -315,10 +350,7 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
                 <CardTitle>Activity Feed</CardTitle>
               </CardHeader>
               <CardContent>
-                <ActivityFeed 
-                  projectId={projectId}
-                  tasks={tasks}
-                />
+                <ActivityFeed projectId={projectId} tasks={tasks} />
               </CardContent>
             </Card>
           </div>

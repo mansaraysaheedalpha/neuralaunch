@@ -31,7 +31,7 @@ export class FrontendAgent extends BaseAgent {
         "code_analysis",
         "context_loader",
       ],
-      modelName: AI_MODELS.OPENAI,
+      modelName: AI_MODELS.CLAUDE,
     });
   }
 

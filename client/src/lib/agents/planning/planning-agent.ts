@@ -14,6 +14,7 @@ import { AI_MODELS } from "@/lib/models";
 import { toError } from "@/lib/error-utils";
 import { createThoughtStream } from "@/lib/agents/thought-stream";
 
+
 // ==========================================
 // TYPES & INTERFACES
 // ==========================================
@@ -164,7 +165,7 @@ export class PlanningAgent {
     if (anthropicKey) {
       this.anthropic = new Anthropic({
         apiKey: anthropicKey,
-        timeout: 180000,
+        timeout: 30 * 60 * 1000,
         maxRetries: 2,
       });
     } else {
@@ -544,77 +545,98 @@ export class PlanningAgent {
   // ==========================================
 
   /**
-   * Call GPT-4o API with JSON mode for reliable structured output
+   * Call Claude API with diagnostic logging
    */
   private async callClaude(
     prompt: string,
     thoughts?: ReturnType<typeof createThoughtStream>
   ): Promise<string> {
     const startTime = Date.now();
-    const estimatedTokens = Math.ceil(prompt.length / 4); // Rough estimate: 1 token ≈ 4 chars
-    logger.info(`[${this.name}] Calling GPT-4o API...`, {
+    const estimatedTokens = Math.ceil(prompt.length / 4);
+
+    logger.info(`[${this.name}] Calling Claude API...`, {
       promptLength: prompt.length,
       estimatedTokens,
-      model: AI_MODELS.OPENAI,
+      model: AI_MODELS.CLAUDE,
     });
 
     try {
-      const response = await this.openai.chat.completions.create({
-        model: AI_MODELS.OPENAI,
+      // Ultra-simple, direct instruction
+      const wrappedPrompt = `${prompt}
+
+CRITICAL: Your response must be ONLY valid JSON. 
+- Start immediately with {
+- End with }
+- No markdown blocks
+- No explanations
+- Just pure JSON
+
+BEGIN:`;
+
+      const systemPrompt = `You are a software architect. Output ONLY valid JSON. No markdown, no text, just JSON starting with { and ending with }.`;
+
+      const response = await this.anthropic.messages.create({
+        model: AI_MODELS.CLAUDE,
+        system: systemPrompt,
         messages: [
           {
             role: "user",
-            content: prompt,
+            content: wrappedPrompt,
           },
         ],
-        response_format: { type: "json_object" },
-        max_tokens: 16000,
-        temperature: 0.3,
+        max_tokens: 30000, // ← DOUBLED from 8192 to prevent truncation
+        temperature: 0.1,
       });
 
       const duration = Date.now() - startTime;
+      const inputTokens = response.usage.input_tokens;
+      const outputTokens = response.usage.output_tokens;
 
       if (thoughts) {
         await thoughts.emit(
           "executing",
-          `GPT-4o API call completed in ${duration}ms`,
-          {
-            inputTokens: response.usage?.prompt_tokens,
-            outputTokens: response.usage?.completion_tokens,
-          }
+          `Claude API completed in ${duration}ms`,
+          { inputTokens, outputTokens }
         );
       }
 
-      logger.info(`[${this.name}] 💭 GPT-4o API call completed in ${duration}ms`, {
-        inputTokens: response.usage?.prompt_tokens,
-        outputTokens: response.usage?.completion_tokens,
-        promptChars: prompt.length,
-        estimatedVsActual: `${estimatedTokens} est. vs ${response.usage?.prompt_tokens} actual`,
+      logger.info(`[${this.name}] Claude API completed in ${duration}ms`, {
+        inputTokens,
+        outputTokens,
       });
 
-      const content = response.choices[0]?.message?.content;
+      const content =
+        response.content[0]?.type === "text" ? response.content[0].text : "";
+
       if (!content) {
-        throw new Error("No response from GPT-4o");
+        throw new Error("No response from Claude");
       }
+
+      logger.info(`[${this.name}] Response preview:`, {
+        firstChars: content.substring(0, 100),
+        lastChars: content.substring(Math.max(0, content.length - 100)),
+        length: content.length,
+        startsWithBrace: content.trim().startsWith("{"),
+        endsWithBrace: content.trim().endsWith("}"),
+      });
 
       return content;
     } catch (error) {
       const duration = Date.now() - startTime;
-      logger.error(`[${this.name}] GPT-4o API call failed`, {
+      logger.error(`[${this.name}] Claude API call failed`, {
         duration: `${duration}ms`,
         error: toError(error),
       });
 
-      // Provide more helpful error messages for common issues
       if (error instanceof Error) {
         if (error.message.includes("timeout")) {
           throw new Error(
-            "GPT-4o API request timed out. The planning task may be too complex. Try simplifying your project requirements."
+            "Claude API request timed out. Try simplifying your project requirements."
           );
         }
-        if (error.message.includes("rate limit")) {
+        if (error.message.includes("rate_limit")) {
           throw new Error(
-            "API rate limit reached. Please wait a few moments and try again."
+            "Claude API rate limit exceeded. Please try again in a moment."
           );
         }
       }
@@ -622,7 +644,6 @@ export class PlanningAgent {
       throw error;
     }
   }
-
   // ==========================================
   // VISION PLANNING HELPERS
   // ==========================================
@@ -895,9 +916,23 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
   private getSharedPlanningInstructions(): string {
     return `
 **CRITICAL - ATOMIC TASKS ONLY**: Each task MUST be truly atomic:
-   - ✅ Simple: 1 file, 1 endpoint, OR 1 component (50-150 lines max)
-   - ⚠️ Medium: 2-3 tightly related files (150-300 lines total)
-   - ❌ Complex: NEVER create tasks >300 lines - split them further!
+   - ✅ Simple: 2 file, 2 endpoint, OR 2-3 component (200-350 lines max)
+   - ⚠️ Medium: 4-6 tightly related files (300-550 lines total)
+   - ❌ Complex: NEVER create tasks >600 lines - split them further!
+
+   // ⬇️⬇️ ADD THIS NEW BLOCK ⬇️⬇️
+**CRITICAL - COMPREHENSIVENESS**:
+1.  **COVER ALL FEATURES**: You MUST generate tasks for EVERY user-requested feature. Do not skip any.
+2.  **PLAN THE FULL APP, NOT JUST SETUP**: Do not *only* plan setup tasks (like user models, project setup, and DB setup). You must also plan the entire core application logic.
+3.  **EXAMPLE OF A BAD, INCOMPLETE PLAN (DO NOT DO THIS):**
+    * **User Request:** "Create a real-time multiplayer trivia game with rooms, questions, and a live leaderboard."
+    * **Bad Plan:** 1. Setup Vite, 2. Create User model, 3. Create /api/users, 4. Setup Socket.io, 5. Create GameRoom model, 6. Create GameRoom component, 7. Implement "join room" event.
+    * **Why it's BAD:** This plan completely misses the game! It has no questions, no game logic, no answer handling, and no leaderboard.
+4.  **EXAMPLE OF A GOOD, COMPLETE PLAN (DO THIS):**
+    * **Good Plan:** 1. Setup Vite, 2. Create User model, ... 5. Create GameRoom model, **6. Create Question model (with categories, answers)**, ... **8. Implement "start game" logic**, **9. Implement "send question" Socket.io event**, **10. Implement "submit answer" Socket.io event**, **11. Implement "update leaderboard" Socket.io event**, **12. Create GameRound component**, **13. Create Leaderboard component**, etc.
+// ⬆️⬆️ END OF NEW BLOCK ⬆️⬆️
+
+
 
 **Task Granularity Examples:**
    ✅ GOOD: "Create User model in Prisma schema"
@@ -1002,142 +1037,117 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
   /**
    * Robust JSON extraction and parsing from AI responses
    */
+  /**
+   * Robust JSON extraction and parsing from AI responses
+   * Handles Claude responses with thinking text, markdown, or explanations
+   */
+  /**
+   * Extract and parse JSON with comprehensive diagnostics
+   */
   private extractAndParseJSON(responseText: string): any {
-    // Log raw response for debugging
-    logger.info(
-      `[${this.name}] 💭 Analyzing AI response and extracting plan structure...`
-    );
-    logger.info(`[${this.name}] Raw AI response (first 500 chars):`, {
-      preview: responseText.substring(0, 500),
-      totalLength: responseText.length,
-    });
+    logger.info(`[${this.name}] Extracting JSON from Claude response`);
 
-    // Remove markdown code blocks - be more aggressive
-    let cleaned = responseText
-      .replace(/```json\n?/gi, "") // Case insensitive
-      .replace(/```javascript\n?/gi, "")
-      .replace(/```\n?/g, "")
-      .trim();
+    try {
+      // STRATEGY 1: Remove markdown blocks if present
+      let jsonText = responseText.trim();
 
-    // Try to find JSON object boundaries using proper brace matching
-    const jsonStart = cleaned.indexOf("{");
-    if (jsonStart === -1) {
-      logger.error(`[${this.name}] Failed to parse AI response`, {
-        reason: "No opening brace found",
-        preview: cleaned.substring(0, 200),
-      });
-      throw new Error(
-        `Failed to parse planning response. AI returned invalid format. No JSON object found.`
+      // Check for markdown code blocks and strip them
+      const markdownMatch = jsonText.match(
+        /^```(?:json)?\s*\n?([\s\S]*?)\n?```$/
       );
-    }
-
-    // Find matching closing brace using a stack-based approach
-    let braceCount = 0;
-    let inString = false;
-    let escapeNext = false;
-    let jsonEnd = -1;
-
-    for (let i = jsonStart; i < cleaned.length; i++) {
-      const char = cleaned[i];
-
-      if (escapeNext) {
-        escapeNext = false;
-        continue;
+      if (markdownMatch && markdownMatch[1]) {
+        jsonText = markdownMatch[1].trim();
+        logger.info(`[${this.name}] Stripped markdown code blocks`);
       }
 
-      if (char === "\\") {
-        escapeNext = true;
-        continue;
+      // STRATEGY 2: Try direct parse
+      if (jsonText.startsWith("{") && jsonText.endsWith("}")) {
+        try {
+          const parsed = JSON.parse(jsonText);
+          logger.info(`[${this.name}] ✅ Direct parse succeeded`);
+          return parsed;
+        } catch (e) {
+          logger.warn(`[${this.name}] Direct parse failed, trying extraction`);
+        }
       }
 
-      if (char === '"') {
-        inString = !inString;
-        continue;
-      }
+      // STRATEGY 3: Brace matching (handles incomplete responses)
+      let braceCount = 0;
+      let jsonStart = -1;
+      let jsonEnd = -1;
 
-      if (!inString) {
+      for (let i = 0; i < jsonText.length; i++) {
+        const char = jsonText[i];
+
         if (char === "{") {
+          if (braceCount === 0) {
+            jsonStart = i;
+          }
           braceCount++;
         } else if (char === "}") {
           braceCount--;
-          if (braceCount === 0) {
-            jsonEnd = i + 1;
-            break;
+          if (braceCount === 0 && jsonStart !== -1) {
+            jsonEnd = i;
+            break; // Found complete JSON
           }
         }
       }
-    }
 
-    if (jsonEnd === -1) {
-      logger.error(`[${this.name}] Failed to parse AI response`, {
-        reason: "No matching closing brace found",
-        braceCount,
-        preview: cleaned.substring(0, 500),
-      });
-      throw new Error(
-        `Failed to parse planning response. AI returned invalid format. Unbalanced braces.`
-      );
-    }
-
-    // Extract the JSON object
-    cleaned = cleaned.substring(jsonStart, jsonEnd);
-
-    // Try parsing
-    try {
-      const parsed = JSON.parse(cleaned);
-      logger.info(`[${this.name}] ✅ Successfully parsed AI response`);
-      return parsed;
-    } catch (firstError) {
-      logger.info(`[${this.name}] First parse attempt failed, trying fixes...`);
-
-      // If that fails, try to fix common issues
-
-      // Fix trailing commas
-      let fixed = cleaned.replace(/,(\s*[}\]])/g, "$1");
-
-      // Fix unquoted keys (common in some AI responses)
-      fixed = fixed.replace(
-        /([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g,
-        '$1"$2":'
-      );
-
-      // Fix 3: Replace single quotes with double quotes (if any)
-      fixed = fixed.replace(/'/g, '"');
-
-      // Try parsing the fixed version
-      try {
-        const parsed = JSON.parse(fixed);
-        logger.info(
-          `[${this.name}] ✅ Successfully parsed AI response after fixes`
-        );
-        return parsed;
-      } catch (secondError) {
-        // Step 5: Last resort - try to find and extract valid JSON with regex
-        logger.error(`[${this.name}] ❌ All parsing attempts failed`);
-
-        // Log detailed error information
-        logger.error(`[${this.name}] Failed to parse AI response`, {
-          originalLength: responseText.length,
-          cleanedLength: cleaned.length,
-          fixedLength: fixed.length,
-          preview: cleaned.substring(0, 500),
-          firstError: toError(firstError).message,
-          secondError: toError(secondError).message,
-        });
-
-        // Try to provide helpful error message
-        if (cleaned.length > 50000) {
-          throw new Error(
-            `Claude response too large (${cleaned.length} chars). Try simplifying your project requirements.`
+      if (jsonStart !== -1 && jsonEnd !== -1) {
+        const jsonString = jsonText.substring(jsonStart, jsonEnd + 1);
+        try {
+          const parsed = JSON.parse(jsonString);
+          logger.info(`[${this.name}] ✅ Brace matching succeeded`);
+          return parsed;
+        } catch (e) {
+          logger.error(
+            `[${this.name}] Brace matching parse failed:`,
+            toError(e).message
           );
         }
-
-        throw new Error(
-          `Failed to parse planning response. AI returned invalid JSON format. ` +
-            `Error: ${secondError instanceof Error ? secondError.message : String(secondError)}. ` +
-            `Preview: ${cleaned.substring(0, 300)}...`
-        );
       }
+
+      // STRATEGY 4: Last resort - indexOf
+      const simpleStart = jsonText.indexOf("{");
+      const simpleEnd = jsonText.lastIndexOf("}");
+
+      if (simpleStart !== -1 && simpleEnd !== -1 && simpleEnd > simpleStart) {
+        try {
+          const jsonString = jsonText.substring(simpleStart, simpleEnd + 1);
+          const parsed = JSON.parse(jsonString);
+          logger.info(`[${this.name}] ✅ indexOf method succeeded`);
+          return parsed;
+        } catch (e) {
+          logger.error(
+            `[${this.name}] indexOf parse failed:`,
+            toError(e).message
+          );
+        }
+      }
+
+      // ALL FAILED
+      logger.error(`[${this.name}] All parsing strategies failed`, {
+        length: jsonText.length,
+        preview: jsonText.substring(0, 300),
+        hasOpenBrace: jsonText.includes("{"),
+        hasCloseBrace: jsonText.includes("}"),
+      });
+
+      throw new Error(
+        `Failed to parse planning response. AI returned invalid format. ` +
+          `Length: ${jsonText.length}. ` +
+          `Preview: ${jsonText.substring(0, 300)}...`
+      );
+    } catch (error) {
+      logger.error(
+        `[${this.name}] Critical parsing error:`,
+        toError(error).message
+      );
+
+      throw new Error(
+        `Failed to parse planning response. AI returned invalid format. ` +
+          `Error: ${toError(error).message}`
+      );
     }
   }
 

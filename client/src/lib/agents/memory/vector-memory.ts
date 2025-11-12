@@ -146,35 +146,64 @@ export class VectorMemory {
 
       // Perform vector similarity search using pgvector's <-> operator
       // <-> is cosine distance (lower = more similar)
-      const memories: any[] = await prisma.$queryRaw`
-        SELECT 
-          id,
-          "agentName",
-          "taskType",
-          "taskTitle",
-          "taskDescription",
-          "techStack",
-          "complexity",
-          "estimatedLines",
-          success,
-          iterations,
-          "durationMs",
-          error,
-          "filesCreated",
-          "codeSnippets",
-          "commandsRun",
-          learnings,
-          "errorsSolved",
-          "bestPractices",
-          "projectId",
-          "userId",
-          "createdAt",
-          1 - (embedding <=> ${`[${queryEmbedding.join(",")}]`}::vector) as similarity
-        FROM "AgentMemory"
-        WHERE ${agentName ? prisma.$queryRaw`"agentName" = ${agentName}` : prisma.$queryRaw`true`}
-        ORDER BY embedding <=> ${`[${queryEmbedding.join(",")}]`}::vector
-        LIMIT ${limit}
-      `;
+      const memories: any[] = agentName
+        ? await prisma.$queryRaw`
+      SELECT 
+        id,
+        "agentName",
+        "taskType",
+        "taskTitle",
+        "taskDescription",
+        "techStack",
+        "complexity",
+        "estimatedLines",
+        success,
+        iterations,
+        "durationMs",
+        error,
+        "filesCreated",
+        "codeSnippets",
+        "commandsRun",
+        learnings,
+        "errorsSolved",
+        "bestPractices",
+        "projectId",
+        "userId",
+        "createdAt",
+        1 - (embedding <=> ${`[${queryEmbedding.join(",")}]`}::vector) as similarity
+      FROM "AgentMemory"
+      WHERE "agentName" = ${agentName}
+      ORDER BY embedding <=> ${`[${queryEmbedding.join(",")}]`}::vector
+      LIMIT ${limit}
+    `
+        : await prisma.$queryRaw`
+      SELECT 
+        id,
+        "agentName",
+        "taskType",
+        "taskTitle",
+        "taskDescription",
+        "techStack",
+        "complexity",
+        "estimatedLines",
+        success,
+        iterations,
+        "durationMs",
+        error,
+        "filesCreated",
+        "codeSnippets",
+        "commandsRun",
+        learnings,
+        "errorsSolved",
+        "bestPractices",
+        "projectId",
+        "userId",
+        "createdAt",
+        1 - (embedding <=> ${`[${queryEmbedding.join(",")}]`}::vector) as similarity
+      FROM "AgentMemory"
+      ORDER BY embedding <=> ${`[${queryEmbedding.join(",")}]`}::vector
+      LIMIT ${limit}
+    `;
 
       logger.info(`[${this.name}] Found ${memories.length} similar tasks`);
 

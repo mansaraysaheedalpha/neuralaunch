@@ -351,13 +351,13 @@ export const continuousMonitoringFunction = inngest.createFunction(
         // Get projects with active deployments
         const projects = await prisma.projectContext.findMany({
           where: {
-            // Add filter for projects with deployments
-            // e.g., deploymentUrl: { not: null }
+            
+            deploymentUrl: { not: null }
           },
           select: {
             projectId: true,
             userId: true,
-            // deploymentUrl: true,
+            deploymentUrl: true,
           },
         });
 
@@ -380,8 +380,8 @@ export const continuousMonitoringFunction = inngest.createFunction(
             userId: project.userId,
             conversationId: "", // No conversation for cron jobs
             taskInput: {
-              // deploymentUrl: project.deploymentUrl,
-              monitoringDuration: 2, // 2 minutes for cron checks
+              deploymentUrl: project.deploymentUrl,
+              monitoringDuration: 5, // 2 minutes for cron checks
               checkInterval: 30,
               continuousMonitoring: false, // Cron handles scheduling
             },

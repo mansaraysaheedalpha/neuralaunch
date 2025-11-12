@@ -26,6 +26,7 @@ model User {
   achievements    Achievement[]
   memories        AiMemory[]
   vercelTeamId    String?
+  thoughtPreferences Json?
 }
 
 model Account {
@@ -702,4 +703,17 @@ model HumanReviewRequest {
   @@index([status])
   @@index([priority])
   @@index([createdAt])
+}
+
+model AgentThought {
+  id        String   @id @default(cuid())
+  projectId String
+  agentName String
+  type      String
+  message   String   @db.Text
+  metadata  Json?
+  timestamp DateTime @default(now())
+  
+  @@index([projectId, timestamp])
+  @@index([projectId, agentName])
 }

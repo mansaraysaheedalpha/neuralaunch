@@ -11,19 +11,17 @@ import { researchAgent } from "../agents/research/research.agent";
 import { validationAgent } from "../agents/validation/validation.agent";
 import { planningAgent } from "../agents/planning/planning-agent";
 import { toError } from "@/lib/error-utils";
+import {
+  ORCHESTRATOR_PHASES,
+  PLANNING_PHASES,
+  OrchestratorPhase as PhaseType,
+} from "./phases";
 
 // ==========================================
 // TYPES & INTERFACES
 // ==========================================
 
-export type AgentPhase =
-  | "analysis"
-  | "research"
-  | "validation"
-  | "planning"
-  | "plan_review"
-  | "wave_execution"
-  | "complete";
+export type AgentPhase = PhaseType;
 
 export interface OrchestratorInput {
   projectId: string;
@@ -126,7 +124,7 @@ export class AgentOrchestrator {
           "Planning complete! Please review the execution plan before starting Wave 1.",
         projectId: input.projectId,
         completedPhases: this.phaseResults,
-        currentPhase: "plan_review",
+        currentPhase: ORCHESTRATOR_PHASES.PLAN_REVIEW as AgentPhase,
         totalDuration,
       };
     } catch (error) {
@@ -187,10 +185,22 @@ export class AgentOrchestrator {
     startPhase: AgentPhase
   ): Array<{ phase: AgentPhase; agentName: string }> {
     const fullPipeline: Array<{ phase: AgentPhase; agentName: string }> = [
-      { phase: "analysis", agentName: "AnalyzerAgent" },
-      { phase: "research", agentName: "ResearchAgent" },
-      { phase: "validation", agentName: "ValidationAgent" },
-      { phase: "planning", agentName: "PlanningAgent" },
+      {
+        phase: ORCHESTRATOR_PHASES.ANALYSIS as AgentPhase,
+        agentName: "AnalyzerAgent",
+      },
+      {
+        phase: ORCHESTRATOR_PHASES.RESEARCH as AgentPhase,
+        agentName: "ResearchAgent",
+      },
+      {
+        phase: ORCHESTRATOR_PHASES.VALIDATION as AgentPhase,
+        agentName: "ValidationAgent",
+      },
+      {
+        phase: ORCHESTRATOR_PHASES.PLANNING as AgentPhase,
+        agentName: "PlanningAgent",
+      },
     ];
 
     const startIndex = fullPipeline.findIndex((p) => p.phase === startPhase);
@@ -336,7 +346,7 @@ export class AgentOrchestrator {
     await prisma.projectContext.update({
       where: { projectId },
       data: {
-        currentPhase: "plan_review",
+        currentPhase: ORCHESTRATOR_PHASES.PLAN_REVIEW,
         planApprovalStatus: "pending",
         updatedAt: new Date(),
       },
@@ -353,8 +363,8 @@ export class AgentOrchestrator {
       where: { projectId },
       select: { currentPhase: true },
     });
-
-    return (context?.currentPhase || "analysis") as AgentPhase;
+    return (context?.currentPhase ||
+      ORCHESTRATOR_PHASES.ANALYSIS) as AgentPhase;
   }
 
   /**
