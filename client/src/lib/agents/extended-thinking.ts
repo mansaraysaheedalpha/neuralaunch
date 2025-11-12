@@ -5,7 +5,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
-import { ThoughtStream } from "./thought-stream-enhanced";
+import { ThoughtStream } from "./thought-stream";
 import { logger } from "@/lib/logger";
 
 interface ExtendedThinkingOptions {

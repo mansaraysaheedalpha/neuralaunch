@@ -12,7 +12,10 @@ export type ThoughtType =
   | "deciding"      // Agent is making a decision
   | "executing"     // Agent is executing an action
   | "completing"    // Agent is completing its work
-  | "error";        // Agent encountered an error
+  | "error"         // Agent encountered an error
+  | "deep_reasoning"; // Raw AI reasoning from extended thinking
+
+export type ThoughtMode = "curated" | "deep_dive" | "both";
 
 export interface Thought {
   id: string;
@@ -22,6 +25,8 @@ export interface Thought {
   message: string;
   timestamp: string; // ISO 8601 format
   metadata?: Record<string, any>;
+  mode?: ThoughtMode; // Track thought source (curated, deep_dive, both)
+  rawReasoning?: string; // Store raw AI reasoning from extended thinking
 }
 
 export interface ThoughtStreamOptions {
@@ -35,7 +40,7 @@ export interface ThoughtStreamResult {
   isLoading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
-  clearThoughts: () => void>;
+  clearThoughts: () => void;
 }
 
 /**
@@ -51,6 +56,7 @@ export function isValidThoughtType(type: string): type is ThoughtType {
     "executing",
     "completing",
     "error",
+    "deep_reasoning",
   ].includes(type);
 }
 
@@ -149,6 +155,7 @@ export function getThoughtStats(thoughts: Thought[]): ThoughtStats {
       executing: 0,
       completing: 0,
       error: 0,
+      deep_reasoning: 0,
     },
     byAgent: {},
     timeSpan: 0,
