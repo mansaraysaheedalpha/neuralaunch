@@ -148,7 +148,7 @@ export class PlanningAgent {
   constructor() {
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
     const openaiKey = process.env.OPENAI_API_KEY;
-    
+
     if (!openaiKey) {
       throw new Error("OPENAI_API_KEY is required for PlanningAgent");
     }
@@ -172,7 +172,6 @@ export class PlanningAgent {
       this.anthropic = null as any;
     }
   }
-
   /**
    * Main execution method - Routes to vision or blueprint planning
    */
@@ -198,7 +197,7 @@ export class PlanningAgent {
 
     // Legacy flow - treat as blueprint without validation data
     logger.info(`[${this.name}] Legacy planning flow for ${input.projectId}`);
-    return await this.executeLegacyPlanning(input);
+    return await this.executeLegacyPlanning(input as LegacyPlanningInput);
   }
 
   /**
@@ -552,8 +551,10 @@ export class PlanningAgent {
     thoughts?: ReturnType<typeof createThoughtStream>
   ): Promise<string> {
     const startTime = Date.now();
+    const estimatedTokens = Math.ceil(prompt.length / 4);
     logger.info(`[${this.name}] Calling GPT-4o API with JSON mode...`, {
       promptLength: prompt.length,
+      estimatedTokens,
       model: AI_MODELS.OPENAI,
     });
 
@@ -568,7 +569,8 @@ Your response must be a valid JSON object only. No other text.`;
         messages: [
           {
             role: "system",
-            content: "You are a technical planning assistant. You always respond with valid JSON only, no markdown, no explanations."
+            content:
+              "You are a technical planning assistant. You always respond with valid JSON only, no markdown, no explanations.",
           },
           {
             role: "user",
@@ -1237,7 +1239,9 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
       update: {
         executionPlan: planWithMetadata as any,
         // Only update originalPlan if it doesn't exist yet
-        ...(existingContext?.originalPlan ? {} : { originalPlan: planWithMetadata as any }),
+        ...(existingContext?.originalPlan
+          ? {}
+          : { originalPlan: planWithMetadata as any }),
         currentPhase: "plan_review",
         updatedAt: new Date(),
       },
@@ -1514,7 +1518,7 @@ Return ONLY a valid JSON object (no markdown, no code blocks) with the complete 
         },
       });
 
-      logger.info(`[${this.name}] Plan updated with feedback`, { 
+      logger.info(`[${this.name}] Plan updated with feedback`, {
         projectId,
         revisionCount: currentRevisionCount + 1,
       });
