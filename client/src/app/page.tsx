@@ -675,60 +675,82 @@ const WhyChooseSection = () => {
 
 // --- FinalCTASection ---
 const FinalCTASection = () => (
-  <section className="py-32 md:py-40 bg-gradient-to-t from-background via-violet-50/10 to-purple-50/10 dark:from-slate-900 dark:via-slate-800/30 dark:to-slate-900 text-center">
-    <motion.div
-      variants={staggerContainer}
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true }}
-    >
-      <motion.h2
-        variants={fadeIn}
-        className="text-5xl md:text-6xl font-black tracking-tight text-foreground mb-6"
+  <section className="relative py-32 md:py-40 overflow-hidden">
+    {/* Gradient Background */}
+    <div className="absolute inset-0 bg-gradient-to-t from-background via-primary/5 to-background dark:from-slate-900 dark:via-primary/10 dark:to-slate-900" />
+    
+    {/* Animated Orbs */}
+    <div className="absolute top-1/2 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl animate-pulse" />
+    <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-secondary/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
+
+    <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <motion.div
+        variants={staggerContainer}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true }}
       >
-        Ready to Validate Your Vision?
-      </motion.h2>
-      <motion.p
-        variants={fadeIn}
-        className="text-xl md:text-2xl text-muted-foreground mb-12 max-w-xl mx-auto"
-      >
-        {" "}
-        {/* Increased bottom margin */}
-        Stop guessing, start validating. Get your AI-powered blueprint and
-        launch your startup with confidence.
-      </motion.p>
-      <motion.div variants={fadeIn}>
-        <Link href="/generate" passHref>
-          <motion.span
-            whileHover={{
-              scale: 1.05,
-              boxShadow: "0px 10px 20px hsla(var(--primary), 0.3)",
-            }}
-            whileTap={{ scale: 0.95 }}
-            // --- ADD GLOWING/BREATHING ANIMATION ---
-            animate={{
-              scale: [1, 1.02, 1], // Subtle scale pulse
-              boxShadow: [
-                "0px 0px 0px 0px hsla(var(--primary), 0.4)", // No glow
-                "0px 0px 15px 5px hsla(var(--primary), 0.6)", // Max glow
-                "0px 0px 0px 0px hsla(var(--primary), 0.4)", // Back to subtle glow/no glow
-              ],
-            }}
-            transition={{
-              duration: 2.5, // Duration of one cycle
-              ease: "easeInOut",
-              repeat: Infinity, // Loop forever
-              repeatDelay: 1, // Pause slightly between pulses
-            }}
-            // ----------------------------------------
-            className="inline-flex items-center gap-2 px-10 py-5 bg-gradient-to-r from-primary to-secondary text-primary-foreground  md:text-xl rounded-xl font-semibold text-lg shadow-lg transition-all duration-300 cursor-pointer"
-          >
-            Start Generating
-            <ArrowRight className="w-6 h-6" />
-          </motion.span>
-        </Link>
+        <motion.h2
+          variants={fadeIn}
+          className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black tracking-tight text-foreground mb-6"
+        >
+          Ready to Validate Your Vision?
+        </motion.h2>
+        <motion.p
+          variants={fadeIn}
+          className="text-lg sm:text-xl md:text-2xl text-muted-foreground mb-12 max-w-2xl mx-auto leading-relaxed"
+        >
+          Stop guessing, start validating. Get your AI-powered blueprint and
+          launch your startup with confidence.
+        </motion.p>
+        <motion.div variants={fadeIn} className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+          <Link href="/generate" passHref>
+            <motion.span
+              whileHover={{
+                scale: 1.05,
+                boxShadow: "0px 20px 40px hsla(var(--primary), 0.4)",
+              }}
+              whileTap={{ scale: 0.98 }}
+              animate={{
+                boxShadow: [
+                  "0px 0px 0px 0px hsla(var(--primary), 0.4)",
+                  "0px 0px 20px 8px hsla(var(--primary), 0.3)",
+                  "0px 0px 0px 0px hsla(var(--primary), 0.4)",
+                ],
+              }}
+              transition={{
+                duration: 2.5,
+                ease: "easeInOut",
+                repeat: Infinity,
+                repeatDelay: 1,
+              }}
+              className="inline-flex items-center gap-3 px-10 py-5 bg-gradient-to-r from-primary via-purple-600 to-secondary text-primary-foreground text-lg md:text-xl rounded-2xl font-bold shadow-2xl cursor-pointer group relative overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-secondary via-purple-600 to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              <Rocket className="w-6 h-6 relative z-10" />
+              <span className="relative z-10">Start Generating</span>
+              <ArrowRight className="w-6 h-6 relative z-10 group-hover:translate-x-1 transition-transform" />
+            </motion.span>
+          </Link>
+        </motion.div>
+
+        {/* Trust Indicators */}
+        <motion.div variants={fadeIn} className="mt-12 flex flex-wrap justify-center gap-8 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-primary" />
+            <span>No credit card required</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-primary" />
+            <span>Start for free</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-primary" />
+            <span>Cancel anytime</span>
+          </div>
+        </motion.div>
       </motion.div>
-    </motion.div>
+    </div>
   </section>
 );
 

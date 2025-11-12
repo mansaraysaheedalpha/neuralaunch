@@ -5,12 +5,15 @@ import Link from "next/link";
 import ThemeSwitcher from "./ThemeSwitcher";
 import { useSession, signOut } from "next-auth/react";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { useState } from "react";
+import { Menu, X } from "lucide-react";
 
 export default function LandingHeader() {
   const { data: session, status } = useSession();
   const FEEDBACK_FORM_URL = "https://forms.gle/WVLZzKtFYLvb7Xkg9"; // Feedback URL
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     // Fixed positioning for the landing page header
@@ -76,9 +79,19 @@ export default function LandingHeader() {
             <span>💬</span>
           </Link>
           <ThemeSwitcher />
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-2 text-foreground hover:text-primary transition-colors"
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+
           {/* Auth Status Logic */}
           {status === "loading" ? (
-            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-muted rounded-full animate-pulse"></div>
+            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-muted rounded-full animate-pulse hidden md:block"></div>
           ) : session ? (
             // User Menu Dropdown
             <DropdownMenu.Root>
@@ -182,7 +195,7 @@ export default function LandingHeader() {
               </DropdownMenu.Portal>
             </DropdownMenu.Root>
           ) : (
-            <Link href="/signin" passHref>
+            <Link href="/signin" passHref className="hidden md:inline-flex">
               <motion.button
                 whileHover={{
                   scale: 1.05,
@@ -214,6 +227,61 @@ export default function LandingHeader() {
           {/* END Auth Status Logic */}
         </div>
       </div>
+
+      {/* Mobile Menu */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+            className="md:hidden border-t border-border/50 bg-background/95 backdrop-blur-xl"
+          >
+            <div className="px-4 py-6 space-y-4">
+              <Link
+                href="/about"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block px-4 py-3 text-base font-medium text-foreground hover:text-primary hover:bg-muted/50 rounded-lg transition-colors"
+              >
+                About Us
+              </Link>
+              <Link
+                href="/pricing"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block px-4 py-3 text-base font-medium text-foreground hover:text-primary hover:bg-muted/50 rounded-lg transition-colors"
+              >
+                Pricing
+              </Link>
+              <Link
+                href="/faq"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block px-4 py-3 text-base font-medium text-foreground hover:text-primary hover:bg-muted/50 rounded-lg transition-colors"
+              >
+                FAQ
+              </Link>
+              <Link
+                href={FEEDBACK_FORM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block px-4 py-3 text-base font-medium text-foreground hover:text-primary hover:bg-muted/50 rounded-lg transition-colors"
+              >
+                Feedback 💬
+              </Link>
+              {!session && (
+                <Link
+                  href="/signin"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="block px-4 py-3 text-base font-bold text-center text-white bg-gradient-to-r from-primary to-secondary rounded-xl shadow-lg"
+                >
+                  Get Started
+                </Link>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   );
 }
