@@ -55,6 +55,64 @@ OPENAI_API_KEY="your-openai-key"
 ANTHROPIC_API_KEY="your-anthropic-key"
 ```
 
+## Extended Thinking Integration
+
+NeuraLaunch now supports Claude's Extended Thinking feature for enhanced transparency in AI reasoning. This allows you to see the actual internal reasoning process of the AI as it makes decisions.
+
+### Features
+- **Deep Dive Mode**: Toggle to view raw AI reasoning alongside curated thoughts
+- **Extended Thinking**: Leverages Claude's native extended thinking capability to expose internal reasoning
+- **Chain-of-Thought**: Alternative mode that forces step-by-step reasoning output
+- **Thought Streaming**: Real-time display of AI thoughts during execution
+
+### Usage in Planning Agent
+
+```typescript
+import { planningAgent } from "@/lib/agents/planning/planning-agent";
+
+// Execute with extended thinking enabled
+const result = await planningAgent.execute(
+  {
+    projectId: "project-123",
+    userId: "user-456",
+    conversationId: "conv-789",
+    sourceType: "blueprint",
+    blueprint: "...",
+  },
+  {
+    enableDeepDive: true,        // Enable raw reasoning display
+    useExtendedThinking: true,   // Use Claude's extended thinking
+    useChainOfThought: false,    // Alternative: step-by-step prompting
+  }
+);
+```
+
+### Options
+
+- **`enableDeepDive`**: When `true`, stores and displays raw AI reasoning alongside curated thoughts
+- **`useExtendedThinking`**: When `true`, uses Claude's native extended thinking feature (recommended for important decisions)
+- **`useChainOfThought`**: When `true`, uses structured prompting to force step-by-step reasoning (alternative to extended thinking)
+
+### Thought Types
+
+The system now supports an additional thought type:
+- `deep_reasoning`: Raw AI internal reasoning from extended thinking
+
+### API Integration
+
+The planning options can be passed through API routes:
+
+```typescript
+// POST /api/projects/[projectId]/agent/plan
+{
+  "projectId": "project-123",
+  "options": {
+    "enableDeepDive": true,
+    "useExtendedThinking": true
+  }
+}
+```
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
