@@ -153,6 +153,24 @@ async function handleVisionRequest(
     },
   });
 
+  // ✅ FIX: Create LandingPage record for vision projects
+  // This ensures SandboxService.findOrCreateSandbox() can find the project
+  await prisma.landingPage.create({
+    data: {
+      id: projectId,
+      userId,
+      conversationId: projectId,
+      slug: projectId, // Use projectId as slug for vision projects
+      title: body.projectName,
+      headline: `Building ${body.projectName}`,
+      subheadline: "AI-powered project generation in progress",
+      features: [], // Empty initially, will be populated by agents
+      designVariant: "default",
+      colorScheme: { primary: "#3b82f6", secondary: "#8b5cf6" },
+      isPublished: false,
+    },
+  });
+
   // ✅ FIX: Create ProjectContext with "analysis" phase instead of "initializing"
   // This ensures the UI immediately shows the correct phase
   await prisma.projectContext.create({
@@ -170,6 +188,7 @@ async function handleVisionRequest(
     projectId,
     conversationId: conversation.id,
     initialPhase: "analysis", // ✅ Log the initial phase
+    landingPageCreated: true, // ✅ Indicates LandingPage was created for sandbox support
   });
 
   if (body.async) {
