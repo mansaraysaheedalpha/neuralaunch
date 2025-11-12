@@ -27,6 +27,9 @@ import {
 } from "../error-recovery/error-recovery-system";
 import { toError, toLogContext } from "@/lib/error-utils";
 
+// Import tools to ensure they're registered before agents try to use them
+import { initializeTools } from "../tools/index";
+
 export interface BaseAgentConfig {
   name: string;
   category: "execution" | "quality" | "deployment";
@@ -81,6 +84,9 @@ export abstract class BaseAgent {
 
   constructor(config: BaseAgentConfig) {
     this.config = config;
+
+    // Ensure tools are initialized before loading them
+    initializeTools();
 
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey) {
