@@ -9,6 +9,7 @@ import { inngest } from "../client";
 import { testingAgent } from "@/lib/agents/quality/testing-agent";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { TechStack } from "@/lib/agents/types/common";
 
 export const testingAgentFunction = inngest.createFunction(
   {
@@ -54,7 +55,7 @@ export const testingAgentFunction = inngest.createFunction(
           sourceFiles: taskInput.sourceFiles || [],
         },
         context: {
-          techStack: projectContext.techStack,
+          techStack: projectContext.techStack as TechStack | undefined,
           architecture: projectContext.architecture,
         },
       });

@@ -5,11 +5,17 @@
  */
 
 import { inngest } from "../client";
-import { criticAgent } from "@/lib/agents/quality/critic-agent";
+import { criticAgent, ReviewReport, CodeIssue } from "@/lib/agents/quality/critic-agent";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { githubAgent } from "@/lib/agents/github/github-agent";
 import { TechStack } from "@/lib/agents/types/common";
+
+interface CriticOutputData {
+  report?: ReviewReport;
+  approved?: boolean;
+  [key: string]: unknown;
+}
 
 export const criticAgentFunction = inngest.createFunction(
   {
@@ -108,7 +114,7 @@ export const criticAgentFunction = inngest.createFunction(
             select: { codebase: true },
           });
 
-          const codebase = projectCtx?.codebase as any;
+          const codebase = projectCtx?.codebase as { githubRepoName?: string } | null;
           const repoName = codebase?.githubRepoName;
 
           if (repoName) {
@@ -126,7 +132,7 @@ export const criticAgentFunction = inngest.createFunction(
             const githubToken = user?.accounts[0]?.access_token;
 
             if (githubToken && result.data) {
-              const report = result.data.report;
+              const report = result.data.report as ReviewReport;
 
               // Format review comment
               const comment = `
@@ -149,7 +155,7 @@ ${
   report.mustFix.length > 0
     ? `### ⚠️ Must Fix:\n${report.mustFix
         .slice(0, 5)
-        .map((i: any) => `- **${i.file}:${i.line}** - ${i.message}`)
+        .map((i: CodeIssue) => `- **${i.file}:${i.line}** - ${i.message}`)
         .join("\n")}`
     : ""
 }
@@ -174,16 +180,17 @@ ${report.approved ? "✅ **Code review passed!**" : "❌ **Code review failed - 
     // Step 5: Update task status
     await step.run("update-task-status", async () => {
       if (taskInput.waveNumber) {
+        const criticData = result.data as CriticOutputData | undefined;
         await prisma.agentTask.updateMany({
           where: {
             projectId,
             waveNumber: taskInput.waveNumber,
           },
           data: {
-            reviewScore: result.data?.report?.overallScore,
-            reviewApproved: result.data?.approved,
-            criticalIssues: result.data?.report?.mustFix?.length || 0,
-            securityScore: result.data?.report?.metrics?.securityScore,
+            reviewScore: criticData?.report?.overallScore,
+            reviewApproved: criticData?.approved,
+            criticalIssues: criticData?.report?.mustFix?.length || 0,
+            securityScore: criticData?.report?.metrics?.securityScore,
           },
         });
       }
@@ -191,6 +198,7 @@ ${report.approved ? "✅ **Code review passed!**" : "❌ **Code review failed - 
 
     // Step 6: Send completion event
     await step.run("send-completion-event", async () => {
+      const criticData = result.data as CriticOutputData | undefined;
       await inngest.send({
         name: "agent/quality.critic.complete",
         data: {
@@ -198,24 +206,25 @@ ${report.approved ? "✅ **Code review passed!**" : "❌ **Code review failed - 
           projectId,
           waveNumber: taskInput.waveNumber ?? 0,
           success: result.success,
-          approved: result.data?.approved,
-          score: result.data?.report?.overallScore,
+          approved: criticData?.approved,
+          score: criticData?.report?.overallScore,
         },
       });
     });
 
+    const criticData = result.data as CriticOutputData | undefined;
     logger.info(`[Inngest] Critic Agent completed`, {
       taskId,
-      approved: result.data?.approved,
-      score: result.data?.report?.overallScore,
+      approved: criticData?.approved,
+      score: criticData?.report?.overallScore,
     });
 
     return {
       success: result.success,
       message: result.message,
-      approved: result.data?.approved,
-      score: result.data?.report?.overallScore,
-      criticalIssues: result.data?.report?.mustFix?.length || 0,
+      approved: criticData?.approved,
+      score: criticData?.report?.overallScore,
+      criticalIssues: criticData?.report?.mustFix?.length || 0,
     };
   }
 );

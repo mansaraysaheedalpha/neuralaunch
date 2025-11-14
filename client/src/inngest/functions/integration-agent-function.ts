@@ -13,6 +13,7 @@ import { integrationAgent } from "@/lib/agents/integration/integration-agent";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { createAgentError } from "@/lib/error-utils";
+import { TechStack } from "@/lib/agents/types/common";
 
 export const integrationAgentFunction = inngest.createFunction(
   {
@@ -75,7 +76,7 @@ export const integrationAgentFunction = inngest.createFunction(
           specificEndpoints: taskInput.specificEndpoints,
         },
         context: {
-          techStack: projectContext.techStack,
+          techStack: projectContext.techStack as TechStack | undefined,
           architecture: projectContext.architecture,
         },
       });

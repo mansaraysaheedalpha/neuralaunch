@@ -13,6 +13,7 @@ import { inngest } from "../client";
 import { optimizationAgent } from "@/lib/agents/optimization/optimization-agent";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { TechStack } from "@/lib/agents/types/common";
 import { createAgentError } from "@/lib/error-utils";
 import { sendNotification } from "@/lib/notifications/notification-service";
 
@@ -109,7 +110,7 @@ export const optimizationAgentFunction = inngest.createFunction(
           maxOptimizations: taskInput.maxOptimizations || 10,
         },
         context: {
-          techStack: projectContext.techStack,
+          techStack: projectContext.techStack as TechStack | undefined,
           architecture: projectContext.architecture,
         },
       });

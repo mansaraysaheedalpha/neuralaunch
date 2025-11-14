@@ -206,10 +206,10 @@ ${taskDetails.description}
 - **Commands Run:** ${result.data?.commandsRun?.length || 0}
 
 ### Files Changed:
-${result.data?.filesCreated?.map((f: string) => `- ${f}`).join("\n") || "N/A"}
+${result.data?.filesCreated?.map((f) => `- ${typeof f === 'string' ? f : f.path}`).join("\n") || "N/A"}
 
 ### Commands Executed:
-${result.data?.commandsRun?.map((c: string) => `- \`${c}\``).join("\n") || "N/A"}
+${result.data?.commandsRun?.map((c) => `- \`${typeof c === 'string' ? c : c.command}\``).join("\n") || "N/A"}
 
 ### Acceptance Criteria:
 ${taskDetails.acceptanceCriteria?.map((c: string) => `- [x] ${c}`).join("\n") || "N/A"}

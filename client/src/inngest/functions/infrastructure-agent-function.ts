@@ -9,6 +9,7 @@ import { infrastructureAgent } from "@/lib/agents/infrastructure/infrastructure-
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { createAgentError } from "@/lib/error-utils";
+import { TechStack } from "@/lib/agents/types/common";
 
 export const infrastructureAgentFunction = inngest.createFunction(
   {
@@ -62,7 +63,7 @@ export const infrastructureAgentFunction = inngest.createFunction(
             includeNginx: taskInput.includeNginx || false,
           },
           context: {
-            techStack: projectContext.techStack,
+            techStack: projectContext.techStack as TechStack | undefined,
             architecture: projectContext.architecture,
           },
         });

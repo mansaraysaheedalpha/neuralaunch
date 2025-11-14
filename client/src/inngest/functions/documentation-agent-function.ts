@@ -9,6 +9,7 @@ import { documentationAgent } from "@/lib/agents/documentation/documentation-age
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { createAgentError } from "@/lib/error-utils";
+import { TechStack } from "@/lib/agents/types/common";
 
 export const documentationAgentFunction = inngest.createFunction(
   {
@@ -57,7 +58,7 @@ export const documentationAgentFunction = inngest.createFunction(
             customSections: taskInput?.customSections || {},
           },
           context: {
-            techStack: projectContext.techStack,
+            techStack: projectContext.techStack as TechStack | undefined,
             architecture: projectContext.architecture,
             codebase: projectContext.codebase,
           },
@@ -71,9 +72,9 @@ export const documentationAgentFunction = inngest.createFunction(
         throw new Error(result.error || "Documentation generation failed");
       }
 
-      const filesCreated = result.data?.filesCreated || [];
-      const apiEndpoints = result.data?.apiEndpoints || [];
-      const components = result.data?.components || [];
+      const filesCreated = (result.data?.filesCreated as unknown[] | undefined) || [];
+      const apiEndpoints = (result.data?.apiEndpoints as unknown[] | undefined) || [];
+      const components = (result.data?.components as unknown[] | undefined) || [];
 
       logger.info(`[Inngest] Documentation generation complete`, {
         projectId,

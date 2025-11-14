@@ -9,6 +9,7 @@ import { deployAgent } from "@/lib/agents/deployment/deployment-agent";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { toError, toLogContext, createAgentError } from "@/lib/error-utils";
+import { TechStack } from "@/lib/agents/types/common";
 
 export const deployAgentFunction = inngest.createFunction(
   {
@@ -187,7 +188,7 @@ export const deployAgentFunction = inngest.createFunction(
               runMigrations: taskInput.runMigrations !== false, // Default true
             },
             context: {
-              techStack: projectContext.techStack,
+              techStack: projectContext.techStack as TechStack | undefined,
               architecture: projectContext.architecture,
               codebase: projectContext.codebase,
             },
@@ -201,8 +202,8 @@ export const deployAgentFunction = inngest.createFunction(
             data: {
               status: deployResult.success ? "deployed" : "failed",
               buildStatus: deployResult.success ? "success" : "failed",
-              deploymentUrl: deployResult.data?.deploymentUrl,
-              platformDeploymentId: deployResult.data?.deploymentId,
+              deploymentUrl: (deployResult.data?.deploymentUrl as string) || undefined,
+              platformDeploymentId: (deployResult.data?.deploymentId as string) || undefined,
               buildDuration,
               deployedAt: deployResult.success ? new Date() : null,
               failedAt: deployResult.success ? null : new Date(),

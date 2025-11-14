@@ -13,6 +13,7 @@ import { inngest } from "../client";
 import { monitoringAgent } from "@/lib/agents/monitoring/monitoring-agent";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { TechStack } from "@/lib/agents/types/common";
 import { createAgentError } from "@/lib/error-utils";
 import { sendNotification } from "@/lib/notifications/notification-service";
 
@@ -89,7 +90,7 @@ export const monitoringAgentFunction = inngest.createFunction(
           checkInterval: taskInput.checkInterval || 30,
         },
         context: {
-          techStack: projectContext.techStack,
+          techStack: projectContext.techStack as TechStack | undefined,
           architecture: projectContext.architecture,
         },
       });
