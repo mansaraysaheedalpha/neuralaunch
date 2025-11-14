@@ -629,8 +629,9 @@ Generate the fixes now.`;
           { projectId, userId }
         );
 
-        if (result.success && result.data?.content) {
-          loadedFiles[filePath] = result.data.content;
+        const data = result.data as { content?: string };
+        if (result.success && data?.content) {
+          loadedFiles[filePath] = data.content;
         }
       } catch (error) {
         logger.warn(

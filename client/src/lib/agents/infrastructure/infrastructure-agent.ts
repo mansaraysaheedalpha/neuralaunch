@@ -556,7 +556,7 @@ Generate the requested infrastructure configuration now.
 
       if (contextResult.success && contextResult.data) {
         const data = contextResult.data as {
-          existingFiles?: Record<string, unknown>;
+          existingFiles?: Record<string, string>;
           structure?: unknown;
           dependencies?: unknown;
         };

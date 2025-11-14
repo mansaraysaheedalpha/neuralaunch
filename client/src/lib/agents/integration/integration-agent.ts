@@ -136,6 +136,7 @@ export class IntegrationAgent extends BaseAgent {
    * Execute integration verification
    */
   async executeTask(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
+    const startTime = Date.now();
     const { taskId, projectId, userId, taskDetails, context } = input;
     const verificationType = (taskDetails as any).verificationType || "full";
 
@@ -247,8 +248,10 @@ export class IntegrationAgent extends BaseAgent {
         message: compatible
           ? "Integration verification passed - frontend and backend are compatible"
           : `Integration issues found - ${metrics.criticalIssues} critical, ${allIssues.length} total`,
-        data: result,
-      } as AgentExecutionOutput;
+        iterations: 1,
+        durationMs: Date.now() - startTime,
+        data: { ...result },
+      };
     } catch (error) {
       logger.error(`[${this.name}] Integration verification failed`, 
         error instanceof Error ? error : new Error(String(error)),
