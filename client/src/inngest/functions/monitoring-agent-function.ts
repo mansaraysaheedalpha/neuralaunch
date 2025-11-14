@@ -130,11 +130,11 @@ export const monitoringAgentFunction = inngest.createFunction(
     }
 
     // Step 6: Extract monitoring results
-    const report = result.data;
+    const report = result.data as { healthStatus?: string; uptime?: number; alerts?: Array<{ severity?: string }>; performanceMetrics?: unknown[]; healthChecks?: unknown[]; recommendations?: unknown[]; summary?: string; [key: string]: unknown } | undefined;
     const healthStatus = report?.healthStatus || "unknown";
     const uptime = report?.uptime || 0;
     const alerts = report?.alerts || [];
-    const criticalAlerts = alerts.filter((a: any) => a.severity === "critical");
+    const criticalAlerts = alerts.filter((a: { severity?: string }) => a.severity === "critical");
 
     logger.info(`[Inngest] Monitoring complete`, {
       taskId: task.id,
@@ -150,7 +150,7 @@ export const monitoringAgentFunction = inngest.createFunction(
         where: { id: task.id },
         data: {
           status: "completed",
-          output: report,
+          output: report as any,
           completedAt: new Date(),
         },
       });
@@ -224,8 +224,8 @@ export const monitoringAgentFunction = inngest.createFunction(
         // Calculate aggregated metrics
         const avgResponseTime = metrics.find(
           (m: any) => m.metric === "average_response_time"
-        );
-        const errorRate = metrics.find((m: any) => m.metric === "error_rate");
+        ) as { value?: number } | undefined;
+        const errorRate = metrics.find((m: any) => m.metric === "error_rate") as { value?: number } | undefined;
 
         // Store snapshot
         await prisma.$executeRaw`

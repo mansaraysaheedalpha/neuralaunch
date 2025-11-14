@@ -150,7 +150,7 @@ export const optimizationAgentFunction = inngest.createFunction(
     }
 
     // Step 6: Extract optimization results
-    const optimizationResult = result.data;
+    const optimizationResult = result.data as { tasksCompleted?: number; tasksFailed?: number; filesModified?: unknown[]; estimatedImpact?: { performanceImprovement?: number; costReduction?: number }; summary?: string; [key: string]: unknown } | undefined;
     const tasksCompleted = optimizationResult?.tasksCompleted || 0;
     const tasksFailed = optimizationResult?.tasksFailed || 0;
     const filesModified = optimizationResult?.filesModified || [];
@@ -168,7 +168,7 @@ export const optimizationAgentFunction = inngest.createFunction(
         where: { id: task.id },
         data: {
           status: "completed",
-          output: optimizationResult,
+          output: optimizationResult as any,
           completedAt: new Date(),
         },
       });

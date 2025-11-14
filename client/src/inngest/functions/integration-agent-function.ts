@@ -15,6 +15,26 @@ import { logger } from "@/lib/logger";
 import { createAgentError } from "@/lib/error-utils";
 import { TechStack } from "@/lib/agents/types/common";
 
+interface IntegrationIssue {
+  severity?: string;
+  category?: string;
+  description?: string;
+  suggestion?: string;
+  frontend?: unknown;
+  backend?: unknown;
+}
+
+interface IntegrationOutputData {
+  compatible?: boolean;
+  metrics?: {
+    criticalIssues?: number;
+    compatibilityScore?: number;
+  };
+  issues?: IntegrationIssue[];
+  recommendations?: unknown[];
+  [key: string]: unknown;
+}
+
 export const integrationAgentFunction = inngest.createFunction(
   {
     id: "integration-agent-verification",
@@ -118,16 +138,17 @@ export const integrationAgentFunction = inngest.createFunction(
     }
 
     // Step 5: Check if integration is compatible
-    const compatible = result.data?.compatible || false;
-    const criticalIssues = result.data?.metrics?.criticalIssues || 0;
-    const compatibilityScore = result.data?.metrics?.compatibilityScore || 0;
+    const integrationData = result.data as IntegrationOutputData | undefined;
+    const compatible = integrationData?.compatible || false;
+    const criticalIssues = integrationData?.metrics?.criticalIssues || 0;
+    const compatibilityScore = integrationData?.metrics?.compatibilityScore || 0;
 
     logger.info(`[Inngest] Integration verification complete`, {
       taskId: task.id,
       compatible,
       criticalIssues,
       compatibilityScore,
-      totalIssues: result.data?.issues?.length || 0,
+      totalIssues: integrationData?.issues?.length || 0,
     });
 
     // Step 6: Update task status
@@ -136,7 +157,7 @@ export const integrationAgentFunction = inngest.createFunction(
         where: { id: task.id },
         data: {
           status: compatible ? "completed" : "needs_review",
-          output: result.data,
+          output: result.data as any,
           completedAt: new Date(),
         },
       });
@@ -145,9 +166,9 @@ export const integrationAgentFunction = inngest.createFunction(
     // Step 7: If not compatible and has critical issues, create fix tasks
     if (!compatible && criticalIssues > 0) {
       await step.run("create-fix-tasks", async () => {
-        const issues = result.data?.issues || [];
+        const issues = integrationData?.issues || [];
         const criticalIssuesList = issues.filter(
-          (issue: any) => issue.severity === "critical"
+          (issue: IntegrationIssue) => issue.severity === "critical"
         );
 
         for (const issue of criticalIssuesList) {
@@ -164,11 +185,11 @@ export const integrationAgentFunction = inngest.createFunction(
                   category: issue.category,
                   description: issue.description,
                   suggestion: issue.suggestion,
-                  frontend: issue.frontend,
-                  backend: issue.backend,
+                  frontend: issue.frontend as any,
+                  backend: issue.backend as any,
                 },
                 originalTaskId: task.id,
-              },
+              } as any,
             },
           });
         }
@@ -192,9 +213,9 @@ export const integrationAgentFunction = inngest.createFunction(
           compatible,
           compatibilityScore,
           criticalIssues,
-          totalIssues: result.data?.issues?.length || 0,
-          issues: result.data?.issues || [],
-          recommendations: result.data?.recommendations || [],
+          totalIssues: integrationData?.issues?.length || 0,
+          issues: integrationData?.issues || [],
+          recommendations: integrationData?.recommendations || [],
         },
       });
     });
@@ -205,7 +226,7 @@ export const integrationAgentFunction = inngest.createFunction(
       compatible,
       compatibilityScore,
       criticalIssues,
-      totalIssues: result.data?.issues?.length || 0,
+      totalIssues: integrationData?.issues?.length || 0,
     };
   }
 );
@@ -213,7 +234,7 @@ export const integrationAgentFunction = inngest.createFunction(
 /**
  * Helper function to determine which agent should fix the issue
  */
-function determineFixAgent(category: string): string {
+function determineFixAgent(category: string | undefined): string {
   switch (category) {
     case "missing_endpoint":
       return "BackendAgent";
