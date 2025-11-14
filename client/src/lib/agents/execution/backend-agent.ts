@@ -46,7 +46,7 @@ export class BackendAgent extends BaseAgent {
         `[${this.config.name}] FIX MODE: Fixing issues for task "${taskDetails.originalTaskId}"`,
         {
           attempt: taskDetails.attempt,
-          issuesCount: taskDetails.issuesToFix?.length || 0,
+          issuesCount: Array.isArray(taskDetails.issuesToFix) ? taskDetails.issuesToFix.length : 0,
         }
       );
 
@@ -101,7 +101,7 @@ export class BackendAgent extends BaseAgent {
           error: commandsResult.error,
           data: {
             filesCreated: filesResult.files,
-            commandsRun: commandsResult.commands,
+            commandsRun: commandsResult.commands as unknown as Array<string>,
           },
         };
       }
@@ -121,7 +121,7 @@ export class BackendAgent extends BaseAgent {
           error: verification.issues.join("; "),
           data: {
             filesCreated: filesResult.files,
-            commandsRun: commandsResult.commands,
+            commandsRun: commandsResult.commands as unknown as Array<string>,
           },
         };
       }
@@ -133,7 +133,7 @@ export class BackendAgent extends BaseAgent {
         durationMs: 0,
         data: {
           filesCreated: filesResult.files,
-          commandsRun: commandsResult.commands,
+          commandsRun: commandsResult.commands as unknown as Array<string>,
           explanation: implementation.explanation,
         },
       };
@@ -162,7 +162,8 @@ export class BackendAgent extends BaseAgent {
 
     try {
       // Step 1: Load the files that need fixing
-      const filesToFix = taskDetails.issuesToFix.map((issue: any) => issue.file);
+      const issuesToFix = taskDetails.issuesToFix as Array<{ file: string; issue: string }>;
+      const filesToFix = issuesToFix.map((issue) => issue.file);
       const uniqueFiles = Array.from(new Set(filesToFix));
 
       logger.info(`[${this.config.name}] Loading ${uniqueFiles.length} files to fix`);
@@ -175,9 +176,9 @@ export class BackendAgent extends BaseAgent {
 
       // Step 2: Generate fixes using AI
       const fixPrompt = this.buildFixPrompt(
-        taskDetails.issuesToFix,
+        issuesToFix,
         existingFiles,
-        taskDetails.attempt,
+        taskDetails.attempt as number,
         context
       );
 
@@ -223,19 +224,19 @@ export class BackendAgent extends BaseAgent {
         `[${this.config.name}] Fix attempt ${taskDetails.attempt} complete`,
         {
           filesFixed: filesResult.files.length,
-          issuesAddressed: taskDetails.issuesToFix.length,
+          issuesAddressed: issuesToFix.length,
         }
       );
 
       return {
         success: true,
-        message: `Fixed ${taskDetails.issuesToFix.length} issues in ${filesResult.files.length} files`,
+        message: `Fixed ${issuesToFix.length} issues in ${filesResult.files.length} files`,
         iterations: 1,
         durationMs: 0,
         data: {
           filesCreated: filesResult.files,
-          commandsRun: commandsResult.commands,
-          issuesFixed: taskDetails.issuesToFix.length,
+          commandsRun: commandsResult.commands as unknown as Array<string>,
+          issuesFixed: issuesToFix.length,
           fixExplanation: fixes.explanation,
         },
       };
@@ -272,10 +273,11 @@ export class BackendAgent extends BaseAgent {
           { projectId, userId }
         );
 
-        if (result.success && result.data?.content) {
+        const data = result.data as { content?: string };
+        if (result.success && data?.content) {
           files.push({
             path: filePath,
-            content: result.data.content,
+            content: data.content,
           });
         }
       } catch (error) {
@@ -465,13 +467,13 @@ You are the Backend Agent, specialized in implementing backend code.
 - Estimated Lines: ${taskDetails.estimatedLines}
 
 **Files to Create/Modify:**
-${taskDetails.files?.map((f: string) => `- ${f}`).join("\n") || "Determine appropriate files"}
+${Array.isArray(taskDetails.files) ? taskDetails.files.map((f: string) => `- ${f}`).join("\n") : "Determine appropriate files"}
 
 **Endpoints (if applicable):**
-${taskDetails.endpoints?.map((e: string) => `- ${e}`).join("\n") || "N/A"}
+${Array.isArray(taskDetails.endpoints) ? taskDetails.endpoints.map((e: string) => `- ${e}`).join("\n") : "N/A"}
 
 **Acceptance Criteria:**
-${taskDetails.acceptanceCriteria?.map((c: string, i: number) => `${i + 1}. ${c}`).join("\n")}
+${Array.isArray(taskDetails.acceptanceCriteria) ? taskDetails.acceptanceCriteria.map((c: string, i: number) => `${i + 1}. ${c}`).join("\n") : ""}
 
 **Tech Stack:**
 \`\`\`json
@@ -657,11 +659,12 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
           context
         );
 
+        const data = result.data as { stdout?: string; stderr?: string };
         results.push({
           command,
           success: result.success,
           output:
-            result.data?.stdout || result.data?.stderr || result.error || "",
+            data?.stdout || data?.stderr || result.error || "",
         });
 
         if (!result.success) {

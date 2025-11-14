@@ -50,7 +50,7 @@ export class FrontendAgent extends BaseAgent {
         `[${this.config.name}] FIX MODE: Fixing issues for task "${taskDetails.originalTaskId}"`,
         {
           attempt: taskDetails.attempt,
-          issuesCount: taskDetails.issuesToFix?.length || 0,
+          issuesCount: Array.isArray(taskDetails.issuesToFix) ? taskDetails.issuesToFix.length : 0,
         }
       );
       await thoughts.starting("fixing issues from code review");
@@ -112,7 +112,7 @@ export class FrontendAgent extends BaseAgent {
           error: commandsResult.error,
           data: {
             filesCreated: filesResult.files,
-            commandsRun: commandsResult.commands,
+            commandsRun: commandsResult.commands as unknown as Array<string>,
           },
         };
       }
@@ -134,7 +134,7 @@ export class FrontendAgent extends BaseAgent {
           error: verification.issues.join("; "),
           data: {
             filesCreated: filesResult.files,
-            commandsRun: commandsResult.commands,
+            commandsRun: commandsResult.commands as unknown as Array<string>,
           },
         };
       }
@@ -148,7 +148,7 @@ export class FrontendAgent extends BaseAgent {
         durationMs: 0,
         data: {
           filesCreated: filesResult.files,
-          commandsRun: commandsResult.commands,
+          commandsRun: commandsResult.commands as unknown as Array<string>,
           explanation: implementation.explanation,
         },
       };
@@ -178,7 +178,8 @@ export class FrontendAgent extends BaseAgent {
 
     try {
       // Step 1: Load the files that need fixing
-      const filesToFix = taskDetails.issuesToFix.map((issue: any) => issue.file);
+      const issuesToFix = taskDetails.issuesToFix as Array<{ file: string; issue: string }>;
+      const filesToFix = issuesToFix.map((issue) => issue.file);
       const uniqueFiles = Array.from(new Set(filesToFix));
 
       logger.info(`[${this.config.name}] Loading ${uniqueFiles.length} files to fix`);
@@ -191,9 +192,9 @@ export class FrontendAgent extends BaseAgent {
 
       // Step 2: Generate fixes using AI
       const fixPrompt = this.buildFixPrompt(
-        taskDetails.issuesToFix,
+        issuesToFix,
         existingFiles,
-        taskDetails.attempt,
+        taskDetails.attempt as number,
         context
       );
 
@@ -239,19 +240,19 @@ export class FrontendAgent extends BaseAgent {
         `[${this.config.name}] Fix attempt ${taskDetails.attempt} complete`,
         {
           filesFixed: filesResult.files.length,
-          issuesAddressed: taskDetails.issuesToFix.length,
+          issuesAddressed: issuesToFix.length,
         }
       );
 
       return {
         success: true,
-        message: `Fixed ${taskDetails.issuesToFix.length} issues in ${filesResult.files.length} files`,
+        message: `Fixed ${issuesToFix.length} issues in ${filesResult.files.length} files`,
         iterations: 1,
         durationMs: 0,
         data: {
           filesCreated: filesResult.files,
-          commandsRun: commandsResult.commands,
-          issuesFixed: taskDetails.issuesToFix.length,
+          commandsRun: commandsResult.commands as unknown as Array<string>,
+          issuesFixed: issuesToFix.length,
           fixExplanation: fixes.explanation,
         },
       };
@@ -288,10 +289,11 @@ export class FrontendAgent extends BaseAgent {
           { projectId, userId }
         );
 
-        if (result.success && result.data?.content) {
+        const data = result.data as { content?: string };
+        if (result.success && data?.content) {
           files.push({
             path: filePath,
-            content: result.data.content,
+            content: data.content,
           });
         }
       } catch (error) {
@@ -593,8 +595,8 @@ Type Safety:
     const { taskDetails, context } = input;
 
     // Extract tech stack from Planning Agent
-    const techStack = context.techStack || {};
-    const frontend = techStack.frontend || {};
+    const techStack = context.techStack as Record<string, any> || {};
+    const frontend = (techStack.frontend as Record<string, any>) || {};
     const framework = frontend.framework || "React";
     const language = frontend.language || techStack.language || "TypeScript";
     const styling = frontend.styling || techStack.styling || "Tailwind CSS";
@@ -612,13 +614,13 @@ You are the Frontend Agent, a specialized UI/component code generation expert.
 - Estimated Lines: ${taskDetails.estimatedLines}
 
 **Components to Create/Modify:**
-${taskDetails.components?.map((c: string) => `- ${c}`).join("\n") || taskDetails.files?.map((f: string) => `- ${f}`).join("\n") || "Determine appropriate components"}
+${Array.isArray(taskDetails.components) ? taskDetails.components.map((c: string) => `- ${c}`).join("\n") : (Array.isArray(taskDetails.files) ? taskDetails.files.map((f: string) => `- ${f}`).join("\n") : "Determine appropriate components")}
 
 **Pages/Routes (if applicable):**
-${taskDetails.pages?.map((p: string) => `- ${p}`).join("\n") || "N/A"}
+${Array.isArray(taskDetails.pages) ? taskDetails.pages.map((p: string) => `- ${p}`).join("\n") : "N/A"}
 
 **Acceptance Criteria:**
-${taskDetails.acceptanceCriteria?.map((c: string, i: number) => `${i + 1}. ${c}`).join("\n")}
+${Array.isArray(taskDetails.acceptanceCriteria) ? taskDetails.acceptanceCriteria.map((c: string, i: number) => `${i + 1}. ${c}`).join("\n") : ""}
 
 **REQUIRED TECH STACK (DO NOT DEVIATE):**
 - Framework: ${framework}
@@ -1096,11 +1098,12 @@ export default function UserCard(props: UserCardProps) {
           context
         );
 
+        const data = result.data as { stdout?: string; stderr?: string };
         results.push({
           command,
           success: result.success,
           output:
-            result.data?.stdout || result.data?.stderr || result.error || "",
+            data?.stdout || data?.stderr || result.error || "",
         });
 
         if (!result.success) {

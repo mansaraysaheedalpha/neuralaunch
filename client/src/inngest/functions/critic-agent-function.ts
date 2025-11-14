@@ -76,8 +76,8 @@ export const criticAgentFunction = inngest.createFunction(
       return await criticAgent.execute({
         taskId: taskId!,
         projectId,
-        userId: userId!,
-        conversationId: conversationId!,
+        userId: userId,
+        conversationId: conversationId,
         taskDetails: {
           title: "Code Review",
           description: "Automated code quality and security review",

@@ -212,12 +212,12 @@ function buildEmailContent(
 
   switch (type) {
     case "review_required": {
-      const n = notification as ReviewNotification;
+      const n = notification;
       return buildReviewEmail(userName, n);
     }
 
     case "analysis_complete": {
-      const n = notification as AnalysisCompleteNotification;
+      const n = notification;
       return {
         subject: "✅ Project Analysis Complete - NeuraLaunch",
         html: buildSuccessEmail(
@@ -235,7 +235,7 @@ function buildEmailContent(
     }
 
     case "planning_complete": {
-      const n = notification as PlanningCompleteNotification;
+      const n = notification;
       return {
         subject: "📋 Project Plan Ready - NeuraLaunch",
         html: buildSuccessEmail(
@@ -253,7 +253,7 @@ function buildEmailContent(
     }
 
     case "execution_complete": {
-      const n = notification as ExecutionCompleteNotification;
+      const n = notification;
       return {
         subject: "🎉 Project Execution Complete - NeuraLaunch",
         html: buildSuccessEmail(
@@ -271,7 +271,7 @@ function buildEmailContent(
     }
 
     case "deployment_complete": {
-      const n = notification as DeploymentCompleteNotification;
+      const n = notification;
       return {
         subject: n.success
           ? `🚀 Deployment Successful (${n.environment}) - NeuraLaunch`
@@ -305,7 +305,7 @@ function buildEmailContent(
     }
 
     case "error_occurred": {
-      const n = notification as ErrorNotification;
+      const n = notification;
       return {
         subject: `❌ Error in ${n.phase} - NeuraLaunch`,
         html: buildErrorEmail(
@@ -323,7 +323,7 @@ function buildEmailContent(
     }
 
     case "optimization_complete": {
-      const n = notification as OptimizationCompleteNotification;
+      const n = notification;
       return {
         subject: "⚡ Optimization Complete - NeuraLaunch",
         html: buildSuccessEmail(
@@ -343,7 +343,7 @@ function buildEmailContent(
     }
 
     case "monitoring_alert": {
-      const n = notification as MonitoringAlertNotification;
+      const n = notification;
       return {
         subject: `🚨 ${n.severity.toUpperCase()} Alert: ${n.alertType} - NeuraLaunch`,
         html: buildAlertEmail(
@@ -359,7 +359,7 @@ function buildEmailContent(
     }
 
     case "escalation": {
-      const n = notification as EscalationNotification;
+      const n = notification;
       return {
         subject: `🔔 Issue Escalated - NeuraLaunch`,
         html: buildErrorEmail(

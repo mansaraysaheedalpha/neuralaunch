@@ -22,6 +22,7 @@ import {
 } from "../base/base-agent";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { env } from "@/lib/env";
 import { TechStack, ProjectContext } from "@/lib/agents/types/common";
 
@@ -154,6 +155,7 @@ export class DocumentationAgent extends BaseAgent {
    * Execute documentation generation
    */
   async executeTask(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
+    const startTime = Date.now();
     const { taskId, projectId, userId, taskDetails, context } = input;
 
     logger.info(`[${this.name}] Starting documentation generation`, {
@@ -211,7 +213,7 @@ export class DocumentationAgent extends BaseAgent {
 
       // Step 8: Generate API Documentation
       let apiDocs: string | undefined;
-      const docInput = taskDetails as DocumentationInput;
+      const docInput = taskDetails as unknown as DocumentationInput;
       if (
         docInput.includeAPIDocs !== false &&
         apiEndpoints.length > 0
@@ -288,8 +290,10 @@ export class DocumentationAgent extends BaseAgent {
       return {
         success: true,
         message: `Generated ${filesCreated.length} documentation files`,
-        data: result,
-      } as AgentExecutionOutput;
+        iterations: 1,
+        durationMs: Date.now() - startTime,
+        data: { ...result },
+      };
     } catch (error) {
       logger.error(`[${this.name}] Documentation generation failed`, 
         error instanceof Error ? error : new Error(String(error)),
@@ -349,7 +353,7 @@ export class DocumentationAgent extends BaseAgent {
       throw new Error("Failed to load project structure");
     }
 
-    return contextResult.data;
+    return contextResult.data as ProjectStructure;
   }
 
   /**
@@ -565,8 +569,9 @@ Respond ONLY with valid JSON array, no markdown.`;
         { projectId, userId }
       );
 
-      if (readResult.success && readResult.data?.content) {
-        const content = readResult.data.content;
+      const data = readResult.data as { content?: string };
+      if (readResult.success && data?.content) {
+        const content = data.content;
 
         // Parse environment variables
         const lines = content.split("\n");
@@ -675,9 +680,10 @@ Respond ONLY with valid JSON array, no markdown.`;
         { projectId, userId }
       );
 
-      if (readResult.success && readResult.data?.content) {
+      const data = readResult.data as { content?: string };
+      if (readResult.success && data?.content) {
         logger.info(`[${this.name}] Found database schema at ${schemaFile}`);
-        return readResult.data.content;
+        return data.content;
       }
     }
 
@@ -1156,7 +1162,7 @@ Generate ONLY the USER_GUIDE.md content, no explanations.`;
       await prisma.agentTask.update({
         where: { id: taskId },
         data: {
-          output: result as unknown as Record<string, unknown>,
+          output: result as unknown as Prisma.InputJsonValue,
           status: "completed",
           completedAt: new Date(),
         },

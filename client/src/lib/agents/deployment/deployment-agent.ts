@@ -27,6 +27,15 @@ import { env } from "@/lib/env";
 // TYPES & INTERFACES
 // ==========================================
 
+type CommandResult = {
+  success: boolean;
+  error?: string;
+  data?: {
+    stdout?: string;
+    stderr?: string;
+  };
+};
+
 export type DeploymentPlatform =
   | "vercel"
   | "railway"
@@ -117,7 +126,7 @@ export class DeployAgent extends BaseAgent {
         message: `Deployed to ${deployInput.platform}: ${deploymentResult.deploymentUrl}`,
         iterations: 1,
         durationMs,
-        data: deploymentResult,
+        data: { ...deploymentResult },
       };
     } catch (error) {
       logger.error(`[${this.config.name}] Deployment failed`, toError(error));
@@ -213,7 +222,7 @@ export class DeployAgent extends BaseAgent {
       "command",
       { command: migrationCommand },
       { projectId: input.projectId, userId: input.userId }
-    );
+    ) as CommandResult;
 
     if (!result.success) {
       throw new Error(`Migration failed: ${result.error}`);
@@ -315,7 +324,7 @@ export class DeployAgent extends BaseAgent {
           timeout: 600000, // 10 minutes
         },
         { projectId: input.projectId, userId: input.userId }
-      );
+      ) as CommandResult;
 
       if (!result.success) {
         throw new Error(`Vercel deployment failed: ${result.error}`);
@@ -380,7 +389,7 @@ export class DeployAgent extends BaseAgent {
           timeout: 600000, // 10 minutes
         },
         { projectId: input.projectId, userId: input.userId }
-      );
+      ) as CommandResult;
 
       if (!result.success) {
         throw new Error(`Railway deployment failed: ${result.error}`);
@@ -506,7 +515,7 @@ export class DeployAgent extends BaseAgent {
           timeout: 600000, // 10 minutes
         },
         { projectId: input.projectId, userId: input.userId }
-      );
+      ) as CommandResult;
 
       if (!result.success) {
         throw new Error(`Fly.io deployment failed: ${result.error}`);
@@ -577,7 +586,7 @@ export class DeployAgent extends BaseAgent {
           timeout: 300000, // 5 minutes
         },
         { projectId: input.projectId, userId: input.userId }
-      );
+      ) as CommandResult;
 
       if (!result.success) {
         throw new Error(`Netlify deployment failed: ${result.error}`);
@@ -696,7 +705,7 @@ export class DeployAgent extends BaseAgent {
           timeout: 600000, // 10 minutes
         },
         { projectId: input.projectId, userId: input.userId }
-      );
+      ) as CommandResult;
 
       if (!buildResult.success) {
         throw new Error(`Docker build failed: ${buildResult.error}`);
@@ -709,7 +718,7 @@ export class DeployAgent extends BaseAgent {
           command: `docker run -d -p 3000:3000 --name ${input.projectId}-${input.environment} ${imageName}`,
         },
         { projectId: input.projectId, userId: input.userId }
-      );
+      ) as CommandResult;
 
       if (!runResult.success) {
         throw new Error(`Docker run failed: ${runResult.error}`);
@@ -856,7 +865,7 @@ export class DeployAgent extends BaseAgent {
       "command",
       { command: "railway init" },
       { projectId: input.projectId, userId: input.userId }
-    );
+    ) as CommandResult;
 
     if (!result.success) {
       throw new Error("Failed to initialize Railway project");
@@ -881,7 +890,7 @@ export class DeployAgent extends BaseAgent {
       "command",
       { command: `railway domain` },
       { projectId: input.projectId, userId: input.userId }
-    );
+    ) as CommandResult;
 
     if (result.success && result.data?.stdout) {
       const match = result.data.stdout.match(/https:\/\/[^\s]+/);

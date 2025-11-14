@@ -6,14 +6,13 @@
 
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
-import { analyzerAgent } from "../agents/analyzer/analyzer.agent";
-import { researchAgent } from "../agents/research/research.agent";
-import { validationAgent } from "../agents/validation/validation.agent";
-import { planningAgent } from "../agents/planning/planning-agent";
+import { analyzerAgent, type AnalyzerOutput } from "../agents/analyzer/analyzer.agent";
+import { researchAgent, type ResearchOutput } from "../agents/research/research.agent";
+import { validationAgent, type ValidationOutput } from "../agents/validation/validation.agent";
+import { planningAgent, type PlanningOutput } from "../agents/planning/planning-agent";
 import { toError } from "@/lib/error-utils";
 import {
   ORCHESTRATOR_PHASES,
-  PLANNING_PHASES,
   OrchestratorPhase as PhaseType,
 } from "./phases";
 
@@ -31,12 +30,14 @@ export interface OrchestratorInput {
   startFromPhase?: AgentPhase;
 }
 
+export type AgentOutput = AnalyzerOutput | ResearchOutput | ValidationOutput | PlanningOutput;
+
 export interface PhaseResult {
   phase: AgentPhase;
   agentName: string;
   success: boolean;
   duration: number;
-  output?: any;
+  output?: AgentOutput;
   error?: string;
 }
 
@@ -230,7 +231,7 @@ export class AgentOrchestrator {
         },
       });
 
-      let output: any;
+      let output: AgentOutput;
 
       switch (phase) {
         case "analysis":
@@ -273,7 +274,7 @@ export class AgentOrchestrator {
   /**
    * Run Analyzer Agent
    */
-  private async runAnalyzer(input: OrchestratorInput): Promise<any> {
+  private async runAnalyzer(input: OrchestratorInput): Promise<AnalyzerOutput> {
     const result = await analyzerAgent.execute({
       projectId: input.projectId,
       userId: input.userId,
@@ -291,7 +292,7 @@ export class AgentOrchestrator {
   /**
    * Run Research Agent
    */
-  private async runResearch(input: OrchestratorInput): Promise<any> {
+  private async runResearch(input: OrchestratorInput): Promise<ResearchOutput> {
     const result = await researchAgent.execute({
       projectId: input.projectId,
       userId: input.userId,
@@ -308,7 +309,7 @@ export class AgentOrchestrator {
   /**
    * Run Validation Agent
    */
-  private async runValidation(input: OrchestratorInput): Promise<any> {
+  private async runValidation(input: OrchestratorInput): Promise<ValidationOutput> {
     const result = await validationAgent.execute({
       projectId: input.projectId,
       userId: input.userId,
@@ -325,7 +326,7 @@ export class AgentOrchestrator {
   /**
    * Run Planning Agent
    */
-  private async runPlanning(input: OrchestratorInput): Promise<any> {
+  private async runPlanning(input: OrchestratorInput): Promise<PlanningOutput> {
     const result = await planningAgent.execute({
       projectId: input.projectId,
       userId: input.userId,
@@ -429,7 +430,7 @@ export class AgentOrchestrator {
       throw new Error("Project not found");
     }
 
-    const blueprint = (context.blueprint as any)?.raw || "";
+    const blueprint = (context.blueprint as { raw?: string })?.raw || "";
 
     return this.execute({
       projectId,
@@ -523,9 +524,9 @@ Build a full-stack application based on the vision described above.
     conversationId: string;
     blueprint: string;
     sprintData?: {
-      completedTasks?: any[];
-      analytics?: any;
-      validationResults?: any;
+      completedTasks?: Array<{ title?: string; id: string; status: string }>;
+      analytics?: { completionRate?: number };
+      validationResults?: { features?: string[] };
     };
   }): Promise<OrchestratorOutput> {
     const startTime = Date.now();
@@ -554,7 +555,7 @@ Build a full-stack application based on the vision described above.
 ### Completed Validation Tasks
 ${input.sprintData.completedTasks
   .map(
-    (task: any, index: number) =>
+    (task, index) =>
       `${index + 1}. ${task.title || task.id} - ${task.status}`
   )
   .join("\n")}

@@ -174,8 +174,8 @@ export const deployAgentFunction = inngest.createFunction(
           const deployResult = await deployAgent.execute({
             taskId: taskId!,
             projectId,
-            userId: userId!,
-            conversationId: conversationId!,
+            userId: userId,
+            conversationId: conversationId,
             taskDetails: {
               title: `Deploy to ${deploymentPlatform}`,
               description: `Deploy application to ${deploymentPlatform} (${taskInput.environment})`,
@@ -252,7 +252,7 @@ export const deployAgentFunction = inngest.createFunction(
                   status: result.success ? "active" : "failed",
                 },
               },
-            } as any,
+            },
           },
         });
 

@@ -233,7 +233,7 @@ export class AnalyzerAgent {
           agentName: this.name,
           phase: "analysis",
           input: inputPayload,
-          output: outputPayload,
+          output: outputPayload ?? undefined,
           success,
           durationMs,
           error: errorMessage ?? null,

@@ -288,7 +288,9 @@ export const optimizationAgentFunction = inngest.createFunction(
             title: "Optimization Complete",
             message: `${tasksCompleted} optimization${tasksCompleted > 1 ? 's' : ''} applied successfully`,
             optimizationsApplied: tasksCompleted,
-            performanceGain: optimizationResult?.estimatedImpact,
+            performanceGain: optimizationResult?.estimatedImpact 
+              ? `${optimizationResult.estimatedImpact.performanceImprovement || 0}% performance, ${optimizationResult.estimatedImpact.costReduction || 0}% cost reduction`
+              : undefined,
           });
           logger.info(`[Inngest] Optimization notification sent`, { tasksCompleted });
         } catch (error) {
