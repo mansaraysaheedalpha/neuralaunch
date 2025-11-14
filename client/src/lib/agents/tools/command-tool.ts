@@ -7,6 +7,13 @@
 import { BaseTool, ToolParameter, ToolResult, ToolContext } from "./base-tool";
 import { SandboxService } from "@/lib/services/sandbox-service";
 
+type ParseResult<T> = { ok: true; value: T } | { ok: false; error: string };
+
+interface CommandParams {
+  command: string;
+  timeout: number;
+}
+
 export class CommandTool extends BaseTool {
   name = "command";
   description = "Execute shell commands in the sandbox environment";
@@ -42,10 +49,15 @@ export class CommandTool extends BaseTool {
   ];
 
   async execute(
-    params: Record<string, any>,
+    params: Record<string, unknown>,
     context: ToolContext
   ): Promise<ToolResult> {
-    const { command, timeout = 300 } = params;
+    const parsedParams = this.parseParams(params);
+    if (!parsedParams.ok) {
+      return { success: false, error: parsedParams.error };
+    }
+
+    const { command, timeout } = parsedParams.value;
     const { projectId, userId } = context;
 
     // Security: Check for dangerous commands
@@ -89,6 +101,28 @@ export class CommandTool extends BaseTool {
         error: error instanceof Error ? error.message : "Unknown error",
       };
     }
+  }
+
+  private parseParams(raw: Record<string, unknown>): ParseResult<CommandParams> {
+    const { command, timeout } = raw;
+    if (typeof command !== "string" || command.trim() === "") {
+      return { ok: false, error: "Command must be a non-empty string" };
+    }
+
+    const trimmedCommand = command.trim();
+
+    let parsedTimeout = 300;
+    if (typeof timeout === "number" && Number.isFinite(timeout)) {
+      parsedTimeout = timeout;
+    }
+
+    return {
+      ok: true,
+      value: {
+        command: trimmedCommand,
+        timeout: Math.max(1, Math.floor(parsedTimeout)),
+      },
+    };
   }
 
   /**

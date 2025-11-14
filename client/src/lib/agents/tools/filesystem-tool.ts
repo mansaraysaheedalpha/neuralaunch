@@ -7,6 +7,14 @@
 import { BaseTool, ToolParameter, ToolResult, ToolContext } from "./base-tool";
 import { SandboxService } from "@/lib/services/sandbox-service";
 
+type FileOperation = "read" | "write";
+
+type FileSystemParams =
+  | { operation: "read"; path: string }
+  | { operation: "write"; path: string; content: string };
+
+type ParseResult<T> = { ok: true; value: T } | { ok: false; error: string };
+
 export class FileSystemTool extends BaseTool {
   name = "filesystem";
   description = "Read and write files in the project workspace";
@@ -32,11 +40,72 @@ export class FileSystemTool extends BaseTool {
     },
   ];
 
+  private parseParams(
+    raw: Record<string, unknown>
+  ): ParseResult<FileSystemParams> {
+    const operationValue = raw.operation;
+    const pathValue = raw.path;
+
+    if (typeof operationValue !== "string") {
+      return { ok: false, error: "Missing filesystem operation" };
+    }
+
+    const normalizedOperation = operationValue.toLowerCase();
+    if (!this.isSupportedOperation(normalizedOperation)) {
+      return {
+        ok: false,
+        error: 'Operation must be "read" or "write"',
+      };
+    }
+
+    if (typeof pathValue !== "string" || pathValue.trim().length === 0) {
+      return { ok: false, error: "Path must be a non-empty string" };
+    }
+
+    const trimmedPath = pathValue.trim();
+
+    const contentValue = raw.content;
+    if (
+      normalizedOperation === "write" &&
+      (typeof contentValue !== "string" || contentValue.length === 0)
+    ) {
+      return { ok: false, error: "Content is required when writing a file" };
+    }
+
+    if (normalizedOperation === "write") {
+      return {
+        ok: true,
+        value: {
+          operation: "write",
+          path: trimmedPath,
+          content: contentValue as string,
+        },
+      };
+    }
+
+    return {
+      ok: true,
+      value: {
+        operation: "read",
+        path: trimmedPath,
+      },
+    };
+  }
+
+  private isSupportedOperation(value: string): value is FileOperation {
+    return value === "read" || value === "write";
+  }
+
   async execute(
-    params: Record<string, any>,
+    params: Record<string, unknown>,
     context: ToolContext
   ): Promise<ToolResult> {
-    const { operation, path, content } = params;
+    const parsedParams = this.parseParams(params);
+    if (!parsedParams.ok) {
+      return { success: false, error: parsedParams.error };
+    }
+
+    const { operation, path, content } = parsedParams.value;
     const { projectId, userId } = context;
 
     const startTime = Date.now();
@@ -58,21 +127,14 @@ export class FileSystemTool extends BaseTool {
           success: true,
           data: {
             path,
-            content: result.content,
-            size: result.content?.length || 0,
+            content: result.content ?? "",
+            size: result.content ? Buffer.byteLength(result.content, "utf8") : 0,
           },
           metadata: {
             executionTime: Date.now() - startTime,
           },
         };
       } else if (operation === "write") {
-        if (!content) {
-          return {
-            success: false,
-            error: "Content is required for write operation",
-          };
-        }
-
         this.logExecution("Writing file", { path, size: content.length });
 
         const result = await SandboxService.writeFile(
@@ -93,7 +155,7 @@ export class FileSystemTool extends BaseTool {
           success: true,
           data: {
             path,
-            size: result.size,
+            size: result.size ?? Buffer.byteLength(content, "utf8"),
             lines: content.split("\n").length,
           },
           metadata: {
@@ -103,7 +165,7 @@ export class FileSystemTool extends BaseTool {
       } else {
         return {
           success: false,
-          error: `Unknown operation: ${operation}. Use "read" or "write"`,
+          error: "Unhandled filesystem operation",
         };
       }
     } catch (error) {

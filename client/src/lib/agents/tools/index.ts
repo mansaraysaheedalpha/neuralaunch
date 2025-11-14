@@ -19,7 +19,6 @@ import { logger } from "@/lib/logger";
 // ✅ MCP Support (optional - only loads if MCP servers configured)
 import { mcpClient } from "./mcp/mcp-tool-adapter";
 import { env } from "@/lib/env";
-import { toError } from "@/lib/error-utils";
 
 // ==========================================
 // INITIALIZE CORE TOOLS

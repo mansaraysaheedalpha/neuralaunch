@@ -21,7 +21,7 @@ import { BaseTool, ToolParameter, ToolResult, ToolContext } from "./base-tool";
 import { SandboxService } from "@/lib/services/sandbox-service";
 import { logger } from "@/lib/logger";
 import * as ts from "typescript";
-import { toError, toLogContext } from "@/lib/error-utils";
+import { toError } from "@/lib/error-utils";
 
 // ==========================================
 // TYPES
@@ -41,6 +41,8 @@ export type SupportedLanguage =
   | "ruby"
   | "kotlin"
   | "swift";
+
+type NormalizedLanguage = SupportedLanguage | "unknown";
 
 export interface CodeStructure {
   imports: string[];
@@ -71,6 +73,21 @@ export interface ComplexityMetrics {
   averageComplexity: number;
   functionCount: number;
 }
+
+type CodeAnalysisOperation =
+  | "analyze_file"
+  | "analyze_project"
+  | "check_syntax"
+  | "complexity"
+  | "dependencies";
+
+interface CodeAnalysisParams {
+  operation: CodeAnalysisOperation;
+  path: string;
+  language?: SupportedLanguage;
+}
+
+type ParseResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
 // ==========================================
 // PRODUCTION CODE ANALYSIS TOOL
@@ -104,11 +121,84 @@ export class CodeAnalysisTool extends BaseTool {
     },
   ];
 
+  private parseParams(
+    raw: Record<string, unknown>
+  ): ParseResult<CodeAnalysisParams> {
+    const operationValue = raw.operation;
+    if (typeof operationValue !== "string") {
+      return { ok: false, error: "Missing required operation" };
+    }
+
+    const normalizedOperation = operationValue.toLowerCase();
+    if (!this.isSupportedOperation(normalizedOperation)) {
+      return { ok: false, error: `Unknown operation: ${operationValue}` };
+    }
+    const operation = normalizedOperation;
+
+    const pathValue = raw.path;
+    const path = typeof pathValue === "string" && pathValue.trim() !== ""
+      ? pathValue
+      : ".";
+
+    const languageValue = raw.language;
+    let language: SupportedLanguage | undefined;
+    if (typeof languageValue === "string") {
+      const normalized = languageValue.toLowerCase();
+      if (this.isSupportedLanguage(normalized)) {
+        language = normalized;
+      }
+    }
+
+    return {
+      ok: true,
+      value: {
+        operation,
+        path,
+        language,
+      },
+    };
+  }
+
+  private isSupportedOperation(value: string): value is CodeAnalysisOperation {
+    return [
+      "analyze_file",
+      "analyze_project",
+      "check_syntax",
+      "complexity",
+      "dependencies",
+    ].includes(value as CodeAnalysisOperation);
+  }
+
+  private isSupportedLanguage(value: string): value is SupportedLanguage {
+    return (
+      [
+        "typescript",
+        "javascript",
+        "python",
+        "java",
+        "csharp",
+        "go",
+        "rust",
+        "cpp",
+        "c",
+        "php",
+        "ruby",
+        "kotlin",
+        "swift",
+      ] as string[]
+    ).includes(value);
+  }
+
   async execute(
-    params: Record<string, any>,
+    params: Record<string, unknown>,
     context: ToolContext
   ): Promise<ToolResult> {
-    const { operation, path = ".", language } = params;
+    const parsedParams = this.parseParams(params);
+    if (!parsedParams.ok) {
+      return { success: false, error: parsedParams.error };
+    }
+
+    const { operation, path, language } = parsedParams.value;
     const { projectId, userId } = context;
 
     try {
@@ -127,12 +217,12 @@ export class CodeAnalysisTool extends BaseTool {
         case "complexity":
           return await this.analyzeComplexity(projectId, userId, path);
 
-        case "dependencies":
-          return await this.analyzeDependencies(projectId, userId, language);
+      case "dependencies":
+        return await this.analyzeDependencies(projectId, userId, language);
 
-        default:
-          return { success: false, error: `Unknown operation: ${operation}` };
-      }
+      default:
+        return { success: false, error: "Unhandled operation" };
+    }
     } catch (error) {
       this.logError("Code analysis", error);
       return {
@@ -164,8 +254,8 @@ export class CodeAnalysisTool extends BaseTool {
       }
 
       const content = fileResult.content || "";
-      const detectedLang = (language ||
-        this.detectLanguage(filePath)) as SupportedLanguage;
+      const detectedLang: NormalizedLanguage =
+        language ?? this.detectLanguage(filePath);
 
       // Parse with language-specific parser
       const structure = await this.parseCode(
@@ -201,7 +291,7 @@ export class CodeAnalysisTool extends BaseTool {
     userId: string,
     content: string,
     filePath: string,
-    language: SupportedLanguage
+    language: NormalizedLanguage
   ): Promise<CodeStructure> {
     switch (language) {
       case "typescript":
@@ -209,29 +299,29 @@ export class CodeAnalysisTool extends BaseTool {
         return this.parseTypeScript(content, filePath);
 
       case "python":
-        return await this.parsePython(projectId, userId, content, filePath);
+        return await this.parsePython(projectId, userId, content);
 
       case "java":
-        return await this.parseJava(projectId, userId, content, filePath);
+        return this.parseJava(content);
 
       case "csharp":
-        return await this.parseCSharp(projectId, userId, content, filePath);
+        return this.parseCSharp(content);
 
       case "go":
-        return await this.parseGo(projectId, userId, content, filePath);
+        return this.parseGo(content);
 
       case "rust":
-        return await this.parseRust(projectId, userId, content, filePath);
+        return this.parseRust(content);
 
       case "cpp":
       case "c":
-        return await this.parseCpp(projectId, userId, content, filePath);
+        return this.parseCpp(content);
 
       case "php":
-        return await this.parsePhp(projectId, userId, content, filePath);
+        return this.parsePhp(content);
 
       case "ruby":
-        return await this.parseRuby(projectId, userId, content, filePath);
+        return this.parseRuby(content);
 
       default:
         logger.warn(
@@ -340,8 +430,7 @@ export class CodeAnalysisTool extends BaseTool {
   private async parsePython(
     projectId: string,
     userId: string,
-    content: string,
-    filePath: string
+    content: string
   ): Promise<CodeStructure> {
     try {
       // Write Python analyzer script
@@ -435,11 +524,14 @@ print(json.dumps(result))
       );
 
       if (result.status === "success") {
-        const parsed = JSON.parse(result.stdout);
-        if (parsed.error) {
+        const parsed = this.parseJson(result.stdout);
+        if (this.isSandboxError(parsed)) {
           throw new Error(parsed.error);
         }
-        return parsed as CodeStructure;
+        if (this.isCodeStructure(parsed)) {
+          return parsed;
+        }
+        throw new Error("Python analysis returned an unexpected payload");
       }
 
       throw new Error("Python analysis failed");
@@ -452,12 +544,7 @@ print(json.dumps(result))
   /**
    * Java - Use regex + basic analysis (JavaParser would require Java runtime)
    */
-  private async parseJava(
-    projectId: string,
-    userId: string,
-    content: string,
-    filePath: string
-  ): Promise<CodeStructure> {
+  private parseJava(content: string): CodeStructure {
     const structure: CodeStructure = {
       imports: [],
       exports: [],
@@ -506,12 +593,7 @@ print(json.dumps(result))
   /**
    * C# - Use regex + basic analysis
    */
-  private async parseCSharp(
-    projectId: string,
-    userId: string,
-    content: string,
-    filePath: string
-  ): Promise<CodeStructure> {
+  private parseCSharp(content: string): CodeStructure {
     const structure: CodeStructure = {
       imports: [],
       exports: [],
@@ -560,12 +642,7 @@ print(json.dumps(result))
   /**
    * Go - Use regex + basic analysis
    */
-  private async parseGo(
-    projectId: string,
-    userId: string,
-    content: string,
-    filePath: string
-  ): Promise<CodeStructure> {
+  private parseGo(content: string): CodeStructure {
     const structure: CodeStructure = {
       imports: [],
       exports: [],
@@ -614,12 +691,7 @@ print(json.dumps(result))
   /**
    * Rust - Use regex + basic analysis
    */
-  private async parseRust(
-    projectId: string,
-    userId: string,
-    content: string,
-    filePath: string
-  ): Promise<CodeStructure> {
+  private parseRust(content: string): CodeStructure {
     const structure: CodeStructure = {
       imports: [],
       exports: [],
@@ -668,12 +740,7 @@ print(json.dumps(result))
   /**
    * C++ - Use regex + basic analysis
    */
-  private async parseCpp(
-    projectId: string,
-    userId: string,
-    content: string,
-    filePath: string
-  ): Promise<CodeStructure> {
+  private parseCpp(content: string): CodeStructure {
     const structure: CodeStructure = {
       imports: [],
       exports: [],
@@ -722,12 +789,7 @@ print(json.dumps(result))
   /**
    * PHP - Use regex + basic analysis
    */
-  private async parsePhp(
-    projectId: string,
-    userId: string,
-    content: string,
-    filePath: string
-  ): Promise<CodeStructure> {
+  private parsePhp(content: string): CodeStructure {
     const structure: CodeStructure = {
       imports: [],
       exports: [],
@@ -776,12 +838,7 @@ print(json.dumps(result))
   /**
    * Ruby - Use regex + basic analysis
    */
-  private async parseRuby(
-    projectId: string,
-    userId: string,
-    content: string,
-    filePath: string
-  ): Promise<CodeStructure> {
+  private parseRuby(content: string): CodeStructure {
     const structure: CodeStructure = {
       imports: [],
       exports: [],
@@ -830,7 +887,7 @@ print(json.dumps(result))
   /**
    * Generic parser (fallback for unsupported languages)
    */
-  private parseGeneric(content: string): CodeStructure {
+  private parseGeneric(_content: string): CodeStructure {
     return {
       imports: [],
       exports: [],
@@ -842,9 +899,9 @@ print(json.dumps(result))
   // ... Rest of methods (check syntax, complexity, dependencies, etc.)
   // Copy from previous code-analysis-tool-enhanced.ts
 
-  private detectLanguage(filePath: string): string {
+  private detectLanguage(filePath: string): NormalizedLanguage {
     const ext = filePath.split(".").pop()?.toLowerCase();
-    const map: Record<string, string> = {
+    const map: Record<string, SupportedLanguage> = {
       ts: "typescript",
       tsx: "typescript",
       js: "javascript",
@@ -862,7 +919,157 @@ print(json.dumps(result))
       kt: "kotlin",
       swift: "swift",
     };
-    return map[ext || ""] || "unknown";
+    return map[ext || ""] ?? "unknown";
+  }
+
+  private parseJson(raw: string): unknown {
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      logger.warn("Failed to parse sandbox JSON", toError(error));
+      return null;
+    }
+  }
+
+  private isSandboxError(value: unknown): value is { error: string } {
+    if (!this.isRecord(value) || !("error" in value)) {
+      return false;
+    }
+    const record: Record<string, unknown> = value;
+    return typeof record.error === "string";
+  }
+
+  private isCodeStructure(value: unknown): value is CodeStructure {
+    if (!this.isRecord(value)) {
+      return false;
+    }
+
+    const record: Record<string, unknown> = value;
+
+    if (
+      !this.isStringArray(record.imports) ||
+      !this.isStringArray(record.exports) ||
+      !Array.isArray(record.functions) ||
+      !record.functions.every((item) => this.isFunctionSummary(item)) ||
+      !Array.isArray(record.classes) ||
+      !record.classes.every((item) => this.isClassSummary(item))
+    ) {
+      return false;
+    }
+
+    if (
+      record.interfaces !== undefined &&
+      !this.isInterfaceSummaryArray(record.interfaces)
+    ) {
+      return false;
+    }
+
+    if (record.types !== undefined && !this.isTypeSummaryArray(record.types)) {
+      return false;
+    }
+
+    if (
+      record.variables !== undefined &&
+      !this.isVariableSummaryArray(record.variables)
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+  }
+
+  private isStringArray(value: unknown): value is string[] {
+    return Array.isArray(value) && value.every((item) => typeof item === "string");
+  }
+
+  private isFunctionSummary(
+    value: unknown
+  ): value is CodeStructure["functions"][number] {
+    if (!this.isRecord(value)) {
+      return false;
+    }
+
+    const summary: Record<string, unknown> = value;
+
+    return (
+      typeof summary.name === "string" &&
+      typeof summary.params === "number" &&
+      typeof summary.lines === "number" &&
+      typeof summary.complexity === "number" &&
+      (summary.returnType === undefined || typeof summary.returnType === "string")
+    );
+  }
+
+  private isClassSummary(value: unknown): value is CodeStructure["classes"][number] {
+    if (!this.isRecord(value)) {
+      return false;
+    }
+
+    const summary: Record<string, unknown> = value;
+    return (
+      typeof summary.name === "string" &&
+      typeof summary.methods === "number" &&
+      typeof summary.properties === "number" &&
+      (summary.extends === undefined || typeof summary.extends === "string") &&
+      (summary.implements === undefined ||
+        this.isStringArray(summary.implements))
+    );
+  }
+
+  private isInterfaceSummaryArray(
+    value: unknown
+  ): value is NonNullable<CodeStructure["interfaces"]> {
+    return (
+      Array.isArray(value) &&
+      value.every((item) => {
+        if (!this.isRecord(item)) {
+          return false;
+        }
+        const summary: Record<string, unknown> = item;
+        return (
+          typeof summary.name === "string" &&
+          typeof summary.properties === "number"
+        );
+      })
+    );
+  }
+
+  private isTypeSummaryArray(
+    value: unknown
+  ): value is NonNullable<CodeStructure["types"]> {
+    return (
+      Array.isArray(value) &&
+      value.every((item) => {
+        if (!this.isRecord(item)) {
+          return false;
+        }
+        const summary: Record<string, unknown> = item;
+        return typeof summary.name === "string";
+      })
+    );
+  }
+
+  private isVariableSummaryArray(
+    value: unknown
+  ): value is NonNullable<CodeStructure["variables"]> {
+    return (
+      Array.isArray(value) &&
+      value.every((item) => {
+        if (!this.isRecord(item)) {
+          return false;
+        }
+        const record: Record<string, unknown> = item;
+        return (
+          typeof record.name === "string" &&
+          typeof record.scope === "string" &&
+          (record.type === undefined || typeof record.type === "string")
+        );
+      })
+    );
   }
 
   private getNodeLines(node: ts.Node, sourceFile: ts.SourceFile): number {
@@ -900,42 +1107,50 @@ print(json.dumps(result))
     return complexity;
   }
 
-  private async analyzeProject(
-    projectId: string,
-    userId: string,
-    directory: string,
-    language?: string
+  private analyzeProject(
+    _projectId: string,
+    _userId: string,
+    _directory: string,
+    _language?: SupportedLanguage
   ): Promise<ToolResult> {
-    // Implementation stays same as before
-    return { success: true, data: {} };
+    return Promise.resolve({
+      success: true,
+      data: { message: "Project analysis is not yet implemented." },
+    });
   }
 
-  private async checkSyntax(
-    projectId: string,
-    userId: string,
-    path: string,
-    language?: string
+  private checkSyntax(
+    _projectId: string,
+    _userId: string,
+    _path: string,
+    _language?: SupportedLanguage
   ): Promise<ToolResult> {
-    // Implementation stays same as before
-    return { success: true, data: {} };
+    return Promise.resolve({
+      success: true,
+      data: { message: "Syntax checks are not yet implemented." },
+    });
   }
 
-  private async analyzeComplexity(
-    projectId: string,
-    userId: string,
-    path: string
+  private analyzeComplexity(
+    _projectId: string,
+    _userId: string,
+    _path: string
   ): Promise<ToolResult> {
-    // Implementation stays same as before
-    return { success: true, data: {} };
+    return Promise.resolve({
+      success: true,
+      data: { message: "Complexity analysis is not yet implemented." },
+    });
   }
 
-  private async analyzeDependencies(
-    projectId: string,
-    userId: string,
-    language?: string
+  private analyzeDependencies(
+    _projectId: string,
+    _userId: string,
+    _language?: SupportedLanguage
   ): Promise<ToolResult> {
-    // Implementation stays same as before
-    return { success: true, data: {} };
+    return Promise.resolve({
+      success: true,
+      data: { message: "Dependency analysis is not yet implemented." },
+    });
   }
 
   protected getExamples(): string[] {

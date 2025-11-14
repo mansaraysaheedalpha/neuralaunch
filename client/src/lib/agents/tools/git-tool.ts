@@ -7,6 +7,21 @@
 import { BaseTool, ToolParameter, ToolResult, ToolContext } from "./base-tool";
 import { SandboxService } from "@/lib/services/sandbox-service";
 
+type GitOperation = "init" | "add" | "commit" | "branch" | "push";
+
+type GitParams =
+  | { operation: "init" | "add" }
+  | { operation: "commit"; message: string }
+  | { operation: "branch"; branchName: string }
+  | {
+      operation: "push";
+      branchName: string;
+      repoUrl: string;
+      githubToken: string;
+    };
+
+type ParseResult<T> = { ok: true; value: T } | { ok: false; error: string };
+
 export class GitTool extends BaseTool {
   name = "git";
   description = "Perform git operations: init, add, commit, branch, push";
@@ -45,10 +60,15 @@ export class GitTool extends BaseTool {
   ];
 
   async execute(
-    params: Record<string, any>,
+    params: Record<string, unknown>,
     context: ToolContext
   ): Promise<ToolResult> {
-    const { operation, message, branchName, repoUrl, githubToken } = params;
+    const parsedParams = this.parseParams(params);
+    if (!parsedParams.ok) {
+      return { success: false, error: parsedParams.error };
+    }
+
+    const { operation } = parsedParams.value;
     const { projectId, userId } = context;
 
     const startTime = Date.now();
@@ -83,10 +103,7 @@ export class GitTool extends BaseTool {
         }
 
         case "commit": {
-          if (!message) {
-            return { success: false, error: "Commit message is required" };
-          }
-
+          const { message } = parsedParams.value;
           this.logExecution("Committing changes", { message });
           const result = await SandboxService.gitCommit(
             projectId,
@@ -106,10 +123,7 @@ export class GitTool extends BaseTool {
         }
 
         case "branch": {
-          if (!branchName) {
-            return { success: false, error: "Branch name is required" };
-          }
-
+          const { branchName } = parsedParams.value;
           this.logExecution("Creating branch", { branchName });
           const result = await SandboxService.gitCreateBranch(
             projectId,
@@ -129,14 +143,7 @@ export class GitTool extends BaseTool {
         }
 
         case "push": {
-          if (!branchName || !repoUrl || !githubToken) {
-            return {
-              success: false,
-              error:
-                "Branch name, repo URL, and GitHub token are required for push",
-            };
-          }
-
+          const { branchName, repoUrl, githubToken } = parsedParams.value;
           this.logExecution("Pushing to remote", { branchName, repoUrl });
           const result = await SandboxService.gitPushToBranch(
             projectId,
@@ -160,7 +167,7 @@ export class GitTool extends BaseTool {
         default:
           return {
             success: false,
-            error: `Unknown git operation: ${operation}`,
+            error: "Unhandled git operation",
           };
       }
     } catch (error) {
@@ -170,6 +177,77 @@ export class GitTool extends BaseTool {
         error: error instanceof Error ? error.message : "Unknown error",
       };
     }
+  }
+
+  private parseParams(raw: Record<string, unknown>): ParseResult<GitParams> {
+    const operationValue = raw.operation;
+    if (typeof operationValue !== "string") {
+      return { ok: false, error: "Missing git operation" };
+    }
+
+    const normalizedOperation = operationValue.toLowerCase();
+    if (!this.isSupportedOperation(normalizedOperation)) {
+      return { ok: false, error: "Unsupported git operation" };
+    }
+
+    switch (normalizedOperation) {
+      case "init":
+      case "add":
+        return { ok: true, value: { operation: normalizedOperation } };
+
+      case "commit": {
+        if (typeof raw.message !== "string" || raw.message.trim().length === 0) {
+          return { ok: false, error: "Commit message is required" };
+        }
+        return {
+          ok: true,
+          value: { operation: "commit", message: raw.message.trim() },
+        };
+      }
+
+      case "branch": {
+        if (
+          typeof raw.branchName !== "string" ||
+          raw.branchName.trim().length === 0
+        ) {
+          return { ok: false, error: "Branch name is required" };
+        }
+        return {
+          ok: true,
+          value: { operation: "branch", branchName: raw.branchName.trim() },
+        };
+      }
+
+      case "push": {
+        const branchName =
+          typeof raw.branchName === "string" ? raw.branchName.trim() : "";
+        const repoUrl =
+          typeof raw.repoUrl === "string" ? raw.repoUrl.trim() : "";
+        const githubToken =
+          typeof raw.githubToken === "string" ? raw.githubToken.trim() : "";
+
+        if (!branchName || !repoUrl || !githubToken) {
+          return {
+            ok: false,
+            error: "Branch name, repo URL, and GitHub token are required for push",
+          };
+        }
+
+        return {
+          ok: true,
+          value: { operation: "push", branchName, repoUrl, githubToken },
+        };
+      }
+
+      default:
+        return { ok: false, error: "Unsupported git operation" };
+    }
+  }
+
+  private isSupportedOperation(value: string): value is GitOperation {
+    return ["init", "add", "commit", "branch", "push"].includes(
+      value as GitOperation
+    );
   }
 
   protected getExamples(): string[] {
