@@ -226,7 +226,7 @@ export default function AgentPipeline({
                 >
                   <div className="max-h-[400px] overflow-y-auto">
                     {isLoading ? (
-                      <ThoughtStreamSkeleton count={3} />
+                      <ThoughtStreamSkeleton />
                     ) : error ? (
                       <div className="text-center py-4 text-red-500 text-sm">
                         <p>Failed to load thoughts</p>

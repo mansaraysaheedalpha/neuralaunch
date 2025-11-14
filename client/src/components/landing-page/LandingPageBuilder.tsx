@@ -123,17 +123,15 @@ interface LandingPageBuilderProps {
 const fetcher = (url: string): Promise<AnalyticsApiResponse> =>
   fetch(url).then(async (res) => {
     if (!res.ok) {
-      const errorBody = (await res
+      const errorBody: unknown = await res
         .json()
-        .catch(() => ({ error: "Unknown fetch error" }))) as
-        | ErrorApiResponse
-        | { error?: string };
+        .catch(() => ({ error: "Unknown fetch error" }));
 
       // Derive a safe error message using type guards to avoid `any`
       const errorMessage =
         errorBody && typeof (errorBody as ErrorApiResponse).message === "string"
           ? (errorBody as ErrorApiResponse).message
-          : typeof (errorBody as { error?: string }).error === "string"
+          : errorBody && typeof (errorBody as { error?: string }).error === "string"
             ? (errorBody as { error?: string }).error
             : `Failed to fetch: ${res.statusText}`;
 
@@ -212,7 +210,7 @@ export default function LandingPageBuilder({
         if (analyticsData) await mutateAnalytics(analyticsData, false); // Revert SWR cache
 
         const errorData: unknown = await response.json().catch(() => ({}));
-        const typedError = errorData as ErrorApiResponse;
+        const typedError = (errorData || {}) as ErrorApiResponse;
         throw new Error(typedError.message || "Failed to update status.");
       }
 
@@ -245,7 +243,7 @@ export default function LandingPageBuilder({
       });
       if (!response.ok) {
         const errorData: unknown = await response.json().catch(() => ({}));
-        const typedError = errorData as ErrorApiResponse;
+        const typedError = (errorData || {}) as ErrorApiResponse;
         throw new Error(typedError.message || "Regeneration request failed");
       }
       const data = (await response.json()) as GenerateApiResponse;
@@ -302,7 +300,7 @@ export default function LandingPageBuilder({
   const getPrimaryColor = (colorScheme: unknown): string => {
     if (!colorScheme || typeof colorScheme !== "object") return "#8B5CF6";
     const cs = colorScheme as Record<string, unknown>;
-    const primary = cs.primary;
+    const primary = cs["primary"];
     return typeof primary === "string" ? primary : "#8B5CF6";
   };
   const primaryColor = getPrimaryColor(landingPage.colorScheme);

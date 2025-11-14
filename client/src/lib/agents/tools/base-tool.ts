@@ -16,19 +16,19 @@ export interface ToolParameter {
   type: "string" | "number" | "boolean" | "object" | "array";
   description: string;
   required: boolean;
-  default?: any;
+  default?: unknown;
   enum?: string[];
 }
 
 export interface ToolResult {
   success: boolean;
-  data?: any;
+  data?: unknown;
   error?: string;
   duration?: number;
   metadata?: {
     executionTime?: number;
     tokensUsed?: number;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -53,14 +53,14 @@ export interface ITool {
    * Execute the tool with given parameters
    */
   execute(
-    params: Record<string, any>,
+    params: Record<string, unknown>,
     context: ToolContext
   ): Promise<ToolResult>;
 
   /**
    * Validate parameters before execution
    */
-  validate(params: Record<string, any>): { valid: boolean; errors: string[] };
+  validate(params: Record<string, unknown>): { valid: boolean; errors: string[] };
 
   /**
    * Get tool metadata for AI prompt
@@ -92,14 +92,14 @@ export abstract class BaseTool implements ITool {
    * Execute the tool (must be implemented by subclass)
    */
   abstract execute(
-    params: Record<string, any>,
+    params: Record<string, unknown>,
     context: ToolContext
   ): Promise<ToolResult>;
 
   /**
    * Validate parameters
    */
-  validate(params: Record<string, any>): { valid: boolean; errors: string[] } {
+  validate(params: Record<string, unknown>): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
 
     for (const param of this.parameters) {
@@ -150,14 +150,14 @@ export abstract class BaseTool implements ITool {
   /**
    * Protected helper: Log execution
    */
-  protected logExecution(action: string, data?: any): void {
+  protected logExecution(action: string, data?: unknown): void {
     logger.info(`${this.logPrefix} ${action}`, data);
   }
 
   /**
    * Protected helper: Log error
    */
-  protected logError(action: string, error: any): void {
+  protected logError(action: string, error: unknown): void {
     logger.error(
       `${this.logPrefix} ${action} failed`,
       error instanceof Error ? error : undefined
@@ -223,7 +223,7 @@ export class ToolRegistry {
    */
   async execute(
     toolName: string,
-    params: Record<string, any>,
+    params: Record<string, unknown>,
     context: ToolContext
   ): Promise<ToolResult> {
     const tool = this.get(toolName);

@@ -19,13 +19,19 @@ import { CodeExplorer } from "./CodeExplorer";
 import { CommandTerminalList } from "./CommandTerminal";
 import { WaveApprovalCard, WaveApprovalCardSkeleton } from "./WaveApprovalCard";
 import { CriticalFailuresPanel } from "./CriticalFailuresPanel";
+import { Task, CommandRun } from "@/types/component-props";
 
 interface ExecutionTabsProps {
   projectId: string;
   conversationId: string;
-  tasks: any[];
+  tasks: Task[];
   currentWave: number;
   className?: string;
+}
+
+interface AgentCommand {
+  agentName: string;
+  commands: CommandRun[];
 }
 
 const fetcher = async (url: string) => {
@@ -61,17 +67,17 @@ export function ExecutionTabs({
   );
 
   // Extract commands from task outputs
-  const agentCommands = tasks
+  const agentCommands: AgentCommand[] = tasks
     .filter((t) => t.output?.commands && t.output.commands.length > 0)
     .map((t) => ({
-      agentName: t.agentName,
-      commands: t.output.commands.map((cmd: any) => ({
-        command: cmd.command || cmd,
-        description: cmd.description,
-        output: cmd.output,
+      agentName: t.agentName || "unknown",
+      commands: (t.output?.commands || []).map((cmd: CommandRun) => ({
+        command: cmd.command || "",
+        description: cmd.command,
+        output: undefined,
         exitCode: cmd.exitCode,
-        duration: cmd.duration,
-        status: cmd.status || (cmd.exitCode === 0 ? "success" : "failed"),
+        duration: undefined,
+        status: cmd.exitCode === 0 ? "success" : "failed",
       })),
     }));
 

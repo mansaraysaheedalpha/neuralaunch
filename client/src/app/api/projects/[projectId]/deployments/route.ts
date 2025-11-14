@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { createApiLogger } from "@/lib/logger";
+import { toLogContext } from "@/lib/error-utils";
 import {
   checkRateLimit,
   RATE_LIMITS,
@@ -249,7 +250,7 @@ export async function POST(
         deploymentId: deployment.id,
       });
     } catch (inngestError) {
-      logger.warn("Failed to trigger deployment via Inngest", inngestError as Error);
+      logger.warn("Failed to trigger deployment via Inngest", toLogContext(inngestError));
       // Continue even if Inngest fails - deployment record is created
     }
 

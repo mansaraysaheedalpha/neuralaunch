@@ -24,7 +24,7 @@ export interface Thought {
   type: ThoughtType;
   message: string;
   timestamp: string; // ISO 8601 format
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   mode?: ThoughtMode; // Track thought source (curated, deep_dive, both)
   rawReasoning?: string; // Store raw AI reasoning from extended thinking
 }
@@ -68,7 +68,7 @@ export function createThought(
   projectId: string,
   type: ThoughtType,
   message: string,
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 ): Thought {
   return {
     id: `thought_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,

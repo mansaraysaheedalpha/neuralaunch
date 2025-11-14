@@ -50,9 +50,9 @@ export interface BlueprintPlanningInput extends BasePlanningInput {
   sourceType: "blueprint";
   blueprint: string;
   sprintData?: {
-    completedTasks: any[];
-    analytics: any;
-    validationResults: any;
+    completedTasks: Array<Record<string, unknown>>;
+    analytics: Record<string, unknown>;
+    validationResults: Record<string, unknown>;
   };
 }
 
@@ -797,9 +797,8 @@ BEGIN:`;
       return content;
     } catch (error) {
       const duration = Date.now() - startTime;
-      logger.error(`[${this.name}] Claude API call failed`, {
+      logger.error(`[${this.name}] Claude API call failed`, toError(error), {
         duration: `${duration}ms`,
-        error: toError(error),
       });
 
       if (error instanceof Error) {
@@ -828,7 +827,7 @@ BEGIN:`;
   private async analyzeVision(
     visionText: string,
     thoughts?: ReturnType<typeof createThoughtStream>
-  ): Promise<any> {
+  ): Promise<Record<string, unknown>> {
     if (thoughts) {
       await thoughts.thinking(
         "extracting project intent and core features from vision"
@@ -874,9 +873,9 @@ IMPORTANT: Return ONLY the JSON object, with no markdown formatting, no code blo
    * Extract technical requirements from vision analysis
    */
   private async extractRequirements(
-    analysis: any,
+    analysis: Record<string, unknown>,
     input: VisionPlanningInput
-  ): Promise<any> {
+  ): Promise<Record<string, unknown>> {
     return {
       projectName: input.projectName,
       projectType: analysis.projectType,
@@ -892,12 +891,12 @@ IMPORTANT: Return ONLY the JSON object, with no markdown formatting, no code blo
    * Design technical architecture based on requirements
    */
   private async designArchitecture(
-    requirements: any,
-    techPreferences?: any,
+    requirements: Record<string, unknown>,
+    techPreferences?: Record<string, unknown>,
     thoughts?: ReturnType<typeof createThoughtStream>
-  ): Promise<any> {
+  ): Promise<Record<string, unknown>> {
     // Smart architecture design based on project type and requirements
-    const architecture: any = {
+    const architecture: Record<string, unknown> = {
       frontend: techPreferences?.frontend || this.inferFrontend(requirements),
       backend: techPreferences?.backend || this.inferBackend(requirements),
       database: techPreferences?.database || this.inferDatabase(requirements),
@@ -917,24 +916,24 @@ IMPORTANT: Return ONLY the JSON object, with no markdown formatting, no code blo
     return architecture;
   }
 
-  private inferFrontend(requirements: any): string {
+  private inferFrontend(requirements: Record<string, unknown>): string {
     if (requirements.projectType === "web app") return "Next.js";
     if (requirements.projectType === "mobile app") return "React Native";
     return "React";
   }
 
-  private inferBackend(requirements: any): string {
+  private inferBackend(requirements: Record<string, unknown>): string {
     if (requirements.technicalNeeds.realtime) return "Node.js + Socket.io";
     return "Next.js API Routes";
   }
 
-  private inferDatabase(requirements: any): string {
+  private inferDatabase(requirements: Record<string, unknown>): string {
     if (requirements.complexity === "simple") return "None (static)";
     if (requirements.technicalNeeds.realtime) return "PostgreSQL + Redis";
     return "PostgreSQL";
   }
 
-  private inferDeployment(requirements: any): string {
+  private inferDeployment(requirements: Record<string, unknown>): string {
     if (this.inferFrontend(requirements).includes("Next.js")) return "Vercel";
     return "Railway";
   }
@@ -944,8 +943,8 @@ IMPORTANT: Return ONLY the JSON object, with no markdown formatting, no code blo
    */
   private buildVisionPlanningPrompt(
     input: VisionPlanningInput,
-    analysis: any,
-    architecture: any
+    analysis: Record<string, unknown>,
+    architecture: Record<string, unknown>
   ): string {
     return `
 You are a world-class software architect creating an execution plan from a project vision.
@@ -979,9 +978,9 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
   /**
    * Parse structured blueprint text
    */
-  private async parseBlueprint(blueprint: string): Promise<any> {
+  private async parseBlueprint(blueprint: string): Promise<Record<string, unknown>> {
     // Extract sections from markdown-style blueprint
-    const sections: any = {};
+    const sections: Record<string, unknown> = {};
 
     // Simple regex-based parsing
     const sectionRegex = /##\s+([^\n]+)\n([\s\S]*?)(?=##\s+|$)/g;
@@ -1005,14 +1004,15 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
    * Enhance blueprint with sprint validation data
    */
   private async enhanceWithSprintData(
-    parsed: any,
-    sprintData: any
-  ): Promise<any> {
+    parsed: Record<string, unknown>,
+    sprintData: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
     // Priority features based on completed validation tasks
+    const completedTasks = sprintData.completedTasks as Array<Record<string, unknown>> | undefined;
     const validatedFeatures =
-      sprintData.completedTasks
-        ?.filter((t: any) => t.status === "completed")
-        .map((t: any) => t.title) || [];
+      completedTasks
+        ?.filter((t) => t.status === "completed")
+        .map((t) => t.title) || [];
 
     return {
       ...parsed,
@@ -1027,8 +1027,8 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
    */
   private buildBlueprintPlanningPrompt(
     blueprint: string,
-    enhanced: any,
-    sprintData?: any
+    enhanced: Record<string, unknown>,
+    sprintData?: Record<string, unknown>
   ): string {
     const sprintContext = sprintData
       ? `
@@ -1061,7 +1061,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
   /**
    * Build legacy planning prompt (from existing context)
    */
-  private buildLegacyPlanningPrompt(context: any): string {
+  private buildLegacyPlanningPrompt(context: Record<string, unknown>): string {
     return `
 You are a world-class software architect and technical planner. Create a comprehensive execution plan for this project.
 
@@ -1289,8 +1289,8 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
           return parsed;
         } catch (e) {
           logger.error(
-            `[${this.name}] Brace matching parse failed:`,
-            toError(e).message
+            `[${this.name}] Brace matching parse failed`,
+            toError(e)
           );
         }
       }
@@ -1307,14 +1307,14 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
           return parsed;
         } catch (e) {
           logger.error(
-            `[${this.name}] indexOf parse failed:`,
-            toError(e).message
+            `[${this.name}] indexOf parse failed`,
+            toError(e)
           );
         }
       }
 
       // ALL FAILED
-      logger.error(`[${this.name}] All parsing strategies failed`, {
+      logger.error(`[${this.name}] All parsing strategies failed`, undefined, {
         length: jsonText.length,
         preview: jsonText.substring(0, 300),
         hasOpenBrace: jsonText.includes("{"),
@@ -1328,8 +1328,8 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
       );
     } catch (error) {
       logger.error(
-        `[${this.name}] Critical parsing error:`,
-        toError(error).message
+        `[${this.name}] Critical parsing error`,
+        toError(error)
       );
 
       throw new Error(
@@ -1351,7 +1351,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
         !parsed.tasks ||
         !Array.isArray(parsed.tasks)
       ) {
-        logger.error(`[${this.name}] Invalid structure:`, {
+        logger.error(`[${this.name}] Invalid structure`, undefined, {
           hasArchitecture: !!parsed.architecture,
           hasTasks: !!parsed.tasks,
           tasksIsArray: Array.isArray(parsed.tasks),
@@ -1399,7 +1399,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
     projectId: string,
     plan: ExecutionPlan,
     sourceType: "vision" | "blueprint",
-    metadata: any,
+    metadata: Record<string, unknown>,
     rawThinking?: string
   ): Promise<void> {
     // Store the source type and metadata in the plan itself for reference
@@ -1424,17 +1424,17 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
         projectId,
         userId: metadata.userId || "",
         conversationId: metadata.conversationId || `${sourceType}_${projectId}`,
-        executionPlan: planWithMetadata as any,
-        originalPlan: planWithMetadata as any, // Store as original plan
+        executionPlan: planWithMetadata as unknown,
+        originalPlan: planWithMetadata as unknown, // Store as original plan
         currentPhase: "plan_review", // Set to plan_review instead of execution
         updatedAt: new Date(),
       },
       update: {
-        executionPlan: planWithMetadata as any,
+        executionPlan: planWithMetadata as unknown,
         // Only update originalPlan if it doesn't exist yet
         ...(existingContext?.originalPlan
           ? {}
-          : { originalPlan: planWithMetadata as any }),
+          : { originalPlan: planWithMetadata as unknown }),
         currentPhase: "plan_review",
         updatedAt: new Date(),
       },
@@ -1465,7 +1465,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
           estimatedLines: task.estimatedLines,
           estimatedHours: task.estimatedHours,
         },
-      } as any,
+      } as unknown,
     }));
 
     await prisma.agentTask.createMany({
@@ -1508,8 +1508,8 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
         projectId: input.projectId,
         agentName: this.name,
         phase: this.phase,
-        input: input as any,
-        output: plan as any,
+        input: input as unknown,
+        output: plan as unknown,
         success,
         durationMs,
         error,
@@ -1531,7 +1531,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
       return null;
     }
 
-    const architecture = context.architecture as any;
+    const architecture = context.architecture as Record<string, unknown> | null;
     const validation = architecture?.validation;
 
     return {
@@ -1552,20 +1552,20 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
         taskModifications?: Array<{
           taskId: string;
           action: "modify" | "remove" | "add";
-          changes?: Record<string, any>;
+          changes?: Record<string, unknown>;
         }>;
         priorityChanges?: Array<{
           taskId: string;
           newPriority: number;
         }>;
-        techStackChanges?: Record<string, any>;
+        techStackChanges?: Record<string, unknown>;
       };
     }
   ): Promise<{
     feasible: boolean;
     warnings: string[];
     blockers: string[];
-    suggestedChanges: any[];
+    suggestedChanges: Array<Record<string, unknown>>;
   }> {
     try {
       logger.info(`[${this.name}] Analyzing feedback`, { projectId });
@@ -1583,7 +1583,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
         };
       }
 
-      const currentPlan = context.executionPlan as any;
+      const currentPlan = context.executionPlan as Record<string, unknown>;
 
       const prompt = `
 You are a software architect analyzing user feedback on an execution plan.
@@ -1639,7 +1639,7 @@ Return ONLY a valid JSON object with this structure (no markdown, no code blocks
   async applyFeedback(
     projectId: string,
     feedback: string,
-    analysisResult?: any
+    analysisResult?: Record<string, unknown>
   ): Promise<{
     success: boolean;
     message: string;
@@ -1659,7 +1659,7 @@ Return ONLY a valid JSON object with this structure (no markdown, no code blocks
         };
       }
 
-      const currentPlan = context.executionPlan as any;
+      const currentPlan = context.executionPlan as Record<string, unknown>;
       const currentRevisionCount = context.planRevisionCount || 0;
 
       const prompt = `
@@ -1706,7 +1706,7 @@ Return ONLY a valid JSON object (no markdown, no code blocks) with the complete 
             feedback,
             analysisResult,
             appliedAt: new Date().toISOString(),
-          } as any,
+          } as unknown,
           updatedAt: new Date(),
         },
       });

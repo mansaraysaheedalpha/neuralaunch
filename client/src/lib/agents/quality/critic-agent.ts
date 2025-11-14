@@ -24,6 +24,7 @@ import { AI_MODELS } from "@/lib/models";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { toError, toLogContext } from "@/lib/error-utils";
+import { ProjectContext } from "@/lib/agents/types/common";
 
 // ==========================================
 // TYPES & INTERFACES
@@ -69,6 +70,31 @@ export interface PerformanceWarning {
   description: string;
   impact: string;
   suggestion: string;
+}
+
+export interface ReviewScores {
+  codeQuality: number;
+  security: number;
+  performance: number;
+  maintainability: number;
+  documentation: number;
+}
+
+export interface CodeStructure {
+  [filePath: string]: unknown;
+}
+
+export interface LintIssue {
+  file: string;
+  line: number;
+  severity: string;
+  message: string;
+  rule: string;
+}
+
+export interface StaticAnalysis {
+  lintIssues: LintIssue[];
+  typeErrors: LintIssue[];
 }
 
 export interface ReviewReport {
@@ -294,8 +320,8 @@ export class CriticAgent extends BaseAgent {
     projectId: string,
     userId: string,
     files: Array<{ path: string; content: string; language: string }>
-  ): Promise<any> {
-    const analysis: any = {};
+  ): Promise<CodeStructure> {
+    const analysis: CodeStructure = {};
 
     for (const file of files) {
       try {
@@ -330,9 +356,9 @@ export class CriticAgent extends BaseAgent {
     projectId: string,
     userId: string,
     files: Array<{ path: string; content: string; language: string }>
-  ): Promise<{ lintIssues: any[]; typeErrors: any[] }> {
-    const lintIssues: any[] = [];
-    const typeErrors: any[] = [];
+  ): Promise<StaticAnalysis> {
+    const lintIssues: LintIssue[] = [];
+    const typeErrors: LintIssue[] = [];
 
     // Group files by language
     const filesByLang = files.reduce(
@@ -363,8 +389,8 @@ export class CriticAgent extends BaseAgent {
             try {
               const eslintOutput = JSON.parse(lintResult.data.stdout);
               if (Array.isArray(eslintOutput)) {
-                eslintOutput.forEach((fileResult: any) => {
-                  fileResult.messages?.forEach((msg: any) => {
+                eslintOutput.forEach((fileResult: { filePath: string; messages?: Array<{line: number; severity: number; message: string; ruleId: string}> }) => {
+                  fileResult.messages?.forEach((msg) => {
                     lintIssues.push({
                       file: fileResult.filePath,
                       line: msg.line,
@@ -417,7 +443,7 @@ export class CriticAgent extends BaseAgent {
             try {
               const pylintOutput = JSON.parse(pylintResult.data.stdout);
               if (Array.isArray(pylintOutput)) {
-                pylintOutput.forEach((issue: any) => {
+                pylintOutput.forEach((issue: { path: string; line: number; type: string; message: string; symbol: string }) => {
                   lintIssues.push({
                     file: issue.path,
                     line: issue.line,
@@ -482,7 +508,7 @@ export class CriticAgent extends BaseAgent {
     projectId: string,
     userId: string,
     files: Array<{ path: string; content: string; language: string }>,
-    context: any
+    context: ProjectContext
   ): Promise<SecurityFinding[]> {
     const findings: SecurityFinding[] = [];
 
@@ -641,8 +667,8 @@ export class CriticAgent extends BaseAgent {
 
         if (banditResult.success && banditResult.data?.stdout) {
           try {
-            const banditOutput = JSON.parse(banditResult.data.stdout);
-            banditOutput.results?.forEach((issue: any) => {
+            const banditOutput = JSON.parse(banditResult.data.stdout) as { results?: Array<{ issue_severity: string; issue_text: string; filename: string; line_number: number; issue_cwe?: { id: string } }> };
+            banditOutput.results?.forEach((issue) => {
               findings.push({
                 severity: this.mapBanditSeverity(issue.issue_severity),
                 type: issue.issue_text,
@@ -677,7 +703,7 @@ export class CriticAgent extends BaseAgent {
     projectId: string,
     userId: string,
     files: Array<{ path: string; content: string; language: string }>,
-    context: any
+    context: ProjectContext
   ): Promise<PerformanceWarning[]> {
     const warnings: PerformanceWarning[] = [];
 
@@ -694,7 +720,7 @@ export class CriticAgent extends BaseAgent {
    */
   private detectPerformanceIssues(
     file: { path: string; content: string; language: string },
-    context: any
+    context: ProjectContext
   ): PerformanceWarning[] {
     const warnings: PerformanceWarning[] = [];
     const lines = file.content.split("\n");
@@ -760,13 +786,13 @@ export class CriticAgent extends BaseAgent {
    */
   private async aiCodeReview(
     files: Array<{ path: string; content: string; language: string }>,
-    codeAnalysis: any,
-    staticAnalysis: any,
-    context: any
+    codeAnalysis: CodeStructure,
+    staticAnalysis: StaticAnalysis,
+    context: ProjectContext
   ): Promise<{
     issues: CodeIssue[];
     suggestions: string[];
-    scores: any;
+    scores: ReviewScores;
   }> {
     try {
       const prompt = this.buildReviewPrompt(
@@ -782,7 +808,17 @@ export class CriticAgent extends BaseAgent {
       return this.parseReviewResponse(responseText);
     } catch (error) {
       logger.error(`[${this.config.name}] AI review failed`, toError(error));
-      return { issues: [], suggestions: [], scores: {} };
+      return {
+        issues: [],
+        suggestions: [],
+        scores: {
+          codeQuality: 60,
+          security: 60,
+          performance: 60,
+          maintainability: 60,
+          documentation: 60
+        }
+      };
     }
   }
 
@@ -791,9 +827,9 @@ export class CriticAgent extends BaseAgent {
    */
   private buildReviewPrompt(
     files: Array<{ path: string; content: string; language: string }>,
-    codeAnalysis: any,
-    staticAnalysis: any,
-    context: any
+    codeAnalysis: CodeStructure,
+    staticAnalysis: StaticAnalysis,
+    context: ProjectContext
   ): string {
     const filesSummary = files
       .map(
@@ -900,7 +936,7 @@ Respond with ONLY valid JSON:
   private parseReviewResponse(responseText: string): {
     issues: CodeIssue[];
     suggestions: string[];
-    scores: any;
+    scores: ReviewScores;
   } {
     try {
       let cleaned = responseText.trim();
@@ -911,14 +947,30 @@ Respond with ONLY valid JSON:
       return {
         issues: parsed.issues || [],
         suggestions: parsed.suggestions || [],
-        scores: parsed.scores || {},
+        scores: parsed.scores || {
+          codeQuality: 60,
+          security: 60,
+          performance: 60,
+          maintainability: 60,
+          documentation: 60
+        },
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Failed to parse AI review`, 
+      logger.error(`[${this.config.name}] Failed to parse AI review`,
         error instanceof Error ? error : new Error(String(error)),
         { preview: responseText.substring(0, 500) }
       );
-      return { issues: [], suggestions: [], scores: {} };
+      return {
+        issues: [],
+        suggestions: [],
+        scores: {
+          codeQuality: 60,
+          security: 60,
+          performance: 60,
+          maintainability: 60,
+          documentation: 60
+        }
+      };
     }
   }
 
@@ -927,8 +979,8 @@ Respond with ONLY valid JSON:
    */
   private compileReviewReport(
     files: Array<{ path: string; content: string; language: string }>,
-    aiReview: any,
-    staticAnalysis: any,
+    aiReview: { issues: CodeIssue[]; suggestions: string[]; scores: ReviewScores },
+    staticAnalysis: StaticAnalysis,
     securityFindings: SecurityFinding[],
     performanceWarnings: PerformanceWarning[]
   ): ReviewReport {
@@ -1021,13 +1073,14 @@ Respond with ONLY valid JSON:
     try {
       // Store in ProjectContext for tracking
       const existingContext = await prisma.projectContext.findUnique({ where: { projectId } });
+      const codebase = existingContext?.codebase as Record<string, unknown> | null;
       await prisma.projectContext.update({
         where: { projectId },
         data: {
           codebase: {
-            ...(existingContext?.codebase as any),
+            ...(codebase || {}),
             lastReview: report,
-          } as any,
+          },
           lastReviewScore: report.overallScore,
           updatedAt: new Date(),
         },
@@ -1076,7 +1129,7 @@ Respond with ONLY valid JSON:
     return "medium";
   }
 
-  private parseGoVetOutput(output: string, issues: any[]): void {
+  private parseGoVetOutput(output: string, issues: LintIssue[]): void {
     const lines = output.split("\n");
     lines.forEach((line) => {
       const match = line.match(/^(.+?):(\d+):(\d+): (.+)$/);
@@ -1092,7 +1145,7 @@ Respond with ONLY valid JSON:
     });
   }
 
-  private parseClippyOutput(output: string, issues: any[]): void {
+  private parseClippyOutput(output: string, issues: LintIssue[]): void {
     const lines = output.split("\n");
     lines.forEach((line) => {
       try {
@@ -1115,7 +1168,7 @@ Respond with ONLY valid JSON:
     });
   }
 
-  private convertLintIssuesToCodeIssues(lintIssues: any[]): CodeIssue[] {
+  private convertLintIssuesToCodeIssues(lintIssues: LintIssue[]): CodeIssue[] {
     return lintIssues.map((issue) => ({
       severity: issue.severity,
       category: "quality",
@@ -1127,7 +1180,7 @@ Respond with ONLY valid JSON:
     }));
   }
 
-  private convertTypeErrorsToCodeIssues(typeErrors: any[]): CodeIssue[] {
+  private convertTypeErrorsToCodeIssues(typeErrors: LintIssue[]): CodeIssue[] {
     return typeErrors.map((error) => ({
       severity: "high",
       category: "type_safety",

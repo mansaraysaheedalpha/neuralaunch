@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { toError } from "@/lib/error-utils";
 
 /**
  * GET /api/projects/[projectId]/critical-failures
@@ -129,7 +130,7 @@ export async function GET(
       },
     });
   } catch (error) {
-    logger.error("Failed to fetch critical failures", { error });
+    logger.error("Failed to fetch critical failures", toError(error));
     return NextResponse.json(
       { error: "Failed to fetch critical failures" },
       { status: 500 }
@@ -214,7 +215,7 @@ export async function PATCH(
       failure: updated,
     });
   } catch (error) {
-    logger.error("Failed to update critical failure", { error });
+    logger.error("Failed to update critical failure", toError(error));
     return NextResponse.json(
       { error: "Failed to update critical failure" },
       { status: 500 }

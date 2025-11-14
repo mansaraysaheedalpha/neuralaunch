@@ -119,10 +119,10 @@ function generateReadme(
   );
 
   let techStackSection = "";
+  const database = techStack?.database || "PostgreSQL";
   if (techStack) {
     const frontend = techStack.frontend || "React";
     const backend = techStack.backend || "Node.js";
-    const database = techStack.database || "PostgreSQL";
 
     techStackSection = `## Tech Stack
 

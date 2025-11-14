@@ -243,7 +243,7 @@ ${taskDetails.acceptanceCriteria?.map((c: string) => `- [x] ${c}`).join("\n") ||
 
       // Step 10: Check if all wave tasks are complete
       await step.run("check-wave-completion", async () => {
-        const waveNumber = event.data.waveNumber;
+        const waveNumber = (event.data as any).waveNumber;
 
         if (!waveNumber) {
           // Not part of a wave, just trigger coordinator resume

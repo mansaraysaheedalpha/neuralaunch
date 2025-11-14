@@ -19,29 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-
-interface Thought {
-  id: string;
-  agentName: string;
-  projectId: string;
-  type: ThoughtType;
-  message: string;
-  timestamp: string | Date;
-  metadata?: Record<string, any>;
-  mode?: "curated" | "deep_dive" | "both";
-  rawReasoning?: string;
-}
-
-type ThoughtType =
-  | "starting"
-  | "thinking"
-  | "accessing"
-  | "analyzing"
-  | "deciding"
-  | "executing"
-  | "completing"
-  | "error"
-  | "deep_reasoning";
+import { Thought, ThoughtType } from "@/types/thought-stream";
 
 const THOUGHT_ICONS: Record<ThoughtType, React.ReactNode> = {
   starting: <Play className="w-4 h-4" />,

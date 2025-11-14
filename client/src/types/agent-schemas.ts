@@ -50,12 +50,24 @@ export const phaseSchema = z.object({
   tasks: z.array(actionableTaskSchema), // <-- Uses your existing schema!
 });
 
+export const architectureSchema = z.object({
+  overview: z.string().optional(),
+  components: z.array(z.string()).optional(),
+  dataFlow: z.string().optional(),
+  techStack: z.record(z.string()).optional(),
+}).passthrough();
+
+export const conditionalEnvKeysSchema = z.record(
+  z.string(),
+  z.array(z.string())
+);
+
 export const strictAIPlanResponseSchema = z.object({
-  architecture: z.any().optional(),
+  architecture: architectureSchema.optional(),
   plan: z.array(phaseSchema),
   questions: z.array(questionSchema).optional().default([]), // Uses your existing schema
   requiredEnvKeys: z.array(z.string()).optional().default([]),
-  conditionalEnvKeys: z.any().optional(),
+  conditionalEnvKeys: conditionalEnvKeysSchema.optional(),
 });
 
 export const accountInfoSchema = z.object({
@@ -141,7 +153,7 @@ export const projectAgentDataSchema = z.object({
     .nullable()
     .default(null),
   agentAnalyzedStack: analyzedStackSchema.nullable().default(null),
-  agentArchitecturePlan: z.any().nullable().default(null), // Full architectural plan (raw AI output)
+  agentArchitecturePlan: architectureSchema.nullable().default(null), // Full architectural plan (raw AI output)
 
   // ------------------------------------------------------------------
   // ✅ THE FIX IS HERE:

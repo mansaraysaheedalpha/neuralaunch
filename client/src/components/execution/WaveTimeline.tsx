@@ -13,19 +13,14 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
+import { Wave, Task } from "@/types/component-props";
 
-interface Wave {
-  number: number;
-  status: "pending" | "active" | "completed" | "failed" | "in_progress";
-  tasks?: any[];
-  startedAt?: string | Date;
-  completedAt?: string | Date;
-  taskCount?: number;
-  completedCount?: number;
+interface WaveWithTasksOverride extends Wave {
+  tasks?: Task[];
 }
 
 interface WaveTimelineProps {
-  waves: Wave[];
+  waves: WaveWithTasksOverride[];
   currentWave: number;
 }
 
@@ -77,7 +72,7 @@ export default function WaveTimeline({
         const completedCount =
           wave.completedCount ||
           wave.tasks?.filter(
-            (t: any) => t.status === "COMPLETE" || t.status === "completed"
+            (t: Task) => t.status === "COMPLETE" || t.status === "completed"
           ).length ||
           0;
 
@@ -179,7 +174,7 @@ export default function WaveTimeline({
                   exit={{ height: 0, opacity: 0 }}
                   className="mt-2 space-y-1 overflow-hidden"
                 >
-                  {wave.tasks.map((task: any, taskIndex: number) => (
+                  {wave.tasks.map((task: Task, taskIndex: number) => (
                     <div
                       key={task.id || taskIndex}
                       className="flex items-center gap-2 text-xs py-1 px-2 rounded hover:bg-muted/50"
@@ -222,7 +217,7 @@ export default function WaveTimeline({
                   <div className="mt-2 space-y-1">
                     {wave.tasks
                       .slice(0, 3)
-                      .map((task: any, taskIndex: number) => (
+                      .map((task: Task, taskIndex: number) => (
                         <div
                           key={task.id || taskIndex}
                           className="flex items-center gap-2 text-xs"

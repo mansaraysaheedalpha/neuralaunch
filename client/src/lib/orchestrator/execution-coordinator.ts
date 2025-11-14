@@ -21,13 +21,23 @@ export type ExecutionAgentType =
   | "IntegrationAgent"
   | "TestingAgent";
 
+export interface TaskInput {
+  title: string;
+  description?: string;
+  complexity: "simple" | "medium" | "high";
+  dependencies?: string[];
+  files?: string[];
+  pattern?: string;
+  [key: string]: unknown;
+}
+
 export interface ExecutionTask {
   id: string;
   projectId: string;
   agentName: ExecutionAgentType;
   priority: number;
   status: string;
-  input: any;
+  input: TaskInput;
   dependencies?: string[]; // Task IDs that must complete first
   complexity?: "simple" | "medium";
 }
@@ -176,8 +186,8 @@ export class ExecutionCoordinator {
             taskCount: tasks.length,
             tasks: tasks.map((t) => ({
               id: t.id,
-              title: (t.input as any).title,
-              complexity: (t.input as any).complexity,
+              title: t.input.title,
+              complexity: t.input.complexity,
             })),
           })
         ),
@@ -185,7 +195,7 @@ export class ExecutionCoordinator {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      logger.error(`[${this.name}] Coordination failed:`, error as any);
+      logger.error(`[${this.name}] Coordination failed:`, error);
 
       return {
         success: false,
@@ -214,8 +224,8 @@ export class ExecutionCoordinator {
   } {
     // Sort tasks: simple first, then by priority
     const sortedTasks = [...readyTasks].sort((a, b) => {
-      const aComplexity = (a.input as any)?.complexity || "medium";
-      const bComplexity = (b.input as any)?.complexity || "medium";
+      const aComplexity = a.input.complexity || "medium";
+      const bComplexity = b.input.complexity || "medium";
 
       if (this.PREFER_SIMPLE_TASKS_FIRST) {
         if (aComplexity === "simple" && bComplexity !== "simple") return -1;
@@ -256,7 +266,7 @@ export class ExecutionCoordinator {
       Array.from(tasksByAgent.entries()).map(([agent, tasks]) => ({
         agent,
         count: tasks.length,
-      })) as any
+      }))
     );
 
     return {
@@ -371,7 +381,7 @@ export class ExecutionCoordinator {
         triggeredTasks: triggeredTaskIds,
       };
     } catch (error) {
-      logger.error(`[${this.name}] Resume failed:`, error as any);
+      logger.error(`[${this.name}] Resume failed:`, error);
       throw error;
     }
   }
@@ -397,8 +407,8 @@ export class ExecutionCoordinator {
       agentName: task.agentName as ExecutionAgentType,
       priority: task.priority,
       status: task.status,
-      input: task.input,
-      dependencies: (task.input as any)?.dependencies || [],
+      input: task.input as TaskInput,
+      dependencies: (task.input as TaskInput)?.dependencies || [],
     }));
   }
 
@@ -468,14 +478,14 @@ export class ExecutionCoordinator {
 
     try {
       await inngest.send({
-        name: eventName as any,
+        name: eventName,
         data: {
           taskId: task.id,
           projectId: input.projectId,
           userId: input.userId,
           taskInput: task.input,
           priority: task.priority,
-        } as any,
+        },
       });
 
       // Update task status to 'in_progress'
@@ -489,7 +499,7 @@ export class ExecutionCoordinator {
 
       logger.info(`[${this.name}] Successfully triggered task ${task.id}`);
     } catch (error) {
-      logger.error(`[${this.name}] Failed to trigger task ${task.id}:`, error as any);
+      logger.error(`[${this.name}] Failed to trigger task ${task.id}:`, error);
       throw error;
     }
   }
@@ -547,7 +557,7 @@ export class ExecutionCoordinator {
 
       logger.info(`[${this.name}] Quality check triggered for ${projectId}`);
     } catch (error) {
-      logger.error(`[${this.name}] Failed to trigger quality check:`, error as any);
+      logger.error(`[${this.name}] Failed to trigger quality check:`, error);
     }
   }
 
@@ -652,8 +662,8 @@ export class ExecutionCoordinator {
         agentName: task.agentName as ExecutionAgentType,
         priority: task.priority,
         status: task.status,
-        input: task.input,
-        dependencies: (task.input as any)?.dependencies || [],
+        input: task.input as TaskInput,
+        dependencies: (task.input as TaskInput)?.dependencies || [],
       }));
 
       // Step 3: Build dependency graph
@@ -689,7 +699,7 @@ export class ExecutionCoordinator {
       // Log wave breakdown
       wave.agentAssignments.forEach((tasks, agent) => {
         logger.info(
-          `[${this.name}]   ${agent}: ${tasks.length} tasks (${tasks.map((t) => (t.input as any).complexity).join(", ")})`
+          `[${this.name}]   ${agent}: ${tasks.length} tasks (${tasks.map((t) => t.input.complexity).join(", ")})`
         );
       });
 
@@ -721,7 +731,7 @@ export class ExecutionCoordinator {
           );
 
           await inngest.send({
-            name: eventName as any,
+            name: eventName,
             data: {
               taskId: task.id,
               projectId,
@@ -729,7 +739,7 @@ export class ExecutionCoordinator {
               taskInput: task.input,
               waveNumber,
               githubBranch,
-            } as any,
+            },
           });
 
           // Update task status to in_progress
@@ -757,8 +767,8 @@ export class ExecutionCoordinator {
           taskCount: tasks.length,
           tasks: tasks.map((t) => ({
             id: t.id,
-            title: (t.input as any).title,
-            complexity: (t.input as any).complexity,
+            title: t.input.title,
+            complexity: t.input.complexity,
           })),
         })
       );
@@ -771,7 +781,7 @@ export class ExecutionCoordinator {
         waveBreakdown,
       };
     } catch (error) {
-      logger.error(`[${this.name}] Wave building failed`, error as any);
+      logger.error(`[${this.name}] Wave building failed`, error);
       throw error;
     }
   }

@@ -6,7 +6,7 @@ import { Resend } from "resend";
 import { env } from "@/lib/env";
 import { createApiLogger } from "@/lib/logger";
 
-const logger = createApiLogger({ path: "/lib/email-service" });
+const logger = createApiLogger({ path: "/lib/email-service", method: "service" });
 
 // Initialize Resend with API key
 const resend = new Resend(env.RESEND_API_KEY);

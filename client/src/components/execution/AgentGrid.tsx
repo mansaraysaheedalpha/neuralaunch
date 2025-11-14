@@ -18,9 +18,10 @@ import {
   getAgentColor,
   getAgentDisplayName,
 } from "@/lib/agents/agent-types";
+import { Task } from "@/types/component-props";
 
 interface AgentGridProps {
-  tasks: any[];
+  tasks: Task[];
   activeAgents: string[];
   currentWave: number;
 }
@@ -31,7 +32,7 @@ export default function AgentGrid({
   currentWave,
 }: AgentGridProps) {
   // ✅ FIX #1: Correct the reduce bug (was returning {} instead of acc)
-  const agentTasks = tasks.reduce((acc: Record<string, any[]>, task) => {
+  const agentTasks = tasks.reduce((acc: Record<string, Task[]>, task) => {
     const agentKey = task.agentName?.toLowerCase() || "unknown";
     if (!acc[agentKey]) acc[agentKey] = [];
     acc[agentKey].push(task);

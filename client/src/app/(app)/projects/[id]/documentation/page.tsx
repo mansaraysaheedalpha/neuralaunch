@@ -66,13 +66,13 @@ export default function DocumentationPage({ params }: DocumentationPageProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
   // Fetch project data
-  const { data: project, error: projectError } = useSWR(
+  const { data: project, error: projectError } = useSWR<any>(
     `/api/projects/${projectId}`,
     fetcher
   );
 
   // Fetch documentation from API
-  const { data: documentationData, error: docError } = useSWR(
+  const { data: documentationData, error: docError } = useSWR<any>(
     `/api/projects/${projectId}/documentation`,
     fetcher
   );

@@ -53,21 +53,21 @@ export default function ProjectOverviewPage({ params }: ProjectOverviewPageProps
   const router = useRouter();
 
   // Fetch project data
-  const { data: project, error: projectError } = useSWR(
+  const { data: project, error: projectError } = useSWR<any>(
     `/api/projects/${projectId}`,
     fetcher,
     { refreshInterval: 5000 }
   );
 
   // Fetch tasks data
-  const { data: tasksData } = useSWR(
+  const { data: tasksData } = useSWR<any>(
     `/api/projects/${projectId}/tasks`,
     fetcher,
     { refreshInterval: 5000 }
   );
 
   // Fetch orchestrator status
-  const { data: status } = useSWR(
+  const { data: status } = useSWR<any>(
     `/api/orchestrator/status/${projectId}`,
     fetcher,
     { refreshInterval: 5000 }
