@@ -380,7 +380,12 @@ export class CriticAgent extends BaseAgent {
                   });
                 });
               }
-            } catch {}
+            } catch (error) {
+              logger.warn(`[${this.config.name}] Failed to parse ESLint output`, {
+                error: error instanceof Error ? error.message : String(error),
+                projectId,
+              });
+            }
           }
 
           // Run TypeScript compiler
@@ -422,7 +427,12 @@ export class CriticAgent extends BaseAgent {
                   });
                 });
               }
-            } catch {}
+            } catch (error) {
+              logger.warn(`[${this.config.name}] Failed to parse Pylint output`, {
+                error: error instanceof Error ? error.message : String(error),
+                projectId,
+              });
+            }
           }
         }
 
@@ -643,7 +653,12 @@ export class CriticAgent extends BaseAgent {
                 cwe: issue.issue_cwe?.id || "Unknown",
               });
             });
-          } catch {}
+          } catch (error) {
+            logger.warn(`[${this.config.name}] Failed to parse Bandit output`, {
+              error: error instanceof Error ? error.message : String(error),
+              projectId,
+            });
+          }
         }
       } catch (error) {
         logger.warn(`[${this.config.name}] Bandit scan failed`, 
@@ -1091,7 +1106,12 @@ Respond with ONLY valid JSON:
             rule: "clippy",
           });
         }
-      } catch {}
+      } catch (error) {
+        // Skip invalid JSON lines (Clippy outputs mixed text and JSON)
+        logger.debug(`[${this.config.name}] Skipped non-JSON line in Clippy output`, {
+          line: line.substring(0, 100), // First 100 chars for debugging
+        });
+      }
     });
   }
 

@@ -5,6 +5,12 @@ import { validationAgent } from "@/lib/agents/validation/validation.agent";
 import { createApiLogger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import {
+  checkRateLimit,
+  RATE_LIMITS,
+  getRequestIdentifier,
+  getClientIp,
+} from "@/lib/rate-limit";
 
 // Request validation schema
 const validateRequestSchema = z.object({
@@ -35,6 +41,33 @@ export async function POST(
     }
 
     const userId = session.user.id;
+
+    // Rate limiting
+    const clientIp = getClientIp(req.headers);
+    const rateLimitId = getRequestIdentifier(userId, clientIp);
+    const rateLimitResult = checkRateLimit({
+      ...RATE_LIMITS.AI_GENERATION,
+      identifier: rateLimitId,
+    });
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: `Too many requests. Please try again in ${rateLimitResult.retryAfter} seconds.`,
+          retryAfter: rateLimitResult.retryAfter,
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": rateLimitResult.retryAfter?.toString() || "60",
+            "X-RateLimit-Limit": RATE_LIMITS.AI_GENERATION.maxRequests.toString(),
+            "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+            "X-RateLimit-Reset": new Date(rateLimitResult.resetAt).toISOString(),
+          },
+        }
+      );
+    }
     logger.info("Validation request received", {
       userId,
       projectId: projectId,

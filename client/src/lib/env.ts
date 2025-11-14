@@ -40,14 +40,16 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required"),
   ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY is required"), // Made this required
 
-  // Email Service
+  // Email Service (Resend)
   RESEND_API_KEY: z.string().min(1, "RESEND_API_KEY is required"),
-  EMAIL_PROVIDER: z.enum(["resend", "sendgrid", "ses"]).optional(),
-  EMAIL_FROM: z.string().optional(),
-  SENDGRID_API_KEY: z.string().optional(),
-  AWS_REGION: z.string().optional(),
-  AWS_ACCESS_KEY_ID: z.string().optional(),
-  AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  RESEND_DOMAIN: z
+    .string()
+    .min(1, "RESEND_DOMAIN is required (e.g., infinite-dynamics.com)"),
+  RESEND_FROM_EMAIL: z
+    .string()
+    .email()
+    .default("noreply@infinite-dynamics.com"),
+  RESEND_REPLY_TO: z.string().email().optional(),
 
   // Webhooks & Notifications
   REVIEW_WEBHOOK_URL: z.string().url().optional(),
@@ -105,6 +107,16 @@ const envSchema = z.object({
 
   // MCP Servers
   MCP_SERVERS: z.string().optional(),
+  MCP_PLAYWRIGHT_URL: z
+    .string()
+    .url()
+    .optional()
+    .default("http://localhost:3100/mcp"),
+  MCP_CLAUDE_SKILLS_URL: z
+    .string()
+    .url()
+    .optional()
+    .default("http://localhost:3101/mcp"),
 
   // Deployment Platforms (all optional)
   VERCEL_TOKEN: z.string().optional(),

@@ -31,7 +31,7 @@ interface QualityPageProps {
   }>;
 }
 
-const fetcher = async (url: string) => {
+const fetcher = async <T = unknown>(url: string): Promise<T> => {
   const res = await fetch(url);
   if (!res.ok) {
     // Check if response is JSON
@@ -42,7 +42,7 @@ const fetcher = async (url: string) => {
     }
     throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   }
-  return res.json();
+  return res.json() as Promise<T>;
 };
 
 export default function QualityDashboardPage({ params }: QualityPageProps) {

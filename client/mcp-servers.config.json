@@ -102,6 +102,7 @@
       "enabled": true,
       "description": "Playwright MCP server for browser automation, testing, and deployment verification",
       "url": "http://localhost:3100/mcp",
+      "urlNote": "Override with MCP_PLAYWRIGHT_URL environment variable for production",
       "protocol": "http",
       "authentication": {
         "type": "none"
@@ -146,6 +147,7 @@
       "enabled": true,
       "description": "Claude AI Skills - Advanced reasoning, code generation, and extended thinking capabilities",
       "url": "http://localhost:3101/mcp",
+      "urlNote": "Override with MCP_CLAUDE_SKILLS_URL environment variable for production",
       "protocol": "http",
       "authentication": {
         "type": "bearer",

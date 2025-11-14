@@ -11,6 +11,12 @@ import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { sendReviewNotification } from "@/lib/notifications/notification-service";
 import { toLogContext } from "@/lib/error-utils";
+import {
+  checkRateLimit,
+  RATE_LIMITS,
+  getRequestIdentifier,
+  getClientIp,
+} from "@/lib/rate-limit";
 
 const createReviewSchema = z.object({
   waveNumber: z.number().int().positive(),
@@ -44,6 +50,33 @@ export async function GET(
     }
 
     const userId = session.user.id;
+
+    // Rate limiting
+    const clientIp = getClientIp(req.headers);
+    const rateLimitId = getRequestIdentifier(userId, clientIp);
+    const rateLimitResult = checkRateLimit({
+      ...RATE_LIMITS.API_READ,
+      identifier: rateLimitId,
+    });
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: `Too many requests. Please try again in ${rateLimitResult.retryAfter} seconds.`,
+          retryAfter: rateLimitResult.retryAfter,
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": rateLimitResult.retryAfter?.toString() || "60",
+            "X-RateLimit-Limit": RATE_LIMITS.API_READ.maxRequests.toString(),
+            "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+            "X-RateLimit-Reset": new Date(rateLimitResult.resetAt).toISOString(),
+          },
+        }
+      );
+    }
 
     // 2. Verify project ownership
     const projectContext = await prisma.projectContext.findUnique({

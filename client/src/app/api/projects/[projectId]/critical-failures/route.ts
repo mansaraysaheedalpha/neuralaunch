@@ -10,7 +10,7 @@ import { logger } from "@/lib/logger";
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
     const session = await auth();
@@ -18,7 +18,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { projectId } = params;
+    const { projectId } = await params;
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status"); // Filter by status (open, resolved, etc.)
     const severity = searchParams.get("severity"); // Filter by severity
@@ -143,7 +143,7 @@ export async function GET(
  */
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { projectId: string } }
+  { params }: { params: Promise<{ projectId: string }> }
 ) {
   try {
     const session = await auth();
@@ -151,7 +151,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { projectId } = params;
+    const { projectId } = await params;
     const body = await req.json();
     const { failureId, status, resolutionNotes } = body;
 

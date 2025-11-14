@@ -55,7 +55,7 @@ export interface MCPConfiguration {
 }
 
 /**
- * Load MCP configuration from file
+ * Load MCP configuration from file and apply environment variable overrides
  */
 export function loadMCPConfig(): MCPConfiguration | null {
   try {
@@ -73,6 +73,32 @@ export function loadMCPConfig(): MCPConfiguration | null {
 
     const configContent = fs.readFileSync(configPath, "utf-8");
     const config: MCPConfiguration = JSON.parse(configContent);
+
+    // Apply environment variable overrides for URLs
+    config.servers = config.servers.map((server) => {
+      const serverCopy = { ...server };
+
+      // Override Playwright URL from environment
+      if (server.name === "playwright" && process.env.MCP_PLAYWRIGHT_URL) {
+        serverCopy.url = process.env.MCP_PLAYWRIGHT_URL;
+        logger.info("[MCP Config] Using Playwright URL from environment", {
+          url: serverCopy.url,
+        });
+      }
+
+      // Override Claude Skills URL from environment
+      if (
+        server.name === "claude-skills" &&
+        process.env.MCP_CLAUDE_SKILLS_URL
+      ) {
+        serverCopy.url = process.env.MCP_CLAUDE_SKILLS_URL;
+        logger.info("[MCP Config] Using Claude Skills URL from environment", {
+          url: serverCopy.url,
+        });
+      }
+
+      return serverCopy;
+    });
 
     logger.info("[MCP Config] Configuration loaded successfully", {
       version: config.version,
@@ -183,11 +209,22 @@ export function validateMCPConfiguration(
     }
   }
 
-  // Check for invalid URLs
+  // Check for invalid URLs and localhost in production
   for (const server of enabledServers) {
     if (server.protocol === "http" || server.protocol === "https") {
       try {
-        new URL(server.url);
+        const url = new URL(server.url);
+
+        // Warn about localhost URLs in production
+        if (
+          process.env.NODE_ENV === "production" &&
+          (url.hostname === "localhost" || url.hostname === "127.0.0.1")
+        ) {
+          errors.push(
+            `Production environment detected but ${server.name} is using localhost URL: ${server.url}. ` +
+              `Set ${server.name === "playwright" ? "MCP_PLAYWRIGHT_URL" : server.name === "claude-skills" ? "MCP_CLAUDE_SKILLS_URL" : "appropriate"} environment variable.`
+          );
+        }
       } catch {
         errors.push(`Invalid URL for ${server.name}: ${server.url}`);
       }

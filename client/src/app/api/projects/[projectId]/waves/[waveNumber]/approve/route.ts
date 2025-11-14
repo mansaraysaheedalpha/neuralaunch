@@ -6,6 +6,12 @@ import { githubAgent } from "@/lib/agents/github/github-agent";
 import { createApiLogger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import {
+  checkRateLimit,
+  RATE_LIMITS,
+  getRequestIdentifier,
+  getClientIp,
+} from "@/lib/rate-limit";
 
 const approveWaveSchema = z.object({
   conversationId: z.string().min(1),
@@ -35,6 +41,33 @@ export async function POST(
     }
 
     const userId = session.user.id;
+
+    // Rate limiting
+    const clientIp = getClientIp(req.headers);
+    const rateLimitId = getRequestIdentifier(userId, clientIp);
+    const rateLimitResult = checkRateLimit({
+      ...RATE_LIMITS.API_AUTHENTICATED,
+      identifier: rateLimitId,
+    });
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: `Too many requests. Please try again in ${rateLimitResult.retryAfter} seconds.`,
+          retryAfter: rateLimitResult.retryAfter,
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": rateLimitResult.retryAfter?.toString() || "60",
+            "X-RateLimit-Limit": RATE_LIMITS.API_AUTHENTICATED.maxRequests.toString(),
+            "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+            "X-RateLimit-Reset": new Date(rateLimitResult.resetAt).toISOString(),
+          },
+        }
+      );
+    }
     const waveNumber = parseInt(waveNumberStr);
 
     // 2. Validate request

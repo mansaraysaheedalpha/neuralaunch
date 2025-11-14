@@ -8,12 +8,25 @@ import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { toError } from "@/lib/error-utils";
 import { env } from "@/lib/env";
+import { Resend } from "resend";
 import {
   buildSuccessEmail,
   buildErrorEmail,
   buildAlertEmail,
   buildGenericEmail,
 } from "./email-templates";
+
+// Initialize Resend client
+const resend = new Resend(env.RESEND_API_KEY);
+
+// Resend-specific configuration
+const RESEND_CONFIG = {
+  from: {
+    notifications: `NeuraLaunch <notifications@${env.RESEND_DOMAIN}>`,
+    alerts: `NeuraLaunch Alerts <alerts@${env.RESEND_DOMAIN}>`,
+  },
+  replyTo: env.RESEND_REPLY_TO,
+} as const;
 
 export type NotificationType =
   | "review_required"
@@ -141,12 +154,15 @@ export async function sendNotification(notification: Notification): Promise<void
     // Build email content based on notification type
     const emailContent = buildEmailContent(notification, user.name || "there");
 
-    // Send email notification
+    // Send email notification with Resend tags
     await sendEmail({
       to: user.email,
       subject: emailContent.subject,
       html: emailContent.html,
       text: emailContent.text,
+      priority,
+      type,
+      projectId,
     });
 
     // Send webhook notification (if configured)
@@ -522,44 +538,62 @@ Review Now: ${env.NEXT_PUBLIC_APP_URL}/projects/${projectId}/reviews/${reviewId}
 This is an automated notification from NeuraLaunch
   `;
 
-  // Send email based on provider
-  switch (emailProvider) {
-    case "resend":
-      await sendWithResend({ to, subject, html: htmlBody, text: textBody });
-      break;
-    case "sendgrid":
-      await sendWithSendGrid({ to, subject, html: htmlBody, text: textBody });
-      break;
-    case "ses":
-      await sendWithSES({ to, subject, html: htmlBody, text: textBody });
-      break;
-    default:
-      logger.warn(`Unknown email provider: ${emailProvider}`);
-  }
+  return {
+    subject,
+    html: htmlBody,
+    text: textBody,
+  };
 }
 
 /**
  * Send with Resend
+ */
+/**
+ * Send email using Resend with tags and tracking
  */
 async function sendWithResend(params: {
   to: string;
   subject: string;
   html: string;
   text: string;
+  priority?: "critical" | "high" | "medium" | "low";
+  type?: NotificationType;
+  projectId?: string;
 }): Promise<void> {
-  const { Resend } = await import("resend");
-  const resend = new Resend(env.RESEND_API_KEY);
-
   try {
-    await resend.emails.send({
-      from: env.EMAIL_FROM || "NeuraLaunch <noreply@neuralaunch.com>",
+    const { data, error } = await resend.emails.send({
+      from: RESEND_CONFIG.from.notifications,
       to: params.to,
+      replyTo: RESEND_CONFIG.replyTo,
       subject: params.subject,
       html: params.html,
       text: params.text,
+      tags: [
+        ...(params.type ? [{ name: "type", value: params.type }] : []),
+        ...(params.priority ? [{ name: "priority", value: params.priority }] : []),
+        { name: "category", value: "notification" },
+      ],
+      headers: {
+        "X-Priority":
+          params.priority === "critical"
+            ? "1"
+            : params.priority === "high"
+              ? "2"
+              : "3",
+        "X-Entity-Ref-ID": `notif-${params.projectId || "system"}-${Date.now()}`,
+      },
     });
 
-    logger.info("Email sent via Resend", { to: params.to });
+    if (error) {
+      logger.error("Resend API error", error as Error, { to: params.to });
+      throw error;
+    }
+
+    logger.info("Email sent via Resend", {
+      to: params.to,
+      emailId: data?.id,
+      type: params.type,
+    });
   } catch (error) {
     logger.error("Resend email failed", toError(error));
     throw error;
@@ -654,34 +688,19 @@ async function sendWithSES(params: {
 }
 
 /**
- * Unified email sender
+ * Send email using Resend
+ * Simplified to use Resend only (no provider switching)
  */
 async function sendEmail(params: {
   to: string;
   subject: string;
   html: string;
   text: string;
+  priority?: "critical" | "high" | "medium" | "low";
+  type?: NotificationType;
+  projectId?: string;
 }): Promise<void> {
-  const emailProvider = env.EMAIL_PROVIDER;
-
-  if (!emailProvider) {
-    logger.warn("EMAIL_PROVIDER not configured, skipping email notification");
-    return;
-  }
-
-  switch (emailProvider) {
-    case "resend":
-      await sendWithResend(params);
-      break;
-    case "sendgrid":
-      await sendWithSendGrid(params);
-      break;
-    case "ses":
-      await sendWithSES(params);
-      break;
-    default:
-      logger.warn(`Unknown email provider: ${emailProvider}`);
-  }
+  await sendWithResend(params);
 }
 
 /**

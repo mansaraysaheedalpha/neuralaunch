@@ -46,7 +46,7 @@ const iconMap: Record<string, any> = {
   deployment: FileText,
 };
 
-const fetcher = async (url: string) => {
+const fetcher = async <T = unknown>(url: string): Promise<T> => {
   const res = await fetch(url);
   if (!res.ok) {
     const contentType = res.headers.get("content-type");
@@ -56,7 +56,7 @@ const fetcher = async (url: string) => {
     }
     throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   }
-  return res.json();
+  return res.json() as Promise<T>;
 };
 
 export default function DocumentationPage({ params }: DocumentationPageProps) {

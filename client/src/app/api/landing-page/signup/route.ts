@@ -4,6 +4,12 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { env } from "@/lib/env";
+import {
+  checkRateLimit,
+  RATE_LIMITS,
+  getRequestIdentifier,
+  getClientIp,
+} from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,6 +25,33 @@ const signupRequestSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limiting for public endpoint
+    const clientIp = getClientIp(req.headers);
+    const rateLimitId = getRequestIdentifier(null, clientIp);
+    const rateLimitResult = checkRateLimit({
+      ...RATE_LIMITS.PUBLIC,
+      identifier: rateLimitId,
+    });
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Too many requests. Please try again in ${rateLimitResult.retryAfter} seconds.`,
+          retryAfter: rateLimitResult.retryAfter,
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": rateLimitResult.retryAfter?.toString() || "60",
+            "X-RateLimit-Limit": RATE_LIMITS.PUBLIC.maxRequests.toString(),
+            "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+            "X-RateLimit-Reset": new Date(rateLimitResult.resetAt).toISOString(),
+          },
+        }
+      );
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- Body is initially unknown
     const body = await req.json();
 
