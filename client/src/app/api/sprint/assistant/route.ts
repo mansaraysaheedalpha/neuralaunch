@@ -92,6 +92,14 @@ export async function POST(req: NextRequest) {
     let assistantResponse;
     const assistantType = task.aiAssistantType;
 
+    // Validate task description is present
+    if (!task.description) {
+      return new NextResponse(
+        "Task description is required to run AI assistant.",
+        { status: 400 }
+      );
+    }
+
     if (assistantType === "GENERAL") {
       console.log("🤖 Running disciplined GENERAL assistant...");
       // --- FIX: Provide minimal required context ---
@@ -121,7 +129,11 @@ export async function POST(req: NextRequest) {
           blueprint.match(/Solution Statement:\*\*\s*(.*?)\n/)?.[1] || "",
         targetMarket: task.conversation.tags.map((t) => t.tag.name).join(", "),
       };
-      assistantResponse = await runTaskAssistant(assistantType, context);
+      assistantResponse = await runTaskAssistant(
+        assistantType,
+        context,
+        task.description // ✅ FIXED: Now passing task description for all assistant types
+      );
     }
 
     await prisma.$transaction(async (tx) => {

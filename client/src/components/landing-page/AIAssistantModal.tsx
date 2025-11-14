@@ -32,7 +32,14 @@ export default function AIAssistantModal({
         body: JSON.stringify({ taskId: task.id }),
       });
 
-      if (!response.ok || !response.body) {
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          errorText || "Failed to get a response from the AI assistant."
+        );
+      }
+
+      if (!response.body) {
         throw new Error("Failed to get a response from the AI assistant.");
       }
 
