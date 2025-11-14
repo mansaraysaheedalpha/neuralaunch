@@ -149,7 +149,7 @@ export function CodeExplorer({
         {/* File Tree */}
         <div className="rounded-lg border bg-card overflow-hidden">
           <div className="p-2 max-h-[600px] overflow-y-auto">
-            {filteredTree.children && filteredTree.children.length > 0 ? (
+            {filteredTree && filteredTree.children && filteredTree.children.length > 0 ? (
               <FileTreeNode
                 node={filteredTree}
                 expandedFolders={expandedFolders}

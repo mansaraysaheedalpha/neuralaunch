@@ -68,9 +68,9 @@ export default function WaveTimeline({
           wave.status === "pending" || wave.number > currentWave;
         const isExpanded = expandedWaves.has(wave.number);
 
-        const taskCount = wave.taskCount || wave.tasks?.length || 0;
+        const taskCount = (wave.taskCount as number | undefined) || wave.tasks?.length || 0;
         const completedCount =
-          wave.completedCount ||
+          (wave.completedCount as number | undefined) ||
           wave.tasks?.filter(
             (t: Task) => t.status === "COMPLETE" || t.status === "completed"
           ).length ||
@@ -199,9 +199,9 @@ export default function WaveTimeline({
                           task.agentName ||
                           "Task"}
                       </span>
-                      {task.durationMs && (
+                      {Boolean(task.durationMs) && typeof task.durationMs === "number" && (
                         <span className="text-muted-foreground">
-                          {Math.round(task.durationMs / 1000)}s
+                          {Math.round((task.durationMs as number) / 1000)}s
                         </span>
                       )}
                     </div>

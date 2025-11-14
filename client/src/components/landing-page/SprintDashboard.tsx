@@ -22,13 +22,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Task, TaskOutput } from "@prisma/client";
 
-interface TaskWithOutputs {
-  id: string;
-  title: string;
-  status: "COMPLETE" | "PENDING" | string;
-  outputs?: Array<{ id: string; content: string }>;
-}
+type TaskWithOutputs = Task & { outputs: TaskOutput[] };
 
 interface SprintData {
   tasks: TaskWithOutputs[];

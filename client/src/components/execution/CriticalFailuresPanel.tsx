@@ -44,7 +44,7 @@ export function CriticalFailuresPanel({ projectId }: CriticalFailuresPanelProps)
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "open" | "resolved">("all");
-  const [stats, setStats] = useState<FailureStats>({});
+  const [stats, setStats] = useState<FailureStats>({ total: 0 });
 
   useEffect(() => {
     fetchFailures();
@@ -204,8 +204,8 @@ export function CriticalFailuresPanel({ projectId }: CriticalFailuresPanelProps)
                     <div className="flex items-center gap-2 flex-wrap">
                       {getStatusIcon(failure.status)}
                       <h3 className="font-semibold text-lg">{failure.title}</h3>
-                      <Badge variant="outline" className={getSeverityColor(failure.severity)}>
-                        {failure.severity}
+                      <Badge variant="outline" className={getSeverityColor(failure.severity || "medium")}>
+                        {failure.severity || "medium"}
                       </Badge>
                       {failure.waveNumber && (
                         <Badge variant="outline">Wave {failure.waveNumber}</Badge>
@@ -219,7 +219,7 @@ export function CriticalFailuresPanel({ projectId }: CriticalFailuresPanelProps)
                     <p className="text-sm text-gray-600">{failure.description}</p>
                     <div className="flex items-center gap-4 text-xs text-gray-500">
                       <span>
-                        {failure.totalAttempts} attempt{failure.totalAttempts > 1 ? "s" : ""}
+                        {failure.totalAttempts || 0} attempt{(failure.totalAttempts || 0) > 1 ? "s" : ""}
                       </span>
                       <span>•</span>
                       <span>
@@ -307,8 +307,8 @@ export function CriticalFailuresPanel({ projectId }: CriticalFailuresPanelProps)
                                 </span>
                               )}
                             </div>
-                            {(attempt as Record<string, unknown>).error && (
-                              <div className="text-gray-600 mt-1">{(attempt as Record<string, unknown>).error as string}</div>
+                            {Boolean((attempt as Record<string, unknown>).error) && (
+                              <div className="text-gray-600 mt-1">{String((attempt as Record<string, unknown>).error)}</div>
                             )}
                           </div>
                         ))}

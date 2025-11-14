@@ -9,6 +9,7 @@ import { criticAgent } from "@/lib/agents/quality/critic-agent";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { githubAgent } from "@/lib/agents/github/github-agent";
+import { TechStack } from "@/lib/agents/types/common";
 
 export const criticAgentFunction = inngest.createFunction(
   {
@@ -81,7 +82,7 @@ export const criticAgentFunction = inngest.createFunction(
           strictMode: taskInput.strictMode || false,
         },
         context: {
-          techStack: projectContext.techStack,
+          techStack: projectContext.techStack as TechStack | undefined,
           architecture: projectContext.architecture,
         },
       });
@@ -124,7 +125,7 @@ export const criticAgentFunction = inngest.createFunction(
 
             const githubToken = user?.accounts[0]?.access_token;
 
-            if (githubToken) {
+            if (githubToken && result.data) {
               const report = result.data.report;
 
               // Format review comment

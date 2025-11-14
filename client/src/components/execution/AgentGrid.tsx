@@ -41,7 +41,7 @@ export default function AgentGrid({
 
   // Get unique agent names from tasks
   const agents = Array.from(
-    new Set(tasks.map((t) => t.agentName).filter(Boolean))
+    new Set(tasks.map((t) => t.agentName).filter((name): name is string => Boolean(name)))
   );
 
   if (agents.length === 0) {
@@ -197,7 +197,7 @@ export default function AgentGrid({
                         {agentTasks
                           .filter((t) => t.output?.filesCreated)
                           .reduce(
-                            (sum, t) => sum + (t.output?.filesCreated || 0),
+                            (sum, t) => sum + (t.output?.filesCreated?.length || 0),
                             0
                           )}{" "}
                         files

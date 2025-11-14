@@ -19,7 +19,7 @@ interface TaskUpdateResponse {
 
 interface TaskCardProps {
   task: Task & { outputs: TaskOutput[] };
-  onAssistantLaunch: (task: Task) => void;
+  onAssistantLaunch: (task: Task & { outputs: TaskOutput[] }) => void;
 }
 
 export default function TaskCard({ task, onAssistantLaunch }: TaskCardProps) {

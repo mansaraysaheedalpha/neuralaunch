@@ -3,11 +3,15 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Task } from "@prisma/client";
 import ReactMarkdown from "react-markdown";
 
+interface AIAssistantTask {
+  id: string;
+  aiAssistantType?: string | null;
+}
+
 interface AIAssistantModalProps {
-  task: Task | null;
+  task: AIAssistantTask | null;
   onClose: () => void;
 }
 
