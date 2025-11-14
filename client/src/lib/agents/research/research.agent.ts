@@ -4,11 +4,17 @@
  * Researches tech stack recommendations and best practices for features
  */
 
+import { Prisma } from "@prisma/client";
 import { type ParsedBlueprint } from "@/lib/parsers/blueprint-parser";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { getErrorMessage, toError } from "@/lib/error-utils";
 import { AITaskType, executeAITaskSimple } from "@/lib/ai-orchestrator";
 import { createThoughtStream } from "@/lib/agents/thought-stream";
+import {
+  deserializeParsedBlueprint,
+  parseStoredBlueprint,
+} from "../analyzer/blueprint-storage";
 
 export interface TechRecommendation {
   category:
@@ -71,21 +77,25 @@ export class ResearchAgent {
       await thoughts.accessing("ProjectContext database", "Retrieving analyzed blueprint");
       const context = await prisma.projectContext.findUnique({
         where: { projectId: input.projectId },
+        select: { blueprint: true },
       });
 
-      if (!context?.blueprint) {
-        await thoughts.error("No parsed blueprint found - Analyzer must run first");
+      const storedBlueprint = parseStoredBlueprint(context?.blueprint);
+
+      if (!storedBlueprint) {
+        await thoughts.error(
+          "No parsed blueprint found - Analyzer must run first"
+        );
         throw new Error("No parsed blueprint found. Run Analyzer first.");
       }
 
-     const blueprintData = context.blueprint as any;
-     const parsed = blueprintData.parsed || blueprintData;
-     
-     await thoughts.analyzing("project requirements", { 
-       projectName: parsed.projectName,
-       features: parsed.features?.length || 0,
-     });
-     logger.info(`[${this.name}] Retrieved blueprint: ${parsed.projectName}`);
+      const parsed = deserializeParsedBlueprint(storedBlueprint.parsed);
+
+      await thoughts.analyzing("project requirements", {
+        projectName: parsed.projectName,
+        features: parsed.features.length,
+      });
+      logger.info(`[${this.name}] Retrieved blueprint: ${parsed.projectName}`);
 
       // Step 2: Research tech stack
       await thoughts.thinking("optimal technology stack for project requirements");
@@ -129,25 +139,32 @@ export class ResearchAgent {
         architecturePattern,
         message: `Successfully researched tech stack with ${recommendations.length} recommendations.`,
       };
-    } catch (error) {
-      await thoughts.error(
-        error instanceof Error ? error.message : "Unknown error during research",
-        { error: error instanceof Error ? error.stack : String(error) }
-      );
-      
-      logger.error(
-        `[${this.name}] Research failed:`,
-        error instanceof Error ? error : undefined
-      );
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      const stack = error instanceof Error ? error.stack : undefined;
+
+      await thoughts.error(message, stack ? { stack } : undefined);
+
+      if (error instanceof Error) {
+        logger.error(`[${this.name}] Research failed:`, error);
+      } else {
+        logger.error(`[${this.name}] Research failed: ${message}`);
+      }
+
       await this.logExecution(
         input.projectId,
         null,
         [],
         false,
         Date.now() - startTime,
-        error
+        message
       );
-      throw error;
+
+      if (error instanceof Error) {
+        throw error;
+      }
+
+      throw toError(error);
     }
   }
 
@@ -179,9 +196,20 @@ export class ResearchAgent {
     }
     
     const cleaned = this.cleanJsonResponse(response);
-    const result = JSON.parse(cleaned);
 
-    return result.recommendations || [];
+    let parsedResponse: unknown;
+
+    try {
+      parsedResponse = JSON.parse(cleaned);
+    } catch (parseError: unknown) {
+      const message = getErrorMessage(parseError);
+      logger.warn(
+        `[${this.name}] Failed to parse AI research response: ${message}`
+      );
+      return [];
+    }
+
+    return this.extractRecommendations(parsedResponse);
   }
 
   /**
@@ -272,30 +300,38 @@ IMPORTANT:
     architecturePattern: string
   ): Promise<void> {
     try {
-      await prisma.projectContext.update({
+      const techStackPayload: Prisma.JsonObject = {
+        recommendations,
+        architecturePattern,
+        researchedAt: new Date().toISOString(),
+      };
+
+      const updateArgs: Prisma.ProjectContextUpdateArgs = {
         where: { projectId },
         data: {
-          techStack: {
-            recommendations,
-            architecturePattern,
-            researchedAt: new Date(),
-          } as any,
+          techStack: techStackPayload,
           currentPhase: "validation",
           updatedAt: new Date(),
         },
-      });
+      };
+
+      await prisma.projectContext.update(updateArgs);
 
       logger.info(
         `[${this.name}] Stored tech stack recommendations for ${projectId}`
       );
-    } catch (error) {
-      logger.error(
-        `[${this.name}] Failed to store in database:`,
-        error instanceof Error ? error : undefined
-      );
-      throw new Error(
-        `Database storage failed: ${error instanceof Error ? error.message : "Unknown error"}`
-      );
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+
+      if (error instanceof Error) {
+        logger.error(`[${this.name}] Failed to store in database:`, error);
+      } else {
+        logger.error(
+          `[${this.name}] Failed to store in database: ${message}`
+        );
+      }
+
+      throw new Error(`Database storage failed: ${message}`);
     }
   }
 
@@ -308,39 +344,46 @@ IMPORTANT:
     recommendations: TechRecommendation[],
     success: boolean,
     durationMs: number,
-    error?: unknown
+    errorMessage?: string
   ): Promise<void> {
     try {
-      await prisma.agentExecution.create({
+      const inputPayload: Prisma.JsonObject | undefined = parsed
+        ? {
+            projectName: parsed.projectName,
+            featureCount: parsed.features.length,
+            existingTech: parsed.techStack.length,
+          }
+        : undefined;
+
+      const outputPayload: Prisma.JsonObject = {
+        recommendationCount: recommendations.length,
+        categories: [...new Set(recommendations.map((r) => r.category))],
+      };
+
+      const createArgs: Prisma.AgentExecutionCreateArgs = {
         data: {
           projectId,
           agentName: this.name,
           phase: "research",
-          input: parsed
-            ? ({
-                projectName: parsed.projectName,
-                featureCount: parsed.features.length,
-                existingTech: parsed.techStack.length,
-              } as any)
-            : {},
-          output: {
-            recommendationCount: recommendations.length,
-            categories: [...new Set(recommendations.map((r) => r.category))],
-          } as any,
+          input: inputPayload,
+          output: outputPayload,
           success,
           durationMs,
-          error: error
-            ? error instanceof Error
-              ? error.message
-              : String(error)
-            : null,
+          error: errorMessage ?? null,
         },
-      });
-    } catch (logError) {
-      logger.error(
-        `[${this.name}] Failed to log execution:`,
-        logError instanceof Error ? logError : undefined
-      );
+      };
+
+      await prisma.agentExecution.create(createArgs);
+    } catch (logError: unknown) {
+      const message = getErrorMessage(logError);
+
+      if (logError instanceof Error) {
+        logger.error(`[${this.name}] Failed to log execution:`, logError);
+      } else {
+        logger.error(
+          `[${this.name}] Failed to log execution: ${message}`
+        );
+      }
     }
   }
 
@@ -361,7 +404,41 @@ IMPORTANT:
 
     return cleaned.trim();
   }
+
+  private extractRecommendations(value: unknown): TechRecommendation[] {
+    if (!value || typeof value !== "object") {
+      return [];
+    }
+
+    const maybeRecommendations = (value as { recommendations?: unknown })
+      .recommendations;
+
+    if (!Array.isArray(maybeRecommendations)) {
+      return [];
+    }
+
+    return maybeRecommendations.filter(isTechRecommendation);
+  }
 }
+
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === "string");
+
+const isTechRecommendation = (value: unknown): value is TechRecommendation => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<TechRecommendation>;
+
+  return (
+    typeof candidate.category === "string" &&
+    typeof candidate.name === "string" &&
+    typeof candidate.rationale === "string" &&
+    isStringArray(candidate.alternatives) &&
+    isStringArray(candidate.bestPractices)
+  );
+};
 
 // Export singleton instance
 export const researchAgent = new ResearchAgent();

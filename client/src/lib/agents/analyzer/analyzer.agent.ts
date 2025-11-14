@@ -12,7 +12,14 @@ import {
 } from "@/lib/parsers/blueprint-parser";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
+import { Prisma } from "@prisma/client";
+import { getErrorMessage, toError } from "@/lib/error-utils";
 import { createThoughtStream, type ThoughtStream } from "@/lib/agents/thought-stream";
+import {
+  deserializeParsedBlueprint,
+  parseStoredBlueprint,
+  serializeBlueprintForStorage,
+} from "./blueprint-storage";
 
 export interface AnalyzerInput {
   blueprint: string;
@@ -57,7 +64,10 @@ export class AnalyzerAgent {
     );
 
     // Create thought stream for this execution
-    const thoughts = createThoughtStream(input.projectId || input.conversationId, this.name);
+    const thoughts: ThoughtStream = createThoughtStream(
+      input.projectId || input.conversationId,
+      this.name
+    );
 
     try {
       await thoughts.starting("blueprint analysis");
@@ -122,18 +132,18 @@ export class AnalyzerAgent {
           ? `Successfully analyzed blueprint with ${stats.featureCount} features and ${stats.techCount} technologies.`
           : `Analysis complete with warnings: ${validation.errors.join(", ")}`,
       };
-    } catch (error) {
-      await thoughts.error(
-        error instanceof Error ? error.message : "Unknown error occurred during analysis",
-        { error: error instanceof Error ? error.stack : String(error) }
-      );
-      
-      logger.error(
-        `[${this.name}] Analysis failed:`,
-        error instanceof Error ? error : undefined
-      );
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+      const stack = error instanceof Error ? error.stack : undefined;
 
-      // Log failed execution
+      await thoughts.error(message, stack ? { stack } : undefined);
+
+      if (error instanceof Error) {
+        logger.error(`[${this.name}] Analysis failed:`, error);
+      } else {
+        logger.error(`[${this.name}] Analysis failed: ${message}`);
+      }
+
       const projectId = input.projectId || "unknown";
       await this.logExecution(
         projectId,
@@ -141,10 +151,14 @@ export class AnalyzerAgent {
         null,
         false,
         Date.now() - startTime,
-        error
+        message
       );
 
-      throw error;
+      if (error instanceof Error) {
+        throw error;
+      }
+
+      throw toError(error);
     }
   }
 
@@ -154,13 +168,12 @@ export class AnalyzerAgent {
     parsed: ParsedBlueprint
   ): Promise<void> {
     try {
-      await prisma.projectContext.upsert({
+      const blueprintPayload = serializeBlueprintForStorage(input.blueprint, parsed);
+
+      const upsertArgs: Prisma.ProjectContextUpsertArgs = {
         where: { projectId },
         update: {
-          blueprint: {
-            raw: input.blueprint, // 🔥 ADD: Store raw blueprint
-            parsed: parsed, // 🔥 ADD: Store parsed version
-          } as any,
+          blueprint: blueprintPayload,
           currentPhase: "research",
           updatedAt: new Date(),
         },
@@ -169,23 +182,26 @@ export class AnalyzerAgent {
           userId: input.userId,
           conversationId: input.conversationId,
           currentPhase: "research",
-          blueprint: {
-            raw: input.blueprint, // 🔥 ADD: Store raw blueprint
-            parsed: parsed, // 🔥 ADD: Store parsed version
-          } as any,
+          blueprint: blueprintPayload,
           version: 1,
         },
-      });
+      };
+
+      await prisma.projectContext.upsert(upsertArgs);
 
       logger.info(`[${this.name}] Stored ProjectContext for ${projectId}`);
-    } catch (error) {
-      logger.error(
-        `[${this.name}] Failed to store in database:`,
-        error instanceof Error ? error : undefined
-      );
-      throw new Error(
-        `Database storage failed: ${error instanceof Error ? error.message : "Unknown error"}`
-      );
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+
+      if (error instanceof Error) {
+        logger.error(`[${this.name}] Failed to store in database:`, error);
+      } else {
+        logger.error(
+          `[${this.name}] Failed to store in database: ${message}`
+        );
+      }
+
+      throw new Error(`Database storage failed: ${message}`);
     }
   }
 
@@ -195,39 +211,46 @@ export class AnalyzerAgent {
     parsed: ParsedBlueprint | null,
     success: boolean,
     durationMs: number,
-    error?: unknown
+    errorMessage?: string
   ): Promise<void> {
     try {
-      await prisma.agentExecution.create({
+      const inputPayload: Prisma.JsonObject = {
+        conversationId: input.conversationId,
+        blueprintLength: input.blueprint.length,
+      };
+
+      const outputPayload: Prisma.JsonObject | null = parsed
+        ? {
+            projectName: parsed.projectName,
+            featureCount: parsed.features.length,
+            techCount: parsed.techStack.length,
+          }
+        : null;
+
+      const createArgs: Prisma.AgentExecutionCreateArgs = {
         data: {
           projectId,
           agentName: this.name,
           phase: "analysis",
-          input: {
-            conversationId: input.conversationId,
-            blueprintLength: input.blueprint.length,
-          } as any,
-          output: parsed
-            ? ({
-                projectName: parsed.projectName,
-                featureCount: parsed.features.length,
-                techCount: parsed.techStack.length,
-              } as any)
-            : null,
+          input: inputPayload,
+          output: outputPayload,
           success,
           durationMs,
-          error: error
-            ? error instanceof Error
-              ? error.message
-              : String(error)
-            : null,
+          error: errorMessage ?? null,
         },
-      });
-    } catch (logError) {
-      logger.error(
-        `[${this.name}] Failed to log execution:`,
-        logError instanceof Error ? logError : undefined
-      );
+      };
+
+      await prisma.agentExecution.create(createArgs);
+    } catch (logError: unknown) {
+      const message = getErrorMessage(logError);
+
+      if (logError instanceof Error) {
+        logger.error(`[${this.name}] Failed to log execution:`, logError);
+      } else {
+        logger.error(
+          `[${this.name}] Failed to log execution: ${message}`
+        );
+      }
     }
   }
 
@@ -235,38 +258,62 @@ export class AnalyzerAgent {
     projectId: string
   ): Promise<ParsedBlueprint | null> {
     try {
-      const context = await prisma.projectContext.findUnique({
+      const findBlueprintArgs: Prisma.ProjectContextFindUniqueArgs = {
         where: { projectId },
         select: { blueprint: true },
-      });
+      };
 
-      if (context?.blueprint) {
-        return context.blueprint as any as ParsedBlueprint;
+      const context = await prisma.projectContext.findUnique(findBlueprintArgs);
+
+      const storedBlueprint = parseStoredBlueprint(context?.blueprint);
+
+      if (storedBlueprint) {
+        return deserializeParsedBlueprint(storedBlueprint.parsed);
       }
 
       return null;
-    } catch (error) {
-      logger.error(
-        `[${this.name}] Failed to retrieve existing analysis:`,
-        error instanceof Error ? error : undefined
-      );
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+
+      if (error instanceof Error) {
+        logger.error(
+          `[${this.name}] Failed to retrieve existing analysis:`,
+          error
+        );
+      } else {
+        logger.error(
+          `[${this.name}] Failed to retrieve existing analysis: ${message}`
+        );
+      }
+
       return null;
     }
   }
 
   async getCurrentPhase(projectId: string): Promise<string | null> {
     try {
-      const context = await prisma.projectContext.findUnique({
+      const findPhaseArgs: Prisma.ProjectContextFindUniqueArgs = {
         where: { projectId },
         select: { currentPhase: true },
-      });
+      };
+
+      const context = await prisma.projectContext.findUnique(findPhaseArgs);
 
       return context?.currentPhase || null;
-    } catch (error) {
-      logger.error(
-        `[${this.name}] Failed to get current phase:`,
-        error instanceof Error ? error : undefined
-      );
+    } catch (error: unknown) {
+      const message = getErrorMessage(error);
+
+      if (error instanceof Error) {
+        logger.error(
+          `[${this.name}] Failed to get current phase:`,
+          error
+        );
+      } else {
+        logger.error(
+          `[${this.name}] Failed to get current phase: ${message}`
+        );
+      }
+
       return null;
     }
   }

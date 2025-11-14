@@ -249,7 +249,7 @@ export function getAgentColor(agentName: string): string {
 // EXPORTS
 // ==========================================
 
-export default {
+const agentUtilities = {
   AGENT_TYPES,
   AGENT_CATEGORIES,
   AGENT_METADATA,
@@ -259,4 +259,6 @@ export default {
   getAgentDisplayName,
   getAgentIcon,
   getAgentColor,
-};
+} as const;
+
+export default agentUtilities;
