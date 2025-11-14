@@ -366,19 +366,19 @@ function buildFileTree(
 /**
  * Filter file tree by search query
  */
-function filterTree(node: FileNode, query: string): FileNode {
+function filterTree(node: FileNode, query: string): FileNode | null {
   if (node.type === "file") {
-    return node.name.toLowerCase().includes(query) ? node : null as any;
+    return node.name.toLowerCase().includes(query) ? node : null;
   }
 
   if (!node.children) return node;
 
   const filteredChildren = node.children
     .map((child) => filterTree(child, query))
-    .filter(Boolean);
+    .filter((n): n is FileNode => n !== null);
 
   if (filteredChildren.length === 0 && !node.name.toLowerCase().includes(query)) {
-    return null as any;
+    return null;
   }
 
   return {

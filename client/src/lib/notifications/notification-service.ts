@@ -48,7 +48,7 @@ export interface BaseNotification {
   priority: NotificationPriority;
   title: string;
   message: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface ReviewNotification extends BaseNotification {
@@ -103,7 +103,7 @@ export interface MonitoringAlertNotification extends BaseNotification {
   type: "monitoring_alert";
   alertType: string;
   severity: "warning" | "error" | "critical";
-  metrics?: Record<string, any>;
+  metrics?: Record<string, unknown>;
 }
 
 export interface EscalationNotification extends BaseNotification {
@@ -614,7 +614,8 @@ async function sendWithSendGrid(params: {
   try {
     // @ts-ignore - Optional dependency
     const sgMail = await import("@sendgrid/mail");
-    const apiKey = (env as any).SENDGRID_API_KEY;
+    const envRecord = env as Record<string, unknown>;
+    const apiKey = envRecord.SENDGRID_API_KEY as string | undefined;
     if (!apiKey) {
       logger.warn("SendGrid API key not configured, skipping email", { to: params.to });
       return;
@@ -622,7 +623,7 @@ async function sendWithSendGrid(params: {
     sgMail.default.setApiKey(apiKey);
 
     await sgMail.default.send({
-      from: (env as any).EMAIL_FROM || "noreply@neuralaunch.com",
+      from: (envRecord.EMAIL_FROM as string) || "noreply@neuralaunch.com",
       to: params.to,
       subject: params.subject,
       html: params.html,
@@ -631,7 +632,7 @@ async function sendWithSendGrid(params: {
 
     logger.info("Email sent via SendGrid", { to: params.to });
   } catch (error) {
-    if ((error as any)?.code === 'MODULE_NOT_FOUND') {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'MODULE_NOT_FOUND') {
       logger.warn("SendGrid not installed, skipping email", { to: params.to });
       return;
     }
@@ -653,15 +654,16 @@ async function sendWithSES(params: {
     // @ts-ignore - Optional dependency
     const { SESClient, SendEmailCommand } = await import("@aws-sdk/client-ses");
 
-    const awsAccessKeyId = (env as any).AWS_ACCESS_KEY_ID;
-    const awsSecretKey = (env as any).AWS_SECRET_ACCESS_KEY;
+    const envRecord = env as Record<string, unknown>;
+    const awsAccessKeyId = envRecord.AWS_ACCESS_KEY_ID as string | undefined;
+    const awsSecretKey = envRecord.AWS_SECRET_ACCESS_KEY as string | undefined;
     if (!awsAccessKeyId || !awsSecretKey) {
       logger.warn("AWS credentials not configured, skipping email", { to: params.to });
       return;
     }
 
     const sesClient = new SESClient({
-      region: (env as any).AWS_REGION || "us-east-1",
+      region: (envRecord.AWS_REGION as string) || "us-east-1",
       credentials: {
         accessKeyId: awsAccessKeyId,
         secretAccessKey: awsSecretKey,
@@ -669,7 +671,7 @@ async function sendWithSES(params: {
     });
 
     const command = new SendEmailCommand({
-      Source: (env as any).EMAIL_FROM || "noreply@neuralaunch.com",
+      Source: (envRecord.EMAIL_FROM as string) || "noreply@neuralaunch.com",
       Destination: {
         ToAddresses: [params.to],
       },
@@ -692,7 +694,7 @@ async function sendWithSES(params: {
 
     logger.info("Email sent via AWS SES", { to: params.to });
   } catch (error) {
-    if ((error as any)?.code === 'MODULE_NOT_FOUND') {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'MODULE_NOT_FOUND') {
       logger.warn("AWS SES SDK not installed, skipping email", { to: params.to });
       return;
     }

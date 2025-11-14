@@ -22,10 +22,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { Task } from "@/types/component-props";
 
 interface ActivityFeedProps {
   projectId: string;
-  tasks: any[];
+  tasks: Task[];
 }
 
 export default function ActivityFeed({ projectId, tasks }: ActivityFeedProps) {
@@ -39,8 +40,8 @@ export default function ActivityFeed({ projectId, tasks }: ActivityFeedProps) {
   const sortedTasks = [...tasks]
     .filter((t) => t.completedAt || t.createdAt)
     .sort((a, b) => {
-      const dateA = new Date(a.completedAt || a.createdAt).getTime();
-      const dateB = new Date(b.completedAt || b.createdAt).getTime();
+      const dateA = new Date((a.completedAt || a.createdAt) as string | Date).getTime();
+      const dateB = new Date((b.completedAt || b.createdAt) as string | Date).getTime();
       return dateB - dateA;
     });
 
@@ -78,7 +79,7 @@ export default function ActivityFeed({ projectId, tasks }: ActivityFeedProps) {
 
   // Get unique agents for filter
   const uniqueAgents = Array.from(
-    new Set(tasks.map((t) => t.agentName).filter(Boolean))
+    new Set(tasks.map((t) => t.agentName).filter(Boolean) as string[])
   ).sort();
 
   const activeFilters = [
@@ -106,7 +107,7 @@ export default function ActivityFeed({ projectId, tasks }: ActivityFeedProps) {
         </div>
 
         {/* Status Filter */}
-        <Select value={filter} onValueChange={(value: any) => setFilter(value)}>
+        <Select value={filter} onValueChange={(value: string) => setFilter(value as "all" | "completed" | "failed" | "in_progress")}>
           <SelectTrigger className="w-[140px] h-8 text-xs">
             <SelectValue placeholder="All statuses" />
           </SelectTrigger>
@@ -231,11 +232,11 @@ export default function ActivityFeed({ projectId, tasks }: ActivityFeedProps) {
                     </div>
                     <span className="text-xs text-muted-foreground whitespace-nowrap">
                       {task.completedAt
-                        ? formatDistanceToNow(new Date(task.completedAt), {
+                        ? formatDistanceToNow(new Date(task.completedAt as string | Date), {
                             addSuffix: true,
                           })
                         : task.createdAt
-                          ? formatDistanceToNow(new Date(task.createdAt), {
+                          ? formatDistanceToNow(new Date(task.createdAt as string | Date), {
                               addSuffix: true,
                             })
                           : ""}
@@ -245,19 +246,19 @@ export default function ActivityFeed({ projectId, tasks }: ActivityFeedProps) {
                   {/* Output Summary */}
                   {task.output && (isComplete || isError) && (
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {task.output.filesCreated > 0 && (
+                      {task.output.filesCreated && Array.isArray(task.output.filesCreated) && task.output.filesCreated.length > 0 && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-muted text-muted-foreground">
                           <FileCode className="w-3 h-3" />
-                          {task.output.filesCreated} files created
+                          {task.output.filesCreated.length} files created
                         </span>
                       )}
-                      {task.output.filesModified > 0 && (
+                      {task.output.filesModified && Array.isArray(task.output.filesModified) && task.output.filesModified.length > 0 && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-muted text-muted-foreground">
                           <FileCode className="w-3 h-3" />
-                          {task.output.filesModified} files modified
+                          {task.output.filesModified.length} files modified
                         </span>
                       )}
-                      {task.output.testsRun > 0 && (
+                      {task.output.testsRun && typeof task.output.testsRun === 'number' && task.output.testsRun > 0 && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-muted text-muted-foreground">
                           <CheckCircle2 className="w-3 h-3" />
                           {task.output.testsRun} tests

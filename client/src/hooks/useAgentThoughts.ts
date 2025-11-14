@@ -14,7 +14,7 @@ export interface Thought {
   type: ThoughtType;
   message: string;
   timestamp: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export type ThoughtType =

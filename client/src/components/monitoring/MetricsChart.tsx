@@ -13,19 +13,26 @@ import {
   Legend,
 } from "recharts";
 
+interface MetricPoint {
+  time: string;
+  responseTime: number;
+  errorRate: number;
+  requests: number;
+}
+
 interface MetricsChartProps {
   projectId: string;
 }
 
 export default function MetricsChart({ projectId }: MetricsChartProps) {
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<MetricPoint[]>([]);
 
   useEffect(() => {
     // Generate mock data for demo purposes
     // In production, this would fetch real metrics data
-    const generateMockData = () => {
+    const generateMockData = (): MetricPoint[] => {
       const now = Date.now();
-      const points = [];
+      const points: MetricPoint[] = [];
       for (let i = 23; i >= 0; i--) {
         const timestamp = now - i * 60 * 60 * 1000; // Last 24 hours
         points.push({

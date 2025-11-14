@@ -23,6 +23,7 @@ import {
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { env } from "@/lib/env";
+import { TechStack, ProjectContext } from "@/lib/agents/types/common";
 
 // ==========================================
 // TYPES
@@ -99,6 +100,25 @@ export interface DocumentationInput extends AgentExecutionInput {
   includeUserGuide?: boolean;
   includeAPIDocs?: boolean;
   customSections?: Record<string, string>;
+}
+
+export interface ProjectStructure {
+  files?: Array<{ path: string; [key: string]: unknown } | string>;
+  directories?: string[];
+  [key: string]: unknown;
+}
+
+export interface ProjectContextData {
+  techStack: TechStack;
+  architecture?: unknown;
+}
+
+export interface DatabaseSchema {
+  tables?: Array<{
+    name: string;
+    columns: Array<{ name: string; type: string }>;
+  }>;
+  [key: string]: unknown;
 }
 
 // ==========================================
@@ -191,8 +211,9 @@ export class DocumentationAgent extends BaseAgent {
 
       // Step 8: Generate API Documentation
       let apiDocs: string | undefined;
+      const docInput = taskDetails as DocumentationInput;
       if (
-        (taskDetails as any).includeAPIDocs !== false &&
+        docInput.includeAPIDocs !== false &&
         apiEndpoints.length > 0
       ) {
         apiDocs = await this.generateAPIDocs(
@@ -223,7 +244,7 @@ export class DocumentationAgent extends BaseAgent {
 
       // Step 12: Generate User Guide (optional)
       let userGuide: string | undefined;
-      if ((taskDetails as any).includeUserGuide) {
+      if (docInput.includeUserGuide) {
         userGuide = await this.generateUserGuide(projectContext, components);
       }
 
@@ -286,7 +307,7 @@ export class DocumentationAgent extends BaseAgent {
   /**
    * Load project context from database
    */
-  private async loadProjectContextData(projectId: string): Promise<any> {
+  private async loadProjectContextData(projectId: string): Promise<ProjectContextData> {
     const context = await prisma.projectContext.findUnique({
       where: { projectId },
       select: {
@@ -299,7 +320,10 @@ export class DocumentationAgent extends BaseAgent {
       throw new Error(`Project context not found for ${projectId}`);
     }
 
-    return context;
+    return {
+      techStack: context.techStack as TechStack,
+      architecture: context.architecture
+    };
   }
 
   /**
@@ -308,7 +332,7 @@ export class DocumentationAgent extends BaseAgent {
   private async loadProjectStructure(
     projectId: string,
     userId: string
-  ): Promise<any> {
+  ): Promise<ProjectStructure> {
     logger.info(`[${this.name}] Loading project structure`);
 
     const contextResult = await this.executeTool(
@@ -334,8 +358,8 @@ export class DocumentationAgent extends BaseAgent {
   private async extractAPIEndpoints(
     projectId: string,
     userId: string,
-    projectStructure: any,
-    techStack: any
+    projectStructure: ProjectStructure,
+    techStack: TechStack
   ): Promise<APIEndpoint[]> {
     logger.info(`[${this.name}] Extracting API endpoints`);
 
@@ -343,8 +367,8 @@ export class DocumentationAgent extends BaseAgent {
 
     // Find backend files
     const allFiles = projectStructure?.files || [];
-    const backendFiles = allFiles.filter((file: any) => {
-      const path = file.path || file;
+    const backendFiles = allFiles.filter((file) => {
+      const path = typeof file === 'string' ? file : file.path;
       return (
         path.includes("/api/") ||
         path.includes("/routes/") ||
@@ -370,7 +394,7 @@ ${JSON.stringify(techStack, null, 2)}
 Backend Files:
 ${backendFiles
   .slice(0, 30)
-  .map((f: any) => f.path || f)
+  .map((f) => typeof f === 'string' ? f : f.path)
   .join("\n")}
 
 Task: Extract all API endpoints and their documentation.
@@ -435,8 +459,8 @@ Respond ONLY with valid JSON array, no markdown.`;
   private async extractComponents(
     projectId: string,
     userId: string,
-    projectStructure: any,
-    techStack: any
+    projectStructure: ProjectStructure,
+    techStack: TechStack
   ): Promise<ComponentDocumentation[]> {
     logger.info(`[${this.name}] Extracting frontend components`);
 
@@ -444,8 +468,8 @@ Respond ONLY with valid JSON array, no markdown.`;
 
     // Find component files
     const allFiles = projectStructure?.files || [];
-    const componentFiles = allFiles.filter((file: any) => {
-      const path = file.path || file;
+    const componentFiles = allFiles.filter((file) => {
+      const path = typeof file === 'string' ? file : file.path;
       return (
         path.includes("/components/") ||
         path.includes("/ui/") ||
@@ -468,7 +492,7 @@ ${JSON.stringify(techStack, null, 2)}
 Component Files:
 ${componentFiles
   .slice(0, 30)
-  .map((f: any) => f.path || f)
+  .map((f) => typeof f === 'string' ? f : f.path)
   .join("\n")}
 
 Task: Extract key reusable components and their documentation.
@@ -628,7 +652,7 @@ Respond ONLY with valid JSON array, no markdown.`;
   private async extractDatabaseSchema(
     projectId: string,
     userId: string,
-    techStack: any
+    techStack: TechStack
   ): Promise<string | null> {
     logger.info(`[${this.name}] Extracting database schema`);
 
@@ -665,8 +689,8 @@ Respond ONLY with valid JSON array, no markdown.`;
    * Generate README.md
    */
   private async generateREADME(
-    projectContext: any,
-    projectStructure: any,
+    projectContext: ProjectContextData,
+    projectStructure: ProjectStructure,
     apiEndpoints: APIEndpoint[],
     envVariables: EnvironmentVariable[],
     databaseSchema: string | null
@@ -737,7 +761,7 @@ Generate ONLY the README.md content, no explanations.`;
    */
   private async generateAPIDocs(
     apiEndpoints: APIEndpoint[],
-    techStack: any
+    techStack: TechStack
   ): Promise<string> {
     logger.info(`[${this.name}] Generating API documentation`);
 
@@ -793,8 +817,8 @@ Generate ONLY the API.md content, no explanations.`;
    * Generate Architecture Documentation
    */
   private async generateArchitectureDocs(
-    projectContext: any,
-    projectStructure: any,
+    projectContext: ProjectContextData,
+    projectStructure: ProjectStructure,
     components: ComponentDocumentation[],
     databaseSchema: string | null
   ): Promise<string> {
@@ -849,7 +873,7 @@ Generate ONLY the ARCHITECTURE.md content, no explanations.`;
    * Generate Deployment Documentation
    */
   private async generateDeploymentDocs(
-    projectContext: any,
+    projectContext: ProjectContextData,
     envVariables: EnvironmentVariable[]
   ): Promise<string> {
     logger.info(`[${this.name}] Generating deployment documentation`);
@@ -908,8 +932,8 @@ Generate ONLY the DEPLOYMENT.md content, no explanations.`;
    * Generate Development Setup Guide
    */
   private async generateDevelopmentDocs(
-    projectContext: any,
-    projectStructure: any
+    projectContext: ProjectContextData,
+    projectStructure: ProjectStructure
   ): Promise<string> {
     logger.info(`[${this.name}] Generating development documentation`);
 
@@ -961,7 +985,7 @@ Generate ONLY the DEVELOPMENT.md content, no explanations.`;
    * Generate User Guide
    */
   private async generateUserGuide(
-    projectContext: any,
+    projectContext: ProjectContextData,
     components: ComponentDocumentation[]
   ): Promise<string> {
     logger.info(`[${this.name}] Generating user guide`);
@@ -1132,7 +1156,7 @@ Generate ONLY the USER_GUIDE.md content, no explanations.`;
       await prisma.agentTask.update({
         where: { id: taskId },
         data: {
-          output: result as any,
+          output: result as unknown as Record<string, unknown>,
           status: "completed",
           completedAt: new Date(),
         },
@@ -1150,7 +1174,7 @@ Generate ONLY the USER_GUIDE.md content, no explanations.`;
   /**
    * Fallback README if AI generation fails
    */
-  private getFallbackREADME(techStack: any): string {
+  private getFallbackREADME(techStack: TechStack): string {
     const frontend = techStack?.frontend?.framework || "Frontend";
     const backend = techStack?.backend?.framework || "Backend";
 
@@ -1225,7 +1249,7 @@ MIT
   /**
    * Fallback architecture docs if AI generation fails
    */
-  private getFallbackArchitectureDocs(projectContext: any): string {
+  private getFallbackArchitectureDocs(projectContext: ProjectContextData): string {
     return `# Architecture Documentation
 
 ## Overview
@@ -1245,7 +1269,7 @@ ${JSON.stringify(projectContext.architecture, null, 2)}
   /**
    * Fallback deployment docs if AI generation fails
    */
-  private getFallbackDeploymentDocs(techStack: any): string {
+  private getFallbackDeploymentDocs(techStack: TechStack): string {
     return `# Deployment Guide
 
 ## Overview
@@ -1270,7 +1294,7 @@ ${JSON.stringify(techStack, null, 2)}
   /**
    * Fallback development docs if AI generation fails
    */
-  private getFallbackDevelopmentDocs(techStack: any): string {
+  private getFallbackDevelopmentDocs(techStack: TechStack): string {
     return `# Development Guide
 
 ## Overview

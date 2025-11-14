@@ -30,6 +30,7 @@ import { toError, toLogContext } from "@/lib/error-utils";
 // Import tools to ensure they're registered before agents try to use them
 import { initializeTools } from "../tools/index";
 import { env } from "@/lib/env";
+import type { TechStack, ProjectContext, AgentOutputData, SearchResult, CodeError } from "../types/common";
 
 export interface BaseAgentConfig {
   name: string;
@@ -50,13 +51,9 @@ export interface AgentExecutionInput {
     description: string;
     complexity: "simple" | "medium";
     estimatedLines: number;
-    [key: string]: any;
+    [key: string]: unknown;
   };
-  context: {
-    techStack: any;
-    architecture: any;
-    [key: string]: any;
-  };
+  context: ProjectContext;
 }
 
 export interface AgentExecutionOutput {
@@ -64,14 +61,14 @@ export interface AgentExecutionOutput {
   message: string;
   iterations: number;
   durationMs: number;
-  data?: any;
+  data?: AgentOutputData;
   error?: string;
   retryDecision?: RetryDecision;
 }
 
 export abstract class BaseAgent {
   protected genAI: GoogleGenerativeAI;
-  protected model: any;
+  protected model: ReturnType<GoogleGenerativeAI['getGenerativeModel']>;
   protected config: BaseAgentConfig;
 
   protected tools: Map<string, ITool> = new Map();
@@ -384,16 +381,19 @@ export abstract class BaseAgent {
         }
       );
 
-      if (searchResult.success && searchResult.data?.results?.length > 0) {
-        const solutions = searchResult.data.results
-          .map((r: any, i: number) => `${i + 1}. ${r.title}: ${r.description}`)
-          .join("\n");
+      if (searchResult.success && searchResult.data) {
+        const results = searchResult.data as { results?: SearchResult[] };
+        if (results.results && results.results.length > 0) {
+          const solutions = results.results
+            .map((r: SearchResult, i: number) => `${i + 1}. ${r.title}: ${r.description}`)
+            .join("\n");
 
-        input.context._errorSolution = `**Potential Solutions (from web search):**\n${solutions}`;
+          input.context._errorSolution = `**Potential Solutions (from web search):**\n${solutions}`;
 
-        logger.info(
-          `[${this.config.name}] Found ${searchResult.data.results.length} potential solutions`
-        );
+          logger.info(
+            `[${this.config.name}] Found ${results.results.length} potential solutions`
+          );
+        }
       }
     } catch (error) {
       logger.warn(
@@ -426,13 +426,16 @@ export abstract class BaseAgent {
         }
       );
 
-      if (typeCheckResult.success && typeCheckResult.data?.hasErrors) {
-        const topErrors = typeCheckResult.data.errors
-          .slice(0, 5)
-          .map((e: any) => `${e.file}(${e.line}): ${e.message}`)
-          .join("\n");
+      if (typeCheckResult.success && typeCheckResult.data) {
+        const typeData = typeCheckResult.data as { hasErrors?: boolean; errors?: CodeError[] };
+        if (typeData.hasErrors && typeData.errors) {
+          const topErrors = typeData.errors
+            .slice(0, 5)
+            .map((e: CodeError) => `${e.file}(${e.line}): ${e.message}`)
+            .join("\n");
 
-        input.context._typeErrors = `**TypeScript Errors:**\n${topErrors}`;
+          input.context._typeErrors = `**TypeScript Errors:**\n${topErrors}`;
+        }
       }
     } catch (error) {
       logger.warn(`[${this.config.name}] Code analysis failed`, toLogContext(error));
@@ -486,9 +489,9 @@ export abstract class BaseAgent {
         durationMs,
         error: output.error,
         filesCreated:
-          output.data?.filesCreated?.map((f: any) => f.path || f) || [],
+          output.data?.filesCreated?.map((f) => (typeof f === 'string' ? f : f.path)) || [],
         commandsRun:
-          output.data?.commandsRun?.map((c: any) => c.command || c) || [],
+          output.data?.commandsRun?.map((c) => (typeof c === 'string' ? c : c.command)) || [],
         learnings,
         errorsSolved:
           this.failures.length > 0 && output.success
@@ -549,7 +552,7 @@ export abstract class BaseAgent {
   /**
    * Extract tech stack as string array
    */
-  private extractTechStack(techStack: any): string[] {
+  private extractTechStack(techStack: TechStack | undefined): string[] {
     const stack: string[] = [];
 
     if (!techStack) return stack;
@@ -565,7 +568,7 @@ export abstract class BaseAgent {
 
   protected async executeTool(
     toolName: string,
-    params: Record<string, any>,
+    params: Record<string, unknown>,
     context: ToolContext
   ) {
     const tool = this.tools.get(toolName);
@@ -592,7 +595,7 @@ export abstract class BaseAgent {
 
   protected async logExecution(
     input: AgentExecutionInput,
-    output: any,
+    output: unknown,
     success: boolean,
     durationMs: number,
     error?: string
@@ -606,8 +609,8 @@ export abstract class BaseAgent {
           input: {
             taskId: input.taskId,
             title: input.taskDetails.title,
-          } as any,
-          output: output as any,
+          },
+          output: output as Record<string, unknown>,
           success,
           durationMs,
           error,

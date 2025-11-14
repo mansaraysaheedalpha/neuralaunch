@@ -26,7 +26,7 @@ export interface Thought {
   type: ThoughtType;
   message: string;
   timestamp: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   mode: ThoughtMode; // ✅ NEW: Track thought source
   rawReasoning?: string; // ✅ NEW: Store raw AI reasoning
 }
@@ -64,7 +64,7 @@ export class ThoughtStream {
   async emit(
     type: ThoughtType,
     message: string,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): Promise<void> {
     const thought: Thought = {
       id: `thought_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -113,7 +113,7 @@ export class ThoughtStream {
     type: ThoughtType,
     curatedMessage: string,
     rawReasoning: string,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): Promise<void> {
     const thought: Thought = {
       id: `thought_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -182,7 +182,7 @@ export class ThoughtStream {
             ...thought.metadata,
             mode: thought.mode,
             rawReasoning: thought.rawReasoning,
-          } as any,
+          } as Record<string, unknown>,
           timestamp: thought.timestamp,
         },
       });
@@ -228,7 +228,7 @@ export class ThoughtStream {
     return this.emit("accessing", message);
   }
 
-  analyzing(subject: string, details?: Record<string, any>): Promise<void> {
+  analyzing(subject: string, details?: Record<string, unknown>): Promise<void> {
     return this.emit("analyzing", `Analyzing ${subject}...`, details);
   }
 
@@ -244,7 +244,7 @@ export class ThoughtStream {
     return this.emit("completing", `Completed: ${summary}`);
   }
 
-  error(errorMsg: string, metadata?: Record<string, any>): Promise<void> {
+  error(errorMsg: string, metadata?: Record<string, unknown>): Promise<void> {
     return this.emit("error", `Error: ${errorMsg}`, metadata);
   }
 }
@@ -279,17 +279,20 @@ class ThoughtStreamRegistry {
         orderBy: { timestamp: "asc" },
       });
 
-      return dbThoughts.map((t) => ({
-        id: t.id,
-        agentName: t.agentName,
-        projectId: t.projectId,
-        type: t.type as ThoughtType,
-        message: t.message,
-        timestamp: t.timestamp,
-        metadata: (t.metadata as any)?.metadata || {},
-        mode: ((t.metadata as any)?.mode || "curated") as ThoughtMode,
-        rawReasoning: (t.metadata as any)?.rawReasoning,
-      }));
+      return dbThoughts.map((t) => {
+        const meta = t.metadata as Record<string, unknown> | null;
+        return {
+          id: t.id,
+          agentName: t.agentName,
+          projectId: t.projectId,
+          type: t.type as ThoughtType,
+          message: t.message,
+          timestamp: t.timestamp,
+          metadata: (meta && typeof meta === 'object' && 'metadata' in meta ? meta.metadata : {}) as Record<string, unknown>,
+          mode: (meta && typeof meta === 'object' && 'mode' in meta ? meta.mode : "curated") as ThoughtMode,
+          rawReasoning: (meta && typeof meta === 'object' && 'rawReasoning' in meta && typeof meta.rawReasoning === 'string' ? meta.rawReasoning : undefined),
+        };
+      });
     } catch (error) {
       logger.error(
         `[ThoughtStreamRegistry] Failed to fetch thoughts:`,

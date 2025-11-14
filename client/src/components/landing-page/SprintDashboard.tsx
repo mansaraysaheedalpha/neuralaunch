@@ -4,7 +4,6 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { motion } from "framer-motion";
-import { Task, TaskOutput } from "@prisma/client";
 import TaskCard from "./TaskCard";
 import AIAssistantModal from "./AIAssistantModal";
 import SprintAnalytics from "./SprintAnalytics";
@@ -24,8 +23,15 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
+interface TaskWithOutputs {
+  id: string;
+  title: string;
+  status: "COMPLETE" | "PENDING" | string;
+  outputs?: Array<{ id: string; content: string }>;
+}
+
 interface SprintData {
-  tasks: Array<Task & { outputs: TaskOutput[] }>;
+  tasks: TaskWithOutputs[];
   blueprint?: string;
 }
 
@@ -54,7 +60,7 @@ export default function SprintDashboard({
   const router = useRouter();
   const [isStarting, setIsStarting] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
-  const [activeAssistantTask, setActiveAssistantTask] = useState<Task | null>(
+  const [activeAssistantTask, setActiveAssistantTask] = useState<TaskWithOutputs | null>(
     null
   );
 
