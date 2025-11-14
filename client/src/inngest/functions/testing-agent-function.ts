@@ -84,14 +84,15 @@ export const testingAgentFunction = inngest.createFunction(
     // Step 4: Handle test failures
     if (!result.success && result.data?.testResults?.failed > 0) {
       await step.run("handle-test-failures", async () => {
+        const testData = result.data as { testResults?: { failed?: number; failures?: Array<{ file: string }> } } | undefined;
         logger.warn(`[Inngest] Tests failed, analyzing failures`, {
           taskId,
-          failedCount: result.data.testResults.failed,
+          failedCount: testData?.testResults?.failed,
         });
 
         // Get the original agent that wrote the failing code
-        const failedFiles = result.data.testResults.failures?.map(
-          (f: any) => f.file
+        const failedFiles = testData?.testResults?.failures?.map(
+          (f: { file: string }) => f.file
         );
 
         // Find which tasks created these files
@@ -124,7 +125,7 @@ export const testingAgentFunction = inngest.createFunction(
                 status: "pending",
                 input: {
                   ...(typeof task.input === 'object' && task.input !== null ? task.input : {}),
-                  _testFailures: result.data.testResults.failures,
+                  _testFailures: testData?.testResults?.failures,
                   _retryReason: "test_failures",
                 } as any,
               },
