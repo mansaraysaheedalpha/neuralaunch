@@ -22,8 +22,8 @@ export const serializeBlueprintForStorage = (
   parsedBlueprint: ParsedBlueprint
 ): Prisma.JsonObject => ({
   raw: rawBlueprint,
-  parsed: serializeParsedBlueprint(parsedBlueprint),
-});
+  parsed: serializeParsedBlueprint(parsedBlueprint) as unknown as Prisma.JsonValue,
+} as Prisma.JsonObject);
 
 export const deserializeParsedBlueprint = (
   parsedBlueprint: ParsedBlueprintJson

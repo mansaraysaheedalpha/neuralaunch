@@ -332,13 +332,19 @@ export abstract class BaseAgent {
 
       if (contextResult.success && contextResult.data) {
         // Add loaded files to context
-        input.context._existingFiles = contextResult.data.existingFiles || {};
-        input.context._projectStructure = contextResult.data.structure;
-        input.context._dependencies = contextResult.data.dependencies;
-        input.context._configuration = contextResult.data.configuration;
+        const data = contextResult.data as {
+          existingFiles?: Record<string, unknown>;
+          structure?: unknown;
+          dependencies?: unknown;
+          configuration?: unknown;
+        };
+        input.context._existingFiles = data.existingFiles || {};
+        input.context._projectStructure = data.structure;
+        input.context._dependencies = data.dependencies;
+        input.context._configuration = data.configuration;
 
         logger.info(
-          `[${this.config.name}] Loaded ${Object.keys(contextResult.data.existingFiles || {}).length} files into context`
+          `[${this.config.name}] Loaded ${Object.keys(data.existingFiles || {}).length} files into context`
         );
       }
     } catch (error) {

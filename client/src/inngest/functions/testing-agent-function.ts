@@ -73,16 +73,16 @@ export const testingAgentFunction = inngest.createFunction(
           data: {
             output: {
               ...result.data,
-              testsPassed: result.data?.testResults?.passed || 0,
-              testsFailed: result.data?.testResults?.failed || 0,
-            } as any,
+              testsPassed: (result.data as { testResults?: { passed?: number } })?.testResults?.passed || 0,
+              testsFailed: (result.data as { testResults?: { failed?: number } })?.testResults?.failed || 0,
+            },
           },
         });
       }
     });
 
     // Step 4: Handle test failures
-    if (!result.success && result.data?.testResults?.failed > 0) {
+    if (!result.success && (result.data as { testResults?: { failed?: number } })?.testResults?.failed && (result.data as { testResults?: { failed?: number } })?.testResults?.failed! > 0) {
       await step.run("handle-test-failures", async () => {
         const testData = result.data as { testResults?: { failed?: number; failures?: Array<{ file: string }> } } | undefined;
         logger.warn(`[Inngest] Tests failed, analyzing failures`, {
@@ -159,24 +159,25 @@ export const testingAgentFunction = inngest.createFunction(
           projectId,
           waveNumber: taskInput.waveNumber,
           success: result.success,
-          testsPassed: result.data?.testResults?.passed || 0,
-          testsFailed: result.data?.testResults?.failed || 0,
+          testsPassed: (result.data as { testResults?: { passed?: number } })?.testResults?.passed || 0,
+          testsFailed: (result.data as { testResults?: { failed?: number } })?.testResults?.failed || 0,
         },
       });
     });
 
+    const testData = result.data as { testsGenerated?: number; testResults?: { passed?: number; failed?: number } };
     logger.info(`[Inngest] Testing Agent completed`, {
       taskId,
       success: result.success,
-      testsGenerated: result.data?.testsGenerated,
+      testsGenerated: testData?.testsGenerated,
     });
 
     return {
       success: result.success,
       message: result.message,
-      testsGenerated: result.data?.testsGenerated,
-      testsPassed: result.data?.testResults?.passed,
-      testsFailed: result.data?.testResults?.failed,
+      testsGenerated: testData?.testsGenerated,
+      testsPassed: testData?.testResults?.passed,
+      testsFailed: testData?.testResults?.failed,
     };
   }
 );
