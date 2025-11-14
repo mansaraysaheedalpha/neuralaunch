@@ -13,6 +13,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { AI_MODELS } from "@/lib/models";
 import { toolRegistry, ITool, ToolContext } from "../tools/base-tool";
 import {
@@ -333,7 +334,7 @@ export abstract class BaseAgent {
       if (contextResult.success && contextResult.data) {
         // Add loaded files to context
         const data = contextResult.data as {
-          existingFiles?: Record<string, unknown>;
+          existingFiles?: Record<string, string>;
           structure?: unknown;
           dependencies?: unknown;
           configuration?: unknown;
@@ -616,7 +617,7 @@ export abstract class BaseAgent {
             taskId: input.taskId,
             title: input.taskDetails.title,
           },
-          output: output as Record<string, unknown>,
+          output: (output as unknown) as Prisma.InputJsonValue,
           success,
           durationMs,
           error,
