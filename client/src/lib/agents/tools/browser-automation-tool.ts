@@ -12,35 +12,101 @@
  */
 
 import { BaseTool, ToolParameter, ToolResult, ToolContext } from "./base-tool";
-import { logger } from "@/lib/logger";
 import chromium from "@sparticuz/chromium";
 import { env } from "@/lib/env";
+import { toError } from "@/lib/error-utils";
+import type {
+  Browser,
+  ConsoleMessage,
+  HTTPResponse,
+  LaunchOptions,
+  Page,
+} from "puppeteer-core";
 
-// Dynamically import puppeteer-core (already in your dependencies)
-let puppeteer: any;
+type PuppeteerModule = typeof import("puppeteer-core");
 
-// Lazy load puppeteer to avoid bundling issues
-async function getPuppeteer() {
-  if (!puppeteer) {
-    puppeteer = await import("puppeteer-core");
+let puppeteerModule: PuppeteerModule | undefined;
+
+async function getPuppeteer(): Promise<PuppeteerModule> {
+  if (!puppeteerModule) {
+    puppeteerModule = await import("puppeteer-core");
   }
-  return puppeteer;
+  return puppeteerModule;
 }
 
-interface BrowserAutomationResult {
-  success: boolean;
-  data?: {
-    screenshot?: string; // Base64 encoded
-    html?: string;
-    text?: string;
-    title?: string;
-    url?: string;
-    metadata?: Record<string, any>;
-    formSubmitted?: boolean;
-    elementFound?: boolean;
-    consoleErrors?: string[];
-  };
-  error?: string;
+type BrowserAutomationOperation =
+  | "screenshot"
+  | "scrape"
+  | "fill_form"
+  | "click"
+  | "verify_deployment"
+  | "extract_data";
+
+interface BrowserAutomationParams {
+  operation: BrowserAutomationOperation;
+  url: string;
+  selector?: string;
+  value?: string;
+  waitForSelector?: string;
+  timeout?: number;
+  fullPage?: boolean;
+}
+
+interface ScreenshotOptions {
+  waitForSelector?: string;
+  timeout?: number;
+  fullPage?: boolean;
+}
+
+interface InteractionOptions {
+  waitForSelector?: string;
+  timeout?: number;
+}
+
+interface ExtractionOptions {
+  waitForSelector?: string;
+  timeout?: number;
+}
+
+interface ExtractedElementData {
+  text: string | null;
+  html: string | null;
+  attributes: Record<string, string>;
+}
+
+interface StructuredExtractionResult {
+  jsonLd?: Array<Record<string, unknown> | null>;
+  openGraph?: Record<string, string>;
+}
+
+type ExtractionResult = ExtractedElementData | StructuredExtractionResult | null;
+
+const DEFAULT_TIMEOUT = 30000;
+const DEFAULT_VIEWPORT = { width: 1920, height: 1080 };
+
+function isBrowserAutomationOperation(
+  value: string
+): value is BrowserAutomationOperation {
+  return (
+    value === "screenshot" ||
+    value === "scrape" ||
+    value === "fill_form" ||
+    value === "click" ||
+    value === "verify_deployment" ||
+    value === "extract_data"
+  );
+}
+
+function resolveTimeout(timeout?: number): number {
+  if (timeout === undefined) {
+    return DEFAULT_TIMEOUT;
+  }
+
+  if (typeof timeout !== "number" || Number.isNaN(timeout) || timeout <= 0) {
+    throw new Error("Timeout must be a positive number");
+  }
+
+  return timeout;
 }
 
 export class BrowserAutomationTool extends BaseTool {
@@ -85,7 +151,7 @@ export class BrowserAutomationTool extends BaseTool {
       type: "number",
       description: "Timeout in milliseconds (default: 30000)",
       required: false,
-      default: 30000,
+      default: DEFAULT_TIMEOUT,
     },
     {
       name: "fullPage",
@@ -97,194 +163,168 @@ export class BrowserAutomationTool extends BaseTool {
   ];
 
   async execute(
-    params: Record<string, any>,
-    context: ToolContext
+    params: Record<string, unknown>,
+    _context: ToolContext
   ): Promise<ToolResult> {
-    const {
-      operation,
-      url,
-      selector,
-      value,
-      waitForSelector,
-      timeout = 30000,
-      fullPage = true,
-    } = params;
+    const parsedParams = this.parseParams(params);
+    const { operation, url } = parsedParams;
 
-    const startTime = Date.now();
+    this.logExecution("Browser automation", { operation, url });
 
-    try {
-      this.logExecution("Browser automation", { operation, url });
-
-      // Validate URL
-      if (!this.isValidUrl(url)) {
-        return {
-          success: false,
-          error: `Invalid URL: ${url}`,
-        };
-      }
-
-      switch (operation) {
-        case "screenshot":
-          return await this.takeScreenshot(url, {
-            waitForSelector,
-            timeout,
-            fullPage,
-          });
-
-        case "scrape":
-          return await this.scrapePage(url, { waitForSelector, timeout });
-
-        case "fill_form":
-          if (!selector || value === undefined) {
-            return {
-              success: false,
-              error: "fill_form requires 'selector' and 'value' parameters",
-            };
-          }
-          return await this.fillForm(url, selector, value, {
-            waitForSelector,
-            timeout,
-          });
-
-        case "click":
-          if (!selector) {
-            return {
-              success: false,
-              error: "click requires 'selector' parameter",
-            };
-          }
-          return await this.clickElement(url, selector, {
-            waitForSelector,
-            timeout,
-          });
-
-        case "verify_deployment":
-          return await this.verifyDeployment(url, { timeout });
-
-        case "extract_data":
-          return await this.extractData(url, selector, {
-            waitForSelector,
-            timeout,
-          });
-
-        default:
-          return {
-            success: false,
-            error: `Unknown operation: ${operation}`,
-          };
-      }
-    } catch (error) {
-      this.logError("Browser automation", error);
+    if (!this.isValidUrl(url)) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        error: `Invalid URL: ${url}`,
       };
+    }
+
+    switch (operation) {
+      case "screenshot":
+        return this.takeScreenshot(url, {
+          waitForSelector: parsedParams.waitForSelector,
+          timeout: parsedParams.timeout,
+          fullPage: parsedParams.fullPage,
+        });
+      case "scrape":
+        return this.scrapePage(url, {
+          waitForSelector: parsedParams.waitForSelector,
+          timeout: parsedParams.timeout,
+        });
+      case "fill_form":
+        if (!parsedParams.selector || parsedParams.value === undefined) {
+          return {
+            success: false,
+            error: "fill_form requires 'selector' and 'value' parameters",
+          };
+        }
+        return this.fillForm(url, parsedParams.selector, parsedParams.value, {
+          waitForSelector: parsedParams.waitForSelector,
+          timeout: parsedParams.timeout,
+        });
+      case "click":
+        if (!parsedParams.selector) {
+          return {
+            success: false,
+            error: "click requires 'selector' parameter",
+          };
+        }
+        return this.clickElement(url, parsedParams.selector, {
+          waitForSelector: parsedParams.waitForSelector,
+          timeout: parsedParams.timeout,
+        });
+      case "verify_deployment":
+        return this.verifyDeployment(url, { timeout: parsedParams.timeout });
+      case "extract_data":
+        return this.extractData(url, parsedParams.selector, {
+          waitForSelector: parsedParams.waitForSelector,
+          timeout: parsedParams.timeout,
+        });
+      default:
+        return {
+          success: false,
+          error: "Unknown operation",
+        };
     }
   }
 
-  /**
-   * Take a screenshot of a webpage
-   */
+  private parseParams(params: Record<string, unknown>): BrowserAutomationParams {
+    const operationRaw = params.operation;
+    if (typeof operationRaw !== "string" || !isBrowserAutomationOperation(operationRaw)) {
+      throw new Error("Invalid or missing operation parameter");
+    }
+
+    const urlRaw = params.url;
+    if (typeof urlRaw !== "string" || !urlRaw.trim()) {
+      throw new Error("URL parameter is required");
+    }
+
+    const selector = typeof params.selector === "string" ? params.selector : undefined;
+    const value = typeof params.value === "string" ? params.value : undefined;
+    const waitForSelector =
+      typeof params.waitForSelector === "string" ? params.waitForSelector : undefined;
+
+    let timeout: number | undefined;
+    if (params.timeout !== undefined) {
+      if (typeof params.timeout !== "number") {
+        throw new Error("timeout parameter must be a number");
+      }
+      timeout = resolveTimeout(params.timeout);
+    }
+    const fullPage =
+      typeof params.fullPage === "boolean" ? params.fullPage : undefined;
+
+    return {
+      operation: operationRaw,
+      url: urlRaw,
+      selector,
+      value,
+      waitForSelector,
+      timeout,
+      fullPage,
+    };
+  }
+
   private async takeScreenshot(
     url: string,
-    options: {
-      waitForSelector?: string;
-      timeout?: number;
-      fullPage?: boolean;
-    }
+    options: ScreenshotOptions
   ): Promise<ToolResult> {
-    const browser = await this.launchBrowser();
+    const start = Date.now();
+    return this.withPage(async (page) => {
+      await page.setViewport(DEFAULT_VIEWPORT);
+      await this.navigate(page, url, options.waitForSelector, options.timeout);
 
-    try {
-      const page = await browser.newPage();
-      await page.setViewport({ width: 1920, height: 1080 });
-
-      // Navigate to URL
-      await page.goto(url, {
-        waitUntil: "networkidle2",
-        timeout: options.timeout || 30000,
-      });
-
-      // Wait for specific selector if provided
-      if (options.waitForSelector) {
-        await page.waitForSelector(options.waitForSelector, {
-          timeout: options.timeout || 30000,
-        });
-      }
-
-      // Take screenshot
       const screenshot = await page.screenshot({
-        fullPage: options.fullPage !== false,
+        fullPage: options.fullPage ?? true,
         encoding: "base64",
       });
+
+      if (typeof screenshot !== "string") {
+        throw new Error("Failed to capture screenshot");
+      }
 
       const title = await page.title();
       const finalUrl = page.url();
 
-      await browser.close();
-
       return {
         success: true,
         data: {
-          screenshot: screenshot as string,
+          screenshot,
           title,
           url: finalUrl,
         },
         metadata: {
-          executionTime: Date.now() - Date.now(),
+          executionTime: Date.now() - start,
         },
       };
-    } catch (error) {
-      await browser.close();
-      throw error;
-    }
+    });
   }
 
-  /**
-   * Scrape page content (handles JavaScript-rendered content)
-   */
   private async scrapePage(
     url: string,
-    options: { waitForSelector?: string; timeout?: number }
+    options: InteractionOptions
   ): Promise<ToolResult> {
-    const browser = await this.launchBrowser();
+    const consoleErrors: string[] = [];
 
-    try {
-      const page = await browser.newPage();
-
-      // Capture console errors
-      const consoleErrors: string[] = [];
-      page.on("console", (msg: any) => {
+    return this.withPage(async (page) => {
+      page.on("console", (msg: ConsoleMessage) => {
         if (msg.type() === "error") {
           consoleErrors.push(msg.text());
         }
       });
 
-      await page.goto(url, {
-        waitUntil: "networkidle2",
-        timeout: options.timeout || 30000,
-      });
+      await this.navigate(page, url, options.waitForSelector, options.timeout);
 
-      if (options.waitForSelector) {
-        await page.waitForSelector(options.waitForSelector, {
-          timeout: options.timeout || 30000,
-        });
-      }
-
-      // Extract content
       const title = await page.title();
       const html = await page.content();
-      const text = await page.evaluate(
-        () => document.body.innerText || document.body.textContent || ""
+      const text = await page.evaluate<string>(
+        () => document.body?.innerText ?? document.body?.textContent ?? ""
       );
 
-      // Extract metadata
-      const metadata = await page.evaluate(() => {
+      const metadata = await page.evaluate<Record<string, string>>(() => {
         const meta: Record<string, string> = {};
 
-        // Get meta tags
         document.querySelectorAll("meta").forEach((tag) => {
-          const name = tag.getAttribute("name") || tag.getAttribute("property");
+          const name = tag.getAttribute("name") ?? tag.getAttribute("property");
           const content = tag.getAttribute("content");
           if (name && content) {
             meta[name] = content;
@@ -294,59 +334,31 @@ export class BrowserAutomationTool extends BaseTool {
         return meta;
       });
 
-      await browser.close();
-
       return {
         success: true,
         data: {
           title,
           html,
-          text: text.substring(0, 10000), // Limit to 10KB
+          text: text.slice(0, 10000),
           url: page.url(),
           metadata,
-          consoleErrors:
-            consoleErrors.length > 0 ? consoleErrors.slice(0, 10) : undefined,
+          consoleErrors: consoleErrors.length > 0 ? consoleErrors.slice(0, 10) : undefined,
         },
       };
-    } catch (error) {
-      await browser.close();
-      throw error;
-    }
+    });
   }
 
-  /**
-   * Fill a form field
-   */
   private async fillForm(
     url: string,
     selector: string,
     value: string,
-    options: { waitForSelector?: string; timeout?: number }
+    options: InteractionOptions
   ): Promise<ToolResult> {
-    const browser = await this.launchBrowser();
-
-    try {
-      const page = await browser.newPage();
-      await page.goto(url, {
-        waitUntil: "networkidle2",
-        timeout: options.timeout || 30000,
-      });
-
-      if (options.waitForSelector) {
-        await page.waitForSelector(options.waitForSelector, {
-          timeout: options.timeout || 30000,
-        });
-      }
-
-      // Wait for the target selector
-      await page.waitForSelector(selector, {
-        timeout: options.timeout || 30000,
-      });
-
-      // Fill the form field
+    return this.withPage(async (page) => {
+      await this.navigate(page, url, options.waitForSelector, options.timeout);
+      const timeout = resolveTimeout(options.timeout);
+      await page.waitForSelector(selector, { timeout });
       await page.type(selector, value);
-
-      await browser.close();
 
       return {
         success: true,
@@ -355,96 +367,56 @@ export class BrowserAutomationTool extends BaseTool {
           url: page.url(),
         },
       };
-    } catch (error) {
-      await browser.close();
-      throw error;
-    }
+    });
   }
 
-  /**
-   * Click an element
-   */
   private async clickElement(
     url: string,
     selector: string,
-    options: { waitForSelector?: string; timeout?: number }
+    options: InteractionOptions
   ): Promise<ToolResult> {
-    const browser = await this.launchBrowser();
-
-    try {
-      const page = await browser.newPage();
-      await page.goto(url, {
-        waitUntil: "networkidle2",
-        timeout: options.timeout || 30000,
-      });
-
-      if (options.waitForSelector) {
-        await page.waitForSelector(options.waitForSelector, {
-          timeout: options.timeout || 30000,
-        });
-      }
-
-      await page.waitForSelector(selector, {
-        timeout: options.timeout || 30000,
-      });
-
+    return this.withPage(async (page) => {
+      await this.navigate(page, url, options.waitForSelector, options.timeout);
+      const timeout = resolveTimeout(options.timeout);
+      await page.waitForSelector(selector, { timeout });
       await page.click(selector);
-
-      // Wait a bit for any navigation or changes
       await page.waitForTimeout(1000);
-
-      const finalUrl = page.url();
-
-      await browser.close();
 
       return {
         success: true,
         data: {
           elementFound: true,
-          url: finalUrl,
+          url: page.url(),
         },
       };
-    } catch (error) {
-      await browser.close();
-      throw error;
-    }
+    });
   }
 
-  /**
-   * Verify deployment is live and responding
-   */
   private async verifyDeployment(
     url: string,
     options: { timeout?: number }
   ): Promise<ToolResult> {
-    const browser = await this.launchBrowser();
-
-    try {
-      const page = await browser.newPage();
-
-      // Check if page loads
-      const response = await page.goto(url, {
+    return this.withPage(async (page) => {
+      const timeout = resolveTimeout(options.timeout);
+      const response: HTTPResponse | null = await page.goto(url, {
         waitUntil: "networkidle2",
-        timeout: options.timeout || 30000,
+        timeout,
       });
 
-      const statusCode = response?.status() || 0;
+      const statusCode = response?.status() ?? 0;
       const isSuccessful = statusCode >= 200 && statusCode < 400;
 
       const title = await page.title();
       const html = await page.content();
-
-      // Check for common error indicators
-      const hasErrors = await page.evaluate(() => {
-        const bodyText = document.body.textContent || "";
+      const hasErrors = await page.evaluate<boolean>(() => {
+        const bodyText = document.body?.textContent ?? "";
+        const normalized = bodyText.toLowerCase();
         return (
-          bodyText.includes("404") ||
-          bodyText.includes("Error") ||
-          bodyText.includes("not found")
+          normalized.includes("404") ||
+          normalized.includes("error") ||
+          normalized.includes("not found")
         );
       });
-
-      await browser.close();
 
       return {
         success: isSuccessful && !hasErrors,
@@ -458,138 +430,136 @@ export class BrowserAutomationTool extends BaseTool {
           },
         },
       };
-    } catch (error) {
-      await browser.close();
-      return {
-        success: false,
-        error: `Deployment verification failed: ${error instanceof Error ? error.message : "Unknown error"}`,
-      };
-    }
+    });
   }
 
-  /**
-   * Extract specific data from page
-   */
   private async extractData(
     url: string,
-    selector?: string,
-    options?: { waitForSelector?: string; timeout?: number }
+    selector: string | undefined,
+    options: ExtractionOptions
   ): Promise<ToolResult> {
-    const browser = await this.launchBrowser();
+    return this.withPage(async (page) => {
+      await this.navigate(page, url, options.waitForSelector, options.timeout);
 
-    try {
-      const page = await browser.newPage();
-      await page.goto(url, {
-        waitUntil: "networkidle2",
-        timeout: options?.timeout || 30000,
-      });
+      const extracted: ExtractionResult = selector
+        ? await page.evaluate<ExtractionResult>((sel) => {
+            const element = document.querySelector(sel);
+            if (!element) {
+              return null;
+            }
 
-      if (options?.waitForSelector) {
-        await page.waitForSelector(options.waitForSelector, {
-          timeout: options.timeout || 30000,
-        });
-      }
+            const attributes = Array.from(element.attributes).reduce<
+              Record<string, string>
+            >((acc, attr) => {
+              acc[attr.name] = attr.value;
+              return acc;
+            }, {});
 
-      let extractedData: any;
+            return {
+              text: element.textContent?.trim() ?? null,
+              html: element.innerHTML ?? null,
+              attributes,
+            };
+          }, selector)
+        : await page.evaluate<StructuredExtractionResult>(() => {
+            const data: StructuredExtractionResult = {};
 
-      if (selector) {
-        // Extract specific element
-        extractedData = await page.evaluate((sel: any) => {
-          const element = document.querySelector(sel);
-          if (!element) return null;
+            const jsonLdScripts = document.querySelectorAll(
+              'script[type="application/ld+json"]'
+            );
 
-          return {
-            text: element.textContent?.trim(),
-            html: element.innerHTML,
-            attributes: Array.from(element.attributes).reduce(
-              (acc: any, attr: any) => {
-                acc[attr.name] = attr.value;
-                return acc;
-              },
-              {}
-            ),
-          };
-        }, selector);
-      } else {
-        // Extract structured data (JSON-LD, meta tags, etc.)
-        extractedData = await page.evaluate(() => {
-          const data: any = {};
+            if (jsonLdScripts.length > 0) {
+              data.jsonLd = Array.from(jsonLdScripts).map((script) => {
+                try {
+                  return JSON.parse(script.textContent ?? "");
+                } catch {
+                  return null;
+                }
+              });
+            }
 
-          // Extract JSON-LD
-          const jsonLdScripts = document.querySelectorAll(
-            'script[type="application/ld+json"]'
-          );
-          if (jsonLdScripts.length > 0) {
-            data.jsonLd = Array.from(jsonLdScripts).map((script) => {
-              try {
-                return JSON.parse(script.textContent || "");
-              } catch {
-                return null;
-              }
-            });
-          }
+            const openGraph: Record<string, string> = {};
+            document
+              .querySelectorAll('meta[property^="og:"]')
+              .forEach((tag) => {
+                const property = tag.getAttribute("property");
+                const content = tag.getAttribute("content");
+                if (property && content) {
+                  openGraph[property] = content;
+                }
+              });
 
-          // Extract Open Graph tags
-          const ogTags: Record<string, string> = {};
-          document
-            .querySelectorAll('meta[property^="og:"]')
-            .forEach((tag: any) => {
-              ogTags[tag.getAttribute("property")] =
-                tag.getAttribute("content");
-            });
-          if (Object.keys(ogTags).length > 0) {
-            data.openGraph = ogTags;
-          }
+            if (Object.keys(openGraph).length > 0) {
+              data.openGraph = openGraph;
+            }
 
-          return data;
-        });
-      }
-
-      await browser.close();
+            return data;
+          });
 
       return {
         success: true,
-        data: extractedData,
+        data: extracted,
       };
+    });
+  }
+
+  private async withPage<T>(handler: (page: Page) => Promise<T>): Promise<T> {
+    const browser = await this.launchBrowser();
+    try {
+      const page = await browser.newPage();
+      return await handler(page);
     } catch (error) {
-      await browser.close();
-      throw error;
+      throw toError(error);
+    } finally {
+      await browser.close().catch(() => undefined);
     }
   }
 
-  /**
-   * Launch browser with appropriate configuration
-   */
-  private async launchBrowser() {
-    const pptr = await getPuppeteer();
+  private async navigate(
+    page: Page,
+    url: string,
+    waitForSelector?: string,
+    timeout?: number
+  ): Promise<void> {
+    const resolvedTimeout = resolveTimeout(timeout);
+    await page.goto(url, {
+      waitUntil: "networkidle2",
+      timeout: resolvedTimeout,
+    });
 
-    // Production (Vercel) vs Development
-    const isProduction = env.NODE_ENV === "production";
+    if (waitForSelector) {
+      await page.waitForSelector(waitForSelector, {
+        timeout: resolvedTimeout,
+      });
+    }
+  }
 
-    if (isProduction) {
-      // Use Sparticuz Chromium for Vercel
-      return await pptr.launch({
+  private async launchBrowser(): Promise<Browser> {
+    const puppeteer = await getPuppeteer();
+
+    if (env.NODE_ENV === "production") {
+      const launchOptions: LaunchOptions = {
         args: chromium.args,
-        defaultViewport: (chromium as any).defaultViewport,
+        defaultViewport: chromium.defaultViewport ?? undefined,
         executablePath: await chromium.executablePath(),
-        headless: (chromium as any).headless,
-      });
-    } else {
-      // Local development - use system Chrome
-      return await pptr.launch({
-        headless: true,
-        args: [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-        ],
-      });
+        headless: chromium.headless ?? true,
+      };
+
+      return puppeteer.launch(launchOptions);
     }
+
+    const launchOptions: LaunchOptions = {
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+      ],
+    };
+
+    return puppeteer.launch(launchOptions);
   }
 
-  /**
-   * Validate URL format
-   */
   private isValidUrl(url: string): boolean {
     try {
       new URL(url);
@@ -597,15 +567,5 @@ export class BrowserAutomationTool extends BaseTool {
     } catch {
       return false;
     }
-  }
-
-  protected getExamples(): string[] {
-    return [
-      '// Take screenshot\n{ "operation": "screenshot", "url": "https://example.com" }',
-      '// Scrape page content\n{ "operation": "scrape", "url": "https://example.com", "waitForSelector": "#content" }',
-      '// Fill form\n{ "operation": "fill_form", "url": "https://example.com", "selector": "input[name=email]", "value": "test@example.com" }',
-      '// Verify deployment\n{ "operation": "verify_deployment", "url": "https://your-app.vercel.app" }',
-      '// Extract data\n{ "operation": "extract_data", "url": "https://example.com", "selector": ".product-price" }',
-    ];
   }
 }

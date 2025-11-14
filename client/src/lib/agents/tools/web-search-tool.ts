@@ -15,6 +15,156 @@ import { BaseTool, ToolParameter, ToolResult, ToolContext } from "./base-tool";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
 
+interface SearchResult {
+  title: string;
+  url: string;
+  description: string;
+}
+
+interface SearchResponseData {
+  results: SearchResult[];
+  total: number;
+}
+
+interface WebSearchParams {
+  query: string;
+  maxResults: number;
+}
+
+interface DuckDuckGoPayload {
+  Heading?: unknown;
+  AbstractURL?: unknown;
+  AbstractText?: unknown;
+  RelatedTopics?: unknown;
+}
+
+interface BravePayload {
+  web?: { results?: unknown };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function clampMaxResults(value: number): number {
+  const rounded = Math.floor(value);
+  if (Number.isNaN(rounded) || rounded <= 0) {
+    throw new Error("maxResults must be a positive integer");
+  }
+  return Math.min(rounded, 20);
+}
+
+function normalizeBraveResults(payload: unknown, maxResults: number): SearchResult[] {
+  if (!isRecord(payload)) {
+    throw new Error("Brave Search response is malformed");
+  }
+
+  const webSection = payload.web;
+  if (!isRecord(webSection)) {
+    return [];
+  }
+
+  const rawResults = webSection.results;
+  if (!Array.isArray(rawResults)) {
+    return [];
+  }
+
+  const results: SearchResult[] = [];
+
+  for (const raw of rawResults) {
+    if (!isRecord(raw)) {
+      continue;
+    }
+
+    const title = typeof raw.title === "string" ? raw.title : undefined;
+    const url = typeof raw.url === "string" ? raw.url : undefined;
+    const description =
+      typeof raw.description === "string"
+        ? raw.description
+        : typeof raw.snippet === "string"
+        ? raw.snippet
+        : "";
+
+    if (title && url) {
+      results.push({ title, url, description });
+    }
+
+    if (results.length >= maxResults) {
+      break;
+    }
+  }
+
+  return results;
+}
+
+function collectDuckDuckGoTopics(
+  topics: unknown,
+  results: SearchResult[],
+  maxResults: number
+): void {
+  if (!Array.isArray(topics)) {
+    return;
+  }
+
+  for (const topic of topics) {
+    if (results.length >= maxResults) {
+      return;
+    }
+
+    if (!isRecord(topic)) {
+      continue;
+    }
+
+    const nested = topic.Topics;
+    if (Array.isArray(nested)) {
+      collectDuckDuckGoTopics(nested, results, maxResults);
+      if (results.length >= maxResults) {
+        return;
+      }
+    }
+
+    const firstUrl = typeof topic.FirstURL === "string" ? topic.FirstURL : undefined;
+    const text = typeof topic.Text === "string" ? topic.Text : undefined;
+
+    if (firstUrl && text) {
+      const title = text.split(" - ")[0] || text;
+      results.push({
+        title,
+        url: firstUrl,
+        description: text,
+      });
+    }
+  }
+}
+
+function normalizeDuckDuckGoResults(
+  payload: unknown,
+  query: string,
+  maxResults: number
+): SearchResult[] {
+  if (!isRecord(payload)) {
+    throw new Error("DuckDuckGo response is malformed");
+  }
+
+  const results: SearchResult[] = [];
+  const abstractUrl = typeof payload.AbstractURL === "string" ? payload.AbstractURL : undefined;
+  const abstractText =
+    typeof payload.AbstractText === "string" ? payload.AbstractText : undefined;
+  const heading = typeof payload.Heading === "string" ? payload.Heading : undefined;
+
+  if (abstractUrl && abstractText) {
+    results.push({
+      title: heading || query,
+      url: abstractUrl,
+      description: abstractText,
+    });
+  }
+
+  collectDuckDuckGoTopics(payload.RelatedTopics, results, maxResults);
+
+  return results.slice(0, maxResults);
+}
+
 export class WebSearchTool extends BaseTool {
   name = "web_search";
   description =
@@ -36,18 +186,37 @@ export class WebSearchTool extends BaseTool {
     },
   ];
 
+  private parseParams(params: Record<string, unknown>): WebSearchParams {
+    const query = params.query;
+    if (typeof query !== "string" || !query.trim()) {
+      throw new Error("query parameter is required");
+    }
+
+    const maxResultsRaw = params.maxResults;
+    const maxResults =
+      maxResultsRaw === undefined
+        ? 5
+        : clampMaxResults(
+            typeof maxResultsRaw === "number"
+              ? maxResultsRaw
+              : Number(maxResultsRaw)
+          );
+
+    return { query: query.trim(), maxResults };
+  }
+
   async execute(
-    params: Record<string, any>,
-    context: ToolContext
+    params: Record<string, unknown>,
+    _context: ToolContext
   ): Promise<ToolResult> {
-    const { query, maxResults = 5 } = params;
+    const { query, maxResults } = this.parseParams(params);
     const startTime = Date.now();
 
     try {
       this.logExecution("Searching web", { query, maxResults });
 
       // Try Brave Search first, fallback to DuckDuckGo
-      let searchResults;
+      let searchResults: SearchResponseData;
 
       if (env.BRAVE_SEARCH_API_KEY) {
         try {
@@ -58,7 +227,9 @@ export class WebSearchTool extends BaseTool {
             "[WebSearchTool] Brave Search failed, falling back to DuckDuckGo",
             {
               error:
-                braveError instanceof Error ? braveError.message : "Unknown",
+                braveError instanceof Error
+                  ? braveError.message
+                  : String(braveError),
             }
           );
           searchResults = await this.searchWithDuckDuckGo(query, maxResults);
@@ -96,10 +267,7 @@ export class WebSearchTool extends BaseTool {
   private async searchWithBrave(
     query: string,
     maxResults: number
-  ): Promise<{
-    results: Array<{ title: string; url: string; description: string }>;
-    total: number;
-  }> {
+  ): Promise<SearchResponseData> {
     const apiKey = env.BRAVE_SEARCH_API_KEY;
 
     if (!apiKey) {
@@ -121,17 +289,12 @@ export class WebSearchTool extends BaseTool {
         throw new Error(`Brave Search API error: ${response.status}`);
       }
 
-      const data = await response.json();
-
-      const results = (data.web?.results || []).map((result: any) => ({
-        title: result.title,
-        url: result.url,
-        description: result.description || result.snippet || "",
-      }));
+      const data: BravePayload = await response.json();
+      const results = normalizeBraveResults(data, maxResults);
 
       return {
         results,
-        total: data.web?.results?.length || 0,
+        total: results.length,
       };
     } catch (error) {
       throw new Error(
@@ -147,10 +310,7 @@ export class WebSearchTool extends BaseTool {
   private async searchWithDuckDuckGo(
     query: string,
     maxResults: number
-  ): Promise<{
-    results: Array<{ title: string; url: string; description: string }>;
-    total: number;
-  }> {
+  ): Promise<SearchResponseData> {
     try {
       // Use DuckDuckGo Instant Answer API (free, no key)
       const response = await fetch(
@@ -161,40 +321,11 @@ export class WebSearchTool extends BaseTool {
         throw new Error(`DuckDuckGo API error: ${response.status}`);
       }
 
-      const data = await response.json();
-
-      const results: Array<{
-        title: string;
-        url: string;
-        description: string;
-      }> = [];
-
-      // Add abstract if available
-      if (data.AbstractURL && data.AbstractText) {
-        results.push({
-          title: data.Heading || query,
-          url: data.AbstractURL,
-          description: data.AbstractText,
-        });
-      }
-
-      // Add related topics
-      if (data.RelatedTopics) {
-        data.RelatedTopics.slice(0, maxResults - results.length).forEach(
-          (topic: any) => {
-            if (topic.FirstURL && topic.Text) {
-              results.push({
-                title: topic.Text.split(" - ")[0] || topic.Text,
-                url: topic.FirstURL,
-                description: topic.Text,
-              });
-            }
-          }
-        );
-      }
+      const data: DuckDuckGoPayload = await response.json();
+      const results = normalizeDuckDuckGoResults(data, query, maxResults);
 
       return {
-        results: results.slice(0, maxResults),
+        results,
         total: results.length,
       };
     } catch (error) {

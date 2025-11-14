@@ -5,7 +5,7 @@
  * Supports MCP (Model Context Protocol) for external tool integration
  */
 
-import { toolRegistry } from "./base-tool";
+import { toolRegistry, type ToolResult } from "./base-tool";
 import { FileSystemTool } from "./filesystem-tool";
 import { GitTool } from "./git-tool";
 import { WebSearchTool } from "./web-search-tool";
@@ -17,8 +17,9 @@ import { ClaudeSkillsTool } from "./claude-skills-tool";
 import { logger } from "@/lib/logger";
 
 // ✅ MCP Support (optional - only loads if MCP servers configured)
-import { mcpClient, MCPToolAdapter } from "./mcp/mcp-tool-adapter";
+import { mcpClient } from "./mcp/mcp-tool-adapter";
 import { env } from "@/lib/env";
+import { toError } from "@/lib/error-utils";
 
 // ==========================================
 // INITIALIZE CORE TOOLS
@@ -122,62 +123,8 @@ export function initializeTools(): void {
       });
     }
   }
-}
 
-// ==========================================
-// MCP TOOL LOADING (ASYNC)
-// ==========================================
-
-async function loadMCPToolsAsync(): Promise<void> {
-  // Check if MCP servers are configured
-  const mcpServers =
-    env.MCP_SERVERS?.split(",").filter((s) => s.trim()) || [];
-
-  if (mcpServers.length === 0) {
-    logger.info("[ToolRegistry] No MCP servers configured (this is normal)");
-    return;
-  }
-
-  logger.info(
-    `[ToolRegistry] Loading tools from ${mcpServers.length} MCP server(s)...`
-  );
-
-  let totalToolsLoaded = 0;
-
-  for (const serverUrl of mcpServers) {
-    try {
-      const trimmedUrl = serverUrl.trim();
-      logger.info(`[ToolRegistry] Connecting to MCP server: ${trimmedUrl}`);
-
-      const tools = await mcpClient.connectToServer(trimmedUrl);
-
-      // Register all MCP tools
-      for (const tool of tools) {
-        toolRegistry.register(tool);
-        totalToolsLoaded++;
-      }
-
-      logger.info(
-        `[ToolRegistry] Loaded ${tools.length} tools from ${trimmedUrl}`,
-        {
-          tools: tools.map((t) => t.name),
-        }
-      );
-    } catch (error) {
-      logger.error(
-        `[ToolRegistry] Failed to connect to MCP server: ${serverUrl}`,
-        error as any
-      );
-      // Continue with other servers even if one fails
-    }
-  }
-
-  if (totalToolsLoaded > 0) {
-    logger.info(`[ToolRegistry] MCP integration complete`, {
-      totalMCPTools: totalToolsLoaded,
-      totalTools: toolRegistry.getAll().length,
-    });
-  }
+  void loadMCPToolsAsync();
 }
 
 // Auto-initialize on import
@@ -218,9 +165,9 @@ export function getToolsForPrompt(): string {
  */
 export async function executeTool(
   toolName: string,
-  params: Record<string, any>,
+  params: Record<string, unknown>,
   context: { projectId: string; userId: string; conversationId?: string }
-) {
+): Promise<ToolResult> {
   return await toolRegistry.execute(toolName, params, context);
 }
 
