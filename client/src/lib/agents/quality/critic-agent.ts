@@ -23,6 +23,7 @@ import {
 import { AI_MODELS } from "@/lib/models";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { toError, toLogContext } from "@/lib/error-utils";
 import { ProjectContext } from "@/lib/agents/types/common";
 
@@ -336,8 +337,9 @@ export class CriticAgent extends BaseAgent {
           { projectId, userId }
         );
 
+        const data = result.data as { structure?: unknown };
         if (result.success && result.data) {
-          analysis[file.path] = result.data.structure;
+          analysis[file.path] = data.structure;
         }
       } catch (error) {
         logger.warn(
@@ -386,9 +388,10 @@ export class CriticAgent extends BaseAgent {
             { projectId, userId }
           );
 
-          if (lintResult.success && lintResult.data?.stdout) {
+          const lintData = lintResult.data as { stdout?: string };
+          if (lintResult.success && lintData?.stdout) {
             try {
-              const eslintOutput = JSON.parse(lintResult.data.stdout);
+              const eslintOutput = JSON.parse(lintData.stdout);
               if (Array.isArray(eslintOutput)) {
                 eslintOutput.forEach((fileResult: { filePath: string; messages?: Array<{line: number; severity: number; message: string; ruleId: string}> }) => {
                   fileResult.messages?.forEach((msg) => {
@@ -423,8 +426,9 @@ export class CriticAgent extends BaseAgent {
               { projectId, userId }
             );
 
-            if (tscResult.success && tscResult.data?.errors) {
-              typeErrors.push(...tscResult.data.errors);
+            const tscData = tscResult.data as { errors?: Array<{ file: string; line: number; severity: string; message: string; rule: string }> };
+            if (tscResult.success && tscData?.errors) {
+              typeErrors.push(...tscData.errors);
             }
           }
         }
@@ -440,9 +444,10 @@ export class CriticAgent extends BaseAgent {
             { projectId, userId }
           );
 
-          if (pylintResult.success && pylintResult.data?.stdout) {
+          const pylintData = pylintResult.data as { stdout?: string };
+          if (pylintResult.success && pylintData?.stdout) {
             try {
-              const pylintOutput = JSON.parse(pylintResult.data.stdout);
+              const pylintOutput = JSON.parse(pylintData.stdout);
               if (Array.isArray(pylintOutput)) {
                 pylintOutput.forEach((issue: { path: string; line: number; type: string; message: string; symbol: string }) => {
                   lintIssues.push({
@@ -471,8 +476,9 @@ export class CriticAgent extends BaseAgent {
             { projectId, userId }
           );
 
-          if (goVetResult.success && goVetResult.data?.stderr) {
-            this.parseGoVetOutput(goVetResult.data.stderr, lintIssues);
+          const goVetData = goVetResult.data as { stderr?: string };
+          if (goVetResult.success && goVetData?.stderr) {
+            this.parseGoVetOutput(goVetData.stderr, lintIssues);
           }
         }
 
@@ -487,8 +493,9 @@ export class CriticAgent extends BaseAgent {
             { projectId, userId }
           );
 
-          if (clippyResult.success && clippyResult.data?.stdout) {
-            this.parseClippyOutput(clippyResult.data.stdout, lintIssues);
+          const clippyData = clippyResult.data as { stdout?: string };
+          if (clippyResult.success && clippyData?.stdout) {
+            this.parseClippyOutput(clippyData.stdout, lintIssues);
           }
         }
       } catch (error) {
@@ -666,9 +673,10 @@ export class CriticAgent extends BaseAgent {
           { projectId, userId }
         );
 
-        if (banditResult.success && banditResult.data?.stdout) {
+        const banditData = banditResult.data as { stdout?: string };
+        if (banditResult.success && banditData?.stdout) {
           try {
-            const banditOutput = JSON.parse(banditResult.data.stdout) as { results?: Array<{ issue_severity: string; issue_text: string; filename: string; line_number: number; issue_cwe?: { id: string } }> };
+            const banditOutput = JSON.parse(banditData.stdout) as { results?: Array<{ issue_severity: string; issue_text: string; filename: string; line_number: number; issue_cwe?: { id: string } }> };
             banditOutput.results?.forEach((issue) => {
               findings.push({
                 severity: this.mapBanditSeverity(issue.issue_severity),
@@ -1080,8 +1088,8 @@ Respond with ONLY valid JSON:
         data: {
           codebase: {
             ...(codebase || {}),
-            lastReview: report,
-          },
+            lastReview: report as unknown,
+          } as unknown as Prisma.InputJsonValue,
           lastReviewScore: report.overallScore,
           updatedAt: new Date(),
         },
@@ -1171,8 +1179,8 @@ Respond with ONLY valid JSON:
 
   private convertLintIssuesToCodeIssues(lintIssues: LintIssue[]): CodeIssue[] {
     return lintIssues.map((issue) => ({
-      severity: issue.severity,
-      category: "quality",
+      severity: issue.severity as "critical" | "high" | "medium" | "low",
+      category: "quality" as const,
       file: issue.file,
       line: issue.line,
       message: issue.message,
@@ -1183,13 +1191,13 @@ Respond with ONLY valid JSON:
 
   private convertTypeErrorsToCodeIssues(typeErrors: LintIssue[]): CodeIssue[] {
     return typeErrors.map((error) => ({
-      severity: "high",
-      category: "type_safety",
+      severity: "high" as const,
+      category: "type_safety" as const,
       file: error.file,
       line: error.line,
       message: error.message,
       suggestion: "Fix type error",
-      rule: error.code,
+      rule: error.rule || "type-error",
     }));
   }
 }

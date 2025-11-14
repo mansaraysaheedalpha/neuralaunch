@@ -118,7 +118,7 @@ export class TestingAgent extends BaseAgent {
       const sourceFiles = await this.loadSourceFiles(
         projectId,
         userId,
-        taskDetails.sourceFiles || []
+        Array.isArray(taskDetails.sourceFiles) ? taskDetails.sourceFiles : []
       );
 
       if (sourceFiles.length === 0) {
@@ -143,7 +143,7 @@ export class TestingAgent extends BaseAgent {
         sourceFiles,
         codeAnalysis,
         framework,
-        taskDetails.testType || "unit",
+        (taskDetails.testType as "unit" | "integration" | "e2e") || "unit",
         input
       );
 
