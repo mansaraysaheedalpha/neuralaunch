@@ -22,6 +22,7 @@ import {
 } from "../base/base-agent";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { env } from "@/lib/env";
 import { TechStack, ProjectContext } from "@/lib/agents/types/common";
 

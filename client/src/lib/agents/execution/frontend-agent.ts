@@ -50,7 +50,7 @@ export class FrontendAgent extends BaseAgent {
         `[${this.config.name}] FIX MODE: Fixing issues for task "${taskDetails.originalTaskId}"`,
         {
           attempt: taskDetails.attempt,
-          issuesCount: taskDetails.issuesToFix?.length || 0,
+          issuesCount: Array.isArray(taskDetails.issuesToFix) ? taskDetails.issuesToFix.length : 0,
         }
       );
       await thoughts.starting("fixing issues from code review");
@@ -112,7 +112,7 @@ export class FrontendAgent extends BaseAgent {
           error: commandsResult.error,
           data: {
             filesCreated: filesResult.files,
-            commandsRun: commandsResult.commands,
+            commandsRun: commandsResult.commands as unknown as Array<string>,
           },
         };
       }
@@ -134,7 +134,7 @@ export class FrontendAgent extends BaseAgent {
           error: verification.issues.join("; "),
           data: {
             filesCreated: filesResult.files,
-            commandsRun: commandsResult.commands,
+            commandsRun: commandsResult.commands as unknown as Array<string>,
           },
         };
       }
@@ -148,7 +148,7 @@ export class FrontendAgent extends BaseAgent {
         durationMs: 0,
         data: {
           filesCreated: filesResult.files,
-          commandsRun: commandsResult.commands,
+          commandsRun: commandsResult.commands as unknown as Array<string>,
           explanation: implementation.explanation,
         },
       };
@@ -178,7 +178,8 @@ export class FrontendAgent extends BaseAgent {
 
     try {
       // Step 1: Load the files that need fixing
-      const filesToFix = taskDetails.issuesToFix.map((issue: any) => issue.file);
+      const issuesToFix = taskDetails.issuesToFix as Array<{ file: string; issue: string }>;
+      const filesToFix = issuesToFix.map((issue) => issue.file);
       const uniqueFiles = Array.from(new Set(filesToFix));
 
       logger.info(`[${this.config.name}] Loading ${uniqueFiles.length} files to fix`);
@@ -191,9 +192,9 @@ export class FrontendAgent extends BaseAgent {
 
       // Step 2: Generate fixes using AI
       const fixPrompt = this.buildFixPrompt(
-        taskDetails.issuesToFix,
+        issuesToFix,
         existingFiles,
-        taskDetails.attempt,
+        taskDetails.attempt as number,
         context
       );
 
@@ -239,19 +240,19 @@ export class FrontendAgent extends BaseAgent {
         `[${this.config.name}] Fix attempt ${taskDetails.attempt} complete`,
         {
           filesFixed: filesResult.files.length,
-          issuesAddressed: taskDetails.issuesToFix.length,
+          issuesAddressed: issuesToFix.length,
         }
       );
 
       return {
         success: true,
-        message: `Fixed ${taskDetails.issuesToFix.length} issues in ${filesResult.files.length} files`,
+        message: `Fixed ${issuesToFix.length} issues in ${filesResult.files.length} files`,
         iterations: 1,
         durationMs: 0,
         data: {
           filesCreated: filesResult.files,
-          commandsRun: commandsResult.commands,
-          issuesFixed: taskDetails.issuesToFix.length,
+          commandsRun: commandsResult.commands as unknown as Array<string>,
+          issuesFixed: issuesToFix.length,
           fixExplanation: fixes.explanation,
         },
       };

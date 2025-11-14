@@ -51,7 +51,7 @@ export class DatabaseAgent extends BaseAgent {
         `[${this.config.name}] FIX MODE: Fixing database issues for task "${taskDetails.originalTaskId}"`,
         {
           attempt: taskDetails.attempt,
-          issuesCount: taskDetails.issuesToFix?.length || 0,
+          issuesCount: Array.isArray(taskDetails.issuesToFix) ? taskDetails.issuesToFix.length : 0,
         }
       );
 
@@ -170,7 +170,8 @@ export class DatabaseAgent extends BaseAgent {
 
     try {
       // Load files that need fixing
-      const filesToFix = taskDetails.issuesToFix.map((issue: any) => issue.file);
+      const issuesToFix = taskDetails.issuesToFix as Array<{ file: string; issue: string }>;
+      const filesToFix = issuesToFix.map((issue) => issue.file);
       const uniqueFiles = Array.from(new Set(filesToFix));
 
       logger.info(`[${this.config.name}] Loading ${uniqueFiles.length} files to fix`);
@@ -183,9 +184,9 @@ export class DatabaseAgent extends BaseAgent {
 
       // Generate fixes using AI
       const fixPrompt = this.buildFixPrompt(
-        taskDetails.issuesToFix,
+        issuesToFix,
         existingFiles,
-        taskDetails.attempt,
+        taskDetails.attempt as number,
         context
       );
 
