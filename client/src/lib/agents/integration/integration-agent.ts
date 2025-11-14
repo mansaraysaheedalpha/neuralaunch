@@ -312,7 +312,8 @@ export class IntegrationAgent extends BaseAgent {
       throw new Error("Failed to load project structure");
     }
 
-    const allFiles = contextResult.data?.files || [];
+    const data = contextResult.data as { files?: Array<string | { path: string }> };
+    const allFiles = data?.files || [];
 
     // Categorize files based on tech stack
     const frontend: string[] = [];
@@ -320,7 +321,7 @@ export class IntegrationAgent extends BaseAgent {
     const shared: string[] = [];
 
     for (const file of allFiles) {
-      const path = file.path || file;
+      const path = typeof file === 'string' ? file : file.path;
 
       // Frontend patterns (tech stack agnostic)
       if (
@@ -735,6 +736,7 @@ Respond ONLY with valid JSON array, no markdown.`;
 
     if (testResult.success) {
       // Parse test results
+      const testData = testResult.data as { durationMs?: number };
       flowTests.push({
         testName: "Integration Test Suite",
         flow: "Full Integration Tests",
@@ -746,9 +748,10 @@ Respond ONLY with valid JSON array, no markdown.`;
           },
         ],
         passed: true,
-        duration: testResult.data?.durationMs || 0,
+        duration: testData?.durationMs || 0,
       });
     } else {
+      const testData = testResult.data as { durationMs?: number };
       flowTests.push({
         testName: "Integration Test Suite",
         flow: "Full Integration Tests",
@@ -760,7 +763,7 @@ Respond ONLY with valid JSON array, no markdown.`;
           },
         ],
         passed: false,
-        duration: testResult.data?.durationMs || 0,
+        duration: testData?.durationMs || 0,
       });
     }
 

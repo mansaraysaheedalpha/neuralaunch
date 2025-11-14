@@ -132,6 +132,7 @@ export class MonitoringAgent extends BaseAgent {
    * Execute monitoring task
    */
   async executeTask(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
+    const startTime = Date.now();
     const { taskId, projectId, userId, taskDetails } = input;
     const monitoringInput = taskDetails as unknown as MonitoringInput;
 
@@ -241,8 +242,10 @@ export class MonitoringAgent extends BaseAgent {
       return {
         success: true,
         message: `Monitoring complete - Status: ${healthStatus}, Uptime: ${uptime.toFixed(2)}%`,
-        data: report,
-      } as AgentExecutionOutput;
+        iterations: 1,
+        durationMs: Date.now() - startTime,
+        data: { ...report },
+      };
     } catch (error) {
       logger.error(`[${this.name}] Monitoring failed`, 
         error instanceof Error ? error : new Error(String(error)),
@@ -290,11 +293,12 @@ export class MonitoringAgent extends BaseAgent {
       );
 
       if (contextResult.success) {
-        const files = contextResult.data?.files || [];
+        const data = contextResult.data as { files?: Array<string | { path: string }> };
+        const files = data?.files || [];
 
         // Find API route files
-        const apiFiles = files.filter((file: any) => {
-          const path = file.path || file;
+        const apiFiles = files.filter((file) => {
+          const path = typeof file === 'string' ? file : file.path;
           return (
             path.includes("/api/") ||
             path.includes("/routes/") ||
@@ -304,7 +308,7 @@ export class MonitoringAgent extends BaseAgent {
 
         // Extract endpoint paths from filenames
         for (const file of apiFiles) {
-          const path = file.path || file;
+          const path = typeof file === 'string' ? file : file.path;
 
           // Extract endpoint from file path
           // e.g., src/app/api/users/route.ts -> /api/users

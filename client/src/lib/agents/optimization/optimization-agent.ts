@@ -101,6 +101,7 @@ export class OptimizationAgent extends BaseAgent {
    * Execute optimization task
    */
   async executeTask(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
+    const startTime = Date.now();
     const { taskId, projectId, userId, taskDetails } = input;
     const optimizationInput = taskDetails as unknown as OptimizationInput;
 
@@ -117,6 +118,8 @@ export class OptimizationAgent extends BaseAgent {
         return {
           success: true,
           message: "No recommendations to apply",
+          iterations: 1,
+          durationMs: Date.now() - startTime,
           data: {
             tasksCompleted: 0,
             tasksFailed: 0,
@@ -125,7 +128,7 @@ export class OptimizationAgent extends BaseAgent {
             optimizations: [],
             summary: "No optimization recommendations provided",
           },
-        } as AgentExecutionOutput;
+        };
       }
 
       // Step 1: Load project context and tech stack
@@ -241,8 +244,10 @@ export class OptimizationAgent extends BaseAgent {
       return {
         success: true,
         message: `Applied ${tasksCompleted} optimization(s), modified ${filesModified.length} file(s)`,
-        data: result,
-      } as AgentExecutionOutput;
+        iterations: 1,
+        durationMs: Date.now() - startTime,
+        data: { ...result },
+      };
     } catch (error) {
       logger.error(`[${this.name}] Optimization failed`, 
         error instanceof Error ? error : new Error(String(error)),

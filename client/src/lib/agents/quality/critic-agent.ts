@@ -295,10 +295,11 @@ export class CriticAgent extends BaseAgent {
           { projectId, userId }
         );
 
-        if (result.success && result.data?.content) {
+        const data = result.data as { content?: string };
+        if (result.success && data?.content) {
           files.push({
             path: filePath,
-            content: result.data.content,
+            content: data.content,
             language: this.detectLanguage(filePath),
           });
         }

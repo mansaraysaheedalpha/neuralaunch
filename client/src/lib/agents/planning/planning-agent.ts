@@ -9,6 +9,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { logger } from "@/lib/logger";
 import { AI_MODELS } from "@/lib/models";
 import { toError } from "@/lib/error-utils";
@@ -591,7 +592,8 @@ export class PlanningAgent {
 
       // Step 2: Check if project is feasible
       await thoughts.analyzing("validation results and feasibility");
-      if (!context.validation.feasible) {
+      const validation = context.validation as { feasible?: boolean };
+      if (!validation.feasible) {
         await thoughts.error(
           "Project not feasible - Blockers must be addressed first"
         );
@@ -923,13 +925,15 @@ IMPORTANT: Return ONLY the JSON object, with no markdown formatting, no code blo
   }
 
   private inferBackend(requirements: Record<string, unknown>): string {
-    if (requirements.technicalNeeds.realtime) return "Node.js + Socket.io";
+    const technicalNeeds = requirements.technicalNeeds as { realtime?: boolean } | undefined;
+    if (technicalNeeds?.realtime) return "Node.js + Socket.io";
     return "Next.js API Routes";
   }
 
   private inferDatabase(requirements: Record<string, unknown>): string {
     if (requirements.complexity === "simple") return "None (static)";
-    if (requirements.technicalNeeds.realtime) return "PostgreSQL + Redis";
+    const technicalNeeds = requirements.technicalNeeds as { realtime?: boolean } | undefined;
+    if (technicalNeeds?.realtime) return "PostgreSQL + Redis";
     return "PostgreSQL";
   }
 
@@ -1033,7 +1037,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
     const sprintContext = sprintData
       ? `
 **SPRINT VALIDATION DATA:**
-Completed Tasks: ${enhanced.priorityFeatures?.join(", ") || "None"}
+Completed Tasks: ${Array.isArray(enhanced.priorityFeatures) ? enhanced.priorityFeatures.join(", ") : "None"}
 Validation Results: ${JSON.stringify(sprintData.validationResults || {}, null, 2)}
 
 **PRIORITY GUIDANCE:**
@@ -1422,19 +1426,19 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
       where: { projectId },
       create: {
         projectId,
-        userId: metadata.userId || "",
-        conversationId: metadata.conversationId || `${sourceType}_${projectId}`,
-        executionPlan: planWithMetadata as unknown,
-        originalPlan: planWithMetadata as unknown, // Store as original plan
+        userId: (metadata.userId as string) || "",
+        conversationId: (metadata.conversationId as string) || `${sourceType}_${projectId}`,
+        executionPlan: planWithMetadata as unknown as Prisma.InputJsonValue,
+        originalPlan: planWithMetadata as unknown as Prisma.InputJsonValue, // Store as original plan
         currentPhase: "plan_review", // Set to plan_review instead of execution
         updatedAt: new Date(),
       },
       update: {
-        executionPlan: planWithMetadata as unknown,
+        executionPlan: planWithMetadata as unknown as Prisma.InputJsonValue,
         // Only update originalPlan if it doesn't exist yet
         ...(existingContext?.originalPlan
           ? {}
-          : { originalPlan: planWithMetadata as unknown }),
+          : { originalPlan: planWithMetadata as unknown as Prisma.InputJsonValue }),
         currentPhase: "plan_review",
         updatedAt: new Date(),
       },
@@ -1465,7 +1469,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
           estimatedLines: task.estimatedLines,
           estimatedHours: task.estimatedHours,
         },
-      } as unknown,
+      } as unknown as Prisma.InputJsonValue,
     }));
 
     await prisma.agentTask.createMany({
@@ -1508,8 +1512,8 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
         projectId: input.projectId,
         agentName: this.name,
         phase: this.phase,
-        input: input as unknown,
-        output: plan as unknown,
+        input: input as unknown as Prisma.InputJsonValue,
+        output: plan as unknown as Prisma.InputJsonValue,
         success,
         durationMs,
         error,
@@ -1700,13 +1704,13 @@ Return ONLY a valid JSON object (no markdown, no code blocks) with the complete 
       await prisma.projectContext.update({
         where: { projectId },
         data: {
-          executionPlan: updatedPlanWithMetadata,
+          executionPlan: updatedPlanWithMetadata as unknown as Prisma.InputJsonValue,
           planRevisionCount: currentRevisionCount + 1,
           planFeedback: {
             feedback,
             analysisResult,
             appliedAt: new Date().toISOString(),
-          } as unknown,
+          } as unknown as Prisma.InputJsonValue,
           updatedAt: new Date(),
         },
       });
