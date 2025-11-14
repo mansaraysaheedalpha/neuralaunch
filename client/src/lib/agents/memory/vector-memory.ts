@@ -14,7 +14,7 @@ import { toError, toLogContext } from "@/lib/error-utils";
 import { env } from "@/lib/env";
 
 const openai = new OpenAI({
-  apiKey: env.OPENAI_API_KEY!,
+  apiKey: env.OPENAI_API_KEY,
 });
 
 export interface VectorMemoryEntry {

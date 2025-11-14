@@ -82,7 +82,7 @@ export class ExecutionCoordinator {
    * Start execution of tasks for a project
    */
   async start(input: CoordinatorInput): Promise<CoordinatorOutput> {
-    const startTime = Date.now();
+    const _startTime = Date.now();
     logger.info(
       `[${this.name}] Starting wave-based execution for project ${input.projectId}`
     );
@@ -621,7 +621,7 @@ export class ExecutionCoordinator {
       tasks: Array<{ id: string; title: string; complexity: string }>;
     }>;
   }> {
-    const { projectId, userId, conversationId, waveNumber, githubBranch } =
+    const { projectId, userId, waveNumber, githubBranch } =
       input;
     const autoTrigger = input.autoTrigger !== false; // Default true
 

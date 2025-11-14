@@ -235,7 +235,7 @@ export class PlanningAgent {
 
     // Legacy flow - treat as blueprint without validation data
     logger.info(`[${this.name}] Legacy planning flow for ${input.projectId}`);
-    return await this.executeLegacyPlanning(input as LegacyPlanningInput, options);
+    return await this.executeLegacyPlanning(input, options);
   }
 
   /**

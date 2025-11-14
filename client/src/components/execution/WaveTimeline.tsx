@@ -201,7 +201,7 @@ export default function WaveTimeline({
                       </span>
                       {Boolean(task.durationMs) && typeof task.durationMs === "number" && (
                         <span className="text-muted-foreground">
-                          {Math.round((task.durationMs as number) / 1000)}s
+                          {Math.round((task.durationMs) / 1000)}s
                         </span>
                       )}
                     </div>

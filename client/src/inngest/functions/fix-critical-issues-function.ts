@@ -354,7 +354,7 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
                   timestamp: new Date().toISOString(),
                   issues: retryStrategy.issues.slice(0, 10), // Store first 10 issues
                 },
-              } as any,
+              },
             },
           });
 

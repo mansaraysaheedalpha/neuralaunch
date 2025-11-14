@@ -49,8 +49,8 @@ export const infrastructureAgentFunction = inngest.createFunction(
         return await infrastructureAgent.execute({
           taskId: taskId!,
           projectId,
-          userId: userId!,
-          conversationId: conversationId!,
+          userId: userId,
+          conversationId: conversationId,
           taskDetails: {
             title: "Infrastructure Setup",
             description: "Setup Docker, env config, database, and CI/CD",
@@ -83,7 +83,7 @@ export const infrastructureAgentFunction = inngest.createFunction(
                 database: result.data?.database || null,
                 cicd: result.data?.cicd || null,
               },
-            } as any,
+            },
           },
         });
 

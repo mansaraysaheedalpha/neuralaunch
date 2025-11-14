@@ -454,8 +454,8 @@ Analyze the failures and respond with ONLY valid JSON:
               ? ({
                   ...input.originalTask,
                   _recoveryPrompt: strategy.modifications.simplifiedPrompt,
-                } as any)
-              : (input.originalTask as any),
+                })
+              : (input.originalTask),
           },
         });
         break;

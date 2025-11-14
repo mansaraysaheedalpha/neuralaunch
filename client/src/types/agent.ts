@@ -69,7 +69,7 @@ export interface ProjectAgentData {
 
   // 🆕 NEW: Architect Preferences
   agentArchitectPreferences: ArchitectPreferences | null;
-  agentArchitecturePlan: unknown | null; // Complex nested structure
+  agentArchitecturePlan: Record<string, unknown> | null; // Complex nested structure
 
   // Existing fields
   agentPlan: PlanStep[] | null;

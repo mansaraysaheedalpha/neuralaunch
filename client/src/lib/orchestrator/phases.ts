@@ -327,7 +327,7 @@ export function getExecutionProgress(phase: string): number {
 // EXPORTS
 // ==========================================
 
-export default {
+const phaseUtils = {
   ORCHESTRATOR_PHASES,
   PLANNING_PHASES,
   EXECUTION_PHASES,
@@ -347,3 +347,5 @@ export default {
   getPlanningProgress,
   getExecutionProgress,
 };
+
+export default phaseUtils;

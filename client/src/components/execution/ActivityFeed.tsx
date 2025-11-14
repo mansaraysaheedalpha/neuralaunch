@@ -232,11 +232,11 @@ export default function ActivityFeed({ projectId, tasks }: ActivityFeedProps) {
                     </div>
                     <span className="text-xs text-muted-foreground whitespace-nowrap">
                       {task.completedAt
-                        ? formatDistanceToNow(new Date(task.completedAt as string | Date), {
+                        ? formatDistanceToNow(new Date(task.completedAt), {
                             addSuffix: true,
                           })
                         : task.createdAt
-                          ? formatDistanceToNow(new Date(task.createdAt as string | Date), {
+                          ? formatDistanceToNow(new Date(task.createdAt), {
                               addSuffix: true,
                             })
                           : ""}

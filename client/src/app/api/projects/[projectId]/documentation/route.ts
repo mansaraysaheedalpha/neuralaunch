@@ -109,9 +109,9 @@ function generateReadme(
   projectContext: any,
   deployments: any[]
 ): DocSection {
-  const techStack = projectContext.techStack as any;
-  const architecture = projectContext.architecture as any;
-  const codebase = projectContext.codebase as any;
+  const techStack = projectContext.techStack;
+  const architecture = projectContext.architecture;
+  const codebase = projectContext.codebase;
   const projectName = projectContext.conversation.title;
 
   const productionDeployment = deployments.find(
@@ -239,8 +239,8 @@ MIT License - See LICENSE file for details
  * Generate API documentation
  */
 function generateApiDocs(projectContext: any): DocSection {
-  const architecture = projectContext.architecture as any;
-  const techStack = projectContext.techStack as any;
+  const architecture = projectContext.architecture;
+  const techStack = projectContext.techStack;
 
   const baseUrl =
     env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -422,8 +422,8 @@ All timestamps are returned in ISO 8601 format: \`YYYY-MM-DDTHH:mm:ss.sssZ\``;
  * Generate architecture documentation
  */
 function generateArchitectureDocs(projectContext: any): DocSection {
-  const architecture = projectContext.architecture as any;
-  const techStack = projectContext.techStack as any;
+  const architecture = projectContext.architecture;
+  const techStack = projectContext.techStack;
 
   const frontendArch = architecture?.frontendArchitecture || {};
   const backendArch = architecture?.backendArchitecture || {};
@@ -551,8 +551,8 @@ function generateDeploymentDocs(
   projectContext: any,
   deployments: any[]
 ): DocSection {
-  const architecture = projectContext.architecture as any;
-  const codebase = projectContext.codebase as any;
+  const architecture = projectContext.architecture;
+  const codebase = projectContext.codebase;
 
   const platform =
     architecture?.infrastructureArchitecture?.hosting || "Cloud Platform";

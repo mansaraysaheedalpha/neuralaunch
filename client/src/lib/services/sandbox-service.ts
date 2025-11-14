@@ -335,7 +335,7 @@ class SandboxServiceClass {
               return reject(new Error("No stream returned from docker.pull"));
 
             // We must wait for the stream to end to know the pull is complete
-            this.docker.modem.followProgress(stream, (err, res) => {
+            this.docker.modem.followProgress(stream, (err, _res) => {
               if (err)
                 return reject(
                   err instanceof Error ? err : new Error(String(err))

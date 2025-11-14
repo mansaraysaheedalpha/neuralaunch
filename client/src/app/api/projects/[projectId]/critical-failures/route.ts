@@ -50,7 +50,13 @@ export async function GET(
     }
 
     // Build query filters
-    const where: any = {
+    const where: {
+      projectId: string;
+      userId: string;
+      status?: string;
+      severity?: string;
+      waveNumber?: number;
+    } = {
       projectId,
       userId: user.id,
     };

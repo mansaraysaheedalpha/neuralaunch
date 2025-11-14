@@ -422,7 +422,7 @@ Generate the fixed infrastructure configurations now.
   ): string {
     // Safely narrow technicalDetails before accessing its properties
     type TechDetails = { files?: string[]; technologies?: string[] };
-    const techDetailsUnknown: unknown = taskDetails.technicalDetails as unknown;
+    const techDetailsUnknown: unknown = taskDetails.technicalDetails;
 
     let filesList = "Determine based on task";
     let technologiesList = "Determine from context";
