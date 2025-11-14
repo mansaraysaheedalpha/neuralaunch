@@ -1,6 +1,7 @@
 // src/lib/env.public.ts
 
 import { z } from "zod";
+import { env } from "@/lib/env";
 
 const publicEnvSchema = z.object({
   NEXT_PUBLIC_PUSHER_KEY: z
@@ -23,9 +24,9 @@ function validatePublicEnv(): PublicEnv {
     // Note: We parse process.env here, but Next.js makes these available.
     // In a local .env.local, they must be defined for this to pass.
     return publicEnvSchema.parse({
-      NEXT_PUBLIC_PUSHER_KEY: process.env.NEXT_PUBLIC_PUSHER_KEY,
-      NEXT_PUBLIC_PUSHER_CLUSTER: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
-      NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+      NEXT_PUBLIC_PUSHER_KEY: env.NEXT_PUBLIC_PUSHER_KEY,
+      NEXT_PUBLIC_PUSHER_CLUSTER: env.NEXT_PUBLIC_PUSHER_CLUSTER,
+      NEXT_PUBLIC_APP_URL: env.NEXT_PUBLIC_APP_URL,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

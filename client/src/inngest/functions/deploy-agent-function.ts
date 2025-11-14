@@ -84,7 +84,45 @@ export const deployAgentFunction = inngest.createFunction(
         return codebase?.environmentVariables || {};
       });
 
-      // Step 4: Pre-deployment validation
+      // Step 4: Create Deployment record
+      const deployment = await step.run("create-deployment-record", async () => {
+        // Check if deploymentId is provided (manual deployment)
+        const existingDeploymentId = taskInput.deploymentId;
+
+        if (existingDeploymentId) {
+          // Update existing deployment
+          const existing = await prisma.deployment.findUnique({
+            where: { id: existingDeploymentId },
+          });
+
+          if (existing) {
+            await prisma.deployment.update({
+              where: { id: existingDeploymentId },
+              data: { status: "building", buildStatus: "queued" },
+            });
+            return existing;
+          }
+        }
+
+        // Create new deployment record
+        const codebase = projectContext.codebase as any;
+
+        return await prisma.deployment.create({
+          data: {
+            projectId,
+            environment: taskInput.environment || "production",
+            platform: deploymentPlatform,
+            branch: taskInput.previewBranch || codebase?.githubBranch || "main",
+            waveNumber: taskInput.waveNumber,
+            deploymentType: existingDeploymentId ? "manual" : "automated",
+            triggeredBy: userId,
+            status: "building",
+            buildStatus: "queued",
+          },
+        });
+      });
+
+      // Step 5: Pre-deployment validation
       await step.run("pre-deployment-validation", async () => {
         // Check if all tasks are completed
         const incompleteTasks = await prisma.agentTask.count({
@@ -117,30 +155,81 @@ export const deployAgentFunction = inngest.createFunction(
         logger.info(`[Inngest] Pre-deployment validation passed`);
       });
 
-      // Step 5: Execute Deploy Agent
-      const result = await step.run("deploy-to-platform", async () => {
-        return await deployAgent.execute({
-          taskId: taskId!,
-          projectId,
-          userId: userId!,
-          conversationId: conversationId!,
-          taskDetails: {
-            title: `Deploy to ${deploymentPlatform}`,
-            description: `Deploy application to ${deploymentPlatform} (${taskInput.environment})`,
-            complexity: "medium",
-            estimatedLines: 0,
-            platform: deploymentPlatform,
-            environment: taskInput.environment || "production",
-            envVars: envVars,
-            customDomain: taskInput.customDomain,
-            runMigrations: taskInput.runMigrations !== false, // Default true
-          },
-          context: {
-            techStack: projectContext.techStack,
-            architecture: projectContext.architecture,
-            codebase: projectContext.codebase,
+      // Step 6: Update deployment status to building
+      await step.run("mark-deployment-building", async () => {
+        await prisma.deployment.update({
+          where: { id: deployment.id },
+          data: {
+            status: "building",
+            buildStatus: "building",
           },
         });
+      });
+
+      // Step 7: Execute Deploy Agent
+      const startTime = Date.now();
+      const result = await step.run("deploy-to-platform", async () => {
+        try {
+          const deployResult = await deployAgent.execute({
+            taskId: taskId!,
+            projectId,
+            userId: userId!,
+            conversationId: conversationId!,
+            taskDetails: {
+              title: `Deploy to ${deploymentPlatform}`,
+              description: `Deploy application to ${deploymentPlatform} (${taskInput.environment})`,
+              complexity: "medium",
+              estimatedLines: 0,
+              platform: deploymentPlatform,
+              environment: taskInput.environment || "production",
+              envVars: envVars,
+              customDomain: taskInput.customDomain,
+              runMigrations: taskInput.runMigrations !== false, // Default true
+            },
+            context: {
+              techStack: projectContext.techStack,
+              architecture: projectContext.architecture,
+              codebase: projectContext.codebase,
+            },
+          });
+
+          // Update deployment record with results
+          const buildDuration = Date.now() - startTime;
+
+          await prisma.deployment.update({
+            where: { id: deployment.id },
+            data: {
+              status: deployResult.success ? "deployed" : "failed",
+              buildStatus: deployResult.success ? "success" : "failed",
+              deploymentUrl: deployResult.data?.deploymentUrl,
+              platformDeploymentId: deployResult.data?.deploymentId,
+              buildDuration,
+              deployedAt: deployResult.success ? new Date() : null,
+              failedAt: deployResult.success ? null : new Date(),
+              errorMessage: deployResult.success ? null : deployResult.message,
+              buildLogs: deployResult.data?.logs ? JSON.stringify(deployResult.data.logs).slice(0, 50000) : null, // Limit to 50k chars
+            },
+          });
+
+          return deployResult;
+        } catch (error) {
+          // Update deployment as failed
+          const buildDuration = Date.now() - startTime;
+          const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+          await prisma.deployment.update({
+            where: { id: deployment.id },
+            data: {
+              status: "failed",
+              buildStatus: "failed",
+              failedAt: new Date(),
+              buildDuration,
+              errorMessage,
+            },
+          });
+
+          throw error;
+        }
       });
 
       // Step 6: Store deployment results

@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import { env } from "@/lib/env";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest) {
     );
 
     // Handle async emails correctly
-    const landingPageUrl = `${process.env.NEXT_PUBLIC_APP_URL || ""}/lp/${landingPage.slug}`;
+    const landingPageUrl = `${env.NEXT_PUBLIC_APP_URL || ""}/lp/${landingPage.slug}`;
 
     // CRITICAL FIX: Lazy import email functions to avoid build-time initialization
     // This prevents Resend from being initialized during the build process

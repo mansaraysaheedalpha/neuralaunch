@@ -4,6 +4,7 @@ import LandingPagePublic from "@/components/landing-page/landing-page-public/Lan
 import PageViewTracker from "@/components/landing-page/PageViewTracker";
 import { Metadata } from "next";
 import prisma from "@/lib/prisma";
+import { env } from "@/lib/env";
 // Import the type definitions from the Builder to ensure consistency
 import type {
   InitialLandingPageData,
@@ -19,7 +20,7 @@ export async function generateMetadata({
   params,
 }: PublicLandingPageProps): Promise<Metadata> {
   // Return default metadata if DATABASE_URL is not set
-  if (!process.env.DATABASE_URL) {
+  if (!env.DATABASE_URL) {
     return { title: "NeuraLaunch" };
   }
   
@@ -35,7 +36,7 @@ export async function generateMetadata({
     }
 
     const siteUrl =
-      process.env.NEXT_PUBLIC_APP_URL || `https://startupvalidator.app`; // Use your domain
+      env.NEXT_PUBLIC_APP_URL || `https://startupvalidator.app`; // Use your domain
 
     return {
       title: landingPage.metaTitle || landingPage.title,
@@ -156,7 +157,7 @@ export default async function PublicLandingPage({
 // generateStaticParams remains the same
 export async function generateStaticParams() {
   // Return empty array if DATABASE_URL is not set (e.g., during build without DB)
-  if (!process.env.DATABASE_URL) {
+  if (!env.DATABASE_URL) {
     return [];
   }
   

@@ -13,6 +13,7 @@ import type { Browser } from "puppeteer-core";
 import puppeteerFull from "puppeteer"; // Ensure this is a devDependency
 import { marked } from "marked";
 import { Buffer } from "node:buffer";
+import { env } from "@/lib/env";
 
 export const runtime = "nodejs";
 
@@ -126,7 +127,7 @@ export async function GET(
 
     try {
       console.log("🚀 Launching browser...");
-      const isProduction = process.env.VERCEL_ENV === "production";
+      const isProduction = env.VERCEL_ENV === "production";
       let executablePath: string | undefined = undefined;
 
       if (!isProduction) {

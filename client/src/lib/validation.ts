@@ -3,9 +3,10 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { AI_MODELS } from "@/lib/models";
+import { env } from "@/lib/env";
 
 const genAI = new GoogleGenAI({
-  apiKey: process.env.GOOGLE_API_KEY || "",
+  apiKey: env.GOOGLE_API_KEY || "",
 });
 
 interface ValidationScores {

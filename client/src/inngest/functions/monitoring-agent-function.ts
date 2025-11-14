@@ -14,6 +14,7 @@ import { monitoringAgent } from "@/lib/agents/monitoring/monitoring-agent";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { createAgentError } from "@/lib/error-utils";
+import { sendNotification } from "@/lib/notifications/notification-service";
 
 export const monitoringAgentFunction = inngest.createFunction(
   {
@@ -166,12 +167,29 @@ export const monitoringAgentFunction = inngest.createFunction(
         );
 
         // Send alert notifications
-        // TODO: Implement notification service
-        // - Email
-        // - Slack
-        // - Discord
-        // - SMS
-        // - PagerDuty
+        if (userId && criticalAlerts.length > 0) {
+          try {
+            const alertMessages = criticalAlerts.map((a: any) => a.message).join(', ');
+            await sendNotification({
+              userId,
+              projectId,
+              type: "monitoring_alert",
+              priority: healthStatus === "down" ? "critical" : "high",
+              title: `Monitoring Alert: ${healthStatus.toUpperCase()}`,
+              message: `${criticalAlerts.length} critical alert${criticalAlerts.length > 1 ? 's' : ''} detected`,
+              alertType: "health_check",
+              severity: healthStatus === "down" ? "critical" : "error",
+              metrics: {
+                healthStatus,
+                criticalAlerts: criticalAlerts.length,
+                alerts: alertMessages,
+              },
+            });
+            logger.info(`[Inngest] Monitoring alert notification sent`);
+          } catch (error) {
+            logger.error(`[Inngest] Failed to send monitoring alert`, createAgentError(error));
+          }
+        }
 
         // Create incident if needed
         if (healthStatus === "down") {

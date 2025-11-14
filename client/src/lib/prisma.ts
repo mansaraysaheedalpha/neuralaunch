@@ -1,6 +1,7 @@
 // lib/prisma.ts
 
 import { PrismaClient } from "@prisma/client";
+import { env } from "@/lib/env";
 
 declare global {
   // allow global `var` declarations
@@ -8,7 +9,7 @@ declare global {
   var prisma: PrismaClient | undefined;
 }
 
-const isProd = process.env.NODE_ENV === "production";
+const isProd = env.NODE_ENV === "production";
 
 const prisma =
   global.prisma ||

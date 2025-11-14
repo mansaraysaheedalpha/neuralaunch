@@ -5,7 +5,7 @@ import {
   getTagExtractionPrompt,
   cleanAndValidateTags,
   ALL_VALID_TAGS,
-} from "../../../../lib/tag-taxonomy";
+} from "../../../lib/tag-taxonomy";
 import prisma from "@/lib/prisma"; //
 import { z } from "zod";
 import { saveMemory } from "@/lib/ai-memory";
@@ -14,6 +14,12 @@ import {
   executeAITaskSimple,
   executeAITaskStream,
 } from "@/lib/ai-orchestrator";
+import {
+  checkRateLimit,
+  RATE_LIMITS,
+  getRequestIdentifier,
+  getClientIp,
+} from "@/lib/rate-limit";
 
 const chatRequestSchema = z.object({
   messages: z
@@ -390,6 +396,33 @@ export async function POST(req: NextRequest) {
   try {
     const session = await auth();
     const userId = session?.user?.id;
+
+    // Rate limiting - 5 requests per minute for AI generation
+    const clientIp = getClientIp(req.headers);
+    const rateLimitId = getRequestIdentifier(userId, clientIp);
+    const rateLimitResult = checkRateLimit({
+      ...RATE_LIMITS.AI_GENERATION,
+      identifier: rateLimitId,
+    });
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: `Too many requests. Please try again in ${rateLimitResult.retryAfter} seconds.`,
+          retryAfter: rateLimitResult.retryAfter,
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": rateLimitResult.retryAfter?.toString() || "60",
+            "X-RateLimit-Limit": RATE_LIMITS.AI_GENERATION.maxRequests.toString(),
+            "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+            "X-RateLimit-Reset": new Date(rateLimitResult.resetAt).toISOString(),
+          },
+        }
+      );
+    }
 
     const body: unknown = await req.json();
     console.log("Received request to /api/chat with body:", body);

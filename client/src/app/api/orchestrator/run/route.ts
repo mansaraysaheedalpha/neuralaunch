@@ -5,6 +5,12 @@ import { orchestrator } from "@/lib/orchestrator/agent-orchestrator";
 import { createApiLogger } from "@/lib/logger";
 import { z } from "zod";
 import { inngest } from "@/inngest/client";
+import {
+  checkRateLimit,
+  RATE_LIMITS,
+  getRequestIdentifier,
+  getClientIp,
+} from "@/lib/rate-limit";
 
 // ==========================================
 // REQUEST VALIDATION SCHEMAS
@@ -78,7 +84,35 @@ export async function POST(req: NextRequest) {
 
     const userId = session.user.id;
 
-    // 2. Parse and validate request body
+    // 2. Rate limiting - 5 requests per minute for orchestrator
+    const clientIp = getClientIp(req.headers);
+    const rateLimitId = getRequestIdentifier(userId, clientIp);
+    const rateLimitResult = checkRateLimit({
+      ...RATE_LIMITS.AI_GENERATION,
+      identifier: rateLimitId,
+    });
+
+    if (!rateLimitResult.success) {
+      logger.warn("Rate limit exceeded", { userId });
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: `Too many orchestrator requests. Please try again in ${rateLimitResult.retryAfter} seconds.`,
+          retryAfter: rateLimitResult.retryAfter,
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": rateLimitResult.retryAfter?.toString() || "60",
+            "X-RateLimit-Limit": RATE_LIMITS.AI_GENERATION.maxRequests.toString(),
+            "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+            "X-RateLimit-Reset": new Date(rateLimitResult.resetAt).toISOString(),
+          },
+        }
+      );
+    }
+
+    // 3. Parse and validate request body
     const body = await req.json();
 
     // Check if this is a legacy request (no sourceType)

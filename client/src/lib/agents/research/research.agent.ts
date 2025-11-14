@@ -36,6 +36,21 @@ export interface ResearchOutput {
   message: string;
 }
 
+/**
+ * Research Agent - AI-Powered Technology Research
+ *
+ * CAPABILITIES:
+ * ✅ AI-Driven Tech Stack Research - Uses advanced AI to analyze project requirements
+ * ✅ Best Practices Discovery - Researches modern development patterns
+ * ✅ Technology Recommendations - Suggests optimal frameworks and tools
+ * ✅ Alternative Analysis - Provides alternatives for each technology choice
+ *
+ * This agent ensures technology choices are:
+ * - Modern and well-maintained
+ * - Compatible with project requirements
+ * - Based on industry best practices
+ * - Suitable for the team's skill level
+ */
 export class ResearchAgent {
   name = "Research";
   description = "Researches best practices and recommends tech stack";

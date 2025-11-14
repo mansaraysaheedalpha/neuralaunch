@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { logger } from "./logger";
+import { env } from "@/lib/env";
 
 /**
  * Standard API error response
@@ -219,7 +220,7 @@ export function handleApiError(
   // Handle standard JavaScript errors
   if (error instanceof Error) {
     // Don't expose internal error details in production
-    const isProduction = process.env.NODE_ENV === "production";
+    const isProduction = env.NODE_ENV === "production";
     
     return NextResponse.json<ApiErrorResponse>(
       {

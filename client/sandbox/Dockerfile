@@ -50,14 +50,22 @@ RUN apt-get update && apt-get install -y \
     && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python${PYTHON_VERSION} 1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install common Python tools
+# Install common Python tools and development dependencies
 RUN pip3 install --no-cache-dir \
     pip \
     setuptools \
     wheel \
     poetry \
     pipenv \
-    virtualenv
+    virtualenv \
+    pytest \
+    pytest-cov \
+    pytest-asyncio \
+    pylint \
+    bandit \
+    black \
+    flake8 \
+    mypy
 
 # ==========================================
 # GO
@@ -76,7 +84,8 @@ ENV PATH="${GOPATH}/bin:${PATH}"
 # ==========================================
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain ${RUST_VERSION} \
-    && . "$HOME/.cargo/env"
+    && . "$HOME/.cargo/env" \
+    && rustup component add clippy rustfmt
 
 ENV PATH="/root/.cargo/bin:${PATH}"
 

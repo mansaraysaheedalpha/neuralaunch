@@ -22,6 +22,7 @@ import {
 } from "../base/base-agent";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
+import { env } from "@/lib/env";
 
 // ==========================================
 // TYPES
@@ -123,6 +124,7 @@ export class DocumentationAgent extends BaseAgent {
         "code_analysis",
         "context_loader",
         "web_search", // For finding documentation best practices
+        "claude_skills", // For superior documentation generation
       ],
       modelName: AI_MODELS.OPENAI, // GPT-4o for best documentation writing
     });
@@ -581,7 +583,7 @@ Respond ONLY with valid JSON array, no markdown.`;
       const prompt = `Analyze the project and identify all environment variables used.
 
 Look for:
-- process.env.VARIABLE_NAME
+- env.VARIABLE_NAME
 - process.env["VARIABLE_NAME"]
 - env.VARIABLE_NAME
 - Similar patterns in other languages

@@ -23,8 +23,8 @@ import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import WaveTimeline from "@/components/execution/WaveTimeline";
 import AgentGrid from "@/components/execution/AgentGrid";
-import ActivityFeed from "@/components/execution/ActivityFeed";
 import AgentPipeline from "@/components/execution/AgentPipeline";
+import { ExecutionTabs } from "@/components/execution/ExecutionTabs";
 import {
   isPlanningPhase,
   ORCHESTRATOR_PHASES,
@@ -344,15 +344,13 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
               </Card>
             )}
 
-            {/* Activity Feed */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Activity Feed</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ActivityFeed projectId={projectId} tasks={tasks} />
-              </CardContent>
-            </Card>
+            {/* ✅ NEW: Execution Tabs (Activity, Code, Commands, Wave Approval) */}
+            <ExecutionTabs
+              projectId={projectId}
+              conversationId={project.conversationId || ""}
+              tasks={tasks}
+              currentWave={currentWave}
+            />
           </div>
         </div>
       </div>

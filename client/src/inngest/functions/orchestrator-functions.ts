@@ -3,6 +3,8 @@ import { orchestrator } from "@/lib/orchestrator/agent-orchestrator";
 import { inngest } from "../client";
 import { logger } from "@/lib/logger";
 import { createAgentError, toError } from "@/lib/error-utils";
+import { sendNotification } from "@/lib/notifications/notification-service";
+import prisma from "@/lib/prisma";
 
 export const orchestratorRunFunction = inngest.createFunction(
   {
@@ -49,15 +51,7 @@ export const orchestratorRunFunction = inngest.createFunction(
         duration: `${result.totalDuration}ms`,
       });
 
-      // Step 2: Optional - Send completion notification
-      await step.run("send-completion-notification", async () => {
-        log.info("[Orchestrator] Analysis complete notification", {
-          projectId,
-          userId,
-        });
-        // TODO: Send email/webhook notification to user
-        // Example: await sendEmail(userId, 'Your project analysis is complete!')
-      });
+      // Note: Skipping analysis complete notification per user preference
 
       return {
         success: true,
@@ -74,8 +68,22 @@ export const orchestratorRunFunction = inngest.createFunction(
 
       // Step 3: Send error notification
       await step.run("send-error-notification", async () => {
-        log.error("[Orchestrator] Error notification sent", createAgentError(errorMessage, { projectId }));
-        // TODO: Send error notification
+        try {
+          await sendNotification({
+            userId,
+            projectId,
+            type: "error_occurred",
+            priority: "critical",
+            title: "Orchestrator Pipeline Error",
+            message: `The analysis pipeline encountered an error: ${errorMessage}`,
+            error: errorMessage,
+            phase: "orchestration",
+            canRetry: true,
+          });
+          log.info("[Orchestrator] Error notification sent");
+        } catch (notifError) {
+          log.error("[Orchestrator] Failed to send error notification", toError(notifError));
+        }
       });
 
       throw error;
@@ -189,14 +197,7 @@ export const orchestratorVisionFunction = inngest.createFunction(
         duration: `${result.totalDuration}ms`,
       });
 
-      // Step 2: Send completion notification
-      await step.run("send-completion-notification", async () => {
-        log.info("[Orchestrator] Vision build complete notification", {
-          projectId,
-          userId,
-        });
-        // TODO: Send notification to user
-      });
+      // Note: Skipping vision build complete notification per user preference
 
       return {
         success: true,
@@ -213,8 +214,22 @@ export const orchestratorVisionFunction = inngest.createFunction(
       log.error("[Orchestrator] Vision build error", createAgentError(errorMessage, { projectId }));
 
       await step.run("send-error-notification", async () => {
-        log.error("[Orchestrator] Error notification sent", createAgentError(errorMessage, { projectId }));
-        // TODO: Send error notification
+        try {
+          await sendNotification({
+            userId,
+            projectId,
+            type: "error_occurred",
+            priority: "critical",
+            title: "Vision Build Error",
+            message: `The vision-based build encountered an error: ${errorMessage}`,
+            error: errorMessage,
+            phase: "vision-build",
+            canRetry: true,
+          });
+          log.info("[Orchestrator] Error notification sent");
+        } catch (notifError) {
+          log.error("[Orchestrator] Failed to send error notification", toError(notifError));
+        }
       });
 
       throw error;
@@ -277,14 +292,7 @@ export const orchestratorBlueprintFunction = inngest.createFunction(
         duration: `${result.totalDuration}ms`,
       });
 
-      // Step 2: Send completion notification
-      await step.run("send-completion-notification", async () => {
-        log.info("[Orchestrator] Blueprint build complete notification", {
-          projectId,
-          userId,
-        });
-        // TODO: Send notification to user
-      });
+      // Note: Skipping blueprint build complete notification per user preference
 
       return {
         success: true,
@@ -301,8 +309,22 @@ export const orchestratorBlueprintFunction = inngest.createFunction(
       log.error("[Orchestrator] Blueprint build error", createAgentError(errorMessage, { projectId }));
 
       await step.run("send-error-notification", async () => {
-        log.error("[Orchestrator] Error notification sent", createAgentError(errorMessage, { projectId }));
-        // TODO: Send error notification
+        try {
+          await sendNotification({
+            userId,
+            projectId,
+            type: "error_occurred",
+            priority: "critical",
+            title: "Blueprint Build Error",
+            message: `The blueprint build encountered an error: ${errorMessage}`,
+            error: errorMessage,
+            phase: "blueprint-build",
+            canRetry: true,
+          });
+          log.info("[Orchestrator] Error notification sent");
+        } catch (notifError) {
+          log.error("[Orchestrator] Failed to send error notification", toError(notifError));
+        }
       });
 
       throw error;

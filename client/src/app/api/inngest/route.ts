@@ -9,12 +9,15 @@ import {
 } from "@/inngest/functions/orchestrator-functions";
 import { backendAgentFunction } from "@/inngest/functions/backend-agent-function";
 import { frontendAgentFunction } from "@/inngest/functions/frontend-agent-function";
+import { databaseAgentFunction } from "@/inngest/functions/database-agent-function";
 import { testingAgentFunction } from "@/inngest/functions/testing-agent-function";
 import { criticAgentFunction } from "@/inngest/functions/critic-agent-function";
 import { waveStartFunction } from "@/inngest/functions/wave-start-function";
 import { waveCompleteFunction } from "@/inngest/functions/wave-complete-function";
 import { integrationAgentFunction } from "@/inngest/functions/integration-agent-function";
 import { infrastructureAgentFunction } from "@/inngest/functions/infrastructure-agent-function";
+import { infrastructureExecutionAgentFunction } from
+  "@/inngest/functions/infrastructure-execution-agent-function";
 import { documentationAgentFunction } from "@/inngest/functions/documentation-agent-function";
 import { deployAgentFunction } from "@/inngest/functions/deploy-agent-function";
 import {
@@ -37,6 +40,7 @@ export const { GET, POST, PUT } = serve({
     // Execution agents
     backendAgentFunction,
     frontendAgentFunction,
+    databaseAgentFunction,
     testingAgentFunction,
     criticAgentFunction,
 
@@ -50,6 +54,7 @@ export const { GET, POST, PUT } = serve({
 
     // Infrastructure & Deployment
     infrastructureAgentFunction,
+    infrastructureExecutionAgentFunction,
     documentationAgentFunction,
     deployAgentFunction,
 
@@ -59,7 +64,7 @@ export const { GET, POST, PUT } = serve({
     optimizationAgentFunction,
   ],
   signingKey:
-    process.env.NODE_ENV !== "development"
+    env.NODE_ENV !== "development"
       ? env.INNGEST_SIGNING_KEY
       : undefined,
 });

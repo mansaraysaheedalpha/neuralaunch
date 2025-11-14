@@ -14,6 +14,7 @@ import { optimizationAgent } from "@/lib/agents/optimization/optimization-agent"
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { createAgentError } from "@/lib/error-utils";
+import { sendNotification } from "@/lib/notifications/notification-service";
 
 export const optimizationAgentFunction = inngest.createFunction(
   {
@@ -275,17 +276,23 @@ export const optimizationAgentFunction = inngest.createFunction(
     });
 
     // Step 12: Notify user of optimization results
-    if (tasksCompleted > 0) {
+    if (tasksCompleted > 0 && userId) {
       await step.run("notify-user", async () => {
-        logger.info(`[Inngest] Notifying user of optimization results`, {
-          tasksCompleted,
-          filesModified: filesModified.length,
-        });
-
-        // TODO: Implement notification service
-        // - Email
-        // - Slack
-        // - In-app notification
+        try {
+          await sendNotification({
+            userId,
+            projectId,
+            type: "optimization_complete",
+            priority: "low",
+            title: "Optimization Complete",
+            message: `${tasksCompleted} optimization${tasksCompleted > 1 ? 's' : ''} applied successfully`,
+            optimizationsApplied: tasksCompleted,
+            performanceGain: optimizationResult?.estimatedImpact,
+          });
+          logger.info(`[Inngest] Optimization notification sent`, { tasksCompleted });
+        } catch (error) {
+          logger.error(`[Inngest] Failed to send optimization notification`, createAgentError(error));
+        }
       });
     }
 

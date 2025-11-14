@@ -8,6 +8,7 @@
 import { BaseTool, ToolParameter, ToolResult, ToolContext } from "../base-tool";
 import { logger } from "@/lib/logger";
 import { toError, toLogContext } from "@/lib/error-utils";
+import { env } from "@/lib/env";
 
 // ==========================================
 // MCP TYPES (Based on Anthropic's MCP spec)
@@ -196,10 +197,11 @@ export class MCPToolAdapter extends BaseTool {
   private getAuthTokenForServer(serverName: string): string | null {
     // Map server names to environment variables
     const tokenMap: Record<string, string> = {
-      github: process.env.GITHUB_MCP_TOKEN || process.env.GITHUB_TOKEN || "",
-      notion: process.env.MCP_NOTION_TOKEN || "",
-      slack: process.env.MCP_SLACK_TOKEN || "",
-      brave: process.env.BRAVE_SEARCH_API_KEY || "",
+      github: env.GITHUB_MCP_TOKEN || env.GITHUB_TOKEN || "",
+      brave: env.BRAVE_SEARCH_API_KEY || "",
+      "claude-skills": env.ANTHROPIC_API_KEY || "",
+      playwright: "", // No auth needed
+      filesystem: "", // No auth needed
     };
 
     return tokenMap[serverName.toLowerCase()] || null;

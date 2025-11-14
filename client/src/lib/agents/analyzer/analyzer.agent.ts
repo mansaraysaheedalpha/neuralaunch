@@ -30,6 +30,22 @@ export interface AnalyzerOutput {
   message: string;
 }
 
+/**
+ * Analyzer Agent - Intelligent Blueprint Parsing
+ *
+ * CAPABILITIES:
+ * ✅ Blueprint Parsing - Extracts structured data from user input
+ * ✅ Feature Detection - Identifies core features and requirements
+ * ✅ Tech Stack Extraction - Recognizes mentioned technologies
+ * ✅ Validation - Ensures blueprint completeness before planning
+ * ✅ Thought Stream Integration - Provides transparent analysis process
+ *
+ * This agent serves as the entry point for the planning phase by:
+ * - Converting user blueprints into structured project data
+ * - Validating completeness and identifying gaps
+ * - Setting up project context for subsequent agents
+ * - Enabling accurate research and planning
+ */
 export class AnalyzerAgent {
   name = "Analyzer";
   description = "Parses blueprints and extracts structured information";

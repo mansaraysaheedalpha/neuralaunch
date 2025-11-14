@@ -3,6 +3,7 @@
 
 import React, { Component, ReactNode } from "react";
 import { AlertCircle, RefreshCw } from "lucide-react";
+import { env } from "@/lib/env";
 
 interface Props {
   children: ReactNode;
@@ -32,7 +33,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     // Log error to console in development
-    if (process.env.NODE_ENV === "development") {
+    if (env.NODE_ENV === "development") {
       console.error("Error caught by boundary:", error, errorInfo);
     }
 
@@ -67,7 +68,7 @@ export class ErrorBoundary extends Component<Props, State> {
               the page or contact support if the problem persists.
             </p>
 
-            {process.env.NODE_ENV === "development" && this.state.error && (
+            {env.NODE_ENV === "development" && this.state.error && (
               <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg text-left">
                 <p className="text-sm font-mono text-red-800 dark:text-red-200 mb-2">
                   {this.state.error.name}: {this.state.error.message}

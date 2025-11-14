@@ -6,12 +6,18 @@ import {
   generateLandingPageContent,
   generateSlug,
   DESIGN_VARIANTS,
-} from "lib/landing-page-generator";
+} from "@/lib/landing-page-generator";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { saveMemory } from "@/lib/ai-memory";
 import { AITaskType, executeAITaskSimple } from "@/lib/ai-orchestrator";
+import {
+  checkRateLimit,
+  RATE_LIMITS,
+  getRequestIdentifier,
+  getClientIp,
+} from "@/lib/rate-limit";
 const generateRequestSchema = z.object({
   conversationId: z.string().cuid({ message: "Invalid Conversation ID" }),
   designVariantId: z.string().optional(),
@@ -137,6 +143,33 @@ export async function POST(req: NextRequest) {
     }
 
     const userId = session.user.id;
+
+    // Rate limiting - 5 requests per minute for AI landing page generation
+    const clientIp = getClientIp(req.headers);
+    const rateLimitId = getRequestIdentifier(userId, clientIp);
+    const rateLimitResult = checkRateLimit({
+      ...RATE_LIMITS.AI_GENERATION,
+      identifier: rateLimitId,
+    });
+
+    if (!rateLimitResult.success) {
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: `Too many landing page generation requests. Please try again in ${rateLimitResult.retryAfter} seconds.`,
+          retryAfter: rateLimitResult.retryAfter,
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": rateLimitResult.retryAfter?.toString() || "60",
+            "X-RateLimit-Limit": RATE_LIMITS.AI_GENERATION.maxRequests.toString(),
+            "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+            "X-RateLimit-Reset": new Date(rateLimitResult.resetAt).toISOString(),
+          },
+        }
+      );
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const body = await req.json();

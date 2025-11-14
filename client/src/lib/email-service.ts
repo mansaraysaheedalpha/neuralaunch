@@ -2,8 +2,9 @@
 // PRODUCTION-READY email service using Resend
 
 import { Resend } from "resend";
+import { env } from "@/lib/env";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(env.RESEND_API_KEY);
 
 interface WelcomeEmailParams {
   to: string;

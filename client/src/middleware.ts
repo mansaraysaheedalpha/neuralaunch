@@ -7,6 +7,7 @@
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { env } from "@/lib/env";
 
 export function middleware(_request: NextRequest) {
   const response = NextResponse.next();
@@ -49,7 +50,7 @@ export function middleware(_request: NextRequest) {
 
   // Strict Transport Security (HSTS) - force HTTPS
   // Only enable this in production when HTTPS is configured
-  if (process.env.NODE_ENV === "production") {
+  if (env.NODE_ENV === "production") {
     response.headers.set(
       "Strict-Transport-Security",
       "max-age=31536000; includeSubDomains; preload"

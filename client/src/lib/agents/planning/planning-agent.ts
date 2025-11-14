@@ -13,6 +13,7 @@ import { logger } from "@/lib/logger";
 import { AI_MODELS } from "@/lib/models";
 import { toError } from "@/lib/error-utils";
 import { createThoughtStream } from "@/lib/agents/thought-stream";
+import { env } from "@/lib/env";
 import {
   executeWithExtendedThinking,
   buildChainOfThoughtPrompt,
@@ -120,6 +121,12 @@ export interface TechnicalArchitecture {
     monitoring: string;
     scaling: string;
   };
+  diagrams?: {
+    systemArchitecture: string; // Mermaid diagram showing system components
+    databaseSchema: string; // Mermaid ERD showing database relationships
+    dataFlow: string; // Mermaid sequence diagram showing data flow
+    deployment: string; // Mermaid diagram showing deployment architecture
+  };
 }
 
 export interface ExecutionPlan {
@@ -151,7 +158,24 @@ export interface PlanningOptions {
 // ==========================================
 // PLANNING AGENT CLASS
 // ==========================================
-
+/**
+ * Enhanced Planning Agent with Advanced AI Capabilities
+ *
+ * KEY FEATURES FOR EXCEPTIONAL PLANS:
+ * ✅ Extended Thinking (8K-16K tokens) - Enabled by default for deep reasoning
+ * ✅ Architecture Diagram Generation - Mermaid diagrams for system, database, data flow
+ * ✅ Comprehensive Task Breakdown - Atomic tasks with clear dependencies
+ * ✅ Multi-mode Support - Vision, Blueprint, and Legacy planning flows
+ * ✅ Chain-of-Thought Reasoning - Step-by-step transparent decision making
+ *
+ * This agent generates plans that are:
+ * - Easy for both AI agents AND human engineers to understand
+ * - Detailed enough for precise execution regardless of task difficulty
+ * - Visual with architecture diagrams for complex systems
+ * - Comprehensive covering all features and requirements
+ *
+ * Uses Claude Sonnet 4.5 for superior JSON generation and architectural reasoning
+ */
 export class PlanningAgent {
   private anthropic: Anthropic;
   private openai: OpenAI;
@@ -159,8 +183,8 @@ export class PlanningAgent {
   public readonly phase = "planning";
 
   constructor() {
-    const anthropicKey = process.env.ANTHROPIC_API_KEY;
-    const openaiKey = process.env.OPENAI_API_KEY;
+    const anthropicKey = env.ANTHROPIC_API_KEY;
+    const openaiKey = env.OPENAI_API_KEY;
 
     if (!openaiKey) {
       throw new Error("OPENAI_API_KEY is required for PlanningAgent");
@@ -224,10 +248,10 @@ export class PlanningAgent {
   ): Promise<PlanningOutput> {
     const startTime = Date.now();
 
-    // Extract options with defaults
+    // Extract options with defaults - Extended thinking enabled by default for exceptional plans
     const {
       enableDeepDive = false,
-      useExtendedThinking = false,
+      useExtendedThinking = true, // ✅ Enabled by default for comprehensive planning
       useChainOfThought = false,
     } = options || {};
 
@@ -377,10 +401,10 @@ export class PlanningAgent {
   ): Promise<PlanningOutput> {
     const startTime = Date.now();
 
-    // Extract options with defaults
+    // Extract options with defaults - Extended thinking enabled by default for exceptional plans
     const {
       enableDeepDive = false,
-      useExtendedThinking = false,
+      useExtendedThinking = true, // ✅ Enabled by default for comprehensive planning
       useChainOfThought = false,
     } = options || {};
 
@@ -523,10 +547,10 @@ export class PlanningAgent {
   ): Promise<PlanningOutput> {
     const startTime = Date.now();
 
-    // Extract options with defaults
+    // Extract options with defaults - Extended thinking enabled by default for exceptional plans
     const {
       enableDeepDive = false,
-      useExtendedThinking = false,
+      useExtendedThinking = true, // ✅ Enabled by default for comprehensive planning
       useChainOfThought = false,
     } = options || {};
 
@@ -1062,9 +1086,17 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
 
   /**
    * Get shared planning instructions for AI prompts
+   * Enhanced with diagram generation and comprehensive planning
    */
   private getSharedPlanningInstructions(): string {
     return `
+**CRITICAL - GENERATE ARCHITECTURE DIAGRAMS**: Include Mermaid diagrams for:
+   - System architecture overview (components and their relationships)
+   - Database schema (ERD with relationships)
+   - Data flow diagrams (how data moves through the system)
+   - Deployment architecture (infrastructure layout)
+   These diagrams make it easy for both agents and engineers to understand the system!
+
 **CRITICAL - ATOMIC TASKS ONLY**: Each task MUST be truly atomic:
    - ✅ Simple: 2 file, 2 endpoint, OR 2-3 component (200-350 lines max)
    - ⚠️ Medium: 4-6 tightly related files (300-550 lines total)
@@ -1146,6 +1178,12 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
       "cicd": "GitHub Actions",
       "monitoring": "Vercel Analytics | Sentry",
       "scaling": "Serverless auto-scaling"
+    },
+    "diagrams": {
+      "systemArchitecture": "mermaid\\ngraph TD\\n  Client[Client] --> Frontend[Frontend]\\n  Frontend --> API[API]\\n  API --> Database[Database]",
+      "databaseSchema": "mermaid\\nerDiagram\\n  User ||--o{ Project : creates\\n  Project ||--o{ Task : contains",
+      "dataFlow": "mermaid\\nsequenceDiagram\\n  User->>Frontend: Request\\n  Frontend->>API: Fetch Data\\n  API->>Database: Query",
+      "deployment": "mermaid\\ngraph LR\\n  GitHub[GitHub] --> Vercel[Vercel]\\n  Vercel --> Production[Production]"
     }
   },
   "tasks": [

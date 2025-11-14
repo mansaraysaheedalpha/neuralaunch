@@ -1,34 +1,125 @@
 // src/lib/notifications/notification-service.ts
 /**
  * Notification Service
- * Handles email and webhook notifications for review requests
+ * Handles email and webhook notifications for all system events
  */
 
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { toError } from "@/lib/error-utils";
+import { env } from "@/lib/env";
+import {
+  buildSuccessEmail,
+  buildErrorEmail,
+  buildAlertEmail,
+  buildGenericEmail,
+} from "./email-templates";
 
-export interface ReviewNotification {
+export type NotificationType =
+  | "review_required"
+  | "analysis_complete"
+  | "planning_complete"
+  | "execution_complete"
+  | "deployment_complete"
+  | "error_occurred"
+  | "optimization_complete"
+  | "monitoring_alert"
+  | "escalation";
+
+export type NotificationPriority = "critical" | "high" | "medium" | "low";
+
+export interface BaseNotification {
   userId: string;
-  reviewId: string;
   projectId: string;
+  type: NotificationType;
+  priority: NotificationPriority;
+  title: string;
+  message: string;
+  metadata?: Record<string, any>;
+}
+
+export interface ReviewNotification extends BaseNotification {
+  type: "review_required";
+  reviewId: string;
   waveNumber: number;
-  priority: "critical" | "high" | "medium";
   reason: string;
 }
 
-/**
- * Send review notification (email + webhook if configured)
- */
-export async function sendReviewNotification(
-  notification: ReviewNotification
-): Promise<void> {
-  const { userId, reviewId, projectId, waveNumber, priority, reason } =
-    notification;
+export interface AnalysisCompleteNotification extends BaseNotification {
+  type: "analysis_complete";
+  analysisResult: {
+    summary: string;
+    nextSteps: string[];
+  };
+}
 
-  logger.info("Sending review notification", {
+export interface PlanningCompleteNotification extends BaseNotification {
+  type: "planning_complete";
+  planSummary: string;
+  totalWaves: number;
+}
+
+export interface ExecutionCompleteNotification extends BaseNotification {
+  type: "execution_complete";
+  completedWaves: number;
+  totalWaves: number;
+  successRate: number;
+}
+
+export interface DeploymentCompleteNotification extends BaseNotification {
+  type: "deployment_complete";
+  environment: string;
+  deploymentUrl?: string;
+  success: boolean;
+}
+
+export interface ErrorNotification extends BaseNotification {
+  type: "error_occurred";
+  error: string;
+  phase: string;
+  canRetry: boolean;
+}
+
+export interface OptimizationCompleteNotification extends BaseNotification {
+  type: "optimization_complete";
+  optimizationsApplied: number;
+  performanceGain?: string;
+}
+
+export interface MonitoringAlertNotification extends BaseNotification {
+  type: "monitoring_alert";
+  alertType: string;
+  severity: "warning" | "error" | "critical";
+  metrics?: Record<string, any>;
+}
+
+export interface EscalationNotification extends BaseNotification {
+  type: "escalation";
+  escalationReason: string;
+  attempts: number;
+}
+
+export type Notification =
+  | ReviewNotification
+  | AnalysisCompleteNotification
+  | PlanningCompleteNotification
+  | ExecutionCompleteNotification
+  | DeploymentCompleteNotification
+  | ErrorNotification
+  | OptimizationCompleteNotification
+  | MonitoringAlertNotification
+  | EscalationNotification;
+
+/**
+ * Main notification sender - handles all notification types
+ */
+export async function sendNotification(notification: Notification): Promise<void> {
+  const { userId, projectId, type, priority } = notification;
+
+  logger.info("Sending notification", {
     userId,
-    reviewId,
+    projectId,
+    type,
     priority,
   });
 
@@ -47,62 +138,248 @@ export async function sendReviewNotification(
       return;
     }
 
+    // Build email content based on notification type
+    const emailContent = buildEmailContent(notification, user.name || "there");
+
     // Send email notification
-    await sendEmailNotification({
+    await sendEmail({
       to: user.email,
-      userName: user.name || "there",
-      reviewId,
-      projectId,
-      waveNumber,
-      priority,
-      reason,
+      subject: emailContent.subject,
+      html: emailContent.html,
+      text: emailContent.text,
     });
 
     // Send webhook notification (if configured)
-    await sendWebhookNotification({
+    await sendWebhook({
       userId,
-      reviewId,
       projectId,
-      waveNumber,
+      type,
       priority,
-      reason,
+      data: notification,
     });
 
-    logger.info("Review notification sent successfully", {
+    logger.info("Notification sent successfully", {
       userId,
-      reviewId,
+      type,
       email: user.email,
     });
   } catch (error) {
-    logger.error("Failed to send review notification", toError(error));
-    throw error;
+    logger.error("Failed to send notification", toError(error));
+    // Don't throw - notification failures shouldn't break the main flow
   }
 }
 
 /**
- * Send email notification
+ * Legacy function for review notifications (backward compatibility)
+ * @deprecated Use sendNotification() instead
  */
-async function sendEmailNotification(params: {
-  to: string;
-  userName: string;
-  reviewId: string;
-  projectId: string;
-  waveNumber: number;
-  priority: string;
-  reason: string;
-}): Promise<void> {
-  const { to, userName, reviewId, projectId, waveNumber, priority, reason } =
-    params;
+export async function sendReviewNotification(
+  params: Omit<ReviewNotification, "type" | "title" | "message">
+): Promise<void> {
+  await sendNotification({
+    ...params,
+    type: "review_required",
+    title: `Wave ${params.waveNumber} Needs Review`,
+    message: params.reason,
+    priority: params.priority,
+  });
+}
 
-  // Check if email service is configured
-  const emailProvider = process.env.EMAIL_PROVIDER; // 'resend' | 'sendgrid' | 'ses'
+/**
+ * Build email content based on notification type
+ */
+function buildEmailContent(
+  notification: Notification,
+  userName: string
+): { subject: string; html: string; text: string } {
+  const { type, priority, projectId } = notification;
 
-  if (!emailProvider) {
-    logger.warn("EMAIL_PROVIDER not configured, skipping email notification");
-    return;
+  switch (type) {
+    case "review_required": {
+      const n = notification as ReviewNotification;
+      return buildReviewEmail(userName, n);
+    }
+
+    case "analysis_complete": {
+      const n = notification as AnalysisCompleteNotification;
+      return {
+        subject: "✅ Project Analysis Complete - NeuraLaunch",
+        html: buildSuccessEmail(
+          userName,
+          "Analysis Complete",
+          `Your project analysis is complete! We've analyzed your requirements and are ready to create a detailed plan.`,
+          [
+            `<strong>Summary:</strong> ${n.analysisResult.summary}`,
+            `<strong>Next Steps:</strong> ${n.analysisResult.nextSteps.join(", ")}`,
+          ],
+          `${env.NEXT_PUBLIC_APP_URL}/projects/${projectId}/plan`
+        ),
+        text: `Hi ${userName},\n\nYour project analysis is complete!\n\nSummary: ${n.analysisResult.summary}\n\nView Plan: ${env.NEXT_PUBLIC_APP_URL}/projects/${projectId}/plan`,
+      };
+    }
+
+    case "planning_complete": {
+      const n = notification as PlanningCompleteNotification;
+      return {
+        subject: "📋 Project Plan Ready - NeuraLaunch",
+        html: buildSuccessEmail(
+          userName,
+          "Planning Complete",
+          `Your project plan is ready for review! We've created ${n.totalWaves} execution waves.`,
+          [
+            `<strong>Plan Summary:</strong> ${n.planSummary}`,
+            `<strong>Total Waves:</strong> ${n.totalWaves}`,
+          ],
+          `${env.NEXT_PUBLIC_APP_URL}/projects/${projectId}/plan`
+        ),
+        text: `Hi ${userName},\n\nYour project plan is ready!\n\n${n.planSummary}\n\nTotal Waves: ${n.totalWaves}\n\nView Plan: ${env.NEXT_PUBLIC_APP_URL}/projects/${projectId}/plan`,
+      };
+    }
+
+    case "execution_complete": {
+      const n = notification as ExecutionCompleteNotification;
+      return {
+        subject: "🎉 Project Execution Complete - NeuraLaunch",
+        html: buildSuccessEmail(
+          userName,
+          "Execution Complete",
+          `Your project execution is complete! ${n.completedWaves}/${n.totalWaves} waves completed successfully.`,
+          [
+            `<strong>Completed Waves:</strong> ${n.completedWaves}/${n.totalWaves}`,
+            `<strong>Success Rate:</strong> ${n.successRate}%`,
+          ],
+          `${env.NEXT_PUBLIC_APP_URL}/projects/${projectId}/execution`
+        ),
+        text: `Hi ${userName},\n\nYour project execution is complete!\n\nCompleted: ${n.completedWaves}/${n.totalWaves} waves\nSuccess Rate: ${n.successRate}%\n\nView Project: ${env.NEXT_PUBLIC_APP_URL}/projects/${projectId}/execution`,
+      };
+    }
+
+    case "deployment_complete": {
+      const n = notification as DeploymentCompleteNotification;
+      return {
+        subject: n.success
+          ? `🚀 Deployment Successful (${n.environment}) - NeuraLaunch`
+          : `❌ Deployment Failed (${n.environment}) - NeuraLaunch`,
+        html: n.success
+          ? buildSuccessEmail(
+              userName,
+              "Deployment Successful",
+              `Your project has been deployed to ${n.environment}!`,
+              [
+                `<strong>Environment:</strong> ${n.environment}`,
+                n.deploymentUrl
+                  ? `<strong>URL:</strong> <a href="${n.deploymentUrl}">${n.deploymentUrl}</a>`
+                  : "",
+              ],
+              n.deploymentUrl || `${env.NEXT_PUBLIC_APP_URL}/projects/${projectId}`
+            )
+          : buildErrorEmail(
+              userName,
+              "Deployment Failed",
+              `Deployment to ${n.environment} failed. Please review the logs.`,
+              [
+                `<strong>Environment:</strong> ${n.environment}`,
+              ],
+              `${env.NEXT_PUBLIC_APP_URL}/projects/${projectId}/deployments`
+            ),
+        text: n.success
+          ? `Hi ${userName},\n\nYour project has been deployed to ${n.environment}!\n\nURL: ${n.deploymentUrl || "N/A"}`
+          : `Hi ${userName},\n\nDeployment to ${n.environment} failed. Please check the logs.`,
+      };
+    }
+
+    case "error_occurred": {
+      const n = notification as ErrorNotification;
+      return {
+        subject: `❌ Error in ${n.phase} - NeuraLaunch`,
+        html: buildErrorEmail(
+          userName,
+          `Error in ${n.phase}`,
+          n.error,
+          [
+            `<strong>Phase:</strong> ${n.phase}`,
+            `<strong>Can Retry:</strong> ${n.canRetry ? "Yes" : "No"}`,
+          ],
+          `${env.NEXT_PUBLIC_APP_URL}/projects/${projectId}`
+        ),
+        text: `Hi ${userName},\n\nAn error occurred in ${n.phase}:\n\n${n.error}\n\nCan Retry: ${n.canRetry ? "Yes" : "No"}`,
+      };
+    }
+
+    case "optimization_complete": {
+      const n = notification as OptimizationCompleteNotification;
+      return {
+        subject: "⚡ Optimization Complete - NeuraLaunch",
+        html: buildSuccessEmail(
+          userName,
+          "Optimization Complete",
+          `${n.optimizationsApplied} optimizations have been applied to your project.`,
+          [
+            `<strong>Optimizations Applied:</strong> ${n.optimizationsApplied}`,
+            n.performanceGain
+              ? `<strong>Performance Gain:</strong> ${n.performanceGain}`
+              : "",
+          ],
+          `${env.NEXT_PUBLIC_APP_URL}/projects/${projectId}`
+        ),
+        text: `Hi ${userName},\n\nOptimization complete!\n\nOptimizations Applied: ${n.optimizationsApplied}${n.performanceGain ? `\nPerformance Gain: ${n.performanceGain}` : ""}`,
+      };
+    }
+
+    case "monitoring_alert": {
+      const n = notification as MonitoringAlertNotification;
+      return {
+        subject: `🚨 ${n.severity.toUpperCase()} Alert: ${n.alertType} - NeuraLaunch`,
+        html: buildAlertEmail(
+          userName,
+          n.alertType,
+          n.severity,
+          n.message,
+          n.metrics || {},
+          `${env.NEXT_PUBLIC_APP_URL}/projects/${projectId}/monitoring`
+        ),
+        text: `Hi ${userName},\n\n[${n.severity.toUpperCase()}] ${n.alertType}\n\n${n.message}`,
+      };
+    }
+
+    case "escalation": {
+      const n = notification as EscalationNotification;
+      return {
+        subject: `🔔 Issue Escalated - NeuraLaunch`,
+        html: buildErrorEmail(
+          userName,
+          "Issue Escalated",
+          n.escalationReason,
+          [
+            `<strong>Attempts:</strong> ${n.attempts}`,
+            `<strong>Action Required:</strong> Manual intervention needed`,
+          ],
+          `${env.NEXT_PUBLIC_APP_URL}/projects/${projectId}`
+        ),
+        text: `Hi ${userName},\n\nAn issue has been escalated after ${n.attempts} attempts:\n\n${n.escalationReason}\n\nManual intervention required.`,
+      };
+    }
+
+    default:
+      return {
+        subject: "Notification - NeuraLaunch",
+        html: buildGenericEmail(userName, notification.title, notification.message),
+        text: `Hi ${userName},\n\n${notification.title}\n\n${notification.message}`,
+      };
   }
+}
+
+/**
+ * Build review email (special handling)
+ */
+function buildReviewEmail(
+  userName: string,
+  notification: ReviewNotification
+): { subject: string; html: string; text: string } {
+  const { reviewId, projectId, waveNumber, priority, reason } = notification;
 
   const subject = `[${priority.toUpperCase()}] Wave ${waveNumber} Needs Your Review - NeuraLaunch`;
+  const reviewUrl = `${env.NEXT_PUBLIC_APP_URL}/projects/${projectId}/reviews/${reviewId}`;
 
   const htmlBody = `
 <!DOCTYPE html>
@@ -212,7 +489,7 @@ async function sendEmailNotification(params: {
       </ul>
       
       <div style="text-align: center;">
-        <a href="${process.env.NEXT_PUBLIC_APP_URL}/projects/${projectId}/reviews/${reviewId}" class="button">
+        <a href="${env.NEXT_PUBLIC_APP_URL}/projects/${projectId}/reviews/${reviewId}" class="button">
           Review Now →
         </a>
       </div>
@@ -220,7 +497,7 @@ async function sendEmailNotification(params: {
     
     <div class="footer">
       <p>This is an automated notification from NeuraLaunch</p>
-      <p>Need help? <a href="${process.env.NEXT_PUBLIC_APP_URL}/support">Contact Support</a></p>
+      <p>Need help? <a href="${env.NEXT_PUBLIC_APP_URL}/support">Contact Support</a></p>
     </div>
   </div>
 </body>
@@ -239,7 +516,7 @@ Wave ${waveNumber} encountered issues that require human review.
 Reason: ${reason}
 Project ID: ${projectId}
 
-Review Now: ${process.env.NEXT_PUBLIC_APP_URL}/projects/${projectId}/reviews/${reviewId}
+Review Now: ${env.NEXT_PUBLIC_APP_URL}/projects/${projectId}/reviews/${reviewId}
 
 ---
 This is an automated notification from NeuraLaunch
@@ -271,11 +548,11 @@ async function sendWithResend(params: {
   text: string;
 }): Promise<void> {
   const { Resend } = await import("resend");
-  const resend = new Resend(process.env.RESEND_API_KEY);
+  const resend = new Resend(env.RESEND_API_KEY);
 
   try {
     await resend.emails.send({
-      from: process.env.EMAIL_FROM || "NeuraLaunch <noreply@neuralaunch.com>",
+      from: env.EMAIL_FROM || "NeuraLaunch <noreply@neuralaunch.com>",
       to: params.to,
       subject: params.subject,
       html: params.html,
@@ -301,10 +578,10 @@ async function sendWithSendGrid(params: {
   try {
     // @ts-ignore - Optional dependency
     const sgMail = await import("@sendgrid/mail");
-    sgMail.default.setApiKey(process.env.SENDGRID_API_KEY!);
+    sgMail.default.setApiKey(env.SENDGRID_API_KEY!);
 
     await sgMail.default.send({
-      from: process.env.EMAIL_FROM || "noreply@neuralaunch.com",
+      from: env.EMAIL_FROM || "noreply@neuralaunch.com",
       to: params.to,
       subject: params.subject,
       html: params.html,
@@ -336,15 +613,15 @@ async function sendWithSES(params: {
     const { SESClient, SendEmailCommand } = await import("@aws-sdk/client-ses");
 
     const sesClient = new SESClient({
-      region: process.env.AWS_REGION || "us-east-1",
+      region: env.AWS_REGION || "us-east-1",
       credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+        accessKeyId: env.AWS_ACCESS_KEY_ID!,
+        secretAccessKey: env.AWS_SECRET_ACCESS_KEY!,
       },
     });
 
     const command = new SendEmailCommand({
-      Source: process.env.EMAIL_FROM || "noreply@neuralaunch.com",
+      Source: env.EMAIL_FROM || "noreply@neuralaunch.com",
       Destination: {
         ToAddresses: [params.to],
       },
@@ -377,17 +654,47 @@ async function sendWithSES(params: {
 }
 
 /**
- * Send webhook notification
+ * Unified email sender
  */
-async function sendWebhookNotification(params: {
-  userId: string;
-  reviewId: string;
-  projectId: string;
-  waveNumber: number;
-  priority: string;
-  reason: string;
+async function sendEmail(params: {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
 }): Promise<void> {
-  const webhookUrl = process.env.REVIEW_WEBHOOK_URL;
+  const emailProvider = env.EMAIL_PROVIDER;
+
+  if (!emailProvider) {
+    logger.warn("EMAIL_PROVIDER not configured, skipping email notification");
+    return;
+  }
+
+  switch (emailProvider) {
+    case "resend":
+      await sendWithResend(params);
+      break;
+    case "sendgrid":
+      await sendWithSendGrid(params);
+      break;
+    case "ses":
+      await sendWithSES(params);
+      break;
+    default:
+      logger.warn(`Unknown email provider: ${emailProvider}`);
+  }
+}
+
+/**
+ * Unified webhook sender
+ */
+async function sendWebhook(params: {
+  userId: string;
+  projectId: string;
+  type: NotificationType;
+  priority: NotificationPriority;
+  data: Notification;
+}): Promise<void> {
+  const webhookUrl = env.REVIEW_WEBHOOK_URL;
 
   if (!webhookUrl) {
     logger.info("REVIEW_WEBHOOK_URL not configured, skipping webhook");
@@ -399,19 +706,18 @@ async function sendWebhookNotification(params: {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-NeuraLaunch-Event": "review.created",
+        "X-NeuraLaunch-Event": `notification.${params.type}`,
       },
       body: JSON.stringify({
-        event: "review.created",
+        event: `notification.${params.type}`,
         timestamp: new Date().toISOString(),
         data: {
-          reviewId: params.reviewId,
-          projectId: params.projectId,
           userId: params.userId,
-          waveNumber: params.waveNumber,
+          projectId: params.projectId,
+          type: params.type,
           priority: params.priority,
-          reason: params.reason,
-          reviewUrl: `${process.env.NEXT_PUBLIC_APP_URL}/projects/${params.projectId}/reviews/${params.reviewId}`,
+          notification: params.data,
+          actionUrl: `${env.NEXT_PUBLIC_APP_URL}/projects/${params.projectId}`,
         },
       }),
     });
@@ -423,7 +729,7 @@ async function sendWebhookNotification(params: {
     }
 
     logger.info("Webhook notification sent", {
-      reviewId: params.reviewId,
+      type: params.type,
       webhookUrl,
     });
   } catch (error) {

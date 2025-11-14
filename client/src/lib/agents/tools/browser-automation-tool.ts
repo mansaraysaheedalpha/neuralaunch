@@ -14,6 +14,7 @@
 import { BaseTool, ToolParameter, ToolResult, ToolContext } from "./base-tool";
 import { logger } from "@/lib/logger";
 import chromium from "@sparticuz/chromium";
+import { env } from "@/lib/env";
 
 // Dynamically import puppeteer-core (already in your dependencies)
 let puppeteer: any;
@@ -563,7 +564,7 @@ export class BrowserAutomationTool extends BaseTool {
     const pptr = await getPuppeteer();
 
     // Production (Vercel) vs Development
-    const isProduction = process.env.NODE_ENV === "production";
+    const isProduction = env.NODE_ENV === "production";
 
     if (isProduction) {
       // Use Sparticuz Chromium for Vercel

@@ -34,6 +34,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MermaidDiagram } from "@/components/ui/mermaid-diagram";
 import { toast } from "sonner";
 
 interface PlanReviewPageProps {
@@ -109,6 +110,12 @@ interface Architecture {
     type: string;
     orm: string;
     [key: string]: unknown;
+  };
+  diagrams?: {
+    systemArchitecture?: string;
+    databaseSchema?: string;
+    dataFlow?: string;
+    deployment?: string;
   };
   [key: string]: unknown;
 }
@@ -710,6 +717,37 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                     )}
                   </CardContent>
                 </Card>
+
+                {/* Architecture Diagrams */}
+                {plan.architecture?.diagrams && (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">Architecture Diagrams</h3>
+                    {plan.architecture.diagrams.systemArchitecture && (
+                      <MermaidDiagram
+                        title="System Architecture"
+                        content={plan.architecture.diagrams.systemArchitecture}
+                      />
+                    )}
+                    {plan.architecture.diagrams.databaseSchema && (
+                      <MermaidDiagram
+                        title="Database Schema"
+                        content={plan.architecture.diagrams.databaseSchema}
+                      />
+                    )}
+                    {plan.architecture.diagrams.dataFlow && (
+                      <MermaidDiagram
+                        title="Data Flow"
+                        content={plan.architecture.diagrams.dataFlow}
+                      />
+                    )}
+                    {plan.architecture.diagrams.deployment && (
+                      <MermaidDiagram
+                        title="Deployment Architecture"
+                        content={plan.architecture.diagrams.deployment}
+                      />
+                    )}
+                  </div>
+                )}
               </TabsContent>
             </Tabs>
           </div>

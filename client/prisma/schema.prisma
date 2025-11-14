@@ -13,19 +13,19 @@ datasource db {
 
 // --- AUTH & USER MODELS (UNCHANGED) ---
 model User {
-  id              String           @id @default(cuid())
-  name            String?
-  email           String?          @unique
-  emailVerified   DateTime?
-  image           String?
-  accounts        Account[]
-  sessions        Session[]
-  conversations   Conversation[]
-  projectContexts ProjectContext[]
-  landingPages    LandingPage[]
-  achievements    Achievement[]
-  memories        AiMemory[]
-  vercelTeamId    String?
+  id                 String           @id @default(cuid())
+  name               String?
+  email              String?          @unique
+  emailVerified      DateTime?
+  image              String?
+  accounts           Account[]
+  sessions           Session[]
+  conversations      Conversation[]
+  projectContexts    ProjectContext[]
+  landingPages       LandingPage[]
+  achievements       Achievement[]
+  memories           AiMemory[]
+  vercelTeamId       String?
   thoughtPreferences Json?
 }
 
@@ -568,6 +568,60 @@ model ExecutionWave {
   @@index([escalatedToHuman]) // NEW: For filtering escalated waves
 }
 
+model CriticalFailure {
+  id        String @id @default(cuid())
+  projectId String
+  userId    String
+
+  // Failure context
+  taskId     String? // If related to a specific task
+  waveNumber Int? // If related to a specific wave
+  phase      String // "execution", "testing", "deployment", etc.
+  component  String? // Which part failed (e.g., "frontend", "backend", "database")
+
+  // Issue details
+  title           String // Short description of the failure
+  description     String  @db.Text // Detailed description
+  errorMessage    String  @db.Text // The actual error that occurred
+  rootCause       String? @db.Text // AI-analyzed root cause
+  severity        String // "critical", "high", "medium"
+  issuesFound     Json // Array of specific issues found
+  issuesRemaining Json // Array of issues that couldn't be fixed
+
+  // Recovery attempts
+  totalAttempts  Int       @default(0) // How many times auto-fix was attempted
+  lastAttemptAt  DateTime? // When was the last fix attempt
+  attemptHistory Json // Array of { attempt, timestamp, strategy, issues, result }
+
+  // Status tracking
+  status             String    @default("open") // "open", "in_review", "resolved", "dismissed"
+  escalatedToHuman   Boolean   @default(false) // Was this escalated?
+  escalatedAt        DateTime? // When was it escalated
+  notificationSent   Boolean   @default(false) // Was notification sent to user?
+  notificationSentAt DateTime? // When was notification sent
+
+  // Resolution tracking
+  resolvedAt      DateTime? // When was it resolved
+  resolutionNotes String?   @db.Text // How was it resolved
+  resolvedBy      String? // "user", "auto-fix", "manual-intervention"
+
+  // Metadata
+  stackTrace String? @db.Text // Full stack trace if available
+  context    Json? // Additional context (files, dependencies, etc.)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([userId])
+  @@index([status])
+  @@index([severity])
+  @@index([escalatedToHuman])
+  @@index([projectId, status])
+  @@index([projectId, waveNumber])
+  @@index([createdAt])
+}
+
 model AgentMemory {
   id String @id @default(cuid())
 
@@ -713,7 +767,74 @@ model AgentThought {
   message   String   @db.Text
   metadata  Json?
   timestamp DateTime @default(now())
-  
+
   @@index([projectId, timestamp])
   @@index([projectId, agentName])
+}
+
+// ==========================================
+// DEPLOYMENT TRACKING
+// ==========================================
+
+model Deployment {
+  id        String @id @default(cuid())
+  projectId String
+
+  // Deployment metadata
+  environment String // "preview", "staging", "production"
+  platform    String // "vercel", "netlify", "railway", "render", "fly", etc.
+
+  // Deployment URLs
+  deploymentUrl String? // Public URL of deployment
+  adminUrl      String? // Admin/dashboard URL (if applicable)
+
+  // Status tracking
+  status      String    @default("pending") // "pending", "building", "deployed", "failed", "cancelled"
+  buildStatus String? // "queued", "building", "success", "failed"
+  deployedAt  DateTime?
+  failedAt    DateTime?
+  cancelledAt DateTime?
+
+  // Build & deployment details
+  commitSha     String? // Git commit hash
+  branch        String? // Git branch name
+  buildDuration Int? // Duration in milliseconds
+  buildLogs     String? @db.Text // Build output/logs
+  errorMessage  String? @db.Text // Error details if failed
+
+  // Wave association (optional - for wave-based deployments)
+  waveNumber Int?
+
+  // Platform-specific IDs
+  platformDeploymentId String? // Vercel deployment ID, Netlify deploy ID, etc.
+  platformProjectId    String? // Vercel project ID, etc.
+
+  // Configuration
+  envVars      Json? // Environment variables used (encrypted/hashed)
+  buildCommand String? // Build command used
+  startCommand String? // Start/serve command
+
+  // Metrics (optional)
+  buildSize     Int? // Build size in bytes
+  functionCount Int? // Number of serverless functions
+  requestCount  Int? // Number of requests served
+
+  // User tracking
+  triggeredBy    String? // User ID who triggered deployment
+  deploymentType String  @default("automated") // "automated", "manual", "rollback"
+
+  // Rollback support
+  previousDeploymentId String? // For rollback tracking
+  isRollback           Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([projectId, environment])
+  @@index([projectId, waveNumber])
+  @@index([status])
+  @@index([environment])
+  @@index([deployedAt])
+  @@index([createdAt])
 }

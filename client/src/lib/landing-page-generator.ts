@@ -5,10 +5,11 @@ import { AI_MODELS } from "@/lib/models";
 import { GoogleGenAI } from "@google/genai";
 import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
+import { env } from "@/lib/env";
 
 // Initialize the Google Gen AI client
 const genAI = new GoogleGenAI({
-  apiKey: process.env.GOOGLE_API_KEY || "",
+  apiKey: env.GOOGLE_API_KEY || "",
 });
 
 const landingPageContentSchema = z.object({

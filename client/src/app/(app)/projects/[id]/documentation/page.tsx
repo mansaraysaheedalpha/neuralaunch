@@ -34,9 +34,17 @@ interface DocumentationPageProps {
 interface DocSection {
   id: string;
   title: string;
-  icon: any;
+  icon?: any;
   content: string;
 }
+
+// Icon mapping for documentation sections
+const iconMap: Record<string, any> = {
+  readme: BookOpen,
+  api: Code,
+  architecture: Layers,
+  deployment: FileText,
+};
 
 const fetcher = async (url: string) => {
   const res = await fetch(url);
@@ -63,14 +71,14 @@ export default function DocumentationPage({ params }: DocumentationPageProps) {
     fetcher
   );
 
-  // TODO: Replace with actual API endpoint when backend implements it
-  // const { data: documentation } = useSWR(
-  //   `/api/projects/${projectId}/documentation`,
-  //   fetcher
-  // );
+  // Fetch documentation from API
+  const { data: documentationData, error: docError } = useSWR(
+    `/api/projects/${projectId}/documentation`,
+    fetcher
+  );
 
-  // Mock documentation data - replace with actual API call
-  const documentation: DocSection[] = [
+  // Map documentation sections with icons
+  const documentation: DocSection[] = (documentationData?.documentation || [
     {
       id: "readme",
       title: "README",
@@ -296,7 +304,7 @@ API endpoints are rate-limited to prevent abuse:
       id: "architecture",
       title: "Architecture",
       icon: Layers,
-      content: `# Architecture Overview
+      content: `# Architecture Overview (Fallback)
 
 ## System Architecture
 
@@ -451,9 +459,12 @@ Key models:
 - Preview deployments for PRs
 `,
     },
-  ];
+  ]).map((doc: DocSection) => ({
+    ...doc,
+    icon: iconMap[doc.id] || BookOpen, // Add icon based on section ID
+  }));
 
-  if (projectError) {
+  if (projectError || docError) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
@@ -465,7 +476,7 @@ Key models:
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground mb-4">
-              {projectError?.message || "Failed to load project documentation"}
+              {projectError?.message || docError?.message || "Failed to load project documentation"}
             </p>
             <Button onClick={() => router.push("/projects")}>
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -477,7 +488,7 @@ Key models:
     );
   }
 
-  if (!project) {
+  if (!project || !documentationData) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">

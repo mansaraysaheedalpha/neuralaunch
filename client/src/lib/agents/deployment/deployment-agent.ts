@@ -21,6 +21,7 @@ import {
 import { AI_MODELS } from "@/lib/models";
 import { logger } from "@/lib/logger";
 import { toError, toLogContext } from "@/lib/error-utils";
+import { env } from "@/lib/env";
 
 // ==========================================
 // TYPES & INTERFACES
@@ -290,7 +291,7 @@ export class DeployAgent extends BaseAgent {
 
     try {
       // Check if Vercel token exists
-      const vercelToken = process.env.VERCEL_TOKEN;
+      const vercelToken = env.VERCEL_TOKEN;
       if (!vercelToken) {
         throw new Error("VERCEL_TOKEN environment variable not set");
       }
@@ -357,7 +358,7 @@ export class DeployAgent extends BaseAgent {
 
     try {
       // Check if Railway token exists
-      const railwayToken = process.env.RAILWAY_TOKEN;
+      const railwayToken = env.RAILWAY_TOKEN;
       if (!railwayToken) {
         throw new Error("RAILWAY_TOKEN environment variable not set");
       }
@@ -427,7 +428,7 @@ export class DeployAgent extends BaseAgent {
       // Render uses Git-based deployment
       // We need to trigger a deploy via API or GitHub hook
 
-      const renderApiKey = process.env.RENDER_API_KEY;
+      const renderApiKey = env.RENDER_API_KEY;
       if (!renderApiKey) {
         throw new Error("RENDER_API_KEY environment variable not set");
       }
@@ -547,7 +548,7 @@ export class DeployAgent extends BaseAgent {
     logger.info(`[${this.config.name}] Deploying to Netlify`);
 
     try {
-      const netlifyToken = process.env.NETLIFY_AUTH_TOKEN;
+      const netlifyToken = env.NETLIFY_AUTH_TOKEN;
       if (!netlifyToken) {
         throw new Error("NETLIFY_AUTH_TOKEN environment variable not set");
       }
@@ -618,7 +619,7 @@ export class DeployAgent extends BaseAgent {
     logger.info(`[${this.config.name}] Deploying to DigitalOcean`);
 
     try {
-      const doToken = process.env.DIGITALOCEAN_TOKEN;
+      const doToken = env.DIGITALOCEAN_TOKEN;
       if (!doToken) {
         throw new Error("DIGITALOCEAN_TOKEN environment variable not set");
       }

@@ -3,6 +3,12 @@ import { auth } from "@/auth";
 import { createApiLogger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { executionCoordinator } from "@/lib/orchestrator/execution-coordinator";
+import {
+  checkRateLimit,
+  RATE_LIMITS,
+  getRequestIdentifier,
+  getClientIp,
+} from "@/lib/rate-limit";
 
 // Extend timeout for execution startup
 export const maxDuration = 60;
@@ -31,6 +37,35 @@ export async function POST(
     }
 
     const userId = session.user.id;
+
+    // 2. Rate limiting - 5 requests per minute for execution
+    const clientIp = getClientIp(req.headers);
+    const rateLimitId = getRequestIdentifier(userId, clientIp);
+    const rateLimitResult = checkRateLimit({
+      ...RATE_LIMITS.AI_GENERATION,
+      identifier: rateLimitId,
+    });
+
+    if (!rateLimitResult.success) {
+      logger.warn("Rate limit exceeded", { userId, projectId });
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: `Too many execution requests. Please try again in ${rateLimitResult.retryAfter} seconds.`,
+          retryAfter: rateLimitResult.retryAfter,
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": rateLimitResult.retryAfter?.toString() || "60",
+            "X-RateLimit-Limit": RATE_LIMITS.AI_GENERATION.maxRequests.toString(),
+            "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
+            "X-RateLimit-Reset": new Date(rateLimitResult.resetAt).toISOString(),
+          },
+        }
+      );
+    }
+
     logger.info("Execution request received", {
       userId,
       projectId,

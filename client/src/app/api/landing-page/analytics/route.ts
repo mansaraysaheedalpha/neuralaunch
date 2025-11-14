@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import type { PrismaClient } from "@prisma/client";
+import { env } from "@/lib/env";
 
 const prismaClient = prisma as unknown as PrismaClient;
 
@@ -367,7 +368,7 @@ export async function GET(req: NextRequest) {
         id: landingPage.id,
         slug: landingPage.slug,
         title: landingPage.title,
-        url: `${process.env.NEXT_PUBLIC_APP_URL || ""}/lp/${landingPage.slug}`,
+        url: `${env.NEXT_PUBLIC_APP_URL || ""}/lp/${landingPage.slug}`,
         createdAt: landingPage.createdAt.toISOString(),
         updatedAt: landingPage.updatedAt.toISOString(),
       },

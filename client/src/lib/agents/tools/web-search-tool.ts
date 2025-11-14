@@ -13,6 +13,7 @@
 
 import { BaseTool, ToolParameter, ToolResult, ToolContext } from "./base-tool";
 import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 
 export class WebSearchTool extends BaseTool {
   name = "web_search";
@@ -48,7 +49,7 @@ export class WebSearchTool extends BaseTool {
       // Try Brave Search first, fallback to DuckDuckGo
       let searchResults;
 
-      if (process.env.BRAVE_SEARCH_API_KEY) {
+      if (env.BRAVE_SEARCH_API_KEY) {
         try {
           searchResults = await this.searchWithBrave(query, maxResults);
           logger.info("[WebSearchTool] Used Brave Search API");
@@ -99,7 +100,7 @@ export class WebSearchTool extends BaseTool {
     results: Array<{ title: string; url: string; description: string }>;
     total: number;
   }> {
-    const apiKey = process.env.BRAVE_SEARCH_API_KEY;
+    const apiKey = env.BRAVE_SEARCH_API_KEY;
 
     if (!apiKey) {
       throw new Error("BRAVE_SEARCH_API_KEY not configured");

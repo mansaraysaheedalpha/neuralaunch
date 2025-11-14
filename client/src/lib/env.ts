@@ -42,6 +42,15 @@ const envSchema = z.object({
 
   // Email Service
   RESEND_API_KEY: z.string().min(1, "RESEND_API_KEY is required"),
+  EMAIL_PROVIDER: z.enum(["resend", "sendgrid", "ses"]).optional(),
+  EMAIL_FROM: z.string().optional(),
+  SENDGRID_API_KEY: z.string().optional(),
+  AWS_REGION: z.string().optional(),
+  AWS_ACCESS_KEY_ID: z.string().optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().optional(),
+
+  // Webhooks & Notifications
+  REVIEW_WEBHOOK_URL: z.string().url().optional(),
 
   // Pusher (Realtime Logs)
   NEXT_PUBLIC_PUSHER_KEY: z
@@ -87,10 +96,34 @@ const envSchema = z.object({
     .min(1, "DOCKER_CLIENT_KEY is required for production sandbox"),
   DOCKER_SOCKET_PATH: z.string().optional(),
 
+  // GitHub Integration
+  GITHUB_TOKEN: z.string().optional(),
+  GITHUB_MCP_TOKEN: z.string().optional(),
+
+  // Web Search
+  BRAVE_SEARCH_API_KEY: z.string().optional(),
+
+  // MCP Servers
+  MCP_SERVERS: z.string().optional(),
+
+  // Deployment Platforms (all optional)
+  VERCEL_TOKEN: z.string().optional(),
+  RAILWAY_TOKEN: z.string().optional(),
+  RENDER_API_KEY: z.string().optional(),
+  NETLIFY_AUTH_TOKEN: z.string().optional(),
+  DIGITALOCEAN_TOKEN: z.string().optional(),
+
+  // Public Environment Variables
+  NEXT_PUBLIC_APP_URL: z.string().url().optional(),
+  NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
+
   // Node Environment
   NODE_ENV: z
     .enum(["development", "production", "test"])
     .default("development"),
+
+  // Vercel Environment
+  VERCEL_ENV: z.enum(["development", "preview", "production"]).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

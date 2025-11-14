@@ -10,6 +10,7 @@ import { inngest } from "../client";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { toError, createAgentError } from "@/lib/error-utils";
+import { sendNotification } from "@/lib/notifications/notification-service";
 
 export const fixCriticalIssuesFunction = inngest.createFunction(
   {
@@ -357,10 +358,57 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
             },
           });
 
-          // TODO: Send notification to user (email/webhook)
-          log.info(
-            `[Wave ${waveNumber}] Human review notification should be sent`
-          );
+          // Send escalation notification to user
+          try {
+            await sendNotification({
+              userId,
+              projectId,
+              type: "escalation",
+              priority: "critical",
+              title: `Wave ${waveNumber} Escalated`,
+              message: `Critical issues remain after ${attempt} fix attempts`,
+              escalationReason: `${retryStrategy.issues.length} critical issue${retryStrategy.issues.length > 1 ? 's' : ''} could not be auto-fixed`,
+              attempts: attempt,
+            });
+            log.info(`[Wave ${waveNumber}] Escalation notification sent to user`);
+          } catch (notifError) {
+            log.error(`[Wave ${waveNumber}] Failed to send escalation notification`, toError(notifError));
+          }
+
+          // Create CriticalFailure record for UI tracking
+          try {
+            await prisma.criticalFailure.create({
+              data: {
+                projectId,
+                userId,
+                waveNumber,
+                phase: "quality-check",
+                component: `Wave ${waveNumber}`,
+                title: `Wave ${waveNumber} Critical Issues`,
+                description: `${retryStrategy.issues.length} critical issues could not be auto-fixed after ${attempt} attempts`,
+                errorMessage: lastError,
+                rootCause: retryStrategy.issues.length > 0 ? retryStrategy.issues[0].message : undefined,
+                severity: "critical",
+                issuesFound: retryStrategy.issues,
+                issuesRemaining: retryStrategy.issues,
+                totalAttempts: attempt,
+                lastAttemptAt: new Date(),
+                attemptHistory: fixHistory || [],
+                status: "open",
+                escalatedToHuman: true,
+                escalatedAt: new Date(),
+                notificationSent: true,
+                notificationSentAt: new Date(),
+                context: {
+                  conversationId,
+                  retryStrategy: retryStrategy.strategy,
+                },
+              },
+            });
+            log.info(`[Wave ${waveNumber}] CriticalFailure record created for UI tracking`);
+          } catch (dbError) {
+            log.error(`[Wave ${waveNumber}] Failed to create CriticalFailure record`, toError(dbError));
+          }
         } else {
           // Medium issues - proceed with warnings
           log.warn(

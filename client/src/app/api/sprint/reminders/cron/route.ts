@@ -1,11 +1,12 @@
 // src/app/api/sprint/reminders/cron/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { env } from "@/lib/env";
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (authHeader !== `Bearer ${env.CRON_SECRET}`) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
 
     console.log(`📧 Found ${pendingReminders.length} reminders to send.`);
 
-    const sprintUrlBase = process.env.NEXT_PUBLIC_APP_URL;
+    const sprintUrlBase = env.NEXT_PUBLIC_APP_URL;
 
     for (const reminder of pendingReminders) {
       const user = reminder.task.conversation.user;

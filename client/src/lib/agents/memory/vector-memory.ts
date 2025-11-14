@@ -11,9 +11,10 @@ import { AI_MODELS } from "@/lib/models";
 import prisma from "@/lib/prisma";
 import OpenAI from "openai";
 import { toError, toLogContext } from "@/lib/error-utils";
+import { env } from "@/lib/env";
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
+  apiKey: env.OPENAI_API_KEY!,
 });
 
 export interface VectorMemoryEntry {

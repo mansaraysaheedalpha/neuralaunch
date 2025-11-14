@@ -9,6 +9,8 @@ import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { AI_MODELS } from "@/lib/models";
 import { toError, toLogContext } from "@/lib/error-utils";
+import { sendNotification } from "@/lib/notifications/notification-service";
+import { env } from "@/lib/env";
 
 // ==========================================
 // TYPES
@@ -79,7 +81,7 @@ export class ErrorRecoverySystem {
   private readonly name = "ErrorRecoverySystem";
 
   constructor() {
-    const apiKey = process.env.GOOGLE_API_KEY;
+    const apiKey = env.GOOGLE_API_KEY;
     if (!apiKey) {
       throw new Error("GOOGLE_API_KEY required for ErrorRecoverySystem");
     }
@@ -328,15 +330,92 @@ Analyze the failures and respond with ONLY valid JSON:
       case "human_review":
       case "escalate":
         // Mark task for human review
-        await prisma.agentTask.update({
+        const task = await prisma.agentTask.update({
           where: { id: taskId },
           data: {
             status: "needs_review",
             error: `${analysis.rootCause}\n\nAnalysis: ${JSON.stringify(analysis, null, 2)}\n\nStrategy: ${strategy.reason}`,
           },
+          include: {
+            project: {
+              select: { userId: true }
+            }
+          }
         });
 
-        // TODO: Send notification to user
+        // Send escalation notification to user
+        if (task.project?.userId) {
+          try {
+            await sendNotification({
+              userId: task.project.userId,
+              projectId,
+              type: "escalation",
+              priority: "critical",
+              title: "Task Escalated",
+              message: `Task ${taskId} requires human review`,
+              escalationReason: analysis.rootCause,
+              attempts: input.failures.length,
+            });
+            logger.info(`[${this.name}] Escalation notification sent for task ${taskId}`);
+          } catch (notifError) {
+            logger.error(`[${this.name}] Failed to send escalation notification`, toError(notifError));
+          }
+
+          // Create CriticalFailure record for UI tracking
+          try {
+            await prisma.criticalFailure.create({
+              data: {
+                projectId,
+                userId: task.project.userId,
+                taskId,
+                phase: "task-execution",
+                component: task.agentName,
+                title: `Task Escalated: ${input.originalTask?.title || taskId}`,
+                description: `${analysis.rootCause}`,
+                errorMessage: input.failures[input.failures.length - 1]?.error || "Unknown error",
+                rootCause: analysis.rootCause,
+                severity: "critical",
+                issuesFound: input.failures.map((f) => ({
+                  iteration: f.iteration,
+                  error: f.error,
+                  timestamp: f.timestamp,
+                })),
+                issuesRemaining: [
+                  {
+                    category: analysis.category,
+                    rootCause: analysis.rootCause,
+                    recommendation: strategy.reason,
+                  },
+                ],
+                totalAttempts: input.failures.length,
+                lastAttemptAt: new Date(),
+                attemptHistory: input.failures.map((f) => ({
+                  attempt: f.iteration,
+                  timestamp: f.timestamp,
+                  error: f.error,
+                  files: f.filesAttempted,
+                })),
+                status: "open",
+                escalatedToHuman: true,
+                escalatedAt: new Date(),
+                notificationSent: true,
+                notificationSentAt: new Date(),
+                stackTrace: input.failures[input.failures.length - 1]?.stderr,
+                context: {
+                  taskTitle: input.originalTask?.title,
+                  taskDescription: input.originalTask?.description,
+                  agentName: task.agentName,
+                  analysisCategory: analysis.category,
+                  recoveryStrategy: strategy.action,
+                },
+              },
+            });
+            logger.info(`[${this.name}] CriticalFailure record created for task ${taskId}`);
+          } catch (dbError) {
+            logger.error(`[${this.name}] Failed to create CriticalFailure record`, toError(dbError));
+          }
+        }
+
         logger.warn(`[${this.name}] Task ${taskId} escalated to human review`);
         break;
 
@@ -392,10 +471,118 @@ Analyze the failures and respond with ONLY valid JSON:
       estimatedLines: number;
     }>
   > {
-    // TODO: Use AI to intelligently split the task
-    // For now, return placeholder
-    logger.warn(`[${this.name}] Task splitting not fully implemented yet`);
-    return [];
+    try {
+      logger.info(`[${this.name}] Generating split tasks for ${input.taskId}`);
+
+      const taskDetails = input.originalTask;
+      const failures = input.failures;
+
+      // Build failure context
+      const failureContext = failures
+        .map(
+          (f, i) =>
+            `Attempt ${i + 1}: ${f.error}\nFiles: ${f.filesAttempted?.join(", ") || "N/A"}`
+        )
+        .join("\n\n");
+
+      const prompt = `You are a task decomposition expert. A complex task has failed multiple times and needs to be split into smaller, manageable subtasks.
+
+**Original Task:**
+Title: ${taskDetails.title || "Unnamed Task"}
+Description: ${taskDetails.description || "No description"}
+Estimated Complexity: ${taskDetails.complexity || "unknown"}
+Estimated Lines: ${taskDetails.estimatedLines || "unknown"}
+
+**Failure History:**
+${failureContext}
+
+**Your Goal:**
+Split this task into 2-4 smaller, independent subtasks that:
+1. Can be executed separately
+2. Are simpler and more focused
+3. Build toward the original goal
+4. Avoid the issues that caused the failures
+
+**Output Format (JSON only, no markdown):**
+{
+  "subtasks": [
+    {
+      "title": "Concise task title",
+      "description": "Detailed description of what this subtask should accomplish",
+      "estimatedLines": 50,
+      "rationale": "Why this is a separate task and how it avoids previous failures"
+    }
+  ],
+  "splitStrategy": "Explanation of how you split the task"
+}
+
+Generate 2-4 subtasks that together achieve the original goal.`;
+
+      const result = await this.model.generateContent(prompt);
+      const response = result.response.text();
+
+      // Parse JSON response (remove markdown code blocks if present)
+      let jsonText = response.trim();
+      if (jsonText.startsWith("```json")) {
+        jsonText = jsonText.replace(/```json\n?/g, "").replace(/```\n?/g, "");
+      } else if (jsonText.startsWith("```")) {
+        jsonText = jsonText.replace(/```\n?/g, "");
+      }
+
+      const parsed = JSON.parse(jsonText);
+
+      if (!parsed.subtasks || !Array.isArray(parsed.subtasks)) {
+        throw new Error("Invalid response format: missing subtasks array");
+      }
+
+      const subtasks = parsed.subtasks.map((task: any) => ({
+        title: task.title,
+        description: task.description,
+        estimatedLines: task.estimatedLines || 50,
+      }));
+
+      logger.info(`[${this.name}] Generated ${subtasks.length} subtasks`, {
+        strategy: parsed.splitStrategy,
+      });
+
+      return subtasks;
+    } catch (error) {
+      logger.error(`[${this.name}] Failed to generate split tasks`, toError(error));
+
+      // Fallback: Simple split based on task type
+      return this.generateFallbackSplitTasks(input);
+    }
+  }
+
+  /**
+   * Fallback task splitting when AI fails
+   */
+  private generateFallbackSplitTasks(input: RecoveryInput): Array<{
+    title: string;
+    description: string;
+    estimatedLines: number;
+  }> {
+    const taskDetails = input.originalTask;
+    const originalTitle = taskDetails.title || "Task";
+
+    // Generic split into setup, implementation, validation
+    return [
+      {
+        title: `${originalTitle} - Setup & Dependencies`,
+        description: "Set up required dependencies, imports, and basic structure",
+        estimatedLines: Math.floor((taskDetails.estimatedLines || 100) * 0.3),
+      },
+      {
+        title: `${originalTitle} - Core Implementation`,
+        description: "Implement the main functionality",
+        estimatedLines: Math.floor((taskDetails.estimatedLines || 100) * 0.5),
+      },
+      {
+        title: `${originalTitle} - Testing & Validation`,
+        description: "Add tests and validate the implementation",
+        estimatedLines: Math.floor((taskDetails.estimatedLines || 100) * 0.2),
+      },
+    ];
   }
 
   /**
@@ -405,11 +592,100 @@ Analyze the failures and respond with ONLY valid JSON:
     input: RecoveryInput,
     analysis: ErrorAnalysis
   ): Promise<string> {
-    // TODO: Use AI to generate a simpler approach
-    logger.warn(
-      `[${this.name}] Prompt simplification not fully implemented yet`
-    );
-    return "";
+    try {
+      logger.info(`[${this.name}] Generating simplified prompt for ${input.taskId}`);
+
+      const taskDetails = input.originalTask;
+      const failures = input.failures;
+
+      // Build failure summary
+      const failureSummary = failures
+        .map((f, i) => `- Attempt ${i + 1}: ${f.error.slice(0, 200)}`)
+        .join("\n");
+
+      const prompt = `You are a prompt simplification expert. A task has failed repeatedly and needs to be simplified to a more achievable version.
+
+**Original Task:**
+Title: ${taskDetails.title || "Unnamed Task"}
+Description: ${taskDetails.description || "No description"}
+Complexity: ${taskDetails.complexity || "unknown"}
+
+**Error Analysis:**
+Root Cause: ${analysis.rootCause}
+Category: ${analysis.category}
+Severity: ${analysis.severity}
+
+**Failure Summary:**
+${failureSummary}
+
+**AI Suggestions:**
+${analysis.suggestions.join("\n")}
+
+**Your Goal:**
+Create a simplified version of this task that:
+1. Focuses on the core functionality only
+2. Removes edge cases and advanced features
+3. Uses simpler approaches where possible
+4. Explicitly avoids the patterns that caused failures
+5. Can be accomplished with basic, proven techniques
+
+**Output Format (Plain Text - No JSON):**
+Provide ONLY the simplified task description that can be used as a prompt for an AI agent. Be specific, clear, and focus on simplicity. Include:
+- What to build (simplified version)
+- What NOT to include (features to skip)
+- Specific approaches to use (based on what failed)
+- Any constraints or simplifications
+
+Keep it under 500 words.`;
+
+      const result = await this.model.generateContent(prompt);
+      const response = result.response.text().trim();
+
+      if (!response || response.length < 50) {
+        throw new Error("Generated prompt too short or empty");
+      }
+
+      logger.info(`[${this.name}] Generated simplified prompt (${response.length} chars)`);
+
+      return response;
+    } catch (error) {
+      logger.error(`[${this.name}] Failed to generate simplified prompt`, toError(error));
+
+      // Fallback: Generic simplification
+      return this.generateFallbackSimplifiedPrompt(input, analysis);
+    }
+  }
+
+  /**
+   * Fallback simplified prompt when AI fails
+   */
+  private generateFallbackSimplifiedPrompt(
+    input: RecoveryInput,
+    analysis: ErrorAnalysis
+  ): string {
+    const taskDetails = input.originalTask;
+
+    return `SIMPLIFIED VERSION: ${taskDetails.title || "Task"}
+
+Build a basic, minimal implementation focusing only on core functionality.
+
+Requirements:
+- Use simple, straightforward approaches
+- Avoid complex patterns or advanced features
+- Focus on getting a working MVP
+- Skip edge cases and optimizations
+- Use well-tested, standard libraries
+
+Avoid:
+- ${analysis.rootCause}
+- Complex error handling
+- Performance optimizations
+- Advanced language features
+
+Implementation:
+${taskDetails.description || "Complete the task using the simplest possible approach."}
+
+Success criteria: Basic functionality works without errors.`;
   }
 
   /**

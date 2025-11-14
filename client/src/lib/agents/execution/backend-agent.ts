@@ -29,6 +29,7 @@ export class BackendAgent extends BaseAgent {
         "web_search",
         "code_analysis",
         "context_loader",
+        "claude_skills", // Advanced API design, business logic, and code generation
       ],
       modelName: AI_MODELS.PRIMARY,
     });

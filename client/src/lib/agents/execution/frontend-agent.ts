@@ -30,6 +30,7 @@ export class FrontendAgent extends BaseAgent {
         "web_search",
         "code_analysis",
         "context_loader",
+        "claude_skills", // Advanced code generation, refactoring, and UI optimization
       ],
       modelName: AI_MODELS.CLAUDE,
     });

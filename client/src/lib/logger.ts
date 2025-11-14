@@ -13,8 +13,8 @@ export interface LogContext {
 }
 
 class Logger {
-  private isDevelopment = process.env.NODE_ENV === "development";
-  private isProduction = process.env.NODE_ENV === "production";
+  private isDevelopment = env.NODE_ENV === "development";
+  private isProduction = env.NODE_ENV === "production";
 
   private formatMessage(
     level: LogLevel,

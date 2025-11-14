@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { DESIGN_VARIANTS } from "lib/landing-page-generator";
+import { DESIGN_VARIANTS } from "@/lib/landing-page-generator";
 import DesignVariantSelector from "./DesignVariantSelector";
 import LandingPagePublic from "./landing-page-public/LandingPagePublic";
 import SprintDashboard from "./SprintDashboard";
@@ -19,6 +19,7 @@ import FeedbackSection from "./analytics/FeedbackSection";
 import RecentSignupsTable from "./analytics/RecentSignupsTable";
 import TrafficSources from "./analytics/TrafficSources";
 import AnalyticsCharts from "./analytics/AnalyticsChart";
+import { env } from "@/lib/env";
 
 // --- Interfaces ---
 // Defined to match the structure used within this component and its children
@@ -292,7 +293,7 @@ export default function LandingPageBuilder({
   const copyUrl = () => {
     const url =
       analyticsData?.landingPage.url ||
-      `${process.env.NEXT_PUBLIC_APP_URL || ""}/lp/${landingPage.slug}`;
+      `${env.NEXT_PUBLIC_APP_URL || ""}/lp/${landingPage.slug}`;
     void navigator.clipboard.writeText(url);
     toast.success("URL copied to clipboard!");
   };

@@ -9,6 +9,7 @@ export {
 } from "./orchestrator-functions";
 export { backendAgentFunction } from "./backend-agent-function";
 export { frontendAgentFunction } from "./frontend-agent-function";
+export { databaseAgentFunction } from "./database-agent-function";
 export { testingAgentFunction } from "./testing-agent-function";
 export { criticAgentFunction } from "./critic-agent-function";
 // ✅ Wave-based execution:

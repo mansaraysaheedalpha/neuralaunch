@@ -2,7 +2,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { DESIGN_VARIANTS } from "../../../lib/landing-page-generator";
+import { DESIGN_VARIANTS } from "../../lib/landing-page-generator";
 import { Check, Palette } from "lucide-react";
 
 interface DesignVariantSelectorProps {

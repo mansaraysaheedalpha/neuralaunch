@@ -4,10 +4,11 @@ import OpenAI from "openai";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client"; // <-- ADD THIS IMPORT
 import { AI_MODELS } from "./models";
+import { env } from "@/lib/env";
 
 // Initialize the OpenAI client
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "dummy-key-for-build",
+  apiKey: env.OPENAI_API_KEY || "dummy-key-for-build",
 });
 
 /**
@@ -17,7 +18,7 @@ const openai = new OpenAI({
  */
 async function createEmbedding(text: string): Promise<number[]> {
   // Runtime validation: Ensure API key is available
-  if (!process.env.OPENAI_API_KEY) {
+  if (!env.OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY environment variable is required for embedding generation");
   }
   
@@ -63,15 +64,12 @@ export async function saveMemory({
     // 2. Save to the database
     const vectorString = `[${embedding.join(",")}]`;
 
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO "AiMemory" (id, content, embedding, "conversationId", "userId", "createdAt")
-       VALUES (gen_random_uuid(), $1, $2::vector(1536), $3, $4, NOW())
-       ON CONFLICT DO NOTHING`, // Prevent errors on duplicate saves
-      content,
-      vectorString,
-      conversationId,
-      userId
-    );
+    // Use $executeRaw with template literals for automatic parameterization
+    await prisma.$executeRaw`
+      INSERT INTO "AiMemory" (id, content, embedding, "conversationId", "userId", "createdAt")
+      VALUES (gen_random_uuid(), ${content}, ${vectorString}::vector(1536), ${conversationId}, ${userId}, NOW())
+      ON CONFLICT DO NOTHING
+    `;
 
     console.log(`🤖 Saved new memory for conversation ${conversationId}`);
   } catch (error) {

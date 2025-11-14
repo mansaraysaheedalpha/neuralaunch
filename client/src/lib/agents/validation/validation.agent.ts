@@ -10,6 +10,7 @@ import { logger } from "@/lib/logger";
 import { AI_MODELS } from "@/lib/models";
 import { toError, toLogContext } from "@/lib/error-utils";
 import { createThoughtStream } from "@/lib/agents/thought-stream";
+import { env } from "@/lib/env";
 
 // ==========================================
 // TYPES & INTERFACES
@@ -77,6 +78,24 @@ export interface ValidationOutput {
 // VALIDATION AGENT CLASS
 // ==========================================
 
+/**
+ * Validation Agent - AI-Powered Feasibility Assessment
+ *
+ * CAPABILITIES:
+ * ✅ Technical Feasibility Analysis - Evaluates project technical viability
+ * ✅ Risk Assessment - Identifies potential blockers and challenges
+ * ✅ Resource Estimation - Calculates timeline and resource requirements
+ * ✅ Market Viability - Assesses market opportunity and competition
+ * ✅ Technology Validation - Reviews tech stack choices for compatibility
+ *
+ * Uses Google Gemini Pro for comprehensive validation analysis
+ *
+ * This agent ensures projects are:
+ * - Technically feasible with available resources
+ * - Properly scoped with realistic timelines
+ * - Validated against potential risks
+ * - Ready for planning and execution
+ */
 export class ValidationAgent {
   private genAI: GoogleGenerativeAI;
   private model: any;
@@ -84,7 +103,7 @@ export class ValidationAgent {
   public readonly phase = "validation";
 
   constructor() {
-    const apiKey = process.env.GOOGLE_API_KEY;
+    const apiKey = env.GOOGLE_API_KEY;
     if (!apiKey) {
       throw new Error("GEMINI_API_KEY is required for ValidationAgent");
     }

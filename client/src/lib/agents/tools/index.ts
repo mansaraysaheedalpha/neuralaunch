@@ -13,10 +13,12 @@ import { CommandTool } from "./command-tool";
 import { CodeAnalysisTool } from "./code-analysis-tool";
 import { ContextLoaderTool } from "./context-loader-tool";
 import { BrowserAutomationTool } from "./browser-automation-tool";
+import { ClaudeSkillsTool } from "./claude-skills-tool";
 import { logger } from "@/lib/logger";
 
 // ✅ MCP Support (optional - only loads if MCP servers configured)
 import { mcpClient, MCPToolAdapter } from "./mcp/mcp-tool-adapter";
+import { env } from "@/lib/env";
 
 // ==========================================
 // INITIALIZE CORE TOOLS
@@ -40,6 +42,7 @@ export function initializeTools(): void {
   toolRegistry.register(new CodeAnalysisTool());
   toolRegistry.register(new ContextLoaderTool());
   toolRegistry.register(new BrowserAutomationTool());
+  toolRegistry.register(new ClaudeSkillsTool());
 
   initialized = true;
 
@@ -50,7 +53,7 @@ export function initializeTools(): void {
 
   async function loadMCPToolsAsync(): Promise<void> {
     // ✅ Support both comma-separated URLs and named servers
-    const mcpServersEnv = process.env.MCP_SERVERS || "";
+    const mcpServersEnv = env.MCP_SERVERS || "";
 
     if (!mcpServersEnv.trim()) {
       logger.info("[ToolRegistry] No MCP servers configured");
@@ -128,7 +131,7 @@ export function initializeTools(): void {
 async function loadMCPToolsAsync(): Promise<void> {
   // Check if MCP servers are configured
   const mcpServers =
-    process.env.MCP_SERVERS?.split(",").filter((s) => s.trim()) || [];
+    env.MCP_SERVERS?.split(",").filter((s) => s.trim()) || [];
 
   if (mcpServers.length === 0) {
     logger.info("[ToolRegistry] No MCP servers configured (this is normal)");
@@ -192,6 +195,7 @@ export { WebSearchTool } from "./web-search-tool";
 export { CodeAnalysisTool } from "./code-analysis-tool";
 export { ContextLoaderTool } from "./context-loader-tool";
 export { BrowserAutomationTool } from "./browser-automation-tool";
+export { ClaudeSkillsTool } from "./claude-skills-tool";
 
 // ✅ Export MCP client for programmatic access
 export { mcpClient } from "./mcp/mcp-tool-adapter";

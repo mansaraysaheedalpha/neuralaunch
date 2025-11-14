@@ -98,78 +98,100 @@
       }
     },
     {
-      "name": "postgres",
-      "enabled": false,
-      "description": "PostgreSQL database operations for schema management and data operations",
-      "url": "postgres://localhost:5432",
-      "protocol": "postgres",
+      "name": "playwright",
+      "enabled": true,
+      "description": "Playwright MCP server for browser automation, testing, and deployment verification",
+      "url": "http://localhost:3100/mcp",
+      "protocol": "http",
       "authentication": {
-        "type": "connectionString",
-        "envVar": "DATABASE_URL"
+        "type": "none"
       },
       "capabilities": [
-        "schema_management",
-        "query_execution",
-        "migration_management",
-        "data_seeding"
+        "browser_automation",
+        "screenshot",
+        "web_scraping",
+        "form_interaction",
+        "deployment_verification",
+        "ui_testing",
+        "accessibility_testing",
+        "performance_testing",
+        "cross_browser_testing"
       ],
       "agents": [
+        "testing-agent",
+        "deployment-agent",
+        "frontend-agent",
+        "integration-agent",
+        "monitoring-agent",
+        "optimization-agent"
+      ],
+      "rateLimits": {
+        "maxConnections": 5,
+        "requestsPerSecond": 2,
+        "timeout": 60000
+      },
+      "config": {
+        "headless": true,
+        "defaultBrowser": "chromium",
+        "supportedBrowsers": ["chromium", "firefox", "webkit"],
+        "viewport": {
+          "width": 1920,
+          "height": 1080
+        },
+        "userAgent": "NeuraLaunch-Agent/1.0"
+      }
+    },
+    {
+      "name": "claude-skills",
+      "enabled": true,
+      "description": "Claude AI Skills - Advanced reasoning, code generation, and extended thinking capabilities",
+      "url": "http://localhost:3101/mcp",
+      "protocol": "http",
+      "authentication": {
+        "type": "bearer",
+        "envVar": "ANTHROPIC_API_KEY"
+      },
+      "capabilities": [
+        "extended_thinking",
+        "complex_reasoning",
+        "code_generation",
+        "code_review",
+        "architecture_design",
+        "problem_solving",
+        "refactoring",
+        "test_generation",
+        "documentation_generation",
+        "debugging",
+        "performance_analysis",
+        "security_review"
+      ],
+      "agents": [
+        "planning-agent",
+        "analyzer-agent",
+        "research-agent",
+        "validation-agent",
+        "frontend-agent",
         "backend-agent",
+        "database-agent",
         "infrastructure-agent",
+        "critic-agent",
+        "testing-agent",
+        "documentation-agent",
+        "optimization-agent",
         "integration-agent"
       ],
       "rateLimits": {
-        "maxConnections": 20,
-        "queryTimeout": 30000
-      }
-    },
-    {
-      "name": "slack",
-      "enabled": false,
-      "description": "Slack integration for team notifications and collaboration",
-      "url": "https://slack.com/api",
-      "protocol": "http",
-      "authentication": {
-        "type": "bearer",
-        "envVar": "SLACK_BOT_TOKEN"
+        "requestsPerMinute": 50,
+        "requestsPerHour": 1000,
+        "timeout": 120000
       },
-      "capabilities": [
-        "send_messages",
-        "create_channels",
-        "file_upload",
-        "notifications"
-      ],
-      "agents": [
-        "monitoring-agent",
-        "deployment-agent",
-        "critic-agent"
-      ],
-      "rateLimits": {
-        "tier": "tier2",
-        "requestsPerMinute": 20
-      }
-    },
-    {
-      "name": "notion",
-      "enabled": false,
-      "description": "Notion integration for documentation and knowledge management",
-      "url": "https://api.notion.com/v1",
-      "protocol": "http",
-      "authentication": {
-        "type": "bearer",
-        "envVar": "NOTION_API_KEY"
-      },
-      "capabilities": [
-        "page_management",
-        "database_operations",
-        "documentation_sync"
-      ],
-      "agents": [
-        "documentation-agent",
-        "planning-agent"
-      ],
-      "rateLimits": {
-        "requestsPerSecond": 3
+      "config": {
+        "model": "claude-sonnet-4-5-20250929",
+        "defaultThinkingBudget": 8000,
+        "enableExtendedThinking": true,
+        "enableChainOfThought": true,
+        "temperature": 0.3,
+        "maxTokens": 16000
       }
     }
   ],

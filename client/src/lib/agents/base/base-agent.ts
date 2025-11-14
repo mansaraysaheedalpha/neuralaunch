@@ -29,6 +29,7 @@ import { toError, toLogContext } from "@/lib/error-utils";
 
 // Import tools to ensure they're registered before agents try to use them
 import { initializeTools } from "../tools/index";
+import { env } from "@/lib/env";
 
 export interface BaseAgentConfig {
   name: string;
@@ -88,7 +89,7 @@ export abstract class BaseAgent {
     // Ensure tools are initialized before loading them
     initializeTools();
 
-    const apiKey = process.env.GOOGLE_API_KEY;
+    const apiKey = env.GOOGLE_API_KEY;
     if (!apiKey) {
       throw new Error(`GOOGLE_API_KEY required for ${config.name}`);
     }

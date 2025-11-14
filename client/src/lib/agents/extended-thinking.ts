@@ -7,6 +7,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { ThoughtStream } from "./thought-stream";
 import { logger } from "@/lib/logger";
+import { env } from "@/lib/env";
 
 interface ExtendedThinkingOptions {
   thoughts: ThoughtStream;
@@ -37,7 +38,7 @@ export async function executeWithExtendedThinking(
   } = options;
 
   const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
+    apiKey: env.ANTHROPIC_API_KEY,
     timeout: 30 * 60 * 1000,
     maxRetries: 2,
   });
