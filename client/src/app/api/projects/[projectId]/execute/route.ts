@@ -135,9 +135,9 @@ export async function POST(
     });
 
     if (!result.success) {
-      logger.error("Execution coordination failed", { 
+      logger.error("Execution coordination failed", undefined, { 
         projectId, 
-        error: result.message 
+        message: result.message 
       });
       return NextResponse.json(
         { error: result.message },

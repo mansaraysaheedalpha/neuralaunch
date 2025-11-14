@@ -50,14 +50,14 @@ export default function QualityDashboardPage({ params }: QualityPageProps) {
   const router = useRouter();
 
   // Fetch project quality data
-  const { data: qualityData, error, mutate } = useSWR(
+  const { data: qualityData, error, mutate } = useSWR<any>(
     `/api/projects/${projectId}/quality`,
     fetcher,
     { refreshInterval: 5000 }
   );
 
   // Fetch project reviews
-  const { data: reviewsData } = useSWR(
+  const { data: reviewsData } = useSWR<any>(
     `/api/projects/${projectId}/reviews`,
     fetcher,
     { refreshInterval: 5000 }

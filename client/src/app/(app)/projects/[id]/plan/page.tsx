@@ -597,7 +597,7 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                           <p className="font-semibold">{task.estimatedLines}</p>
                         </div>
                       </div>
-                      {task.dependencies?.length > 0 && (
+                      {task.dependencies && task.dependencies.length > 0 && (
                         <div className="mb-3">
                           <p className="text-sm text-muted-foreground mb-1">
                             Dependencies
@@ -615,7 +615,7 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                           </div>
                         </div>
                       )}
-                      {task.acceptanceCriteria?.length > 0 && (
+                      {task.acceptanceCriteria && task.acceptanceCriteria.length > 0 && (
                         <div>
                           <p className="text-sm text-muted-foreground mb-2">
                             Acceptance Criteria

@@ -336,18 +336,19 @@ Analyze the failures and respond with ONLY valid JSON:
             status: "needs_review",
             error: `${analysis.rootCause}\n\nAnalysis: ${JSON.stringify(analysis, null, 2)}\n\nStrategy: ${strategy.reason}`,
           },
-          include: {
-            project: {
-              select: { userId: true }
-            }
-          }
+        });
+
+        // Get project context to find userId
+        const projectContext = await prisma.projectContext.findUnique({
+          where: { projectId },
+          select: { userId: true },
         });
 
         // Send escalation notification to user
-        if (task.project?.userId) {
+        if (projectContext?.userId) {
           try {
             await sendNotification({
-              userId: task.project.userId,
+              userId: projectContext.userId,
               projectId,
               type: "escalation",
               priority: "critical",
@@ -366,7 +367,7 @@ Analyze the failures and respond with ONLY valid JSON:
             await prisma.criticalFailure.create({
               data: {
                 projectId,
-                userId: task.project.userId,
+                userId: projectContext.userId,
                 taskId,
                 phase: "task-execution",
                 component: task.agentName,

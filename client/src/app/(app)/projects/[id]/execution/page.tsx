@@ -54,7 +54,7 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
   const router = useRouter();
 
   // Fetch project data with polling
-  const { data: project, error: projectError } = useSWR(
+  const { data: project, error: projectError } = useSWR<any>(
     `/api/projects/${projectId}`,
     fetcher,
     {
@@ -64,14 +64,14 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
   );
 
   // Fetch tasks data
-  const { data: tasksData, error: tasksError } = useSWR(
+  const { data: tasksData, error: tasksError } = useSWR<any>(
     `/api/projects/${projectId}/tasks`,
     fetcher,
     { refreshInterval: 2000 }
   );
 
   // Fetch orchestrator status
-  const { data: status } = useSWR(
+  const { data: status } = useSWR<any>(
     `/api/orchestrator/status/${projectId}`,
     fetcher,
     { refreshInterval: 2000 }

@@ -797,9 +797,8 @@ BEGIN:`;
       return content;
     } catch (error) {
       const duration = Date.now() - startTime;
-      logger.error(`[${this.name}] Claude API call failed`, {
+      logger.error(`[${this.name}] Claude API call failed`, toError(error), {
         duration: `${duration}ms`,
-        error: toError(error),
       });
 
       if (error instanceof Error) {
@@ -1289,8 +1288,8 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
           return parsed;
         } catch (e) {
           logger.error(
-            `[${this.name}] Brace matching parse failed:`,
-            toError(e).message
+            `[${this.name}] Brace matching parse failed`,
+            toError(e)
           );
         }
       }
@@ -1307,14 +1306,14 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
           return parsed;
         } catch (e) {
           logger.error(
-            `[${this.name}] indexOf parse failed:`,
-            toError(e).message
+            `[${this.name}] indexOf parse failed`,
+            toError(e)
           );
         }
       }
 
       // ALL FAILED
-      logger.error(`[${this.name}] All parsing strategies failed`, {
+      logger.error(`[${this.name}] All parsing strategies failed`, undefined, {
         length: jsonText.length,
         preview: jsonText.substring(0, 300),
         hasOpenBrace: jsonText.includes("{"),
@@ -1328,8 +1327,8 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
       );
     } catch (error) {
       logger.error(
-        `[${this.name}] Critical parsing error:`,
-        toError(error).message
+        `[${this.name}] Critical parsing error`,
+        toError(error)
       );
 
       throw new Error(
@@ -1351,7 +1350,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
         !parsed.tasks ||
         !Array.isArray(parsed.tasks)
       ) {
-        logger.error(`[${this.name}] Invalid structure:`, {
+        logger.error(`[${this.name}] Invalid structure`, undefined, {
           hasArchitecture: !!parsed.architecture,
           hasTasks: !!parsed.tasks,
           tasksIsArray: Array.isArray(parsed.tasks),

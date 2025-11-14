@@ -376,12 +376,14 @@ function buildEmailContent(
       };
     }
 
-    default:
+    default: {
+      const n = notification as BaseNotification;
       return {
         subject: "Notification - NeuraLaunch",
-        html: buildGenericEmail(userName, notification.title, notification.message),
-        text: `Hi ${userName},\n\n${notification.title}\n\n${notification.message}`,
+        html: buildGenericEmail(userName, n.title, n.message),
+        text: `Hi ${userName},\n\n${n.title}\n\n${n.message}`,
       };
+    }
   }
 }
 
@@ -612,10 +614,15 @@ async function sendWithSendGrid(params: {
   try {
     // @ts-ignore - Optional dependency
     const sgMail = await import("@sendgrid/mail");
-    sgMail.default.setApiKey(env.SENDGRID_API_KEY!);
+    const apiKey = (env as any).SENDGRID_API_KEY;
+    if (!apiKey) {
+      logger.warn("SendGrid API key not configured, skipping email", { to: params.to });
+      return;
+    }
+    sgMail.default.setApiKey(apiKey);
 
     await sgMail.default.send({
-      from: env.EMAIL_FROM || "noreply@neuralaunch.com",
+      from: (env as any).EMAIL_FROM || "noreply@neuralaunch.com",
       to: params.to,
       subject: params.subject,
       html: params.html,
@@ -646,16 +653,23 @@ async function sendWithSES(params: {
     // @ts-ignore - Optional dependency
     const { SESClient, SendEmailCommand } = await import("@aws-sdk/client-ses");
 
+    const awsAccessKeyId = (env as any).AWS_ACCESS_KEY_ID;
+    const awsSecretKey = (env as any).AWS_SECRET_ACCESS_KEY;
+    if (!awsAccessKeyId || !awsSecretKey) {
+      logger.warn("AWS credentials not configured, skipping email", { to: params.to });
+      return;
+    }
+
     const sesClient = new SESClient({
-      region: env.AWS_REGION || "us-east-1",
+      region: (env as any).AWS_REGION || "us-east-1",
       credentials: {
-        accessKeyId: env.AWS_ACCESS_KEY_ID!,
-        secretAccessKey: env.AWS_SECRET_ACCESS_KEY!,
+        accessKeyId: awsAccessKeyId,
+        secretAccessKey: awsSecretKey,
       },
     });
 
     const command = new SendEmailCommand({
-      Source: env.EMAIL_FROM || "noreply@neuralaunch.com",
+      Source: (env as any).EMAIL_FROM || "noreply@neuralaunch.com",
       Destination: {
         ToAddresses: [params.to],
       },

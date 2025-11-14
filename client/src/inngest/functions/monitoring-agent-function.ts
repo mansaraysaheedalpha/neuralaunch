@@ -366,20 +366,35 @@ export const continuousMonitoringFunction = inngest.createFunction(
     const activeProjects = await step.run(
       "get-active-deployments",
       async () => {
-        // Get projects with active deployments
-        const projects = await prisma.projectContext.findMany({
+        // Get projects with active deployments from the Deployment table
+        const deployments = await prisma.deployment.findMany({
           where: {
-            
+            status: "deployed",
             deploymentUrl: { not: null }
           },
           select: {
             projectId: true,
-            userId: true,
             deploymentUrl: true,
           },
+          distinct: ['projectId'], // Get one deployment per project
         });
 
-        return projects;
+        // Get user info for each project
+        const projectsWithUsers = await Promise.all(
+          deployments.map(async (deployment) => {
+            const context = await prisma.projectContext.findUnique({
+              where: { projectId: deployment.projectId },
+              select: { userId: true },
+            });
+            return {
+              projectId: deployment.projectId,
+              userId: context?.userId || '',
+              deploymentUrl: deployment.deploymentUrl,
+            };
+          })
+        );
+
+        return projectsWithUsers.filter(p => p.userId); // Filter out projects without userId
       }
     );
 

@@ -116,7 +116,7 @@ export async function POST(
         data: {
           executionPlan: context.originalPlan,
           planRevisionCount: 0,
-          planFeedback: null,
+          planFeedback: undefined,
           updatedAt: new Date(),
         },
       });

@@ -11,7 +11,7 @@ import {
   AgentExecutionOutput,
 } from "../base/base-agent";
 import { logger } from "@/lib/logger";
-import { toError } from "@/lib/error-utils";
+import { toError, toLogContext } from "@/lib/error-utils";
 
 export class DatabaseAgent extends BaseAgent {
   constructor() {
@@ -634,7 +634,7 @@ Generate the fixes now.`;
       } catch (error) {
         logger.warn(
           `[${this.config.name}] Failed to load ${filePath}`,
-          toError(error)
+          toLogContext(error)
         );
       }
     }

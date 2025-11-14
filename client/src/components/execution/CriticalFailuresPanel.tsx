@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, CheckCircle, Clock, XCircle, ChevronDown, ChevronRight } from "lucide-react";
 import { logger } from "@/lib/logger";
+import { toError } from "@/lib/error-utils";
 
 interface CriticalFailure {
   id: string;
@@ -70,7 +71,7 @@ export function CriticalFailuresPanel({ projectId }: CriticalFailuresPanelProps)
       setFailures(data.failures || []);
       setStats(data.stats || {});
     } catch (error) {
-      logger.error("Failed to fetch critical failures", { error });
+      logger.error("Failed to fetch critical failures", toError(error));
     } finally {
       setLoading(false);
     }
@@ -98,7 +99,7 @@ export function CriticalFailuresPanel({ projectId }: CriticalFailuresPanelProps)
 
       await fetchFailures();
     } catch (error) {
-      logger.error("Failed to update failure status", { error });
+      logger.error("Failed to update failure status", toError(error));
     }
   };
 
