@@ -23,6 +23,83 @@ import type {
   Page,
 } from "puppeteer-core";
 
+type HeadlessMode = NonNullable<LaunchOptions["headless"]>;
+
+interface ChromiumRuntimeConfig {
+  defaultViewport?: unknown;
+  headless?: unknown;
+}
+
+const chromiumRuntime = chromium as ChromiumRuntimeConfig;
+
+const delay = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const resolveViewport = (
+  viewport: unknown
+): LaunchOptions["defaultViewport"] => {
+  if (viewport === null) {
+    return null;
+  }
+
+  if (!isRecord(viewport)) {
+    return undefined;
+  }
+
+  const { width, height } = viewport as {
+    width?: unknown;
+    height?: unknown;
+  };
+
+  if (typeof width === "number" && typeof height === "number") {
+    return viewport as LaunchOptions["defaultViewport"];
+  }
+
+  return undefined;
+};
+
+const resolveHeadlessMode = (headless: unknown): HeadlessMode => {
+  if (headless === "shell" || headless === "new") {
+    return headless;
+  }
+
+  if (typeof headless === "boolean") {
+    return headless;
+  }
+
+  return true;
+};
+
+type JsonLdNode = Record<string, unknown> | Array<Record<string, unknown>>;
+
+const parseJsonLd = (raw: string | null): JsonLdNode | null => {
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(raw);
+
+    if (Array.isArray(parsed)) {
+      const normalized = parsed.filter(isRecord);
+      return normalized.length > 0 ? normalized : null;
+    }
+
+    if (isRecord(parsed)) {
+      return parsed;
+    }
+  } catch {
+    // fall through to return null
+  }
+
+  return null;
+};
+
 type PuppeteerModule = typeof import("puppeteer-core");
 
 let puppeteerModule: PuppeteerModule | undefined;
@@ -75,7 +152,7 @@ interface ExtractedElementData {
 }
 
 interface StructuredExtractionResult {
-  jsonLd?: Array<Record<string, unknown> | null>;
+  jsonLd?: Array<JsonLdNode | null>;
   openGraph?: Record<string, string>;
 }
 
@@ -316,9 +393,10 @@ export class BrowserAutomationTool extends BaseTool {
 
       const title = await page.title();
       const html = await page.content();
-      const text = await page.evaluate<string>(
+      const rawText = await page.evaluate(
         () => document.body?.innerText ?? document.body?.textContent ?? ""
       );
+      const text = typeof rawText === "string" ? rawText : "";
 
       const metadata = await page.evaluate<Record<string, string>>(() => {
         const meta: Record<string, string> = {};
@@ -380,7 +458,7 @@ export class BrowserAutomationTool extends BaseTool {
       const timeout = resolveTimeout(options.timeout);
       await page.waitForSelector(selector, { timeout });
       await page.click(selector);
-      await page.waitForTimeout(1000);
+      await delay(1000);
 
       return {
         success: true,
@@ -469,13 +547,9 @@ export class BrowserAutomationTool extends BaseTool {
             );
 
             if (jsonLdScripts.length > 0) {
-              data.jsonLd = Array.from(jsonLdScripts).map((script) => {
-                try {
-                  return JSON.parse(script.textContent ?? "");
-                } catch {
-                  return null;
-                }
-              });
+              data.jsonLd = Array.from(jsonLdScripts).map((script) =>
+                parseJsonLd(script.textContent)
+              );
             }
 
             const openGraph: Record<string, string> = {};
@@ -540,9 +614,9 @@ export class BrowserAutomationTool extends BaseTool {
     if (env.NODE_ENV === "production") {
       const launchOptions: LaunchOptions = {
         args: chromium.args,
-        defaultViewport: chromium.defaultViewport ?? undefined,
+        defaultViewport: resolveViewport(chromiumRuntime.defaultViewport),
         executablePath: await chromium.executablePath(),
-        headless: chromium.headless ?? true,
+        headless: resolveHeadlessMode(chromiumRuntime.headless),
       };
 
       return puppeteer.launch(launchOptions);

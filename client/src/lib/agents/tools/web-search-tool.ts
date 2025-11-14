@@ -31,17 +31,6 @@ interface WebSearchParams {
   maxResults: number;
 }
 
-interface DuckDuckGoPayload {
-  Heading?: unknown;
-  AbstractURL?: unknown;
-  AbstractText?: unknown;
-  RelatedTopics?: unknown;
-}
-
-interface BravePayload {
-  web?: { results?: unknown };
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -289,7 +278,7 @@ export class WebSearchTool extends BaseTool {
         throw new Error(`Brave Search API error: ${response.status}`);
       }
 
-      const data: BravePayload = await response.json();
+      const data: unknown = await response.json();
       const results = normalizeBraveResults(data, maxResults);
 
       return {
@@ -321,7 +310,7 @@ export class WebSearchTool extends BaseTool {
         throw new Error(`DuckDuckGo API error: ${response.status}`);
       }
 
-      const data: DuckDuckGoPayload = await response.json();
+      const data: unknown = await response.json();
       const results = normalizeDuckDuckGoResults(data, query, maxResults);
 
       return {

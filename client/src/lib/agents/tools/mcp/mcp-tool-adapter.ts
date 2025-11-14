@@ -15,9 +15,10 @@ import { env } from "@/lib/env";
 // ==========================================
 
 type MCPParameterType = "string" | "number" | "boolean" | "object" | "array";
+type MCPParameterTypeName = MCPParameterType | (string & {});
 
 export interface MCPInputProperty {
-  type: MCPParameterType | string;
+  type: MCPParameterTypeName;
   description?: string;
   enum?: string[];
   required?: boolean;
@@ -369,7 +370,7 @@ export class MCPToolAdapter extends BaseTool {
       );
     }
 
-    const payload = await response.json();
+    const payload: unknown = await response.json();
     return parseExecutionResponse(payload);
   }
 
@@ -536,7 +537,7 @@ export class MCPClient {
         );
       }
 
-      const payload = await response.json();
+      const payload: unknown = await response.json();
       const server = parseServerResponse(payload, serverUrl);
 
       // Store server info

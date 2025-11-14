@@ -26,7 +26,19 @@ export interface ClaudeSkillsParams {
   prompt: string;
   thinkingBudget?: number;
   includeReasoning?: boolean; // Return both reasoning and answer
-  context?: Record<string, any>; // Additional context for the skill
+  context?: Record<string, unknown>; // Additional context for the skill
+}
+
+interface ClaudeSkillResult {
+  answer: string;
+  skill: ClaudeSkillsParams["skill"];
+  tokensUsed: {
+    input: number;
+    output: number;
+    total: number;
+  };
+  reasoning?: string;
+  reasoningSteps?: string[];
 }
 
 export class ClaudeSkillsTool extends BaseTool {
@@ -89,7 +101,7 @@ export class ClaudeSkillsTool extends BaseTool {
 
   async execute(
     params: ClaudeSkillsParams,
-    context: ToolContext
+    _context: ToolContext
   ): Promise<ToolResult> {
     const startTime = Date.now();
 
@@ -149,7 +161,7 @@ export class ClaudeSkillsTool extends BaseTool {
       });
 
       // Return result
-      const result: any = {
+      const result: ClaudeSkillResult = {
         answer: answerContent,
         skill: params.skill,
         tokensUsed: {
