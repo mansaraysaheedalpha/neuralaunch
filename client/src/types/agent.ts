@@ -1,4 +1,4 @@
-// src/types/agent.ts
+//client/src/types/agent.ts
 
 export interface Question {
   id: string;
