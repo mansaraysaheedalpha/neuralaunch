@@ -863,8 +863,7 @@ export class CriticAgent extends BaseAgent {
         context
       );
 
-      const result = await this.model.generateContent(prompt);
-      const responseText = result.response.text();
+      const responseText = await this.generateContent(prompt);
 
       return this.parseReviewResponse(responseText);
     } catch (error) {

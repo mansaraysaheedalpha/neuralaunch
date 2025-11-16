@@ -464,8 +464,7 @@ Return JSON:
 Respond ONLY with valid JSON, no markdown.`;
 
     try {
-      const response = await this.model.generateContent(prompt);
-      const text = response.response.text();
+      const text = await this.generateContent(prompt);
 
       // Parse JSON from response
       const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -640,8 +639,7 @@ Generate a brief summary (2-3 sentences) covering:
 Write in professional, concise style. No markdown formatting.`;
 
     try {
-      const response = await this.model.generateContent(prompt);
-      return response.response.text().trim();
+      return (await this.generateContent(prompt)).trim();
     } catch (error) {
       logger.warn(`[${this.name}] Failed to generate summary`, { error });
 

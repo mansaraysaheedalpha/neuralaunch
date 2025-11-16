@@ -215,8 +215,7 @@ export class FrontendAgent extends BaseAgent {
         context
       );
 
-      const result = await this.model.generateContent(fixPrompt);
-      const responseText = result.response.text();
+      const responseText = await this.generateContent(fixPrompt);
 
       const fixes = this.parseFixResponse(responseText);
 
@@ -621,8 +620,7 @@ Type Safety:
     const prompt = this.buildGenericPrompt(input);
 
     try {
-      const result = await this.model.generateContent(prompt);
-      const responseText = result.response.text();
+      const responseText = await this.generateContent(prompt);
 
       return this.parseImplementation(responseText);
     } catch (error) {

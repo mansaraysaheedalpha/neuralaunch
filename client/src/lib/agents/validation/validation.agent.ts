@@ -2,9 +2,11 @@
 /**
  * Validation Agent
  * Assesses feasibility, identifies risks, validates tech choices, and estimates timelines
+ *
+ * ✅ MIGRATED TO @google/genai SDK
  */
 
-import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai"; // ✅ UPDATED IMPORT
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { AI_MODELS } from "@/lib/models";
@@ -97,8 +99,8 @@ export interface ValidationOutput {
  * - Ready for planning and execution
  */
 export class ValidationAgent {
-  private genAI: GoogleGenerativeAI;
-  private model: GenerativeModel;
+  private ai: GoogleGenAI; // ✅ NEW: Client-centric SDK
+  private selectedModel: string; // ✅ NEW: Store model name
   public readonly name = "ValidationAgent";
   public readonly phase = "validation";
 
@@ -108,16 +110,9 @@ export class ValidationAgent {
       throw new Error("GEMINI_API_KEY is required for ValidationAgent");
     }
 
-    this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({
-      model: AI_MODELS.PRIMARY,
-      generationConfig: {
-        temperature: 0.3, // Lower for consistent validation
-        topP: 0.95,
-        topK: 40,
-        maxOutputTokens: 8192,
-      },
-    });
+    // ✅ NEW: Initialize client-centric SDK
+    this.ai = new GoogleGenAI({ apiKey });
+    this.selectedModel = AI_MODELS.PRIMARY;
   }
 
   /**
@@ -163,8 +158,20 @@ export class ValidationAgent {
         "Requesting feasibility assessment"
       );
       logger.info(`[${this.name}] Requesting AI validation analysis...`);
-      const result = await this.model.generateContent(prompt);
-      const responseText = result.response.text();
+
+      // ✅ NEW: Call ai.models.generateContent with declarative request
+      const response = await this.ai.models.generateContent({
+        model: this.selectedModel,
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          temperature: 0.3, // Lower for consistent validation
+          topP: 0.95,
+          topK: 40,
+          maxOutputTokens: 8192,
+        },
+      });
+
+      const responseText = response.text || "";
 
       // Step 4: Parse AI response
       await thoughts.analyzing("AI validation results and risk factors");
@@ -255,13 +262,14 @@ export class ValidationAgent {
     let architecture: Architecture | null = null;
     if (context.architecture) {
       try {
-        architecture = typeof context.architecture === 'string'
-          ? JSON.parse(context.architecture) as Architecture
-          : context.architecture as Architecture;
+        architecture =
+          typeof context.architecture === "string"
+            ? (JSON.parse(context.architecture) as Architecture)
+            : (context.architecture as Architecture);
       } catch (error) {
         logger.warn(`[${this.name}] Failed to parse architecture JSON`, {
           projectId,
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     }
@@ -425,7 +433,9 @@ IMPORTANT:
         projectId: input.projectId,
         agentName: this.name,
         phase: this.phase,
-        input: input ? (input as unknown as import("@prisma/client").Prisma.InputJsonValue) : {},
+        input: input
+          ? (input as unknown as import("@prisma/client").Prisma.InputJsonValue)
+          : {},
         output: validation ? JSON.stringify(validation) : undefined,
         success,
         durationMs,
@@ -437,12 +447,15 @@ IMPORTANT:
   }
 
   /**
-   * Health check method
+   * ✅ NEW: Health check using new SDK
    */
   async healthCheck(): Promise<boolean> {
     try {
-      const result = await this.model.generateContent("Test");
-      return !!result;
+      const response = await this.ai.models.generateContent({
+        model: this.selectedModel,
+        contents: [{ parts: [{ text: "Test" }] }],
+      });
+      return !!response.text;
     } catch {
       return false;
     }

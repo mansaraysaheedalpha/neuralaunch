@@ -207,8 +207,7 @@ export class DatabaseAgent extends BaseAgent {
         context
       );
 
-      const result = await this.model.generateContent(fixPrompt);
-      const responseText = result.response.text();
+      const responseText = await this.generateContent(fixPrompt);
 
       const fixes = this.parseFixResponse(responseText);
 
@@ -284,8 +283,7 @@ export class DatabaseAgent extends BaseAgent {
     const prompt = this.buildDatabasePrompt(taskDetails, context);
 
     try {
-      const result = await this.model.generateContent(prompt);
-      const responseText = result.response.text();
+      const responseText = await this.generateContent(prompt);
 
       return this.parseImplementationResponse(responseText);
     } catch (error) {

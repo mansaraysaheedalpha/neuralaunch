@@ -74,25 +74,8 @@ export class InfrastructureAgent extends BaseAgent {
 
       const prompt = this.buildTaskPrompt(taskDetails, context);
 
-      // Safely invoke model.generateContent with runtime checks to avoid unsafe any access
-      const modelCandidate: unknown = this.model;
-      const hasGenerate =
-        typeof modelCandidate === "object" &&
-        modelCandidate !== null &&
-        typeof (modelCandidate as { generateContent?: unknown }).generateContent === "function";
-      if (!hasGenerate) {
-        throw new Error("Underlying model does not implement generateContent");
-      }
-      const result: { response: { text(): string | undefined } } = await (
-        modelCandidate as {
-          generateContent: (prompt: string) => Promise<{ response: { text(): string | undefined } }>;
-        }
-      ).generateContent(prompt);
-      const rawResponse = result.response.text();
-      if (typeof rawResponse !== "string") {
-        throw new Error("Model did not return string content");
-      }
-      const responseText: string = rawResponse;
+      // Use the generateContent helper from BaseAgent
+      const responseText = await this.generateContent(prompt);
 
       const generatedFiles = this.parseGeneratedFiles(responseText);
 
@@ -192,25 +175,8 @@ export class InfrastructureAgent extends BaseAgent {
         context
       );
 
-      // Safely invoke model.generateContent with runtime checks to avoid unsafe any access
-      const modelCandidate: unknown = this.model;
-      const hasGenerate =
-        typeof modelCandidate === "object" &&
-        modelCandidate !== null &&
-        typeof (modelCandidate as { generateContent?: unknown }).generateContent === "function";
-      if (!hasGenerate) {
-        throw new Error("Underlying model does not implement generateContent");
-      }
-      const result: { response: { text(): string | undefined } } = await (
-        modelCandidate as {
-          generateContent: (prompt: string) => Promise<{ response: { text(): string | undefined } }>;
-        }
-      ).generateContent(fixPrompt);
-      const rawResponse = result.response.text();
-      if (typeof rawResponse !== "string") {
-        throw new Error("Model did not return string content");
-      }
-      const responseText: string = rawResponse;
+      // Use the generateContent helper from BaseAgent
+      const responseText = await this.generateContent(fixPrompt);
 
       const fixes = this.parseGeneratedFiles(responseText);
 

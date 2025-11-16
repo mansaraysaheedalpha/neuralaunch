@@ -2,9 +2,11 @@
 /**
  * Error Recovery System
  * Handles task failures intelligently with AI analysis and human escalation
+ * 
+ * ✅ MIGRATED TO @google/genai SDK
  */
 
-import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai"; // ✅ UPDATED IMPORT
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { AI_MODELS } from "@/lib/models";
@@ -82,8 +84,8 @@ export interface RecoveryOutput {
 // ==========================================
 
 export class ErrorRecoverySystem {
-  private genAI: GoogleGenerativeAI;
-  private model: GenerativeModel;
+  private ai: GoogleGenAI; // ✅ NEW: Client-centric SDK
+  private selectedModel: string; // ✅ NEW: Store model name
   private readonly name = "ErrorRecoverySystem";
 
   constructor() {
@@ -92,15 +94,9 @@ export class ErrorRecoverySystem {
       throw new Error("GOOGLE_API_KEY required for ErrorRecoverySystem");
     }
 
-    this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({
-      model: AI_MODELS.PRIMARY,
-      generationConfig: {
-        temperature: 0.4,
-        topP: 0.95,
-        maxOutputTokens: 4096,
-      },
-    });
+    // ✅ NEW: Initialize client-centric SDK
+    this.ai = new GoogleGenAI({ apiKey });
+    this.selectedModel = AI_MODELS.PRIMARY;
   }
 
   /**
@@ -165,13 +161,23 @@ export class ErrorRecoverySystem {
   }
 
   /**
-   * AI analyzes the failures to understand root cause
+   * ✅ UPDATED: AI analyzes the failures using new SDK
    */
   private async analyzeFailures(input: RecoveryInput): Promise<ErrorAnalysis> {
     const prompt = this.buildAnalysisPrompt(input);
 
-    const result = await this.model.generateContent(prompt);
-    const responseText = result.response.text();
+    // ✅ NEW: Call ai.models.generateContent with declarative request
+    const response = await this.ai.models.generateContent({
+      model: this.selectedModel,
+      contents: [{ parts: [{ text: prompt }] }],
+      config: {
+        temperature: 0.4,
+        topP: 0.95,
+        maxOutputTokens: 4096,
+      },
+    });
+
+    const responseText = response.text || "";
 
     // Parse AI response
     try {
@@ -468,16 +474,18 @@ Analyze the failures and respond with ONLY valid JSON:
     }
   }
 
-  /**
-   * Generate split tasks from failed task
-   */
-  private async generateSplitTasks(input: RecoveryInput): Promise<
-    Array<{
-      title: string;
-      description: string;
-      estimatedLines: number;
-    }>
-  > {
+/**
+ * ✅ UPDATED: Generate split tasks using new SDK
+ */
+private async generateSplitTasks(
+  input: RecoveryInput
+): Promise<
+  Array<{
+    title: string;
+    description: string;
+    estimatedLines: number;
+  }>
+> {
     try {
       logger.info(`[${this.name}] Generating split tasks for ${input.taskId}`);
 
@@ -525,11 +533,21 @@ Split this task into 2-4 smaller, independent subtasks that:
 
 Generate 2-4 subtasks that together achieve the original goal.`;
 
-      const result = await this.model.generateContent(prompt);
-      const response = result.response.text();
+      // ✅ NEW: Call ai.models.generateContent with declarative request
+      const response = await this.ai.models.generateContent({
+        model: this.selectedModel,
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          temperature: 0.4,
+          topP: 0.95,
+          maxOutputTokens: 4096,
+        },
+      });
+
+      const responseText = response.text || "";
 
       // Parse JSON response (remove markdown code blocks if present)
-      let jsonText = response.trim();
+      let jsonText = responseText.trim();
       if (jsonText.startsWith("```json")) {
         jsonText = jsonText.replace(/```json\n?/g, "").replace(/```\n?/g, "");
       } else if (jsonText.startsWith("```")) {
@@ -593,7 +611,7 @@ Generate 2-4 subtasks that together achieve the original goal.`;
   }
 
   /**
-   * Generate simplified prompt
+   * ✅ UPDATED: Generate simplified prompt using new SDK
    */
   private async generateSimplifiedPrompt(
     input: RecoveryInput,
@@ -645,16 +663,26 @@ Provide ONLY the simplified task description that can be used as a prompt for an
 
 Keep it under 500 words.`;
 
-      const result = await this.model.generateContent(prompt);
-      const response = result.response.text().trim();
+      // ✅ NEW: Call ai.models.generateContent with declarative request
+      const response = await this.ai.models.generateContent({
+        model: this.selectedModel,
+        contents: [{ parts: [{ text: prompt }] }],
+        config: {
+          temperature: 0.4,
+          topP: 0.95,
+          maxOutputTokens: 4096,
+        },
+      });
 
-      if (!response || response.length < 50) {
+      const responseText = (response.text || "").trim();
+
+      if (!responseText || responseText.length < 50) {
         throw new Error("Generated prompt too short or empty");
       }
 
-      logger.info(`[${this.name}] Generated simplified prompt (${response.length} chars)`);
+      logger.info(`[${this.name}] Generated simplified prompt (${responseText.length} chars)`);
 
-      return response;
+      return responseText;
     } catch (error) {
       logger.error(`[${this.name}] Failed to generate simplified prompt`, toError(error));
 

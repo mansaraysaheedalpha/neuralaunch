@@ -206,8 +206,7 @@ export class BackendAgent extends BaseAgent {
         context
       );
 
-      const result = await this.model.generateContent(fixPrompt);
-      const responseText = result.response.text();
+      const responseText = await this.generateContent(fixPrompt);
 
       const fixes = this.parseFixResponse(responseText);
 
@@ -477,8 +476,7 @@ Generate the fixes now.
     const prompt = this.buildImplementationPrompt(input);
 
     try {
-      const result = await this.model.generateContent(prompt);
-      const responseText = result.response.text();
+      const responseText = await this.generateContent(prompt);
 
       return this.parseImplementation(responseText);
     } catch (error) {

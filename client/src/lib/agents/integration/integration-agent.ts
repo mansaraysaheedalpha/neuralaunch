@@ -470,8 +470,7 @@ Be thorough but only include actual API calls to backend endpoints.
 Respond ONLY with valid JSON array, no markdown.`;
 
     try {
-      const response = await this.model.generateContent(prompt);
-      const text = response.response.text();
+      const text = await this.generateContent(prompt);
 
       // Parse JSON from response
       const jsonMatch = text.match(/\[[\s\S]*\]/);
@@ -567,8 +566,7 @@ Be thorough and include all endpoints defined in the backend.
 Respond ONLY with valid JSON array, no markdown.`;
 
     try {
-      const response = await this.model.generateContent(prompt);
-      const text = response.response.text();
+      const text = await this.generateContent(prompt);
 
       // Parse JSON from response
       const jsonMatch = text.match(/\[[\s\S]*\]/);
@@ -767,8 +765,7 @@ If no issues found, return empty array [].
 Respond ONLY with valid JSON array, no markdown.`;
 
     try {
-      const response = await this.model.generateContent(prompt);
-      const text = response.response.text();
+      const text = await this.generateContent(prompt);
 
       // Parse JSON from response
       const jsonMatch = text.match(/\[[\s\S]*\]/);

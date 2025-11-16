@@ -13,7 +13,7 @@ import { getCachedOrCompute, CACHE_TTL, generateCacheKey } from "./cache";
 import { logger } from "./logger";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { env } from "./env";
 
 // ==========================================
@@ -22,7 +22,7 @@ import { env } from "./env";
 
 let openaiClient: OpenAI | null = null;
 let anthropicClient: Anthropic | null = null;
-let googleAIClient: GoogleGenerativeAI | null = null;
+let googleAIClient: GoogleGenAI | null = null;
 
 export function getOpenAIClient(): OpenAI {
   if (!openaiClient) {
@@ -46,9 +46,9 @@ export function getAnthropicClient(): Anthropic {
   return anthropicClient;
 }
 
-export function getGoogleAIClient(): GoogleGenerativeAI {
+export function getGoogleAIClient(): GoogleGenAI {
   if (!googleAIClient) {
-    googleAIClient = new GoogleGenerativeAI(env.GOOGLE_API_KEY);
+    googleAIClient = new GoogleGenAI({ apiKey: env.GOOGLE_API_KEY });
   }
   return googleAIClient;
 }
@@ -233,16 +233,17 @@ export async function cachedGoogleGenerate(
 
   const executeFn = async () => {
     const genAI = getGoogleAIClient();
-    const model = genAI.getGenerativeModel({ model: modelName });
 
     const result = await withTimeout(
-      () => model.generateContent(prompt),
+      () => genAI.models.generateContent({
+        model: modelName,
+        contents: [{ parts: [{ text: prompt }] }],
+      }),
       timeout,
       `Google AI generation (${modelName})`
     );
 
-    const response = result.response;
-    return response.text();
+    return result.text || "";
   };
 
   if (useCache) {

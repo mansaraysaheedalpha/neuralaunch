@@ -2,6 +2,7 @@
 /**
  * Base Agent Class - WORLD-CLASS COMPLETE
  *
+ * ✅ MIGRATED TO @google/genai SDK
  * ✅ Web Search Tool - Search for documentation and solutions
  * ✅ Vector Memory - Semantic learning from past tasks
  * ✅ Code Analysis - Parse, type check, lint code
@@ -10,7 +11,7 @@
  *
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai"; // ✅ UPDATED IMPORT
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
@@ -31,7 +32,13 @@ import { toError, toLogContext } from "@/lib/error-utils";
 // Import tools to ensure they're registered before agents try to use them
 import { initializeTools } from "../tools/index";
 import { env } from "@/lib/env";
-import type { TechStack, ProjectContext, AgentOutputData, SearchResult, CodeError } from "../types/common";
+import type {
+  TechStack,
+  ProjectContext,
+  AgentOutputData,
+  SearchResult,
+  CodeError,
+} from "../types/common";
 
 export interface BaseAgentConfig {
   name: string;
@@ -68,9 +75,9 @@ export interface AgentExecutionOutput {
 }
 
 export abstract class BaseAgent {
-  protected genAI: GoogleGenerativeAI;
-  protected model: ReturnType<GoogleGenerativeAI['getGenerativeModel']>;
+  protected ai: GoogleGenAI; // ✅ NEW: Client-centric SDK
   protected config: BaseAgentConfig;
+  protected selectedModel: string; // ✅ NEW: Store model name
 
   protected tools: Map<string, ITool> = new Map();
   protected retryConfig: RetryConfig | null = null;
@@ -92,23 +99,16 @@ export abstract class BaseAgent {
       throw new Error(`GOOGLE_API_KEY required for ${config.name}`);
     }
 
-    this.genAI = new GoogleGenerativeAI(apiKey);
+    // ✅ NEW: Initialize client-centric SDK
+    this.ai = new GoogleGenAI({ apiKey });
 
-    const selectedModel = config.modelName || AI_MODELS.FAST;
-
-    this.model = this.genAI.getGenerativeModel({
-      model: selectedModel,
-      generationConfig: {
-        temperature: 0.3,
-        topP: 0.95,
-        maxOutputTokens: 8192,
-      },
-    });
+    // ✅ NEW: Store model name (no more model instance)
+    this.selectedModel = config.modelName || AI_MODELS.FAST;
 
     this.loadTools();
 
     logger.info(
-      `[${config.name}] Initialized with model: ${selectedModel}, ${this.tools.size} tools`
+      `[${config.name}] Initialized with model: ${this.selectedModel}, ${this.tools.size} tools`
     );
   }
 
@@ -143,7 +143,7 @@ export abstract class BaseAgent {
       this.retryConfig = retryStrategy.getRetryConfig(
         taskDetails.complexity,
         taskDetails.estimatedLines,
-        this.config.modelName
+        this.selectedModel
       );
 
       logger.info(`[${this.config.name}] Retry strategy`, {
@@ -297,7 +297,10 @@ export abstract class BaseAgent {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      logger.error(`[${this.config.name}] Execution framework error`, toError(error));
+      logger.error(
+        `[${this.config.name}] Execution framework error`,
+        toError(error)
+      );
 
       return {
         success: false,
@@ -392,7 +395,10 @@ export abstract class BaseAgent {
         const results = searchResult.data as { results?: SearchResult[] };
         if (results.results && results.results.length > 0) {
           const solutions = results.results
-            .map((r: SearchResult, i: number) => `${i + 1}. ${r.title}: ${r.description}`)
+            .map(
+              (r: SearchResult, i: number) =>
+                `${i + 1}. ${r.title}: ${r.description}`
+            )
             .join("\n");
 
           input.context._errorSolution = `**Potential Solutions (from web search):**\n${solutions}`;
@@ -434,7 +440,10 @@ export abstract class BaseAgent {
       );
 
       if (typeCheckResult.success && typeCheckResult.data) {
-        const typeData = typeCheckResult.data as { hasErrors?: boolean; errors?: CodeError[] };
+        const typeData = typeCheckResult.data as {
+          hasErrors?: boolean;
+          errors?: CodeError[];
+        };
         if (typeData.hasErrors && typeData.errors) {
           const topErrors = typeData.errors
             .slice(0, 5)
@@ -445,7 +454,10 @@ export abstract class BaseAgent {
         }
       }
     } catch (error) {
-      logger.warn(`[${this.config.name}] Code analysis failed`, toLogContext(error));
+      logger.warn(
+        `[${this.config.name}] Code analysis failed`,
+        toLogContext(error)
+      );
     }
   }
 
@@ -496,9 +508,13 @@ export abstract class BaseAgent {
         durationMs,
         error: output.error,
         filesCreated:
-          output.data?.filesCreated?.map((f) => (typeof f === 'string' ? f : f.path)) || [],
+          output.data?.filesCreated?.map((f) =>
+            typeof f === "string" ? f : f.path
+          ) || [],
         commandsRun:
-          output.data?.commandsRun?.map((c) => (typeof c === 'string' ? c : c.command)) || [],
+          output.data?.commandsRun?.map((c) =>
+            typeof c === "string" ? c : c.command
+          ) || [],
         learnings,
         errorsSolved:
           this.failures.length > 0 && output.success
@@ -552,7 +568,10 @@ export abstract class BaseAgent {
         );
       }
     } catch (error) {
-      logger.warn(`[${this.config.name}] Failed to verify deployment`, toLogContext(error));
+      logger.warn(
+        `[${this.config.name}] Failed to verify deployment`,
+        toLogContext(error)
+      );
     }
   }
 
@@ -600,6 +619,38 @@ export abstract class BaseAgent {
       .join("\n");
   }
 
+  /**
+   * ✅ NEW: Helper method to call AI with new SDK structure
+   * Subclasses can use this for consistent AI calls
+   */
+  protected async generateContent(
+    prompt: string,
+    systemInstruction?: string
+  ): Promise<string> {
+    try {
+      const response = await this.ai.models.generateContent({
+        model: this.selectedModel,
+        contents: [{ parts: [{ text: prompt }] }],
+        ...(systemInstruction && {
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+        }),
+        config: {
+          temperature: 0.3,
+          topP: 0.95,
+          maxOutputTokens: 8192,
+        },
+      });
+
+      return response.text || "";
+    } catch (error) {
+      logger.error(
+        `[${this.config.name}] AI generation failed`,
+        toError(error)
+      );
+      throw error;
+    }
+  }
+
   protected async logExecution(
     input: AgentExecutionInput,
     output: unknown,
@@ -624,7 +675,10 @@ export abstract class BaseAgent {
         },
       });
     } catch (logError) {
-      logger.error(`[${this.config.name}] Failed to log execution`, toError(logError));
+      logger.error(
+        `[${this.config.name}] Failed to log execution`,
+        toError(logError)
+      );
     }
   }
 }

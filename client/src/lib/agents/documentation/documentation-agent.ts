@@ -436,8 +436,7 @@ Be thorough and include all endpoints defined in the backend.
 Respond ONLY with valid JSON array, no markdown.`;
 
     try {
-      const response = await this.model.generateContent(prompt);
-      const text = response.response.text();
+      const text = await this.generateContent(prompt);
 
       // Parse JSON from response
       const jsonMatch = text.match(/\[[\s\S]*\]/);
@@ -524,8 +523,7 @@ Focus on reusable UI components, not pages.
 Respond ONLY with valid JSON array, no markdown.`;
 
     try {
-      const response = await this.model.generateContent(prompt);
-      const text = response.response.text();
+      const text = await this.generateContent(prompt);
 
       // Parse JSON from response
       const jsonMatch = text.match(/\[[\s\S]*\]/);
@@ -628,8 +626,7 @@ Return JSON array:
 Respond ONLY with valid JSON array, no markdown.`;
 
       try {
-        const response = await this.model.generateContent(prompt);
-        const text = response.response.text();
+        const text = await this.generateContent(prompt);
 
         const jsonMatch = text.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
@@ -744,8 +741,7 @@ Make it:
 Generate ONLY the README.md content, no explanations.`;
 
     try {
-      const response = await this.model.generateContent(prompt);
-      const readme = response.response.text();
+      const readme = await this.generateContent(prompt);
 
       // Remove markdown code fences if present
       return readme
@@ -802,8 +798,7 @@ Make it:
 Generate ONLY the API.md content, no explanations.`;
 
     try {
-      const response = await this.model.generateContent(prompt);
-      const apiDocs = response.response.text();
+      const apiDocs = await this.generateContent(prompt);
 
       return apiDocs
         .replace(/```markdown\n?/g, "")
@@ -858,8 +853,7 @@ Make it:
 Generate ONLY the ARCHITECTURE.md content, no explanations.`;
 
     try {
-      const response = await this.model.generateContent(prompt);
-      const architectureDocs = response.response.text();
+      const architectureDocs = await this.generateContent(prompt);
 
       return architectureDocs
         .replace(/```markdown\n?/g, "")
@@ -917,8 +911,7 @@ Make it:
 Generate ONLY the DEPLOYMENT.md content, no explanations.`;
 
     try {
-      const response = await this.model.generateContent(prompt);
-      const deploymentDocs = response.response.text();
+      const deploymentDocs = await this.generateContent(prompt);
 
       return deploymentDocs
         .replace(/```markdown\n?/g, "")
@@ -970,8 +963,7 @@ Make it:
 Generate ONLY the DEVELOPMENT.md content, no explanations.`;
 
     try {
-      const response = await this.model.generateContent(prompt);
-      const developmentDocs = response.response.text();
+      const developmentDocs = await this.generateContent(prompt);
 
       return developmentDocs
         .replace(/```markdown\n?/g, "")
@@ -1023,8 +1015,7 @@ Make it:
 Generate ONLY the USER_GUIDE.md content, no explanations.`;
 
     try {
-      const response = await this.model.generateContent(prompt);
-      const userGuide = response.response.text();
+      const userGuide = await this.generateContent(prompt);
 
       return userGuide
         .replace(/```markdown\n?/g, "")

@@ -591,8 +591,7 @@ If no logs are available, return empty array [].
 Respond ONLY with valid JSON array, no markdown.`;
 
     try {
-      const response = await this.model.generateContent(prompt);
-      const text = response.response.text();
+      const text = await this.generateContent(prompt);
 
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
@@ -859,8 +858,7 @@ Return JSON array:
 Respond ONLY with valid JSON array, no markdown.`;
 
     try {
-      const response = await this.model.generateContent(prompt);
-      const text = response.response.text();
+      const text = await this.generateContent(prompt);
 
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
@@ -917,8 +915,7 @@ Generate a brief summary (2-3 paragraphs) covering:
 Write in professional, concise style. No markdown formatting.`;
 
     try {
-      const response = await this.model.generateContent(prompt);
-      return response.response.text().trim();
+      return (await this.generateContent(prompt)).trim();
     } catch (error) {
       logger.warn(`[${this.name}] Failed to generate summary`, { error });
 
