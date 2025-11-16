@@ -1541,7 +1541,21 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
       return null;
     }
 
-    const architecture = context.architecture as Record<string, unknown> | null;
+    // Parse architecture if it's stored as JSON string
+    let architecture: Record<string, unknown> | null = null;
+    if (context.architecture) {
+      try {
+        architecture = typeof context.architecture === 'string'
+          ? JSON.parse(context.architecture) as Record<string, unknown>
+          : context.architecture as Record<string, unknown>;
+      } catch (error) {
+        logger.warn(`[${this.name}] Failed to parse architecture JSON`, {
+          projectId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
     const validation = architecture?.validation;
 
     return {

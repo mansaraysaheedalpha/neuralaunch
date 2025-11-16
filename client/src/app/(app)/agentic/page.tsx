@@ -1,8 +1,9 @@
 // src/app/(app)/agentic/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bot,
@@ -38,10 +39,18 @@ import toast from "react-hot-toast";
 
 export default function AgenticInterfacePage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [visionText, setVisionText] = useState("");
   const [projectName, setProjectName] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isBuilding, setIsBuilding] = useState(false);
+
+  // Redirect unauthenticated users
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/signin");
+    }
+  }, [status, router]);
 
   // Tech preferences (optional)
   const [frontend, setFrontend] = useState<string>("");
@@ -102,6 +111,23 @@ export default function AgenticInterfacePage() {
       setIsBuilding(false);
     }
   };
+
+  // Show loading state while checking authentication
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render anything if not authenticated (will redirect)
+  if (!session) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-background">

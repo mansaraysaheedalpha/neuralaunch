@@ -251,7 +251,20 @@ export class ValidationAgent {
       validation?: ValidationResult;
       [key: string]: unknown;
     }
-    const architecture = context.architecture as Architecture;
+    // Parse architecture if it's stored as JSON string
+    let architecture: Architecture | null = null;
+    if (context.architecture) {
+      try {
+        architecture = typeof context.architecture === 'string'
+          ? JSON.parse(context.architecture) as Architecture
+          : context.architecture as Architecture;
+      } catch (error) {
+        logger.warn(`[${this.name}] Failed to parse architecture JSON`, {
+          projectId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
     const validation = architecture?.validation;
 
     const blueprint = context.blueprint as unknown;
