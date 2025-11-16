@@ -23,6 +23,7 @@ export function middleware(_request: NextRequest) {
     "img-src 'self' blob: data: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
     "connect-src 'self' https://vercel.live https://vitals.vercel-insights.com https://www.google-analytics.com https://www.googletagmanager.com https://*.hotjar.com https://*.contentsquare.net wss://ws-mt1.pusher.com https://sockjs-mt1.pusher.com",
+    "worker-src 'self' blob:",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

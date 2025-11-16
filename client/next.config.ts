@@ -104,6 +104,10 @@ const sentryWebpackPluginOptions = {
   org: "infinite-dynamics",
   project: "neuralaunch",
 
+  // Disable source map upload if no auth token provided
+  disableServerWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
+  disableClientWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
+
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
 
