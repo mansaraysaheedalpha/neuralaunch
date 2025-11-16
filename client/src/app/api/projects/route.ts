@@ -59,7 +59,7 @@ export const GET = createCORSHandler(async (req: NextRequest) => {
       );
     }
 
-    // 2. Fetch projects from database
+    // 2. Fetch projects from database with their pipeline state
     // Note: We're using the Conversation model as a proxy for projects
     // since the current schema doesn't have a dedicated Project model
     const conversations = await prisma.conversation.findMany({
@@ -74,19 +74,94 @@ export const GET = createCORSHandler(async (req: NextRequest) => {
         title: true,
         createdAt: true,
         updatedAt: true,
+        projectContexts: {
+          select: {
+            projectId: true,
+            currentPhase: true,
+          },
+        },
       },
     });
 
-    // Transform conversations to project format
-    const projects = conversations.map((conv) => ({
-      id: conv.id,
-      name: conv.title || "Untitled Project",
-      description: undefined,
-      status: "completed" as const, // Default status
-      progress: 100,
-      createdAt: conv.createdAt.toISOString(),
-      updatedAt: conv.updatedAt.toISOString(),
-    }));
+    // Get failure status for each project by checking AgentExecution
+    const projectIds = conversations
+      .map((c) => c.projectContexts?.[0]?.projectId)
+      .filter(Boolean) as string[];
+
+    const failedProjects = new Set<string>();
+    if (projectIds.length > 0) {
+      const failedExecutions = await prisma.agentExecution.findMany({
+        where: {
+          projectId: { in: projectIds },
+          success: false,
+        },
+        select: {
+          projectId: true,
+        },
+        distinct: ["projectId"],
+      });
+
+      failedExecutions.forEach((exec) => failedProjects.add(exec.projectId));
+    }
+
+    // Transform conversations to project format with accurate status
+    const projects = conversations.map((conv) => {
+      const projectContext = conv.projectContexts?.[0];
+      const currentPhase = projectContext?.currentPhase || "analysis";
+      const projectId = projectContext?.projectId;
+      const hasFailed = projectId ? failedProjects.has(projectId) : false;
+
+      // Map phase to status
+      let status: "initializing" | "planning" | "executing" | "quality_check" | "deploying" | "completed" | "failed";
+      let progress: number;
+
+      if (hasFailed) {
+        status = "failed";
+        progress = 0; // Failed projects have no progress
+      } else {
+        switch (currentPhase) {
+          case "analysis":
+          case "research":
+          case "validation":
+            status = "planning";
+            progress = 20;
+            break;
+          case "planning":
+            status = "planning";
+            progress = 30;
+            break;
+          case "execution":
+            status = "executing";
+            progress = 60;
+            break;
+          case "quality_check":
+            status = "quality_check";
+            progress = 80;
+            break;
+          case "deployment":
+            status = "deploying";
+            progress = 90;
+            break;
+          case "completed":
+            status = "completed";
+            progress = 100;
+            break;
+          default:
+            status = "initializing";
+            progress = 10;
+        }
+      }
+
+      return {
+        id: conv.id,
+        name: conv.title || "Untitled Project",
+        description: undefined,
+        status,
+        progress,
+        createdAt: conv.createdAt.toISOString(),
+        updatedAt: conv.updatedAt.toISOString(),
+      };
+    });
 
     logger.info("Projects fetched successfully", {
       userId,

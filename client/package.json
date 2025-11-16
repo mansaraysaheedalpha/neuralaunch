@@ -14,7 +14,6 @@
     "@auth/core": "^0.41.1",
     "@auth/prisma-adapter": "^2.11.0",
     "@google/genai": "^1.28.0",
-    "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^5.2.2",
     "@langchain/langgraph": "^1.0.1",
     "@octokit/rest": "^22.0.0",

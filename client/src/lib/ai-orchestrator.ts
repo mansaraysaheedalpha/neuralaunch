@@ -2,13 +2,11 @@
 /**
  * Centralized AI Orchestration Service
  * Routes AI tasks to the most appropriate model based on task type and requirements.
+ *
+ * ✅ MIGRATED TO @google/genai (NEW UNIFIED SDK)
  */
 
-import {
-  GoogleGenerativeAI,
-  FunctionCallingMode,
-  type ModelParams,
-} from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { env } from "./env";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
@@ -26,15 +24,14 @@ export enum AITaskType {
   COFOUNDER_CHAT_RESPONSE = "COFOUNDER_CHAT_RESPONSE",
   BLUEPRINT_PARSING = "BLUEPRINT_PARSING",
   SPRINT_TASK_ASSISTANCE = "SPRINT_TASK_ASSISTANCE",
-  // CODE_GENERATION_MVP = "CODE_GENERATION_MVP",
   AGENT_PLANNING = "AGENT_PLANNING",
   AGENT_EXECUTE_STEP = "AGENT_EXECUTE_STEP",
   AGENT_DEBUG_COMMAND = "AGENT_DEBUG_COMMAND",
   GET_API_KEY_GUIDANCE = "GET_API_KEY_GUIDANCE",
-  // 🆕 NEW AUTONOMOUS TASK TYPES
-  AGENT_VERIFY_STEP = "AGENT_VERIFY_STEP", // Verify own work
-  AGENT_READ_WORKSPACE = "AGENT_READ_WORKSPACE", // Read files to understand state
-  AGENT_DEBUG_FULL = "AGENT_DEBUG_FULL", // Debug errors by reading context
+  // Autonomous task types
+  AGENT_VERIFY_STEP = "AGENT_VERIFY_STEP",
+  AGENT_READ_WORKSPACE = "AGENT_READ_WORKSPACE",
+  AGENT_DEBUG_FULL = "AGENT_DEBUG_FULL",
   AGENT_REFLECT = "AGENT_REFLECT",
   AGENT_ARCHITECT_ANALYZE = "AGENT_ARCHITECT_ANALYZE",
   AGENT_TECH_RESEARCHER = "AGENT_TECH_RESEARCHER",
@@ -44,10 +41,15 @@ export enum AITaskType {
 type AIProvider = "GOOGLE" | "OPENAI" | "ANTHROPIC";
 
 // ==================== CLIENT INITIALIZATION ====================
-const genAI = new GoogleGenerativeAI(env.GOOGLE_API_KEY);
+// ✅ NEW: Client-centric initialization with @google/genai
+const ai = new GoogleGenAI({
+  apiKey: env.GOOGLE_API_KEY,
+});
+
 const openai = new OpenAI({
   apiKey: env.OPENAI_API_KEY,
 });
+
 const anthropic = new Anthropic({
   apiKey: env.ANTHROPIC_API_KEY,
 });
@@ -70,12 +72,11 @@ function routeTaskToModel(
         enableSearchTool: false,
       };
 
-    case AITaskType.AGENT_PLANNING: // ✅ NOW GOING TO CLAUDE
+    case AITaskType.AGENT_PLANNING:
     case AITaskType.AGENT_ARCHITECT_ANALYZE:
       logger.debug(`🎯 Routing ${taskType} to ${AI_MODELS.CLAUDE} (Anthropic)`);
       return { modelId: AI_MODELS.CLAUDE, provider: "ANTHROPIC" };
 
-    // 🆕 ADD THIS CASE
     case AITaskType.AGENT_TECH_RESEARCHER:
       logger.debug(
         `🎯 Routing ${taskType} to ${AI_MODELS.PRIMARY} (Google) with Search`
@@ -85,6 +86,7 @@ function routeTaskToModel(
         provider: "GOOGLE",
         enableSearchTool: true,
       };
+
     case AITaskType.TITLE_GENERATION:
     case AITaskType.LANDING_PAGE_COPY:
     case AITaskType.SURVEY_QUESTION_GENERATION:
@@ -94,17 +96,11 @@ function routeTaskToModel(
 
     case AITaskType.COFOUNDER_CHAT_RESPONSE:
     case AITaskType.AGENT_EXECUTE_STEP:
-      logger.debug(`🎯 Routing ${taskType} to ${AI_MODELS.CLAUDE} (Anthropic)`);
-      return { modelId: AI_MODELS.CLAUDE, provider: "ANTHROPIC" };
-
-    // 🆕 NEW: Route autonomous tasks to Claude (best reasoning)
     case AITaskType.AGENT_VERIFY_STEP:
     case AITaskType.AGENT_READ_WORKSPACE:
     case AITaskType.AGENT_DEBUG_FULL:
     case AITaskType.AGENT_REFLECT:
-      logger.debug(
-        `🎯 Routing ${taskType} (autonomous) to ${AI_MODELS.CLAUDE} (Anthropic)`
-      );
+      logger.debug(`🎯 Routing ${taskType} to ${AI_MODELS.CLAUDE} (Anthropic)`);
       return { modelId: AI_MODELS.CLAUDE, provider: "ANTHROPIC" };
 
     case AITaskType.BLUEPRINT_PARSING:
@@ -141,7 +137,11 @@ function routeTaskToModel(
 // ==================== PROVIDER HELPER FUNCTIONS ====================
 
 /**
- * Call Google Generative AI (Gemini) using the @google/generative-ai SDK syntax
+ * ✅ UPDATED: Call Google Generative AI using NEW @google/genai SDK
+ * - Stateless, client-centric architecture
+ * - All config passed per-request in declarative object
+ * - Simplified response handling
+ * - ✅ FIXED: Using 'googleSearch' instead of 'googleSearchRetrieval'
  */
 async function callGemini(
   modelId: string,
@@ -156,52 +156,59 @@ async function callGemini(
   }
 
   try {
-    // Build the model configuration
-    const modelConfig: ModelParams = {
+    // ✅ NEW: Build the stateless, declarative request object
+    const requestPayload: {
+      model: string;
+      contents: Array<{ parts: Array<{ text: string }> }>;
+      generationConfig?: {
+        responseMimeType?: string;
+      };
+      systemInstruction?: {
+        parts: Array<{ text: string }>;
+      };
+      tools?: Array<{ googleSearch: Record<string, never> }>; // ✅ CHANGED FROM googleSearchRetrieval
+    } = {
       model: modelId,
-      ...(systemInstruction && { systemInstruction }),
+      contents: [{ parts: [{ text: prompt }] }],
     };
 
+    // ✅ NEW: Add JSON mode via generationConfig
     if (json) {
-      modelConfig.generationConfig = {
+      requestPayload.generationConfig = {
         responseMimeType: "application/json",
       };
       logger.info(`[callGemini] Forcing JSON output mode for ${modelId}.`);
     }
 
-    // FIXED: Proper search tool configuration with error handling
-    if (enableSearchTool) {
-      // Configure Google Search Retrieval tool per @google/generative-ai typings
-      modelConfig.tools = [
-        {
-          googleSearchRetrieval: {},
-        },
-      ];
-      logger.info(
-        `[callGemini] Enabling Google Search tool for model ${modelId}.`
-      );
-
-      modelConfig.toolConfig = {
-        functionCallingConfig: { mode: FunctionCallingMode.AUTO },
+    // ✅ NEW: Add system instruction to request (was in getGenerativeModel)
+    if (systemInstruction) {
+      requestPayload.systemInstruction = {
+        parts: [{ text: systemInstruction }],
       };
     }
 
-    // Get the model instance
-    const model = genAI.getGenerativeModel(modelConfig);
+    // ✅ FIXED: Using 'googleSearch' instead of 'googleSearchRetrieval'
+    if (enableSearchTool) {
+      requestPayload.tools = [{ googleSearch: {} }]; // ✅ CHANGED HERE
+      logger.info(
+        `[callGemini] Enabling Google Search tool for model ${modelId}.`
+      );
+    }
 
-    // Handle Streaming (for chat)
+    // ==================== STREAMING ====================
     if (stream && !enableSearchTool) {
       logger.info(`[callGemini] Starting stream for model ${modelId}`);
-      const result = await withTimeout(
-        model.generateContentStream(prompt),
+
+      const response = await withTimeout(
+        ai.models.generateContentStream(requestPayload),
         90000,
         `Gemini streaming (${modelId})`
       );
 
       return (async function* () {
         try {
-          for await (const chunk of result.stream) {
-            const chunkText = chunk.text();
+          for await (const chunk of response) {
+            const chunkText = chunk.text;
             if (chunkText) {
               yield chunkText;
             }
@@ -219,7 +226,7 @@ async function callGemini(
       })();
     }
 
-    // Handle Non-Streaming (for plan, guidance, etc.)
+    // ==================== NON-STREAMING ====================
     if (stream && enableSearchTool) {
       logger.warn(
         "[callGemini] Search tool enabled, streaming is disabled. Returning full response."
@@ -230,26 +237,19 @@ async function callGemini(
       `[callGemini] Generating non-streamed content for model ${modelId}${enableSearchTool ? " with Search" : ""}`
     );
 
-    const result = await withTimeout(
-      model.generateContent(prompt),
+    const response = await withTimeout(
+      ai.models.generateContent(requestPayload),
       180000,
       `Gemini generation (${modelId}) ${enableSearchTool ? "with Search" : ""}`
     );
 
-    const response = result.response;
-    const responseText = response.text();
+    const responseText = response.text;
 
     if (!responseText) {
-      const functionCalls = response.functionCalls();
-      if (functionCalls && functionCalls.length > 0) {
-        logger.warn(
-          `[callGemini] Model returned function calls but no final text response.`
-        );
-        return "The AI needed to search but didn't provide a final answer.";
-      }
       logger.warn(`[callGemini] Model returned an empty text response.`);
       return "";
     }
+
     return responseText;
   } catch (error) {
     logger.error(
@@ -261,22 +261,37 @@ async function callGemini(
     }
     const errorMessage = error instanceof Error ? error.message : String(error);
 
-    // Enhanced error handling for tool-related issues
+    // Enhanced error handling
     if (errorMessage.includes("API key not valid")) {
       throw new ExternalServiceError(
         "Google",
         "Invalid Google API Key provided."
       );
     }
-    if (errorMessage.includes("400") || errorMessage.includes("tool")) {
+
+    // ✅ UPDATED: Better error message for tool issues
+    if (
+      errorMessage.includes("google_search_retrieval") ||
+      errorMessage.includes("googleSearchRetrieval") ||
+      errorMessage.includes("not supported")
+    ) {
       logger.error(
-        `[callGemini] Tool configuration error: ${errorMessage}. Consider disabling search or updating SDK.`
+        `[callGemini] Search tool error: ${errorMessage}. Ensure you're using 'googleSearch' (not 'googleSearchRetrieval') with @google/genai SDK.`
       );
       throw new ExternalServiceError(
         "Google",
-        "Search tool configuration error. Please check your Google AI SDK version."
+        "Search tool configuration error. The new @google/genai SDK requires 'googleSearch' instead of 'googleSearchRetrieval'."
       );
     }
+
+    if (errorMessage.includes("400") || errorMessage.includes("tool")) {
+      logger.error(`[callGemini] Tool configuration error: ${errorMessage}.`);
+      throw new ExternalServiceError(
+        "Google",
+        "Search tool configuration error. Please check your @google/genai SDK version."
+      );
+    }
+
     throw new ExternalServiceError(
       "Google",
       `Gemini API request failed: ${errorMessage}`
@@ -368,6 +383,7 @@ async function callOpenAI(
     );
   }
 }
+
 async function callClaude(
   modelId: string,
   messages: Array<{ role: string; content: string }>,
@@ -389,7 +405,7 @@ async function callClaude(
     if (stream) {
       const response = anthropic.messages.stream({
         model: modelId,
-        max_tokens: 16384, // ✅ CHANGED FROM 8192
+        max_tokens: 16384,
         messages: claudeMessages,
         ...(systemPrompt && { system: systemPrompt }),
       });
@@ -420,11 +436,11 @@ async function callClaude(
     const response = await withTimeout(
       anthropic.messages.create({
         model: modelId,
-        max_tokens: 16384, // ✅ CHANGED FROM 8192
+        max_tokens: 16384,
         messages: claudeMessages,
         ...(systemPrompt && { system: systemPrompt }),
       }),
-      600000, // ✅ You should have already changed this from 60000
+      600000,
       `Claude generation (${modelId})`
     );
 
@@ -451,6 +467,7 @@ async function callClaude(
     );
   }
 }
+
 // ==================== MAIN ORCHESTRATION FUNCTION ====================
 export async function executeAITask(
   taskType: AITaskType,
@@ -483,7 +500,7 @@ export async function executeAITask(
           payload.systemInstruction,
           payload.stream,
           enableSearchTool,
-         !!payload.responseFormat
+          !!payload.responseFormat
         );
         break;
       }
@@ -534,7 +551,7 @@ export async function executeAITask(
     // Fallback mechanism - but disable search on fallback
     if (
       (provider !== "GOOGLE" || enableSearchTool) &&
-      taskType !== AITaskType.AGENT_EXECUTE_STEP && // <-- ADD THIS LINE
+      taskType !== AITaskType.AGENT_EXECUTE_STEP &&
       taskType !== AITaskType.AGENT_DEBUG_COMMAND
     ) {
       logger.info(
@@ -550,7 +567,7 @@ export async function executeAITask(
           prompt,
           payload.systemInstruction,
           payload.stream,
-          false, // IMPORTANT: No search on fallback
+          false, // No search on fallback
           !!payload.responseFormat
         );
         logger.info(`Fallback successful for ${taskType}`);
