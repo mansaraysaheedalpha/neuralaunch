@@ -1,0 +1,29 @@
+{
+  "name": "neuralaunch-playwright-mcp-server",
+  "version": "1.0.0",
+  "description": "Playwright MCP Server for NeuraLaunch - Browser automation, testing, and deployment verification",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "keywords": [
+    "mcp",
+    "playwright",
+    "browser-automation",
+    "neuralaunch"
+  ],
+  "author": "NeuraLaunch",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "playwright": "^1.48.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "helmet": "^7.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
