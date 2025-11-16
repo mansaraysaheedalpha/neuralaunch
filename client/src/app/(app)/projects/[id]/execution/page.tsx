@@ -163,7 +163,14 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
   const currentPhase = status?.currentPhase || "initializing";
   const isInPlanningPhase = isPlanningPhase(currentPhase);
   const isPlanReview = currentPhase === ORCHESTRATOR_PHASES.PLAN_REVIEW;
-  const currentAgent = status?.currentAgent;
+
+  // ✅ Handle currentAgent - it might be a string or an object
+  const currentAgentRaw = status?.currentAgent as string | { name: string } | undefined;
+  const currentAgent = typeof currentAgentRaw === 'string'
+    ? currentAgentRaw
+    : currentAgentRaw && typeof currentAgentRaw === 'object' && 'name' in currentAgentRaw
+      ? String(currentAgentRaw.name)
+      : undefined;
 
   return (
     <div className="min-h-screen bg-background">

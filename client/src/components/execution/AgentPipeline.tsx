@@ -48,10 +48,10 @@ const PLANNING_PIPELINE = [
   const metadata = PHASE_METADATA[phaseId];
   return {
     id: phaseId,
-    name: metadata.name,
-    description: metadata.description,
-    icon: metadata.icon,
-    color: metadata.color,
+    name: String(metadata.name || ''),
+    description: String(metadata.description || ''),
+    icon: String(metadata.icon || '🤖'),
+    color: String(metadata.color || 'text-gray-500'),
   };
 });
 
