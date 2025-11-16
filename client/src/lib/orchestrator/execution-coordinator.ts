@@ -475,23 +475,19 @@ export class ExecutionCoordinator {
       `[${this.name}] Triggering ${task.agentName} for task ${task.id}`
     );
 
-    // Determine which Inngest event to send based on agent type
-    // const eventName = this.getInngestEventName(task.agentName);
+    // ✅ FIX: Use agent-specific event names instead of generic "agent/execute.step.requested"
+    const eventName = this.getInngestEventName(task.agentName);
 
     try {
       await inngest.send({
-        name: "agent/execute.step.requested",
+        name: eventName as "agent/execution.backend" | "agent/execution.frontend" | "agent/execution.infrastructure" | "agent/execution.database" | "agent/quality.integration" | "agent/quality.testing" | "agent/execution.generic",
         data: {
           taskId: task.id,
           projectId: input.projectId,
           userId: input.userId,
-          stepIndex: 0,
-          taskDescription: task.input.title,
-          blueprintSummary: task.input.description ?? "",
-          userResponses: null,
-          githubToken: null,
-          githubRepoUrl: null,
-          currentHistoryLength: 0,
+          conversationId: input.conversationId,
+          taskInput: task.input,
+          priority: task.priority,
         },
       });
 
@@ -504,7 +500,7 @@ export class ExecutionCoordinator {
         },
       });
 
-      logger.info(`[${this.name}] Successfully triggered task ${task.id}`);
+      logger.info(`[${this.name}] Successfully triggered task ${task.id} via ${eventName}`);
     } catch (error) {
       logger.error(`[${this.name}] Failed to trigger task ${task.id}:`, error as Error);
       throw error;
@@ -730,25 +726,23 @@ export class ExecutionCoordinator {
 
       if (autoTrigger) {
         for (const task of wave.tasks) {
+          // ✅ FIX: Use agent-specific event names
+          const eventName = this.getInngestEventName(task.agentName);
+
           logger.info(
-            `[${this.name}] Triggering ${task.agentName} for task ${task.id}`
+            `[${this.name}] Triggering ${task.agentName} for task ${task.id} via ${eventName}`
           );
 
           await inngest.send({
-            name: "agent/execute.step.requested",
+            name: eventName as "agent/execution.backend" | "agent/execution.frontend" | "agent/execution.infrastructure" | "agent/execution.database" | "agent/quality.integration" | "agent/quality.testing" | "agent/execution.generic",
             data: {
               taskId: task.id,
               projectId,
               userId,
-              stepIndex: 0, // Provide actual step index if available
-              taskDescription: task.input.title,
-              blueprintSummary: task.input.description ?? "",
-              userResponses: null,
-              githubToken: null,
-              githubRepoUrl: null,
-              currentHistoryLength: 0,
+              conversationId: input.conversationId,
+              taskInput: task.input,
+              priority: task.priority,
               waveNumber,
-              githubBranch,
             },
           });
 
