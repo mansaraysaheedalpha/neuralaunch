@@ -14,6 +14,7 @@ import {
   Rocket,
   Activity,
   Zap,
+  FileText,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -213,6 +214,16 @@ export default function QualityDashboardPage({ params }: QualityPageProps) {
             
             {/* Navigation Links */}
             <div className="flex items-center gap-2">
+              <Link href={`/projects/${projectId}/plan`}>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-sm"
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  View Plan
+                </Button>
+              </Link>
               <Link href={`/projects/${projectId}/execution`}>
                 <Button variant="outline" size="sm">
                   <Zap className="w-4 h-4 mr-2" />

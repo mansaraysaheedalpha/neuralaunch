@@ -392,12 +392,20 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <Link href={`/projects/${projectId}`}>
-                <Button variant="ghost" size="sm">
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Project
-                </Button>
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link href={`/projects/${projectId}/execution`}>
+                  <Button variant="ghost" size="sm">
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Back to Execution
+                  </Button>
+                </Link>
+                <Link href={`/projects/${projectId}`}>
+                  <Button variant="ghost" size="sm">
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Back to Project
+                  </Button>
+                </Link>
+              </div>
               <div>
                 <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
                   <FileText className="w-8 h-8 text-primary" />

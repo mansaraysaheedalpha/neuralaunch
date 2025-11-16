@@ -620,6 +620,20 @@ export abstract class BaseAgent {
   }
 
   /**
+   * Parse and validate parameters for agent execution
+   * Subclasses can override this for custom parameter parsing
+   */
+  protected parseParams<T = Record<string, unknown>>(
+    params: Record<string, unknown>
+  ): T {
+    // Default implementation: basic type checking and validation
+    if (!params || typeof params !== 'object') {
+      throw new Error('Invalid params: must be an object');
+    }
+    return params as T;
+  }
+
+  /**
    * ✅ NEW: Helper method to call AI with new SDK structure
    * Subclasses can use this for consistent AI calls
    */
