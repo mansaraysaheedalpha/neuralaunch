@@ -22,8 +22,8 @@ const envSchema = z.object({
   UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
 
   // Upstash Vector (Optional - for agent memory/semantic search)
-  UPSTASH_VECTOR_REST_URL: z.string().url().optional(),
-  UPSTASH_VECTOR_REST_TOKEN: z.string().optional(),
+  // UPSTASH_VECTOR_REST_URL: z.string().url().optional(),
+  // UPSTASH_VECTOR_REST_TOKEN: z.string().optional(),
 
   // Authentication
   NEXTAUTH_URL: z.string().url().min(1, "NEXTAUTH_URL is required"),
