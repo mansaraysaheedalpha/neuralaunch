@@ -35,7 +35,6 @@ export class InfrastructureAgent extends BaseAgent {
         "web_search",
         "code_analysis",
         "context_loader",
-        "claude_skills", // Advanced infrastructure design and architecture
       ],
       modelName: AI_MODELS.OPENAI,
     });

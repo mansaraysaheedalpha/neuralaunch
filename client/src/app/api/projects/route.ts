@@ -86,7 +86,7 @@ export const GET = createCORSHandler(async (req: NextRequest) => {
     // Get failure status for each project by checking AgentExecution
     const projectIds = conversations
       .map((c) => c.projectContexts?.[0]?.projectId)
-      .filter(Boolean) as string[];
+      .filter((id): id is string => Boolean(id));
 
     const failedProjects = new Set<string>();
     if (projectIds.length > 0) {

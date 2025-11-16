@@ -34,9 +34,8 @@ export class DatabaseAgent extends BaseAgent {
         "web_search",
         "code_analysis",
         "context_loader",
-        "claude_skills", // Advanced schema design, query optimization, and migrations
       ],
-      modelName: AI_MODELS.PRIMARY,
+      modelName: AI_MODELS.CLAUDE, // Claude Sonnet 4.5 for superior database design and reasoning
     });
   }
 

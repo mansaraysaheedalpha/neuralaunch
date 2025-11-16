@@ -152,7 +152,6 @@ export class CriticAgent extends BaseAgent {
         "code_analysis",
         "context_loader",
         "web_search", // For finding security vulnerabilities
-        "claude_skills", // For advanced code review and security analysis
       ],
       modelName: AI_MODELS.OPENAI, // GPT-4o for best code review
     });

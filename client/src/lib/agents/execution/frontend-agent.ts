@@ -29,7 +29,6 @@ export class FrontendAgent extends BaseAgent {
         "web_search",
         "code_analysis",
         "context_loader",
-        "claude_skills", // Advanced code generation, refactoring, and UI optimization
         "image_generation", // Generate images for UI using OpenAI DALL-E
         "video_generation", // Generate short videos for UI using Replicate/Runway
       ],

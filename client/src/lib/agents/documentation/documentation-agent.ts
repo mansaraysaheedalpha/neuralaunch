@@ -143,7 +143,6 @@ export class DocumentationAgent extends BaseAgent {
         "code_analysis",
         "context_loader",
         "web_search", // For finding documentation best practices
-        "claude_skills", // For superior documentation generation
       ],
       modelName: AI_MODELS.OPENAI, // GPT-4o for best documentation writing
     });
