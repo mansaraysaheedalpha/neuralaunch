@@ -9,7 +9,6 @@ import { auth } from "@/auth";
 import { createApiLogger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
-import { inngest } from "@/inngest/client";
 
 const updateReviewSchema = z.object({
   status: z.enum(["pending", "in_review", "resolved", "cancelled"]).optional(),
@@ -176,7 +175,7 @@ export async function PATCH(
     const userId = session.user.id;
 
     // Validate request
-    const body = await req.json();
+    const body = await req.json() as unknown;
     const validatedBody = updateReviewSchema.parse(body);
 
     // Verify project ownership

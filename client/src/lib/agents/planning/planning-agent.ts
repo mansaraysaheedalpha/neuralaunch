@@ -140,6 +140,7 @@ export interface ExecutionPlan {
   }[];
   totalEstimatedHours: number;
   criticalPath: string[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface PlanningOutput {
@@ -178,7 +179,7 @@ export interface PlanningOptions {
  * Uses Claude Sonnet 4.5 for superior JSON generation and architectural reasoning
  */
 export class PlanningAgent {
-  private anthropic: Anthropic;
+  private anthropic: Anthropic | null;
   private openai: OpenAI;
   public readonly name = "PlanningAgent";
   public readonly phase = "planning";
@@ -207,7 +208,7 @@ export class PlanningAgent {
       });
     } else {
       // Create a stub that throws if used
-      this.anthropic = null as any;
+      this.anthropic = null;
     }
   }
   /**
@@ -217,7 +218,7 @@ export class PlanningAgent {
     input: PlanningInput | LegacyPlanningInput,
     options?: PlanningOptions
   ): Promise<PlanningOutput> {
-    const startTime = Date.now();
+    // Removed unused startTime variable
 
     // Type guard to determine input type
     if ("sourceType" in input) {
@@ -274,7 +275,7 @@ export class PlanningAgent {
 
       // Step 2: Extract technical requirements
       await thoughts.thinking("technical requirements based on vision");
-      const requirements = await this.extractRequirements(analysis, input);
+      const requirements = this.extractRequirements(analysis, input);
 
       // Step 3: Design architecture
       await thoughts.deciding("optimal technical architecture");
@@ -421,14 +422,14 @@ export class PlanningAgent {
 
       // Step 1: Parse blueprint structure
       await thoughts.analyzing("blueprint structure");
-      const parsed = await this.parseBlueprint(input.blueprint);
+      const parsed = this.parseBlueprint(input.blueprint);
 
       // Step 2: Integrate sprint validation data (if available)
       if (input.sprintData) {
         await thoughts.thinking("integrating sprint validation data");
       }
       const enhanced = input.sprintData
-        ? await this.enhanceWithSprintData(parsed, input.sprintData)
+        ? this.enhanceWithSprintData(parsed, input.sprintData)
         : parsed;
 
       // Step 3: Generate execution plan
@@ -751,6 +752,9 @@ BEGIN:`;
 
       const systemPrompt = `You are a software architect. Output ONLY valid JSON. No markdown, no text, just JSON starting with { and ending with }.`;
 
+      if (!this.anthropic) {
+        throw new Error("Anthropic client is not initialized.");
+      }
       const response = await this.anthropic.messages.create({
         model: AI_MODELS.CLAUDE,
         system: systemPrompt,
@@ -868,16 +872,16 @@ IMPORTANT: Return ONLY the JSON object, with no markdown formatting, no code blo
       await thoughts.analyzing("vision analysis results");
     }
 
-    return this.extractAndParseJSON(responseText);
+    return this.extractAndParseJSON(responseText) as Record<string, unknown>;
   }
 
   /**
    * Extract technical requirements from vision analysis
    */
-  private async extractRequirements(
+  private extractRequirements(
     analysis: Record<string, unknown>,
     input: VisionPlanningInput
-  ): Promise<Record<string, unknown>> {
+  ): Record<string, unknown> {
     return {
       projectName: input.projectName,
       projectType: analysis.projectType,
@@ -982,7 +986,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
   /**
    * Parse structured blueprint text
    */
-  private async parseBlueprint(blueprint: string): Promise<Record<string, unknown>> {
+  private parseBlueprint(blueprint: string): Record<string, unknown> {
     // Extract sections from markdown-style blueprint
     const sections: Record<string, unknown> = {};
 
@@ -1007,10 +1011,10 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
   /**
    * Enhance blueprint with sprint validation data
    */
-  private async enhanceWithSprintData(
+  private enhanceWithSprintData(
     parsed: Record<string, unknown>,
     sprintData: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
+  ): Record<string, unknown> {
     // Priority features based on completed validation tasks
     const completedTasks = sprintData.completedTasks as Array<Record<string, unknown>> | undefined;
     const validatedFeatures =
@@ -1236,7 +1240,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
   /**
    * Extract and parse JSON with comprehensive diagnostics
    */
-  private extractAndParseJSON(responseText: string): any {
+  private extractAndParseJSON(responseText: string): unknown {
     logger.info(`[${this.name}] Extracting JSON from Claude response`);
 
     try {
@@ -1255,10 +1259,10 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
       // STRATEGY 2: Try direct parse
       if (jsonText.startsWith("{") && jsonText.endsWith("}")) {
         try {
-          const parsed = JSON.parse(jsonText);
+          const parsed: unknown = JSON.parse(jsonText);
           logger.info(`[${this.name}] ✅ Direct parse succeeded`);
           return parsed;
-        } catch (e) {
+        } catch  {
           logger.warn(`[${this.name}] Direct parse failed, trying extraction`);
         }
       }
@@ -1288,7 +1292,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
       if (jsonStart !== -1 && jsonEnd !== -1) {
         const jsonString = jsonText.substring(jsonStart, jsonEnd + 1);
         try {
-          const parsed = JSON.parse(jsonString);
+          const parsed: unknown = JSON.parse(jsonString);
           logger.info(`[${this.name}] ✅ Brace matching succeeded`);
           return parsed;
         } catch (e) {
@@ -1306,7 +1310,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
       if (simpleStart !== -1 && simpleEnd !== -1 && simpleEnd > simpleStart) {
         try {
           const jsonString = jsonText.substring(simpleStart, simpleEnd + 1);
-          const parsed = JSON.parse(jsonString);
+          const parsed: unknown = JSON.parse(jsonString);
           logger.info(`[${this.name}] ✅ indexOf method succeeded`);
           return parsed;
         } catch (e) {
@@ -1351,15 +1355,17 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
       const parsed = this.extractAndParseJSON(responseText);
 
       if (
-        !parsed.architecture ||
-        !parsed.tasks ||
-        !Array.isArray(parsed.tasks)
+        typeof parsed !== "object" ||
+        parsed === null ||
+        !("architecture" in parsed) ||
+        !("tasks" in parsed) ||
+        !Array.isArray((parsed as ExecutionPlan).tasks)
       ) {
         logger.error(`[${this.name}] Invalid structure`, undefined, {
-          hasArchitecture: !!parsed.architecture,
-          hasTasks: !!parsed.tasks,
-          tasksIsArray: Array.isArray(parsed.tasks),
-          keys: Object.keys(parsed),
+          hasArchitecture: parsed && typeof parsed === "object" && "architecture" in parsed,
+          hasTasks: parsed && typeof parsed === "object" && "tasks" in parsed,
+          tasksIsArray: parsed && typeof parsed === "object" && Array.isArray((parsed as ExecutionPlan).tasks),
+          keys: parsed && typeof parsed === "object" ? Object.keys(parsed) : [],
         });
 
         throw new Error(
@@ -1622,10 +1628,15 @@ Return ONLY a valid JSON object with this structure (no markdown, no code blocks
 
       logger.info(`[${this.name}] Feedback analysis complete`, {
         projectId,
-        feasible: analysis.feasible,
+        feasible: (analysis as { feasible?: boolean }).feasible,
       });
 
-      return analysis;
+      return analysis as {
+        feasible: boolean;
+        warnings: string[];
+        blockers: string[];
+        suggestedChanges: Array<Record<string, unknown>>;
+      };
     } catch (error) {
       logger.error(`[${this.name}] Failed to analyze feedback`, toError(error));
       return {
@@ -1691,10 +1702,11 @@ Return ONLY a valid JSON object (no markdown, no code blocks) with the complete 
       const updatedPlan = this.extractAndParseJSON(responseText);
 
       // Add metadata to track revision
+      const typedUpdatedPlan = updatedPlan as ExecutionPlan;
       const updatedPlanWithMetadata = {
-        ...updatedPlan,
+        ...typedUpdatedPlan,
         metadata: {
-          ...updatedPlan.metadata,
+          ...(typedUpdatedPlan.metadata as object || {}),
           revisionCount: currentRevisionCount + 1,
           lastFeedback: feedback,
           lastUpdated: new Date().toISOString(),

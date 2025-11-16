@@ -41,7 +41,7 @@ export async function POST(
     // 2. Rate limiting - 5 requests per minute for execution
     const clientIp = getClientIp(req.headers);
     const rateLimitId = getRequestIdentifier(userId, clientIp);
-    const rateLimitResult = checkRateLimit({
+    const rateLimitResult = await checkRateLimit({
       ...RATE_LIMITS.AI_GENERATION,
       identifier: rateLimitId,
     });

@@ -13,7 +13,6 @@ import {
   Loader2,
   Star,
   FileCode,
-  TestTube,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +26,11 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import toast from "react-hot-toast";
+
+interface ApprovalResponse {
+  message: string;
+  error?: string;
+}
 
 interface WaveApprovalCardProps {
   projectId: string;
@@ -82,7 +86,7 @@ export function WaveApprovalCard({
         }
       );
 
-      const data = await response.json();
+      const data = await response.json() as ApprovalResponse;
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to approve wave");
@@ -110,6 +114,10 @@ export function WaveApprovalCard({
   const qualityScore = status.quality.averageScore;
   const isHighQuality = qualityScore >= 80;
   const isMediumQuality = qualityScore >= 60;
+
+  const handleApproveClick = () => {
+    void handleApprove();
+  };
 
   return (
     <motion.div
@@ -288,7 +296,7 @@ export function WaveApprovalCard({
 
           {/* Approval Button */}
           <Button
-            onClick={handleApprove}
+            onClick={handleApproveClick}
             disabled={!status.readyForApproval || isApproving}
             size="lg"
             className="w-full"

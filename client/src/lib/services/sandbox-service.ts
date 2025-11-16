@@ -10,7 +10,7 @@ import { env } from "../env"; // Use validated env
 // --- CONFIGURATION ---
 const IS_PRODUCTION = env.NODE_ENV === "production";
 const SANDBOX_IMAGE_NAME =
-  "us-central1-docker.pkg.dev/gen-lang-client-0239783733/neuralaunch-images/neuralaunch-sandbox:v6";
+  "us-central1-docker.pkg.dev/gen-lang-client-0239783733/neuralaunch-images/neuralaunch-sandbox:v7";
 const SANDBOX_INTERNAL_PORT = "8080";
 const WORKSPACE_DIR_INSIDE_CONTAINER = "/workspace";
 
@@ -193,10 +193,9 @@ class SandboxServiceClass {
           }
         } else {
           // --- DEVELOPMENT: Check existing container ---
+          const portBindings = inspectData.HostConfig.PortBindings as Record<string, Array<{ HostPort: string }>> | undefined;
           const devHostPort =
-            inspectData.HostConfig.PortBindings?.[
-              `${SANDBOX_INTERNAL_PORT}/tcp`
-            ]?.[0]?.HostPort;
+            portBindings?.[`${SANDBOX_INTERNAL_PORT}/tcp`]?.[0]?.HostPort;
           if (inspectData.State.Running && devHostPort) {
             containerUrl = `http://localhost:${devHostPort}`;
           } else if (inspectData.State.Running && !devHostPort) {

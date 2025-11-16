@@ -9,8 +9,82 @@
 import { inngest } from "../client";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
-import { toError, createAgentError } from "@/lib/error-utils";
+import { toError } from "@/lib/error-utils";
 import { sendNotification } from "@/lib/notifications/notification-service";
+import type { Prisma } from "@prisma/client";
+
+// Type definitions
+type IssueSeverity = "critical" | "high" | "medium" | "low";
+type IssueCategory = "security" | "type_safety" | "performance" | "best_practices";
+
+interface CodeIssue {
+  file: string;
+  line?: number;
+  severity: IssueSeverity;
+  category: IssueCategory;
+  message: string;
+  fix?: string;
+}
+
+interface CodeReview {
+  mustFix?: CodeIssue[];
+  shouldFix?: CodeIssue[];
+  approved?: boolean;
+  score?: number;
+}
+
+interface CodebaseData {
+  lastReview?: CodeReview;
+  githubRepoUrl?: string;
+  githubRepoName?: string;
+  [key: string]: unknown;
+}
+
+interface TaskOutput {
+  filesCreated?: Array<{ path: string; lines?: number }>;
+  commandsRun?: unknown[];
+  [key: string]: unknown;
+}
+
+interface FixAttemptResult {
+  taskId: string;
+  agentName: string;
+  issuesCount: number;
+}
+
+interface AgentCompletion {
+  taskId: string;
+  success: boolean;
+  agentName: string;
+  error?: string;
+}
+
+interface VerificationResult {
+  success?: boolean;
+  approved?: boolean;
+  score?: number;
+  data?: unknown;
+}
+
+interface RetryStrategy {
+  maxAttempts: number;
+  issueType: "critical" | "medium";
+  escalateOnFailure: boolean;
+  issues: CodeIssue[];
+}
+
+interface IssueCategories {
+  critical: CodeIssue[];
+  breaking: CodeIssue[];
+  medium: CodeIssue[];
+  tasks: Array<{
+    id: string;
+    agentName: string | null;
+    criticalIssues: number | null;
+    reviewScore: number | null;
+    output: Prisma.JsonValue | null;
+  }>;
+}
 
 export const fixCriticalIssuesFunction = inngest.createFunction(
   {
@@ -24,13 +98,7 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
   },
   { event: "agent/quality.fix-issues" },
   async ({ event, step }) => {
-    const {
-      projectId,
-      userId,
-      conversationId,
-      waveNumber,
-      criticResult,
-    } = event.data;
+    const { projectId, userId, conversationId, waveNumber } = event.data;
 
     // Validate required fields
     if (!projectId || !waveNumber) {
@@ -43,13 +111,11 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
       waveNumber,
     });
 
-    log.info(`[Wave ${waveNumber}] Starting auto-fix workflow`, {
-      criticResult: criticResult ? 'present' : 'missing',
-    });
+    log.info(`[Wave ${waveNumber}] Starting auto-fix workflow`);
 
     try {
       // Step 1: Categorize issues by severity
-      const issueCategories = await step.run("categorize-issues", async () => {
+      const issueCategories = await step.run("categorize-issues", async (): Promise<IssueCategories> => {
         const tasks = await prisma.agentTask.findMany({
           where: { projectId, waveNumber },
           select: {
@@ -67,15 +133,16 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
           select: { codebase: true },
         });
 
-        const lastReview = (projectContext?.codebase as any)?.lastReview;
+        const codebaseData = (projectContext?.codebase as CodebaseData) || {};
+        const lastReview = codebaseData.lastReview;
 
         // Categorize issues
         const critical = lastReview?.mustFix?.filter(
-          (i: any) => i.severity === "critical"
+          (i) => i.severity === "critical"
         ) || [];
         const breaking = lastReview?.mustFix?.filter(
-          (i: any) => 
-            i.severity === "high" && 
+          (i) =>
+            i.severity === "high" &&
             (i.category === "security" || i.category === "type_safety")
         ) || [];
         const medium = lastReview?.shouldFix || [];
@@ -95,12 +162,12 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
       });
 
       // Step 2: Determine retry strategy based on severity
-      const retryStrategy = await step.run("determine-retry-strategy", async () => {
+      const retryStrategy = await step.run("determine-retry-strategy", (): RetryStrategy => {
         const hasCriticalOrBreaking =
           issueCategories.critical.length > 0 ||
           issueCategories.breaking.length > 0;
 
-        const strategy = {
+        const strategy: RetryStrategy = {
           maxAttempts: hasCriticalOrBreaking ? 5 : 3,
           issueType: hasCriticalOrBreaking ? "critical" : "medium",
           escalateOnFailure: hasCriticalOrBreaking,
@@ -109,7 +176,12 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
             : issueCategories.medium,
         };
 
-        log.info(`[Wave ${waveNumber}] Retry strategy determined`, strategy);
+        log.info(`[Wave ${waveNumber}] Retry strategy determined`, {
+          maxAttempts: strategy.maxAttempts,
+          issueType: strategy.issueType,
+          escalateOnFailure: strategy.escalateOnFailure,
+          issuesCount: strategy.issues.length,
+        });
 
         return strategy;
       });
@@ -129,8 +201,8 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
         // Step 3.1: For each task with issues, trigger the originating agent to fix
         const fixResults = await step.run(
           `fix-attempt-${attempt}`,
-          async () => {
-            const results = [];
+          async (): Promise<FixAttemptResult[]> => {
+            const results: FixAttemptResult[] = [];
 
             for (const task of issueCategories.tasks) {
               if (!task.criticalIssues || task.criticalIssues === 0) {
@@ -138,7 +210,7 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
               }
 
               log.info(
-                `[Wave ${waveNumber}] Sending fix request to ${task.agentName}`,
+                `[Wave ${waveNumber}] Sending fix request to ${String(task.agentName)}`,
                 {
                   attempt,
                   taskId: task.id,
@@ -146,37 +218,37 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
               );
 
               // Get issues specific to this task
+              const taskOutput = task.output as TaskOutput | null;
+              const taskFilePaths = taskOutput?.filesCreated?.map(f => typeof f === 'string' ? f : f.path) || [];
               const taskIssues = retryStrategy.issues.filter(
-                (issue: any) =>
-                  (task.output as any)?.filesCreated?.includes(issue.file)
+                (issue) => taskFilePaths.includes(issue.file)
               );
 
               if (taskIssues.length === 0) continue;
 
               // Trigger the agent to fix issues
-              const agentEvent = getAgentEventName(task.agentName);
+              const agentEvent = getAgentEventName(task.agentName || "");
 
+              // Send event to trigger agent fix (bypassing strict typing for dynamic event data)
               await inngest.send({
-                name: agentEvent as any,
+                name: agentEvent,
                 data: {
                   taskId: `${task.id}-fix-${attempt}`,
                   projectId,
                   userId,
-                  conversationId,
-                  taskInput: {
-                    mode: "fix",
-                    originalTaskId: task.id,
-                    issuesToFix: taskIssues,
-                    attempt,
-                    waveNumber,
-                  },
+                  conversationId: conversationId || "",
+                  waveNumber,
+                  mode: "fix",
+                  originalTaskId: task.id,
+                  issuesToFix: taskIssues,
+                  attempt,
                   priority: 1,
-                } as any,
-              });
+                },
+              } as Parameters<typeof inngest.send>[0]);
 
               results.push({
                 taskId: task.id,
-                agentName: task.agentName,
+                agentName: task.agentName || "unknown",
                 issuesCount: taskIssues.length,
               });
             }
@@ -192,27 +264,31 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
         }
 
         // Step 3.2: Wait for all agents to complete fixes
-        const agentCompletions = await step.run(
+        const _agentCompletions = await step.run(
           `wait-for-fixes-${attempt}`,
-          async () => {
+          async (): Promise<AgentCompletion[]> => {
             // Wait for all agent completions
-            const completions = [];
+            const completions: AgentCompletion[] = [];
 
             for (const result of fixResults) {
               try {
-                const eventName = getAgentCompleteEventName(result.agentName);
+                const eventName = getAgentCompleteEventName(result.agentName) as
+                  | "agent/execution.backend.complete"
+                  | "agent/execution.frontend.complete"
+                  | "agent/execution.infrastructure.complete";
                 const completion = await step.waitForEvent(
-                  eventName as any,
+                  eventName,
                   {
-                    event: eventName as any,
+                    event: eventName,
                     timeout: "15m",
-                    match: `data.taskId`,
-                  } as any
+                    match: "data.taskId",
+                  }
                 );
 
+                const completionData = completion as { data?: { success?: boolean } } | null;
                 completions.push({
                   taskId: result.taskId,
-                  success: (completion as any)?.data?.success ?? false,
+                  success: completionData?.data?.success ?? false,
                   agentName: result.agentName,
                 });
               } catch (error) {
@@ -236,7 +312,7 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
         // Step 3.3: Re-run Critic to verify fixes
         const verificationResult = await step.run(
           `verify-fixes-${attempt}`,
-          async () => {
+          async (): Promise<VerificationResult | null> => {
             log.info(`[Wave ${waveNumber}] Re-running critic for verification`);
 
             // Get updated files
@@ -245,9 +321,10 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
               select: { output: true },
             });
 
-            const filesCreated = updatedTasks.flatMap(
-              (task) => (task.output as any)?.filesCreated || []
-            );
+            const filesCreated = updatedTasks.flatMap((task) => {
+              const taskOutput = task.output as TaskOutput | null;
+              return taskOutput?.filesCreated || [];
+            });
 
             // Trigger critic
             await inngest.send({
@@ -276,7 +353,8 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
               }
             );
 
-            return criticResult?.data ?? null;
+            const resultData = criticResult as { data?: VerificationResult } | null;
+            return resultData?.data ?? null;
           }
         );
 
@@ -339,22 +417,28 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
           });
 
           // Store escalation details
+          const existingContext = await prisma.projectContext.findUnique({
+            where: { projectId },
+            select: { codebase: true },
+          });
+          const existingCodebase = (existingContext?.codebase as CodebaseData) || {};
+
+          const updatedCodebase = {
+            ...existingCodebase,
+            escalation: {
+              waveNumber,
+              reason: "critical_issues_unfixed",
+              attempts: attempt,
+              lastError,
+              timestamp: new Date().toISOString(),
+              issues: retryStrategy.issues.slice(0, 10), // Store first 10 issues
+            },
+          };
+
           await prisma.projectContext.update({
             where: { projectId },
             data: {
-              codebase: {
-                ...(await prisma.projectContext
-                  .findUnique({ where: { projectId } })
-                  .then((p) => (p?.codebase as any) || {})),
-                escalation: {
-                  waveNumber,
-                  reason: "critical_issues_unfixed",
-                  attempts: attempt,
-                  lastError,
-                  timestamp: new Date().toISOString(),
-                  issues: retryStrategy.issues.slice(0, 10), // Store first 10 issues
-                },
-              },
+              codebase: updatedCodebase as unknown as Prisma.InputJsonValue,
             },
           });
 
@@ -389,11 +473,11 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
                 errorMessage: lastError || "Unknown error during fix attempts",
                 rootCause: retryStrategy.issues.length > 0 ? retryStrategy.issues[0].message : undefined,
                 severity: "critical",
-                issuesFound: retryStrategy.issues,
-                issuesRemaining: retryStrategy.issues,
+                issuesFound: retryStrategy.issues as unknown as Prisma.InputJsonValue,
+                issuesRemaining: retryStrategy.issues as unknown as Prisma.InputJsonValue,
                 totalAttempts: attempt,
                 lastAttemptAt: new Date(),
-                attemptHistory: [],
+                attemptHistory: [] as unknown as Prisma.InputJsonValue,
                 status: "open",
                 escalatedToHuman: true,
                 escalatedAt: new Date(),
@@ -402,7 +486,7 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
                 context: {
                   conversationId,
                   retryStrategy: retryStrategy.issueType,
-                },
+                } as Prisma.InputJsonValue,
               },
             });
             log.info(`[Wave ${waveNumber}] CriticalFailure record created for UI tracking`);

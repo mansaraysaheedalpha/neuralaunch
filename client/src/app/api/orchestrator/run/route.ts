@@ -11,6 +11,7 @@ import {
   getRequestIdentifier,
   getClientIp,
 } from "@/lib/rate-limit";
+import { createCORSHandler, AUTHENTICATED_API_CORS } from "@/lib/cors";
 
 // ==========================================
 // REQUEST VALIDATION SCHEMAS
@@ -39,9 +40,25 @@ const blueprintRequestSchema = z.object({
   blueprint: z.string().min(1, "Blueprint is required"),
   sprintData: z
     .object({
-      completedTasks: z.array(z.any()).optional(),
-      analytics: z.any().optional(),
-      validationResults: z.any().optional(),
+      completedTasks: z
+        .array(
+          z.object({
+            title: z.string().optional(),
+            id: z.string(),
+            status: z.string(),
+          })
+        )
+        .optional(),
+      analytics: z
+        .object({
+          completionRate: z.number().optional(),
+        })
+        .optional(),
+      validationResults: z
+        .object({
+          features: z.array(z.string()).optional(),
+        })
+        .optional(),
     })
     .optional(),
   async: z.boolean().optional().default(true),
@@ -68,7 +85,7 @@ const runOrchestratorSchema = z.discriminatedUnion("sourceType", [
  * 2. Blueprint Mode: Structured blueprint with optional sprint data
  * 3. Legacy Mode: Backward compatibility
  */
-export async function POST(req: NextRequest) {
+export const POST = createCORSHandler(async (req: NextRequest) => {
   const logger = createApiLogger({
     path: "/api/orchestrator/run",
     method: "POST",
@@ -87,7 +104,7 @@ export async function POST(req: NextRequest) {
     // 2. Rate limiting - 5 requests per minute for orchestrator
     const clientIp = getClientIp(req.headers);
     const rateLimitId = getRequestIdentifier(userId, clientIp);
-    const rateLimitResult = checkRateLimit({
+    const rateLimitResult = await checkRateLimit({
       ...RATE_LIMITS.AI_GENERATION,
       identifier: rateLimitId,
     });
@@ -113,10 +130,14 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Parse and validate request body
-    const body = await req.json();
+    const body: unknown = await req.json();
 
     // Check if this is a legacy request (no sourceType)
-    if (!body.sourceType) {
+    if (
+      typeof body !== "object" ||
+      body === null ||
+      !("sourceType" in body)
+    ) {
       logger.info("Legacy orchestrator request detected");
       return handleLegacyRequest(body, userId, logger);
     }
@@ -145,7 +166,7 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+}, AUTHENTICATED_API_CORS);
 
 // ==========================================
 // REQUEST HANDLERS
@@ -157,7 +178,7 @@ export async function POST(req: NextRequest) {
 async function handleVisionRequest(
   body: z.infer<typeof visionRequestSchema>,
   userId: string,
-  logger: any
+  logger: ReturnType<typeof createApiLogger>
 ) {
   // Import prisma at function level to avoid circular dependencies
   const prisma = (await import("@/lib/prisma")).default;
@@ -277,7 +298,7 @@ async function handleVisionRequest(
 async function handleBlueprintRequest(
   body: z.infer<typeof blueprintRequestSchema>,
   userId: string,
-  logger: any
+  logger: ReturnType<typeof createApiLogger>
 ) {
   // Import prisma at function level to avoid circular dependencies
   const prisma = (await import("@/lib/prisma")).default;
@@ -381,7 +402,7 @@ async function handleBlueprintRequest(
 /**
  * Handle legacy request (backward compatibility)
  */
-async function handleLegacyRequest(body: any, userId: string, logger: any) {
+async function handleLegacyRequest(body: unknown, userId: string, logger: ReturnType<typeof createApiLogger>) {
   try {
     const validatedBody = legacyRequestSchema.parse(body);
 
@@ -442,7 +463,7 @@ async function handleLegacyRequest(body: any, userId: string, logger: any) {
  * GET /api/orchestrator/run
  * Returns API documentation
  */
-export async function GET() {
+export function GET() {
   return NextResponse.json({
     name: "NeuraLaunch Orchestrator API",
     version: "2.0",

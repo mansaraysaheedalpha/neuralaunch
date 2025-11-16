@@ -12,6 +12,27 @@ import prisma from "@/lib/prisma";
 import { githubAgent } from "@/lib/agents/github/github-agent";
 import { createAgentError } from "@/lib/error-utils";
 import { env } from "@/lib/env";
+import { Prisma } from "@prisma/client";
+
+interface TaskInput {
+  title: string;
+  description?: string;
+  acceptanceCriteria?: string[];
+  complexity?: "simple" | "medium";
+  estimatedLines?: number;
+  [key: string]: unknown;
+}
+
+interface CodebaseContext {
+  githubRepoUrl?: string;
+  githubRepoName?: string;
+  [key: string]: unknown;
+}
+
+interface FileCreatedInfo {
+  path?: string;
+  [key: string]: unknown;
+}
 
 export const infrastructureExecutionAgentFunction = inngest.createFunction(
   {
@@ -22,7 +43,8 @@ export const infrastructureExecutionAgentFunction = inngest.createFunction(
   },
   { event: "agent/execution.infrastructure" },
   async ({ event, step }) => {
-    const { taskId, projectId, userId, conversationId, waveNumber } = event.data;
+    const { taskId, projectId, userId, conversationId, waveNumber } =
+      event.data;
 
     const log = logger.child({
       inngestFunction: "infrastructureExecutionAgent",
@@ -48,7 +70,13 @@ export const infrastructureExecutionAgentFunction = inngest.createFunction(
       });
 
       // Step 2: Get project context
-      const projectContext = await step.run("fetch-context", async () => {
+      type ProjectContext = {
+        techStack: string;
+        architecture: string;
+        codebase: CodebaseContext;
+      };
+
+      const projectContext: ProjectContext = await step.run("fetch-context", async () => {
         const context = await prisma.projectContext.findUnique({
           where: { projectId },
         });
@@ -58,15 +86,27 @@ export const infrastructureExecutionAgentFunction = inngest.createFunction(
         }
 
         return {
-          techStack: context.techStack,
-          architecture: context.architecture,
-          codebase: context.codebase,
+          techStack: typeof context.techStack === "string"
+            ? context.techStack
+            : Array.isArray(context.techStack)
+            ? context.techStack.join(", ")
+            : context.techStack
+            ? JSON.stringify(context.techStack)
+            : "",
+          architecture: typeof context.architecture === "string"
+            ? context.architecture
+            : context.architecture
+            ? JSON.stringify(context.architecture)
+            : "",
+          codebase: (context.codebase || {}) as CodebaseContext,
         };
       });
 
       // Step 3: Create feature branch
       const branchName = await step.run("create-branch", async () => {
-        const safeName = (task.input as any).title
+        const input = task.input as TaskInput;
+
+        const safeName = input.title
           .toLowerCase()
           .replace(/[^a-z0-9\s]/g, "")
           .replace(/\s+/g, "-")
@@ -92,17 +132,24 @@ export const infrastructureExecutionAgentFunction = inngest.createFunction(
 
       // Step 4: Execute task with FULL FRAMEWORK
       const result = await step.run("execute-task", async () => {
-        log.info(
-          "[Infrastructure Execution Agent] Executing with framework"
-        );
+        log.info("[Infrastructure Execution Agent] Executing with framework");
 
+        const input = task.input as TaskInput;
+        // Provide defaults if missing
+        const fullTaskDetails = {
+          ...input,
+          context: projectContext,
+          estimatedLines: input.estimatedLines ?? 100,
+          description: input.description ?? "",
+          complexity: input.complexity ?? "simple",
+        };
         return await infrastructureAgent.execute({
           taskId,
           projectId,
           userId,
           conversationId,
-          taskDetails: task.input as any,
-          context: projectContext as any,
+          taskDetails: fullTaskDetails,
+          context: projectContext as Record<string, unknown>,
         });
       });
 
@@ -129,7 +176,7 @@ export const infrastructureExecutionAgentFunction = inngest.createFunction(
             branchName: branchName,
             completedAt: new Date(),
             durationMs: result.durationMs,
-            output: result.data as any,
+            output: result.data as Prisma.InputJsonValue,
           },
         });
       });
@@ -143,7 +190,8 @@ export const infrastructureExecutionAgentFunction = inngest.createFunction(
           { projectId, userId }
         );
 
-        const commitMessage = `feat(infrastructure): ${(task.input as any).title}\n\nTask ID: ${taskId}\nIterations: ${result.iterations}`;
+        const taskInput = task.input as TaskInput;
+        const commitMessage = `feat(infrastructure): ${taskInput.title}\n\nTask ID: ${taskId}\nIterations: ${result.iterations}`;
         await gitTool.GitTool.prototype.execute.call(
           { logExecution: () => {}, logError: () => {} },
           { operation: "commit", message: commitMessage },
@@ -152,7 +200,7 @@ export const infrastructureExecutionAgentFunction = inngest.createFunction(
       });
 
       // Step 7: Push to GitHub
-      const githubInfo = projectContext.codebase as any;
+      const githubInfo = projectContext.codebase;
       if (githubInfo?.githubRepoUrl) {
         await step.run("push-to-github", async () => {
           const gitTool = await import("@/lib/agents/tools/git-tool");
@@ -168,7 +216,9 @@ export const infrastructureExecutionAgentFunction = inngest.createFunction(
           );
 
           if (!pushResult.success) {
-            log.warn("[Infrastructure Execution Agent] Git push failed", { error: pushResult.error });
+            log.warn("[Infrastructure Execution Agent] Git push failed", {
+              error: pushResult.error,
+            });
           }
         });
       }
@@ -176,28 +226,29 @@ export const infrastructureExecutionAgentFunction = inngest.createFunction(
       // Step 8: Create Pull Request
       if (githubInfo?.githubRepoName && env.GITHUB_TOKEN) {
         await step.run("create-pr", async () => {
-          const taskDetails = task.input as any;
+          const taskDetails = task.input as TaskInput;
+          const filesCreated = (result.data?.filesCreated as FileCreatedInfo[] | undefined) || [];
 
           const prResult = await githubAgent.createPullRequest({
             projectId,
-            repoName: githubInfo.githubRepoName,
+            repoName: githubInfo.githubRepoName ?? "",
             branchName,
             title: `Infrastructure: ${taskDetails.title}`,
             description: `
 ## Task: ${taskDetails.title}
 
-${taskDetails.description}
+${taskDetails.description || ""}
 
 ### Completion Details:
 - **Iterations:** ${result.iterations}
 - **Duration:** ${Math.round(result.durationMs / 1000)}s
-- **Files Created:** ${result.data?.filesCreated?.length || 0}
+- **Files Created:** ${filesCreated.length}
 
 ### Files Changed:
-${result.data?.filesCreated?.map((f: any) => `- ${f.path || f}`).join("\n") || "N/A"}
+${filesCreated.map((f) => `- ${f.path || "unknown"}`).join("\n") || "N/A"}
 
 ### Acceptance Criteria:
-${taskDetails.acceptanceCriteria?.map((c: string) => `- [x] ${c}`).join("\n") || "N/A"}
+${taskDetails.acceptanceCriteria?.map((c) => `- [x] ${c}`).join("\n") || "N/A"}
 
 **Task ID:** ${taskId}
 **Agent:** Infrastructure Execution Agent
@@ -229,7 +280,9 @@ ${taskDetails.acceptanceCriteria?.map((c: string) => `- [x] ${c}`).join("\n") ||
       // Step 9: Check if all wave tasks are complete
       await step.run("check-wave-completion", async () => {
         if (!waveNumber) {
-          log.info("[Infrastructure Execution Agent] Not part of a wave, skipping wave completion check");
+          log.info(
+            "[Infrastructure Execution Agent] Not part of a wave, skipping wave completion check"
+          );
           return;
         }
 
@@ -291,7 +344,10 @@ ${taskDetails.acceptanceCriteria?.map((c: string) => `- [x] ${c}`).join("\n") ||
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
 
-      log.error("[Infrastructure Execution Agent] Execution failed", createAgentError(errorMessage, { taskId }));
+      log.error(
+        "[Infrastructure Execution Agent] Execution failed",
+        createAgentError(errorMessage, { taskId })
+      );
 
       // Update task status
       await step.run("mark-failed", async () => {

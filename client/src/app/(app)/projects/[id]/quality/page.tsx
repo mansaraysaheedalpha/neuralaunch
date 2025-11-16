@@ -9,7 +9,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   Shield,
-  FileCheck,
   Loader2,
   ThumbsUp,
   Rocket,
@@ -31,35 +30,52 @@ interface QualityPageProps {
   }>;
 }
 
+interface QualityData {
+  score?: number;
+  issues?: unknown[];
+  testResults?: unknown;
+  [key: string]: unknown;
+}
+
+interface ReviewsData {
+  reviews?: unknown[];
+  [key: string]: unknown;
+}
+
 const fetcher = async <T = unknown>(url: string): Promise<T> => {
   const res = await fetch(url);
   if (!res.ok) {
     // Check if response is JSON
     const contentType = res.headers.get("content-type");
     if (contentType && contentType.includes("application/json")) {
-      const errorData = await res.json();
-      throw new Error(errorData.error || `HTTP ${res.status}`);
+      const errorData = await res.json() as { error?: string };
+      throw new Error(errorData.error ?? `HTTP ${res.status}`);
     }
     throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   }
   return res.json() as Promise<T>;
 };
 
+
+
 export default function QualityDashboardPage({ params }: QualityPageProps) {
-  const { id: projectId } = use(params);
+  const { id: projectId } = use(params) as { id: string };
   const router = useRouter();
 
   // Fetch project quality data
-  const { data: qualityData, error, mutate } = useSWR<any>(
+  const swrQualityResult = useSWR<QualityData>(
     `/api/projects/${projectId}/quality`,
-    fetcher,
+    fetcher<QualityData>,
     { refreshInterval: 5000 }
   );
+  const qualityData = swrQualityResult.data;
+  const error: Error | undefined = swrQualityResult.error as Error | undefined;
+  const mutate = swrQualityResult.mutate;
 
   // Fetch project reviews
-  const { data: reviewsData } = useSWR<any>(
+  const { data: reviewsData } = useSWR<ReviewsData>(
     `/api/projects/${projectId}/reviews`,
-    fetcher,
+    fetcher<ReviewsData>,
     { refreshInterval: 5000 }
   );
 
@@ -72,13 +88,13 @@ export default function QualityDashboardPage({ params }: QualityPageProps) {
 
       if (!response.ok) throw new Error("Failed to approve wave");
 
-      const result = await response.json();
+      const result = await response.json() as { nextWave?: number };
       toast.success(
         result.nextWave
           ? `Wave ${waveNumber} approved! Moving to Wave ${result.nextWave}`
           : "Wave approved!"
       );
-      mutate();
+      void mutate();
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to approve wave"
@@ -121,12 +137,56 @@ export default function QualityDashboardPage({ params }: QualityPageProps) {
     );
   }
 
-  const overallScore = qualityData.overallScore || 0;
-  const tests = qualityData.tests || {};
-  const review = qualityData.review || {};
-  const security = qualityData.security || {};
-  const issues = review.issues || [];
-  const latestReview = reviewsData?.reviews?.[0];
+  const overallScore = (qualityData.overallScore as number | undefined) || 0;
+  const tests = (qualityData.tests as Record<string, unknown> | undefined) || {};
+  const review = (qualityData.review as Record<string, unknown> | undefined) || {};
+  const security = (qualityData.security as Record<string, unknown> | undefined) || {};
+  
+  interface Issue {
+    id: string;
+    category: string;
+    message: string;
+    autoFixable: boolean;
+    [key: string]: unknown;
+  }
+
+  function isIssue(issue: unknown): issue is Issue {
+    return (
+      !!issue &&
+      typeof issue === "object" &&
+      "id" in issue &&
+      "category" in issue &&
+      "message" in issue &&
+      "autoFixable" in issue &&
+      typeof (issue as Issue).id === "string" &&
+      typeof (issue as Issue).category === "string" &&
+      typeof (issue as Issue).message === "string" &&
+      typeof (issue as Issue).autoFixable === "boolean"
+    );
+  }
+
+  const allowedSeverities = ["low", "medium", "high", "critical"] as const;
+  type Severity = typeof allowedSeverities[number];
+
+  const issues = Array.isArray(review.issues)
+    ? review.issues
+        .filter(isIssue)
+        .map((issue) => {
+          let severity: Severity = "low";
+          if ("severity" in issue && allowedSeverities.includes(issue.severity as Severity)) {
+            severity = issue.severity as Severity;
+          }
+          return {
+            id: String(issue.id),
+            category: String(issue.category),
+            message: String(issue.message),
+            autoFixable: Boolean(issue.autoFixable),
+            severity,
+            file: "file" in issue ? String(issue.file) : "",
+          };
+        })
+    : [];
+  const latestReview = (reviewsData?.reviews?.[0] as Record<string, unknown> | undefined);
 
   return (
     <div className="min-h-screen bg-background">
@@ -205,22 +265,26 @@ export default function QualityDashboardPage({ params }: QualityPageProps) {
                   </div>
                 )}
               </div>
-              {qualityData.lastChecked && (
+              {typeof qualityData.lastChecked === "string" ||
+               typeof qualityData.lastChecked === "number" ||
+               qualityData.lastChecked instanceof Date ? (
                 <p className="text-xs text-muted-foreground mt-2">
                   Last checked:{" "}
                   {new Date(qualityData.lastChecked).toLocaleString()}
                 </p>
-              )}
+              ) : null}
             </div>
 
-            {qualityData.currentWave && (
+            {typeof qualityData.currentWave === "number" && (
               <Button
-                onClick={() => handleApproveWave(qualityData.currentWave)}
+                onClick={() => { void handleApproveWave(qualityData.currentWave as number); }}
                 size="lg"
                 className="bg-green-600 hover:bg-green-700"
               >
-                <ThumbsUp className="w-4 h-4 mr-2" />
-                Approve Wave {qualityData.currentWave}
+                <>
+                  <ThumbsUp className="w-4 h-4 mr-2" />
+                  Approve Wave {qualityData.currentWave}
+                </>
               </Button>
             )}
           </div>
@@ -232,54 +296,72 @@ export default function QualityDashboardPage({ params }: QualityPageProps) {
         {/* Quality Metrics Grid */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">
           <QualityScoreCard
-            score={tests.passed && tests.total ? (tests.passed / tests.total) * 100 : 0}
+            score={(tests.passed as number | undefined) && (tests.total as number | undefined) ? ((tests.passed as number) / (tests.total as number)) * 100 : 0}
             category="tests"
             details={{
-              passed: tests.passed || 0,
-              total: tests.total || 0,
+              passed: (tests.passed as number | undefined) || 0,
+              total: (tests.total as number | undefined) || 0,
             }}
           />
           <QualityScoreCard
-            score={review.score || 0}
+            score={(review.score as number | undefined) || 0}
             category="review"
             details={{
-              warnings: review.warnings || 0,
-              errors: review.errors || 0,
+              warnings: (review.warnings as number | undefined) || 0,
+              errors: (review.errors as number | undefined) || 0,
             }}
           />
           <QualityScoreCard
-            score={security.vulnerabilities === 0 ? 100 : 0}
+            score={(security.vulnerabilities as number | undefined) === 0 ? 100 : 0}
             category="security"
             details={{
-              vulnerabilities: security.vulnerabilities || 0,
+              vulnerabilities: (security.vulnerabilities as number | undefined) || 0,
             }}
           />
         </div>
 
         {/* Test Results */}
-        {tests.total > 0 && (
+        {(tests.total as number | undefined) && (tests.total as number) > 0 && (
           <Card className="mb-8">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileCheck className="w-5 h-5" />
-                Test Results
-              </CardTitle>
-            </CardHeader>
             <CardContent>
               <TestResultsViewer
                 testRun={{
-                  totalTests: tests.total || 0,
-                  passed: tests.passed || 0,
-                  failed: tests.failed || 0,
-                  skipped: tests.skipped || 0,
-                  duration: tests.duration || 0,
-                  coverage: tests.coverage || {
+                  totalTests: (tests.total as number | undefined) || 0,
+                  passed: (tests.passed as number | undefined) || 0,
+                  failed: (tests.failed as number | undefined) || 0,
+                  skipped: (tests.skipped as number | undefined) || 0,
+                  duration: (tests.duration as number | undefined) || 0,
+                  coverage: (tests.coverage as { lines: number; functions: number; branches: number } | undefined) || {
                     lines: 0,
                     functions: 0,
                     branches: 0,
                   },
                 }}
-                failedTests={tests.failedTests}
+                failedTests={
+                  Array.isArray(tests.failedTests)
+                    ? (tests.failedTests as unknown[]).map((t) => {
+                        if (
+                          typeof t === "object" &&
+                          t !== null &&
+                          "name" in t &&
+                          "error" in t &&
+                          "file" in t
+                        ) {
+                          const testObj = t as { name: unknown; error: unknown; file: unknown };
+                          return {
+                            name: String(testObj.name),
+                            error: String(testObj.error),
+                            file: String(testObj.file),
+                          };
+                        }
+                        return {
+                          name: "",
+                          error: "",
+                          file: "",
+                        };
+                      })
+                    : undefined
+                }
               />
             </CardContent>
           </Card>
@@ -313,16 +395,16 @@ export default function QualityDashboardPage({ params }: QualityPageProps) {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">
-                    Wave {latestReview.waveNumber || "N/A"}
+                    Wave {(latestReview?.waveNumber as number | string | undefined) || "N/A"}
                   </span>
                   <span
                     className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                      latestReview.approved
+                      latestReview?.approved
                         ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
                         : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100"
                     }`}
                   >
-                    {latestReview.approved ? (
+                    {latestReview?.approved ? (
                       <>
                         <CheckCircle2 className="w-3 h-3" />
                         Approved
@@ -333,7 +415,7 @@ export default function QualityDashboardPage({ params }: QualityPageProps) {
                   </span>
                 </div>
 
-                {latestReview.reviewScore !== undefined && (
+                {(latestReview?.reviewScore as number | undefined) !== undefined && (
                   <div>
                     <p className="text-sm text-muted-foreground mb-2">
                       Review Score
@@ -343,22 +425,28 @@ export default function QualityDashboardPage({ params }: QualityPageProps) {
                         <motion.div
                           className="h-full bg-green-500"
                           initial={{ width: 0 }}
-                          animate={{ width: `${latestReview.reviewScore * 10}%` }}
+                          animate={{ width: `${(latestReview.reviewScore as number) * 10}%` }}
                           transition={{ duration: 0.5 }}
                         />
                       </div>
                       <span className="text-sm font-medium">
-                        {latestReview.reviewScore}/10
+                        {latestReview.reviewScore as number}/10
                       </span>
                     </div>
                   </div>
                 )}
 
-                {latestReview.feedback && (
+                {latestReview?.feedback !== undefined && latestReview?.feedback !== null && (
                   <div>
                     <p className="text-sm font-medium mb-2">Feedback</p>
                     <p className="text-sm text-muted-foreground">
-                      {latestReview.feedback}
+                      {typeof latestReview.feedback === "string" ||
+                       typeof latestReview.feedback === "number" ||
+                       typeof latestReview.feedback === "boolean"
+                        ? latestReview.feedback
+                        : Array.isArray(latestReview.feedback) || typeof latestReview.feedback === "object"
+                          ? JSON.stringify(latestReview.feedback)
+                          : ""}
                     </p>
                   </div>
                 )}
@@ -368,7 +456,7 @@ export default function QualityDashboardPage({ params }: QualityPageProps) {
         )}
 
         {/* Empty State */}
-        {issues.length === 0 && tests.total === 0 && !latestReview && (
+        {issues.length === 0 && !(tests.total as number | undefined) && !latestReview && (
           <Card>
             <CardContent className="py-12 text-center">
               <Shield className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />

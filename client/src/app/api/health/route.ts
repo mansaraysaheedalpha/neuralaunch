@@ -7,7 +7,6 @@
 
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { env } from "@/lib/env";
 
 interface HealthCheckResponse {
   status: "healthy" | "degraded" | "unhealthy";

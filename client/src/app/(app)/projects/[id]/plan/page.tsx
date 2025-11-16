@@ -146,15 +146,15 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
     useState<FeedbackAnalysisResult | null>(null);
 
   // Fetch project and plan data
-  const { data: project, error: projectError } = useSWR<Project>(
+  const { data: project, error: projectError } = useSWR<Project, Error>(
     `/api/projects/${projectId}`,
-    fetcher,
+    fetcher<Project>,
     { refreshInterval: 5000 }
   );
 
-  const { data: planData, error: planError } = useSWR<PlanData>(
+  const { data: planData, error: planError } = useSWR<PlanData, Error>(
     `/api/projects/${projectId}/agent/plan`,
-    fetcher,
+    fetcher<PlanData>,
     { refreshInterval: 5000 }
   );
 
@@ -180,8 +180,8 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
       );
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to analyze feedback");
+        const error = await response.json() as { error?: string };
+        throw new Error(error.error ?? "Failed to analyze feedback");
       }
 
       const result = (await response.json()) as {
@@ -228,11 +228,11 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
       );
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to apply feedback");
+        const error = await response.json() as { error?: string };
+        throw new Error(error.error ?? "Failed to apply feedback");
       }
 
-      const result = await response.json();
+      await response.json();
       toast.success("Plan updated successfully!");
 
       // Clear feedback and analysis
@@ -270,8 +270,8 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
       );
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to revert plan");
+        const error = await response.json() as { error?: string };
+        throw new Error(error.error ?? "Failed to revert plan");
       }
 
       toast.success("Reverted to original plan");
@@ -301,8 +301,8 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to start execution");
+        const error = await response.json() as { error?: string };
+        throw new Error(error.error ?? "Failed to start execution");
       }
 
       toast.success("Execution started!");
@@ -415,7 +415,7 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                 </Badge>
               )}
               <Button
-                onClick={handleStartExecution}
+                onClick={() => void handleStartExecution()}
                 disabled={isStarting}
                 className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
               >

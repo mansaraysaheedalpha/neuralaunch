@@ -20,7 +20,7 @@ import {
 } from "../base/base-agent";
 import { AI_MODELS } from "@/lib/models";
 import { logger } from "@/lib/logger";
-import { toError, toLogContext } from "@/lib/error-utils";
+import { toError } from "@/lib/error-utils";
 import { env } from "@/lib/env";
 
 // ==========================================
@@ -64,6 +64,13 @@ export interface DeploymentResult {
   healthCheckPassed?: boolean;
   durationMs: number;
 }
+
+// // Get project context for deployment info
+// interface DigitalOceanContext {
+//   codebase?: {
+//     digitalOceanAppId?: string;
+//   };
+// }
 
 // ==========================================
 // DEPLOY AGENT CLASS
@@ -218,11 +225,11 @@ export class DeployAgent extends BaseAgent {
     }
 
     // Run migrations
-    const result = await this.executeTool(
+    const result = (await this.executeTool(
       "command",
       { command: migrationCommand },
       { projectId: input.projectId, userId: input.userId }
-    ) as CommandResult;
+    )) as CommandResult;
 
     if (!result.success) {
       throw new Error(`Migration failed: ${result.error}`);
@@ -305,11 +312,6 @@ export class DeployAgent extends BaseAgent {
         throw new Error("VERCEL_TOKEN environment variable not set");
       }
 
-      // Get project context for deployment info
-      const context = input.context as any;
-      const projectName =
-        context.codebase?.githubRepoName?.split("/")[1] || "app";
-
       // Build deployment command
       const deployCommand =
         input.environment === "production"
@@ -317,14 +319,14 @@ export class DeployAgent extends BaseAgent {
           : `vercel --token ${vercelToken} --yes`;
 
       // Execute deployment
-      const result = await this.executeTool(
+      const result = (await this.executeTool(
         "command",
         {
           command: deployCommand,
           timeout: 600000, // 10 minutes
         },
         { projectId: input.projectId, userId: input.userId }
-      ) as CommandResult;
+      )) as CommandResult;
 
       if (!result.success) {
         throw new Error(`Vercel deployment failed: ${result.error}`);
@@ -345,7 +347,10 @@ export class DeployAgent extends BaseAgent {
         durationMs: Date.now() - startTime,
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Vercel deployment error`, toError(error));
+      logger.error(
+        `[${this.config.name}] Vercel deployment error`,
+        toError(error)
+      );
 
       return {
         success: false,
@@ -381,7 +386,7 @@ export class DeployAgent extends BaseAgent {
       // Deploy using Railway CLI
       const deployCommand = `railway up --service ${projectId}`;
 
-      const result = await this.executeTool(
+      const result = (await this.executeTool(
         "command",
         {
           command: deployCommand,
@@ -389,7 +394,7 @@ export class DeployAgent extends BaseAgent {
           timeout: 600000, // 10 minutes
         },
         { projectId: input.projectId, userId: input.userId }
-      ) as CommandResult;
+      )) as CommandResult;
 
       if (!result.success) {
         throw new Error(`Railway deployment failed: ${result.error}`);
@@ -413,7 +418,10 @@ export class DeployAgent extends BaseAgent {
         durationMs: Date.now() - startTime,
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Railway deployment error`, toError(error));
+      logger.error(
+        `[${this.config.name}] Railway deployment error`,
+        toError(error)
+      );
 
       return {
         success: false,
@@ -443,7 +451,12 @@ export class DeployAgent extends BaseAgent {
       }
 
       // Get service ID from context
-      const context = input.context as any;
+      interface RenderContext {
+        codebase?: {
+          renderServiceId?: string;
+        };
+      }
+      const context = input.context as RenderContext;
       const serviceId = context.codebase?.renderServiceId;
 
       if (!serviceId) {
@@ -477,7 +490,10 @@ export class DeployAgent extends BaseAgent {
         durationMs: Date.now() - startTime,
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Render deployment error`, toError(error));
+      logger.error(
+        `[${this.config.name}] Render deployment error`,
+        toError(error)
+      );
 
       return {
         success: false,
@@ -508,14 +524,14 @@ export class DeployAgent extends BaseAgent {
       // Deploy using Fly CLI
       const deployCommand = "fly deploy --remote-only";
 
-      const result = await this.executeTool(
+      const result = (await this.executeTool(
         "command",
         {
           command: deployCommand,
           timeout: 600000, // 10 minutes
         },
         { projectId: input.projectId, userId: input.userId }
-      ) as CommandResult;
+      )) as CommandResult;
 
       if (!result.success) {
         throw new Error(`Fly.io deployment failed: ${result.error}`);
@@ -536,7 +552,10 @@ export class DeployAgent extends BaseAgent {
         durationMs: Date.now() - startTime,
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Fly.io deployment error`, toError(error));
+      logger.error(
+        `[${this.config.name}] Fly.io deployment error`,
+        toError(error)
+      );
 
       return {
         success: false,
@@ -579,14 +598,14 @@ export class DeployAgent extends BaseAgent {
           ? `netlify deploy --prod --auth ${netlifyToken}`
           : `netlify deploy --auth ${netlifyToken}`;
 
-      const result = await this.executeTool(
+      const result = (await this.executeTool(
         "command",
         {
           command: deployCommand,
           timeout: 300000, // 5 minutes
         },
         { projectId: input.projectId, userId: input.userId }
-      ) as CommandResult;
+      )) as CommandResult;
 
       if (!result.success) {
         throw new Error(`Netlify deployment failed: ${result.error}`);
@@ -607,7 +626,10 @@ export class DeployAgent extends BaseAgent {
         durationMs: Date.now() - startTime,
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Netlify deployment error`, toError(error));
+      logger.error(
+        `[${this.config.name}] Netlify deployment error`,
+        toError(error)
+      );
 
       return {
         success: false,
@@ -635,7 +657,12 @@ export class DeployAgent extends BaseAgent {
 
       // DigitalOcean uses Git-based deployment
       // Trigger via API
-      const context = input.context as any;
+      interface DigitalOceanContext {
+        codebase?: {
+          digitalOceanAppId?: string;
+        };
+      }
+      const context = input.context as DigitalOceanContext;
       const appId = context.codebase?.digitalOceanAppId;
 
       if (!appId) {
@@ -698,27 +725,27 @@ export class DeployAgent extends BaseAgent {
       // Build Docker image
       const imageName = `${input.projectId}:${input.environment}`;
 
-      const buildResult = await this.executeTool(
+      const buildResult = (await this.executeTool(
         "command",
         {
           command: `docker build -t ${imageName} .`,
           timeout: 600000, // 10 minutes
         },
         { projectId: input.projectId, userId: input.userId }
-      ) as CommandResult;
+      )) as CommandResult;
 
       if (!buildResult.success) {
         throw new Error(`Docker build failed: ${buildResult.error}`);
       }
 
       // Run container
-      const runResult = await this.executeTool(
+      const runResult = (await this.executeTool(
         "command",
         {
           command: `docker run -d -p 3000:3000 --name ${input.projectId}-${input.environment} ${imageName}`,
         },
         { projectId: input.projectId, userId: input.userId }
-      ) as CommandResult;
+      )) as CommandResult;
 
       if (!runResult.success) {
         throw new Error(`Docker run failed: ${runResult.error}`);
@@ -738,7 +765,10 @@ export class DeployAgent extends BaseAgent {
         durationMs: Date.now() - startTime,
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Docker deployment error`, toError(error));
+      logger.error(
+        `[${this.config.name}] Docker deployment error`,
+        toError(error)
+      );
 
       return {
         success: false,
@@ -775,7 +805,9 @@ export class DeployAgent extends BaseAgent {
 
       return isHealthy;
     } catch (error) {
-      logger.warn(`[${this.config.name}] Health check failed`, { error: error instanceof Error ? error.message : String(error) });
+      logger.warn(`[${this.config.name}] Health check failed`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
       return false;
     }
   }
@@ -855,17 +887,22 @@ export class DeployAgent extends BaseAgent {
     input: AgentExecutionInput
   ): Promise<string> {
     // Try to get from context first
-    const context = input.context as any;
+    interface RailwayContext {
+      codebase?: {
+        railwayProjectId?: string;
+      };
+    }
+    const context = input.context as RailwayContext;
     if (context.codebase?.railwayProjectId) {
       return context.codebase.railwayProjectId;
     }
 
     // Otherwise, create new project
-    const result = await this.executeTool(
+    const result = (await this.executeTool(
       "command",
       { command: "railway init" },
       { projectId: input.projectId, userId: input.userId }
-    ) as CommandResult;
+    )) as CommandResult;
 
     if (!result.success) {
       throw new Error("Failed to initialize Railway project");
@@ -886,11 +923,11 @@ export class DeployAgent extends BaseAgent {
     input: AgentExecutionInput,
     projectId: string
   ): Promise<string> {
-    const result = await this.executeTool(
+    const result = (await this.executeTool(
       "command",
       { command: `railway domain` },
       { projectId: input.projectId, userId: input.userId }
-    ) as CommandResult;
+    )) as CommandResult;
 
     if (result.success && result.data?.stdout) {
       const match = result.data.stdout.match(/https:\/\/[^\s]+/);
@@ -929,11 +966,13 @@ export class DeployAgent extends BaseAgent {
         throw new Error(`Render API error: ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as {
+        deployment: { id: string; live_url: string };
+      };
 
       return {
         success: true,
-        deployId: data.id,
+        deployId: data.deployment.id,
         serviceUrl: `https://${serviceId}.onrender.com`,
       };
     } catch (error) {
@@ -973,7 +1012,10 @@ export class DeployAgent extends BaseAgent {
         throw new Error(`DigitalOcean API error: ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const json = (await response.json()) as {
+        deployment: { id: string; live_url: string };
+      };
+      const data = json;
 
       return {
         success: true,

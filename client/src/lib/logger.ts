@@ -6,8 +6,6 @@
  * In production, logs can be sent to external services (e.g., Sentry, LogRocket)
  */
 
-import { env } from "./env";
-
 type LogLevel = "debug" | "info" | "warn" | "error";
 
 export interface LogContext {
@@ -15,8 +13,8 @@ export interface LogContext {
 }
 
 class Logger {
-  private isDevelopment = env.NODE_ENV === "development";
-  private isProduction = env.NODE_ENV === "production";
+  private isDevelopment = process.env.NODE_ENV === "development";
+  private isProduction = process.env.NODE_ENV === "production";
 
   private formatMessage(
     level: LogLevel,

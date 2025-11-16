@@ -72,7 +72,20 @@ export function loadMCPConfig(): MCPConfiguration | null {
     }
 
     const configContent = fs.readFileSync(configPath, "utf-8");
-    const config: MCPConfiguration = JSON.parse(configContent);
+    const parsedConfig = JSON.parse(configContent) as unknown;
+
+    // Basic runtime type check for MCPConfiguration
+    if (
+      typeof parsedConfig !== "object" ||
+      parsedConfig === null ||
+      typeof ((parsedConfig as Record<string, unknown>)?.version) !== "string" ||
+      !Array.isArray((parsedConfig as Record<string, unknown>).servers)
+    ) {
+      logger.error("[MCP Config] Invalid configuration file structure");
+      return null;
+    }
+
+    const config: MCPConfiguration = parsedConfig as MCPConfiguration;
 
     // Apply environment variable overrides for URLs
     config.servers = config.servers.map((server) => {

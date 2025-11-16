@@ -1,5 +1,4 @@
 // src/lib/agents/execution/frontend-agent.ts
-// src/lib/agents/execution/frontend-agent.ts
 /**
  * Frontend Agent - WITH FIX MODE
  * Now supports fixing issues found by Critic Agent
@@ -12,7 +11,7 @@ import {
 } from "../base/base-agent";
 import { AI_MODELS } from "@/lib/models";
 import { logger } from "@/lib/logger";
-import { toError, toLogContext } from "@/lib/error-utils";
+import { toError } from "@/lib/error-utils";
 import { createThoughtStream } from "../thought-stream";
 
 export class FrontendAgent extends BaseAgent {
@@ -31,13 +30,15 @@ export class FrontendAgent extends BaseAgent {
         "code_analysis",
         "context_loader",
         "claude_skills", // Advanced code generation, refactoring, and UI optimization
+        "image_generation", // Generate images for UI using OpenAI DALL-E
+        "video_generation", // Generate short videos for UI using Replicate/Runway
       ],
       modelName: AI_MODELS.CLAUDE,
     });
   }
 
   async executeTask(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
-    const { taskId, projectId, userId, taskDetails, context } = input;
+    const { projectId, userId, taskDetails, context: _context } = input;
 
     // Create thought stream for real-time updates
     const thoughts = createThoughtStream(projectId, this.config.name);
@@ -47,10 +48,12 @@ export class FrontendAgent extends BaseAgent {
 
     if (isFixMode) {
       logger.info(
-        `[${this.config.name}] FIX MODE: Fixing issues for task "${taskDetails.originalTaskId}"`,
+        `[${this.config.name}] FIX MODE: Fixing issues for task "${String(taskDetails.originalTaskId)}"`,
         {
           attempt: taskDetails.attempt,
-          issuesCount: Array.isArray(taskDetails.issuesToFix) ? taskDetails.issuesToFix.length : 0,
+          issuesCount: Array.isArray(taskDetails.issuesToFix)
+            ? taskDetails.issuesToFix.length
+            : 0,
         }
       );
       await thoughts.starting("fixing issues from code review");
@@ -65,7 +68,7 @@ export class FrontendAgent extends BaseAgent {
     try {
       await thoughts.starting(`frontend implementation: ${taskDetails.title}`);
       await thoughts.analyzing("task requirements and dependencies");
-      
+
       const implementation = await this.generateImplementation(input);
 
       if (!implementation) {
@@ -97,7 +100,9 @@ export class FrontendAgent extends BaseAgent {
         };
       }
 
-      await thoughts.executing(`running ${implementation.commands.length} setup commands`);
+      await thoughts.executing(
+        `running ${implementation.commands.length} setup commands`
+      );
       const commandsResult = await this.runCommands(implementation.commands, {
         projectId,
         userId,
@@ -118,14 +123,16 @@ export class FrontendAgent extends BaseAgent {
       }
 
       await thoughts.analyzing("verifying implementation quality");
-      const verification = await this.verifyImplementation(
+      const verification = this.verifyImplementation(
         filesResult.files,
         commandsResult.commands,
         taskDetails
       );
 
       if (!verification.passed) {
-        await thoughts.error(`Verification failed: ${verification.issues.join(", ")}`);
+        await thoughts.error(
+          `Verification failed: ${verification.issues.join(", ")}`
+        );
         return {
           success: false,
           message: "Verification failed",
@@ -139,7 +146,9 @@ export class FrontendAgent extends BaseAgent {
         };
       }
 
-      await thoughts.completing(`Successfully implemented ${filesResult.files.length} files with ${commandsResult.commands.length} commands`);
+      await thoughts.completing(
+        `Successfully implemented ${filesResult.files.length} files with ${commandsResult.commands.length} commands`
+      );
 
       return {
         success: true,
@@ -155,7 +164,10 @@ export class FrontendAgent extends BaseAgent {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      logger.error(`[${this.config.name}] Task execution failed`, toError(error));
+      logger.error(
+        `[${this.config.name}] Task execution failed`,
+        toError(error)
+      );
       await thoughts.error(`Task execution failed: ${errorMessage}`);
 
       return {
@@ -174,20 +186,25 @@ export class FrontendAgent extends BaseAgent {
   private async executeFixMode(
     input: AgentExecutionInput
   ): Promise<AgentExecutionOutput> {
-    const { taskId, projectId, userId, taskDetails, context } = input;
+    const { projectId, userId, taskDetails, context } = input;
 
     try {
       // Step 1: Load the files that need fixing
-      const issuesToFix = taskDetails.issuesToFix as Array<{ file: string; issue: string }>;
+      const issuesToFix = taskDetails.issuesToFix as Array<{
+        file: string;
+        issue: string;
+      }>;
       const filesToFix = issuesToFix.map((issue) => issue.file);
       const uniqueFiles = Array.from(new Set(filesToFix));
 
-      logger.info(`[${this.config.name}] Loading ${uniqueFiles.length} files to fix`);
+      logger.info(
+        `[${this.config.name}] Loading ${uniqueFiles.length} files to fix`
+      );
 
       const existingFiles = await this.loadFilesToFix(
         projectId,
         userId,
-        uniqueFiles as string[]
+        uniqueFiles
       );
 
       // Step 2: Generate fixes using AI
@@ -237,7 +254,7 @@ export class FrontendAgent extends BaseAgent {
       });
 
       logger.info(
-        `[${this.config.name}] Fix attempt ${taskDetails.attempt} complete`,
+        `[${this.config.name}] Fix attempt ${String(taskDetails.attempt)} complete`,
         {
           filesFixed: filesResult.files.length,
           issuesAddressed: issuesToFix.length,
@@ -297,10 +314,9 @@ export class FrontendAgent extends BaseAgent {
           });
         }
       } catch (error) {
-        logger.warn(
-          `[${this.config.name}] Failed to load file: ${filePath}`,
-          { error: error instanceof Error ? error.message : String(error) }
-        );
+        logger.warn(`[${this.config.name}] Failed to load file: ${filePath}`, {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -311,13 +327,32 @@ export class FrontendAgent extends BaseAgent {
    * Build fix prompt for AI (Frontend-specific)
    */
   private buildFixPrompt(
-    issues: any[],
+    issues: Array<{
+      file: string;
+      issue: string;
+      line?: number;
+      severity?: string;
+      category?: string;
+      message?: string;
+      suggestion?: string;
+      codeSnippet?: string;
+    }>,
     existingFiles: Array<{ path: string; content: string }>,
     attempt: number,
-    context: any
+    context: Record<string, unknown>
   ): string {
-    const techStack = context.techStack || {};
-    const frontend = techStack.frontend || {};
+    interface FrontendTechStack {
+      framework?: string;
+      language?: string;
+      styling?: string;
+      stateManagement?: string;
+      router?: string;
+      formLibrary?: string;
+      uiLibrary?: string;
+    }
+    const techStack: { frontend?: FrontendTechStack } =
+      (context.techStack as { frontend?: FrontendTechStack }) || {};
+    const frontend = techStack.frontend ?? {};
     const framework = frontend.framework || "React";
     const language = frontend.language || "TypeScript";
     const styling = frontend.styling || "Tailwind CSS";
@@ -539,7 +574,10 @@ Type Safety:
       `,
     };
 
-    return patterns[framework] || "Follow standard best practices for your framework.";
+    return (
+      patterns[framework] ||
+      "Follow standard best practices for your framework."
+    );
   }
 
   /**
@@ -554,7 +592,11 @@ Type Safety:
       let cleaned = responseText.trim();
       cleaned = cleaned.replace(/```json\n?/g, "").replace(/```\n?/g, "");
 
-      const parsed = JSON.parse(cleaned);
+      const parsed = JSON.parse(cleaned) as {
+        files?: Array<{ path: string; content: string }>;
+        commands?: string[];
+        explanation?: string;
+      };
 
       return {
         files: parsed.files || [],
@@ -562,7 +604,8 @@ Type Safety:
         explanation: parsed.explanation || "No explanation provided",
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Failed to parse fix response`, 
+      logger.error(
+        `[${this.config.name}] Failed to parse fix response`,
         error instanceof Error ? error : new Error(String(error)),
         { preview: responseText.substring(0, 500) }
       );
@@ -583,7 +626,10 @@ Type Safety:
 
       return this.parseImplementation(responseText);
     } catch (error) {
-      logger.error(`[${this.config.name}] AI generation failed`, toError(error));
+      logger.error(
+        `[${this.config.name}] AI generation failed`,
+        toError(error)
+      );
       return null;
     }
   }
@@ -595,8 +641,29 @@ Type Safety:
     const { taskDetails, context } = input;
 
     // Extract tech stack from Planning Agent
-    const techStack = context.techStack as Record<string, any> || {};
-    const frontend = (techStack.frontend as Record<string, any>) || {};
+    const techStack = (context.techStack as {
+      frontend?: {
+        framework?: string;
+        language?: string;
+        styling?: string;
+        stateManagement?: string;
+        router?: string;
+        formLibrary?: string;
+        uiLibrary?: string;
+      };
+      language?: string;
+      styling?: string;
+    }) || {};
+    type FrontendConfig = {
+      framework?: string;
+      language?: string;
+      styling?: string;
+      stateManagement?: string;
+      router?: string;
+      formLibrary?: string;
+      uiLibrary?: string;
+    };
+    const frontend: FrontendConfig = techStack.frontend || {};
     const framework = frontend.framework || "React";
     const language = frontend.language || techStack.language || "TypeScript";
     const styling = frontend.styling || techStack.styling || "Tailwind CSS";
@@ -614,7 +681,7 @@ You are the Frontend Agent, a specialized UI/component code generation expert.
 - Estimated Lines: ${taskDetails.estimatedLines}
 
 **Components to Create/Modify:**
-${Array.isArray(taskDetails.components) ? taskDetails.components.map((c: string) => `- ${c}`).join("\n") : (Array.isArray(taskDetails.files) ? taskDetails.files.map((f: string) => `- ${f}`).join("\n") : "Determine appropriate components")}
+${Array.isArray(taskDetails.components) ? taskDetails.components.map((c: string) => `- ${c}`).join("\n") : Array.isArray(taskDetails.files) ? taskDetails.files.map((f: string) => `- ${f}`).join("\n") : "Determine appropriate components"}
 
 **Pages/Routes (if applicable):**
 ${Array.isArray(taskDetails.pages) ? taskDetails.pages.map((p: string) => `- ${p}`).join("\n") : "N/A"}
@@ -645,6 +712,59 @@ ${context._memoryContext ? `**Relevant Past Experience:**\n${context._memoryCont
 
 **Available Tools:**
 ${this.getToolsDescription()}
+
+**IMAGE GENERATION (When Needed):**
+You have access to the image_generation tool powered by OpenAI DALL-E 3. Use it when:
+- The task requires hero images, banners, or featured images
+- UI mockups need custom illustrations or graphics
+- Design calls for unique icons or visual elements
+- Placeholder images should be replaced with real, contextual imagery
+
+When generating images:
+1. Create detailed, specific prompts describing style, colors, composition
+2. Choose appropriate size: 1792x1024 (landscape), 1024x1024 (square), 1024x1792 (portrait)
+3. Save to appropriate path (e.g., "public/images/hero.png", "public/assets/product-illustration.png")
+4. Reference the generated image in your code using the relative path
+5. Use quality: "standard" for most cases, "hd" for high-detail needs
+6. Use style: "natural" for realistic images, "vivid" for more dramatic/artistic results
+
+Example usage in your generated JSON:
+- First, call the image_generation tool to create the image
+- Then include the image path in your component code
+- Make sure the path matches where you saved the image
+
+**VIDEO GENERATION (When Needed):**
+You have access to the video_generation tool powered by Replicate (Stable Video Diffusion, Zeroscope) and Runway Gen-2. Use it when:
+- Hero sections need dynamic background videos
+- Product demos require video illustrations
+- Landing pages need animated content
+- UI needs looping background animations
+- Converting static images to animated videos
+
+Available models:
+- "replicate-zeroscope" (recommended): Text-to-video, cinematic quality, good for most use cases
+- "replicate-svd": Image-to-video, animates existing images (requires inputImage)
+- "runway-gen2": Highest quality, most expensive, best for premium projects
+
+When generating videos:
+1. Create detailed prompts describing motion, camera movement, style, and subject
+2. Choose duration: 3-10 seconds (4-5 seconds recommended for web backgrounds)
+3. Select appropriate aspect ratio: 16:9 (landscape), 9:16 (portrait), 1:1 (square)
+4. Save to appropriate path (e.g., "public/videos/hero-bg.mp4")
+5. Use fps: 24 (cinematic) or 30 (smooth)
+6. Reference the video in your code (HTML5 video tag, background video, etc.)
+
+Best practices:
+- Keep videos under 5 seconds for faster loading
+- Use 24 fps for most cases (smaller file size)
+- Describe camera motion clearly (pan, zoom, rotate, static)
+- For backgrounds, request loop-able animations
+- For image-to-video, use "replicate-svd" model with inputImage parameter
+
+Example usage:
+- Call video_generation tool first to create the video
+- Use <video> tag with autoplay, loop, muted attributes for backgrounds
+- Provide fallback image for browsers that don't support video
 
 **CODE REQUIREMENTS:**
 1. **TECH STACK COMPLIANCE**: Use ONLY ${framework} with ${language}
@@ -1000,7 +1120,11 @@ export default function UserCard(props: UserCardProps) {
       let cleaned = responseText.trim();
       cleaned = cleaned.replace(/```json\n?/g, "").replace(/```\n?/g, "");
 
-      const parsed = JSON.parse(cleaned);
+      const parsed = JSON.parse(cleaned) as {
+        files?: Array<{ path: string; content: string }>;
+        commands?: string[];
+        explanation?: string;
+      };
 
       return {
         files: parsed.files || [],
@@ -1008,7 +1132,8 @@ export default function UserCard(props: UserCardProps) {
         explanation: parsed.explanation || "No explanation provided",
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Failed to parse AI response`, 
+      logger.error(
+        `[${this.config.name}] Failed to parse AI response`,
         error instanceof Error ? error : new Error(String(error)),
         { preview: responseText.substring(0, 500) }
       );
@@ -1046,10 +1171,9 @@ export default function UserCard(props: UserCardProps) {
         });
 
         if (!result.success) {
-          logger.warn(
-            `[${this.config.name}] File write failed: ${file.path}`,
-            { error: result.error }
-          );
+          logger.warn(`[${this.config.name}] File write failed: ${file.path}`, {
+            error: result.error,
+          });
         }
       } catch (error) {
         logger.error(
@@ -1102,18 +1226,19 @@ export default function UserCard(props: UserCardProps) {
         results.push({
           command,
           success: result.success,
-          output:
-            data?.stdout || data?.stderr || result.error || "",
+          output: data?.stdout || data?.stderr || result.error || "",
         });
 
         if (!result.success) {
-          logger.warn(
-            `[${this.config.name}] Command failed: ${command}`,
-            { error: result.error }
-          );
+          logger.warn(`[${this.config.name}] Command failed: ${command}`, {
+            error: result.error,
+          });
         }
       } catch (error) {
-        logger.error(`[${this.config.name}] Command error: ${command}`, toError(error));
+        logger.error(
+          `[${this.config.name}] Command error: ${command}`,
+          toError(error)
+        );
         results.push({
           command,
           success: false,
@@ -1131,14 +1256,14 @@ export default function UserCard(props: UserCardProps) {
     };
   }
 
-  private async verifyImplementation(
+  private verifyImplementation(
     files: Array<{ path: string; lines: number; success: boolean }>,
     commands: Array<{ command: string; success: boolean; output: string }>,
-    taskDetails: any
-  ): Promise<{
+    taskDetails: AgentExecutionInput["taskDetails"]
+  ): {
     passed: boolean;
     issues: string[];
-  }> {
+  } {
     const issues: string[] = [];
 
     const failedFiles = files.filter((f) => !f.success);

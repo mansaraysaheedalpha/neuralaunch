@@ -1,3 +1,4 @@
+//src\inngest\functions\database-agent-function.ts
 import { databaseAgent } from "@/lib/agents/execution/database-agent";
 import { inngest } from "../client";
 import { logger } from "@/lib/logger";
@@ -6,6 +7,24 @@ import { executionCoordinator } from "@/lib/orchestrator/execution-coordinator";
 import { githubAgent } from "@/lib/agents/github/github-agent";
 import { createAgentError } from "@/lib/error-utils";
 import { env } from "@/lib/env";
+import type { Prisma } from "@prisma/client";
+import type { ProjectContext } from "@/lib/agents/types/common";
+
+// Type definitions
+interface TaskInput {
+  title: string;
+  description: string;
+  complexity: "simple" | "medium";
+  estimatedLines: number;
+  [key: string]: unknown;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+interface TaskOutput {
+  filesCreated?: Array<{ path: string; lines?: number } | string>;
+  commandsRun?: Array<{ command: string } | string>;
+  [key: string]: unknown;
+}
 
 /**
  * Database Agent Execution Function
@@ -74,11 +93,16 @@ export const databaseAgentFunction = inngest.createFunction(
 
       // Step 4: Create feature branch
       const branchName = await step.run("create-branch", async () => {
-        const safeName = (task.input as any).title
-          .toLowerCase()
-          .replace(/[^a-z0-9\s]/g, "")
-          .replace(/\s+/g, "-")
-          .substring(0, 40);
+        type TaskInput = { title?: string };
+        const input: TaskInput = typeof task.input === "object" && task.input !== null ? task.input as TaskInput : {};
+
+        const safeName = input.title
+          ? input.title
+              .toLowerCase()
+              .replace(/[^a-z0-9\s]/g, "")
+              .replace(/\s+/g, "-")
+              .substring(0, 40)
+          : "untitled";
 
         const branch = `database/${taskId.slice(0, 8)}-${safeName}`;
 
@@ -109,8 +133,8 @@ export const databaseAgentFunction = inngest.createFunction(
           projectId,
           userId,
           conversationId,
-          taskDetails: task.input as any,
-          context: projectContext as any,
+          taskDetails: task.input as TaskInput,
+          context: projectContext as Partial<ProjectContext>,
         });
       });
 
@@ -138,7 +162,7 @@ export const databaseAgentFunction = inngest.createFunction(
             branchName: branchName,
             completedAt: new Date(),
             durationMs: result.durationMs,
-            output: result.data as any,
+            output: result.data ? (result.data as unknown as Prisma.InputJsonValue) : undefined,
           },
         });
       });
@@ -154,7 +178,9 @@ export const databaseAgentFunction = inngest.createFunction(
         );
 
         // Commit
-        const commitMessage = `feat(database): ${(task.input as any).title}\n\nTask ID: ${taskId}\nIterations: ${result.iterations}`;
+        type TaskInput = { title?: string };
+        const input: TaskInput = typeof task.input === "object" && task.input !== null ? task.input as TaskInput : {};
+        const commitMessage = `feat(database): ${input.title}\n\nTask ID: ${taskId}\nIterations: ${result.iterations}`;
         await gitTool.GitTool.prototype.execute.call(
           { logExecution: () => {}, logError: () => {} },
           { operation: "commit", message: commitMessage },
@@ -163,8 +189,9 @@ export const databaseAgentFunction = inngest.createFunction(
       });
 
       // Step 8: Push to GitHub
-      const githubInfo = projectContext.codebase as any;
-      if (githubInfo?.githubRepoUrl) {
+      type GithubInfo = { githubRepoUrl?: string; githubRepoName?: string };
+      const githubInfo = projectContext.codebase as GithubInfo;
+      if (githubInfo && typeof githubInfo.githubRepoUrl === "string") {
         await step.run("push-to-github", async () => {
           const gitTool = await import("@/lib/agents/tools/git-tool");
           const pushResult = await gitTool.GitTool.prototype.execute.call(
@@ -187,11 +214,17 @@ export const databaseAgentFunction = inngest.createFunction(
       // Step 9: Create Pull Request
       if (githubInfo?.githubRepoName && env.GITHUB_TOKEN) {
         await step.run("create-pr", async () => {
-          const taskDetails = task.input as any;
+          type TaskDetails = {
+            title?: string;
+            description?: string;
+            acceptanceCriteria?: string[];
+            [key: string]: unknown;
+          };
+          const taskDetails: TaskDetails = typeof task.input === "object" && task.input !== null ? task.input as TaskDetails : {};
 
           const prResult = await githubAgent.createPullRequest({
             projectId,
-            repoName: githubInfo.githubRepoName,
+            repoName: githubInfo.githubRepoName ?? "",
             branchName,
             title: `Database: ${taskDetails.title}`,
             description: `
@@ -243,7 +276,7 @@ ${taskDetails.acceptanceCriteria?.map((c: string) => `- [x] ${c}`).join("\n") ||
 
       // Step 10: Check if all wave tasks are complete
       await step.run("check-wave-completion", async () => {
-        const waveNumber = (event.data as any).waveNumber;
+        const waveNumber = (event.data as { waveNumber?: number }).waveNumber;
 
         if (!waveNumber) {
           // Not part of a wave, just trigger coordinator resume

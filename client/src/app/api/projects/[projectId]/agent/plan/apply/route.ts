@@ -15,10 +15,23 @@ import {
 // Extend timeout for AI operations
 export const maxDuration = 300; // 5 minutes
 
+const feedbackSchema = z.union([
+  z.string(),
+  z.object({
+    type: z.string().optional(),
+    content: z.string().optional(),
+  }).passthrough(),
+]);
+
+const analysisResultSchema = z.object({
+  summary: z.string().optional(),
+  changes: z.array(z.unknown()).optional(),
+}).passthrough();
+
 const applyFeedbackSchema = z.object({
   conversationId: z.string().min(1),
-  feedback: z.any(), // Same structure as feedback endpoint
-  analysisResult: z.any(), // The analysis result user reviewed
+  feedback: feedbackSchema,
+  analysisResult: analysisResultSchema,
   action: z.enum(["proceed", "revert"]),
 });
 
@@ -49,7 +62,7 @@ export async function POST(
     // Rate limiting
     const clientIp = getClientIp(req.headers);
     const rateLimitId = getRequestIdentifier(userId, clientIp);
-    const rateLimitResult = checkRateLimit({
+    const rateLimitResult = await checkRateLimit({
       ...RATE_LIMITS.AI_GENERATION,
       identifier: rateLimitId,
     });
@@ -74,7 +87,7 @@ export async function POST(
     }
 
     // 2. Validate request
-    const body = await req.json();
+    const body: unknown = await req.json();
     const validatedBody = applyFeedbackSchema.parse(body);
 
     // 3. Verify project ownership
@@ -131,10 +144,17 @@ export async function POST(
     // 5. Apply feedback changes
     logger.info("Applying feedback to plan", { projectId: projectId });
 
+    // Convert feedback to string if it's an object
+    const feedbackString = typeof validatedBody.feedback === 'string'
+      ? validatedBody.feedback
+      : (validatedBody.feedback as Record<string, unknown>).content
+        ? String((validatedBody.feedback as Record<string, unknown>).content)
+        : JSON.stringify(validatedBody.feedback);
+
     const result = await planningAgent.applyFeedback(
       projectId,
-      validatedBody.feedback,
-      validatedBody.analysisResult
+      feedbackString,
+      validatedBody.analysisResult as Record<string, unknown> | undefined
     );
 
     logger.info("Feedback applied successfully", {

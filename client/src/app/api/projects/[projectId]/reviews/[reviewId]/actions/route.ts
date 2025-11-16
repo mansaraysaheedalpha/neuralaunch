@@ -41,7 +41,7 @@ export async function POST(
     const userId = session.user.id;
 
     // Validate request
-    const body = await req.json();
+    const body: unknown = await req.json();
     const validatedBody = reviewActionSchema.parse(body);
 
     // Verify project ownership

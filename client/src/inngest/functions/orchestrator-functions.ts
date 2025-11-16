@@ -4,7 +4,7 @@ import { inngest } from "../client";
 import { logger } from "@/lib/logger";
 import { createAgentError, toError } from "@/lib/error-utils";
 import { sendNotification } from "@/lib/notifications/notification-service";
-import prisma from "@/lib/prisma";
+
 
 export const orchestratorRunFunction = inngest.createFunction(
   {
@@ -203,7 +203,7 @@ export const orchestratorVisionFunction = inngest.createFunction(
         success: true,
         projectId,
         projectName,
-        completedPhases: result.completedPhases?.map((p: any) => p.phase) || [],
+        completedPhases: result.completedPhases?.map((p: { phase: string }) => p.phase) || [],
         currentPhase: result.currentPhase,
         totalDuration: result.totalDuration,
       };
@@ -298,7 +298,7 @@ export const orchestratorBlueprintFunction = inngest.createFunction(
         success: true,
         projectId,
         conversationId,
-        completedPhases: result.completedPhases?.map((p: any) => p.phase) || [],
+        completedPhases: result.completedPhases?.map((p: { phase: string }) => p.phase) || [],
         currentPhase: result.currentPhase,
         totalDuration: result.totalDuration,
       };

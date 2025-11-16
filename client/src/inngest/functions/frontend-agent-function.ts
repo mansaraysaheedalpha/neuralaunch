@@ -6,6 +6,30 @@ import { executionCoordinator } from "@/lib/orchestrator/execution-coordinator";
 import { githubAgent } from "@/lib/agents/github/github-agent";
 import { createAgentError } from "@/lib/error-utils";
 import { env } from "@/lib/env";
+import type { ProjectContext } from "@/lib/agents/types/common";
+import type { Prisma } from "@prisma/client";
+
+// Type definitions
+type TaskInput = {
+  title: string;
+  description: string;
+  acceptanceCriteria?: string[];
+  complexity: "simple" | "medium";
+  estimatedLines: number;
+  [key: string]: unknown;
+};
+
+type GitHubInfo = {
+  githubRepoUrl?: string;
+  githubRepoName?: string;
+  [key: string]: unknown;
+};
+
+type TaskResultData = {
+  filesCreated?: Array<{ path: string; lines: number }>;
+  commandsRun?: unknown[];
+  [key: string]: unknown;
+};
 
 /**
  * Frontend Agent Execution Function
@@ -56,10 +80,10 @@ export const frontendAgentFunction = inngest.createFunction(
         }
 
         return {
-          techStack: context.techStack,
+          techStack: context.techStack as ProjectContext['techStack'],
           architecture: context.architecture,
           codebase: context.codebase,
-        };
+        } satisfies Partial<ProjectContext>;
       });
 
       // Step 3: Initialize Git if needed
@@ -74,7 +98,9 @@ export const frontendAgentFunction = inngest.createFunction(
 
       // Step 4: Create feature branch
       const branchName = await step.run("create-branch", async () => {
-        const safeName = (task.input as any).title
+        const input = task.input as TaskInput;
+        const title = typeof input.title === "string" ? input.title : "";
+        const safeName = title
           .toLowerCase()
           .replace(/[^a-z0-9\s]/g, "")
           .replace(/\s+/g, "-")
@@ -109,8 +135,8 @@ export const frontendAgentFunction = inngest.createFunction(
           projectId,
           userId,
           conversationId,
-          taskDetails: task.input as any,
-          context: projectContext as any,
+          taskDetails: task.input as TaskInput,
+          context: projectContext,
         });
       });
 
@@ -137,7 +163,7 @@ export const frontendAgentFunction = inngest.createFunction(
             branchName: branchName,
             completedAt: new Date(),
             durationMs: result.durationMs,
-            output: result.data as any,
+            output: result.data ? (result.data as unknown as Prisma.InputJsonValue) : undefined,
           },
         });
       });
@@ -151,7 +177,8 @@ export const frontendAgentFunction = inngest.createFunction(
           { projectId, userId }
         );
 
-        const commitMessage = `feat(frontend): ${(task.input as any).title}\n\nTask ID: ${taskId}\nIterations: ${result.iterations}`;
+        const taskInput = task.input as TaskInput;
+        const commitMessage = `feat(frontend): ${taskInput.title}\n\nTask ID: ${taskId}\nIterations: ${result.iterations}`;
         await gitTool.GitTool.prototype.execute.call(
           { logExecution: () => {}, logError: () => {} },
           { operation: "commit", message: commitMessage },
@@ -160,7 +187,7 @@ export const frontendAgentFunction = inngest.createFunction(
       });
 
       // Step 8: Push to GitHub
-      const githubInfo = projectContext.codebase as any;
+      const githubInfo = projectContext.codebase as GitHubInfo;
       if (githubInfo?.githubRepoUrl) {
         await step.run("push-to-github", async () => {
           const gitTool = await import("@/lib/agents/tools/git-tool");
@@ -184,29 +211,30 @@ export const frontendAgentFunction = inngest.createFunction(
       // Step 9: Create Pull Request
       if (githubInfo?.githubRepoName && env.GITHUB_TOKEN) {
         await step.run("create-pr", async () => {
-          const taskDetails = task.input as any;
+          const taskDetails = task.input as TaskInput;
+          const resultData = result.data as TaskResultData;
 
           const prResult = await githubAgent.createPullRequest({
             projectId,
-            repoName: githubInfo.githubRepoName,
+            repoName: githubInfo.githubRepoName!,
             branchName,
             title: `Frontend: ${taskDetails.title}`,
             description: `
 ## Task: ${taskDetails.title}
 
-${taskDetails.description}
+${taskDetails.description || ""}
 
 ### Completion Details:
 - **Iterations:** ${result.iterations}
 - **Duration:** ${Math.round(result.durationMs / 1000)}s
-- **Files Created:** ${result.data?.filesCreated?.length || 0}
-- **Commands Run:** ${result.data?.commandsRun?.length || 0}
+- **Files Created:** ${resultData?.filesCreated?.length || 0}
+- **Commands Run:** ${resultData?.commandsRun?.length || 0}
 
 ### Files Changed:
-${result.data?.filesCreated?.map((f: any) => `- ${f.path} (${f.lines} lines)`).join("\n") || "N/A"}
+${resultData?.filesCreated?.map((f) => `- ${f.path} (${f.lines} lines)`).join("\n") || "N/A"}
 
 ### Acceptance Criteria:
-${taskDetails.acceptanceCriteria?.map((c: string) => `- [x] ${c}`).join("\n") || "N/A"}
+${taskDetails.acceptanceCriteria?.map((c) => `- [x] ${c}`).join("\n") || "N/A"}
 
 **Task ID:** ${taskId}
 **Agent:** Frontend Agent (with framework)

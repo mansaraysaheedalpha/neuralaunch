@@ -8,7 +8,8 @@
 import { Octokit } from "@octokit/rest";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
-import { toError, toLogContext } from "@/lib/error-utils";
+import { toError } from "@/lib/error-utils";
+import type { Prisma } from "@prisma/client";
 
 // ==========================================
 // TYPES & INTERFACES
@@ -103,8 +104,13 @@ export class GitHubAgent {
           repoName: `${user.login}/${safeRepoName}`,
           defaultBranch: "main",
         };
-      } catch (error: any) {
-        if (error.status !== 404) {
+      } catch (error: unknown) {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "status" in error &&
+          (error as { status?: number }).status !== 404
+        ) {
           throw error;
         }
         // Repo doesn't exist, continue to create it
@@ -142,10 +148,9 @@ export class GitHubAgent {
         });
         logger.info(`[${this.name}] Branch protection enabled for main`);
       } catch (error) {
-        logger.warn(
-          `[${this.name}] Could not enable branch protection:`,
-          { error: error instanceof Error ? error.message : String(error) }
-        );
+        logger.warn(`[${this.name}] Could not enable branch protection:`, {
+          error: error instanceof Error ? error.message : String(error),
+        });
         // Non-fatal, continue
       }
 
@@ -359,7 +364,7 @@ export class GitHubAgent {
           githubRepoUrl: repoUrl,
           githubRepoName: repoName,
           defaultBranch: "main",
-        } as any,
+        },
       },
     });
 
@@ -371,8 +376,8 @@ export class GitHubAgent {
    */
   private async logExecution(
     projectId: string,
-    input: any,
-    output: any,
+    input: unknown,
+    output: unknown,
     success: boolean,
     durationMs: number,
     error?: string
@@ -383,15 +388,16 @@ export class GitHubAgent {
           projectId,
           agentName: this.name,
           phase: this.phase,
-          input: input,
-          output: output,
+          input: input as Prisma.InputJsonValue, // Cast to Prisma.InputJsonValue to satisfy type
+          output: output as Prisma.InputJsonValue, // Cast to Prisma.InputJsonValue to satisfy type
           success,
           durationMs,
           error,
         },
       });
     } catch (logError) {
-      logger.error(`[${this.name}] Failed to log execution:`, 
+      logger.error(
+        `[${this.name}] Failed to log execution:`,
         logError instanceof Error ? logError : new Error(String(logError))
       );
     }

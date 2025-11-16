@@ -17,7 +17,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import HealthDashboard from "@/components/monitoring/HealthDashboard";
 import MetricsChart from "@/components/monitoring/MetricsChart";
 import AlertPanel from "@/components/monitoring/AlertPanel";
 import OptimizationHistory from "@/components/monitoring/OptimizationHistory";
@@ -28,7 +27,40 @@ interface MonitoringPageProps {
   }>;
 }
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+interface MonitoringMetrics {
+  uptime?: number;
+  responseTime?: {
+    avg: number;
+    p95: number;
+    p99: number;
+  };
+  errorRate?: number;
+  requests24h?: number;
+}
+
+interface MonitoringAlert {
+  id: string;
+  severity: "info" | "critical" | "warning";
+  message: string;
+  timestamp: string;
+}
+
+interface MonitoringOptimization {
+  id: string;
+  type: string;
+  description: string;
+  impact: string;
+  timestamp: string;
+}
+
+interface MonitoringData {
+  health?: "healthy" | "degraded" | "down";
+  metrics?: MonitoringMetrics;
+  alerts?: MonitoringAlert[];
+  optimizations?: MonitoringOptimization[];
+}
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json() as Promise<MonitoringData>);
 
 export default function MonitoringDashboardPage({
   params,
@@ -37,7 +69,7 @@ export default function MonitoringDashboardPage({
   const router = useRouter();
 
   // Fetch monitoring data
-  const { data: monitoringData, error } = useSWR(
+  const { data: monitoringData, error } = useSWR<MonitoringData, Error>(
     `/api/projects/${projectId}/monitoring`,
     fetcher,
     { refreshInterval: 10000 } // Refresh every 10 seconds
@@ -55,7 +87,7 @@ export default function MonitoringDashboardPage({
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground mb-4">
-              {error.message || "Failed to load monitoring data"}
+              {error?.message ?? "Failed to load monitoring data"}
             </p>
             <Button onClick={() => router.push("/")}>
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -78,10 +110,10 @@ export default function MonitoringDashboardPage({
     );
   }
 
-  const health = monitoringData.health || "healthy";
-  const metrics = monitoringData.metrics || {};
-  const alerts = monitoringData.alerts || [];
-  const optimizations = monitoringData.optimizations || [];
+  const health = monitoringData?.health ?? "healthy";
+  const metrics = monitoringData?.metrics ?? {};
+  const alerts = monitoringData?.alerts ?? [];
+  const optimizations = monitoringData?.optimizations ?? [];
 
   const healthConfig = {
     healthy: {
@@ -104,7 +136,7 @@ export default function MonitoringDashboardPage({
     },
   };
 
-  const config = healthConfig[health as keyof typeof healthConfig] || healthConfig.healthy;
+  const config = healthConfig[health] || healthConfig.healthy;
   const HealthIcon = config.icon;
 
   return (
@@ -191,10 +223,10 @@ export default function MonitoringDashboardPage({
             <CardContent>
               <div className="space-y-2">
                 <div className="text-3xl font-bold">
-                  {(metrics.errorRate * 100 || 0).toFixed(2)}%
+                  {((metrics.errorRate ?? 0) * 100).toFixed(2)}%
                 </div>
                 <p className="text-sm text-muted-foreground">Last 24 hours</p>
-                {metrics.errorRate < 0.01 ? (
+                {(metrics.errorRate ?? 0) < 0.01 ? (
                   <div className="flex items-center gap-1 text-xs text-green-600">
                     <CheckCircle2 className="w-3 h-3" />
                     <span>Low error rate</span>

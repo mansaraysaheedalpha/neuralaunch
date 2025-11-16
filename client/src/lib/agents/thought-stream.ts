@@ -1,3 +1,4 @@
+//src\lib\agents\thought-stream.ts
 /**
  * Enhanced Thought Stream with Deep Dive Mode
  * Supports both curated thoughts AND raw AI reasoning
@@ -158,12 +159,14 @@ export class ThoughtStream {
     });
 
     // Persist to database
-    this.persistThought(thought).catch((error) => {
+    try {
+      await this.persistThought(thought);
+    } catch (error) {
       logger.error(
         `[ThoughtStream] Failed to persist thought:`,
         error as Error
       );
-    });
+    }
   }
 
   /**
@@ -178,11 +181,11 @@ export class ThoughtStream {
           agentName: thought.agentName,
           type: thought.type,
           message: thought.message,
-          metadata: {
+          metadata: JSON.stringify({
             ...thought.metadata,
             mode: thought.mode,
             rawReasoning: thought.rawReasoning,
-          } as Record<string, unknown>,
+          }),
           timestamp: thought.timestamp,
         },
       });
@@ -280,7 +283,14 @@ class ThoughtStreamRegistry {
       });
 
       return dbThoughts.map((t) => {
-        const meta = t.metadata as Record<string, unknown> | null;
+        let meta: Record<string, unknown> | null = {};
+        try {
+          meta = t.metadata
+            ? (JSON.parse(t.metadata as string) as Record<string, unknown>)
+            : {};
+        } catch {
+          meta = {};
+        }
         return {
           id: t.id,
           agentName: t.agentName,
@@ -288,9 +298,21 @@ class ThoughtStreamRegistry {
           type: t.type as ThoughtType,
           message: t.message,
           timestamp: t.timestamp,
-          metadata: (meta && typeof meta === 'object' && 'metadata' in meta ? meta.metadata : {}) as Record<string, unknown>,
-          mode: (meta && typeof meta === 'object' && 'mode' in meta ? meta.mode : "curated") as ThoughtMode,
-          rawReasoning: (meta && typeof meta === 'object' && 'rawReasoning' in meta && typeof meta.rawReasoning === 'string' ? meta.rawReasoning : undefined),
+          metadata:
+            meta && typeof meta === "object" && "metadata" in meta
+              ? (meta.metadata as Record<string, unknown>)
+              : {},
+          mode:
+            meta && typeof meta === "object" && "mode" in meta
+              ? (meta.mode as ThoughtMode)
+              : "curated",
+          rawReasoning:
+            meta &&
+            typeof meta === "object" &&
+            "rawReasoning" in meta &&
+            typeof meta.rawReasoning === "string"
+              ? meta.rawReasoning
+              : undefined,
         };
       });
     } catch (error) {

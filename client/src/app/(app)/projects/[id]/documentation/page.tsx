@@ -16,6 +16,7 @@ import {
   AlertCircle,
   ChevronRight,
   Home,
+  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -31,15 +32,25 @@ interface DocumentationPageProps {
   }>;
 }
 
+interface Project {
+  id: string;
+  name?: string;
+  status?: string;
+}
+
+interface DocumentationResponse {
+  documentation: DocSection[];
+}
+
 interface DocSection {
   id: string;
   title: string;
-  icon?: any;
+  icon?: LucideIcon;
   content: string;
 }
 
 // Icon mapping for documentation sections
-const iconMap: Record<string, any> = {
+const iconMap: Record<string, LucideIcon> = {
   readme: BookOpen,
   api: Code,
   architecture: Layers,
@@ -51,8 +62,8 @@ const fetcher = async <T = unknown>(url: string): Promise<T> => {
   if (!res.ok) {
     const contentType = res.headers.get("content-type");
     if (contentType && contentType.includes("application/json")) {
-      const errorData = await res.json();
-      throw new Error(errorData.error || `HTTP ${res.status}`);
+      const errorData = await res.json() as { error?: string };
+      throw new Error(errorData.error ?? `HTTP ${res.status}`);
     }
     throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   }
@@ -66,15 +77,15 @@ export default function DocumentationPage({ params }: DocumentationPageProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
   // Fetch project data
-  const { data: project, error: projectError } = useSWR<any>(
+  const { data: project, error: projectError } = useSWR<Project, Error>(
     `/api/projects/${projectId}`,
-    fetcher
+    fetcher<Project>
   );
 
   // Fetch documentation from API
-  const { data: documentationData, error: docError } = useSWR<any>(
+  const { data: documentationData, error: docError } = useSWR<DocumentationResponse, Error>(
     `/api/projects/${projectId}/documentation`,
-    fetcher
+    fetcher<DocumentationResponse>
   );
 
   // Map documentation sections with icons
@@ -578,7 +589,7 @@ Key models:
                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     }`}
                   >
-                    <doc.icon className="w-4 h-4" />
+                    {doc.icon && <doc.icon className="w-4 h-4" />}
                     {doc.title}
                   </motion.button>
                 ))}
@@ -612,9 +623,11 @@ Key models:
               <Card>
                 <CardHeader>
                   <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                      <activeDoc.icon className="w-5 h-5" />
-                    </div>
+                    {activeDoc.icon && (
+                      <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                        <activeDoc.icon className="w-5 h-5" />
+                      </div>
+                    )}
                     <CardTitle className="text-2xl">{activeDoc.title}</CardTitle>
                   </div>
                 </CardHeader>

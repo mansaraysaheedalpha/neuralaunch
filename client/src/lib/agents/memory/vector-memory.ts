@@ -10,7 +10,7 @@ import { logger } from "@/lib/logger";
 import { AI_MODELS } from "@/lib/models";
 import prisma from "@/lib/prisma";
 import OpenAI from "openai";
-import { toError, toLogContext } from "@/lib/error-utils";
+import { toError } from "@/lib/error-utils";
 import { env } from "@/lib/env";
 
 const openai = new OpenAI({
@@ -62,7 +62,7 @@ export class VectorMemory {
       const embedding = await this.generateEmbedding(embeddingText);
 
       // Store in PostgreSQL with pgvector
-      const memory = await prisma.$executeRaw`
+      const _memory = await prisma.$executeRaw`
         INSERT INTO "AgentMemory" (
           "id",
           "agentName",
@@ -147,8 +147,10 @@ export class VectorMemory {
 
       // Perform vector similarity search using pgvector's <-> operator
       // <-> is cosine distance (lower = more similar)
-      const memories: any[] = agentName
-        ? await prisma.$queryRaw`
+      const memories: VectorMemoryEntry[] = agentName
+        ? await prisma.$queryRaw<
+            VectorMemoryEntry[]
+          >`
       SELECT 
         id,
         "agentName",
@@ -177,7 +179,9 @@ export class VectorMemory {
       ORDER BY embedding <=> ${`[${queryEmbedding.join(",")}]`}::vector
       LIMIT ${limit}
     `
-        : await prisma.$queryRaw`
+        : await prisma.$queryRaw<
+            VectorMemoryEntry[]
+          >`
       SELECT 
         id,
         "agentName",
@@ -214,7 +218,7 @@ export class VectorMemory {
         taskType: m.taskType,
         taskTitle: m.taskTitle,
         taskDescription: m.taskDescription,
-        techStack: m.techStack as string[],
+        techStack: m.techStack,
         complexity: m.complexity,
         estimatedLines: m.estimatedLines,
         success: m.success,
@@ -227,7 +231,7 @@ export class VectorMemory {
           content: string;
         }>,
         commandsRun: m.commandsRun as string[],
-        learnings: m.learnings as string[],
+        learnings: m.learnings,
         errorsSolved: m.errorsSolved as string[],
         bestPractices: m.bestPractices as string[],
         projectId: m.projectId,

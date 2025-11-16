@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  getAgentMetadata,
   getAgentIcon,
   getAgentColor,
   getAgentDisplayName,
@@ -23,16 +22,16 @@ import { Task } from "@/types/component-props";
 interface AgentGridProps {
   tasks: Task[];
   activeAgents: string[];
-  currentWave: number;
+  _currentWave: number;
 }
 
 export default function AgentGrid({
   tasks,
   activeAgents,
-  currentWave,
+  _currentWave,
 }: AgentGridProps) {
   // ✅ FIX #1: Correct the reduce bug (was returning {} instead of acc)
-  const agentTasks = tasks.reduce((acc: Record<string, Task[]>, task) => {
+  const _agentTasks = tasks.reduce((acc: Record<string, Task[]>, task) => {
     const agentKey = task.agentName?.toLowerCase() || "unknown";
     if (!acc[agentKey]) acc[agentKey] = [];
     acc[agentKey].push(task);
@@ -84,20 +83,12 @@ export default function AgentGrid({
           totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
 
         // ✅ FIX #3: Use dynamic agent metadata
-        const metadata = getAgentMetadata(agentName);
         const displayName = getAgentDisplayName(agentName);
         const icon = getAgentIcon(agentName);
         const color = getAgentColor(agentName);
 
         // Fallback for unknown agents
-        const agentInfo = metadata || {
-          icon: "🤖",
-          emoji: "🤖",
-          color: "from-gray-500 to-slate-500",
-          displayName: agentName,
-          category: "execution" as const,
-          description: "AI Agent",
-        };
+        // (agentInfo removed because it was unused)
 
         return (
           <motion.div

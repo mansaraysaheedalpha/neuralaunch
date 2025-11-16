@@ -20,6 +20,7 @@ import {
   getRequestIdentifier,
   getClientIp,
 } from "@/lib/rate-limit";
+import { createCORSHandler, AUTHENTICATED_API_CORS } from "@/lib/cors";
 
 // --- Input Validation ---
 const cofounderRequestSchema = z.object({
@@ -65,7 +66,7 @@ DO NOT:
 Begin your response directly. Do not include pleasantries like "Hello!" or "How can I help?". Get straight to the strategic point.
 `;
 
-export async function POST(req: NextRequest) {
+export const POST = createCORSHandler(async (req: NextRequest) => {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
     // Rate limiting
     const clientIp = getClientIp(req.headers);
     const rateLimitId = getRequestIdentifier(userId, clientIp);
-    const rateLimitResult = checkRateLimit({
+    const rateLimitResult = await checkRateLimit({
       ...RATE_LIMITS.AI_GENERATION,
       identifier: rateLimitId,
     });
@@ -256,4 +257,4 @@ ${relevantMemories.join("\n---\n")}
       { status: 500 }
     );
   }
-}
+}, AUTHENTICATED_API_CORS);

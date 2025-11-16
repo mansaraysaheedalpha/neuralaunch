@@ -29,7 +29,7 @@ interface ActivityFeedProps {
   tasks: Task[];
 }
 
-export default function ActivityFeed({ projectId, tasks }: ActivityFeedProps) {
+export default function ActivityFeed({ projectId: _projectId, tasks }: ActivityFeedProps) {
   const [filter, setFilter] = useState<
     "all" | "completed" | "failed" | "in_progress"
   >("all");

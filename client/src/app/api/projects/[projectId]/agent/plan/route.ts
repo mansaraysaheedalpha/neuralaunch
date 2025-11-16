@@ -56,7 +56,7 @@ export async function POST(
     // 2. Rate limiting - 5 requests per minute for AI planning
     const clientIp = getClientIp(req.headers);
     const rateLimitId = getRequestIdentifier(userId, clientIp);
-    const rateLimitResult = checkRateLimit({
+    const rateLimitResult = await checkRateLimit({
       ...RATE_LIMITS.AI_GENERATION,
       identifier: rateLimitId,
     });
@@ -87,7 +87,7 @@ export async function POST(
     });
 
     // 2. Parse and validate request body
-    const body = await req.json();
+    const body = (await req.json()) as unknown;
     const validatedBody = planRequestSchema.parse(body);
 
     // 3. Verify project exists and user owns it
@@ -135,8 +135,8 @@ export async function POST(
     }
 
     // 5. Check if project is feasible
-    const architecture = projectContext.architecture as any;
-    const validation = architecture?.validation;
+    const architecture = projectContext.architecture as Record<string, unknown> | null;
+    const validation = architecture?.validation as Record<string, unknown> | undefined;
 
     if (!validation || !validation.feasible) {
       logger.warn("Planning attempted on non-feasible project", {

@@ -17,7 +17,7 @@ import toast from "react-hot-toast";
 interface Issue {
   id: string;
   severity: "critical" | "high" | "medium" | "low";
-  category: "type_safety" | "security" | "performance" | "style";
+  category: string;
   file: string;
   line?: number;
   message: string;
@@ -185,7 +185,7 @@ export default function IssueList({
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => handleFix(issue)}
+                      onClick={() => { void handleFix(issue); }}
                       disabled={isFixing}
                       className="h-7 text-xs"
                     >

@@ -1,3 +1,4 @@
+//src/lib/agents/tools/context - loader - tool.ts;
 import path from "node:path";
 
 import { BaseTool, ToolParameter, ToolResult, ToolContext } from "./base-tool";
@@ -130,7 +131,13 @@ export class ContextLoaderTool extends BaseTool {
         case "scan_structure":
           return await this.scanStructure(projectId, userId);
         case "load_files":
-          return await this.loadFiles(projectId, userId, paths ?? [], maxFiles, maxSize);
+          return await this.loadFiles(
+            projectId,
+            userId,
+            paths ?? [],
+            maxFiles,
+            maxSize
+          );
         case "load_dependencies":
           return await this.loadDependencies(projectId, userId);
         case "load_config":
@@ -156,7 +163,9 @@ export class ContextLoaderTool extends BaseTool {
     }
   }
 
-  private parseParams(raw: Record<string, unknown>): ParseResult<ContextParams> {
+  private parseParams(
+    raw: Record<string, unknown>
+  ): ParseResult<ContextParams> {
     const operationValue = raw.operation;
     if (typeof operationValue !== "string") {
       return { ok: false, error: "Missing required operation" };
@@ -178,7 +187,8 @@ export class ContextLoaderTool extends BaseTool {
       }
     }
 
-    const pattern = typeof raw.pattern === "string" ? raw.pattern.trim() : undefined;
+    const pattern =
+      typeof raw.pattern === "string" ? raw.pattern.trim() : undefined;
     const taskDescription =
       typeof raw.taskDescription === "string"
         ? raw.taskDescription.trim()
@@ -200,7 +210,9 @@ export class ContextLoaderTool extends BaseTool {
         paths,
         pattern: pattern && pattern.length > 0 ? pattern : undefined,
         taskDescription:
-          taskDescription && taskDescription.length > 0 ? taskDescription : undefined,
+          taskDescription && taskDescription.length > 0
+            ? taskDescription
+            : undefined,
         maxFiles,
         maxSize,
       },
@@ -255,7 +267,11 @@ export class ContextLoaderTool extends BaseTool {
         break;
       }
 
-      const fileResult = await this.readWorkspaceFile(projectId, userId, filePath);
+      const fileResult = await this.readWorkspaceFile(
+        projectId,
+        userId,
+        filePath
+      );
       if (!fileResult.ok) {
         logger.warn(`Failed to load file ${filePath}: ${fileResult.error}`);
         continue;
@@ -287,7 +303,11 @@ export class ContextLoaderTool extends BaseTool {
     projectId: string,
     userId: string
   ): Promise<ToolResult> {
-    const packageJson = await this.loadJsonFile(projectId, userId, "package.json");
+    const packageJson = await this.loadJsonFile(
+      projectId,
+      userId,
+      "package.json"
+    );
     if (!packageJson) {
       return {
         success: false,
@@ -307,8 +327,16 @@ export class ContextLoaderTool extends BaseTool {
     projectId: string,
     userId: string
   ): Promise<ToolResult> {
-    const packageJson = await this.loadJsonFile(projectId, userId, "package.json");
-    const tsconfig = await this.loadJsonFile(projectId, userId, "tsconfig.json");
+    const packageJson = await this.loadJsonFile(
+      projectId,
+      userId,
+      "package.json"
+    );
+    const tsconfig = await this.loadJsonFile(
+      projectId,
+      userId,
+      "tsconfig.json"
+    );
     const eslintConfig =
       (await this.loadJsonFile(projectId, userId, ".eslintrc.json")) ??
       (await this.loadJsonFile(projectId, userId, ".eslintrc"));
@@ -352,12 +380,17 @@ export class ContextLoaderTool extends BaseTool {
     const matcher = this.buildPatternMatcher(pattern);
     const keywords = this.extractKeywords(taskDescription);
 
-    const candidates = this.filterFiles(filesResult.value, matcher, keywords).map(
-      (file) => file.path
-    );
+    const candidates = this.filterFiles(
+      filesResult.value,
+      matcher,
+      keywords
+    ).map((file) => file.path);
 
     if (candidates.length === 0) {
-      return { success: false, error: "No files matched the provided criteria" };
+      return {
+        success: false,
+        error: "No files matched the provided criteria",
+      };
     }
 
     return this.loadFiles(projectId, userId, candidates, maxFiles, maxSize);
@@ -367,11 +400,16 @@ export class ContextLoaderTool extends BaseTool {
     projectId: string,
     userId: string
   ): Promise<ParseResult<FileSummary[]>> {
-    const exclusions = EXCLUDED_PATHS.map((pattern) => `-not -path "${pattern}"`).join(
-      " "
-    );
+    const exclusions = EXCLUDED_PATHS.map(
+      (pattern) => `-not -path "${pattern}"`
+    ).join(" ");
     const command = `find . -type f ${exclusions} -printf '%s %p\\n' | head -${MAX_SCAN_RESULTS}`;
-    const result = await SandboxService.execCommand(projectId, userId, command, 30);
+    const result = await SandboxService.execCommand(
+      projectId,
+      userId,
+      command,
+      30
+    );
 
     if (result.status === "error") {
       return { ok: false, error: "Failed to scan project structure" };
@@ -469,14 +507,25 @@ export class ContextLoaderTool extends BaseTool {
   private safeJsonParse(content: string): Record<string, unknown> | null {
     try {
       const parsed: unknown = JSON.parse(content);
-      return typeof parsed === "object" && parsed !== null ? parsed : null;
+      return typeof parsed === "object" &&
+        parsed !== null &&
+        !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : null;
     } catch (error) {
-      logger.warn("Failed to parse JSON content", error instanceof Error ? error : undefined);
+      logger.warn(
+        "Failed to parse JSON content",
+        error instanceof Error
+          ? { message: error.message, stack: error.stack }
+          : undefined
+      );
       return null;
     }
   }
 
-  private extractDependencies(json: Record<string, unknown>): DependenciesSummary {
+  private extractDependencies(
+    json: Record<string, unknown>
+  ): DependenciesSummary {
     const toDependencyList = (
       value: unknown
     ): Array<{ name: string; version?: string }> => {
@@ -505,7 +554,11 @@ export class ContextLoaderTool extends BaseTool {
     userId: string,
     filePath: string
   ): Promise<Record<string, unknown> | null> {
-    const fileResult = await this.readWorkspaceFile(projectId, userId, filePath);
+    const fileResult = await this.readWorkspaceFile(
+      projectId,
+      userId,
+      filePath
+    );
     if (!fileResult.ok) {
       return null;
     }
@@ -547,7 +600,9 @@ export class ContextLoaderTool extends BaseTool {
     } catch (error) {
       logger.warn(
         "Invalid pattern provided to context loader",
-        error instanceof Error ? error : undefined
+        error instanceof Error
+          ? { message: error.message, stack: error.stack }
+          : undefined
       );
       return null;
     }

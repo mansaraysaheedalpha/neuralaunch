@@ -100,27 +100,27 @@ export class ClaudeSkillsTool extends BaseTool {
   }
 
   async execute(
-    params: ClaudeSkillsParams,
+    params: Record<string, unknown>,
     _context: ToolContext
   ): Promise<ToolResult> {
     const startTime = Date.now();
+    const claudeParams = params as unknown as ClaudeSkillsParams;
 
     try {
       if (!env.ANTHROPIC_API_KEY) {
         return {
           success: false,
           error: "ANTHROPIC_API_KEY not configured",
-          duration: Date.now() - startTime,
         };
       }
 
-      logger.info(`[ClaudeSkills] Executing skill: ${params.skill}`, {
-        promptLength: params.prompt.length,
-        thinkingBudget: params.thinkingBudget || 8000,
+      logger.info(`[ClaudeSkills] Executing skill: ${claudeParams.skill}`, {
+        promptLength: claudeParams.prompt.length,
+        thinkingBudget: claudeParams.thinkingBudget || 8000,
       });
 
       // Build skill-specific prompt
-      const enhancedPrompt = this.buildSkillPrompt(params);
+      const enhancedPrompt = this.buildSkillPrompt(claudeParams);
 
       // Call Claude with extended thinking
       const response = await this.anthropic.messages.create({
@@ -128,7 +128,7 @@ export class ClaudeSkillsTool extends BaseTool {
         max_tokens: 16000,
         thinking: {
           type: "enabled",
-          budget_tokens: params.thinkingBudget || 8000,
+          budget_tokens: claudeParams.thinkingBudget || 8000,
         },
         messages: [
           {
@@ -149,21 +149,18 @@ export class ClaudeSkillsTool extends BaseTool {
           answerContent = block.text;
         }
       }
-
       const duration = Date.now() - startTime;
 
       logger.info(`[ClaudeSkills] Skill execution complete`, {
-        skill: params.skill,
+        skill: claudeParams.skill,
         thinkingLength: thinkingContent.length,
         answerLength: answerContent.length,
         duration,
         tokensUsed: response.usage.input_tokens + response.usage.output_tokens,
       });
-
-      // Return result
       const result: ClaudeSkillResult = {
         answer: answerContent,
-        skill: params.skill,
+        skill: claudeParams.skill,
         tokensUsed: {
           input: response.usage.input_tokens,
           output: response.usage.output_tokens,
@@ -172,8 +169,7 @@ export class ClaudeSkillsTool extends BaseTool {
       };
 
       // Include reasoning if requested
-      if (params.includeReasoning) {
-        result.reasoning = thinkingContent;
+      if (claudeParams.includeReasoning) {
         result.reasoningSteps = this.parseReasoningSteps(thinkingContent);
       }
 
@@ -182,21 +178,19 @@ export class ClaudeSkillsTool extends BaseTool {
         data: result,
         duration,
         metadata: {
-          skill: params.skill,
+          skill: claudeParams.skill,
           model: "claude-sonnet-4-5",
           thinkingTokens: response.usage.input_tokens,
         },
       };
     } catch (error) {
       const duration = Date.now() - startTime;
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
 
       logger.error(`[ClaudeSkills] Execution failed`, toError(error));
 
       return {
         success: false,
-        error: errorMessage,
+        error: toError(error).message,
         duration,
       };
     }

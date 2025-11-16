@@ -35,13 +35,42 @@ interface ProjectOverviewPageProps {
   }>;
 }
 
+interface Project {
+  id: string;
+  name?: string;
+  status?: string;
+  createdAt?: string | number | Date;
+  conversationId?: string;
+  progress?: number;
+}
+
+interface Task {
+  id: string;
+  status: string;
+  name?: string;
+  createdAt?: string;
+}
+
+interface TasksData {
+  tasks: Task[];
+  waves?: unknown[];
+}
+
+interface OrchestratorStatus {
+  currentWave?: number;
+  progress?: number;
+  activeAgents?: string[];
+  currentPhase?: string;
+  currentAgent?: string;
+}
+
 const fetcher = async <T = unknown>(url: string): Promise<T> => {
   const res = await fetch(url);
   if (!res.ok) {
     const contentType = res.headers.get("content-type");
     if (contentType && contentType.includes("application/json")) {
-      const errorData = await res.json();
-      throw new Error(errorData.error || `HTTP ${res.status}`);
+      const errorData = await res.json() as { error?: string };
+      throw new Error(errorData.error ?? `HTTP ${res.status}`);
     }
     throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   }
@@ -53,23 +82,23 @@ export default function ProjectOverviewPage({ params }: ProjectOverviewPageProps
   const router = useRouter();
 
   // Fetch project data
-  const { data: project, error: projectError } = useSWR<any>(
+  const { data: project, error: projectError } = useSWR<Project, Error>(
     `/api/projects/${projectId}`,
-    fetcher,
+    fetcher<Project>,
     { refreshInterval: 5000 }
   );
 
   // Fetch tasks data
-  const { data: tasksData } = useSWR<any>(
+  const { data: tasksData } = useSWR<TasksData>(
     `/api/projects/${projectId}/tasks`,
-    fetcher,
+    fetcher<TasksData>,
     { refreshInterval: 5000 }
   );
 
   // Fetch orchestrator status
-  const { data: status } = useSWR<any>(
+  const { data: status } = useSWR<OrchestratorStatus>(
     `/api/orchestrator/status/${projectId}`,
-    fetcher,
+    fetcher<OrchestratorStatus>,
     { refreshInterval: 5000 }
   );
 
@@ -110,7 +139,7 @@ export default function ProjectOverviewPage({ params }: ProjectOverviewPageProps
 
   const tasks = tasksData?.tasks || [];
   const waves = tasksData?.waves || [];
-  const completedTasks = tasks.filter((t: any) => t.status === "COMPLETE").length;
+  const completedTasks = tasks.filter((t) => t.status === "COMPLETE").length;
   const totalTasks = tasks.length;
   const progress = status?.progress || project.progress || 0;
 
@@ -201,7 +230,7 @@ export default function ProjectOverviewPage({ params }: ProjectOverviewPageProps
                       </span>
                       <span className="text-sm text-muted-foreground flex items-center gap-1">
                         <Clock className="w-4 h-4" />
-                        Created {formatDistanceToNow(new Date(project.createdAt))} ago
+                        Created {project.createdAt ? formatDistanceToNow(new Date(project.createdAt)) : "recently"} ago
                       </span>
                     </div>
                   </div>
@@ -261,13 +290,13 @@ export default function ProjectOverviewPage({ params }: ProjectOverviewPageProps
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">
-        {project.description && (
+        {(project as { description?: string }).description && (
           <Card className="mb-8">
             <CardHeader>
               <CardTitle>Project Description</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground">{project.description}</p>
+              <p className="text-muted-foreground">{(project as { description?: string }).description}</p>
             </CardContent>
           </Card>
         )}

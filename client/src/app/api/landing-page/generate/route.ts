@@ -18,6 +18,7 @@ import {
   getRequestIdentifier,
   getClientIp,
 } from "@/lib/rate-limit";
+import { createCORSHandler, LANDING_PAGE_CORS } from "@/lib/cors";
 const generateRequestSchema = z.object({
   conversationId: z.string().cuid({ message: "Invalid Conversation ID" }),
   designVariantId: z.string().optional(),
@@ -135,7 +136,7 @@ JSON:`;
 }
 // ---------------------------------------------
 
-export async function POST(req: NextRequest) {
+export const POST = createCORSHandler(async (req: NextRequest) => {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -147,7 +148,7 @@ export async function POST(req: NextRequest) {
     // Rate limiting - 5 requests per minute for AI landing page generation
     const clientIp = getClientIp(req.headers);
     const rateLimitId = getRequestIdentifier(userId, clientIp);
-    const rateLimitResult = checkRateLimit({
+    const rateLimitResult = await checkRateLimit({
       ...RATE_LIMITS.AI_GENERATION,
       identifier: rateLimitId,
     });
@@ -297,4 +298,4 @@ CTA: ${content.ctaText}`;
       error instanceof Error ? error.message : "Internal Server Error";
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
-}
+}, LANDING_PAGE_CORS);

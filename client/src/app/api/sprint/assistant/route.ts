@@ -14,6 +14,7 @@ import {
   getRequestIdentifier,
   getClientIp,
 } from "@/lib/rate-limit";
+import { withCORS, PUBLIC_API_CORS } from "@/lib/cors";
 
 // Define Zod schema for the request body
 const assistantRequestSchema = z.object({
@@ -21,6 +22,7 @@ const assistantRequestSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  return withCORS(req, async () => {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -30,7 +32,7 @@ export async function POST(req: NextRequest) {
     // Rate limiting
     const clientIp = getClientIp(req.headers);
     const rateLimitId = getRequestIdentifier(session.user.id, clientIp);
-    const rateLimitResult = checkRateLimit({
+    const rateLimitResult = await checkRateLimit({
       ...RATE_LIMITS.AI_GENERATION,
       identifier: rateLimitId,
     });
@@ -176,7 +178,8 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return new Response(stream);
+    // Convert Response to NextResponse for CORS compatibility
+    return new NextResponse(stream);
   } catch (error: unknown) {
     // Type catch block
     console.error(
@@ -185,4 +188,5 @@ export async function POST(req: NextRequest) {
     );
     return new NextResponse("Internal Server Error", { status: 500 });
   }
+  }, PUBLIC_API_CORS);
 }

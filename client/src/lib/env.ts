@@ -17,6 +17,14 @@ const envSchema = z.object({
   // Database
   DATABASE_URL: z.string().url().min(1, "DATABASE_URL is required"),
 
+  // Upstash Redis (Optional - for rate limiting in production)
+  UPSTASH_REDIS_REST_URL: z.string().url().optional(),
+  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
+
+  // Upstash Vector (Optional - for agent memory/semantic search)
+  UPSTASH_VECTOR_REST_URL: z.string().url().optional(),
+  UPSTASH_VECTOR_REST_TOKEN: z.string().optional(),
+
   // Authentication
   NEXTAUTH_URL: z.string().url().min(1, "NEXTAUTH_URL is required"),
   NEXTAUTH_SECRET: z
@@ -39,6 +47,10 @@ const envSchema = z.object({
   GOOGLE_API_KEY: z.string().min(1, "GOOGLE_API_KEY is required for Gemini AI"),
   OPENAI_API_KEY: z.string().min(1, "OPENAI_API_KEY is required"),
   ANTHROPIC_API_KEY: z.string().min(1, "ANTHROPIC_API_KEY is required"), // Made this required
+
+  // Video Generation (Optional - at least one required for video generation feature)
+  REPLICATE_API_KEY: z.string().optional(), // For Stable Video Diffusion & Zeroscope
+  RUNWAY_API_KEY: z.string().optional(), // For Runway Gen-2
 
   // Email Service (Resend)
   RESEND_API_KEY: z.string().min(1, "RESEND_API_KEY is required"),
@@ -128,6 +140,9 @@ const envSchema = z.object({
   // Public Environment Variables
   NEXT_PUBLIC_APP_URL: z.string().url().optional(),
   NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
+
+  // CORS Configuration (Optional - comma-separated list of allowed origins)
+  CORS_ALLOWED_ORIGINS: z.string().optional(),
 
   // Node Environment
   NODE_ENV: z

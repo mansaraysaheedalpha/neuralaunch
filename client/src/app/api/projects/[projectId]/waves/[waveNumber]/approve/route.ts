@@ -13,6 +13,18 @@ import {
   getClientIp,
 } from "@/lib/rate-limit";
 
+interface InfrastructureArchitecture {
+  hosting?: string;
+}
+
+interface Architecture {
+  infrastructureArchitecture?: InfrastructureArchitecture;
+}
+
+interface Codebase {
+  githubRepoName?: string;
+}
+
 const approveWaveSchema = z.object({
   conversationId: z.string().min(1),
   mergePR: z.boolean().default(true), // Should we auto-merge the PR?
@@ -45,7 +57,7 @@ export async function POST(
     // Rate limiting
     const clientIp = getClientIp(req.headers);
     const rateLimitId = getRequestIdentifier(userId, clientIp);
-    const rateLimitResult = checkRateLimit({
+    const rateLimitResult = await checkRateLimit({
       ...RATE_LIMITS.API_AUTHENTICATED,
       identifier: rateLimitId,
     });
@@ -71,7 +83,7 @@ export async function POST(
     const waveNumber = parseInt(waveNumberStr);
 
     // 2. Validate request
-    const body = await req.json();
+    const body: unknown = await req.json();
     const validatedBody = approveWaveSchema.parse(body);
 
     // 3. Verify project ownership
@@ -136,7 +148,7 @@ export async function POST(
     // 6. Merge PR if requested
     let mergeResult = null;
     if (validatedBody.mergePR) {
-      const codebase = projectContext.codebase as any;
+      const codebase = projectContext.codebase as Codebase;
       const repoName = codebase?.githubRepoName;
 
       if (!repoName) {
@@ -253,7 +265,7 @@ export async function POST(
         select: { architecture: true },
       });
 
-      const architecture = deployProjectContext?.architecture as any;
+      const architecture = deployProjectContext?.architecture as Architecture;
       const platform =
         architecture?.infrastructureArchitecture?.hosting?.toLowerCase() ||
         "vercel";

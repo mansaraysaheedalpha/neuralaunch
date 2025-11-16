@@ -35,8 +35,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Validate request
-    const body = await req.json();
-    const { serverUrl } = connectServerSchema.parse(body);
+    const body = connectServerSchema.parse(await req.json() as unknown);
+    const { serverUrl } = body;
 
     logger.info("Connecting to MCP server", { serverUrl });
 
@@ -48,20 +48,28 @@ export async function POST(req: NextRequest) {
       toolRegistry.register(tool);
     }
 
-    // 5. Store in user preferences (optional)
-    // TODO: Add preferences field to User model in schema or use a separate UserPreferences table
-    // await prisma.user.update({
-    //   where: { id: session.user.id },
-    //   data: {
-    //     preferences: {
-    //       ...(session.user as any).preferences,
-    //       mcpServers: [
-    //         ...((session.user as any).preferences?.mcpServers || []),
-    //         serverUrl,
-    //       ],
-    //     } as any,
-    //   },
-    // });
+    // 5. Store in user preferences
+    const existingPrefs = await prisma.userPreferences.findUnique({
+      where: { userId: session.user.id },
+    });
+
+    const currentServers = existingPrefs?.mcpServers
+      ? (existingPrefs.mcpServers as string[])
+      : [];
+
+    // Avoid duplicates
+    if (!currentServers.includes(serverUrl)) {
+      await prisma.userPreferences.upsert({
+        where: { userId: session.user.id },
+        create: {
+          userId: session.user.id,
+          mcpServers: [serverUrl],
+        },
+        update: {
+          mcpServers: [...currentServers, serverUrl],
+        },
+      });
+    }
 
     logger.info("MCP server connected", {
       serverUrl,
@@ -102,7 +110,7 @@ export async function POST(req: NextRequest) {
  * GET /api/mcp/servers
  * List connected MCP servers
  */
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   const logger = createApiLogger({
     path: "/api/mcp/servers",
     method: "GET",
@@ -162,7 +170,32 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
+    // Get server details before disconnecting
+    const servers = mcpClient.getConnectedServers();
+    const server = servers.find((s) => s.name === serverName);
+
     mcpClient.disconnectFromServer(serverName);
+
+    // Remove from user preferences
+    if (server?.url) {
+      const existingPrefs = await prisma.userPreferences.findUnique({
+        where: { userId: session.user.id },
+      });
+
+      if (existingPrefs?.mcpServers) {
+        const currentServers = existingPrefs.mcpServers as string[];
+        const updatedServers = currentServers.filter(
+          (url) => url !== server.url
+        );
+
+        await prisma.userPreferences.update({
+          where: { userId: session.user.id },
+          data: {
+            mcpServers: updatedServers,
+          },
+        });
+      }
+    }
 
     logger.info("MCP server disconnected", { serverName });
 

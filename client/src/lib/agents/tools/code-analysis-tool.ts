@@ -21,7 +21,7 @@ import { BaseTool, ToolParameter, ToolResult, ToolContext } from "./base-tool";
 import { SandboxService } from "@/lib/services/sandbox-service";
 import { logger } from "@/lib/logger";
 import * as ts from "typescript";
-import { toError } from "@/lib/error-utils";
+import { toError, toLogContext } from "@/lib/error-utils";
 
 // ==========================================
 // TYPES
@@ -136,9 +136,10 @@ export class CodeAnalysisTool extends BaseTool {
     const operation = normalizedOperation;
 
     const pathValue = raw.path;
-    const path = typeof pathValue === "string" && pathValue.trim() !== ""
-      ? pathValue
-      : ".";
+    const path =
+      typeof pathValue === "string" && pathValue.trim() !== ""
+        ? pathValue
+        : ".";
 
     const languageValue = raw.language;
     let language: SupportedLanguage | undefined;
@@ -217,12 +218,12 @@ export class CodeAnalysisTool extends BaseTool {
         case "complexity":
           return await this.analyzeComplexity(projectId, userId, path);
 
-      case "dependencies":
-        return await this.analyzeDependencies(projectId, userId, language);
+        case "dependencies":
+          return await this.analyzeDependencies(projectId, userId, language);
 
-      default:
-        return { success: false, error: "Unhandled operation" };
-    }
+        default:
+          return { success: false, error: "Unhandled operation" };
+      }
     } catch (error) {
       this.logError("Code analysis", error);
       return {
@@ -255,7 +256,8 @@ export class CodeAnalysisTool extends BaseTool {
 
       const content = fileResult.content || "";
       const detectedLang: NormalizedLanguage =
-        language ?? this.detectLanguage(filePath);
+        (language as NormalizedLanguage) ??
+        this.detectLanguage(filePath);
 
       // Parse with language-specific parser
       const structure = await this.parseCode(
@@ -926,7 +928,7 @@ print(json.dumps(result))
     try {
       return JSON.parse(raw);
     } catch (error) {
-      logger.warn("Failed to parse sandbox JSON", toError(error));
+      logger.warn("Failed to parse sandbox JSON", toLogContext(error));
       return null;
     }
   }
@@ -983,7 +985,9 @@ print(json.dumps(result))
   }
 
   private isStringArray(value: unknown): value is string[] {
-    return Array.isArray(value) && value.every((item) => typeof item === "string");
+    return (
+      Array.isArray(value) && value.every((item) => typeof item === "string")
+    );
   }
 
   private isFunctionSummary(
@@ -1000,11 +1004,14 @@ print(json.dumps(result))
       typeof summary.params === "number" &&
       typeof summary.lines === "number" &&
       typeof summary.complexity === "number" &&
-      (summary.returnType === undefined || typeof summary.returnType === "string")
+      (summary.returnType === undefined ||
+        typeof summary.returnType === "string")
     );
   }
 
-  private isClassSummary(value: unknown): value is CodeStructure["classes"][number] {
+  private isClassSummary(
+    value: unknown
+  ): value is CodeStructure["classes"][number] {
     if (!this.isRecord(value)) {
       return false;
     }

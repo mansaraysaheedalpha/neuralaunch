@@ -4,11 +4,11 @@
  * Handles task failures intelligently with AI analysis and human escalation
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { AI_MODELS } from "@/lib/models";
-import { toError, toLogContext } from "@/lib/error-utils";
+import { toError } from "@/lib/error-utils";
 import { sendNotification } from "@/lib/notifications/notification-service";
 import { env } from "@/lib/env";
 
@@ -59,7 +59,13 @@ export interface RecoveryInput {
   projectId: string;
   userId: string;
   conversationId: string;
-  originalTask: any;
+  originalTask: {
+    title: string;
+    description: string;
+    estimatedLines: number;
+    complexity: string;
+    [key: string]: unknown;
+  };
   failures: FailureAttempt[];
   maxIterationsReached: boolean;
 }
@@ -77,7 +83,7 @@ export interface RecoveryOutput {
 
 export class ErrorRecoverySystem {
   private genAI: GoogleGenerativeAI;
-  private model: any;
+  private model: GenerativeModel;
   private readonly name = "ErrorRecoverySystem";
 
   constructor() {
@@ -173,7 +179,7 @@ export class ErrorRecoverySystem {
         .replace(/```json\n?/g, "")
         .replace(/```\n?/g, "")
         .trim();
-      const parsed = JSON.parse(cleaned);
+      const parsed = JSON.parse(cleaned) as Partial<ErrorAnalysis>;
 
       return {
         rootCause: parsed.rootCause || "Unknown error",
@@ -218,7 +224,7 @@ You are an expert error analyst. Analyze these task execution failures and deter
 **Failures (${failures.length} attempts):**
 ${failures
   .map(
-    (f, i) => `
+    (f, _) => `
 Attempt ${f.iteration}:
 - Error: ${f.error}
 - Stdout: ${f.stdout?.substring(0, 500) || "N/A"}
@@ -451,11 +457,11 @@ Analyze the failures and respond with ONLY valid JSON:
             error: null,
             // Store simplified prompt if available
             input: strategy.modifications?.simplifiedPrompt
-              ? ({
+              ? JSON.stringify({
                   ...input.originalTask,
                   _recoveryPrompt: strategy.modifications.simplifiedPrompt,
                 })
-              : (input.originalTask),
+              : JSON.stringify(input.originalTask),
           },
         });
         break;
@@ -530,13 +536,13 @@ Generate 2-4 subtasks that together achieve the original goal.`;
         jsonText = jsonText.replace(/```\n?/g, "");
       }
 
-      const parsed = JSON.parse(jsonText);
+      const parsed = JSON.parse(jsonText) as { subtasks: Array<{ title: string; description: string; estimatedLines: number; rationale?: string }>; splitStrategy?: string };
 
       if (!parsed.subtasks || !Array.isArray(parsed.subtasks)) {
         throw new Error("Invalid response format: missing subtasks array");
       }
 
-      const subtasks = parsed.subtasks.map((task: any) => ({
+      const subtasks = parsed.subtasks.map((task: { title: string; description: string; estimatedLines?: number }) => ({
         title: task.title,
         description: task.description,
         estimatedLines: task.estimatedLines || 50,
@@ -701,25 +707,50 @@ Success criteria: Basic functionality works without errors.`;
       estimatedLines: number;
     }>
   ): Promise<void> {
+    // Define the input type for agentTask
+    interface AgentTaskInput {
+      title: string;
+      description: string;
+      estimatedLines: number;
+      complexity: string;
+      _splitFrom: string;
+    }
+
+    // Fetch the original task to determine the agent name
+    const originalTask = await prisma.agentTask.findUnique({
+      where: { id: originalTaskId },
+      select: { agentName: true, priority: true },
+    });
+
+    if (!originalTask) {
+      logger.error(`[${this.name}] Original task ${originalTaskId} not found for split tasks`);
+      throw new Error(`Original task ${originalTaskId} not found`);
+    }
+
+    const agentName = originalTask.agentName;
+    const priority = originalTask.priority ?? 1;
+
     for (const task of splitTasks) {
+      const agentTaskInput: AgentTaskInput = {
+        title: task.title,
+        description: task.description,
+        estimatedLines: task.estimatedLines,
+        complexity: "simple",
+        _splitFrom: originalTaskId,
+      };
+
       await prisma.agentTask.create({
         data: {
           projectId,
-          agentName: "BackendAgent", // TODO: Determine from original task
+          agentName,
           status: "pending",
-          priority: 1,
-          input: {
-            title: task.title,
-            description: task.description,
-            estimatedLines: task.estimatedLines,
-            complexity: "simple",
-            _splitFrom: originalTaskId,
-          } as any,
+          priority,
+          input: JSON.stringify(agentTaskInput),
         },
       });
     }
 
-    logger.info(`[${this.name}] Created ${splitTasks.length} split tasks`);
+    logger.info(`[${this.name}] Created ${splitTasks.length} split tasks with agent ${agentName}`);
   }
 
   /**

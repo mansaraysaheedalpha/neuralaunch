@@ -23,7 +23,7 @@ import type {
   Page,
 } from "puppeteer-core";
 
-type HeadlessMode = NonNullable<LaunchOptions["headless"]>;
+type HeadlessMode = boolean | "shell";
 
 interface ChromiumRuntimeConfig {
   defaultViewport?: unknown;
@@ -57,14 +57,14 @@ const resolveViewport = (
   };
 
   if (typeof width === "number" && typeof height === "number") {
-    return viewport as LaunchOptions["defaultViewport"];
+    return viewport as unknown as LaunchOptions["defaultViewport"];
   }
 
   return undefined;
 };
 
 const resolveHeadlessMode = (headless: unknown): HeadlessMode => {
-  if (headless === "shell" || headless === "new") {
+  if (headless === "shell") {
     return headless;
   }
 
@@ -398,7 +398,7 @@ export class BrowserAutomationTool extends BaseTool {
       );
       const text = typeof rawText === "string" ? rawText : "";
 
-      const metadata = await page.evaluate<Record<string, string>>(() => {
+      const metadata = await page.evaluate(() => {
         const meta: Record<string, string> = {};
 
         document.querySelectorAll("meta").forEach((tag) => {
@@ -486,7 +486,7 @@ export class BrowserAutomationTool extends BaseTool {
 
       const title = await page.title();
       const html = await page.content();
-      const hasErrors = await page.evaluate<boolean>(() => {
+      const hasErrors = await page.evaluate(() => {
         const bodyText = document.body?.textContent ?? "";
         const normalized = bodyText.toLowerCase();
         return (
@@ -520,7 +520,7 @@ export class BrowserAutomationTool extends BaseTool {
       await this.navigate(page, url, options.waitForSelector, options.timeout);
 
       const extracted: ExtractionResult = selector
-        ? await page.evaluate<ExtractionResult>((sel) => {
+        ? (await page.evaluate((sel) => {
             const element = document.querySelector(sel);
             if (!element) {
               return null;
@@ -538,8 +538,8 @@ export class BrowserAutomationTool extends BaseTool {
               html: element.innerHTML ?? null,
               attributes,
             };
-          }, selector)
-        : await page.evaluate<StructuredExtractionResult>(() => {
+          }, selector) as ExtractionResult)
+        : (await page.evaluate(() => {
             const data: StructuredExtractionResult = {};
 
             const jsonLdScripts = document.querySelectorAll(
@@ -568,7 +568,7 @@ export class BrowserAutomationTool extends BaseTool {
             }
 
             return data;
-          });
+          }) as ExtractionResult);
 
       return {
         success: true,

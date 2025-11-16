@@ -101,7 +101,11 @@ export const waveStartFunction = inngest.createFunction(
             select: { codebase: true },
           });
 
-          const codebase = projectContext?.codebase as any;
+          type Codebase = { githubRepoName?: string };
+          let codebase: Codebase | undefined;
+          if (projectContext?.codebase && typeof projectContext.codebase === "object" && projectContext.codebase !== null) {
+            codebase = projectContext.codebase as Codebase;
+          }
           const repoName = codebase?.githubRepoName;
 
           if (!repoName) {

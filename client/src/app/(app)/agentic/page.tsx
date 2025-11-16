@@ -82,11 +82,11 @@ export default function AgenticInterfacePage() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to start build");
+        const error = await response.json() as { message?: string };
+        throw new Error(error.message ?? "Failed to start build");
       }
 
-      const result = await response.json();
+      const result = await response.json() as { projectId: string };
 
       toast.success("Build started! Redirecting to execution dashboard...");
 
@@ -366,7 +366,7 @@ The app should feel modern, use a clean UI, and be mobile-responsive.'"
               {/* Build Button */}
               <div className="pt-4">
                 <Button
-                  onClick={handleStartBuilding}
+                  onClick={() => { void handleStartBuilding(); }}
                   disabled={
                     isBuilding || !visionText.trim() || !projectName.trim()
                   }

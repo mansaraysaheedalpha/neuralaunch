@@ -4,11 +4,11 @@
  * Assesses feasibility, identifies risks, validates tech choices, and estimates timelines
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { AI_MODELS } from "@/lib/models";
-import { toError, toLogContext } from "@/lib/error-utils";
+import { toError } from "@/lib/error-utils";
 import { createThoughtStream } from "@/lib/agents/thought-stream";
 import { env } from "@/lib/env";
 
@@ -98,7 +98,7 @@ export interface ValidationOutput {
  */
 export class ValidationAgent {
   private genAI: GoogleGenerativeAI;
-  private model: any;
+  private model: GenerativeModel;
   public readonly name = "ValidationAgent";
   public readonly phase = "validation";
 
@@ -110,7 +110,7 @@ export class ValidationAgent {
 
     this.genAI = new GoogleGenerativeAI(apiKey);
     this.model = this.genAI.getGenerativeModel({
-      model:AI_MODELS.PRIMARY,
+      model: AI_MODELS.PRIMARY,
       generationConfig: {
         temperature: 0.3, // Lower for consistent validation
         topP: 0.95,
@@ -134,26 +134,34 @@ export class ValidationAgent {
 
     try {
       await thoughts.starting("feasibility validation and risk assessment");
-      
+
       // Step 1: Get project context
-      await thoughts.accessing("ProjectContext database", "Retrieving project blueprint and tech stack");
+      await thoughts.accessing(
+        "ProjectContext database",
+        "Retrieving project blueprint and tech stack"
+      );
       const context = await this.getProjectContext(input.projectId);
 
       if (!context) {
-        await thoughts.error("Project context not found - Previous agents must complete first");
+        await thoughts.error(
+          "Project context not found - Previous agents must complete first"
+        );
         throw new Error(
           "Project context not found. Run Analyzer and Research agents first."
         );
       }
 
       await thoughts.analyzing("project requirements and proposed tech stack");
-      
+
       // Step 2: Generate validation prompt
       await thoughts.thinking("building comprehensive validation criteria");
       const prompt = this.buildValidationPrompt(context);
 
       // Step 3: Get AI validation analysis
-      await thoughts.accessing("Google Gemini AI", "Requesting feasibility assessment");
+      await thoughts.accessing(
+        "Google Gemini AI",
+        "Requesting feasibility assessment"
+      );
       logger.info(`[${this.name}] Requesting AI validation analysis...`);
       const result = await this.model.generateContent(prompt);
       const responseText = result.response.text();
@@ -161,12 +169,16 @@ export class ValidationAgent {
       // Step 4: Parse AI response
       await thoughts.analyzing("AI validation results and risk factors");
       const validation = this.parseValidationResponse(responseText);
-      
-      await thoughts.emit("analyzing", `Feasibility score: ${validation.feasibilityScore.overall}/10`, {
-        feasible: validation.feasible,
-        risks: validation.risks.length,
-        blockers: validation.blockers.length,
-      });
+
+      await thoughts.emit(
+        "analyzing",
+        `Feasibility score: ${validation.feasibilityScore.overall}/10`,
+        {
+          feasible: validation.feasible,
+          risks: validation.risks.length,
+          blockers: validation.blockers.length,
+        }
+      );
 
       // Step 5: Store results in database
       await thoughts.accessing("database", "Storing validation results");
@@ -183,11 +195,11 @@ export class ValidationAgent {
       );
 
       await thoughts.completing(
-        validation.feasible 
+        validation.feasible
           ? `Project validated as feasible (score: ${validation.feasibilityScore.overall}/10) in ${duration}ms`
           : `Project has concerns (${validation.blockers.length} blockers found) in ${duration}ms`
       );
-      
+
       logger.info(`[${this.name}] Validation completed`, {
         projectId: input.projectId,
         feasible: validation.feasible,
@@ -208,8 +220,10 @@ export class ValidationAgent {
         error instanceof Error ? error.message : "Unknown error";
       const duration = Date.now() - startTime;
 
-      await thoughts.error(errorMessage, { error: error instanceof Error ? error.stack : String(error) });
-      
+      await thoughts.error(errorMessage, {
+        error: error instanceof Error ? error.stack : String(error),
+      });
+
       logger.error(`[${this.name}] Validation failed:`, toError(error));
 
       await this.logExecution(input, null, false, duration, errorMessage);
@@ -233,11 +247,25 @@ export class ValidationAgent {
       return null;
     }
 
-      const architecture = context.architecture as any;
-      const validation = architecture?.validation;
+    interface Architecture {
+      validation?: ValidationResult;
+      [key: string]: unknown;
+    }
+    const architecture = context.architecture as Architecture;
+    const validation = architecture?.validation;
 
-    const blueprint = context.blueprint as any;
-    const rawBlueprint = blueprint?.raw || blueprint; // Handle both formats
+    const blueprint = context.blueprint as unknown;
+    let rawBlueprint: string | object;
+    if (
+      blueprint &&
+      typeof blueprint === "object" &&
+      "raw" in blueprint &&
+      typeof (blueprint as { raw?: unknown }).raw === "string"
+    ) {
+      rawBlueprint = (blueprint as { raw: string }).raw;
+    } else {
+      rawBlueprint = blueprint as string | object;
+    }
 
     return {
       blueprint: rawBlueprint, // Use raw text, not parsed object
@@ -249,9 +277,12 @@ export class ValidationAgent {
   /**
    * Build validation prompt for AI
    */
-  private buildValidationPrompt(context: any): string {
-    const blueprint = context.blueprint || {};
-    const techStack = context.techStack || {};
+  private buildValidationPrompt(context: {
+    blueprint?: unknown;
+    techStack?: unknown;
+  }): string {
+    const blueprint = context.blueprint ?? {};
+    const techStack = context.techStack ?? {};
 
     return `
 You are a technical validation expert. Analyze this project and provide a comprehensive feasibility assessment.
@@ -325,16 +356,19 @@ IMPORTANT:
         .replace(/```\n?/g, "")
         .trim();
 
-      const parsed = JSON.parse(cleanedText);
+      const parsed = JSON.parse(cleanedText) as ValidationResult;
 
       // Validate required fields
       if (!parsed.feasible === undefined || !parsed.feasibilityScore) {
         throw new Error("Invalid validation response format");
       }
 
-      return parsed as ValidationResult;
+      return parsed;
     } catch (error) {
-      logger.error(`[${this.name}] Failed to parse AI response:`, error as any);
+      logger.error(
+        `[${this.name}] Failed to parse AI response:`,
+        error instanceof Error ? error : undefined
+      );
       throw new Error(
         "Failed to parse validation response. AI returned invalid format."
       );
@@ -351,10 +385,10 @@ IMPORTANT:
     await prisma.projectContext.update({
       where: { projectId },
       data: {
-        architecture: {
+        architecture: JSON.stringify({
           validation: validation,
           validatedAt: new Date().toISOString(),
-        } as any,
+        }),
         currentPhase: validation.feasible ? "planning" : "validation",
         updatedAt: new Date(),
       },
@@ -378,8 +412,8 @@ IMPORTANT:
         projectId: input.projectId,
         agentName: this.name,
         phase: this.phase,
-        input: input as any,
-        output: validation as any,
+        input: input ? (input as unknown as import("@prisma/client").Prisma.InputJsonValue) : {},
+        output: validation ? JSON.stringify(validation) : undefined,
         success,
         durationMs,
         error,

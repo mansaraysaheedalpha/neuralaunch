@@ -14,6 +14,7 @@ import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import { createAgentError } from "@/lib/error-utils";
 import { TechStack } from "@/lib/agents/types/common";
+import { Prisma } from "@prisma/client";
 
 interface IntegrationIssue {
   severity?: string;
@@ -35,6 +36,12 @@ interface IntegrationOutputData {
   [key: string]: unknown;
 }
 
+interface IntegrationTaskInput {
+  verificationType?: string;
+  waveNumber?: number;
+  specificEndpoints?: string[];
+}
+
 export const integrationAgentFunction = inngest.createFunction(
   {
     id: "integration-agent-verification",
@@ -43,7 +50,13 @@ export const integrationAgentFunction = inngest.createFunction(
   },
   { event: "agent/quality.integration" },
   async ({ event, step }) => {
-    const { taskId, projectId, userId, conversationId, taskInput } = event.data;
+    const { taskId, projectId, userId, conversationId, taskInput } = event.data as {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      taskInput: IntegrationTaskInput;
+    };
 
     logger.info(`[Inngest] Integration Agent triggered`, {
       taskId,
@@ -157,7 +170,7 @@ export const integrationAgentFunction = inngest.createFunction(
         where: { id: task.id },
         data: {
           status: compatible ? "completed" : "needs_review",
-          output: result.data as any,
+          output: result.data as Prisma.InputJsonValue,
           completedAt: new Date(),
         },
       });
@@ -185,11 +198,11 @@ export const integrationAgentFunction = inngest.createFunction(
                   category: issue.category,
                   description: issue.description,
                   suggestion: issue.suggestion,
-                  frontend: issue.frontend as any,
-                  backend: issue.backend as any,
+                  frontend: issue.frontend as Prisma.InputJsonValue,
+                  backend: issue.backend as Prisma.InputJsonValue,
                 },
                 originalTaskId: task.id,
-              } as any,
+              } as Prisma.InputJsonValue,
             },
           });
         }

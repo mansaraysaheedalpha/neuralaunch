@@ -15,7 +15,6 @@
 import { AI_MODELS } from "@/lib/models";
 import {
   BaseAgent,
-  BaseAgentConfig,
   AgentExecutionInput,
   AgentExecutionOutput,
 } from "../base/base-agent";
@@ -55,12 +54,12 @@ export interface ContractVerification {
   endpoint: string;
   method: string;
   frontendExpectation: {
-    requestBody?: any;
+    requestBody?: unknown;
     responseType?: string;
     statusCodes?: number[];
   };
   backendImplementation: {
-    actualResponse?: any;
+    actualResponse?: unknown;
     statusCodes?: number[];
     hasAuth?: boolean;
   };
@@ -100,6 +99,18 @@ export interface IntegrationInput extends AgentExecutionInput {
   specificEndpoints?: string[]; // Optional: only verify these endpoints
 }
 
+/**
+ * Load project context from database
+ */
+interface ProjectContextData {
+  techStack: {
+    frontend?: { framework?: string };
+    backend?: { framework?: string };
+    [key: string]: unknown;
+  };
+  architecture: unknown;
+}
+
 // ==========================================
 // INTEGRATION AGENT CLASS
 // ==========================================
@@ -137,8 +148,15 @@ export class IntegrationAgent extends BaseAgent {
    */
   async executeTask(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
     const startTime = Date.now();
-    const { taskId, projectId, userId, taskDetails, context } = input;
-    const verificationType = (taskDetails as any).verificationType || "full";
+    const {
+      taskId,
+      projectId,
+      userId,
+      taskDetails: _taskDetails,
+      context: _context,
+    } = input;
+    const verificationType =
+      (input as IntegrationInput).verificationType || "full";
 
     logger.info(`[${this.name}] Starting integration verification`, {
       taskId,
@@ -148,13 +166,18 @@ export class IntegrationAgent extends BaseAgent {
 
     try {
       // Step 1: Load project context and tech stack
-      const projectContext = await this.loadProjectContextData(projectId);
+      const projectContext: ProjectContextData =
+        await this.loadProjectContextData(projectId);
 
       // Step 2: Discover frontend and backend files
       const projectFiles = await this.discoverProjectStructure(
         projectId,
         userId,
-        projectContext.techStack
+        projectContext.techStack as {
+          frontend?: { framework?: string };
+          backend?: { framework?: string };
+          [key: string]: unknown;
+        }
       );
 
       // Step 3: Extract API contracts from frontend
@@ -174,7 +197,7 @@ export class IntegrationAgent extends BaseAgent {
       );
 
       // Step 5: Verify contracts match
-      const contractVerifications = await this.verifyContracts(
+      const contractVerifications = this.verifyContracts(
         frontendContracts,
         backendEndpoints,
         projectContext.techStack
@@ -253,7 +276,8 @@ export class IntegrationAgent extends BaseAgent {
         data: { ...result },
       };
     } catch (error) {
-      logger.error(`[${this.name}] Integration verification failed`, 
+      logger.error(
+        `[${this.name}] Integration verification failed`,
         error instanceof Error ? error : new Error(String(error)),
         { taskId }
       );
@@ -266,10 +290,9 @@ export class IntegrationAgent extends BaseAgent {
     }
   }
 
-  /**
-   * Load project context from database
-   */
-  private async loadProjectContextData(projectId: string): Promise<any> {
+  private async loadProjectContextData(
+    projectId: string
+  ): Promise<ProjectContextData> {
     const context = await prisma.projectContext.findUnique({
       where: { projectId },
       select: {
@@ -282,7 +305,7 @@ export class IntegrationAgent extends BaseAgent {
       throw new Error(`Project context not found for ${projectId}`);
     }
 
-    return context;
+    return context as ProjectContextData;
   }
 
   /**
@@ -291,7 +314,11 @@ export class IntegrationAgent extends BaseAgent {
   private async discoverProjectStructure(
     projectId: string,
     userId: string,
-    techStack: any
+    techStack: {
+      frontend?: { framework?: string };
+      backend?: { framework?: string };
+      [key: string]: unknown;
+    }
   ): Promise<{ frontend: string[]; backend: string[]; shared: string[] }> {
     logger.info(`[${this.name}] Discovering project structure`, {
       techStack: techStack?.frontend?.framework,
@@ -312,7 +339,9 @@ export class IntegrationAgent extends BaseAgent {
       throw new Error("Failed to load project structure");
     }
 
-    const data = contextResult.data as { files?: Array<string | { path: string }> };
+    const data = contextResult.data as {
+      files?: Array<string | { path: string }>;
+    };
     const allFiles = data?.files || [];
 
     // Categorize files based on tech stack
@@ -321,7 +350,7 @@ export class IntegrationAgent extends BaseAgent {
     const shared: string[] = [];
 
     for (const file of allFiles) {
-      const path = typeof file === 'string' ? file : file.path;
+      const path = typeof file === "string" ? file : file.path;
 
       // Frontend patterns (tech stack agnostic)
       if (
@@ -379,11 +408,31 @@ export class IntegrationAgent extends BaseAgent {
     projectId: string,
     userId: string,
     frontendFiles: string[],
-    techStack: any
-  ): Promise<any[]> {
+    techStack: {
+      frontend?: { framework?: string };
+      backend?: { framework?: string };
+      [key: string]: unknown;
+    }
+  ): Promise<Array<{
+    endpoint: string;
+    method: string;
+    file: string;
+    line: number;
+    requestBody: unknown;
+    responseType: string;
+    expectedStatus: number[];
+  }>> {
     logger.info(`[${this.name}] Extracting frontend API contracts`);
 
-    const contracts: any[] = [];
+    const contracts: {
+      endpoint: string;
+      method: string;
+      file: string;
+      line: number;
+      requestBody: unknown;
+      responseType: string;
+      expectedStatus: number[];
+    }[] = [];
 
     // Use AI to extract API calls from frontend files
     const prompt = `You are analyzing frontend code to extract API contracts.
@@ -427,11 +476,20 @@ Respond ONLY with valid JSON array, no markdown.`;
       // Parse JSON from response
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]) as Array<{
+          endpoint: string;
+          method: string;
+          file: string;
+          line: number;
+          requestBody: unknown;
+          responseType: string;
+          expectedStatus: number[];
+        }>;
         contracts.push(...parsed);
       }
     } catch (error) {
-      logger.error(`[${this.name}] Failed to extract frontend contracts`, 
+      logger.error(
+        `[${this.name}] Failed to extract frontend contracts`,
         error instanceof Error ? error : new Error(String(error))
       );
     }
@@ -447,11 +505,29 @@ Respond ONLY with valid JSON array, no markdown.`;
     projectId: string,
     userId: string,
     backendFiles: string[],
-    techStack: any
-  ): Promise<any[]> {
+    techStack: ProjectContextData["techStack"]
+  ): Promise<Array<{
+    endpoint: string;
+    method: string;
+    file: string;
+    line: number;
+    requestBodySchema: unknown;
+    responseStructure: string;
+    statusCodes: number[];
+    requiresAuth: boolean;
+  }>> {
     logger.info(`[${this.name}] Extracting backend API endpoints`);
 
-    const endpoints: any[] = [];
+    const endpoints: Array<{
+      endpoint: string;
+      method: string;
+      file: string;
+      line: number;
+      requestBodySchema: unknown;
+      responseStructure: string;
+      statusCodes: number[];
+      requiresAuth: boolean;
+    }> = [];
 
     // Use AI to extract API endpoints from backend files
     const prompt = `You are analyzing backend code to extract API endpoint implementations.
@@ -497,11 +573,21 @@ Respond ONLY with valid JSON array, no markdown.`;
       // Parse JSON from response
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]) as Array<{
+          endpoint: string;
+          method: string;
+          file: string;
+          line: number;
+          requestBodySchema: unknown;
+          responseStructure: string;
+          statusCodes: number[];
+          requiresAuth: boolean;
+        }>;
         endpoints.push(...parsed);
       }
     } catch (error) {
-      logger.error(`[${this.name}] Failed to extract backend endpoints`, 
+      logger.error(
+        `[${this.name}] Failed to extract backend endpoints`,
         error instanceof Error ? error : new Error(String(error))
       );
     }
@@ -515,11 +601,28 @@ Respond ONLY with valid JSON array, no markdown.`;
   /**
    * Verify frontend contracts match backend endpoints
    */
-  private async verifyContracts(
-    frontendContracts: any[],
-    backendEndpoints: any[],
-    techStack: any
-  ): Promise<ContractVerification[]> {
+  private verifyContracts(
+    frontendContracts: Array<{
+      endpoint: string;
+      method: string;
+      file: string;
+      line: number;
+      requestBody: unknown;
+      responseType: string;
+      expectedStatus: number[];
+    }>,
+    backendEndpoints: Array<{
+      endpoint: string;
+      method: string;
+      file: string;
+      line: number;
+      requestBodySchema?: unknown;
+      responseStructure?: string;
+      statusCodes?: number[];
+      requiresAuth?: boolean;
+    }>,
+    _techStack: ProjectContextData["techStack"]
+  ): ContractVerification[] {
     logger.info(`[${this.name}] Verifying API contracts`);
 
     const verifications: ContractVerification[] = [];
@@ -558,7 +661,7 @@ Respond ONLY with valid JSON array, no markdown.`;
       if (contract.requestBody && backendMatch.requestBodySchema) {
         if (contract.requestBody !== backendMatch.requestBodySchema) {
           issues.push(
-            `Request body mismatch: Frontend sends ${contract.requestBody}, Backend expects ${backendMatch.requestBodySchema}`
+            `Request body mismatch: Frontend sends ${JSON.stringify(contract.requestBody)}, Backend expects ${JSON.stringify(backendMatch.requestBodySchema)}`
           );
         }
       }
@@ -577,7 +680,7 @@ Respond ONLY with valid JSON array, no markdown.`;
         contract.expectedStatus &&
         backendMatch.statusCodes &&
         !contract.expectedStatus.some((code: number) =>
-          backendMatch.statusCodes.includes(code)
+          Array.isArray(backendMatch.statusCodes) && backendMatch.statusCodes.includes(code)
         )
       ) {
         issues.push(
@@ -619,7 +722,7 @@ Respond ONLY with valid JSON array, no markdown.`;
     projectId: string,
     userId: string,
     projectFiles: { frontend: string[]; backend: string[]; shared: string[] },
-    techStack: any
+    techStack: ProjectContextData["techStack"]
   ): Promise<IntegrationIssue[]> {
     logger.info(`[${this.name}] Verifying data model consistency`);
 
@@ -670,29 +773,51 @@ Respond ONLY with valid JSON array, no markdown.`;
       // Parse JSON from response
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-
-        for (const issue of parsed) {
-          issues.push({
-            severity: issue.severity || "medium",
-            category: issue.category || "data_model_mismatch",
-            frontend: {
-              file: issue.frontendFile || "",
-              line: issue.frontendLine || 0,
-              expects: issue.frontendExpects || "",
-            },
-            backend: {
-              file: issue.backendFile || "",
-              line: issue.backendLine || 0,
-              provides: issue.backendProvides || "",
-            },
-            description: issue.description || "",
-            suggestion: issue.suggestion || "",
-          });
+        const rawParsed = JSON.parse(jsonMatch[0]) as Array<{
+          severity?: string;
+          category?: string;
+          frontendFile?: string;
+          frontendLine?: number;
+          frontendExpects?: string;
+          backendFile?: string;
+          backendLine?: number;
+          backendProvides?: string;
+          description?: string;
+          suggestion?: string;
+        }>;
+        if (Array.isArray(rawParsed)) {
+          for (const issue of rawParsed) {
+            if (
+              typeof issue === "object" &&
+              issue !== null &&
+              (typeof issue.severity === "string" || typeof issue.severity === "undefined") &&
+              (typeof issue.category === "string" || typeof issue.category === "undefined")
+            ) {
+              issues.push({
+                severity: (["critical", "high", "medium", "low"].includes(issue.severity as string) ? issue.severity as IntegrationIssue["severity"] : "medium"),
+                category: (["timeout", "contract_mismatch", "auth_failure", "type_mismatch", "missing_endpoint", "data_model_mismatch", "cors_issue", "error_handling"].includes(issue.category as string)
+                  ? issue.category as IntegrationIssue["category"]
+                  : "data_model_mismatch"),
+                frontend: {
+                  file: issue.frontendFile || "",
+                  line: issue.frontendLine || 0,
+                  expects: issue.frontendExpects || "",
+                },
+                backend: {
+                  file: issue.backendFile || "",
+                  line: issue.backendLine || 0,
+                  provides: issue.backendProvides || "",
+                },
+                description: issue.description || "",
+                suggestion: issue.suggestion || "",
+              });
+            }
+          }
         }
       }
     } catch (error) {
-      logger.error(`[${this.name}] Failed to verify data models`, 
+      logger.error(
+        `[${this.name}] Failed to verify data models`,
         error instanceof Error ? error : new Error(String(error))
       );
     }
@@ -708,7 +833,7 @@ Respond ONLY with valid JSON array, no markdown.`;
     projectId: string,
     userId: string,
     failedContracts: ContractVerification[],
-    techStack: any
+    techStack: ProjectContextData["techStack"]
   ): Promise<FlowTestResult[]> {
     logger.info(`[${this.name}] Running integration tests`);
 
@@ -773,7 +898,7 @@ Respond ONLY with valid JSON array, no markdown.`;
   /**
    * Detect integration test command based on tech stack
    */
-  private detectIntegrationTestCommand(techStack: any): string | null {
+  private detectIntegrationTestCommand(techStack: ProjectContextData["techStack"]): string | null {
     const frontend = techStack?.frontend?.framework?.toLowerCase() || "";
     const backend = techStack?.backend?.framework?.toLowerCase() || "";
 
@@ -846,7 +971,9 @@ Respond ONLY with valid JSON array, no markdown.`;
             backend: {
               file: "",
               line: 0,
-              provides: verification.backendImplementation.actualResponse || "",
+              provides: typeof verification.backendImplementation.actualResponse === "string"
+                ? verification.backendImplementation.actualResponse
+                : JSON.stringify(verification.backendImplementation.actualResponse ?? ""),
             },
             description: issueText,
             suggestion: this.generateIssueSuggestion(category, issueText),
@@ -863,7 +990,7 @@ Respond ONLY with valid JSON array, no markdown.`;
    */
   private generateIssueSuggestion(
     category: IntegrationIssue["category"],
-    issueText: string
+    _issueText: string
   ): string {
     switch (category) {
       case "missing_endpoint":
@@ -884,7 +1011,7 @@ Respond ONLY with valid JSON array, no markdown.`;
    */
   private generateRecommendations(
     issues: IntegrationIssue[],
-    techStack: any
+    _techStack: ProjectContextData["techStack"]
   ): string[] {
     const recommendations: string[] = [];
 
@@ -997,7 +1124,7 @@ Respond ONLY with valid JSON array, no markdown.`;
       await prisma.agentTask.update({
         where: { id: taskId },
         data: {
-          output: result as any,
+          output: JSON.stringify(result),
           status: result.compatible ? "completed" : "failed",
           completedAt: new Date(),
         },
@@ -1005,7 +1132,8 @@ Respond ONLY with valid JSON array, no markdown.`;
 
       logger.info(`[${this.name}] Stored verification results`, { taskId });
     } catch (error) {
-      logger.error(`[${this.name}] Failed to store results`, 
+      logger.error(
+        `[${this.name}] Failed to store results`,
         error instanceof Error ? error : new Error(String(error)),
         { taskId }
       );

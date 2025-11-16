@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createApiLogger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { sendReviewNotification } from "@/lib/notifications/notification-service";
 import { toLogContext } from "@/lib/error-utils";
@@ -18,12 +19,21 @@ import {
   getClientIp,
 } from "@/lib/rate-limit";
 
+const criticalIssueSchema = z.union([
+  z.string(),
+  z.object({
+    description: z.string().optional(),
+    severity: z.string().optional(),
+    type: z.string().optional(),
+  }).passthrough(),
+]);
+
 const createReviewSchema = z.object({
   waveNumber: z.number().int().positive(),
   reason: z.string().min(1),
   description: z.string().min(1),
   priority: z.enum(["critical", "high", "medium"]).default("high"),
-  criticalIssues: z.array(z.any()),
+  criticalIssues: z.array(criticalIssueSchema),
   attempts: z.number().int().positive(),
 });
 
@@ -54,7 +64,7 @@ export async function GET(
     // Rate limiting
     const clientIp = getClientIp(req.headers);
     const rateLimitId = getRequestIdentifier(userId, clientIp);
-    const rateLimitResult = checkRateLimit({
+    const rateLimitResult = await checkRateLimit({
       ...RATE_LIMITS.API_READ,
       identifier: rateLimitId,
     });
@@ -180,7 +190,7 @@ export async function POST(
     const userId = session.user.id;
 
     // 2. Validate request
-    const body = await req.json();
+    const body: unknown = await req.json();
     const validatedBody = createReviewSchema.parse(body);
 
     // 3. Verify project ownership
@@ -225,7 +235,7 @@ export async function POST(
         reason: validatedBody.reason,
         description: validatedBody.description,
         priority: validatedBody.priority,
-        criticalIssues: validatedBody.criticalIssues as any,
+        criticalIssues: validatedBody.criticalIssues as Prisma.InputJsonValue,
         attempts: validatedBody.attempts,
         status: "pending",
       },

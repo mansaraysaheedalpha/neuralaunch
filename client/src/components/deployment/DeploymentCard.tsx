@@ -24,13 +24,11 @@ interface DeploymentCardProps {
     duration?: number;
   };
   onRedeploy?: () => void;
-  onRollback?: () => void;
 }
 
 export default function DeploymentCard({
   deployment,
   onRedeploy,
-  onRollback,
 }: DeploymentCardProps) {
   const statusConfig = {
     deploying: {

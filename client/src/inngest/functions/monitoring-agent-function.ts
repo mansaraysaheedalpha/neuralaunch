@@ -25,7 +25,24 @@ export const monitoringAgentFunction = inngest.createFunction(
   },
   { event: "agent/monitoring.start" },
   async ({ event, step }) => {
-    const { taskId, projectId, userId, conversationId, taskInput } = event.data;
+    interface MonitoringAgentEventData {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      taskInput: {
+        deploymentUrl: string;
+        monitoringDuration?: number;
+        endpoints?: string[];
+        checkInterval?: number;
+        continuousMonitoring?: boolean;
+        monitoringInterval?: number;
+        autoOptimize?: boolean;
+      };
+    }
+
+    const { taskId, projectId, userId, conversationId, taskInput } =
+      event.data as MonitoringAgentEventData;
 
     logger.info(`[Inngest] Monitoring Agent triggered`, {
       taskId,
@@ -98,7 +115,10 @@ export const monitoringAgentFunction = inngest.createFunction(
 
     // Step 5: Handle monitoring result
     if (!result.success) {
-      logger.error(`[Inngest] Monitoring failed`, createAgentError(result.error || "Unknown error", { taskId: task.id }));
+      logger.error(
+        `[Inngest] Monitoring failed`,
+        createAgentError(result.error || "Unknown error", { taskId: task.id })
+      );
 
       await step.run("mark-task-failed", async () => {
         await prisma.agentTask.update({
@@ -130,17 +150,29 @@ export const monitoringAgentFunction = inngest.createFunction(
     }
 
     // Step 6: Extract monitoring results
-    const report = result.data as { healthStatus?: string; uptime?: number; alerts?: Array<{ severity?: string }>; performanceMetrics?: unknown[]; healthChecks?: unknown[]; recommendations?: unknown[]; summary?: string; [key: string]: unknown } | undefined;
+    interface MonitoringReport {
+      healthStatus?: string;
+      uptime?: number;
+      alerts?: Array<{ severity?: string; message?: string }>;
+      performanceMetrics?: Array<{ metric: string; value?: number }>;
+      healthChecks?: Array<{ status?: string }>;
+      recommendations?: Array<{ priority?: string }>;
+      summary?: string;
+      [key: string]: unknown;
+    }
+    const report = result.data as MonitoringReport | undefined;
     const healthStatus = report?.healthStatus || "unknown";
     const uptime = report?.uptime || 0;
     const alerts = report?.alerts || [];
-    const criticalAlerts = alerts.filter((a: { severity?: string }) => a.severity === "critical");
+    const criticalAlerts = alerts.filter(
+      (a: { severity?: string }) => a.severity === "critical"
+    );
 
     logger.info(`[Inngest] Monitoring complete`, {
       taskId: task.id,
       healthStatus,
       uptime: `${uptime.toFixed(2)}%`,
-      totalAlerts: alerts.length,
+      output: report,
       criticalAlerts: criticalAlerts.length,
     });
 
@@ -150,7 +182,7 @@ export const monitoringAgentFunction = inngest.createFunction(
         where: { id: task.id },
         data: {
           status: "completed",
-          output: report as any,
+          output: JSON.stringify(report),
           completedAt: new Date(),
         },
       });
@@ -170,14 +202,16 @@ export const monitoringAgentFunction = inngest.createFunction(
         // Send alert notifications
         if (userId && criticalAlerts.length > 0) {
           try {
-            const alertMessages = criticalAlerts.map((a: any) => a.message).join(', ');
+            const alertMessages = criticalAlerts
+              .map((a: { severity?: string; message?: string }) => a.message)
+              .join(", ");
             await sendNotification({
               userId,
               projectId,
               type: "monitoring_alert",
               priority: healthStatus === "down" ? "critical" : "high",
               title: `Monitoring Alert: ${healthStatus.toUpperCase()}`,
-              message: `${criticalAlerts.length} critical alert${criticalAlerts.length > 1 ? 's' : ''} detected`,
+              message: `${criticalAlerts.length} critical alert${criticalAlerts.length > 1 ? "s" : ""} detected`,
               alertType: "health_check",
               severity: healthStatus === "down" ? "critical" : "error",
               metrics: {
@@ -188,7 +222,10 @@ export const monitoringAgentFunction = inngest.createFunction(
             });
             logger.info(`[Inngest] Monitoring alert notification sent`);
           } catch (error) {
-            logger.error(`[Inngest] Failed to send monitoring alert`, createAgentError(error));
+            logger.error(
+              `[Inngest] Failed to send monitoring alert`,
+              createAgentError(error)
+            );
           }
         }
 
@@ -219,13 +256,22 @@ export const monitoringAgentFunction = inngest.createFunction(
         // For now, we'll store in the main database
 
         const metrics = report?.performanceMetrics || [];
-        const healthChecks = report?.healthChecks || [];
+        interface HealthCheck {
+          status?: string;
+        }
+        const healthChecks: HealthCheck[] = report?.healthChecks || [];
 
         // Calculate aggregated metrics
+        interface PerformanceMetric {
+          metric: string;
+          value?: number;
+        }
         const avgResponseTime = metrics.find(
-          (m: any) => m.metric === "average_response_time"
-        ) as { value?: number } | undefined;
-        const errorRate = metrics.find((m: any) => m.metric === "error_rate") as { value?: number } | undefined;
+          (m: PerformanceMetric) => m.metric === "average_response_time"
+        );
+        const errorRate = metrics.find(
+          (m: PerformanceMetric) => m.metric === "error_rate"
+        );
 
         // Store snapshot
         await prisma.$executeRaw`
@@ -248,7 +294,7 @@ export const monitoringAgentFunction = inngest.createFunction(
             ${avgResponseTime?.value || 0},
             ${errorRate?.value || 0},
             ${healthChecks.length},
-            ${healthChecks.filter((hc: any) => hc.status === "down").length},
+            ${healthChecks.filter((hc: HealthCheck) => hc.status === "down").length},
             ${criticalAlerts.length},
             NOW()
           )
@@ -313,8 +359,12 @@ export const monitoringAgentFunction = inngest.createFunction(
 
     // Step 12: Trigger optimization if recommendations available
     if (report?.recommendations && report.recommendations.length > 0) {
+      interface Recommendation {
+        priority?: string;
+        [key: string]: unknown;
+      }
       const highPriorityRecs = report.recommendations.filter(
-        (r: any) => r.priority === "high"
+        (r: Recommendation) => r.priority === "high"
       );
 
       if (highPriorityRecs.length > 0 && taskInput.autoOptimize) {
@@ -371,13 +421,13 @@ export const continuousMonitoringFunction = inngest.createFunction(
         const deployments = await prisma.deployment.findMany({
           where: {
             status: "deployed",
-            deploymentUrl: { not: null }
+            deploymentUrl: { not: null },
           },
           select: {
             projectId: true,
             deploymentUrl: true,
           },
-          distinct: ['projectId'], // Get one deployment per project
+          distinct: ["projectId"], // Get one deployment per project
         });
 
         // Get user info for each project
@@ -389,13 +439,13 @@ export const continuousMonitoringFunction = inngest.createFunction(
             });
             return {
               projectId: deployment.projectId,
-              userId: context?.userId || '',
+              userId: context?.userId || "",
               deploymentUrl: deployment.deploymentUrl,
             };
           })
         );
 
-        return projectsWithUsers.filter(p => p.userId); // Filter out projects without userId
+        return projectsWithUsers.filter((p) => p.userId); // Filter out projects without userId
       }
     );
 

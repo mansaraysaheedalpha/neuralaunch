@@ -22,7 +22,6 @@ import {
 } from "../base/base-agent";
 import { AI_MODELS } from "@/lib/models";
 import { logger } from "@/lib/logger";
-import prisma from "@/lib/prisma";
 import { toError, toLogContext } from "@/lib/error-utils";
 
 // ==========================================
@@ -55,6 +54,14 @@ export interface GeneratedTest {
   fullCode: string; // Complete test file
 }
 
+interface ParsedTestData {
+  description?: string;
+  imports: string[];
+  setup?: string;
+  teardown?: string;
+  testCases: TestCase[];
+}
+
 export interface TestResults {
   passed: number;
   failed: number;
@@ -70,6 +77,11 @@ export interface TestResults {
     error: string;
     file: string;
   }>;
+}
+
+interface PackageJson {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
 }
 
 // ==========================================
@@ -115,10 +127,16 @@ export class TestingAgent extends BaseAgent {
       logger.info(`[${this.config.name}] Detected framework: ${framework}`);
 
       // Step 2: Load source files to test
+      const sourceFilesList =
+        Array.isArray(taskDetails.sourceFiles) &&
+        taskDetails.sourceFiles.every((sf) => typeof sf === "string")
+          ? taskDetails.sourceFiles
+          : [];
+
       const sourceFiles = await this.loadSourceFiles(
         projectId,
         userId,
-        Array.isArray(taskDetails.sourceFiles) ? taskDetails.sourceFiles : []
+        sourceFilesList
       );
 
       if (sourceFiles.length === 0) {
@@ -164,6 +182,17 @@ export class TestingAgent extends BaseAgent {
         generatedTests
       );
 
+      const failedWrites = writeResults.filter((r) => !r.success);
+      if (failedWrites.length > 0) {
+        return {
+          success: false,
+          message: `Failed to write ${failedWrites.length} test file(s).`,
+          iterations: 1,
+          durationMs: 0,
+          error: `Failed to write: ${failedWrites.map((f) => f.path).join(", ")}`,
+        };
+      }
+
       // Step 6: Install test dependencies if needed
       await this.ensureTestDependencies(projectId, userId, framework);
 
@@ -192,7 +221,10 @@ export class TestingAgent extends BaseAgent {
         },
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Test generation failed`, toError(error));
+      logger.error(
+        `[${this.config.name}] Test generation failed`,
+        toError(error)
+      );
 
       return {
         success: false,
@@ -222,8 +254,16 @@ export class TestingAgent extends BaseAgent {
         { projectId, userId }
       );
 
-      if (pkgResult.success && pkgResult.data?.content) {
-        const pkg = JSON.parse(pkgResult.data.content);
+      if (
+        pkgResult.success &&
+        pkgResult.data &&
+        typeof pkgResult.data === "object" &&
+        "content" in pkgResult.data &&
+        typeof (pkgResult.data as { content: unknown }).content === "string"
+      ) {
+        const pkg = JSON.parse(
+          (pkgResult.data as { content: string }).content
+        ) as PackageJson;
         const allDeps = { ...pkg.dependencies, ...pkg.devDependencies };
 
         if (allDeps.vitest) return "vitest";
@@ -236,7 +276,10 @@ export class TestingAgent extends BaseAgent {
         { command: "which pytest || which python3 -m pytest", timeout: 10 },
         { projectId, userId }
       );
-      if (pytestCheck.success && pytestCheck.data?.exitCode === 0) {
+      if (
+        pytestCheck.success &&
+        (pytestCheck.data as { exitCode: number })?.exitCode === 0
+      ) {
         return "pytest" as TestFramework;
       }
 
@@ -266,7 +309,10 @@ export class TestingAgent extends BaseAgent {
         { command: "find . -name '*.csproj' | head -1", timeout: 10 },
         { projectId, userId }
       );
-      if (csprojFiles.success && csprojFiles.data?.stdout) {
+      if (
+        csprojFiles.success &&
+        (csprojFiles.data as { stdout: string })?.stdout
+      ) {
         return "xunit" as TestFramework;
       }
 
@@ -282,7 +328,7 @@ export class TestingAgent extends BaseAgent {
     } catch (error) {
       logger.warn(
         `[${this.config.name}] Failed to detect framework, defaulting to Jest`,
-        error as any
+        toLogContext(error)
       );
     }
 
@@ -311,16 +357,16 @@ export class TestingAgent extends BaseAgent {
           { projectId, userId }
         );
 
-        if (result.success && result.data?.content) {
+        if (result.success && (result.data as { content: string })?.content) {
           files.push({
             path: filePath,
-            content: result.data.content,
+            content: (result.data as { content: string }).content,
           });
         }
       } catch (error) {
         logger.warn(
           `[${this.config.name}] Failed to load file: ${filePath}`,
-          error as any
+          toLogContext(error)
         );
       }
     }
@@ -335,8 +381,8 @@ export class TestingAgent extends BaseAgent {
     projectId: string,
     userId: string,
     sourceFiles: Array<{ path: string; content: string }>
-  ) {
-    const analysis: any = {};
+  ): Promise<Record<string, unknown>> {
+    const analysis: Record<string, unknown> = {};
 
     for (const file of sourceFiles) {
       try {
@@ -351,12 +397,12 @@ export class TestingAgent extends BaseAgent {
         );
 
         if (result.success && result.data) {
-          analysis[file.path] = result.data.analysis;
+          analysis[file.path] = (result.data as { analysis: unknown }).analysis;
         }
       } catch (error) {
         logger.warn(
           `[${this.config.name}] Failed to analyze: ${file.path}`,
-          error as any
+          toLogContext(error)
         );
       }
     }
@@ -369,7 +415,7 @@ export class TestingAgent extends BaseAgent {
    */
   private async generateTests(
     sourceFiles: Array<{ path: string; content: string }>,
-    codeAnalysis: any,
+    codeAnalysis: Record<string, unknown>,
     framework: TestFramework,
     testType: TestType,
     input: AgentExecutionInput
@@ -401,7 +447,7 @@ export class TestingAgent extends BaseAgent {
       } catch (error) {
         logger.error(
           `[${this.config.name}] Failed to generate test for ${sourceFile.path}`,
-          error as any
+          toError(error)
         );
       }
     }
@@ -414,10 +460,10 @@ export class TestingAgent extends BaseAgent {
    */
   private buildTestGenerationPrompt(
     sourceFile: { path: string; content: string },
-    analysis: any,
+    analysis: unknown,
     framework: TestFramework,
     testType: TestType,
-    context: any
+    context: { techStack?: unknown } | undefined
   ): string {
     const isApiRoute = sourceFile.path.includes("/api/");
     const isComponent = sourceFile.path.match(/\.(tsx|jsx)$/);
@@ -440,7 +486,7 @@ ${JSON.stringify(analysis, null, 2)}
 \`\`\`
 
 **TECH STACK:**
-${JSON.stringify(context.techStack, null, 2)}
+${JSON.stringify(context?.techStack, null, 2)}
 
 **REQUIREMENTS:**
 
@@ -499,7 +545,7 @@ Respond with ONLY valid JSON (no markdown):
   /**
    * API testing guidelines
    */
-  private getApiTestingGuidelines(framework: string): string {
+  private getApiTestingGuidelines(_framework: string): string {
     return `
 **API Testing Guidelines:**
 - Test all HTTP methods (GET, POST, PUT, DELETE)
@@ -514,7 +560,7 @@ Respond with ONLY valid JSON (no markdown):
   /**
    * Component testing guidelines
    */
-  private getComponentTestingGuidelines(framework: string): string {
+  private getComponentTestingGuidelines(_framework: string): string {
     return `
 **Component Testing Guidelines:**
 - Use @testing-library/react for React components
@@ -539,7 +585,7 @@ Respond with ONLY valid JSON (no markdown):
       let cleaned = responseText.trim();
       cleaned = cleaned.replace(/```json\n?/g, "").replace(/```\n?/g, "");
 
-      const parsed = JSON.parse(cleaned);
+      const parsed = JSON.parse(cleaned) as ParsedTestData;
 
       // Build full test code
       const fullCode = this.buildFullTestCode(parsed);
@@ -554,7 +600,10 @@ Respond with ONLY valid JSON (no markdown):
         fullCode,
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Failed to parse test response`, error as any);
+      logger.error(
+        `[${this.config.name}] Failed to parse AI test response for ${sourceFilePath}`,
+        toError(error)
+      );
       return null;
     }
   }
@@ -562,11 +611,13 @@ Respond with ONLY valid JSON (no markdown):
   /**
    * Build complete test file code
    */
-  private buildFullTestCode(parsed: any): string {
-    const imports = parsed.imports.join("\n");
+  private buildFullTestCode(parsed: ParsedTestData): string {
+    const imports = (parsed.imports || []).join("\n");
     const setup = parsed.setup || "";
     const teardown = parsed.teardown || "";
-    const tests = parsed.testCases.map((tc: TestCase) => tc.code).join("\n\n");
+    const tests = (parsed.testCases || [])
+      .map((tc: TestCase) => tc.code)
+      .join("\n\n");
 
     return `
 ${imports}
@@ -584,7 +635,7 @@ describe('${parsed.description || "Test Suite"}', () => {
   /**
    * Get test file path from source file path
    */
-  private getTestFilePath(sourceFilePath: string, framework: string): string {
+  private getTestFilePath(sourceFilePath: string, _framework: string): string {
     // Replace .ts with .test.ts, .tsx with .test.tsx, etc.
     const ext = sourceFilePath.split(".").pop();
     return sourceFilePath.replace(`.${ext}`, `.test.${ext}`);
@@ -623,7 +674,7 @@ describe('${parsed.description || "Test Suite"}', () => {
       } catch (error) {
         logger.error(
           `[${this.config.name}] Failed to write test: ${test.filePath}`,
-          error as any
+          toError(error)
         );
         results.push({
           path: test.filePath,
@@ -664,7 +715,7 @@ describe('${parsed.description || "Test Suite"}', () => {
     } catch (error) {
       logger.warn(
         `[${this.config.name}] Failed to install dependencies`,
-        error as any
+        toLogContext(error)
       );
     }
   }
@@ -693,7 +744,10 @@ describe('${parsed.description || "Test Suite"}', () => {
       );
 
       // Parse test results
-      return this.parseTestResults(result.data?.stdout || "", framework);
+      return this.parseTestResults(
+        (result.data as { stdout: string })?.stdout || "",
+        framework
+      );
     } catch (error) {
       logger.error(`[${this.config.name}] Failed to run tests`, toError(error));
 
@@ -712,7 +766,7 @@ describe('${parsed.description || "Test Suite"}', () => {
    */
   private parseTestResults(
     output: string,
-    framework: TestFramework
+    _framework: TestFramework
   ): TestResults {
     // Simplified parsing - would need real JSON parsing
     const passed = (output.match(/✓|PASS/g) || []).length;

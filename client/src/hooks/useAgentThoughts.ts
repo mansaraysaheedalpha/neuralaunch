@@ -5,7 +5,7 @@
  * Only fetches new thoughts since last update for efficiency
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 export interface Thought {
   id: string;
@@ -26,6 +26,10 @@ export type ThoughtType =
   | "executing"
   | "completing"
   | "error";
+
+interface ThoughtsApiResponse {
+  thoughts: Thought[];
+}
 
 interface UseAgentThoughtsReturn {
   thoughts: Thought[];
@@ -55,7 +59,7 @@ export function useAgentThoughts(
   const lastFetchTimeRef = useRef<Date | null>(null);
   const isInitialFetchRef = useRef(true);
 
-  const fetchThoughts = async (isInitial: boolean = false) => {
+  const fetchThoughts = useCallback(async (isInitial: boolean = false) => {
     if (!projectId || !enabled) return;
 
     try {
@@ -75,7 +79,7 @@ export function useAgentThoughts(
         throw new Error(`Failed to fetch thoughts: ${res.status}`);
       }
 
-      const data = await res.json();
+      const data = await res.json() as ThoughtsApiResponse;
 
       if (data.thoughts && data.thoughts.length > 0) {
         setThoughts((prev) => {
@@ -119,7 +123,7 @@ export function useAgentThoughts(
       setIsLoading(false);
       console.error("[useAgentThoughts] Error:", err);
     }
-  };
+  }, [projectId, enabled, maxThoughts]);
 
   const refetch = async () => {
     lastFetchTimeRef.current = null;
@@ -137,20 +141,20 @@ export function useAgentThoughts(
   // Initial fetch
   useEffect(() => {
     if (projectId && enabled) {
-      fetchThoughts(true);
+      void fetchThoughts(true);
     }
-  }, [projectId, enabled]);
+  }, [projectId, enabled, fetchThoughts]);
 
   // Polling for new thoughts
   useEffect(() => {
     if (!projectId || !enabled) return;
 
     const interval = setInterval(() => {
-      fetchThoughts(false);
+      void fetchThoughts(false);
     }, pollingInterval);
 
     return () => clearInterval(interval);
-  }, [projectId, enabled, pollingInterval]);
+  }, [projectId, enabled, pollingInterval, fetchThoughts]);
 
   return {
     thoughts,

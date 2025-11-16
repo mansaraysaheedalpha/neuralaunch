@@ -17,6 +17,21 @@ interface CriticOutputData {
   [key: string]: unknown;
 }
 
+interface CriticTaskInput {
+  filesToReview?: string[];
+  reviewType?: string;
+  strictMode?: boolean;
+  waveNumber?: number;
+}
+
+interface CriticEventData {
+  taskId?: string;
+  projectId: string;
+  userId: string;
+  conversationId: string;
+  taskInput: CriticTaskInput;
+}
+
 export const criticAgentFunction = inngest.createFunction(
   {
     id: "critic-agent-review",
@@ -25,17 +40,18 @@ export const criticAgentFunction = inngest.createFunction(
   },
   { event: "agent/quality.critic" },
   async ({ event, step }) => {
-    const { taskId, projectId, userId, conversationId, taskInput } = event.data;
+    const eventData = event.data as CriticEventData;
+    const { taskId, projectId, userId, conversationId, taskInput: typedTaskInput } = eventData;
 
     logger.info(`[Inngest] Critic Agent triggered`, {
       taskId,
       projectId,
-      reviewType: taskInput.reviewType || "full",
+      reviewType: typedTaskInput.reviewType || "full",
     });
 
     // Step 1: Get files to review
-    const filesToReview = await step.run("get-files-to-review", async () => {
-      return taskInput.filesToReview || [];
+    const filesToReview = await step.run("get-files-to-review", () => {
+      return typedTaskInput.filesToReview || [];
     });
 
     if (filesToReview.length === 0) {
@@ -47,7 +63,7 @@ export const criticAgentFunction = inngest.createFunction(
         data: {
           taskId: taskId || "",
           projectId,
-          waveNumber: taskInput.waveNumber ?? 0,
+          waveNumber: typedTaskInput.waveNumber ?? 0,
           success: true,
           approved: true,
         },
@@ -84,8 +100,8 @@ export const criticAgentFunction = inngest.createFunction(
           complexity: "simple",
           estimatedLines: 0,
           filesToReview,
-          reviewType: taskInput.reviewType || "full",
-          strictMode: taskInput.strictMode || false,
+          reviewType: typedTaskInput.reviewType || "full",
+          strictMode: typedTaskInput.strictMode || false,
         },
         context: {
           techStack: projectContext.techStack as TechStack | undefined,
@@ -95,13 +111,13 @@ export const criticAgentFunction = inngest.createFunction(
     });
 
     // Step 4: Post review to GitHub PR (if available)
-    if (taskInput.waveNumber && result.data?.report) {
+    if (typedTaskInput.waveNumber && result.data?.report) {
       await step.run("post-review-to-github", async () => {
         // Get PR info
         const tasks = await prisma.agentTask.findFirst({
           where: {
             projectId,
-            waveNumber: taskInput.waveNumber,
+            waveNumber: typedTaskInput.waveNumber,
             prNumber: { not: null },
           },
           select: { prNumber: true },
@@ -136,7 +152,7 @@ export const criticAgentFunction = inngest.createFunction(
 
               // Format review comment
               const comment = `
-## 🤖 Code Review - Wave ${taskInput.waveNumber}
+## 🤖 Code Review - Wave ${typedTaskInput.waveNumber}
 
 **Overall Score:** ${report.overallScore}/100
 
@@ -179,12 +195,12 @@ ${report.approved ? "✅ **Code review passed!**" : "❌ **Code review failed - 
 
     // Step 5: Update task status
     await step.run("update-task-status", async () => {
-      if (taskInput.waveNumber) {
+      if (typedTaskInput.waveNumber) {
         const criticData = result.data as CriticOutputData | undefined;
         await prisma.agentTask.updateMany({
           where: {
             projectId,
-            waveNumber: taskInput.waveNumber,
+            waveNumber: typedTaskInput.waveNumber,
           },
           data: {
             reviewScore: criticData?.report?.overallScore,
@@ -204,7 +220,7 @@ ${report.approved ? "✅ **Code review passed!**" : "❌ **Code review failed - 
         data: {
           taskId: taskId || "",
           projectId,
-          waveNumber: taskInput.waveNumber ?? 0,
+          waveNumber: typedTaskInput.waveNumber ?? 0,
           success: result.success,
           approved: criticData?.approved,
           score: criticData?.report?.overallScore,

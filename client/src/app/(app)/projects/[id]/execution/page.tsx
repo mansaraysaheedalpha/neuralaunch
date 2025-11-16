@@ -3,7 +3,6 @@
 
 import { use } from "react";
 import useSWR from "swr";
-import { motion } from "framer-motion";
 import {
   ArrowLeft,
   Clock,
@@ -36,13 +35,48 @@ interface ExecutionPageProps {
   }>;
 }
 
+interface Task {
+  id: string;
+  status: string;
+  name?: string;
+  createdAt?: string;
+}
+
+interface Wave {
+  id: string;
+  waveNumber: number;
+  status: string;
+}
+
+interface Project {
+  id: string;
+  name?: string;
+  status?: string;
+  createdAt?: string | number | Date;
+  conversationId?: string;
+}
+
+interface TasksData {
+  tasks: Task[];
+  waves: Wave[];
+}
+
+interface OrchestratorStatus {
+  currentWave?: number;
+  progress?: number;
+  activeAgents?: string[];
+  currentPhase?: string;
+  currentAgent?: string;
+  completedPhases?: string[];
+}
+
 const fetcher = async <T = unknown>(url: string): Promise<T> => {
   const res = await fetch(url);
   if (!res.ok) {
     const contentType = res.headers.get("content-type");
     if (contentType && contentType.includes("application/json")) {
-      const errorData = await res.json();
-      throw new Error(errorData.error || `HTTP ${res.status}`);
+      const errorData = await res.json() as { error?: string };
+      throw new Error(errorData.error ?? `HTTP ${res.status}`);
     }
     throw new Error(`HTTP ${res.status}: ${res.statusText}`);
   }
@@ -54,9 +88,9 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
   const router = useRouter();
 
   // Fetch project data with polling
-  const { data: project, error: projectError } = useSWR<any>(
+  const { data: project, error: projectError } = useSWR<Project, Error>(
     `/api/projects/${projectId}`,
-    fetcher,
+    fetcher<Project>,
     {
       refreshInterval: 3000, // Poll every 3 seconds
       revalidateOnFocus: true,
@@ -64,16 +98,16 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
   );
 
   // Fetch tasks data
-  const { data: tasksData, error: tasksError } = useSWR<any>(
+  const { data: tasksData, error: tasksError } = useSWR<TasksData, Error>(
     `/api/projects/${projectId}/tasks`,
-    fetcher,
+    fetcher<TasksData>,
     { refreshInterval: 2000 }
   );
 
   // Fetch orchestrator status
-  const { data: status } = useSWR<any>(
+  const { data: status } = useSWR<OrchestratorStatus>(
     `/api/orchestrator/status/${projectId}`,
-    fetcher,
+    fetcher<OrchestratorStatus>,
     { refreshInterval: 2000 }
   );
 
@@ -121,7 +155,7 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
   const activeAgents = status?.activeAgents || [];
 
   const completedTasks = tasks.filter(
-    (t: any) => t.status === "COMPLETE" || t.status === "completed"
+    (t) => t.status === "COMPLETE" || t.status === "completed"
   ).length;
   const totalTasks = tasks.length;
 
@@ -170,7 +204,7 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
                   </span>
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
                     <Clock className="w-3 h-3" />
-                    Started {new Date(project.createdAt).toLocaleTimeString()}
+                    Started {project.createdAt ? new Date(project.createdAt).toLocaleTimeString() : "N/A"}
                   </span>
                 </div>
               </div>
@@ -214,7 +248,7 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
             <Progress value={progress} className="h-3" />
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>
-                {currentAgent?.name || currentPhase} • {activeAgents.length}{" "}
+                {currentAgent || currentPhase} • {activeAgents.length}{" "}
                 agents active
               </span>
               <span>
@@ -272,7 +306,7 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
                 <CardTitle className="text-lg">Wave Timeline</CardTitle>
               </CardHeader>
               <CardContent>
-                <WaveTimeline waves={waves} currentWave={currentWave} />
+                <WaveTimeline waves={waves as unknown as import("@/types/component-props").Wave[]} currentWave={currentWave} />
               </CardContent>
             </Card>
 
@@ -324,7 +358,7 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
                 currentPhase={currentPhase}
                 completedPhases={status?.completedPhases || []}
                 projectId={projectId}
-                currentAgent={currentAgent}
+                currentAgent={currentAgent ? { name: currentAgent, description: "", icon: "" } : undefined}
               />
             ) : null}
 
@@ -336,9 +370,9 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
                 </CardHeader>
                 <CardContent>
                   <AgentGrid
-                    tasks={tasks}
+                    tasks={tasks as unknown as import("@/types/component-props").Task[]}
                     activeAgents={activeAgents}
-                    currentWave={currentWave}
+                    _currentWave={currentWave}
                   />
                 </CardContent>
               </Card>
@@ -348,7 +382,7 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
             <ExecutionTabs
               projectId={projectId}
               conversationId={project.conversationId || ""}
-              tasks={tasks}
+              tasks={tasks as unknown as import("@/types/component-props").Task[]}
               currentWave={currentWave}
             />
           </div>

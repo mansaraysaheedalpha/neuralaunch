@@ -24,7 +24,7 @@ import { AI_MODELS } from "@/lib/models";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { toError, toLogContext } from "@/lib/error-utils";
+import { toError } from "@/lib/error-utils";
 import { ProjectContext } from "@/lib/agents/types/common";
 
 // ==========================================
@@ -162,7 +162,7 @@ export class CriticAgent extends BaseAgent {
    * Execute code review
    */
   async executeTask(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
-    const { taskId, projectId, userId, taskDetails } = input;
+    const { taskId, projectId, userId } = input;
     const criticInput = input as CriticInput;
 
     logger.info(`[${this.config.name}] Starting code review`, {
@@ -305,10 +305,9 @@ export class CriticAgent extends BaseAgent {
           });
         }
       } catch (error) {
-        logger.warn(
-          `[${this.config.name}] Failed to load file: ${filePath}`,
-          { error: error instanceof Error ? error.message : String(error) }
-        );
+        logger.warn(`[${this.config.name}] Failed to load file: ${filePath}`, {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -342,10 +341,9 @@ export class CriticAgent extends BaseAgent {
           analysis[file.path] = data.structure;
         }
       } catch (error) {
-        logger.warn(
-          `[${this.config.name}] Failed to analyze: ${file.path}`,
-          { error: error instanceof Error ? error.message : String(error) }
-        );
+        logger.warn(`[${this.config.name}] Failed to analyze: ${file.path}`, {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -391,30 +389,51 @@ export class CriticAgent extends BaseAgent {
           const lintData = lintResult.data as { stdout?: string };
           if (lintResult.success && lintData?.stdout) {
             try {
-              const eslintOutput = JSON.parse(lintData.stdout);
+              const eslintOutput = JSON.parse(lintData.stdout) as Array<{
+                filePath: string;
+                messages?: Array<{
+                  line: number;
+                  severity: number;
+                  message: string;
+                  ruleId: string;
+                }>;
+              }>;
               if (Array.isArray(eslintOutput)) {
-                eslintOutput.forEach((fileResult: { filePath: string; messages?: Array<{line: number; severity: number; message: string; ruleId: string}> }) => {
-                  fileResult.messages?.forEach((msg) => {
-                    lintIssues.push({
-                      file: fileResult.filePath,
-                      line: msg.line,
-                      severity:
-                        msg.severity === 2
-                          ? "high"
-                          : msg.severity === 1
-                            ? "medium"
-                            : "low",
-                      message: msg.message,
-                      rule: msg.ruleId,
+                eslintOutput.forEach(
+                  (fileResult: {
+                    filePath: string;
+                    messages?: Array<{
+                      line: number;
+                      severity: number;
+                      message: string;
+                      ruleId: string;
+                    }>;
+                  }) => {
+                    fileResult.messages?.forEach((msg) => {
+                      lintIssues.push({
+                        file: fileResult.filePath,
+                        line: msg.line,
+                        severity:
+                          msg.severity === 2
+                            ? "high"
+                            : msg.severity === 1
+                              ? "medium"
+                              : "low",
+                        message: msg.message,
+                        rule: msg.ruleId,
+                      });
                     });
-                  });
-                });
+                  }
+                );
               }
             } catch (error) {
-              logger.warn(`[${this.config.name}] Failed to parse ESLint output`, {
-                error: error instanceof Error ? error.message : String(error),
-                projectId,
-              });
+              logger.warn(
+                `[${this.config.name}] Failed to parse ESLint output`,
+                {
+                  error: error instanceof Error ? error.message : String(error),
+                  projectId,
+                }
+              );
             }
           }
 
@@ -426,7 +445,15 @@ export class CriticAgent extends BaseAgent {
               { projectId, userId }
             );
 
-            const tscData = tscResult.data as { errors?: Array<{ file: string; line: number; severity: string; message: string; rule: string }> };
+            const tscData = tscResult.data as {
+              errors?: Array<{
+                file: string;
+                line: number;
+                severity: string;
+                message: string;
+                rule: string;
+              }>;
+            };
             if (tscResult.success && tscData?.errors) {
               typeErrors.push(...tscData.errors);
             }
@@ -447,23 +474,40 @@ export class CriticAgent extends BaseAgent {
           const pylintData = pylintResult.data as { stdout?: string };
           if (pylintResult.success && pylintData?.stdout) {
             try {
-              const pylintOutput = JSON.parse(pylintData.stdout);
+              const pylintOutput = JSON.parse(pylintData.stdout) as Array<{
+                path: string;
+                line: number;
+                type: string;
+                message: string;
+                symbol: string;
+              }>;
               if (Array.isArray(pylintOutput)) {
-                pylintOutput.forEach((issue: { path: string; line: number; type: string; message: string; symbol: string }) => {
-                  lintIssues.push({
-                    file: issue.path,
-                    line: issue.line,
-                    severity: this.mapPylintSeverity(issue.type),
-                    message: issue.message,
-                    rule: issue.symbol,
-                  });
-                });
+                pylintOutput.forEach(
+                  (issue: {
+                    path: string;
+                    line: number;
+                    type: string;
+                    message: string;
+                    symbol: string;
+                  }) => {
+                    lintIssues.push({
+                      file: issue.path,
+                      line: issue.line,
+                      severity: this.mapPylintSeverity(issue.type),
+                      message: issue.message,
+                      rule: issue.symbol,
+                    });
+                  }
+                );
               }
             } catch (error) {
-              logger.warn(`[${this.config.name}] Failed to parse Pylint output`, {
-                error: error instanceof Error ? error.message : String(error),
-                projectId,
-              });
+              logger.warn(
+                `[${this.config.name}] Failed to parse Pylint output`,
+                {
+                  error: error instanceof Error ? error.message : String(error),
+                  projectId,
+                }
+              );
             }
           }
         }
@@ -516,7 +560,7 @@ export class CriticAgent extends BaseAgent {
     projectId: string,
     userId: string,
     files: Array<{ path: string; content: string; language: string }>,
-    context: ProjectContext
+    _context: ProjectContext
   ): Promise<SecurityFinding[]> {
     const findings: SecurityFinding[] = [];
 
@@ -676,7 +720,15 @@ export class CriticAgent extends BaseAgent {
         const banditData = banditResult.data as { stdout?: string };
         if (banditResult.success && banditData?.stdout) {
           try {
-            const banditOutput = JSON.parse(banditData.stdout) as { results?: Array<{ issue_severity: string; issue_text: string; filename: string; line_number: number; issue_cwe?: { id: string } }> };
+            const banditOutput = JSON.parse(banditData.stdout) as {
+              results?: Array<{
+                issue_severity: string;
+                issue_text: string;
+                filename: string;
+                line_number: number;
+                issue_cwe?: { id: string };
+              }>;
+            };
             banditOutput.results?.forEach((issue) => {
               findings.push({
                 severity: this.mapBanditSeverity(issue.issue_severity),
@@ -696,9 +748,9 @@ export class CriticAgent extends BaseAgent {
           }
         }
       } catch (error) {
-        logger.warn(`[${this.config.name}] Bandit scan failed`, 
-          { error: error instanceof Error ? error.message : String(error) }
-        );
+        logger.warn(`[${this.config.name}] Bandit scan failed`, {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -708,7 +760,7 @@ export class CriticAgent extends BaseAgent {
   /**
    * Performance analysis
    */
-  private async performanceCheck(
+  private performanceCheck(
     projectId: string,
     userId: string,
     files: Array<{ path: string; content: string; language: string }>,
@@ -721,7 +773,7 @@ export class CriticAgent extends BaseAgent {
       warnings.push(...fileWarnings);
     }
 
-    return warnings;
+    return Promise.resolve(warnings);
   }
 
   /**
@@ -729,7 +781,7 @@ export class CriticAgent extends BaseAgent {
    */
   private detectPerformanceIssues(
     file: { path: string; content: string; language: string },
-    context: ProjectContext
+    _context: ProjectContext
   ): PerformanceWarning[] {
     const warnings: PerformanceWarning[] = [];
     const lines = file.content.split("\n");
@@ -825,8 +877,8 @@ export class CriticAgent extends BaseAgent {
           security: 60,
           performance: 60,
           maintainability: 60,
-          documentation: 60
-        }
+          documentation: 60,
+        },
       };
     }
   }
@@ -951,7 +1003,11 @@ Respond with ONLY valid JSON:
       let cleaned = responseText.trim();
       cleaned = cleaned.replace(/```json\n?/g, "").replace(/```\n?/g, "");
 
-      const parsed = JSON.parse(cleaned);
+      const parsed = JSON.parse(cleaned) as {
+        issues?: CodeIssue[];
+        suggestions?: string[];
+        scores?: ReviewScores;
+      };
 
       return {
         issues: parsed.issues || [],
@@ -961,11 +1017,12 @@ Respond with ONLY valid JSON:
           security: 60,
           performance: 60,
           maintainability: 60,
-          documentation: 60
+          documentation: 60,
         },
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Failed to parse AI review`,
+      logger.error(
+        `[${this.config.name}] Failed to parse AI review`,
         error instanceof Error ? error : new Error(String(error)),
         { preview: responseText.substring(0, 500) }
       );
@@ -977,8 +1034,8 @@ Respond with ONLY valid JSON:
           security: 60,
           performance: 60,
           maintainability: 60,
-          documentation: 60
-        }
+          documentation: 60,
+        },
       };
     }
   }
@@ -988,7 +1045,11 @@ Respond with ONLY valid JSON:
    */
   private compileReviewReport(
     files: Array<{ path: string; content: string; language: string }>,
-    aiReview: { issues: CodeIssue[]; suggestions: string[]; scores: ReviewScores },
+    aiReview: {
+      issues: CodeIssue[];
+      suggestions: string[];
+      scores: ReviewScores;
+    },
     staticAnalysis: StaticAnalysis,
     securityFindings: SecurityFinding[],
     performanceWarnings: PerformanceWarning[]
@@ -1081,8 +1142,13 @@ Respond with ONLY valid JSON:
   ): Promise<void> {
     try {
       // Store in ProjectContext for tracking
-      const existingContext = await prisma.projectContext.findUnique({ where: { projectId } });
-      const codebase = existingContext?.codebase as Record<string, unknown> | null;
+      const existingContext = await prisma.projectContext.findUnique({
+        where: { projectId },
+      });
+      const codebase = existingContext?.codebase as Record<
+        string,
+        unknown
+      > | null;
       await prisma.projectContext.update({
         where: { projectId },
         data: {
@@ -1097,10 +1163,9 @@ Respond with ONLY valid JSON:
 
       logger.info(`[${this.config.name}] Stored review results`);
     } catch (error) {
-      logger.warn(
-        `[${this.config.name}] Failed to store review results`,
-        { error: error instanceof Error ? error.message : String(error) }
-      );
+      logger.warn(`[${this.config.name}] Failed to store review results`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -1158,7 +1223,13 @@ Respond with ONLY valid JSON:
     const lines = output.split("\n");
     lines.forEach((line) => {
       try {
-        const parsed = JSON.parse(line);
+        const parsed = JSON.parse(line) as {
+          message?: {
+            message: string;
+            spans?: Array<{ line_start: number }>;
+          };
+          target?: { src_path?: string };
+        };
         if (parsed.message) {
           issues.push({
             file: parsed.target?.src_path || "unknown",
@@ -1168,11 +1239,14 @@ Respond with ONLY valid JSON:
             rule: "clippy",
           });
         }
-      } catch (error) {
+      } catch {
         // Skip invalid JSON lines (Clippy outputs mixed text and JSON)
-        logger.debug(`[${this.config.name}] Skipped non-JSON line in Clippy output`, {
-          line: line.substring(0, 100), // First 100 chars for debugging
-        });
+        logger.debug(
+          `[${this.config.name}] Skipped non-JSON line in Clippy output`,
+          {
+            line: line.substring(0, 100), // First 100 chars for debugging
+          }
+        );
       }
     });
   }

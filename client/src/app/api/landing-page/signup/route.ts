@@ -10,6 +10,7 @@ import {
   getRequestIdentifier,
   getClientIp,
 } from "@/lib/rate-limit";
+import { createCORSHandler, LANDING_PAGE_CORS } from "@/lib/cors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,12 +24,12 @@ const signupRequestSchema = z.object({
   name: z.string().optional(),
 });
 
-export async function POST(req: NextRequest) {
+export const POST = createCORSHandler(async (req: NextRequest) => {
   try {
     // Rate limiting for public endpoint
     const clientIp = getClientIp(req.headers);
     const rateLimitId = getRequestIdentifier(null, clientIp);
-    const rateLimitResult = checkRateLimit({
+    const rateLimitResult = await checkRateLimit({
       ...RATE_LIMITS.PUBLIC,
       identifier: rateLimitId,
     });
@@ -186,4 +187,4 @@ export async function POST(req: NextRequest) {
       error instanceof Error ? error.message : "Internal server error";
     return NextResponse.json({ success: false, message }, { status: 500 });
   }
-}
+}, LANDING_PAGE_CORS);

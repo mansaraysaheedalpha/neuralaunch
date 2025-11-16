@@ -18,7 +18,6 @@
 import { AI_MODELS } from "@/lib/models";
 import {
   BaseAgent,
-  BaseAgentConfig,
   AgentExecutionInput,
   AgentExecutionOutput,
 } from "../base/base-agent";
@@ -60,6 +59,22 @@ export interface OptimizationResult {
     costReduction?: string;
     reliabilityImprovement?: string;
   };
+}
+
+/**
+ * Load entire project structure
+ */
+// Define a proper type for project structure
+interface ProjectStructure {
+  files: Array<{ path: string; [key: string]: unknown }>;
+  [key: string]: unknown;
+}
+
+interface OptimizationChange {
+  file: string;
+  type: "modify" | "create";
+  description: string;
+  code: string;
 }
 
 export interface OptimizationInput extends AgentExecutionInput {
@@ -132,13 +147,14 @@ export class OptimizationAgent extends BaseAgent {
       }
 
       // Step 1: Load project context and tech stack
-      const projectContext = await this.loadProjectContextData(projectId);
+      const projectContext: {
+        techStack: Record<string, unknown>;
+        architecture: Record<string, unknown>;
+      } = await this.loadProjectContextData(projectId);
 
       // Step 2: Load project structure
-      const projectStructure = await this.loadProjectStructure(
-        projectId,
-        userId
-      );
+      const projectStructure: ProjectStructure =
+        await this.loadProjectStructure(projectId, userId);
 
       // Step 3: Prioritize recommendations
       const prioritizedRecommendations = this.prioritizeRecommendations(
@@ -249,7 +265,8 @@ export class OptimizationAgent extends BaseAgent {
         data: { ...result },
       };
     } catch (error) {
-      logger.error(`[${this.name}] Optimization failed`, 
+      logger.error(
+        `[${this.name}] Optimization failed`,
         error instanceof Error ? error : new Error(String(error)),
         { taskId }
       );
@@ -265,7 +282,10 @@ export class OptimizationAgent extends BaseAgent {
   /**
    * Load project context from database
    */
-  private async loadProjectContextData(projectId: string): Promise<any> {
+  private async loadProjectContextData(projectId: string): Promise<{
+    techStack: Record<string, unknown>;
+    architecture: Record<string, unknown>;
+  }> {
     const context = await prisma.projectContext.findUnique({
       where: { projectId },
       select: {
@@ -278,16 +298,16 @@ export class OptimizationAgent extends BaseAgent {
       throw new Error(`Project context not found for ${projectId}`);
     }
 
-    return context;
+    return {
+      techStack: (context.techStack ?? {}) as Record<string, unknown>,
+      architecture: (context.architecture ?? {}) as Record<string, unknown>,
+    };
   }
 
-  /**
-   * Load entire project structure
-   */
   private async loadProjectStructure(
     projectId: string,
     userId: string
-  ): Promise<any> {
+  ): Promise<ProjectStructure> {
     logger.info(`[${this.name}] Loading project structure`);
 
     const contextResult = await this.executeTool(
@@ -304,7 +324,7 @@ export class OptimizationAgent extends BaseAgent {
       throw new Error("Failed to load project structure");
     }
 
-    return contextResult.data;
+    return contextResult.data as ProjectStructure;
   }
 
   /**
@@ -335,8 +355,11 @@ export class OptimizationAgent extends BaseAgent {
     recommendation: OptimizationRecommendation,
     projectId: string,
     userId: string,
-    projectContext: any,
-    projectStructure: any
+    projectContext: {
+      techStack: Record<string, unknown>;
+      architecture: Record<string, unknown>;
+    },
+    projectStructure: ProjectStructure
   ): Promise<OptimizationTask> {
     logger.info(
       `[${this.name}] Applying optimization: ${recommendation.title}`
@@ -388,8 +411,11 @@ export class OptimizationAgent extends BaseAgent {
     recommendation: OptimizationRecommendation,
     projectId: string,
     userId: string,
-    projectContext: any,
-    projectStructure: any
+    projectContext: {
+      techStack: Record<string, unknown>;
+      architecture: Record<string, unknown>;
+    },
+    projectStructure: ProjectStructure
   ): Promise<{
     success: boolean;
     filesModified?: string[];
@@ -410,7 +436,7 @@ Category: ${category}
 Implementation: ${implementation}
 
 Available Project Files:
-${JSON.stringify(projectStructure?.files?.slice(0, 50).map((f: any) => f.path || f) || [], null, 2)}
+${JSON.stringify(projectStructure?.files?.slice(0, 50).map((f: { path: string; [key: string]: unknown }) => f.path || f) || [], null, 2)}
 
 Task: Generate the specific code changes needed to implement this optimization.
 
@@ -447,9 +473,25 @@ Respond ONLY with valid JSON, no markdown.`;
         throw new Error("Failed to parse AI response");
       }
 
-      const optimizationPlan = JSON.parse(jsonMatch[0]);
-      const changes = optimizationPlan.changes || [];
-      const additionalSteps = optimizationPlan.additionalSteps || [];
+      const parsed = JSON.parse(jsonMatch[0]) as {
+        changes?: OptimizationChange[];
+        additionalSteps?: string[];
+      };
+      // Basic runtime type check
+      if (
+        typeof parsed !== "object" ||
+        !parsed ||
+        (parsed.changes && !Array.isArray(parsed.changes)) ||
+        (parsed.additionalSteps && !Array.isArray(parsed.additionalSteps))
+      ) {
+        throw new Error("AI response JSON does not match expected structure");
+      }
+      const optimizationPlan: {
+        changes?: OptimizationChange[];
+        additionalSteps?: string[];
+      } = parsed;
+      const changes: OptimizationChange[] = optimizationPlan.changes || [];
+      const additionalSteps: string[] = optimizationPlan.additionalSteps || [];
 
       const filesModified: string[] = [];
       const changeDescriptions: string[] = [];
@@ -619,7 +661,7 @@ Write in professional, concise style. No markdown formatting.`;
       await prisma.agentTask.update({
         where: { id: taskId },
         data: {
-          output: result as any,
+          output: JSON.stringify(result),
           status: "completed",
           completedAt: new Date(),
         },
@@ -627,7 +669,8 @@ Write in professional, concise style. No markdown formatting.`;
 
       logger.info(`[${this.name}] Stored optimization results`, { taskId });
     } catch (error) {
-      logger.error(`[${this.name}] Failed to store results`, 
+      logger.error(
+        `[${this.name}] Failed to store results`,
         error instanceof Error ? error : new Error(String(error)),
         { taskId }
       );
@@ -695,7 +738,8 @@ Auto-generated by OptimizationAgent`;
 
       logger.info(`[${this.name}] Changes committed and pushed`);
     } catch (error) {
-      logger.error(`[${this.name}] Failed to commit changes`, 
+      logger.error(
+        `[${this.name}] Failed to commit changes`,
         error instanceof Error ? error : new Error(String(error))
       );
     }
@@ -760,7 +804,8 @@ ${completedTasks.map((t) => `- ${t.recommendation.title}`).join("\n")}`;
       // For now, just log
       logger.info(`[${this.name}] PR branch created: ${branchName}`);
     } catch (error) {
-      logger.error(`[${this.name}] Failed to create PR`, 
+      logger.error(
+        `[${this.name}] Failed to create PR`,
         error instanceof Error ? error : new Error(String(error))
       );
     }

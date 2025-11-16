@@ -97,7 +97,12 @@ export default function ProjectsPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
   // Fetch projects
-  const { data, error, isLoading, mutate } = useSWR<{ projects: Project[] }>(
+  const {
+    data,
+    error,
+    isLoading,
+    mutate,
+  } = useSWR<{ projects: Project[] }, Error>(
     "/api/projects",
     fetcher,
     { refreshInterval: 10000 }
@@ -138,7 +143,7 @@ export default function ProjectsPage() {
       }
 
       toast.success("Project deleted successfully");
-      mutate();
+      await mutate();
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to delete project"
@@ -258,7 +263,7 @@ export default function ProjectsPage() {
           </div>
         </div>
 
-        {/* Loading State */}
+        {/* Loading State  */}
         {isLoading && (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
@@ -277,9 +282,9 @@ export default function ProjectsPage() {
                 <p className="font-medium">Failed to load projects</p>
               </div>
               <p className="text-muted-foreground text-sm">
-                {error.message || "An error occurred while fetching projects"}
+                {error?.message || "An error occurred while fetching projects"}
               </p>
-              <Button onClick={() => mutate()} className="mt-4">
+              <Button onClick={() => void mutate()} className="mt-4">
                 Try Again
               </Button>
             </CardContent>
@@ -415,9 +420,9 @@ export default function ProjectsPage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() =>
-                            handleDeleteProject(project.id, project.name)
-                          }
+                          onClick={() => {
+                            void handleDeleteProject(project.id, project.name);
+                          }}
                           className="text-destructive hover:text-destructive"
                         >
                           <Trash2 className="w-4 h-4" />

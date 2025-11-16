@@ -34,7 +34,7 @@ export async function GET(
     // Rate limiting
     const clientIp = getClientIp(req.headers);
     const rateLimitId = getRequestIdentifier(session.user.id, clientIp);
-    const rateLimitResult = checkRateLimit({
+    const rateLimitResult = await checkRateLimit({
       ...RATE_LIMITS.API_READ,
       identifier: rateLimitId,
     });
@@ -186,7 +186,14 @@ export async function POST(
     }
 
     // 3. Parse request body
-    const body = await req.json();
+    type DeploymentRequestBody = {
+      environment: string;
+      platform: string;
+      branch?: string;
+      waveNumber?: number;
+      deploymentType?: string;
+    };
+    const body = await req.json() as DeploymentRequestBody;
     const {
       environment,
       platform,
@@ -235,10 +242,10 @@ export async function POST(
           projectId,
           userId: session.user.id,
           conversationId: projectId, // Use projectId as conversationId for now
-          environment,
+          environment: environment as "production" | "preview" | "staging",
           taskInput: {
             platform,
-            environment,
+            environment: environment as "production" | "preview" | "staging",
             deploymentId: deployment.id,
             branch: branch || "main",
             waveNumber,

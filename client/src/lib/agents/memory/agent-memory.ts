@@ -2,11 +2,15 @@
 /**
  * Agent Memory System
  * Vector-based memory for agents to learn from past executions
+ * Uses Upstash Vector for semantic search and similarity matching
  */
 
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
-import { toError, toLogContext } from "@/lib/error-utils";
+import { Prisma } from "@prisma/client";
+import { toError } from "@/lib/error-utils";
+import OpenAI from "openai";
+import { Index } from "@upstash/vector";
 
 // ==========================================
 // TYPES
@@ -56,6 +60,90 @@ export interface MemoryInsight {
 
 export class AgentMemory {
   private readonly name = "AgentMemory";
+  private vectorIndex: Index | null = null;
+  private openai: OpenAI | null = null;
+  private vectorEnabled = false;
+
+  constructor() {
+    this.initializeVectorDB();
+  }
+
+  /**
+   * Initialize vector database connection
+   */
+  private initializeVectorDB(): void {
+    try {
+      const upstashUrl = process.env.UPSTASH_VECTOR_REST_URL;
+      const upstashToken = process.env.UPSTASH_VECTOR_REST_TOKEN;
+      const openaiKey = process.env.OPENAI_API_KEY;
+
+      if (upstashUrl && upstashToken && openaiKey) {
+        this.vectorIndex = new Index({
+          url: upstashUrl,
+          token: upstashToken,
+        });
+
+        this.openai = new OpenAI({ apiKey: openaiKey });
+        this.vectorEnabled = true;
+        logger.info(`[${this.name}] Vector database initialized (Upstash)`);
+      } else {
+        logger.warn(
+          `[${this.name}] Vector database not configured. Set UPSTASH_VECTOR_REST_URL, UPSTASH_VECTOR_REST_TOKEN, and OPENAI_API_KEY to enable semantic search.`
+        );
+        logger.info(`[${this.name}] Falling back to Prisma-only storage`);
+      }
+    } catch (error) {
+      logger.error(
+        `[${this.name}] Failed to initialize vector database`,
+        toError(error)
+      );
+      logger.info(`[${this.name}] Falling back to Prisma-only storage`);
+      this.vectorEnabled = false;
+    }
+  }
+
+  /**
+   * Generate embedding for text using OpenAI
+   */
+  private async generateEmbedding(text: string): Promise<number[]> {
+    if (!this.openai) {
+      throw new Error("OpenAI client not initialized");
+    }
+
+    try {
+      const response = await this.openai.embeddings.create({
+        model: "text-embedding-3-small", // 1536 dimensions, cost-effective
+        input: text,
+      });
+
+      return response.data[0].embedding;
+    } catch (error) {
+      logger.error(`[${this.name}] Failed to generate embedding`, toError(error));
+      throw error;
+    }
+  }
+
+  /**
+   * Create searchable text from memory entry
+   */
+  private createSearchableText(entry: Omit<MemoryEntry, "id" | "timestamp">): string {
+    const parts = [
+      `Agent: ${entry.agentName}`,
+      `Task: ${entry.context.taskTitle}`,
+      `Type: ${entry.taskType}`,
+      `Complexity: ${entry.context.complexity}`,
+      `Technologies: ${entry.context.technologies.join(", ")}`,
+      `Files: ${entry.context.filesCreated.join(", ")}`,
+      `Learnings: ${entry.learnings.join(". ")}`,
+      `Success: ${entry.success}`,
+    ];
+
+    if (entry.outcome.error) {
+      parts.push(`Error: ${entry.outcome.error}`);
+    }
+
+    return parts.join("\n");
+  }
 
   /**
    * Store a memory entry from task execution
@@ -68,8 +156,7 @@ export class AgentMemory {
     });
 
     try {
-      // For now, store in AgentExecution table with metadata
-      // In production, you'd use a vector database like Pinecone/Weaviate
+      // Store in AgentExecution table with metadata
       const memory = await prisma.agentExecution.create({
         data: {
           projectId: "memory", // Special project ID for memories
@@ -78,16 +165,54 @@ export class AgentMemory {
           input: {
             taskType: entry.taskType,
             context: entry.context,
-          } as any,
+          } as {
+            taskType: string;
+            context: MemoryEntry["context"];
+          },
           output: {
             outcome: entry.outcome,
             learnings: entry.learnings,
-          } as any,
+          } as {
+            outcome: MemoryEntry["outcome"];
+            learnings: string[];
+          },
           success: entry.success,
           durationMs: entry.outcome.durationMs,
           error: entry.outcome.error,
         },
       });
+
+      // Store in vector database for semantic search (production-ready)
+      if (this.vectorEnabled && this.vectorIndex) {
+        try {
+          const searchableText = this.createSearchableText(entry);
+          const embedding = await this.generateEmbedding(searchableText);
+
+          await this.vectorIndex.upsert({
+            id: memory.id,
+            vector: embedding,
+            metadata: {
+              agentName: entry.agentName,
+              taskType: entry.taskType,
+              taskTitle: entry.context.taskTitle,
+              complexity: entry.context.complexity,
+              technologies: entry.context.technologies.join(","),
+              success: entry.success,
+              timestamp: new Date().toISOString(),
+            },
+          });
+
+          logger.info(`[${this.name}] Memory stored in vector database`, {
+            memoryId: memory.id,
+          });
+        } catch (vectorError) {
+          // Log error but don't fail the entire operation
+          logger.error(
+            `[${this.name}] Failed to store in vector database (Prisma storage succeeded)`,
+            toError(vectorError)
+          );
+        }
+      }
 
       logger.info(`[${this.name}] Memory stored`, { memoryId: memory.id });
 
@@ -99,14 +224,129 @@ export class AgentMemory {
   }
 
   /**
-   * Retrieve relevant memories for a task
+   * Create query text from MemoryQuery for semantic search
+   */
+  private createQueryText(query: MemoryQuery): string {
+    const parts = [`Agent: ${query.agentName}`];
+
+    if (query.taskType) {
+      parts.push(`Task Type: ${query.taskType}`);
+    }
+
+    if (query.complexity) {
+      parts.push(`Complexity: ${query.complexity}`);
+    }
+
+    if (query.technologies && query.technologies.length > 0) {
+      parts.push(`Technologies: ${query.technologies.join(", ")}`);
+    }
+
+    return parts.join("\n");
+  }
+
+  /**
+   * Retrieve relevant memories for a task using semantic search
    */
   async retrieve(query: MemoryQuery): Promise<MemoryEntry[]> {
-    logger.info(`[${this.name}] Retrieving memories`, query as any);
+    logger.info(`[${this.name}] Retrieving memories`, { ...query });
 
     try {
+      let memoryIds: string[] = [];
+
+      // Use vector database for semantic search if available
+      if (this.vectorEnabled && this.vectorIndex) {
+        try {
+          const queryText = this.createQueryText(query);
+          const queryEmbedding = await this.generateEmbedding(queryText);
+
+          // Build metadata filter for vector search
+          const filter: string[] = [];
+          filter.push(`agentName = '${query.agentName}'`);
+
+          if (query.taskType) {
+            filter.push(`taskType = '${query.taskType}'`);
+          }
+
+          if (query.complexity) {
+            filter.push(`complexity = '${query.complexity}'`);
+          }
+
+          if (query.successOnly !== undefined) {
+            filter.push(`success = ${query.successOnly}`);
+          }
+
+          // Query vector database
+          const vectorResults = await this.vectorIndex.query({
+            vector: queryEmbedding,
+            topK: query.limit || 10,
+            includeMetadata: true,
+            filter: filter.length > 0 ? filter.join(" AND ") : undefined,
+          });
+
+          memoryIds = vectorResults.map((result) => String(result.id));
+
+          logger.info(
+            `[${this.name}] Vector search found ${memoryIds.length} similar memories`
+          );
+        } catch (vectorError) {
+          logger.error(
+            `[${this.name}] Vector search failed, falling back to Prisma`,
+            toError(vectorError)
+          );
+          // Fall through to Prisma-based search
+        }
+      }
+
+      // If vector search was used, fetch by IDs in order
+      if (memoryIds.length > 0) {
+        const executions = await prisma.agentExecution.findMany({
+          where: {
+            id: { in: memoryIds },
+            projectId: "memory",
+            phase: "memory",
+          },
+        });
+
+        // Maintain the order from vector search results
+        const executionMap = new Map(executions.map((e) => [e.id, e]));
+        const orderedExecutions = memoryIds
+          .map((id) => executionMap.get(id))
+          .filter((e): e is NonNullable<typeof e> => e !== undefined);
+
+        // Define types for input and output fields
+        type AgentExecutionInput = {
+          taskType: string;
+          context: MemoryEntry["context"];
+        };
+        type AgentExecutionOutput = {
+          outcome: MemoryEntry["outcome"];
+          learnings: string[];
+        };
+
+        const memories: MemoryEntry[] = orderedExecutions.map((e) => {
+          const input = e.input as AgentExecutionInput;
+          const output = e.output as AgentExecutionOutput;
+          return {
+            id: e.id,
+            agentName: e.agentName,
+            taskType: input.taskType,
+            success: e.success,
+            context: input.context,
+            outcome: output.outcome,
+            learnings: output.learnings || [],
+            timestamp: e.createdAt,
+          };
+        });
+
+        logger.info(`[${this.name}] Retrieved ${memories.length} memories`);
+        return memories;
+      }
+
+      // Fallback to Prisma-based search
+      logger.info(`[${this.name}] Using Prisma-based search`);
+
       // Build where clause
-      const where: any = {
+      const where: Prisma.AgentExecutionWhereInput = {
         projectId: "memory",
         agentName: query.agentName,
         phase: "memory",
@@ -123,11 +363,20 @@ export class AgentMemory {
         take: query.limit || 10,
       });
 
+      // Define types for input and output fields
+      type AgentExecutionInput = {
+        taskType: string;
+        context: MemoryEntry["context"];
+      };
+      type AgentExecutionOutput = {
+        outcome: MemoryEntry["outcome"];
+        learnings: string[];
+      };
+
       // Convert to MemoryEntry format
       const memories: MemoryEntry[] = executions
         .filter((e) => {
-          const input = e.input as any;
-          const output = e.output as any;
+          const input = e.input as AgentExecutionInput;
 
           // Filter by taskType if specified
           if (query.taskType && input.taskType !== query.taskType) {
@@ -143,26 +392,32 @@ export class AgentMemory {
           }
 
           // Filter by technologies if specified
-          if (query.technologies && query.technologies.length > 0) {
-            const taskTechs = input.context?.technologies || [];
-            const hasMatch = query.technologies.some((t) =>
-              taskTechs.includes(t)
-            );
-            if (!hasMatch) return false;
+          if (
+            query.technologies &&
+            (!input.context?.technologies ||
+              !query.technologies.every((tech) =>
+                input.context.technologies.includes(tech)
+              ))
+          ) {
+            return false;
           }
 
           return true;
         })
-        .map((e) => ({
-          id: e.id,
-          agentName: e.agentName,
-          taskType: (e.input as any).taskType,
-          success: e.success,
-          context: (e.input as any).context,
-          outcome: (e.output as any).outcome,
-          learnings: (e.output as any).learnings || [],
-          timestamp: e.createdAt,
-        }));
+        .map((e) => {
+          const input = e.input as AgentExecutionInput;
+          const output = e.output as AgentExecutionOutput;
+          return {
+            id: e.id,
+            agentName: e.agentName,
+            taskType: input.taskType,
+            success: e.success,
+            context: input.context,
+            outcome: output.outcome,
+            learnings: output.learnings || [],
+            timestamp: e.createdAt,
+          };
+        });
 
       logger.info(`[${this.name}] Retrieved ${memories.length} memories`);
 
@@ -386,6 +641,20 @@ export class AgentMemory {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysOld);
 
+    // Find IDs to delete before deleting from Prisma
+    const oldMemories = await prisma.agentExecution.findMany({
+      where: {
+        projectId: "memory",
+        createdAt: {
+          lt: cutoffDate,
+        },
+      },
+      select: { id: true },
+    });
+
+    const memoryIds = oldMemories.map((m) => m.id);
+
+    // Delete from Prisma
     const result = await prisma.agentExecution.deleteMany({
       where: {
         projectId: "memory",
@@ -394,6 +663,21 @@ export class AgentMemory {
         },
       },
     });
+
+    // Delete from vector database if enabled
+    if (this.vectorEnabled && this.vectorIndex && memoryIds.length > 0) {
+      try {
+        await this.vectorIndex.delete(memoryIds);
+        logger.info(
+          `[${this.name}] Cleared ${memoryIds.length} memories from vector database`
+        );
+      } catch (vectorError) {
+        logger.error(
+          `[${this.name}] Failed to clear memories from vector database`,
+          toError(vectorError)
+        );
+      }
+    }
 
     logger.info(`[${this.name}] Cleared ${result.count} old memories`);
 

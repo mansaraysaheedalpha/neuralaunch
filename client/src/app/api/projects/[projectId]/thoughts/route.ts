@@ -8,7 +8,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { thoughtStreamRegistry } from "@/lib/agents/thought-stream";
 import { logger } from "@/lib/logger";
-import prisma from "@/lib/prisma";
 
 export async function GET(
   req: NextRequest,

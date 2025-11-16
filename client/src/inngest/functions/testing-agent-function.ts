@@ -19,7 +19,35 @@ export const testingAgentFunction = inngest.createFunction(
   },
   { event: "agent/quality.testing" },
   async ({ event, step }) => {
-    const { taskId, projectId, userId, conversationId, taskInput } = event.data;
+    // Define a type for event data
+    type TestingAgentEventData = {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId?: string;
+      taskInput: {
+        testType?: string;
+        sourceFiles?: string[];
+        waveNumber?: number;
+        [key: string]: unknown;
+      };
+    };
+
+    // Ensure event.data is an object with required properties before destructuring
+    if (
+      typeof event.data !== "object" ||
+      event.data === null ||
+      typeof (event.data as TestingAgentEventData).taskId !== "string" ||
+      typeof (event.data as TestingAgentEventData).projectId !== "string" ||
+      typeof (event.data as TestingAgentEventData).userId !== "string" ||
+      typeof (event.data as TestingAgentEventData).taskInput !== "object"
+    ) {
+      throw new Error(
+        "event.data is missing required properties or is not a valid object"
+      );
+    }
+    const { taskId, projectId, userId, conversationId, taskInput } =
+      event.data as TestingAgentEventData;
 
     logger.info(`[Inngest] Testing Agent triggered`, {
       taskId,
@@ -45,7 +73,8 @@ export const testingAgentFunction = inngest.createFunction(
         taskId,
         projectId,
         userId,
-        conversationId,
+        conversationId:
+          typeof conversationId === "string" ? conversationId : "",
         taskDetails: {
           title: "Generate Tests",
           description: "Automated test generation",
@@ -73,8 +102,12 @@ export const testingAgentFunction = inngest.createFunction(
           data: {
             output: {
               ...result.data,
-              testsPassed: (result.data as { testResults?: { passed?: number } })?.testResults?.passed || 0,
-              testsFailed: (result.data as { testResults?: { failed?: number } })?.testResults?.failed || 0,
+              testsPassed:
+                (result.data as { testResults?: { passed?: number } })
+                  ?.testResults?.passed || 0,
+              testsFailed:
+                (result.data as { testResults?: { failed?: number } })
+                  ?.testResults?.failed || 0,
             },
           },
         });
@@ -82,9 +115,23 @@ export const testingAgentFunction = inngest.createFunction(
     });
 
     // Step 4: Handle test failures
-    if (!result.success && (result.data as { testResults?: { failed?: number } })?.testResults?.failed && (result.data as { testResults?: { failed?: number } })?.testResults?.failed! > 0) {
+    if (
+      !result.success &&
+      result.data &&
+      (result.data as { testResults?: { failed?: number } })?.testResults
+        ?.failed &&
+      ((result.data as { testResults?: { failed?: number } })?.testResults
+        ?.failed ?? 0) > 0
+    ) {
       await step.run("handle-test-failures", async () => {
-        const testData = result.data as { testResults?: { failed?: number; failures?: Array<{ file: string }> } } | undefined;
+        const testData = result.data as
+          | {
+              testResults?: {
+                failed?: number;
+                failures?: Array<{ file: string }>;
+              };
+            }
+          | undefined;
         logger.warn(`[Inngest] Tests failed, analyzing failures`, {
           taskId,
           failedCount: testData?.testResults?.failed,
@@ -104,8 +151,14 @@ export const testingAgentFunction = inngest.createFunction(
           },
         });
 
+        // Define the expected shape of agentTask.output
+        interface AgentTaskOutput {
+          filesCreated?: string[];
+          [key: string]: unknown;
+        }
+
         for (const task of tasksToFix) {
-          const taskOutput = task.output as any;
+          const taskOutput: AgentTaskOutput = task.output as AgentTaskOutput;
           const filesCreated = taskOutput?.filesCreated || [];
 
           // Check if this task created any of the failing files
@@ -124,26 +177,31 @@ export const testingAgentFunction = inngest.createFunction(
               data: {
                 status: "pending",
                 input: {
-                  ...(typeof task.input === 'object' && task.input !== null ? task.input : {}),
+                  ...(typeof task.input === "object" && task.input !== null
+                    ? (task.input as Record<string, unknown>)
+                    : {}),
                   _testFailures: testData?.testResults?.failures,
                   _retryReason: "test_failures",
-                } as any,
+                },
               },
             });
 
             // Re-trigger the execution agent
-            const eventName = `agent/execution.${task.agentName.toLowerCase().replace("agent", "")}`;
-
+            // Use the expected literal type for the event name
             await inngest.send({
-              name: eventName as any,
+              name: "agent/execute.step.requested",
               data: {
                 taskId: task.id,
                 projectId,
                 userId,
-                conversationId: conversationId || undefined,
-                taskInput: task.input,
-                waveNumber: taskInput.waveNumber,
-              } as any,
+                stepIndex: 0,
+                taskDescription: `Fix test failures for ${task.agentName}`,
+                blueprintSummary: "Retry after test failures",
+                userResponses: null,
+                githubToken: null,
+                githubRepoUrl: null,
+                currentHistoryLength: 0,
+              },
             });
           }
         }
@@ -159,13 +217,20 @@ export const testingAgentFunction = inngest.createFunction(
           projectId,
           waveNumber: taskInput.waveNumber,
           success: result.success,
-          testsPassed: (result.data as { testResults?: { passed?: number } })?.testResults?.passed || 0,
-          testsFailed: (result.data as { testResults?: { failed?: number } })?.testResults?.failed || 0,
+          testsPassed:
+            (result.data as { testResults?: { passed?: number } })?.testResults
+              ?.passed || 0,
+          testsFailed:
+            (result.data as { testResults?: { failed?: number } })?.testResults
+              ?.failed || 0,
         },
       });
     });
 
-    const testData = result.data as { testsGenerated?: number; testResults?: { passed?: number; failed?: number } };
+    const testData = result.data as {
+      testsGenerated?: number;
+      testResults?: { passed?: number; failed?: number };
+    };
     logger.info(`[Inngest] Testing Agent completed`, {
       taskId,
       success: result.success,

@@ -3,6 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { createApiLogger } from "@/lib/logger";
+import { Prisma } from "@prisma/client";
+
+interface TaskInput {
+  category?: string;
+}
 
 /**
  * GET /api/projects/[projectId]/tasks
@@ -80,7 +85,7 @@ export async function GET(
     const sortOrder = searchParams.get("sortOrder") || "asc";
 
     // 4. Build where clause
-    const where: any = { projectId };
+    const where: Prisma.AgentTaskWhereInput = { projectId };
 
     if (status) {
       where.status = status;
@@ -102,15 +107,15 @@ export async function GET(
     // We'll filter this after fetching since it's nested in JSON
 
     // 5. Build orderBy clause
-    const orderBy: any = [];
+    const orderBy: Prisma.AgentTaskOrderByWithRelationInput[] = [];
 
     // Primary sort
     if (sortBy === "priority") {
-      orderBy.push({ priority: sortOrder });
+      orderBy.push({ priority: sortOrder as Prisma.SortOrder });
     } else if (sortBy === "completedAt") {
-      orderBy.push({ completedAt: sortOrder });
+      orderBy.push({ completedAt: sortOrder as Prisma.SortOrder });
     } else {
-      orderBy.push({ createdAt: sortOrder });
+      orderBy.push({ createdAt: sortOrder as Prisma.SortOrder });
     }
 
     // Secondary sorts for consistency
@@ -160,7 +165,7 @@ export async function GET(
     let filteredTasks = tasks;
     if (category) {
       filteredTasks = tasks.filter((task) => {
-        const input = task.input as any;
+        const input = task.input as TaskInput | null;
         return input?.category === category;
       });
     }

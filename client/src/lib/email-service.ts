@@ -47,10 +47,6 @@ interface ResendEmailResponse {
   id: string;
 }
 
-interface ResendError {
-  message: string;
-  name: string;
-}
 
 /**
  * Send welcome email to new signup using Resend

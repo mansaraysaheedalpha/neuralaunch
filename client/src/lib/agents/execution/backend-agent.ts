@@ -12,7 +12,7 @@ import {
   AgentExecutionOutput,
 } from "../base/base-agent";
 import { logger } from "@/lib/logger";
-import { toError, toLogContext } from "@/lib/error-utils";
+import { toError } from "@/lib/error-utils";
 
 export class BackendAgent extends BaseAgent {
   constructor() {
@@ -36,17 +36,25 @@ export class BackendAgent extends BaseAgent {
   }
 
   async executeTask(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
-    const { taskId, projectId, userId, taskDetails, context } = input;
+    const {
+      taskId: _taskId,
+      projectId,
+      userId,
+      taskDetails,
+      context: _context,
+    } = input;
 
     // ✅ Check if this is a fix request
     const isFixMode = taskDetails.mode === "fix";
 
     if (isFixMode) {
       logger.info(
-        `[${this.config.name}] FIX MODE: Fixing issues for task "${taskDetails.originalTaskId}"`,
+        `[${this.config.name}] FIX MODE: Fixing issues for task "${String(taskDetails.originalTaskId)}"`,
         {
           attempt: taskDetails.attempt,
-          issuesCount: Array.isArray(taskDetails.issuesToFix) ? taskDetails.issuesToFix.length : 0,
+          issuesCount: Array.isArray(taskDetails.issuesToFix)
+            ? taskDetails.issuesToFix.length
+            : 0,
         }
       );
 
@@ -106,7 +114,7 @@ export class BackendAgent extends BaseAgent {
         };
       }
 
-      const verification = await this.verifyImplementation(
+      const verification = this.verifyImplementation(
         filesResult.files,
         commandsResult.commands,
         taskDetails
@@ -140,7 +148,10 @@ export class BackendAgent extends BaseAgent {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      logger.error(`[${this.config.name}] Task execution failed`, toError(error));
+      logger.error(
+        `[${this.config.name}] Task execution failed`,
+        toError(error)
+      );
 
       return {
         success: false,
@@ -158,25 +169,38 @@ export class BackendAgent extends BaseAgent {
   private async executeFixMode(
     input: AgentExecutionInput
   ): Promise<AgentExecutionOutput> {
-    const { taskId, projectId, userId, taskDetails, context } = input;
+    const { taskId: _taskId, projectId, userId, taskDetails, context } = input;
 
     try {
       // Step 1: Load the files that need fixing
-      const issuesToFix = taskDetails.issuesToFix as Array<{ file: string; issue: string }>;
+      const issuesToFix = taskDetails.issuesToFix as Array<{
+        file: string;
+        issue: string;
+      }>;
       const filesToFix = issuesToFix.map((issue) => issue.file);
       const uniqueFiles = Array.from(new Set(filesToFix));
 
-      logger.info(`[${this.config.name}] Loading ${uniqueFiles.length} files to fix`);
+      logger.info(
+        `[${this.config.name}] Loading ${uniqueFiles.length} files to fix`
+      );
 
       const existingFiles = await this.loadFilesToFix(
         projectId,
         userId,
-        uniqueFiles as string[]
+        uniqueFiles
       );
 
       // Step 2: Generate fixes using AI
       const fixPrompt = this.buildFixPrompt(
-        issuesToFix,
+        issuesToFix.map(issue => ({
+          file: issue.file,
+          line: undefined,
+          severity: "unknown",
+          category: "unknown",
+          message: issue.issue,
+          suggestion: "",
+          codeSnippet: undefined
+        })),
         existingFiles,
         taskDetails.attempt as number,
         context
@@ -221,7 +245,7 @@ export class BackendAgent extends BaseAgent {
       });
 
       logger.info(
-        `[${this.config.name}] Fix attempt ${taskDetails.attempt} complete`,
+        `[${this.config.name}] Fix attempt ${String(taskDetails.attempt)} complete`,
         {
           filesFixed: filesResult.files.length,
           issuesAddressed: issuesToFix.length,
@@ -281,10 +305,9 @@ export class BackendAgent extends BaseAgent {
           });
         }
       } catch (error) {
-        logger.warn(
-          `[${this.config.name}] Failed to load file: ${filePath}`,
-          { error: error instanceof Error ? error.message : String(error) }
-        );
+        logger.warn(`[${this.config.name}] Failed to load file: ${filePath}`, {
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
@@ -295,10 +318,18 @@ export class BackendAgent extends BaseAgent {
    * Build fix prompt for AI
    */
   private buildFixPrompt(
-    issues: any[],
+    issues: Array<{
+      file: string;
+      line?: number;
+      severity: string;
+      category: string;
+      message: string;
+      suggestion: string;
+      codeSnippet?: string;
+    }>,
     existingFiles: Array<{ path: string; content: string }>,
     attempt: number,
-    context: any
+    context: Record<string, unknown>
   ): string {
     const issuesSummary = issues
       .map(
@@ -414,7 +445,11 @@ Generate the fixes now.
       let cleaned = responseText.trim();
       cleaned = cleaned.replace(/```json\n?/g, "").replace(/```\n?/g, "");
 
-      const parsed = JSON.parse(cleaned);
+      const parsed = JSON.parse(cleaned) as {
+        files?: Array<{ path: string; content: string }>;
+        commands?: string[];
+        explanation?: string;
+      };
 
       return {
         files: parsed.files || [],
@@ -422,7 +457,8 @@ Generate the fixes now.
         explanation: parsed.explanation || "No explanation provided",
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Failed to parse fix response`, 
+      logger.error(
+        `[${this.config.name}] Failed to parse fix response`,
         error instanceof Error ? error : new Error(String(error)),
         { preview: responseText.substring(0, 500) }
       );
@@ -446,7 +482,10 @@ Generate the fixes now.
 
       return this.parseImplementation(responseText);
     } catch (error) {
-      logger.error(`[${this.config.name}] AI generation failed`, toError(error));
+      logger.error(
+        `[${this.config.name}] AI generation failed`,
+        toError(error)
+      );
       return null;
     }
   }
@@ -547,7 +586,11 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
       let cleaned = responseText.trim();
       cleaned = cleaned.replace(/```json\n?/g, "").replace(/```\n?/g, "");
 
-      const parsed = JSON.parse(cleaned);
+      const parsed = JSON.parse(cleaned) as {
+        files?: Array<{ path: string; content: string }>;
+        commands?: string[];
+        explanation?: string;
+      };
 
       return {
         files: parsed.files || [],
@@ -555,7 +598,8 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
         explanation: parsed.explanation || "No explanation provided",
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Failed to parse AI response`, 
+      logger.error(
+        `[${this.config.name}] Failed to parse AI response`,
         error instanceof Error ? error : new Error(String(error)),
         { preview: responseText.substring(0, 500) }
       );
@@ -596,10 +640,9 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
         });
 
         if (!result.success) {
-          logger.warn(
-            `[${this.config.name}] File write failed: ${file.path}`,
-            { error: result.error }
-          );
+          logger.warn(`[${this.config.name}] File write failed: ${file.path}`, {
+            error: result.error,
+          });
         }
       } catch (error) {
         logger.error(
@@ -663,18 +706,19 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
         results.push({
           command,
           success: result.success,
-          output:
-            data?.stdout || data?.stderr || result.error || "",
+          output: data?.stdout || data?.stderr || result.error || "",
         });
 
         if (!result.success) {
-          logger.warn(
-            `[${this.config.name}] Command failed: ${command}`,
-            { error: result.error }
-          );
+          logger.warn(`[${this.config.name}] Command failed: ${command}`, {
+            error: result.error,
+          });
         }
       } catch (error) {
-        logger.error(`[${this.config.name}] Command error: ${command}`, toError(error));
+        logger.error(
+          `[${this.config.name}] Command error: ${command}`,
+          toError(error)
+        );
         results.push({
           command,
           success: false,
@@ -695,14 +739,14 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
   /**
    * Verify implementation meets requirements
    */
-  private async verifyImplementation(
+  private verifyImplementation(
     files: Array<{ path: string; lines: number; success: boolean }>,
     commands: Array<{ command: string; success: boolean; output: string }>,
-    taskDetails: any
-  ): Promise<{
+    taskDetails: AgentExecutionInput["taskDetails"]
+  ): {
     passed: boolean;
     issues: string[];
-  }> {
+  } {
     const issues: string[] = [];
 
     // Check 1: All files created

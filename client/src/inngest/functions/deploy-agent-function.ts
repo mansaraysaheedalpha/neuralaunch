@@ -8,8 +8,35 @@ import { inngest } from "../client";
 import { deployAgent } from "@/lib/agents/deployment/deployment-agent";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
-import { toError, toLogContext, createAgentError } from "@/lib/error-utils";
+import { toLogContext, createAgentError } from "@/lib/error-utils";
 import { TechStack } from "@/lib/agents/types/common";
+import type { Prisma } from "@prisma/client";
+
+// Type definitions
+interface CodebaseData {
+  githubBranch?: string;
+  environmentVariables?: Record<string, string>;
+  deployments?: Record<string, DeploymentInfo>;
+  [key: string]: unknown;
+}
+
+interface DeploymentInfo {
+  platform: string;
+  url?: unknown;
+  deploymentId?: unknown;
+  deployedAt: string;
+  healthCheckPassed?: unknown;
+  status: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+interface DeploymentResultData {
+  deploymentUrl?: string;
+  deploymentId?: string;
+  healthCheckPassed?: boolean;
+  logs?: unknown;
+  [key: string]: unknown;
+}
 
 export const deployAgentFunction = inngest.createFunction(
   {
@@ -23,7 +50,36 @@ export const deployAgentFunction = inngest.createFunction(
   },
   { event: "agent/deployment.deploy" },
   async ({ event, step }) => {
-    const { taskId, projectId, userId, conversationId, taskInput } = event.data;
+    // Define TaskInputType interface
+    interface TaskInputType {
+      platform?: string;
+      environment?: string;
+      deploymentId?: string;
+      previewBranch?: string;
+      waveNumber?: number;
+      customDomain?: string;
+      runMigrations?: boolean;
+    }
+
+    const data = event.data as {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      taskInput: TaskInputType;
+    };
+    if (
+      !data ||
+      typeof data !== "object" ||
+      !("taskId" in data) ||
+      !("projectId" in data) ||
+      !("userId" in data) ||
+      !("conversationId" in data) ||
+      !("taskInput" in data)
+    ) {
+      throw new Error("Invalid event data for deploy-agent-function");
+    }
+    const { taskId, projectId, userId, conversationId, taskInput } = data;
 
     logger.info(`[Inngest] Deploy Agent triggered`, {
       taskId,
@@ -53,17 +109,33 @@ export const deployAgentFunction = inngest.createFunction(
       // Step 2: Determine deployment platform from architecture (if not provided)
       const deploymentPlatform = await step.run(
         "determine-platform",
-        async () => {
-          if (taskInput.platform) {
-            return taskInput.platform;
+        () => {
+          // Explicitly type taskInput and architecture for safety
+          type TaskInputType = {
+            platform?: string;
+            environment?: string;
+            deploymentId?: string;
+            previewBranch?: string;
+            waveNumber?: number;
+            customDomain?: string;
+            runMigrations?: boolean;
+          };
+          type ArchitectureType = {
+            infrastructureArchitecture?: {
+              hosting?: string;
+            };
+          };
+
+          const safeTaskInput = taskInput as TaskInputType;
+          if (safeTaskInput.platform && typeof safeTaskInput.platform === "string") {
+            return safeTaskInput.platform;
           }
 
           // Extract platform from architecture
-          const architecture = projectContext.architecture as any;
-          const platformFromArch =
-            architecture?.infrastructureArchitecture?.hosting;
+          const architecture = projectContext.architecture as ArchitectureType | undefined;
+          const platformFromArch = architecture?.infrastructureArchitecture?.hosting;
 
-          if (!platformFromArch) {
+          if (!platformFromArch || typeof platformFromArch !== "string") {
             throw new Error(
               "Deployment platform not specified and not found in architecture"
             );
@@ -78,10 +150,10 @@ export const deployAgentFunction = inngest.createFunction(
       );
 
       // Step 3: Get environment variables from database (if needed)
-      const envVars = await step.run("get-environment-vars", async () => {
+      const envVars = await step.run("get-environment-vars", (): Record<string, string> => {
         // In production, you'd fetch these from a secure vault
         // For now, we'll use what's in the project context
-        const codebase = projectContext.codebase as any;
+        const codebase = projectContext.codebase as CodebaseData | null;
         return codebase?.environmentVariables || {};
       });
 
@@ -106,7 +178,7 @@ export const deployAgentFunction = inngest.createFunction(
         }
 
         // Create new deployment record
-        const codebase = projectContext.codebase as any;
+        const codebase = projectContext.codebase as CodebaseData | null;
 
         return await prisma.deployment.create({
           data: {
@@ -172,10 +244,10 @@ export const deployAgentFunction = inngest.createFunction(
       const result = await step.run("deploy-to-platform", async () => {
         try {
           const deployResult = await deployAgent.execute({
-            taskId: taskId!,
+            taskId,
             projectId,
-            userId: userId,
-            conversationId: conversationId,
+            userId,
+            conversationId,
             taskDetails: {
               title: `Deploy to ${deploymentPlatform}`,
               description: `Deploy application to ${deploymentPlatform} (${taskInput.environment})`,
@@ -236,23 +308,28 @@ export const deployAgentFunction = inngest.createFunction(
       // Step 6: Store deployment results
       await step.run("store-deployment-results", async () => {
         // Update project context with deployment info
+        const existingCodebase = projectContext.codebase as CodebaseData | null;
+        const existingDeployments = existingCodebase?.deployments || {};
+
+        const updatedCodebase: CodebaseData = {
+          ...(existingCodebase || {}),
+          deployments: {
+            ...existingDeployments,
+            [taskInput.environment || "production"]: {
+              platform: deploymentPlatform,
+              url: result.data?.deploymentUrl,
+              deploymentId: result.data?.deploymentId,
+              deployedAt: new Date().toISOString(),
+              healthCheckPassed: result.data?.healthCheckPassed,
+              status: result.success ? "active" : "failed",
+            },
+          },
+        };
+
         await prisma.projectContext.update({
           where: { projectId },
           data: {
-            codebase: {
-              ...(projectContext.codebase as any),
-              deployments: {
-                ...((projectContext.codebase as any)?.deployments || {}),
-                [taskInput.environment || "production"]: {
-                  platform: deploymentPlatform,
-                  url: result.data?.deploymentUrl,
-                  deploymentId: result.data?.deploymentId,
-                  deployedAt: new Date().toISOString(),
-                  healthCheckPassed: result.data?.healthCheckPassed,
-                  status: result.success ? "active" : "failed",
-                },
-              },
-            },
+            codebase: updatedCodebase as unknown as Prisma.InputJsonValue,
           },
         });
 

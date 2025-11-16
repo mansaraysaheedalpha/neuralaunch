@@ -50,7 +50,6 @@ export function CodeViewer({
 
   const language = file.language || detectLanguage(file.path);
   const fileName = file.path.split("/").pop() || file.path;
-  const fileExt = fileName.split(".").pop() || "";
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(file.content);
@@ -121,7 +120,7 @@ export function CodeViewer({
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleCopy}
+            onClick={() => { void handleCopy(); }}
             className="h-8 w-8 p-0"
             title="Copy code"
           >

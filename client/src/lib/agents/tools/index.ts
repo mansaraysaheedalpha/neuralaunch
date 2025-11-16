@@ -14,6 +14,8 @@ import { CodeAnalysisTool } from "./code-analysis-tool";
 import { ContextLoaderTool } from "./context-loader-tool";
 import { BrowserAutomationTool } from "./browser-automation-tool";
 import { ClaudeSkillsTool } from "./claude-skills-tool";
+import { ImageGenerationTool } from "./image-generation-tool";
+import { VideoGenerationTool } from "./video-generation-tool";
 import { logger } from "@/lib/logger";
 
 // ✅ MCP Support (optional - only loads if MCP servers configured)
@@ -43,6 +45,8 @@ export function initializeTools(): void {
   toolRegistry.register(new ContextLoaderTool());
   toolRegistry.register(new BrowserAutomationTool());
   toolRegistry.register(new ClaudeSkillsTool());
+  toolRegistry.register(new ImageGenerationTool());
+  toolRegistry.register(new VideoGenerationTool());
 
   initialized = true;
 
@@ -142,6 +146,8 @@ export { CodeAnalysisTool } from "./code-analysis-tool";
 export { ContextLoaderTool } from "./context-loader-tool";
 export { BrowserAutomationTool } from "./browser-automation-tool";
 export { ClaudeSkillsTool } from "./claude-skills-tool";
+export { ImageGenerationTool } from "./image-generation-tool";
+export { VideoGenerationTool } from "./video-generation-tool";
 
 // ✅ Export MCP client for programmatic access
 export { mcpClient } from "./mcp/mcp-tool-adapter";

@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     // Rate limiting
     const clientIp = getClientIp(req.headers);
     const rateLimitId = getRequestIdentifier(session.user.id, clientIp);
-    const rateLimitResult = checkRateLimit({
+    const rateLimitResult = await checkRateLimit({
       ...RATE_LIMITS.API_AUTHENTICATED,
       identifier: rateLimitId,
     });

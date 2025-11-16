@@ -9,13 +9,14 @@ import {
   getRequestIdentifier,
   getClientIp,
 } from "@/lib/rate-limit";
+import { createCORSHandler, AUTHENTICATED_API_CORS } from "@/lib/cors";
 
 /**
  * GET /api/projects
  *
  * Fetch all projects for the authenticated user
  */
-export async function GET(req: NextRequest) {
+export const GET = createCORSHandler(async (req: NextRequest) => {
   const logger = createApiLogger({
     path: "/api/projects",
     method: "GET",
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
     // Rate limiting
     const clientIp = getClientIp(req.headers);
     const rateLimitId = getRequestIdentifier(userId, clientIp);
-    const rateLimitResult = checkRateLimit({
+    const rateLimitResult = await checkRateLimit({
       ...RATE_LIMITS.API_READ,
       identifier: rateLimitId,
     });
@@ -103,4 +104,4 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+}, AUTHENTICATED_API_CORS);

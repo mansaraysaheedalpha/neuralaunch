@@ -11,6 +11,62 @@ interface DocSection {
   content: string;
 }
 
+interface Conversation {
+  title: string;
+}
+
+interface TechStack {
+  frontend?: string;
+  frontendFramework?: string;
+  backend?: string;
+  backendFramework?: string;
+  database?: string;
+  orm?: string;
+  packageManager?: string;
+  runtime?: string;
+  styling?: string;
+  additional?: string | string[];
+}
+
+interface Architecture {
+  description?: string;
+  features?: string[];
+  frontendArchitecture?: Record<string, unknown>;
+  backendArchitecture?: Record<string, unknown>;
+  databaseArchitecture?: Record<string, unknown>;
+  apiArchitecture?: Record<string, unknown>;
+  authentication?: Record<string, unknown>;
+  rateLimiting?: Record<string, unknown>;
+  monitoring?: Record<string, unknown>;
+  infrastructureArchitecture?: Record<string, unknown>;
+  websockets?: boolean;
+}
+
+interface Codebase {
+  githubRepoUrl?: string;
+  githubRepoName?: string;
+  agentRequiredEnvKeys?: string[];
+}
+
+interface ProjectContext {
+  userId: string;
+  projectId: string;
+  techStack: TechStack | null;
+  architecture: Architecture | null;
+  codebase: Codebase | null;
+  executionPlan: unknown;
+  currentPhase: string | null;
+  conversation: Conversation;
+}
+
+interface Deployment {
+  environment: string;
+  deploymentUrl: string | null;
+  status: string;
+  platform: string | null;
+  deployedAt: Date | null;
+}
+
 /**
  * GET /api/projects/[projectId]/documentation
  * Generate and return project documentation based on actual project data
@@ -75,12 +131,20 @@ export async function GET(
       },
     });
 
-    // 5. Generate documentation sections based on actual project data
+    // 5. Cast project context to proper types
+    const typedContext: ProjectContext = {
+      ...projectContext,
+      techStack: projectContext.techStack as TechStack | null,
+      architecture: projectContext.architecture as Architecture | null,
+      codebase: projectContext.codebase as Codebase | null,
+    };
+
+    // 6. Generate documentation sections based on actual project data
     const documentation: DocSection[] = [
-      generateReadme(projectContext, deployments),
-      generateApiDocs(projectContext),
-      generateArchitectureDocs(projectContext),
-      generateDeploymentDocs(projectContext, deployments),
+      generateReadme(typedContext, deployments),
+      generateApiDocs(typedContext),
+      generateArchitectureDocs(typedContext),
+      generateDeploymentDocs(typedContext, deployments),
     ];
 
     logger.info("Documentation generated successfully", {
@@ -106,8 +170,8 @@ export async function GET(
  * Generate README documentation
  */
 function generateReadme(
-  projectContext: any,
-  deployments: any[]
+  projectContext: ProjectContext,
+  deployments: Deployment[]
 ): DocSection {
   const techStack = projectContext.techStack;
   const architecture = projectContext.architecture;
@@ -140,10 +204,10 @@ ${techStack.additional ? `- **Additional**: ${Array.isArray(techStack.additional
     ? `
 ## Live Deployment
 
-🚀 **Production URL**: [${productionDeployment.deploymentUrl}](${productionDeployment.deploymentUrl})
+🚀 **Production URL**: [${productionDeployment.deploymentUrl ?? ""}](${productionDeployment.deploymentUrl ?? ""})
 
-Platform: ${productionDeployment.platform}
-Last Deployed: ${new Date(productionDeployment.deployedAt).toLocaleDateString()}
+Platform: ${productionDeployment.platform ?? "Unknown"}
+Last Deployed: ${productionDeployment.deployedAt ? new Date(productionDeployment.deployedAt).toLocaleDateString() : "Unknown"}
 `
     : "";
 
@@ -238,9 +302,8 @@ MIT License - See LICENSE file for details
 /**
  * Generate API documentation
  */
-function generateApiDocs(projectContext: any): DocSection {
+function generateApiDocs(projectContext: ProjectContext): DocSection {
   const architecture = projectContext.architecture;
-  const techStack = projectContext.techStack;
 
   const baseUrl =
     env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -253,12 +316,20 @@ function generateApiDocs(projectContext: any): DocSection {
   let endpointsSection = "";
 
   if (Array.isArray(apiEndpoints) && apiEndpoints.length > 0) {
-    endpointsSection = apiEndpoints
+    endpointsSection = (apiEndpoints as Array<Record<string, unknown>>)
       .map(
-        (endpoint: any) => `
-#### ${endpoint.method} ${endpoint.path}
+        (endpoint) => {
+          const methodValue = endpoint.method;
+          const method = typeof methodValue === 'string' ? methodValue : 'GET';
+          const pathValue = endpoint.path;
+          const path = typeof pathValue === 'string' ? pathValue : '/';
+          const descriptionValue = endpoint.description;
+          const description = typeof descriptionValue === 'string' ? descriptionValue : '';
 
-${endpoint.description || ""}
+          return `
+#### ${method} ${path}
+
+${description}
 
 ${
   endpoint.requestBody
@@ -277,7 +348,8 @@ ${JSON.stringify(endpoint.response, null, 2)}
 \`\`\``
     : ""
 }
-`
+`;
+        }
       )
       .join("\n");
   } else {
@@ -364,9 +436,13 @@ ${baseUrl}/api
 
 ${
   architecture?.authentication
-    ? `This API uses ${architecture.authentication.type || "session-based"} authentication.
+    ? (() => {
+        const authType = architecture.authentication?.type;
+        const authDesc = architecture.authentication?.description;
+        return `This API uses ${typeof authType === 'string' ? authType : "session-based"} authentication.
 
-${architecture.authentication.description || ""}`
+${typeof authDesc === 'string' ? authDesc : ""}`;
+      })()
     : "Authentication is required for all API endpoints. Include authentication credentials in your requests."
 }
 
@@ -397,8 +473,13 @@ Error response format:
 ## Rate Limiting
 
 ${
-  architecture?.rateLimiting
-    ? `- ${architecture.rateLimiting.requests} requests per ${architecture.rateLimiting.window}`
+  architecture?.rateLimiting && typeof architecture.rateLimiting === 'object'
+    ? (() => {
+        const rateLimiting = architecture.rateLimiting as { requests?: string | number; window?: string };
+        const requests = typeof rateLimiting.requests === 'string' || typeof rateLimiting.requests === 'number' ? String(rateLimiting.requests) : '100';
+        const window = typeof rateLimiting.window === 'string' ? rateLimiting.window : 'minute';
+        return `- ${requests} requests per ${window}`;
+      })()
     : `- 100 requests per minute per user
 - 1000 requests per hour per user`
 }
@@ -421,7 +502,7 @@ All timestamps are returned in ISO 8601 format: \`YYYY-MM-DDTHH:mm:ss.sssZ\``;
 /**
  * Generate architecture documentation
  */
-function generateArchitectureDocs(projectContext: any): DocSection {
+function generateArchitectureDocs(projectContext: ProjectContext): DocSection {
   const architecture = projectContext.architecture;
   const techStack = projectContext.techStack;
 
@@ -472,51 +553,51 @@ ${architecture?.description || "This application follows a modern full-stack arc
 ## Frontend Architecture
 
 ${
-  frontendArch.pattern
+  frontendArch.pattern && typeof frontendArch.pattern === 'string'
     ? `### Architecture Pattern: ${frontendArch.pattern}
 
-${frontendArch.description || ""}`
+${typeof frontendArch.description === 'string' ? frontendArch.description : ""}`
     : ""
 }
 
 ### Component Structure
 
-${frontendArch.componentStructure || "- **Pages**: Top-level route components\n- **Components**: Reusable UI components\n- **Hooks**: Custom React hooks\n- **Utils**: Helper functions and utilities"}
+${typeof frontendArch.componentStructure === 'string' ? frontendArch.componentStructure : "- **Pages**: Top-level route components\n- **Components**: Reusable UI components\n- **Hooks**: Custom React hooks\n- **Utils**: Helper functions and utilities"}
 
 ### State Management
 
-${frontendArch.stateManagement || "Centralized state management with modern patterns"}
+${typeof frontendArch.stateManagement === 'string' ? frontendArch.stateManagement : "Centralized state management with modern patterns"}
 
 ### Styling
 
-${frontendArch.styling || techStack?.styling || "Modern CSS-in-JS or utility-first CSS"}
+${typeof frontendArch.styling === 'string' ? frontendArch.styling : (typeof techStack?.styling === 'string' ? techStack.styling : "Modern CSS-in-JS or utility-first CSS")}
 
 ## Backend Architecture
 
 ${
-  backendArch.pattern
+  backendArch.pattern && typeof backendArch.pattern === 'string'
     ? `### Architecture Pattern: ${backendArch.pattern}
 
-${backendArch.description || ""}`
+${typeof backendArch.description === 'string' ? backendArch.description : ""}`
     : ""
 }
 
 ### API Design
 
-${backendArch.apiDesign || "RESTful API with clear resource-based endpoints"}
+${typeof backendArch.apiDesign === 'string' ? backendArch.apiDesign : "RESTful API with clear resource-based endpoints"}
 
 ### Business Logic
 
-${backendArch.businessLogic || "Service layer pattern for business logic separation"}
+${typeof backendArch.businessLogic === 'string' ? backendArch.businessLogic : "Service layer pattern for business logic separation"}
 
 ### Data Access
 
-${backendArch.dataAccess || techStack?.orm ? `ORM-based data access with ${techStack.orm}` : "Structured data access layer"}
+${typeof backendArch.dataAccess === 'string' ? backendArch.dataAccess : (techStack?.orm ? `ORM-based data access with ${techStack.orm}` : "Structured data access layer")}
 
 ## Database Schema
 
 ${
-  databaseArch.schema
+  databaseArch.schema && typeof databaseArch.schema === 'string'
     ? `### Schema Design
 
 ${databaseArch.schema}`
@@ -548,21 +629,22 @@ ${generateScalabilitySection(architecture)}`;
  * Generate deployment documentation
  */
 function generateDeploymentDocs(
-  projectContext: any,
-  deployments: any[]
+  projectContext: ProjectContext,
+  deployments: Deployment[]
 ): DocSection {
   const architecture = projectContext.architecture;
   const codebase = projectContext.codebase;
 
-  const platform =
-    architecture?.infrastructureArchitecture?.hosting || "Cloud Platform";
+  const infraArch = architecture?.infrastructureArchitecture;
+  const hostingValue = infraArch && typeof infraArch === 'object' ? (infraArch as { hosting?: string }).hosting : undefined;
+  const platform = typeof hostingValue === 'string' ? hostingValue : "Cloud Platform";
 
   const deploymentHistory =
     deployments.length > 0
       ? deployments
           .map(
             (d) =>
-              `- **${d.environment}**: ${d.status} on ${d.platform} ${d.deployedAt ? `(${new Date(d.deployedAt).toLocaleDateString()})` : ""}`
+              `- **${d.environment}**: ${d.status} on ${d.platform ?? "Unknown"} ${d.deployedAt ? `(${new Date(d.deployedAt).toLocaleDateString()})` : ""}`
           )
           .join("\n")
       : "No deployments yet";
@@ -671,7 +753,7 @@ ${
 
 // Helper functions
 
-function generateFeaturesList(architecture: any): string {
+function generateFeaturesList(architecture: Architecture | null): string {
   if (architecture?.features && Array.isArray(architecture.features)) {
     return architecture.features.map((f: string) => `- ${f}`).join("\n");
   }
@@ -683,7 +765,7 @@ function generateFeaturesList(architecture: any): string {
 - Production-ready monitoring and logging`;
 }
 
-function generatePrerequisites(techStack: any): string {
+function generatePrerequisites(techStack: TechStack | null): string {
   const items = [];
 
   if (techStack?.runtime) {
@@ -705,7 +787,7 @@ function generatePrerequisites(techStack: any): string {
   return items.join("\n");
 }
 
-function generateProjectStructure(techStack: any, architecture: any): string {
+function generateProjectStructure(techStack: TechStack | null, _architecture: Architecture | null): string {
   const isNextJs = techStack?.frontendFramework?.includes("Next.js");
 
   if (isNextJs) {
@@ -727,7 +809,7 @@ function generateProjectStructure(techStack: any, architecture: any): string {
 /public         # Static files`;
 }
 
-function generateScripts(techStack: any): string {
+function generateScripts(techStack: TechStack | null): string {
   return `- \`npm run dev\` - Start development server
 - \`npm run build\` - Build for production
 - \`npm run start\` - Start production server
@@ -736,7 +818,7 @@ function generateScripts(techStack: any): string {
 ${techStack?.orm === "Prisma" ? "- `npm run db:migrate` - Run database migrations\n- `npm run db:studio` - Open Prisma Studio" : ""}`;
 }
 
-function generateEnvVars(codebase: any): string {
+function generateEnvVars(codebase: Codebase | null): string {
   if (codebase?.agentRequiredEnvKeys && Array.isArray(codebase.agentRequiredEnvKeys)) {
     return `Create a \`.env.local\` file with the following variables:
 
@@ -753,7 +835,7 @@ API_KEY="your_api_key"
 \`\`\``;
 }
 
-function generateDatabaseModels(databaseArch: any): string {
+function generateDatabaseModels(databaseArch: Record<string, unknown>): string {
   if (databaseArch.models && Array.isArray(databaseArch.models)) {
     return databaseArch.models.map((m: string) => `- **${m}**`).join("\n");
   }
@@ -761,7 +843,7 @@ function generateDatabaseModels(databaseArch: any): string {
   return "- User accounts and authentication\n- Application data models\n- Relational data structures";
 }
 
-function generateSecuritySection(architecture: any): string {
+function generateSecuritySection(_architecture: Architecture | null): string {
   return `- HTTPS enforced in production
 - CSRF protection enabled
 - SQL injection prevention
@@ -771,7 +853,7 @@ function generateSecuritySection(architecture: any): string {
 - Rate limiting on sensitive endpoints`;
 }
 
-function generatePerformanceSection(architecture: any): string {
+function generatePerformanceSection(_architecture: Architecture | null): string {
   return `- Optimized database queries
 - Caching strategies
 - Code splitting
@@ -780,7 +862,7 @@ function generatePerformanceSection(architecture: any): string {
 - CDN for static assets`;
 }
 
-function generateScalabilitySection(architecture: any): string {
+function generateScalabilitySection(_architecture: Architecture | null): string {
   return `- Stateless application design
 - Horizontal scaling ready
 - Database connection pooling
@@ -788,7 +870,7 @@ function generateScalabilitySection(architecture: any): string {
 - Load balancing support`;
 }
 
-function generatePlatformConfig(platform: string, architecture: any): string {
+function generatePlatformConfig(platform: string, _architecture: Architecture | null): string {
   const platformLower = platform.toLowerCase();
 
   if (platformLower.includes("vercel")) {
@@ -821,7 +903,7 @@ function getDeployCommand(platform: string): string {
     return "railway up";
   }
 
-  return `# Deploy to ${platform}\n${platform.toLowerCase()} deploy`;
+  return `# Deploy to ${platform}\n${platformLower} deploy`;
 }
 
 function getRollbackCommand(platform: string): string {
@@ -831,5 +913,5 @@ function getRollbackCommand(platform: string): string {
     return "vercel rollback <deployment-url>";
   }
 
-  return `# Platform-specific rollback command\n${platform.toLowerCase()} rollback`;
+  return `# Platform-specific rollback command\n${platformLower} rollback`;
 }

@@ -20,6 +20,7 @@ import {
   getRequestIdentifier,
   getClientIp,
 } from "@/lib/rate-limit";
+import { withCORS, PUBLIC_API_CORS } from "@/lib/cors";
 
 const chatRequestSchema = z.object({
   messages: z
@@ -393,6 +394,7 @@ async function extractAndSaveTags(
 }
 
 export async function POST(req: NextRequest) {
+  return withCORS(req, async () => {
   try {
     const session = await auth();
     const userId = session?.user?.id;
@@ -400,7 +402,7 @@ export async function POST(req: NextRequest) {
     // Rate limiting - 5 requests per minute for AI generation
     const clientIp = getClientIp(req.headers);
     const rateLimitId = getRequestIdentifier(userId, clientIp);
-    const rateLimitResult = checkRateLimit({
+    const rateLimitResult = await checkRateLimit({
       ...RATE_LIMITS.AI_GENERATION,
       identifier: rateLimitId,
     });
@@ -567,7 +569,9 @@ export async function POST(req: NextRequest) {
       "Sending response from /api/chat with headers:",
       responseHeaders
     );
-    return new Response(stream, { headers: responseHeaders });
+    // Convert Response to NextResponse for CORS compatibility
+    const response = new NextResponse(stream, { headers: responseHeaders });
+    return response;
   } catch (error: unknown) {
     // Type catch block
     // Handle potential ZodError if .parse() was used (though .safeParse() handles it)
@@ -586,4 +590,5 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     );
   }
+  }, PUBLIC_API_CORS);
 }

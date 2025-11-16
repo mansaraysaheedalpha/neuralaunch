@@ -195,7 +195,7 @@ export class ExecutionCoordinator {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      logger.error(`[${this.name}] Coordination failed:`, error);
+      logger.error(`[${this.name}] Coordination failed:`, error as Error);
 
       return {
         success: false,
@@ -263,10 +263,12 @@ export class ExecutionCoordinator {
 
     logger.info(
       `[${this.name}] Wave ${waveNumber} composition:`,
-      Array.from(tasksByAgent.entries()).map(([agent, tasks]) => ({
-        agent,
-        count: tasks.length,
-      }))
+      {
+        agents: Array.from(tasksByAgent.entries()).map(([agent, tasks]) => ({
+          agent,
+          count: tasks.length,
+        }))
+      }
     );
 
     return {
@@ -381,7 +383,7 @@ export class ExecutionCoordinator {
         triggeredTasks: triggeredTaskIds,
       };
     } catch (error) {
-      logger.error(`[${this.name}] Resume failed:`, error);
+      logger.error(`[${this.name}] Resume failed:`, error as Error);
       throw error;
     }
   }
@@ -474,17 +476,22 @@ export class ExecutionCoordinator {
     );
 
     // Determine which Inngest event to send based on agent type
-    const eventName = this.getInngestEventName(task.agentName);
+    // const eventName = this.getInngestEventName(task.agentName);
 
     try {
       await inngest.send({
-        name: eventName,
+        name: "agent/execute.step.requested",
         data: {
           taskId: task.id,
           projectId: input.projectId,
           userId: input.userId,
-          taskInput: task.input,
-          priority: task.priority,
+          stepIndex: 0,
+          taskDescription: task.input.title,
+          blueprintSummary: task.input.description ?? "",
+          userResponses: null,
+          githubToken: null,
+          githubRepoUrl: null,
+          currentHistoryLength: 0,
         },
       });
 
@@ -499,7 +506,7 @@ export class ExecutionCoordinator {
 
       logger.info(`[${this.name}] Successfully triggered task ${task.id}`);
     } catch (error) {
-      logger.error(`[${this.name}] Failed to trigger task ${task.id}:`, error);
+      logger.error(`[${this.name}] Failed to trigger task ${task.id}:`, error as Error);
       throw error;
     }
   }
@@ -557,7 +564,7 @@ export class ExecutionCoordinator {
 
       logger.info(`[${this.name}] Quality check triggered for ${projectId}`);
     } catch (error) {
-      logger.error(`[${this.name}] Failed to trigger quality check:`, error);
+      logger.error(`[${this.name}] Failed to trigger quality check:`, error as Error);
     }
   }
 
@@ -621,8 +628,7 @@ export class ExecutionCoordinator {
       tasks: Array<{ id: string; title: string; complexity: string }>;
     }>;
   }> {
-    const { projectId, userId, waveNumber, githubBranch } =
-      input;
+    const { projectId, userId, waveNumber, githubBranch } = input;
     const autoTrigger = input.autoTrigger !== false; // Default true
 
     logger.info(
@@ -724,19 +730,23 @@ export class ExecutionCoordinator {
 
       if (autoTrigger) {
         for (const task of wave.tasks) {
-          const eventName = this.getInngestEventName(task.agentName);
-
           logger.info(
             `[${this.name}] Triggering ${task.agentName} for task ${task.id}`
           );
 
           await inngest.send({
-            name: eventName,
+            name: "agent/execute.step.requested",
             data: {
               taskId: task.id,
               projectId,
               userId,
-              taskInput: task.input,
+              stepIndex: 0, // Provide actual step index if available
+              taskDescription: task.input.title,
+              blueprintSummary: task.input.description ?? "",
+              userResponses: null,
+              githubToken: null,
+              githubRepoUrl: null,
+              currentHistoryLength: 0,
               waveNumber,
               githubBranch,
             },
@@ -781,7 +791,7 @@ export class ExecutionCoordinator {
         waveBreakdown,
       };
     } catch (error) {
-      logger.error(`[${this.name}] Wave building failed`, error);
+      logger.error(`[${this.name}] Wave building failed`, error as Error);
       throw error;
     }
   }

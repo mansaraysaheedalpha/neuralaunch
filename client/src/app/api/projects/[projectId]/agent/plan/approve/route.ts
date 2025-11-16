@@ -43,7 +43,7 @@ export async function POST(
     // Rate limiting
     const clientIp = getClientIp(req.headers);
     const rateLimitId = getRequestIdentifier(userId, clientIp);
-    const rateLimitResult = checkRateLimit({
+    const rateLimitResult = await checkRateLimit({
       ...RATE_LIMITS.API_AUTHENTICATED,
       identifier: rateLimitId,
     });
@@ -68,8 +68,16 @@ export async function POST(
     }
 
     // 2. Validate request
-    const body = await req.json();
-    const validatedBody = approveSchema.parse(body);
+    const body: unknown = await req.json();
+    const parsed = approveSchema.safeParse(body);
+    if (!parsed.success) {
+      logger.warn("Invalid request", { errors: parsed.error.issues });
+      return NextResponse.json(
+        { error: "Invalid request", details: parsed.error.issues },
+        { status: 400 }
+      );
+    }
+    const validatedBody = parsed.data;
 
     // 3. Verify project ownership
     const projectContext = await prisma.projectContext.findUnique({

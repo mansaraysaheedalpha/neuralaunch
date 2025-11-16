@@ -27,6 +27,19 @@ model User {
   memories           AiMemory[]
   vercelTeamId       String?
   thoughtPreferences Json?
+  preferences        UserPreferences?
+}
+
+model UserPreferences {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mcpServers    Json?    // Array of connected MCP server URLs
+  notifications Json?    // Notification preferences
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model Account {

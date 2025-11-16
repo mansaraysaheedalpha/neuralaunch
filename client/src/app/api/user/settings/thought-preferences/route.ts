@@ -9,7 +9,13 @@ import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 
-export async function GET(req: NextRequest) {
+interface ThoughtPreferences {
+  deepDiveEnabled?: boolean;
+  showMetadata?: boolean;
+  maxVisibleThoughts?: number;
+}
+
+export async function GET(_req: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -28,7 +34,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const preferences = (user.thoughtPreferences as any) || {
+    const preferences: ThoughtPreferences = (user.thoughtPreferences as ThoughtPreferences) || {
       deepDiveEnabled: false,
       showMetadata: true,
       maxVisibleThoughts: 10,
@@ -55,7 +61,7 @@ export async function POST(req: NextRequest) {
     }
 
     const userId = session.user.id;
-    const body = await req.json();
+    const body = await req.json() as ThoughtPreferences;
 
     const { deepDiveEnabled, showMetadata, maxVisibleThoughts } = body;
 

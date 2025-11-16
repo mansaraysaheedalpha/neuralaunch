@@ -13,7 +13,7 @@ import { createApiLogger } from "@/lib/logger";
  * GET /api/mcp/health
  * Check health of all MCP servers
  */
-export async function GET(req: NextRequest) {
+export function GET(_req: NextRequest) {
   const logger = createApiLogger({
     path: "/api/mcp/health",
     method: "GET",

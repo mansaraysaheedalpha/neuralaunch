@@ -3,6 +3,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { createApiLogger } from "@/lib/logger";
+import { Prisma } from "@prisma/client";
+
+interface FileData {
+  path?: string;
+  filePath?: string;
+  content?: string;
+  linesOfCode?: number;
+}
+
+interface TaskOutput {
+  files?: string[];
+  filesCreated?: string[];
+  filesData?: FileData[];
+}
 
 /**
  * GET /api/projects/[projectId]/files
@@ -50,11 +64,11 @@ export async function GET(
     const agentName = searchParams.get("agentName");
 
     // 4. Build query filters
-    const where: any = {
+    const where: Prisma.AgentTaskWhereInput = {
       projectId,
       status: "completed",
       output: {
-        not: null,
+        not: Prisma.JsonNull,
       },
     };
 
@@ -95,7 +109,7 @@ export async function GET(
     >();
 
     for (const task of tasks) {
-      const output = task.output as any;
+      const output = task.output as TaskOutput | null;
 
       if (!output) continue;
 
@@ -109,13 +123,13 @@ export async function GET(
           if (typeof filePath === "string") {
             // Try to find content in filesData
             const fileData = filesData.find(
-              (f: any) => f.path === filePath || f.filePath === filePath
+              (f: FileData) => f.path === filePath || f.filePath === filePath
             );
 
-            if (fileData) {
+            if (fileData && fileData.content) {
               filesMap.set(filePath, {
                 path: filePath,
-                content: fileData.content || "",
+                content: fileData.content,
                 agentName: task.agentName,
                 waveNumber: task.waveNumber,
                 linesOfCode: fileData.linesOfCode,
@@ -128,7 +142,7 @@ export async function GET(
 
       // Handle filesData array directly
       if (Array.isArray(filesData)) {
-        filesData.forEach((file: any) => {
+        filesData.forEach((file: FileData) => {
           const filePath = file.path || file.filePath;
           if (filePath && file.content) {
             filesMap.set(filePath, {

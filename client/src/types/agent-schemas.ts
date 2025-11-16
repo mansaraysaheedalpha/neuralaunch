@@ -54,7 +54,7 @@ export const architectureSchema = z.object({
   overview: z.string().optional(),
   components: z.array(z.string()).optional(),
   dataFlow: z.string().optional(),
-  techStack: z.record(z.string()).optional(),
+  techStack: z.record(z.string(), z.string()).optional(),
 }).passthrough();
 
 export const conditionalEnvKeysSchema = z.record(

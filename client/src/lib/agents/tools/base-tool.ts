@@ -5,7 +5,7 @@
  * Inspired by LangChain but optimized for our use case
  */
 
-import { logger } from "@/lib/logger";
+import { logger, type LogContext } from "@/lib/logger";
 
 // ==========================================
 // BASE TYPES
@@ -150,7 +150,7 @@ export abstract class BaseTool implements ITool {
   /**
    * Protected helper: Log execution
    */
-  protected logExecution(action: string, data?: unknown): void {
+  protected logExecution(action: string, data?: LogContext): void {
     logger.info(`${this.logPrefix} ${action}`, data);
   }
 

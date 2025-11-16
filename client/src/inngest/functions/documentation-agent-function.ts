@@ -11,6 +11,18 @@ import { logger } from "@/lib/logger";
 import { createAgentError } from "@/lib/error-utils";
 import { TechStack } from "@/lib/agents/types/common";
 
+// Type definitions
+interface DocumentationTaskInput {
+  includeUserGuide?: boolean;
+  includeAPIDocs?: boolean;
+  includeArchitecture?: boolean;
+  includeDeployment?: boolean;
+  customSections?: Record<string, string>;
+  commitToGit?: boolean;
+  deploymentUrl?: string;
+  [key: string]: unknown;
+}
+
 export const documentationAgentFunction = inngest.createFunction(
   {
     id: "documentation-agent-generation",
@@ -19,7 +31,8 @@ export const documentationAgentFunction = inngest.createFunction(
   },
   { event: "agent/documentation.generate" },
   async ({ event, step }) => {
-    const { taskId, projectId, userId, conversationId, taskInput } = event.data;
+    const { taskId, projectId, userId, conversationId } = event.data;
+    const taskInput = event.data.taskInput as DocumentationTaskInput | undefined;
 
     logger.info(`[Inngest] Documentation Agent triggered`, {
       taskId,

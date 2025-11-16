@@ -42,7 +42,7 @@ export class InfrastructureAgent extends BaseAgent {
   }
 
   async executeTask(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
-    const { taskId, projectId, userId, taskDetails, context } = input;
+    const { taskId: _taskId, projectId, userId, taskDetails, context } = input;
 
     // ✅ Check if this is a fix request
     const isFixMode = taskDetails.mode === "fix";
@@ -63,7 +63,7 @@ export class InfrastructureAgent extends BaseAgent {
 
     // Normal execution mode
     logger.info(`[${this.config.name}] Starting infrastructure task`, {
-      taskId,
+      _taskId,
       title: taskDetails.title,
     });
 
@@ -146,7 +146,7 @@ export class InfrastructureAgent extends BaseAgent {
   private async executeFixMode(
     input: AgentExecutionInput
   ): Promise<AgentExecutionOutput> {
-    const { taskId, projectId, userId, taskDetails, context } = input;
+    const { taskId: _taskId, projectId, userId, taskDetails, context } = input;
 
     try {
       // Step 1: Load infrastructure files that need fixing

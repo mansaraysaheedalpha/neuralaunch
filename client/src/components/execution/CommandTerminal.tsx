@@ -148,7 +148,7 @@ export function CommandTerminal({
                   isExpanded={expandedCommands.has(index)}
                   isCopied={copiedIndex === index}
                   onToggleExpand={toggleCommandExpand}
-                  onCopy={handleCopyCommand}
+                  onCopy={(command, index) => { void handleCopyCommand(command, index); }}
                   showTimestamp={showTimestamps}
                 />
               ))}

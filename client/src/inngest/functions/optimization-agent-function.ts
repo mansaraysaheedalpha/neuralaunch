@@ -17,6 +17,18 @@ import { TechStack } from "@/lib/agents/types/common";
 import { createAgentError } from "@/lib/error-utils";
 import { sendNotification } from "@/lib/notifications/notification-service";
 
+interface OptimizationTaskInput {
+  recommendations?: Array<{
+    priority?: string;
+    [key: string]: unknown;
+  }>;
+  deploymentUrl?: string;
+  autoApply?: boolean;
+  maxOptimizations?: number;
+  autoRedeploy?: boolean;
+  verifyImprovements?: boolean;
+}
+
 export const optimizationAgentFunction = inngest.createFunction(
   {
     id: "optimization-agent-apply",
@@ -25,12 +37,19 @@ export const optimizationAgentFunction = inngest.createFunction(
   },
   { event: "agent/optimization.start" },
   async ({ event, step }) => {
-    const { taskId, projectId, userId, conversationId, taskInput } = event.data;
+    const eventData = event.data as {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId?: string;
+      taskInput: OptimizationTaskInput;
+    };
+    const { taskId, projectId, userId, conversationId, taskInput } = eventData;
 
     logger.info(`[Inngest] Optimization Agent triggered`, {
       taskId,
       projectId,
-      recommendations: taskInput.recommendations?.length || 0,
+      recommendations: taskInput.recommendations?.length ?? 0,
     });
 
     // Step 1: Get project context
@@ -81,12 +100,14 @@ export const optimizationAgentFunction = inngest.createFunction(
           projectId,
           agentName: "OptimizationAgent",
           status: "in_progress",
-          input: {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unnecessary-type-assertion
+          input: JSON.parse(JSON.stringify({
             recommendations,
-            deploymentUrl: taskInput.deploymentUrl,
+            deploymentUrl: taskInput.deploymentUrl ?? null,
             autoApply: taskInput.autoApply !== false, // Default true
-            maxOptimizations: taskInput.maxOptimizations || 10,
-          },
+            maxOptimizations: taskInput.maxOptimizations ?? 10,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          })) as any,
           startedAt: new Date(),
         },
       });
@@ -98,7 +119,7 @@ export const optimizationAgentFunction = inngest.createFunction(
         taskId: task.id,
         projectId,
         userId,
-        conversationId,
+        conversationId: conversationId ?? "",
         taskDetails: {
           title: "Performance Optimization",
           description: "Apply monitoring recommendations",
@@ -168,7 +189,8 @@ export const optimizationAgentFunction = inngest.createFunction(
         where: { id: task.id },
         data: {
           status: "completed",
-          output: optimizationResult as any,
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unnecessary-type-assertion
+          output: optimizationResult ? (JSON.parse(JSON.stringify(optimizationResult)) as any) : null,
           completedAt: new Date(),
         },
       });
@@ -185,7 +207,7 @@ export const optimizationAgentFunction = inngest.createFunction(
             taskId: `deploy-after-optimization-${Date.now()}`,
             projectId,
             userId,
-            conversationId,
+            conversationId: conversationId ?? "",
             environment: "production" as const,
             taskInput: {
               environment: "production",
@@ -210,7 +232,7 @@ export const optimizationAgentFunction = inngest.createFunction(
             taskId: `monitoring-after-optimization-${Date.now()}`,
             projectId,
             userId,
-            conversationId,
+            conversationId: conversationId ?? "",
             taskInput: {
               deploymentUrl: taskInput.deploymentUrl,
               monitoringDuration: 5, // 5 minutes
@@ -345,10 +367,12 @@ export const scheduledOptimizationFunction = inngest.createFunction(
 
         // Filter projects with recommendations
         return recentMonitoring.filter((monitoring) => {
-          const output = monitoring.output as any;
-          const recommendations = output?.recommendations || [];
+          const output = monitoring.output as {
+            recommendations?: Array<{ priority?: string }>;
+          } | null;
+          const recommendations = output?.recommendations ?? [];
           const highPriorityRecs = recommendations.filter(
-            (r: any) => r.priority === "high"
+            (r) => r.priority === "high"
           );
           return highPriorityRecs.length > 0;
         });
@@ -362,10 +386,12 @@ export const scheduledOptimizationFunction = inngest.createFunction(
     // Step 2: Trigger optimization for each project
     for (const project of projectsWithMonitoring) {
       await step.run(`optimize-${project.projectId}`, async () => {
-        const output = project.output as any;
-        const recommendations = output?.recommendations || [];
+        const output = project.output as {
+          recommendations?: Array<{ priority?: string; [key: string]: unknown }>;
+        } | null;
+        const recommendations = output?.recommendations ?? [];
         const highPriorityRecs = recommendations.filter(
-          (r: any) => r.priority === "high"
+          (r) => r.priority === "high"
         );
 
         await inngest.send({

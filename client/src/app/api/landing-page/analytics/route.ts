@@ -11,6 +11,7 @@ import {
   getRequestIdentifier,
   getClientIp,
 } from "@/lib/rate-limit";
+import { createCORSHandler, LANDING_PAGE_CORS } from "@/lib/cors";
 
 const prismaClient = prisma as unknown as PrismaClient;
 
@@ -45,7 +46,7 @@ const formatChartData = (
   return result;
 };
 
-export async function GET(req: NextRequest) {
+export const GET = createCORSHandler(async (req: NextRequest) => {
   try {
     // --- Authentication & Ownership Verification ---
     const session = await auth();
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
     // Rate limiting
     const clientIp = getClientIp(req.headers);
     const rateLimitId = getRequestIdentifier(userId, clientIp);
-    const rateLimitResult = checkRateLimit({
+    const rateLimitResult = await checkRateLimit({
       ...RATE_LIMITS.API_READ,
       identifier: rateLimitId,
     });
@@ -429,4 +430,4 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
-}
+}, LANDING_PAGE_CORS);

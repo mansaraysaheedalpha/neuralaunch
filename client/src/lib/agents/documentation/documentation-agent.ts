@@ -16,15 +16,13 @@
 import { AI_MODELS } from "@/lib/models";
 import {
   BaseAgent,
-  BaseAgentConfig,
   AgentExecutionInput,
   AgentExecutionOutput,
 } from "../base/base-agent";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { env } from "@/lib/env";
-import { TechStack, ProjectContext } from "@/lib/agents/types/common";
+import { TechStack } from "@/lib/agents/types/common";
 
 // ==========================================
 // TYPES
@@ -156,7 +154,7 @@ export class DocumentationAgent extends BaseAgent {
    */
   async executeTask(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
     const startTime = Date.now();
-    const { taskId, projectId, userId, taskDetails, context } = input;
+    const { taskId, projectId, userId, taskDetails } = input;
 
     logger.info(`[${this.name}] Starting documentation generation`, {
       taskId,
@@ -444,7 +442,7 @@ Respond ONLY with valid JSON array, no markdown.`;
       // Parse JSON from response
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]) as APIEndpoint[];
         endpoints.push(...parsed);
       }
     } catch (error) {
@@ -532,7 +530,7 @@ Respond ONLY with valid JSON array, no markdown.`;
       // Parse JSON from response
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]) as ComponentDocumentation[];
         components.push(...parsed);
       }
     } catch (error) {
@@ -635,7 +633,7 @@ Respond ONLY with valid JSON array, no markdown.`;
 
         const jsonMatch = text.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
+          const parsed = JSON.parse(jsonMatch[0]) as EnvironmentVariable[];
           envVariables.push(...parsed);
         }
       } catch (error) {
@@ -657,7 +655,7 @@ Respond ONLY with valid JSON array, no markdown.`;
   private async extractDatabaseSchema(
     projectId: string,
     userId: string,
-    techStack: TechStack
+    _techStack: TechStack
   ): Promise<string | null> {
     logger.info(`[${this.name}] Extracting database schema`);
 
@@ -939,7 +937,7 @@ Generate ONLY the DEPLOYMENT.md content, no explanations.`;
    */
   private async generateDevelopmentDocs(
     projectContext: ProjectContextData,
-    projectStructure: ProjectStructure
+    _projectStructure: ProjectStructure
   ): Promise<string> {
     logger.info(`[${this.name}] Generating development documentation`);
 

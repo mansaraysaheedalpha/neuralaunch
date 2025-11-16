@@ -301,7 +301,13 @@ IMPORTANT:
   ): Promise<void> {
     try {
       const techStackPayload: Prisma.JsonObject = {
-        recommendations,
+        recommendations: recommendations.map(r => ({
+          category: r.category,
+          name: r.name,
+          rationale: r.rationale,
+          alternatives: [...r.alternatives],
+          bestPractices: [...r.bestPractices],
+        })),
         architecturePattern,
         researchedAt: new Date().toISOString(),
       };
@@ -365,7 +371,7 @@ IMPORTANT:
           projectId,
           agentName: this.name,
           phase: "research",
-          input: inputPayload,
+          input: inputPayload !== undefined ? inputPayload : Prisma.JsonNull,
           output: outputPayload,
           success,
           durationMs,

@@ -3,17 +3,14 @@
 
 import { use } from "react";
 import useSWR from "swr";
-import { motion } from "framer-motion";
 import {
   ArrowLeft,
   Rocket,
   CheckCircle2,
   AlertCircle,
-  ExternalLink,
   Loader2,
   Clock,
   Globe,
-  RefreshCw,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -29,7 +26,24 @@ interface DeploymentPageProps {
   }>;
 }
 
-const fetcher = (url: string) => fetch(url).then((res) => res.json());
+interface Deployment {
+  id: string;
+  environment: string;
+  status: string;
+  url?: string;
+  platform?: string;
+  deployedAt?: string;
+  duration?: number;
+  createdAt: Date | string;
+  commitMessage?: string;
+  commitHash?: string;
+}
+
+interface DeploymentsResponse {
+  deployments: Deployment[];
+}
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json() as Promise<DeploymentsResponse>);
 
 export default function DeploymentDashboardPage({
   params,
@@ -37,15 +51,8 @@ export default function DeploymentDashboardPage({
   const { id: projectId } = use(params);
   const router = useRouter();
 
-  // Fetch project data
-  const { data: project } = useSWR(
-    `/api/projects/${projectId}`,
-    fetcher,
-    { refreshInterval: 5000 }
-  );
-
   // Fetch deployments
-  const { data: deploymentsData, error, mutate } = useSWR(
+  const { data: deploymentsData, error, mutate } = useSWR<DeploymentsResponse, Error>(
     `/api/projects/${projectId}/deployments`,
     fetcher,
     { refreshInterval: 5000 }
@@ -60,15 +67,15 @@ export default function DeploymentDashboardPage({
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to deploy");
+        const error = await response.json() as { message?: string };
+        throw new Error(error.message ?? "Failed to deploy");
       }
 
-      const result = await response.json();
+      await response.json();
       toast.success(
         `Deployment started! Environment: ${environment}. This will take 2-3 minutes.`
       );
-      mutate();
+      void mutate();
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to start deployment"
@@ -88,7 +95,7 @@ export default function DeploymentDashboardPage({
           </CardHeader>
           <CardContent>
             <p className="text-muted-foreground mb-4">
-              {error.message || "Failed to load deployment data"}
+              {error?.message ?? "Failed to load deployment data"}
             </p>
             <Button onClick={() => router.push("/")}>
               <ArrowLeft className="w-4 h-4 mr-2" />
@@ -113,10 +120,10 @@ export default function DeploymentDashboardPage({
 
   const deployments = deploymentsData.deployments || [];
   const previewDeployment = deployments.find(
-    (d: any) => d.environment === "preview" && d.status !== "failed"
+    (d) => d.environment === "preview" && d.status !== "failed"
   );
   const productionDeployment = deployments.find(
-    (d: any) => d.environment === "production" && d.status !== "failed"
+    (d) => d.environment === "production" && d.status !== "failed"
   );
 
   return (
@@ -162,15 +169,15 @@ export default function DeploymentDashboardPage({
                 <DeploymentCard
                   deployment={{
                     environment: "preview",
-                    status: previewDeployment.status,
-                    url: previewDeployment.url,
-                    platform: previewDeployment.platform,
+                    status: previewDeployment.status as "failed" | "deploying" | "live",
+                    url: previewDeployment.url || "",
+                    platform: previewDeployment.platform || "",
                     deployedAt: previewDeployment.deployedAt
                       ? new Date(previewDeployment.deployedAt)
                       : undefined,
                     duration: previewDeployment.duration,
                   }}
-                  onRedeploy={() => handleDeploy("preview")}
+                  onRedeploy={() => { void handleDeploy("preview"); }}
                 />
               ) : (
                 <div className="text-center py-8">
@@ -179,7 +186,7 @@ export default function DeploymentDashboardPage({
                     No preview deployment yet
                   </p>
                   <Button
-                    onClick={() => handleDeploy("preview")}
+                    onClick={() => { void handleDeploy("preview"); }}
                     variant="outline"
                     className="w-full"
                   >
@@ -204,15 +211,15 @@ export default function DeploymentDashboardPage({
                 <DeploymentCard
                   deployment={{
                     environment: "production",
-                    status: productionDeployment.status,
-                    url: productionDeployment.url,
-                    platform: productionDeployment.platform,
+                    status: productionDeployment.status as "failed" | "deploying" | "live",
+                    url: productionDeployment.url || "",
+                    platform: productionDeployment.platform || "",
                     deployedAt: productionDeployment.deployedAt
                       ? new Date(productionDeployment.deployedAt)
                       : undefined,
                     duration: productionDeployment.duration,
                   }}
-                  onRedeploy={() => handleDeploy("production")}
+                  onRedeploy={() => { void handleDeploy("production"); }}
                 />
               ) : (
                 <div className="text-center py-8">
@@ -221,7 +228,7 @@ export default function DeploymentDashboardPage({
                     No production deployment yet
                   </p>
                   <Button
-                    onClick={() => handleDeploy("production")}
+                    onClick={() => { void handleDeploy("production"); }}
                     className="w-full bg-green-600 hover:bg-green-700"
                   >
                     <Rocket className="w-4 h-4 mr-2" />

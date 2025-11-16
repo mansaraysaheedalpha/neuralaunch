@@ -143,7 +143,7 @@ export function buildAlertEmail(
   alertType: string,
   severity: string,
   message: string,
-  metrics: Record<string, any>,
+  metrics: Record<string, string | number>,
   actionUrl: string
 ): string {
   const severityEmoji = severity === "critical" ? "🚨" : severity === "error" ? "⚠️" : "ℹ️";

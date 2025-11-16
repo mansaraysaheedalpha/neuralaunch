@@ -17,12 +17,12 @@
 import { AI_MODELS } from "@/lib/models";
 import {
   BaseAgent,
-  BaseAgentConfig,
   AgentExecutionInput,
   AgentExecutionOutput,
 } from "../base/base-agent";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
+import { sendNotification } from "@/lib/notifications/notification-service";
 
 // ==========================================
 // TYPES
@@ -177,7 +177,7 @@ export class MonitoringAgent extends BaseAgent {
       );
 
       // Step 5: Generate alerts based on thresholds
-      const alerts = await this.generateAlerts(
+      const alerts = this.generateAlerts(
         healthChecks,
         performanceMetrics,
         errorLogs
@@ -247,7 +247,8 @@ export class MonitoringAgent extends BaseAgent {
         data: { ...report },
       };
     } catch (error) {
-      logger.error(`[${this.name}] Monitoring failed`, 
+      logger.error(
+        `[${this.name}] Monitoring failed`,
         error instanceof Error ? error : new Error(String(error)),
         { taskId }
       );
@@ -293,12 +294,14 @@ export class MonitoringAgent extends BaseAgent {
       );
 
       if (contextResult.success) {
-        const data = contextResult.data as { files?: Array<string | { path: string }> };
+        const data = contextResult.data as {
+          files?: Array<string | { path: string }>;
+        };
         const files = data?.files || [];
 
         // Find API route files
         const apiFiles = files.filter((file) => {
-          const path = typeof file === 'string' ? file : file.path;
+          const path = typeof file === "string" ? file : file.path;
           return (
             path.includes("/api/") ||
             path.includes("/routes/") ||
@@ -308,7 +311,7 @@ export class MonitoringAgent extends BaseAgent {
 
         // Extract endpoint paths from filenames
         for (const file of apiFiles) {
-          const path = typeof file === 'string' ? file : file.path;
+          const path = typeof file === "string" ? file : file.path;
 
           // Extract endpoint from file path
           // e.g., src/app/api/users/route.ts -> /api/users
@@ -431,9 +434,9 @@ export class MonitoringAgent extends BaseAgent {
   /**
    * Collect performance metrics
    */
-  private async collectPerformanceMetrics(
+  private collectPerformanceMetrics(
     healthChecks: HealthCheck[],
-    deploymentUrl: string
+    _deploymentUrl: string
   ): Promise<PerformanceMetric[]> {
     logger.info(`[${this.name}] Collecting performance metrics`);
 
@@ -510,7 +513,7 @@ export class MonitoringAgent extends BaseAgent {
     logger.info(
       `[${this.name}] Collected ${metrics.length} performance metrics`
     );
-    return metrics;
+    return Promise.resolve(metrics);
   }
 
   /**
@@ -525,18 +528,48 @@ export class MonitoringAgent extends BaseAgent {
 
     const errorLogs: ErrorLog[] = [];
 
-    // Try to fetch logs from deployment platform
-    // This would require integration with Vercel/Railway/etc. logging APIs
+    // Detect deployment platform and fetch logs
+    const platform = this.detectPlatform(deploymentUrl);
+    logger.info(`[${this.name}] Detected platform: ${platform}`);
 
-    // For now, we'll analyze based on health checks
-    // In a real implementation, you'd integrate with:
-    // - Vercel Logs API
-    // - Railway Logs
-    // - CloudWatch (AWS)
-    // - Stackdriver (GCP)
-    // - etc.
+    try {
+      let platformLogs: string[] = [];
 
-    // Use AI to analyze patterns if we had logs
+      switch (platform) {
+        case "vercel":
+          platformLogs = await this.fetchVercelLogs(projectId, deploymentUrl);
+          break;
+        case "netlify":
+          platformLogs = await this.fetchNetlifyLogs(deploymentUrl);
+          break;
+        case "railway":
+          platformLogs = await this.fetchRailwayLogs(projectId);
+          break;
+        case "render":
+          platformLogs = await this.fetchRenderLogs(deploymentUrl);
+          break;
+        default:
+          logger.info(
+            `[${this.name}] Platform ${platform} not supported for log fetching`
+          );
+      }
+
+      // Parse platform logs for errors
+      if (platformLogs.length > 0) {
+        logger.info(
+          `[${this.name}] Fetched ${platformLogs.length} log lines from ${platform}`
+        );
+        const parsedErrors = this.parsePlatformLogs(platformLogs);
+        errorLogs.push(...parsedErrors);
+      }
+    } catch (error) {
+      logger.warn(`[${this.name}] Failed to fetch platform logs`, {
+        error,
+        platform,
+      });
+    }
+
+    // Use AI to analyze patterns from collected logs
     const prompt = `Analyze application logs and identify critical error patterns.
 
 Deployment URL: ${deploymentUrl}
@@ -563,10 +596,21 @@ Respond ONLY with valid JSON array, no markdown.`;
 
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]) as Array<{
+          severity?: string;
+          message?: string;
+          stackTrace?: string;
+          endpoint?: string;
+          userId?: string;
+          count?: number;
+        }>;
         for (const log of parsed) {
           errorLogs.push({
-            severity: log.severity || "medium",
+            severity: ["critical", "high", "medium", "low"].includes(
+              log.severity as string
+            )
+              ? (log.severity as "critical" | "high" | "medium" | "low")
+              : "medium",
             message: log.message || "",
             stackTrace: log.stackTrace,
             endpoint: log.endpoint,
@@ -587,11 +631,11 @@ Respond ONLY with valid JSON array, no markdown.`;
   /**
    * Generate monitoring alerts
    */
-  private async generateAlerts(
+  private generateAlerts(
     healthChecks: HealthCheck[],
     performanceMetrics: PerformanceMetric[],
     errorLogs: ErrorLog[]
-  ): Promise<MonitoringAlert[]> {
+  ): MonitoringAlert[] {
     logger.info(`[${this.name}] Generating alerts`);
 
     const alerts: MonitoringAlert[] = [];
@@ -725,7 +769,7 @@ Respond ONLY with valid JSON array, no markdown.`;
     healthChecks: HealthCheck[],
     performanceMetrics: PerformanceMetric[],
     errorLogs: ErrorLog[],
-    deploymentUrl: string
+    _deploymentUrl: string
   ): Promise<OptimizationRecommendation[]> {
     logger.info(`[${this.name}] Generating recommendations`);
 
@@ -820,7 +864,7 @@ Respond ONLY with valid JSON array, no markdown.`;
 
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]) as OptimizationRecommendation[];
         recommendations.push(...parsed);
       }
     } catch (error) {
@@ -895,7 +939,7 @@ Write in professional, concise style. No markdown formatting.`;
       await prisma.agentTask.update({
         where: { id: taskId },
         data: {
-          output: report as any,
+          output: JSON.stringify(report),
           status: "completed",
           completedAt: new Date(),
         },
@@ -903,7 +947,8 @@ Write in professional, concise style. No markdown formatting.`;
 
       logger.info(`[${this.name}] Stored monitoring report`, { taskId });
     } catch (error) {
-      logger.error(`[${this.name}] Failed to store report`, 
+      logger.error(
+        `[${this.name}] Failed to store report`,
         error instanceof Error ? error : new Error(String(error)),
         { taskId }
       );
@@ -930,18 +975,52 @@ Write in professional, concise style. No markdown formatting.`;
       }
     );
 
-    // TODO: Implement alert delivery
-    // Options:
-    // 1. Email notification
-    // 2. Slack webhook
-    // 3. Discord webhook
-    // 4. SMS (Twilio)
-    // 5. PagerDuty
-    // 6. In-app notification
-
-    // For now, just log
+    // Send notifications for each critical alert using the notification service
     for (const alert of criticalAlerts) {
-      logger.error(`[CRITICAL ALERT] ${alert.title}: ${alert.description}`, 
+      try {
+        // Prepare metrics for email display
+        const metrics: Record<string, string | number> = {};
+        if (alert.metric) metrics["Metric"] = alert.metric;
+        if (alert.currentValue !== undefined) metrics["Current Value"] = alert.currentValue;
+        if (alert.threshold !== undefined) metrics["Threshold"] = alert.threshold;
+        if (alert.recommendation) metrics["Recommendation"] = alert.recommendation;
+
+        // Send monitoring alert notification
+        await sendNotification({
+          userId,
+          projectId,
+          type: "monitoring_alert",
+          priority: "critical",
+          title: alert.title,
+          message: alert.description,
+          alertType: alert.metric || "System Alert",
+          severity: "critical",
+          metrics,
+        });
+
+        logger.info(
+          `[${this.name}] Critical alert notification sent`,
+          {
+            projectId,
+            userId,
+            alertTitle: alert.title,
+          }
+        );
+      } catch (error) {
+        logger.error(
+          `[${this.name}] Failed to send alert notification`,
+          error as Error,
+          {
+            projectId,
+            userId,
+            alertTitle: alert.title,
+          }
+        );
+      }
+
+      // Still log for backup/auditing
+      logger.error(
+        `[CRITICAL ALERT] ${alert.title}: ${alert.description}`,
         undefined,
         { recommendation: alert.recommendation }
       );
@@ -977,6 +1056,409 @@ Write in professional, concise style. No markdown formatting.`;
     const sorted = [...values].sort((a, b) => a - b);
     const index = Math.ceil((percentile / 100) * sorted.length) - 1;
     return sorted[index];
+  }
+
+  /**
+   * Detect deployment platform from URL
+   */
+  private detectPlatform(url: string): string {
+    const urlLower = url.toLowerCase();
+
+    if (urlLower.includes("vercel.app") || urlLower.includes("vercel.com")) {
+      return "vercel";
+    }
+    if (urlLower.includes("netlify.app") || urlLower.includes("netlify.com")) {
+      return "netlify";
+    }
+    if (urlLower.includes("railway.app") || urlLower.includes("railway.run")) {
+      return "railway";
+    }
+    if (urlLower.includes("render.com") || urlLower.includes("onrender.com")) {
+      return "render";
+    }
+
+    return "unknown";
+  }
+
+  /**
+   * Fetch logs from Vercel deployment
+   * Requires VERCEL_TOKEN environment variable
+   */
+  private async fetchVercelLogs(
+    projectId: string,
+    deploymentUrl: string
+  ): Promise<string[]> {
+    const token = process.env.VERCEL_TOKEN;
+
+    if (!token) {
+      logger.warn(
+        `[${this.name}] VERCEL_TOKEN not set, cannot fetch Vercel logs`
+      );
+      return [];
+    }
+
+    try {
+      // Extract deployment ID from URL (e.g., myapp-abc123.vercel.app -> abc123)
+      const deploymentMatch = deploymentUrl.match(/([a-z0-9]+)\.vercel\.app/i);
+      const deploymentId = deploymentMatch ? deploymentMatch[1] : null;
+
+      if (!deploymentId) {
+        logger.warn(
+          `[${this.name}] Could not extract Vercel deployment ID from URL`
+        );
+        return [];
+      }
+
+      // Fetch logs using Vercel API
+      // https://vercel.com/docs/rest-api/endpoints/deployments#get-deployment-logs
+      const response = await fetch(
+        `https://api.vercel.com/v3/deployments/${deploymentId}/events`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        logger.warn(`[${this.name}] Vercel API returned ${response.status}`);
+        return [];
+      }
+
+      const data = (await response.json()) as {
+        logs?: Array<{ text: string }>;
+      };
+      const logs = data.logs || [];
+
+      return logs
+        .map((log) => log.text || "")
+        .filter((text) => text.length > 0);
+    } catch (error) {
+      logger.error(
+        `[${this.name}] Failed to fetch Vercel logs`,
+        error instanceof Error ? error : new Error(String(error))
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Fetch logs from Netlify deployment
+   * Requires NETLIFY_TOKEN environment variable
+   */
+  private async fetchNetlifyLogs(deploymentUrl: string): Promise<string[]> {
+    const token = process.env.NETLIFY_TOKEN;
+
+    if (!token) {
+      logger.warn(
+        `[${this.name}] NETLIFY_TOKEN not set, cannot fetch Netlify logs`
+      );
+      return [];
+    }
+
+    try {
+      // Extract site name from URL (e.g., myapp.netlify.app)
+      const siteMatch = deploymentUrl.match(/([a-z0-9-]+)\.netlify\.app/i);
+      const siteName = siteMatch ? siteMatch[1] : null;
+
+      if (!siteName) {
+        logger.warn(
+          `[${this.name}] Could not extract Netlify site name from URL`
+        );
+        return [];
+      }
+
+      // First, get the site ID
+      const sitesResponse = await fetch(
+        `https://api.netlify.com/api/v1/sites?name=${siteName}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!sitesResponse.ok) {
+        logger.warn(
+          `[${this.name}] Netlify API returned ${sitesResponse.status}`
+        );
+        return [];
+      }
+
+      const sites = (await sitesResponse.json()) as Array<{
+        id: string;
+        name: string;
+      }>;
+      const site = sites.find((s) => s.name === siteName);
+
+      if (!site) {
+        logger.warn(`[${this.name}] Netlify site not found: ${siteName}`);
+        return [];
+      }
+
+      // Fetch function logs for the site
+      // https://docs.netlify.com/api/get-started/#function-logs
+      const logsResponse = await fetch(
+        `https://api.netlify.com/api/v1/sites/${site.id}/functions`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!logsResponse.ok) {
+        logger.warn(
+          `[${this.name}] Netlify logs API returned ${logsResponse.status}`
+        );
+        return [];
+      }
+
+      const functions = (await logsResponse.json()) as Array<{
+        log_type: string;
+        message: string;
+      }>;
+
+      return functions
+        .filter((fn) => fn.log_type === "error" || fn.log_type === "warning")
+        .map((fn) => fn.message || "")
+        .filter((msg) => msg.length > 0);
+    } catch (error) {
+      logger.error(
+        `[${this.name}] Failed to fetch Netlify logs`,
+        error instanceof Error ? error : new Error(String(error))
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Fetch logs from Railway deployment
+   * Requires RAILWAY_TOKEN environment variable
+   */
+  private async fetchRailwayLogs(projectId: string): Promise<string[]> {
+    const token = process.env.RAILWAY_TOKEN;
+
+    if (!token) {
+      logger.warn(
+        `[${this.name}] RAILWAY_TOKEN not set, cannot fetch Railway logs`
+      );
+      return [];
+    }
+
+    try {
+      // Railway uses GraphQL API
+      // https://docs.railway.app/reference/public-api
+      const query = `
+        query {
+          project(id: "${projectId}") {
+            deployments {
+              edges {
+                node {
+                  id
+                  status
+                  meta
+                }
+              }
+            }
+          }
+        }
+      `;
+
+      const response = await fetch("https://backboard.railway.app/graphql/v2", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ query }),
+      });
+
+      if (!response.ok) {
+        logger.warn(`[${this.name}] Railway API returned ${response.status}`);
+        return [];
+      }
+
+      const data = (await response.json()) as {
+        data?: {
+          project?: {
+            deployments?: {
+              edges?: Array<{
+                node?: {
+                  id?: string;
+                  meta?: {
+                    logs?: Array<{ message: string; timestamp: string }>;
+                  };
+                };
+              }>;
+            };
+          };
+        };
+      };
+
+      const deployments = data?.data?.project?.deployments?.edges || [];
+      const allLogs: string[] = [];
+
+      for (const edge of deployments) {
+        const logs = edge?.node?.meta?.logs || [];
+        allLogs.push(
+          ...logs
+            .map((log) => log.message || "")
+            .filter((msg) => msg.length > 0)
+        );
+      }
+
+      return allLogs;
+    } catch (error) {
+      logger.error(
+        `[${this.name}] Failed to fetch Railway logs`,
+        error instanceof Error ? error : new Error(String(error))
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Fetch logs from Render deployment
+   * Requires RENDER_API_KEY environment variable
+   */
+  private async fetchRenderLogs(deploymentUrl: string): Promise<string[]> {
+    const apiKey = process.env.RENDER_API_KEY;
+
+    if (!apiKey) {
+      logger.warn(
+        `[${this.name}] RENDER_API_KEY not set, cannot fetch Render logs`
+      );
+      return [];
+    }
+
+    try {
+      // Extract service name from URL (e.g., myapp.onrender.com)
+      const serviceMatch = deploymentUrl.match(/([a-z0-9-]+)\.onrender\.com/i);
+      const serviceName = serviceMatch ? serviceMatch[1] : null;
+
+      if (!serviceName) {
+        logger.warn(
+          `[${this.name}] Could not extract Render service name from URL`
+        );
+        return [];
+      }
+
+      // First, get all services to find the one matching our URL
+      const servicesResponse = await fetch(
+        "https://api.render.com/v1/services",
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (!servicesResponse.ok) {
+        logger.warn(
+          `[${this.name}] Render API returned ${servicesResponse.status}`
+        );
+        return [];
+      }
+
+      const servicesData = (await servicesResponse.json()) as Array<{
+        service?: {
+          id?: string;
+          name?: string;
+        };
+      }>;
+
+      const service = servicesData.find((s) =>
+        s?.service?.name?.toLowerCase().includes(serviceName.toLowerCase())
+      );
+
+      if (!service?.service?.id) {
+        logger.warn(`[${this.name}] Render service not found: ${serviceName}`);
+        return [];
+      }
+
+      // Fetch logs for the service
+      // https://api-docs.render.com/reference/get-logs
+      const logsResponse = await fetch(
+        `https://api.render.com/v1/services/${service.service.id}/logs?limit=100`,
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            Accept: "application/json",
+          },
+        }
+      );
+
+      if (!logsResponse.ok) {
+        logger.warn(
+          `[${this.name}] Render logs API returned ${logsResponse.status}`
+        );
+        return [];
+      }
+
+      const logsData = (await logsResponse.json()) as Array<{
+        timestamp?: string;
+        message?: string;
+        level?: string;
+      }>;
+
+      return logsData
+        .filter((log) => log.level === "error" || log.level === "warn")
+        .map((log) => log.message || "")
+        .filter((msg) => msg.length > 0);
+    } catch (error) {
+      logger.error(
+        `[${this.name}] Failed to fetch Render logs`,
+        error instanceof Error ? error : new Error(String(error))
+      );
+      return [];
+    }
+  }
+
+  /**
+   * Parse platform logs to extract error information
+   */
+  private parsePlatformLogs(logs: string[]): ErrorLog[] {
+    const errorLogs: ErrorLog[] = [];
+    const errorPatterns = [
+      { pattern: /error|exception|fail/i, severity: "high" as const },
+      { pattern: /warn|warning/i, severity: "medium" as const },
+      { pattern: /critical|fatal/i, severity: "critical" as const },
+    ];
+
+    for (const logLine of logs) {
+      for (const { pattern, severity } of errorPatterns) {
+        if (pattern.test(logLine)) {
+          // Extract endpoint if present
+          const endpointMatch = logLine.match(
+            /(?:GET|POST|PUT|DELETE|PATCH)\s+(\/[^\s]*)/
+          );
+          const endpoint = endpointMatch ? endpointMatch[1] : undefined;
+
+          // Check if we already have a similar error
+          const existingError = errorLogs.find(
+            (e) => e.message === logLine && e.severity === severity
+          );
+
+          if (existingError) {
+            existingError.count++;
+          } else {
+            errorLogs.push({
+              severity,
+              message: logLine.substring(0, 500), // Limit message length
+              endpoint,
+              count: 1,
+              timestamp: new Date(),
+            });
+          }
+          break; // Only match first pattern
+        }
+      }
+    }
+
+    return errorLogs;
   }
 }
 

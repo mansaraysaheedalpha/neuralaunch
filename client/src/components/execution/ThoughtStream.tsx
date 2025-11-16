@@ -238,16 +238,24 @@ export function ThoughtStreamEnhanced({
                                 ([key]) =>
                                   !["mode", "rawReasoning"].includes(key)
                               )
-                              .map(([key, value]) => (
-                                <div key={key} className="flex gap-2">
-                                  <span className="font-semibold">{key}:</span>
-                                  <span className="break-all">
-                                    {typeof value === "object"
-                                      ? JSON.stringify(value)
-                                      : String(value)}
-                                  </span>
-                                </div>
-                              ))}
+                              .map(([key, value]) => {
+                                let displayValue: string;
+                                if (value === null || value === undefined) {
+                                  displayValue = "null";
+                                } else if (typeof value === "object") {
+                                  displayValue = JSON.stringify(value, null, 2);
+                                } else if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+                                  displayValue = String(value);
+                                } else {
+                                  displayValue = JSON.stringify(value);
+                                }
+                                return (
+                                  <div key={key} className="flex gap-2">
+                                    <span className="font-semibold">{key}:</span>
+                                    <span className="break-all">{displayValue}</span>
+                                  </div>
+                                );
+                              })}
                           </div>
                         </motion.div>
                       )}

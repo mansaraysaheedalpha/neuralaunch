@@ -125,11 +125,11 @@ export async function GET(
       failures,
       stats: {
         total: failures.length,
-        byStatus: stats.reduce((acc: any, item) => {
+        byStatus: stats.reduce((acc: Record<string, number>, item) => {
           acc[item.status] = (acc[item.status] || 0) + item._count;
           return acc;
         }, {}),
-        bySeverity: stats.reduce((acc: any, item) => {
+        bySeverity: stats.reduce((acc: Record<string, number>, item) => {
           acc[item.severity] = (acc[item.severity] || 0) + item._count;
           return acc;
         }, {}),
@@ -159,8 +159,12 @@ export async function PATCH(
     }
 
     const { projectId } = await params;
-    const body = await req.json();
-    const { failureId, status, resolutionNotes } = body;
+    const body: unknown = await req.json();
+    const { failureId, status, resolutionNotes } = body as {
+      failureId?: string;
+      status?: string;
+      resolutionNotes?: string;
+    };
 
     if (!failureId) {
       return NextResponse.json(

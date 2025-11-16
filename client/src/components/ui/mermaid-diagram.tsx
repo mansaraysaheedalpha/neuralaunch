@@ -76,7 +76,7 @@ export function MermaidDiagram({
       }
     };
 
-    renderDiagram();
+    void renderDiagram();
 
     return () => {
       mounted = false;

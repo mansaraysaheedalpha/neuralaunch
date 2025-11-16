@@ -15,6 +15,21 @@ import { Switch } from "@/components/ui/switch";
 import { Brain, Eye, Settings, Loader2, CheckCircle } from "lucide-react";
 import { toast } from "sonner";
 
+interface ThoughtPreferences {
+  deepDiveEnabled: boolean;
+  showMetadata: boolean;
+}
+
+interface ThoughtPreferencesResponse {
+  success: boolean;
+  preferences: ThoughtPreferences;
+}
+
+interface SavePreferencesResponse {
+  success: boolean;
+  error?: string;
+}
+
 export function ThoughtTransparencySettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -23,13 +38,13 @@ export function ThoughtTransparencySettings() {
 
   // Load preferences
   useEffect(() => {
-    loadPreferences();
+    void loadPreferences();
   }, []);
 
   const loadPreferences = async () => {
     try {
       const res = await fetch("/api/user/settings/thought-preferences");
-      const data = await res.json();
+      const data = await res.json() as ThoughtPreferencesResponse;
 
       if (data.success) {
         setDeepDiveEnabled(data.preferences.deepDiveEnabled);
@@ -55,7 +70,7 @@ export function ThoughtTransparencySettings() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json() as SavePreferencesResponse;
 
       if (data.success) {
         toast.success("Preferences saved!", {
@@ -72,6 +87,10 @@ export function ThoughtTransparencySettings() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSave = () => {
+    void savePreferences();
   };
 
   if (loading) {
@@ -177,7 +196,7 @@ export function ThoughtTransparencySettings() {
 
         {/* Save Button */}
         <Button
-          onClick={savePreferences}
+          onClick={handleSave}
           disabled={saving}
           className="w-full"
           size="lg"

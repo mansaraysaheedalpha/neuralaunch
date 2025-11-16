@@ -81,9 +81,9 @@ export type AgentEvents = {
       sourceType: "blueprint";
       blueprint: string;
       sprintData?: {
-        completedTasks?: any[];
-        analytics?: any;
-        validationResults?: any;
+        completedTasks?: Array<{ title?: string; id: string; status: string }>;
+        analytics?: { completionRate?: number };
+        validationResults?: { features?: string[] };
       };
     };
     user?: {
@@ -101,7 +101,7 @@ export type AgentEvents = {
       projectId: string;
       userId: string;
       conversationId: string;
-      taskInput: any;
+      taskInput: unknown;
       priority: number;
       waveNumber?: number;
     };
@@ -116,7 +116,7 @@ export type AgentEvents = {
       projectId: string;
       userId: string;
       conversationId: string;
-      taskInput: any;
+      taskInput: unknown;
       priority: number;
       waveNumber?: number;
     };
@@ -131,7 +131,7 @@ export type AgentEvents = {
       projectId: string;
       userId: string;
       conversationId: string;
-      taskInput: any;
+      taskInput: unknown;
       priority: number;
       waveNumber?: number;
     };
@@ -146,7 +146,7 @@ export type AgentEvents = {
       projectId: string;
       userId: string;
       conversationId: string;
-      taskInput: any;
+      taskInput: unknown;
       priority: number;
     };
     user?: {
@@ -170,7 +170,7 @@ export type AgentEvents = {
       projectId: string;
       userId: string;
       conversationId: string;
-      taskInput: any;
+      taskInput: unknown;
       priority: number;
     };
   };
@@ -181,7 +181,7 @@ export type AgentEvents = {
       projectId: string;
       userId: string;
       conversationId: string;
-      taskInput: any;
+      taskInput: unknown;
       priority?: number;
     };
   };
@@ -192,7 +192,7 @@ export type AgentEvents = {
       userId: string;
       conversationId: string;
       taskId?: string;
-      taskInput?: any;
+      taskInput?: unknown;
     };
   };
 
@@ -215,7 +215,7 @@ export type AgentEvents = {
       userId: string;
       conversationId: string;
       taskId?: string;
-      taskInput?: any;
+      taskInput?: unknown;
     };
   };
 
@@ -258,7 +258,7 @@ export type AgentEvents = {
       userId: string;
       conversationId: string;
       success: boolean;
-      output?: any;
+      output?: unknown;
       error?: string;
     };
   };
@@ -270,7 +270,7 @@ export type AgentEvents = {
       userId: string;
       conversationId: string;
       success: boolean;
-      output?: any;
+      output?: unknown;
       error?: string;
     };
   };
@@ -282,7 +282,7 @@ export type AgentEvents = {
       userId: string;
       conversationId: string;
       success: boolean;
-      output?: any;
+      output?: unknown;
       error?: string;
     };
   };
@@ -293,7 +293,7 @@ export type AgentEvents = {
       projectId: string;
       userId: string;
       conversationId: string;
-      taskInput: any;
+      taskInput: unknown;
       priority: number;
     };
   };
@@ -303,7 +303,7 @@ export type AgentEvents = {
       taskId: string;
       projectId: string;
       success: boolean;
-      output?: any;
+      output?: unknown;
       error?: string;
     };
   };
@@ -313,7 +313,7 @@ export type AgentEvents = {
       taskId: string;
       projectId: string;
       success: boolean;
-      testResults?: any;
+      testResults?: unknown;
       error?: string;
     };
   };
@@ -325,7 +325,7 @@ export type AgentEvents = {
       success: boolean;
       approved?: boolean;
       score?: number;
-      issues?: any[];
+      issues?: unknown[];
       error?: string;
     };
   };
@@ -335,7 +335,7 @@ export type AgentEvents = {
       taskId: string;
       projectId: string;
       success: boolean;
-      output?: any;
+      output?: unknown;
       error?: string;
     };
   };
@@ -346,9 +346,9 @@ export type AgentEvents = {
       userId: string;
       conversationId: string;
       waveNumber: number;
-      issues: any[];
+      issues: unknown[];
       attempt: number;
-      criticResult?: any;
+      criticResult?: unknown;
       maxRetries?: number;
     };
   };
@@ -358,8 +358,8 @@ export type AgentEvents = {
       projectId: string;
       waveNumber: number;
       success: boolean;
-      fixedIssues?: any[];
-      remainingIssues?: any[];
+      fixedIssues?: unknown[];
+      remainingIssues?: unknown[];
       error?: string;
     };
   };
@@ -372,7 +372,7 @@ export type AgentEvents = {
       environment: 'staging' | 'production' | 'preview';
       waveNumber?: number;
       taskId?: string;
-      taskInput?: any;
+      taskInput?: unknown;
     };
   };
 
@@ -389,7 +389,7 @@ export type AgentEvents = {
     data: {
       projectId: string;
       success: boolean;
-      output?: any;
+      output?: unknown;
       error?: string;
     };
   };
@@ -400,7 +400,7 @@ export type AgentEvents = {
       userId: string;
       conversationId: string;
       taskId?: string;
-      taskInput?: any;
+      taskInput?: unknown;
     };
   };
 
@@ -408,7 +408,7 @@ export type AgentEvents = {
     data: {
       projectId: string;
       success: boolean;
-      output?: any;
+      output?: unknown;
       error?: string;
     };
   };
@@ -419,7 +419,7 @@ export type AgentEvents = {
       userId: string;
       conversationId: string;
       taskId?: string;
-      taskInput?: any;
+      taskInput?: unknown;
     };
   };
 
@@ -427,7 +427,7 @@ export type AgentEvents = {
     data: {
       projectId: string;
       success: boolean;
-      metrics?: any;
+      metrics?: unknown;
       error?: string;
     };
   };
@@ -438,7 +438,7 @@ export type AgentEvents = {
       userId: string;
       conversationId: string;
       taskId?: string;
-      taskInput?: any;
+      taskInput?: unknown;
     };
   };
 
@@ -446,7 +446,7 @@ export type AgentEvents = {
     data: {
       projectId: string;
       success: boolean;
-      optimizations?: any;
+      optimizations?: unknown;
       error?: string;
     };
   };

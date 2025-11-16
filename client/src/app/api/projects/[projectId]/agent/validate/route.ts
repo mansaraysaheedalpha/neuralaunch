@@ -45,7 +45,7 @@ export async function POST(
     // Rate limiting
     const clientIp = getClientIp(req.headers);
     const rateLimitId = getRequestIdentifier(userId, clientIp);
-    const rateLimitResult = checkRateLimit({
+    const rateLimitResult = await checkRateLimit({
       ...RATE_LIMITS.AI_GENERATION,
       identifier: rateLimitId,
     });
@@ -74,7 +74,7 @@ export async function POST(
     });
 
     // 2. Parse and validate request body
-    const body = await req.json();
+    const body = await req.json() as unknown;
     const validatedBody = validateRequestSchema.parse(body);
 
     // 3. Verify project exists and user owns it
@@ -201,7 +201,12 @@ export async function GET(
     }
 
     // 3. Extract validation from architecture
-    const architecture = projectContext.architecture as any;
+    type Architecture = {
+      validation?: unknown;
+      validatedAt?: Date | string;
+      [key: string]: unknown;
+    };
+    const architecture: Architecture = projectContext.architecture as Architecture;
     const validation = architecture?.validation || null;
 
     if (!validation) {

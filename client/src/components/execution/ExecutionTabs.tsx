@@ -21,6 +21,42 @@ import { WaveApprovalCard, WaveApprovalCardSkeleton } from "./WaveApprovalCard";
 import { CriticalFailuresPanel } from "./CriticalFailuresPanel";
 import { Task, CommandRun } from "@/types/component-props";
 
+interface FileData {
+  path: string;
+  content: string;
+}
+
+interface FilesResponse {
+  files: FileData[];
+}
+
+interface ApprovalStatus {
+  readyForApproval: boolean;
+  tasks: {
+    total: number;
+    completed: number;
+    failed: number;
+  };
+  quality: {
+    averageScore: number;
+    criticalIssues: number;
+    hasCriticalIssues: boolean;
+  };
+  prInfo: {
+    prUrl: string;
+    prNumber: number;
+  } | null;
+}
+
+interface FailureData {
+  id: string;
+  message: string;
+}
+
+interface FailuresResponse {
+  failures: FailureData[];
+}
+
 interface ExecutionTabsProps {
   projectId: string;
   conversationId: string;
@@ -34,10 +70,10 @@ interface AgentCommand {
   commands: CommandRun[];
 }
 
-const fetcher = async (url: string) => {
+const fetcher = async <T = unknown>(url: string): Promise<T> => {
   const res = await fetch(url);
   if (!res.ok) throw new Error("Failed to fetch");
-  return res.json();
+  return res.json() as Promise<T>;
 };
 
 export function ExecutionTabs({
@@ -50,17 +86,18 @@ export function ExecutionTabs({
   const [activeTab, setActiveTab] = useState("activity");
 
   // Fetch file data
-  const { data: filesData, isLoading: filesLoading } = useSWR(
+  const { data: filesData, isLoading: filesLoading } = useSWR<FilesResponse>(
     `/api/projects/${projectId}/files`,
-    fetcher
+    () => fetcher<FilesResponse>(`/api/projects/${projectId}/files`)
   );
 
   // Fetch wave approval status for current wave
-  const { data: approvalData, isLoading: approvalLoading, mutate: refetchApproval } = useSWR(
-    currentWave > 0
-      ? `/api/projects/${projectId}/waves/${currentWave}/approve`
-      : null,
-    fetcher,
+  const approvalKey = currentWave > 0
+    ? `/api/projects/${projectId}/waves/${currentWave}/approve`
+    : null;
+  const { data: approvalData, isLoading: approvalLoading, mutate: refetchApproval } = useSWR<ApprovalStatus>(
+    approvalKey,
+    approvalKey ? () => fetcher<ApprovalStatus>(approvalKey) : null,
     {
       refreshInterval: 3000, // Poll every 3s
     }
@@ -91,9 +128,10 @@ export function ExecutionTabs({
   const showApproval = approvalData?.readyForApproval;
 
   // Fetch critical failures count
-  const { data: failuresData } = useSWR(
-    `/api/projects/${projectId}/critical-failures?status=open`,
-    fetcher,
+  const failuresKey = `/api/projects/${projectId}/critical-failures?status=open`;
+  const { data: failuresData } = useSWR<FailuresResponse>(
+    failuresKey,
+    () => fetcher<FailuresResponse>(failuresKey),
     {
       refreshInterval: 5000, // Poll every 5s
     }
@@ -231,7 +269,7 @@ export function ExecutionTabs({
               conversationId={conversationId}
               status={approvalData}
               onApprovalComplete={() => {
-                refetchApproval();
+                void refetchApproval();
                 setActiveTab("activity");
               }}
             />

@@ -57,7 +57,7 @@ export async function POST(
     // Rate limiting
     const clientIp = getClientIp(req.headers);
     const rateLimitId = getRequestIdentifier(userId, clientIp);
-    const rateLimitResult = checkRateLimit({
+    const rateLimitResult = await checkRateLimit({
       ...RATE_LIMITS.AI_GENERATION,
       identifier: rateLimitId,
     });
@@ -82,7 +82,7 @@ export async function POST(
     }
 
     // 2. Validate request
-    const body = await req.json();
+    const body: unknown = await req.json();
     const validatedBody = deploySchema.parse(body);
 
     // 3. Verify project ownership
@@ -104,10 +104,10 @@ export async function POST(
     }
 
     // 4. Determine deployment platform
-    const architecture = projectContext.architecture as any;
+    const architecture = projectContext.architecture as Record<string, unknown> | null;
     const platform =
       validatedBody.platform ||
-      architecture?.infrastructureArchitecture?.hosting?.toLowerCase() ||
+      (architecture?.infrastructureArchitecture as Record<string, unknown> | undefined)?.hosting?.toString().toLowerCase() ||
       "vercel";
 
     // 5. Check if project is ready for deployment
@@ -215,19 +215,28 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const codebase = projectContext.codebase as any;
-    const deployments = codebase?.deployments || {};
+    const codebase = projectContext.codebase as Record<string, unknown> | null;
+    const deployments = (codebase?.deployments as Record<string, unknown>) || {};
+
+    // Type guard for deployment objects
+    interface DeploymentInfo {
+      status?: string;
+      [key: string]: unknown;
+    }
+
+    const production = deployments.production as DeploymentInfo | undefined;
+    const staging = deployments.staging as DeploymentInfo | undefined;
 
     return NextResponse.json({
       projectId: projectId,
       currentPhase: projectContext.currentPhase,
       deployments: {
-        staging: deployments.staging || null,
-        production: deployments.production || null,
+        staging: staging || null,
+        production: production || null,
       },
       hasActiveDeployment: !!(
-        deployments.production?.status === "active" ||
-        deployments.staging?.status === "active"
+        production?.status === "active" ||
+        staging?.status === "active"
       ),
     });
   } catch (error) {

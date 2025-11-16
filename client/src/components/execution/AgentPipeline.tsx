@@ -23,8 +23,6 @@ import {
 } from "@/lib/orchestrator/phases";
 import {
   getAgentMetadata,
-  getAgentIcon,
-  getAgentColor,
 } from "@/lib/agents/agent-types";
 import { ThoughtStream, ThoughtStreamSkeleton } from "./ThoughtStream";
 import { useAgentThoughts } from "@/hooks/useAgentThoughts";

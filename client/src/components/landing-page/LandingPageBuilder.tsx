@@ -19,7 +19,6 @@ import FeedbackSection from "./analytics/FeedbackSection";
 import RecentSignupsTable from "./analytics/RecentSignupsTable";
 import TrafficSources from "./analytics/TrafficSources";
 import AnalyticsCharts from "./analytics/AnalyticsChart";
-import { env } from "@/lib/env";
 
 // --- Interfaces ---
 // Defined to match the structure used within this component and its children
@@ -291,7 +290,7 @@ export default function LandingPageBuilder({
   const copyUrl = () => {
     const url =
       analyticsData?.landingPage.url ||
-      `${env.NEXT_PUBLIC_APP_URL || ""}/lp/${landingPage.slug}`;
+      `${process.env.NEXT_PUBLIC_APP_URL || ""}/lp/${landingPage.slug}`;
     void navigator.clipboard.writeText(url);
     toast.success("URL copied to clipboard!");
   };

@@ -105,7 +105,8 @@ export class FileSystemTool extends BaseTool {
       return { success: false, error: parsedParams.error };
     }
 
-    const { operation, path, content } = parsedParams.value;
+    const { operation, path } = parsedParams.value;
+    const content = operation === "write" ? (parsedParams.value as { content: string }).content : undefined;
     const { projectId, userId } = context;
 
     const startTime = Date.now();
@@ -135,13 +136,13 @@ export class FileSystemTool extends BaseTool {
           },
         };
       } else if (operation === "write") {
-        this.logExecution("Writing file", { path, size: content.length });
+        this.logExecution("Writing file", { path, size: content ? content.length : 0 });
 
         const result = await SandboxService.writeFile(
           projectId,
           userId,
           path,
-          content
+          content as string
         );
 
         if (result.status === "error") {
@@ -155,8 +156,8 @@ export class FileSystemTool extends BaseTool {
           success: true,
           data: {
             path,
-            size: result.size ?? Buffer.byteLength(content, "utf8"),
-            lines: content.split("\n").length,
+            size: result.size ?? Buffer.byteLength(content ?? "", "utf8"),
+            lines: (content ?? "").split("\n").length,
           },
           metadata: {
             executionTime: Date.now() - startTime,

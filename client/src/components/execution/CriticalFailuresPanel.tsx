@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, CheckCircle, Clock, XCircle, ChevronDown, ChevronRight } from "lucide-react";
 import { logger } from "@/lib/logger";
 import { toError } from "@/lib/error-utils";
-import { CriticalFailure, Issue, FixAttempt, FailureContext } from "@/types/component-props";
+import { CriticalFailure, Issue, FixAttempt } from "@/types/component-props";
 
 interface ExtendedCriticalFailure extends CriticalFailure {
   taskId?: string;
@@ -46,11 +46,7 @@ export function CriticalFailuresPanel({ projectId }: CriticalFailuresPanelProps)
   const [filter, setFilter] = useState<"all" | "open" | "resolved">("all");
   const [stats, setStats] = useState<FailureStats>({ total: 0 });
 
-  useEffect(() => {
-    fetchFailures();
-  }, [projectId, filter]);
-
-  const fetchFailures = async () => {
+  const fetchFailures = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -69,12 +65,16 @@ export function CriticalFailuresPanel({ projectId }: CriticalFailuresPanelProps)
       const data = await response.json() as { failures?: ExtendedCriticalFailure[]; stats?: FailureStats };
       setFailures(data.failures || []);
       setStats(data.stats || { total: 0 });
-    } catch (error) {
+    } catch (error: unknown) {
       logger.error("Failed to fetch critical failures", toError(error));
     } finally {
       setLoading(false);
     }
-  };
+  }, [projectId, filter]);
+
+  useEffect(() => {
+    void fetchFailures();
+  }, [fetchFailures]);
 
   const updateFailureStatus = async (
     failureId: string,
@@ -333,7 +333,7 @@ export function CriticalFailuresPanel({ projectId }: CriticalFailuresPanelProps)
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => updateFailureStatus(failure.id, "in_review")}
+                          onClick={() => { void updateFailureStatus(failure.id, "in_review"); }}
                         >
                           Mark In Review
                         </Button>
@@ -342,7 +342,7 @@ export function CriticalFailuresPanel({ projectId }: CriticalFailuresPanelProps)
                           variant="outline"
                           onClick={() => {
                             const notes = prompt("Resolution notes (optional):");
-                            updateFailureStatus(failure.id, "resolved", notes || undefined);
+                            void updateFailureStatus(failure.id, "resolved", notes || undefined);
                           }}
                         >
                           Mark Resolved
@@ -350,7 +350,7 @@ export function CriticalFailuresPanel({ projectId }: CriticalFailuresPanelProps)
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => updateFailureStatus(failure.id, "dismissed")}
+                          onClick={() => { void updateFailureStatus(failure.id, "dismissed"); }}
                         >
                           Dismiss
                         </Button>

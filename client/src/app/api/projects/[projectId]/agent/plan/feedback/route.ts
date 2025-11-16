@@ -70,7 +70,7 @@ export async function POST(
     // Rate limiting
     const clientIp = getClientIp(req.headers);
     const rateLimitId = getRequestIdentifier(userId, clientIp);
-    const rateLimitResult = checkRateLimit({
+    const rateLimitResult = await checkRateLimit({
       ...RATE_LIMITS.AI_GENERATION,
       identifier: rateLimitId,
     });
@@ -95,7 +95,7 @@ export async function POST(
     }
 
     // 2. Validate request
-    const body = await req.json();
+    const body = (await req.json()) as unknown;
     const validatedBody = feedbackSchema.parse(body);
 
     // 3. Verify project ownership

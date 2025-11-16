@@ -19,7 +19,19 @@ export const infrastructureAgentFunction = inngest.createFunction(
   },
   { event: "agent/infrastructure.setup" },
   async ({ event, step }) => {
-    const { taskId, projectId, userId, conversationId, taskInput } = event.data;
+    const { taskId, projectId, userId, conversationId, taskInput } = event.data as {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      taskInput: {
+        infrastructureType?: string;
+        deploymentTarget?: string;
+        databaseType?: string;
+        includeRedis?: boolean;
+        includeNginx?: boolean;
+      };
+    };
 
     logger.info(`[Inngest] Infrastructure Agent triggered`, {
       taskId,
@@ -47,7 +59,7 @@ export const infrastructureAgentFunction = inngest.createFunction(
       // Step 2: Execute Infrastructure Agent
       const result = await step.run("setup-infrastructure", async () => {
         return await infrastructureAgent.execute({
-          taskId: taskId!,
+          taskId: taskId,
           projectId,
           userId: userId,
           conversationId: conversationId,
@@ -76,7 +88,7 @@ export const infrastructureAgentFunction = inngest.createFunction(
           where: { projectId },
           data: {
             codebase: {
-              ...(projectContext.codebase as any),
+              ...(projectContext.codebase as Record<string, unknown>),
               infrastructure: {
                 docker: result.data?.docker || null,
                 envConfig: result.data?.envConfig || null,

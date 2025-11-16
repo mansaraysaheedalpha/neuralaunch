@@ -617,7 +617,7 @@ export abstract class BaseAgent {
             taskId: input.taskId,
             title: input.taskDetails.title,
           },
-          output: (output as unknown) as Prisma.InputJsonValue,
+          output: output as Prisma.InputJsonValue,
           success,
           durationMs,
           error,

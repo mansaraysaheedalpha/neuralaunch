@@ -83,9 +83,15 @@ export function createContextError(
   
   if (originalError) {
     Object.assign(error, { 
-      originalError: originalError instanceof Error 
-        ? originalError.message 
-        : String(originalError) 
+      originalError: originalError instanceof Error
+        ? originalError.message
+        : typeof originalError === "object"
+          ? JSON.stringify(originalError)
+          : typeof originalError === "string"
+            ? originalError
+            : typeof originalError === "object"
+              ? JSON.stringify(originalError)
+              : JSON.stringify(originalError)
     });
   }
   
@@ -107,7 +113,7 @@ export interface AgentError extends Error {
  * Create an agent error with taskId
  */
 export function createAgentError(
-  message: string | unknown,
+  message: unknown,
   context?: { taskId?: string; projectId?: string; error?: unknown; duration?: number; tool?: string }
 ): AgentError {
   const errorMessage = typeof message === "string" ? message : getErrorMessage(message);

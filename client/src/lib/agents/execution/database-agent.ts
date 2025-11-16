@@ -41,17 +41,26 @@ export class DatabaseAgent extends BaseAgent {
   }
 
   async executeTask(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
-    const { taskId, projectId, userId, taskDetails, context } = input;
+    const { projectId, userId, taskDetails, context: _context } = input;
 
     // Check if this is a fix request
     const isFixMode = taskDetails.mode === "fix";
 
     if (isFixMode) {
       logger.info(
-        `[${this.config.name}] FIX MODE: Fixing database issues for task "${taskDetails.originalTaskId}"`,
+        `[${this.config.name}] FIX MODE: Fixing database issues for task "${
+          typeof taskDetails.originalTaskId === "string" ||
+          typeof taskDetails.originalTaskId === "number"
+            ? taskDetails.originalTaskId
+            : taskDetails.originalTaskId
+              ? JSON.stringify(taskDetails.originalTaskId)
+              : ""
+        }"`,
         {
           attempt: taskDetails.attempt,
-          issuesCount: Array.isArray(taskDetails.issuesToFix) ? taskDetails.issuesToFix.length : 0,
+          issuesCount: Array.isArray(taskDetails.issuesToFix)
+            ? taskDetails.issuesToFix.length
+            : 0,
         }
       );
 
@@ -114,7 +123,7 @@ export class DatabaseAgent extends BaseAgent {
       }
 
       // Verify the database implementation
-      const verification = await this.verifyImplementation(
+      const verification = this.verifyImplementation(
         filesResult.files,
         commandsResult.commands,
         taskDetails
@@ -148,7 +157,10 @@ export class DatabaseAgent extends BaseAgent {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-      logger.error(`[${this.config.name}] Task execution failed`, toError(error));
+      logger.error(
+        `[${this.config.name}] Task execution failed`,
+        toError(error)
+      );
 
       return {
         success: false,
@@ -170,16 +182,21 @@ export class DatabaseAgent extends BaseAgent {
 
     try {
       // Load files that need fixing
-      const issuesToFix = taskDetails.issuesToFix as Array<{ file: string; issue: string }>;
+      const issuesToFix = taskDetails.issuesToFix as Array<{
+        file: string;
+        issue: string;
+      }>;
       const filesToFix = issuesToFix.map((issue) => issue.file);
       const uniqueFiles = Array.from(new Set(filesToFix));
 
-      logger.info(`[${this.config.name}] Loading ${uniqueFiles.length} files to fix`);
+      logger.info(
+        `[${this.config.name}] Loading ${uniqueFiles.length} files to fix`
+      );
 
       const existingFiles = await this.loadFilesToFix(
         projectId,
         userId,
-        uniqueFiles as string[]
+        uniqueFiles
       );
 
       // Generate fixes using AI
@@ -230,7 +247,7 @@ export class DatabaseAgent extends BaseAgent {
 
       return {
         success: true,
-        message: `Database fixes applied (Attempt ${taskDetails.attempt})`,
+        message: `Database fixes applied (Attempt ${String(taskDetails.attempt)})`,
         iterations: 1,
         durationMs: 0,
         data: {
@@ -284,10 +301,13 @@ export class DatabaseAgent extends BaseAgent {
    * Build database-specific prompt
    */
   private buildDatabasePrompt(
-    taskDetails: any,
-    context: any
+    taskDetails: AgentExecutionInput["taskDetails"],
+    context: Record<string, unknown>
   ): string {
-    const techStack = context.techStack || {};
+    const techStack: {
+      database?: { type?: string; orm?: string };
+      language?: string;
+    } = context.techStack || {};
     const architecture = context.architecture || {};
     const existingFiles = context._existingFiles || {};
     const memoryContext = context._memoryContext || "";
@@ -309,7 +329,7 @@ ${taskDetails.description}
 **Architecture:**
 ${JSON.stringify(architecture, null, 2)}
 
-${memoryContext ? `\n## Past Experience (Vector Memory)\n${memoryContext}\n` : ""}
+${memoryContext ? `\n## Past Experience (Vector Memory)\n${typeof memoryContext === "string" ? memoryContext : JSON.stringify(memoryContext, null, 2)}\n` : ""}
 
 ${
   Object.keys(existingFiles).length > 0
@@ -384,10 +404,10 @@ Generate a production-ready database implementation now.`;
    * Build fix prompt for database issues
    */
   private buildFixPrompt(
-    issuesToFix: any[],
+    issuesToFix: Array<{ file: string; issue: string; severity?: string; message?: string }>,
     existingFiles: Record<string, string>,
     attempt: number,
-    context: any
+    context: Record<string, unknown>
   ): string {
     return `You are DatabaseAgent in FIX MODE (Attempt ${attempt}).
 
@@ -399,8 +419,14 @@ ${Object.entries(existingFiles)
   .map(([path, content]) => `## ${path}\n\`\`\`\n${content}\n\`\`\``)
   .join("\n\n")}
 
-${context._errorSolution ? `\n# Potential Solutions\n${context._errorSolution}\n` : ""}
-${context._typeErrors ? `\n# Type Errors\n${context._typeErrors}\n` : ""}
+${context._errorSolution ? `\n# Potential Solutions\n${typeof context._errorSolution === "string" ? context._errorSolution : JSON.stringify(context._errorSolution, null, 2)}\n` : ""}
+${context._typeErrors
+  ? `\n# Type Errors\n${
+      typeof context._typeErrors === "string"
+        ? context._typeErrors
+        : JSON.stringify(context._typeErrors, null, 2)
+    }\n`
+  : ""}
 
 # Fix Requirements
 1. Fix ALL listed issues
@@ -447,7 +473,11 @@ Generate the fixes now.`;
         return null;
       }
 
-      const parsed = JSON.parse(jsonMatch[1]);
+      const parsed = JSON.parse(jsonMatch[1]) as {
+        files: Array<{ path: string; content: string }>;
+        commands: Array<{ command: string; description: string }>;
+        explanation: string;
+      };
 
       return {
         files: parsed.files || [],
@@ -455,7 +485,10 @@ Generate the fixes now.`;
         explanation: parsed.explanation || "",
       };
     } catch (error) {
-      logger.error(`[${this.config.name}] Failed to parse response`, toError(error));
+      logger.error(
+        `[${this.config.name}] Failed to parse response`,
+        toError(error)
+      );
       return null;
     }
   }
@@ -571,16 +604,19 @@ Generate the fixes now.`;
   /**
    * Verify database implementation
    */
-  private async verifyImplementation(
+  private verifyImplementation(
     files: string[],
     commands: string[],
-    taskDetails: any
-  ): Promise<{ passed: boolean; issues: string[] }> {
+    taskDetails: AgentExecutionInput["taskDetails"]
+  ): { passed: boolean; issues: string[] } {
     const issues: string[] = [];
 
     // Check if schema file exists
     const hasSchema = files.some((f) => f.includes("schema.prisma"));
-    if (!hasSchema && taskDetails.description.toLowerCase().includes("schema")) {
+    if (
+      !hasSchema &&
+      taskDetails.description.toLowerCase().includes("schema")
+    ) {
       issues.push("No Prisma schema file generated");
     }
 

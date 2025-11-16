@@ -208,7 +208,7 @@ function buildEmailContent(
   notification: Notification,
   userName: string
 ): { subject: string; html: string; text: string } {
-  const { type, priority, projectId } = notification;
+  const { type, projectId } = notification;
 
   switch (type) {
     case "review_required": {
@@ -351,7 +351,7 @@ function buildEmailContent(
           n.alertType,
           n.severity,
           n.message,
-          n.metrics || {},
+          (n.metrics || {}) as Record<string, string | number>,
           `${env.NEXT_PUBLIC_APP_URL}/projects/${projectId}/monitoring`
         ),
         text: `Hi ${userName},\n\n[${n.severity.toUpperCase()}] ${n.alertType}\n\n${n.message}`,
@@ -397,7 +397,6 @@ function buildReviewEmail(
   const { reviewId, projectId, waveNumber, priority, reason } = notification;
 
   const subject = `[${priority.toUpperCase()}] Wave ${waveNumber} Needs Your Review - NeuraLaunch`;
-  const reviewUrl = `${env.NEXT_PUBLIC_APP_URL}/projects/${projectId}/reviews/${reviewId}`;
 
   const htmlBody = `
 <!DOCTYPE html>
@@ -588,7 +587,13 @@ async function sendWithResend(params: {
 
     if (error) {
       logger.error("Resend API error", error as Error, { to: params.to });
-      throw error;
+      throw new Error(
+        typeof error === "string"
+          ? error
+          : typeof error === "object"
+            ? JSON.stringify(error)
+            : String(error)
+      );
     }
 
     logger.info("Email sent via Resend", {
@@ -602,106 +607,8 @@ async function sendWithResend(params: {
   }
 }
 
-/**
- * Send with SendGrid (optional dependency)
- */
-async function sendWithSendGrid(params: {
-  to: string;
-  subject: string;
-  html: string;
-  text: string;
-}): Promise<void> {
-  try {
-    // @ts-ignore - Optional dependency
-    const sgMail = await import("@sendgrid/mail");
-    const envRecord = env as Record<string, unknown>;
-    const apiKey = envRecord.SENDGRID_API_KEY as string | undefined;
-    if (!apiKey) {
-      logger.warn("SendGrid API key not configured, skipping email", { to: params.to });
-      return;
-    }
-    sgMail.default.setApiKey(apiKey);
 
-    await sgMail.default.send({
-      from: (envRecord.EMAIL_FROM as string) || "noreply@neuralaunch.com",
-      to: params.to,
-      subject: params.subject,
-      html: params.html,
-      text: params.text,
-    });
 
-    logger.info("Email sent via SendGrid", { to: params.to });
-  } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'MODULE_NOT_FOUND') {
-      logger.warn("SendGrid not installed, skipping email", { to: params.to });
-      return;
-    }
-    logger.error("SendGrid email failed", toError(error));
-    throw error;
-  }
-}
-
-/**
- * Send with AWS SES (optional dependency)
- */
-async function sendWithSES(params: {
-  to: string;
-  subject: string;
-  html: string;
-  text: string;
-}): Promise<void> {
-  try {
-    // @ts-ignore - Optional dependency
-    const { SESClient, SendEmailCommand } = await import("@aws-sdk/client-ses");
-
-    const envRecord = env as Record<string, unknown>;
-    const awsAccessKeyId = envRecord.AWS_ACCESS_KEY_ID as string | undefined;
-    const awsSecretKey = envRecord.AWS_SECRET_ACCESS_KEY as string | undefined;
-    if (!awsAccessKeyId || !awsSecretKey) {
-      logger.warn("AWS credentials not configured, skipping email", { to: params.to });
-      return;
-    }
-
-    const sesClient = new SESClient({
-      region: (envRecord.AWS_REGION as string) || "us-east-1",
-      credentials: {
-        accessKeyId: awsAccessKeyId,
-        secretAccessKey: awsSecretKey,
-      },
-    });
-
-    const command = new SendEmailCommand({
-      Source: (envRecord.EMAIL_FROM as string) || "noreply@neuralaunch.com",
-      Destination: {
-        ToAddresses: [params.to],
-      },
-      Message: {
-        Subject: {
-          Data: params.subject,
-        },
-        Body: {
-          Html: {
-            Data: params.html,
-          },
-          Text: {
-            Data: params.text,
-          },
-        },
-      },
-    });
-
-    await sesClient.send(command);
-
-    logger.info("Email sent via AWS SES", { to: params.to });
-  } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error && error.code === 'MODULE_NOT_FOUND') {
-      logger.warn("AWS SES SDK not installed, skipping email", { to: params.to });
-      return;
-    }
-    logger.error("AWS SES email failed", toError(error));
-    throw error;
-  }
-}
 
 /**
  * Send email using Resend
