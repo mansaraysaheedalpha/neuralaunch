@@ -17,8 +17,8 @@ const nextConfig: NextJsConfig = {
   async headers() {
     return Promise.resolve([
       {
-        // Apply CORS headers to all API routes
-        source: "/api/:path*",
+        // Apply CORS headers to API routes (excluding auth routes - NextAuth handles its own CORS)
+        source: "/api/((?!auth).*)*",
         headers: [
           { key: "Access-Control-Allow-Credentials", value: "true" },
           { key: "Access-Control-Allow-Origin", value: "*" }, // Will be overridden by middleware for specific origins

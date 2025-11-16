@@ -11,7 +11,6 @@ import { trackEvent } from "@/lib/analytics";
 import { env } from "@/lib/env";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  trustHost: true, // Required for production deployment
   adapter: PrismaAdapter(prisma) as Adapter,
   providers: [
     Google({
