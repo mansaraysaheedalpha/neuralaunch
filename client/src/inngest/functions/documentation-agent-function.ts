@@ -100,11 +100,11 @@ export const documentationAgentFunction = inngest.createFunction(
       if (taskInput?.commitToGit !== false && filesCreated.length > 0) {
         await step.run("commit-documentation", async () => {
           try {
-            const gitTool = await import("@/lib/agents/tools/git-tool");
+            const { GitTool } = await import("@/lib/agents/tools/git-tool");
+            const gitTool = new GitTool();
 
             // Stage documentation files
-            await gitTool.GitTool.prototype.execute.call(
-              { logExecution: () => {}, logError: () => {} },
+            await gitTool.execute(
               { operation: "add" },
               { projectId, userId }
             );
@@ -119,8 +119,7 @@ API Endpoints: ${apiEndpoints.length}
 Components: ${components.length}
 `;
 
-            await gitTool.GitTool.prototype.execute.call(
-              { logExecution: () => {}, logError: () => {} },
+            await gitTool.execute(
               { operation: "commit", message: commitMessage },
               { projectId, userId }
             );

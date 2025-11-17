@@ -86,14 +86,16 @@ export const backendAgentFunction = inngest.createFunction(
         };
       });
 
-      // Step 3: Initialize Git if needed
-      await step.run("git-init", async () => {
-        const gitTool = await import("@/lib/agents/tools/git-tool");
-        await gitTool.GitTool.prototype.execute.call(
-          { logExecution: () => {}, logError: () => {} },
-          { operation: "init" },
-          { projectId, userId }
-        );
+      // Step 3: Validate environment and initialize
+      await step.run("validate-and-init-environment", async () => {
+        const { ensureEnvironmentReady } = await import("@/lib/agents/utils/environment-validator");
+        try {
+          await ensureEnvironmentReady(projectId, userId);
+          log.info("[Backend Agent] Environment validation passed");
+        } catch (envError) {
+          log.error("[Backend Agent] Environment validation failed", envError as Error);
+          throw envError;
+        }
       });
 
       // Step 4: Create feature branch
@@ -107,9 +109,9 @@ export const backendAgentFunction = inngest.createFunction(
 
         const branch = `backend/${taskId.slice(0, 8)}-${safeName}`;
 
-        const gitTool = await import("@/lib/agents/tools/git-tool");
-        const result = await gitTool.GitTool.prototype.execute.call(
-          { logExecution: () => {}, logError: () => {} },
+        const { GitTool } = await import("@/lib/agents/tools/git-tool");
+        const gitTool = new GitTool();
+        const result = await gitTool.execute(
           { operation: "branch", branchName: branch },
           { projectId, userId }
         );
@@ -172,9 +174,9 @@ export const backendAgentFunction = inngest.createFunction(
       // Step 7: Commit changes
       await step.run("git-commit", async () => {
         // Stage all
-        const gitTool = await import("@/lib/agents/tools/git-tool");
-        await gitTool.GitTool.prototype.execute.call(
-          { logExecution: () => {}, logError: () => {} },
+        const { GitTool } = await import("@/lib/agents/tools/git-tool");
+        const gitTool = new GitTool();
+        await gitTool.execute(
           { operation: "add" },
           { projectId, userId }
         );
@@ -182,8 +184,7 @@ export const backendAgentFunction = inngest.createFunction(
         // Commit
         const taskInput = task.input as TaskInput;
         const commitMessage = `feat(backend): ${taskInput.title}\n\nTask ID: ${taskId}\nIterations: ${result.iterations}`;
-        await gitTool.GitTool.prototype.execute.call(
-          { logExecution: () => {}, logError: () => {} },
+        await gitTool.execute(
           { operation: "commit", message: commitMessage },
           { projectId, userId }
         );
@@ -193,9 +194,9 @@ export const backendAgentFunction = inngest.createFunction(
       const githubInfo = projectContext.codebase as GitHubInfo;
       if (githubInfo?.githubRepoUrl) {
         await step.run("push-to-github", async () => {
-          const gitTool = await import("@/lib/agents/tools/git-tool");
-          const pushResult = await gitTool.GitTool.prototype.execute.call(
-            { logExecution: () => {}, logError: () => {} },
+          const { GitTool } = await import("@/lib/agents/tools/git-tool");
+          const gitTool = new GitTool();
+          const pushResult = await gitTool.execute(
             {
               operation: "push",
               branchName,

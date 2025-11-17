@@ -83,9 +83,9 @@ export const databaseAgentFunction = inngest.createFunction(
 
       // Step 3: Initialize Git if needed
       await step.run("git-init", async () => {
-        const gitTool = await import("@/lib/agents/tools/git-tool");
-        await gitTool.GitTool.prototype.execute.call(
-          { logExecution: () => {}, logError: () => {} },
+        const { GitTool } = await import("@/lib/agents/tools/git-tool");
+        const gitTool = new GitTool();
+        await gitTool.execute(
           { operation: "init" },
           { projectId, userId }
         );
@@ -106,9 +106,9 @@ export const databaseAgentFunction = inngest.createFunction(
 
         const branch = `database/${taskId.slice(0, 8)}-${safeName}`;
 
-        const gitTool = await import("@/lib/agents/tools/git-tool");
-        const result = await gitTool.GitTool.prototype.execute.call(
-          { logExecution: () => {}, logError: () => {} },
+        const { GitTool } = await import("@/lib/agents/tools/git-tool");
+        const gitTool = new GitTool();
+        const result = await gitTool.execute(
           { operation: "branch", branchName: branch },
           { projectId, userId }
         );
@@ -170,9 +170,9 @@ export const databaseAgentFunction = inngest.createFunction(
       // Step 7: Commit changes
       await step.run("git-commit", async () => {
         // Stage all
-        const gitTool = await import("@/lib/agents/tools/git-tool");
-        await gitTool.GitTool.prototype.execute.call(
-          { logExecution: () => {}, logError: () => {} },
+        const { GitTool } = await import("@/lib/agents/tools/git-tool");
+        const gitTool = new GitTool();
+        await gitTool.execute(
           { operation: "add" },
           { projectId, userId }
         );
@@ -181,8 +181,7 @@ export const databaseAgentFunction = inngest.createFunction(
         type TaskInput = { title?: string };
         const input: TaskInput = typeof task.input === "object" && task.input !== null ? task.input as TaskInput : {};
         const commitMessage = `feat(database): ${input.title}\n\nTask ID: ${taskId}\nIterations: ${result.iterations}`;
-        await gitTool.GitTool.prototype.execute.call(
-          { logExecution: () => {}, logError: () => {} },
+        await gitTool.execute(
           { operation: "commit", message: commitMessage },
           { projectId, userId }
         );
@@ -193,9 +192,9 @@ export const databaseAgentFunction = inngest.createFunction(
       const githubInfo = projectContext.codebase as GithubInfo;
       if (githubInfo && typeof githubInfo.githubRepoUrl === "string") {
         await step.run("push-to-github", async () => {
-          const gitTool = await import("@/lib/agents/tools/git-tool");
-          const pushResult = await gitTool.GitTool.prototype.execute.call(
-            { logExecution: () => {}, logError: () => {} },
+          const { GitTool } = await import("@/lib/agents/tools/git-tool");
+          const gitTool = new GitTool();
+          const pushResult = await gitTool.execute(
             {
               operation: "push",
               branchName,

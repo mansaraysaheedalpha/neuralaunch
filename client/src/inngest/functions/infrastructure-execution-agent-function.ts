@@ -114,9 +114,13 @@ export const infrastructureExecutionAgentFunction = inngest.createFunction(
 
         const branch = `infrastructure/${taskId.slice(0, 8)}-${safeName}`;
 
-        const gitTool = await import("@/lib/agents/tools/git-tool");
-        const result = await gitTool.GitTool.prototype.execute.call(
-          { logExecution: () => {}, logError: () => {} },
+        const { GitTool } = await import("@/lib/agents/tools/git-tool");
+
+
+        const gitTool = new GitTool();
+
+
+        const result = await gitTool.execute(
           { operation: "branch", branchName: branch },
           { projectId, userId }
         );
@@ -183,17 +187,16 @@ export const infrastructureExecutionAgentFunction = inngest.createFunction(
 
       // Step 6: Commit changes
       await step.run("git-commit", async () => {
-        const gitTool = await import("@/lib/agents/tools/git-tool");
-        await gitTool.GitTool.prototype.execute.call(
-          { logExecution: () => {}, logError: () => {} },
+        const { GitTool } = await import("@/lib/agents/tools/git-tool");
+        const gitTool = new GitTool();
+        await gitTool.execute(
           { operation: "add" },
           { projectId, userId }
         );
 
         const taskInput = task.input as TaskInput;
         const commitMessage = `feat(infrastructure): ${taskInput.title}\n\nTask ID: ${taskId}\nIterations: ${result.iterations}`;
-        await gitTool.GitTool.prototype.execute.call(
-          { logExecution: () => {}, logError: () => {} },
+        await gitTool.execute(
           { operation: "commit", message: commitMessage },
           { projectId, userId }
         );
@@ -203,9 +206,11 @@ export const infrastructureExecutionAgentFunction = inngest.createFunction(
       const githubInfo = projectContext.codebase;
       if (githubInfo?.githubRepoUrl) {
         await step.run("push-to-github", async () => {
-          const gitTool = await import("@/lib/agents/tools/git-tool");
-          const pushResult = await gitTool.GitTool.prototype.execute.call(
-            { logExecution: () => {}, logError: () => {} },
+          const { GitTool } = await import("@/lib/agents/tools/git-tool");
+
+          const gitTool = new GitTool();
+
+          const pushResult = await gitTool.execute(
             {
               operation: "push",
               branchName,

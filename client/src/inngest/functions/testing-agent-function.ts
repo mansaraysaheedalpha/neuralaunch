@@ -67,6 +67,48 @@ export const testingAgentFunction = inngest.createFunction(
       throw new Error(`Project context not found for ${projectId}`);
     }
 
+    // Step 1.5: Gather source files from completed tasks in the wave
+    const sourceFilesToTest = await step.run("gather-source-files", async () => {
+      // If sourceFiles explicitly provided, use them
+      if (taskInput.sourceFiles && Array.isArray(taskInput.sourceFiles) && taskInput.sourceFiles.length > 0) {
+        return taskInput.sourceFiles;
+      }
+
+      // Otherwise, gather files created by completed execution tasks in this wave
+      const waveNumber = taskInput.waveNumber;
+      if (!waveNumber) {
+        logger.warn("[Testing Agent] No wave number provided, cannot gather source files");
+        return [];
+      }
+
+      const completedTasks = await prisma.agentTask.findMany({
+        where: {
+          projectId,
+          waveNumber,
+          status: "completed",
+          agentName: { in: ["FrontendAgent", "BackendAgent", "DatabaseAgent"] },
+        },
+        select: { output: true },
+      });
+
+      const files: string[] = [];
+      completedTasks.forEach(task => {
+        const output = task.output as { filesCreated?: Array<{ path: string }> | string[] } | null;
+        if (output?.filesCreated && Array.isArray(output.filesCreated)) {
+          output.filesCreated.forEach(file => {
+            if (typeof file === "string") {
+              files.push(file);
+            } else if (file && typeof file === "object" && "path" in file && typeof file.path === "string") {
+              files.push(file.path);
+            }
+          });
+        }
+      });
+
+      logger.info("[Testing Agent] Gathered source files from completed tasks", { count: files.length });
+      return files;
+    });
+
     // Step 2: Execute Testing Agent
     const result = await step.run("generate-and-run-tests", async () => {
       return await testingAgent.execute({
@@ -77,11 +119,13 @@ export const testingAgentFunction = inngest.createFunction(
           typeof conversationId === "string" ? conversationId : "",
         taskDetails: {
           title: "Generate Tests",
-          description: "Automated test generation",
+          description: sourceFilesToTest.length > 0
+            ? `Generate tests for ${sourceFilesToTest.length} source files`
+            : "Automated test generation (discover source files automatically)",
           complexity: "simple",
           estimatedLines: 100,
           testType: taskInput.testType || "unit",
-          sourceFiles: taskInput.sourceFiles || [],
+          sourceFiles: sourceFilesToTest,
         },
         context: {
           techStack: projectContext.techStack as TechStack | undefined,
