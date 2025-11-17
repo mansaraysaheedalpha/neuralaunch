@@ -427,8 +427,29 @@ app.post("/fs/read", async (req, res) => {
 
 // Start server
 const server = http.createServer(app);
+
+server.on('error', (error) => {
+  console.error(`[Sandbox] ❌ FATAL: Server failed to start:`, error);
+  console.error(`[Sandbox] Port: ${PORT}`);
+  console.error(`[Sandbox] Workspace: ${WORKSPACE_DIR}`);
+  process.exit(1);
+});
+
 server.listen(PORT, () => {
   console.log(`[Sandbox] Server listening on port ${PORT}`);
   console.log(`[Sandbox] Workspace: ${WORKSPACE_DIR}`);
   console.log(`[Sandbox] Project ID: ${projectId}`);
+
+    try {
+    const { execSync } = require('child_process');
+    const output = execSync(`ls -la ${WORKSPACE_DIR}`, { encoding: 'utf8' });
+    console.log(`[Sandbox] Workspace permissions:`);
+    console.log(output);
+  } catch (error) {
+    console.error(`[Sandbox] ❌ Workspace check failed:`, error.message);
+  }
+  
+  console.log(`[Sandbox] Ready to accept requests`);
+
 });
+

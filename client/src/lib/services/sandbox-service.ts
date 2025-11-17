@@ -10,7 +10,7 @@ import { env } from "../env"; // Use validated env
 // --- CONFIGURATION ---
 const IS_PRODUCTION = env.NODE_ENV === "production";
 const SANDBOX_IMAGE_NAME =
-  "us-central1-docker.pkg.dev/gen-lang-client-0239783733/neuralaunch-images/neuralaunch-sandbox:v7";
+  "us-central1-docker.pkg.dev/gen-lang-client-0239783733/neuralaunch-images/neuralaunch-sandbox:v8";
 const SANDBOX_INTERNAL_PORT = "8080";
 const WORKSPACE_DIR_INSIDE_CONTAINER = "/workspace";
 
@@ -212,7 +212,7 @@ class SandboxServiceClass {
         if (containerUrl) {
           try {
             const health = await fetch(`${containerUrl}/health`, {
-              signal: AbortSignal.timeout(3000),
+              signal: AbortSignal.timeout(15000),
             }); // 3s timeout
             if (health.ok) {
               logger.info(
@@ -424,7 +424,7 @@ class SandboxServiceClass {
       logger.info(
         `[SandboxService] New sandbox ${container.id} for ${projectId} running at ${publicUrl}`
       );
-      await new Promise((resolve) => setTimeout(resolve, 2500)); // Wait for server boot
+      await new Promise((resolve) => setTimeout(resolve, 8000)); // Wait for server boot
 
       return publicUrl; // Return the *publicly accessible* URL
     } catch (createError: unknown) {
@@ -456,7 +456,7 @@ class SandboxServiceClass {
         data: { sandboxLastAccessedAt: new Date() },
       });
 
-      const fetchTimeoutMs = (timeout + 10) * 1000;
+      const fetchTimeoutMs = (timeout + 30) * 1000;
 
       const response = await fetch(`${sandboxUrl}/exec`, {
         method: "POST",

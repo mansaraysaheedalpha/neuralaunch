@@ -319,23 +319,30 @@ export abstract class BaseAgent {
     try {
       logger.info(`[${this.config.name}] Loading project context`);
 
-      const contextResult = await this.executeTool(
-        "context_loader",
-        {
-          operation: "smart_load",
-          taskDescription:
-            input.taskDetails.title + " " + input.taskDetails.description,
-          maxFiles: 15,
-          maxSize: 300000, // 300KB limit
-        },
-        {
-          projectId: input.projectId,
-          userId: input.userId,
-        }
+      // ✅ ADD: Import the retry helper at the top of the file
+      const { withSandboxRetry } = await import("../utils/sandbox-retry");
+      const contextResult = await withSandboxRetry(
+        () =>
+          this.executeTool(
+            "context_loader",
+            {
+              operation: "smart_load",
+              taskDescription:
+                input.taskDetails.title + " " + input.taskDetails.description,
+              maxFiles: 15,
+              maxSize: 300000,
+            },
+            {
+              projectId: input.projectId,
+              userId: input.userId,
+            }
+          ),
+        "load-project-context",
+        3, // 3 retries
+        5000 // 5s delay
       );
 
       if (contextResult.success && contextResult.data) {
-        // Add loaded files to context
         const data = contextResult.data as {
           existingFiles?: Record<string, string>;
           structure?: unknown;
@@ -353,12 +360,12 @@ export abstract class BaseAgent {
       }
     } catch (error) {
       logger.warn(
-        `[${this.config.name}] Failed to load project context`,
-        toLogContext(error)
+        `[${this.config.name}] Failed to load project context after retries`,
+        error instanceof Error ? { error: error.message } : { error }
       );
+      // Don't throw - continue execution without context
     }
   }
-
   /**
    * ✅ NEW: Search for solution when error occurs
    */
@@ -627,8 +634,8 @@ export abstract class BaseAgent {
     params: Record<string, unknown>
   ): T {
     // Default implementation: basic type checking and validation
-    if (!params || typeof params !== 'object') {
-      throw new Error('Invalid params: must be an object');
+    if (!params || typeof params !== "object") {
+      throw new Error("Invalid params: must be an object");
     }
     return params as T;
   }
