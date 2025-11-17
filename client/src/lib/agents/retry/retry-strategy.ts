@@ -47,22 +47,25 @@ export class DynamicRetryStrategy {
   private readonly DEFAULT_LIMITS = {
     simple: {
       maxIterations: 3,
-      maxCostDollars: 0.25,
+      maxCostDollars: 0.5,
       maxDurationMs: 5 * 60 * 1000, // 5 minutes
     },
     medium: {
       maxIterations: 5,
-      maxCostDollars: 0.5,
+      maxCostDollars: 1.0,
       maxDurationMs: 10 * 60 * 1000, // 10 minutes
     },
   };
 
   // AI model costs (approximate)
-  private readonly MODEL_COSTS: Record<string, {
-    inputPerMillion: number;
-    outputPerMillion: number;
-    avgTokensPerIteration: number;
-  }> = {
+  private readonly MODEL_COSTS: Record<
+    string,
+    {
+      inputPerMillion: number;
+      outputPerMillion: number;
+      avgTokensPerIteration: number;
+    }
+  > = {
     "gemini-2.0-flash-exp": {
       inputPerMillion: 0.075, // $0.075 per 1M input tokens
       outputPerMillion: 0.3, // $0.30 per 1M output tokens
@@ -71,6 +74,22 @@ export class DynamicRetryStrategy {
     "gemini-2.5-pro": {
       inputPerMillion: 1.25,
       outputPerMillion: 5.0,
+      avgTokensPerIteration: 8000,
+    },
+    // ✅ ADD CLAUDE MODELS:
+    "claude-sonnet-4-20250514": {
+      inputPerMillion: 3.0, // $3 per 1M input tokens
+      outputPerMillion: 15.0, // $15 per 1M output tokens
+      avgTokensPerIteration: 8000,
+    },
+    "claude-sonnet-4-5-20250929": {
+      inputPerMillion: 3.0, // $3 per 1M input tokens
+      outputPerMillion: 15.0, // $15 per 1M output tokens
+      avgTokensPerIteration: 8000,
+    },
+    "claude-opus-4-20250514": {
+      inputPerMillion: 15.0, // $15 per 1M input tokens
+      outputPerMillion: 75.0, // $75 per 1M output tokens
       avgTokensPerIteration: 8000,
     },
   };
@@ -84,8 +103,20 @@ export class DynamicRetryStrategy {
     modelName: string = "gemini-2.0-flash-exp"
   ): RetryConfig {
     const limits = this.DEFAULT_LIMITS[complexity];
-    const modelCost =
-      this.MODEL_COSTS[modelName] || this.MODEL_COSTS["gemini-2.0-flash-exp"];
+
+    // ✅ ADD: Better fallback for unknown models
+    let modelCost = this.MODEL_COSTS[modelName];
+
+    if (!modelCost) {
+      logger.warn(
+        `[${this.name}] Unknown model: ${modelName}, using Gemini Flash defaults`,
+        {
+          modelName,
+          availableModels: Object.keys(this.MODEL_COSTS),
+        }
+      );
+      modelCost = this.MODEL_COSTS["gemini-2.0-flash-exp"];
+    }
 
     // Calculate estimated cost per iteration
     const avgTokens = modelCost.avgTokensPerIteration;
@@ -96,7 +127,7 @@ export class DynamicRetryStrategy {
     // Adjust iterations based on estimated lines
     let maxIterations = limits.maxIterations;
     if (estimatedLines > 200 && complexity === "simple") {
-      maxIterations = Math.min(maxIterations + 1, 5); // Allow 1 extra retry for larger simple tasks
+      maxIterations = Math.min(maxIterations + 1, 5);
     }
 
     return {

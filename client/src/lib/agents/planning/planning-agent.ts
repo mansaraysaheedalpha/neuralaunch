@@ -21,7 +21,6 @@ import {
   parseChainOfThought,
 } from "@/lib/agents/extended-thinking";
 
-
 // ==========================================
 // TYPES & INTERFACES
 // ==========================================
@@ -75,12 +74,11 @@ export interface AtomicTask {
     | "frontend"
     | "backend"
     | "database"
-    | "devops"
+    | "infrastructure"
     | "integration"
     | "testing";
   priority: number;
-  estimatedHours: number;
-  estimatedLines: number;
+
   complexity: "simple" | "medium";
   dependencies: string[];
   technicalDetails: {
@@ -90,6 +88,19 @@ export interface AtomicTask {
     components?: string[];
   };
   acceptanceCriteria: string[];
+}
+
+// Also update ExecutionPlan interface:
+export interface ExecutionPlan {
+  architecture: TechnicalArchitecture;
+  tasks: AtomicTask[];
+  phases: {
+    name: string;
+    taskIds: string[];
+  }[];
+
+  criticalPath: string[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface TechnicalArchitecture {
@@ -128,19 +139,6 @@ export interface TechnicalArchitecture {
     dataFlow: string; // Mermaid sequence diagram showing data flow
     deployment: string; // Mermaid diagram showing deployment architecture
   };
-}
-
-export interface ExecutionPlan {
-  architecture: TechnicalArchitecture;
-  tasks: AtomicTask[];
-  phases: {
-    name: string;
-    taskIds: string[];
-    estimatedDuration: string;
-  }[];
-  totalEstimatedHours: number;
-  criticalPath: string[];
-  metadata?: Record<string, unknown>;
 }
 
 export interface PlanningOutput {
@@ -258,7 +256,11 @@ export class PlanningAgent {
     } = options || {};
 
     // Create thought stream with deep dive support
-    const thoughts = createThoughtStream(input.projectId, this.name, enableDeepDive);
+    const thoughts = createThoughtStream(
+      input.projectId,
+      this.name,
+      enableDeepDive
+    );
 
     try {
       await thoughts.starting("vision-based execution planning");
@@ -330,8 +332,14 @@ export class PlanningAgent {
         }
       } catch (aiError) {
         // If AI call fails, log error and try fallback without extended thinking
-        logger.error(`[${this.name}] Primary AI call failed, trying fallback`, toError(aiError));
-        await thoughts.emit("thinking", "Primary AI call failed, using fallback method");
+        logger.error(
+          `[${this.name}] Primary AI call failed, trying fallback`,
+          toError(aiError)
+        );
+        await thoughts.emit(
+          "thinking",
+          "Primary AI call failed, using fallback method"
+        );
         responseText = await this.callClaude(prompt, thoughts);
       }
 
@@ -351,11 +359,17 @@ export class PlanningAgent {
 
       // Step 6: Store results
       await thoughts.accessing("database", "Storing execution plan");
-      await this.storePlanningResults(input.projectId, plan, "vision", {
-        visionText: input.visionText,
-        projectName: input.projectName,
-        analysis,
-      }, rawThinking);
+      await this.storePlanningResults(
+        input.projectId,
+        plan,
+        "vision",
+        {
+          visionText: input.visionText,
+          projectName: input.projectName,
+          analysis,
+        },
+        rawThinking
+      );
 
       await thoughts.executing("creating agent task records");
       await this.createAgentTasks(input.projectId, plan.tasks);
@@ -424,7 +438,11 @@ export class PlanningAgent {
       });
 
       // Create thought stream with deep dive support
-      const thoughts = createThoughtStream(input.projectId, this.name, enableDeepDive);
+      const thoughts = createThoughtStream(
+        input.projectId,
+        this.name,
+        enableDeepDive
+      );
       await thoughts.starting("blueprint-based execution planning");
 
       // Step 1: Parse blueprint structure
@@ -447,11 +465,14 @@ export class PlanningAgent {
         input.sprintData
       );
 
-      await thoughts.accessing("Claude AI", "Generating detailed task breakdown");
+      await thoughts.accessing(
+        "Claude AI",
+        "Generating detailed task breakdown"
+      );
       logger.info(
         `[${this.name}] Generating blueprint-based execution plan...`
       );
-      
+
       let responseText: string;
       let rawThinking: string | undefined;
 
@@ -497,10 +518,16 @@ export class PlanningAgent {
 
       // Step 5: Store results
       await thoughts.accessing("database", "Storing execution plan");
-      await this.storePlanningResults(input.projectId, plan, "blueprint", {
-        blueprint: input.blueprint,
-        sprintData: input.sprintData,
-      }, rawThinking);
+      await this.storePlanningResults(
+        input.projectId,
+        plan,
+        "blueprint",
+        {
+          blueprint: input.blueprint,
+          sprintData: input.sprintData,
+        },
+        rawThinking
+      );
 
       await thoughts.executing("creating agent task records");
       await this.createAgentTasks(input.projectId, plan.tasks);
@@ -564,7 +591,11 @@ export class PlanningAgent {
     } = options || {};
 
     // Create thought stream with deep dive support
-    const thoughts = createThoughtStream(input.projectId, this.name, enableDeepDive);
+    const thoughts = createThoughtStream(
+      input.projectId,
+      this.name,
+      enableDeepDive
+    );
 
     try {
       await thoughts.starting("blueprint-based execution planning");
@@ -622,7 +653,7 @@ export class PlanningAgent {
         "Generating atomic tasks and phases"
       );
       logger.info(`[${this.name}] Requesting AI planning analysis...`);
-      
+
       let responseText: string;
       let rawThinking: string | undefined;
 
@@ -666,16 +697,21 @@ export class PlanningAgent {
         {
           tasks: plan.tasks.length,
           phases: plan.phases.length,
-          estimatedHours: plan.totalEstimatedHours,
         }
       );
 
       // Step 7: Store results in database
       await thoughts.accessing("database", "Storing execution plan");
-      await this.storePlanningResults(input.projectId, plan, "blueprint", {
-        blueprint: context.blueprint,
-        techStack: context.techStack,
-      }, rawThinking);
+      await this.storePlanningResults(
+        input.projectId,
+        plan,
+        "blueprint",
+        {
+          blueprint: context.blueprint,
+          techStack: context.techStack,
+        },
+        rawThinking
+      );
 
       // Step 8: Create AgentTask records for execution
       await thoughts.executing("creating agent task records for execution");
@@ -687,14 +723,14 @@ export class PlanningAgent {
       const executionId = await this.logExecution(input, plan, true, duration);
 
       await thoughts.completing(
-        `Planning complete with ${plan.tasks.length} tasks (~${plan.totalEstimatedHours}h) in ${duration}ms`
+        `Planning complete with ${plan.tasks.length} tasks in ${duration}ms`
       );
 
       logger.info(`[${this.name}] Legacy planning completed`, {
         projectId: input.projectId,
         taskCount: plan.tasks.length,
         phases: plan.phases.length,
-        estimatedHours: plan.totalEstimatedHours,
+
         duration: `${duration}ms`,
       });
 
@@ -936,14 +972,18 @@ IMPORTANT: Return ONLY the JSON object, with no markdown formatting, no code blo
   }
 
   private inferBackend(requirements: Record<string, unknown>): string {
-    const technicalNeeds = requirements.technicalNeeds as { realtime?: boolean } | undefined;
+    const technicalNeeds = requirements.technicalNeeds as
+      | { realtime?: boolean }
+      | undefined;
     if (technicalNeeds?.realtime) return "Node.js + Socket.io";
     return "Next.js API Routes";
   }
 
   private inferDatabase(requirements: Record<string, unknown>): string {
     if (requirements.complexity === "simple") return "None (static)";
-    const technicalNeeds = requirements.technicalNeeds as { realtime?: boolean } | undefined;
+    const technicalNeeds = requirements.technicalNeeds as
+      | { realtime?: boolean }
+      | undefined;
     if (technicalNeeds?.realtime) return "PostgreSQL + Redis";
     return "PostgreSQL";
   }
@@ -1023,7 +1063,9 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
     sprintData: Record<string, unknown>
   ): Record<string, unknown> {
     // Priority features based on completed validation tasks
-    const completedTasks = sprintData.completedTasks as Array<Record<string, unknown>> | undefined;
+    const completedTasks = sprintData.completedTasks as
+      | Array<Record<string, unknown>>
+      | undefined;
     const validatedFeatures =
       completedTasks
         ?.filter((t) => t.status === "completed")
@@ -1112,10 +1154,8 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
    - Deployment architecture (infrastructure layout)
    These diagrams make it easy for both agents and engineers to understand the system!
 
-**CRITICAL - ATOMIC TASKS ONLY**: Each task MUST be truly atomic:
-   - ✅ Simple: 2 file, 2 endpoint, OR 2-3 component (200-350 lines max)
-   - ⚠️ Medium: 4-6 tightly related files (300-550 lines total)
-   - ❌ Complex: NEVER create tasks >600 lines - split them further!
+*
+
 
    // ⬇️⬇️ ADD THIS NEW BLOCK ⬇️⬇️
 **CRITICAL - COMPREHENSIVENESS**:
@@ -1130,19 +1170,28 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
 // ⬆️⬆️ END OF NEW BLOCK ⬆️⬆️
 
 
+**TASK BREAKDOWN RULES:**
 
-**Task Granularity Examples:**
-   ✅ GOOD: "Create User model in Prisma schema"
-   ✅ GOOD: "Implement POST /api/users endpoint"
-   ✅ GOOD: "Create UserCard component with props"
-   ❌ BAD: "Build entire authentication system"
-   ❌ BAD: "Create all user management features"
-   ❌ BAD: "Implement frontend and backend for users"
+1. **ONE TASK = ONE CLEAR RESPONSIBILITY**
+   ✅ "Create UserCard component"
+   ✅ "Add POST /api/users endpoint"
+   ✅ "Create Prisma User model"
+   ❌ "Build entire user management system"
+   ❌ "Create all components and API routes"
 
-**Complexity Guidelines:**
-   - Simple (1-3 hours): Single file, clear scope, no external dependencies
-   - Medium (3-6 hours): 2-3 files, moderate integration
-   - Complex: SPLIT INTO SMALLER TASKS!
+2. **ATOMIC & FOCUSED**
+   - Each task should do ONE thing well
+   - If you're using "and" in the title, it's probably 2+ tasks
+   - Break down vague tasks like "Polish UI" into specific tasks
+
+3. **CLEAR CATEGORIES**
+   - frontend: UI components, pages, layouts
+   - backend: API routes, server logic, business logic
+   - database: Schema, migrations, queries
+   - infrastructure: Project setup, deployment, CI/CD, configuration
+   - integration: Third-party APIs, external services
+   - testing: Unit tests, integration tests, E2E tests
+
 
 **REQUIREMENTS:**
 1. Break features into ATOMIC tasks (each task = 1-6 hours max, preferably 1-3)
@@ -1158,7 +1207,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
 - frontend: UI components, pages, layouts
 - backend: API routes, server logic, business logic
 - database: Schema, migrations, queries
-- devops: Deployment, CI/CD, infrastructure
+- infrastructure: Project setup, Deployment, CI/CD, configuration
 - integration: Third-party APIs, external services
 - testing: Unit tests, integration tests, E2E tests
 
@@ -1202,37 +1251,33 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
     }
   },
   "tasks": [
-    {
-      "id": "task-001",
-      "title": "Task title",
-      "description": "Detailed description",
-      "category": "frontend | backend | database | devops | integration | testing",
-      "priority": 1,
-      "estimatedHours": 2,
-      "estimatedLines": 150,
-      "complexity": "simple | medium",
-      "dependencies": ["task-000"],
-      "technicalDetails": {
-        "files": ["path/to/file.ts"],
-        "technologies": ["Next.js", "TypeScript"],
-        "endpoints": ["/api/example"],
-        "components": ["ComponentName"]
-      },
-      "acceptanceCriteria": [
-        "Criterion 1",
-        "Criterion 2"
-      ]
-    }
-  ],
-  "phases": [
-    {
-      "name": "Phase 1: Foundation",
-      "taskIds": ["task-001", "task-002"],
-      "estimatedDuration": "1 week"
-    }
-  ],
-  "totalEstimatedHours": 120,
-  "criticalPath": ["task-001", "task-002", "task-010"]
+  {
+    "id": "task-001",
+    "title": "Task title",
+    "description": "Detailed description of what to build",
+    "category": "frontend | backend | database | infrastructure | integration | testing",
+    "priority": 1,
+    "complexity": "simple | medium",
+    "dependencies": ["task-000"],
+    "technicalDetails": {
+      "files": ["path/to/file.ts"],
+      "technologies": ["Next.js", "TypeScript"],
+      "endpoints": ["/api/example"],
+      "components": ["ComponentName"]
+    },
+    "acceptanceCriteria": [
+      "Criterion 1",
+      "Criterion 2"
+    ]
+  }
+],
+"phases": [
+  {
+    "name": "Phase 1: Foundation",
+    "taskIds": ["task-001", "task-002"],
+  }
+],
+"criticalPath": ["task-001", "task-002", "task-010"]
 }
 `.trim();
   }
@@ -1269,7 +1314,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
           const parsed: unknown = JSON.parse(jsonText);
           logger.info(`[${this.name}] ✅ Direct parse succeeded`);
           return parsed;
-        } catch  {
+        } catch {
           logger.warn(`[${this.name}] Direct parse failed, trying extraction`);
         }
       }
@@ -1321,10 +1366,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
           logger.info(`[${this.name}] ✅ indexOf method succeeded`);
           return parsed;
         } catch (e) {
-          logger.error(
-            `[${this.name}] indexOf parse failed`,
-            toError(e)
-          );
+          logger.error(`[${this.name}] indexOf parse failed`, toError(e));
         }
       }
 
@@ -1333,7 +1375,9 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
         length: jsonText.length,
         preview: jsonText.substring(0, 500),
         fullResponseFirst1000: jsonText.substring(0, 1000),
-        fullResponseLast1000: jsonText.substring(Math.max(0, jsonText.length - 1000)),
+        fullResponseLast1000: jsonText.substring(
+          Math.max(0, jsonText.length - 1000)
+        ),
         hasOpenBrace: jsonText.includes("{"),
         hasCloseBrace: jsonText.includes("}"),
         openBraceCount: (jsonText.match(/\{/g) || []).length,
@@ -1343,7 +1387,9 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
       // Log problematic response for debugging (skip database save to avoid type issues)
       logger.error("[PlanningAgent] Full problematic response", undefined, {
         fullResponseFirst1000: jsonText.substring(0, 1000),
-        fullResponseLast1000: jsonText.substring(Math.max(0, jsonText.length - 1000)),
+        fullResponseLast1000: jsonText.substring(
+          Math.max(0, jsonText.length - 1000)
+        ),
         length: jsonText.length,
       });
 
@@ -1354,10 +1400,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
           `Preview: ${jsonText.substring(0, 500)}...`
       );
     } catch (error) {
-      logger.error(
-        `[${this.name}] Critical parsing error`,
-        toError(error)
-      );
+      logger.error(`[${this.name}] Critical parsing error`, toError(error));
 
       throw new Error(
         `Failed to parse planning response. AI returned invalid format. ` +
@@ -1381,9 +1424,13 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
         !Array.isArray((parsed as ExecutionPlan).tasks)
       ) {
         logger.error(`[${this.name}] Invalid structure`, undefined, {
-          hasArchitecture: parsed && typeof parsed === "object" && "architecture" in parsed,
+          hasArchitecture:
+            parsed && typeof parsed === "object" && "architecture" in parsed,
           hasTasks: parsed && typeof parsed === "object" && "tasks" in parsed,
-          tasksIsArray: parsed && typeof parsed === "object" && Array.isArray((parsed as ExecutionPlan).tasks),
+          tasksIsArray:
+            parsed &&
+            typeof parsed === "object" &&
+            Array.isArray((parsed as ExecutionPlan).tasks),
           keys: parsed && typeof parsed === "object" ? Object.keys(parsed) : [],
         });
 
@@ -1434,8 +1481,8 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
     // Store the source type and metadata in the plan itself for reference
     const planWithMetadata = {
       ...plan,
-      metadata: { 
-        sourceType, 
+      metadata: {
+        sourceType,
         ...metadata,
         ...(rawThinking ? { extendedThinking: rawThinking } : {}),
       },
@@ -1452,7 +1499,8 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
       create: {
         projectId,
         userId: (metadata.userId as string) || "",
-        conversationId: (metadata.conversationId as string) || `${sourceType}_${projectId}`,
+        conversationId:
+          (metadata.conversationId as string) || `${sourceType}_${projectId}`,
         executionPlan: planWithMetadata as unknown as Prisma.InputJsonValue,
         originalPlan: planWithMetadata as unknown as Prisma.InputJsonValue, // Store as original plan
         currentPhase: "plan_review", // Set to plan_review instead of execution
@@ -1463,7 +1511,10 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
         // Only update originalPlan if it doesn't exist yet
         ...(existingContext?.originalPlan
           ? {}
-          : { originalPlan: planWithMetadata as unknown as Prisma.InputJsonValue }),
+          : {
+              originalPlan:
+                planWithMetadata as unknown as Prisma.InputJsonValue,
+            }),
         currentPhase: "plan_review",
         updatedAt: new Date(),
       },
@@ -1491,8 +1542,6 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
         ...task,
         metadata: {
           complexity: task.complexity,
-          estimatedLines: task.estimatedLines,
-          estimatedHours: task.estimatedHours,
         },
       } as unknown as Prisma.InputJsonValue,
     }));
@@ -1514,12 +1563,12 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
       frontend: "FrontendAgent",
       backend: "BackendAgent",
       database: "DatabaseAgent",
-      devops: "DevOpsAgent",
+      infrastructure: "InfrastructureAgent",
       integration: "IntegrationAgent",
       testing: "TestingAgent",
     };
 
-    return agentMap[category] || "GeneralAgent";
+    return agentMap[category] || "InfrastructureAgent";
   }
 
   /**
@@ -1564,13 +1613,14 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
     let architecture: Record<string, unknown> | null = null;
     if (context.architecture) {
       try {
-        architecture = typeof context.architecture === 'string'
-          ? JSON.parse(context.architecture) as Record<string, unknown>
-          : context.architecture as Record<string, unknown>;
+        architecture =
+          typeof context.architecture === "string"
+            ? (JSON.parse(context.architecture) as Record<string, unknown>)
+            : (context.architecture as Record<string, unknown>);
       } catch (error) {
         logger.warn(`[${this.name}] Failed to parse architecture JSON`, {
           projectId,
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message : String(error),
         });
       }
     }
@@ -1739,7 +1789,7 @@ Return ONLY a valid JSON object (no markdown, no code blocks) with the complete 
       const updatedPlanWithMetadata = {
         ...typedUpdatedPlan,
         metadata: {
-          ...(typedUpdatedPlan.metadata as object || {}),
+          ...((typedUpdatedPlan.metadata as object) || {}),
           revisionCount: currentRevisionCount + 1,
           lastFeedback: feedback,
           lastUpdated: new Date().toISOString(),
@@ -1749,7 +1799,8 @@ Return ONLY a valid JSON object (no markdown, no code blocks) with the complete 
       await prisma.projectContext.update({
         where: { projectId },
         data: {
-          executionPlan: updatedPlanWithMetadata as unknown as Prisma.InputJsonValue,
+          executionPlan:
+            updatedPlanWithMetadata as unknown as Prisma.InputJsonValue,
           planRevisionCount: currentRevisionCount + 1,
           planFeedback: {
             feedback,

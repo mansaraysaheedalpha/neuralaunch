@@ -201,6 +201,14 @@ export abstract class BaseAgent {
           `[${this.config.name}] Iteration ${iteration}/${this.retryConfig.maxIterations}`
         );
 
+         const ABSOLUTE_MAX_ATTEMPTS = 3;
+         if (iteration > ABSOLUTE_MAX_ATTEMPTS) {
+           logger.error(
+             `[${this.config.name}] ⛔ EMERGENCY STOP: ${ABSOLUTE_MAX_ATTEMPTS} attempts exceeded`
+           );
+           break; // Exit the loop
+         }
+
         try {
           output = await this.executeTask(input);
 

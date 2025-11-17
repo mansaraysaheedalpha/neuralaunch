@@ -2,7 +2,7 @@
 /**
  * Error Recovery System
  * Handles task failures intelligently with AI analysis and human escalation
- * 
+ *
  * ✅ MIGRATED TO @google/genai SDK
  */
 
@@ -197,7 +197,10 @@ export class ErrorRecoverySystem {
         simplificationNeeded: parsed.simplificationNeeded ?? false,
       };
     } catch (error) {
-      logger.error(`[${this.name}] Failed to parse AI analysis`, toError(error));
+      logger.error(
+        `[${this.name}] Failed to parse AI analysis`,
+        toError(error)
+      );
 
       // Fallback analysis
       return {
@@ -342,7 +345,7 @@ Analyze the failures and respond with ONLY valid JSON:
       case "human_review":
       case "escalate":
         // Mark task for human review
-        const task = await prisma.agentTask.update({
+        const updatedTask = await prisma.agentTask.update({
           where: { id: taskId },
           data: {
             status: "needs_review",
@@ -369,9 +372,14 @@ Analyze the failures and respond with ONLY valid JSON:
               escalationReason: analysis.rootCause,
               attempts: input.failures.length,
             });
-            logger.info(`[${this.name}] Escalation notification sent for task ${taskId}`);
+            logger.info(
+              `[${this.name}] Escalation notification sent for task ${taskId}`
+            );
           } catch (notifError) {
-            logger.error(`[${this.name}] Failed to send escalation notification`, toError(notifError));
+            logger.error(
+              `[${this.name}] Failed to send escalation notification`,
+              toError(notifError)
+            );
           }
 
           // Create CriticalFailure record for UI tracking
@@ -382,10 +390,12 @@ Analyze the failures and respond with ONLY valid JSON:
                 userId: projectContext.userId,
                 taskId,
                 phase: "task-execution",
-                component: task.agentName,
+                component: updatedTask.agentName,
                 title: `Task Escalated: ${input.originalTask?.title || taskId}`,
                 description: `${analysis.rootCause}`,
-                errorMessage: input.failures[input.failures.length - 1]?.error || "Unknown error",
+                errorMessage:
+                  input.failures[input.failures.length - 1]?.error ||
+                  "Unknown error",
                 rootCause: analysis.rootCause,
                 severity: "critical",
                 issuesFound: input.failures.map((f) => ({
@@ -417,15 +427,20 @@ Analyze the failures and respond with ONLY valid JSON:
                 context: {
                   taskTitle: input.originalTask?.title,
                   taskDescription: input.originalTask?.description,
-                  agentName: task.agentName,
+                  agentName: updatedTask.agentName,
                   analysisCategory: analysis.category,
                   recoveryStrategy: strategy.action,
                 },
               },
             });
-            logger.info(`[${this.name}] CriticalFailure record created for task ${taskId}`);
+            logger.info(
+              `[${this.name}] CriticalFailure record created for task ${taskId}`
+            );
           } catch (dbError) {
-            logger.error(`[${this.name}] Failed to create CriticalFailure record`, toError(dbError));
+            logger.error(
+              `[${this.name}] Failed to create CriticalFailure record`,
+              toError(dbError)
+            );
           }
         }
 
@@ -454,38 +469,55 @@ Analyze the failures and respond with ONLY valid JSON:
 
       case "simplify":
       case "retry":
-        // Mark task as ready for retry
+        const task = await prisma.agentTask.findUnique({
+          where: { id: taskId },
+          select: { retryCount: true },
+        });
+
+        const currentRetries = task?.retryCount || 0;
+        const MAX_RETRIES = 3;
+
+        if (currentRetries >= MAX_RETRIES) {
+          logger.warn(
+            `[${this.name}] Max retries reached for ${taskId}, escalating`
+          );
+
+          // Change strategy to human_review
+          strategy.action = "human_review";
+          strategy.reason = `Exceeded ${MAX_RETRIES} retry attempts`;
+
+          // Execute escalation instead
+          await this.executeRecoveryAction(input, strategy, analysis);
+          return;
+        }
+
+        // Increment retry count and queue for retry
         await prisma.agentTask.update({
           where: { id: taskId },
           data: {
             status: "pending",
-            retryCount: 0, // Reset retry count
+            retryCount: currentRetries + 1,
             error: null,
-            // Store simplified prompt if available
-            input: strategy.modifications?.simplifiedPrompt
-              ? JSON.stringify({
-                  ...input.originalTask,
-                  _recoveryPrompt: strategy.modifications.simplifiedPrompt,
-                })
-              : JSON.stringify(input.originalTask),
           },
         });
+
+        logger.info(
+          `[${this.name}] Task queued for retry ${currentRetries + 1}/${MAX_RETRIES}`
+        );
         break;
     }
   }
 
-/**
- * ✅ UPDATED: Generate split tasks using new SDK
- */
-private async generateSplitTasks(
-  input: RecoveryInput
-): Promise<
-  Array<{
-    title: string;
-    description: string;
-    estimatedLines: number;
-  }>
-> {
+  /**
+   * ✅ UPDATED: Generate split tasks using new SDK
+   */
+  private async generateSplitTasks(input: RecoveryInput): Promise<
+    Array<{
+      title: string;
+      description: string;
+      estimatedLines: number;
+    }>
+  > {
     try {
       logger.info(`[${this.name}] Generating split tasks for ${input.taskId}`);
 
@@ -554,17 +586,31 @@ Generate 2-4 subtasks that together achieve the original goal.`;
         jsonText = jsonText.replace(/```\n?/g, "");
       }
 
-      const parsed = JSON.parse(jsonText) as { subtasks: Array<{ title: string; description: string; estimatedLines: number; rationale?: string }>; splitStrategy?: string };
+      const parsed = JSON.parse(jsonText) as {
+        subtasks: Array<{
+          title: string;
+          description: string;
+          estimatedLines: number;
+          rationale?: string;
+        }>;
+        splitStrategy?: string;
+      };
 
       if (!parsed.subtasks || !Array.isArray(parsed.subtasks)) {
         throw new Error("Invalid response format: missing subtasks array");
       }
 
-      const subtasks = parsed.subtasks.map((task: { title: string; description: string; estimatedLines?: number }) => ({
-        title: task.title,
-        description: task.description,
-        estimatedLines: task.estimatedLines || 50,
-      }));
+      const subtasks = parsed.subtasks.map(
+        (task: {
+          title: string;
+          description: string;
+          estimatedLines?: number;
+        }) => ({
+          title: task.title,
+          description: task.description,
+          estimatedLines: task.estimatedLines || 50,
+        })
+      );
 
       logger.info(`[${this.name}] Generated ${subtasks.length} subtasks`, {
         strategy: parsed.splitStrategy,
@@ -572,7 +618,10 @@ Generate 2-4 subtasks that together achieve the original goal.`;
 
       return subtasks;
     } catch (error) {
-      logger.error(`[${this.name}] Failed to generate split tasks`, toError(error));
+      logger.error(
+        `[${this.name}] Failed to generate split tasks`,
+        toError(error)
+      );
 
       // Fallback: Simple split based on task type
       return this.generateFallbackSplitTasks(input);
@@ -594,7 +643,8 @@ Generate 2-4 subtasks that together achieve the original goal.`;
     return [
       {
         title: `${originalTitle} - Setup & Dependencies`,
-        description: "Set up required dependencies, imports, and basic structure",
+        description:
+          "Set up required dependencies, imports, and basic structure",
         estimatedLines: Math.floor((taskDetails.estimatedLines || 100) * 0.3),
       },
       {
@@ -618,7 +668,9 @@ Generate 2-4 subtasks that together achieve the original goal.`;
     analysis: ErrorAnalysis
   ): Promise<string> {
     try {
-      logger.info(`[${this.name}] Generating simplified prompt for ${input.taskId}`);
+      logger.info(
+        `[${this.name}] Generating simplified prompt for ${input.taskId}`
+      );
 
       const taskDetails = input.originalTask;
       const failures = input.failures;
@@ -680,11 +732,16 @@ Keep it under 500 words.`;
         throw new Error("Generated prompt too short or empty");
       }
 
-      logger.info(`[${this.name}] Generated simplified prompt (${responseText.length} chars)`);
+      logger.info(
+        `[${this.name}] Generated simplified prompt (${responseText.length} chars)`
+      );
 
       return responseText;
     } catch (error) {
-      logger.error(`[${this.name}] Failed to generate simplified prompt`, toError(error));
+      logger.error(
+        `[${this.name}] Failed to generate simplified prompt`,
+        toError(error)
+      );
 
       // Fallback: Generic simplification
       return this.generateFallbackSimplifiedPrompt(input, analysis);
@@ -751,7 +808,9 @@ Success criteria: Basic functionality works without errors.`;
     });
 
     if (!originalTask) {
-      logger.error(`[${this.name}] Original task ${originalTaskId} not found for split tasks`);
+      logger.error(
+        `[${this.name}] Original task ${originalTaskId} not found for split tasks`
+      );
       throw new Error(`Original task ${originalTaskId} not found`);
     }
 
@@ -778,7 +837,9 @@ Success criteria: Basic functionality works without errors.`;
       });
     }
 
-    logger.info(`[${this.name}] Created ${splitTasks.length} split tasks with agent ${agentName}`);
+    logger.info(
+      `[${this.name}] Created ${splitTasks.length} split tasks with agent ${agentName}`
+    );
   }
 
   /**

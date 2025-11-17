@@ -60,7 +60,7 @@ interface PlanData {
   plan?: {
     tasks?: Task[];
     phases?: Phase[];
-    totalEstimatedHours?: number;
+
     criticalPath?: string[];
     architecture?: Architecture;
     metadata?: {
@@ -78,8 +78,7 @@ interface Task {
   complexity: string;
   category: string;
   priority: number;
-  estimatedHours: number;
-  estimatedLines: number;
+
   dependencies?: string[];
   acceptanceCriteria?: string[];
   [key: string]: unknown;
@@ -88,7 +87,7 @@ interface Task {
 interface Phase {
   name: string;
   taskIds?: string[];
-  estimatedDuration: string;
+
   [key: string]: unknown;
 }
 
@@ -120,7 +119,7 @@ interface Architecture {
   [key: string]: unknown;
 }
 
-const fetcher = async <T = unknown>(url: string): Promise<T> => {
+const fetcher = async <T = unknown,>(url: string): Promise<T> => {
   const res = await fetch(url);
   if (!res.ok) {
     const contentType = res.headers.get("content-type");
@@ -180,7 +179,7 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
       );
 
       if (!response.ok) {
-        const error = await response.json() as { error?: string };
+        const error = (await response.json()) as { error?: string };
         throw new Error(error.error ?? "Failed to analyze feedback");
       }
 
@@ -228,7 +227,7 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
       );
 
       if (!response.ok) {
-        const error = await response.json() as { error?: string };
+        const error = (await response.json()) as { error?: string };
         throw new Error(error.error ?? "Failed to apply feedback");
       }
 
@@ -270,7 +269,7 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
       );
 
       if (!response.ok) {
-        const error = await response.json() as { error?: string };
+        const error = (await response.json()) as { error?: string };
         throw new Error(error.error ?? "Failed to revert plan");
       }
 
@@ -301,7 +300,7 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
       });
 
       if (!response.ok) {
-        const error = await response.json() as { error?: string };
+        const error = (await response.json()) as { error?: string };
         throw new Error(error.error ?? "Failed to start execution");
       }
 
@@ -472,14 +471,7 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                           {plan.phases?.length || 0}
                         </p>
                       </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">
-                          Estimated Hours
-                        </p>
-                        <p className="text-2xl font-bold">
-                          {plan.totalEstimatedHours || 0}h
-                        </p>
-                      </div>
+
                       <div>
                         <p className="text-sm text-muted-foreground">
                           Critical Path
@@ -513,7 +505,6 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                                 </p>
                                 <p className="text-sm text-muted-foreground">
                                   {phase.taskIds?.length || 0} tasks •{" "}
-                                  {phase.estimatedDuration}
                                 </p>
                               </div>
                               <Badge variant="outline" className="mr-4">
@@ -590,20 +581,6 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                           </p>
                           <Badge variant="outline">{task.priority}</Badge>
                         </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">
-                            Est. Hours
-                          </p>
-                          <p className="font-semibold">
-                            {task.estimatedHours}h
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">
-                            Est. Lines
-                          </p>
-                          <p className="font-semibold">{task.estimatedLines}</p>
-                        </div>
                       </div>
                       {task.dependencies && task.dependencies.length > 0 && (
                         <div className="mb-3">
@@ -623,20 +600,21 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                           </div>
                         </div>
                       )}
-                      {task.acceptanceCriteria && task.acceptanceCriteria.length > 0 && (
-                        <div>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            Acceptance Criteria
-                          </p>
-                          <ul className="list-disc list-inside space-y-1 text-sm">
-                            {task.acceptanceCriteria.map(
-                              (criteria: string, idx: number) => (
-                                <li key={idx}>{criteria}</li>
-                              )
-                            )}
-                          </ul>
-                        </div>
-                      )}
+                      {task.acceptanceCriteria &&
+                        task.acceptanceCriteria.length > 0 && (
+                          <div>
+                            <p className="text-sm text-muted-foreground mb-2">
+                              Acceptance Criteria
+                            </p>
+                            <ul className="list-disc list-inside space-y-1 text-sm">
+                              {task.acceptanceCriteria.map(
+                                (criteria: string, idx: number) => (
+                                  <li key={idx}>{criteria}</li>
+                                )
+                              )}
+                            </ul>
+                          </div>
+                        )}
                     </CardContent>
                   </Card>
                 ))}
@@ -729,7 +707,9 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
                 {/* Architecture Diagrams */}
                 {plan.architecture?.diagrams && (
                   <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">Architecture Diagrams</h3>
+                    <h3 className="text-lg font-semibold">
+                      Architecture Diagrams
+                    </h3>
                     {plan.architecture.diagrams.systemArchitecture && (
                       <MermaidDiagram
                         title="System Architecture"
