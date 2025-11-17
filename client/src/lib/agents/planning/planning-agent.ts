@@ -298,33 +298,40 @@ export class PlanningAgent {
         "Generating detailed task breakdown"
       );
       logger.info(`[${this.name}] Generating vision-based execution plan...`);
-      
+
       let responseText: string;
       let rawThinking: string | undefined;
 
       // Use extended thinking or chain-of-thought if enabled
-      if (useExtendedThinking && this.anthropic) {
-        await thoughts.thinking("Using extended thinking for deep analysis");
-        const result = await executeWithExtendedThinking({
-          thoughts,
-          prompt,
-          thinkingBudget: 10000,
-          parseSteps: true,
-        });
-        responseText = result.answer;
-        rawThinking = result.thinking;
+      try {
+        if (useExtendedThinking && this.anthropic) {
+          await thoughts.thinking("Using extended thinking for deep analysis");
+          const result = await executeWithExtendedThinking({
+            thoughts,
+            prompt,
+            thinkingBudget: 10000,
+            parseSteps: true,
+          });
+          responseText = result.answer;
+          rawThinking = result.thinking;
 
-        await thoughts.emit("analyzing", "Extended thinking complete", {
-          thinkingTokens: result.thinkingTokens,
-          outputTokens: result.outputTokens,
-          thinkingLength: result.thinking.length,
-        });
-      } else if (useChainOfThought) {
-        await thoughts.thinking("Using chain-of-thought reasoning");
-        const cotPrompt = buildChainOfThoughtPrompt(prompt);
-        const fullResponse = await this.callClaude(cotPrompt, thoughts);
-        responseText = await parseChainOfThought(fullResponse, thoughts);
-      } else {
+          await thoughts.emit("analyzing", "Extended thinking complete", {
+            thinkingTokens: result.thinkingTokens,
+            outputTokens: result.outputTokens,
+            thinkingLength: result.thinking.length,
+          });
+        } else if (useChainOfThought) {
+          await thoughts.thinking("Using chain-of-thought reasoning");
+          const cotPrompt = buildChainOfThoughtPrompt(prompt);
+          const fullResponse = await this.callClaude(cotPrompt, thoughts);
+          responseText = await parseChainOfThought(fullResponse, thoughts);
+        } else {
+          responseText = await this.callClaude(prompt, thoughts);
+        }
+      } catch (aiError) {
+        // If AI call fails, log error and try fallback without extended thinking
+        logger.error(`[${this.name}] Primary AI call failed, trying fallback`, toError(aiError));
+        await thoughts.emit("thinking", "Primary AI call failed, using fallback method");
         responseText = await this.callClaude(prompt, thoughts);
       }
 
@@ -764,7 +771,7 @@ BEGIN:`;
             content: wrappedPrompt,
           },
         ],
-        max_tokens: 30000, // ← DOUBLED from 8192 to prevent truncation
+        max_tokens: 40000, // ← DOUBLED from 8192 to prevent truncation
         temperature: 0.1,
       });
 
@@ -1321,18 +1328,30 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
         }
       }
 
-      // ALL FAILED
+      // ALL FAILED - Log full response for debugging
       logger.error(`[${this.name}] All parsing strategies failed`, undefined, {
         length: jsonText.length,
-        preview: jsonText.substring(0, 300),
+        preview: jsonText.substring(0, 500),
+        fullResponseFirst1000: jsonText.substring(0, 1000),
+        fullResponseLast1000: jsonText.substring(Math.max(0, jsonText.length - 1000)),
         hasOpenBrace: jsonText.includes("{"),
         hasCloseBrace: jsonText.includes("}"),
+        openBraceCount: (jsonText.match(/\{/g) || []).length,
+        closeBraceCount: (jsonText.match(/\}/g) || []).length,
+      });
+
+      // Log problematic response for debugging (skip database save to avoid type issues)
+      logger.error("[PlanningAgent] Full problematic response", undefined, {
+        fullResponseFirst1000: jsonText.substring(0, 1000),
+        fullResponseLast1000: jsonText.substring(Math.max(0, jsonText.length - 1000)),
+        length: jsonText.length,
       });
 
       throw new Error(
         `Failed to parse planning response. AI returned invalid format. ` +
           `Length: ${jsonText.length}. ` +
-          `Preview: ${jsonText.substring(0, 300)}...`
+          `Brace mismatch: Open={${(jsonText.match(/\{/g) || []).length}}, Close={${(jsonText.match(/\}/g) || []).length}}. ` +
+          `Preview: ${jsonText.substring(0, 500)}...`
       );
     } catch (error) {
       logger.error(
