@@ -1,12 +1,12 @@
 // src/app/api/debug/test-frontend-ai/route.ts
 import { NextResponse } from "next/server";
-import { GoogleGenAI } from "@google/genai";
+import Anthropic from "@anthropic-ai/sdk";
 import { env } from "@/lib/env";
 import { AI_MODELS } from "@/lib/models";
 
 export async function GET() {
   try {
-    const ai = new GoogleGenAI({ apiKey: env.GOOGLE_API_KEY });
+    const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 
     // Test with a simple frontend task
     const testPrompt = `
@@ -32,26 +32,32 @@ Output as JSON:
 }
 `;
 
-    const response = await ai.models.generateContent({
-      model: AI_MODELS.CLAUDE, // Using Claude like FrontendAgent does
-      contents: [{ parts: [{ text: testPrompt }] }],
-      config: {
-        temperature: 0.3,
-        topP: 0.95,
-        maxOutputTokens: 8192,
-      },
+    const response = await anthropic.messages.create({
+      model: AI_MODELS.CLAUDE,
+      max_tokens: 8192,
+      messages: [
+        {
+          role: "user",
+          content: testPrompt,
+        },
+      ],
     });
 
-    const text = response.text || "";
+    // Extract text from content blocks
+    const textContent = response.content
+      .filter((block) => block.type === "text")
+      .map((block) => (block as { type: "text"; text: string }).text)
+      .join("\n");
 
     return NextResponse.json({
       success: true,
       model: AI_MODELS.CLAUDE,
+      provider: "Anthropic",
       promptLength: testPrompt.length,
-      responseLength: text.length,
-      response: text,
-      finishReason: response.candidates?.[0]?.finishReason,
-      safetyRatings: response.candidates?.[0]?.safetyRatings,
+      responseLength: textContent.length,
+      response: textContent,
+      stopReason: response.stop_reason,
+      usage: response.usage,
     });
   } catch (error) {
     return NextResponse.json(
