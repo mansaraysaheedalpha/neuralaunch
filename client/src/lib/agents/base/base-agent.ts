@@ -1,8 +1,8 @@
-// src/lib/agents/base/base-agent.ts - COMPLETE VERSION (100/100)
+// src/lib/agents/base/base-agent.ts - COMPLETE VERSION WITH ANTHROPIC SUPPORT
 /**
  * Base Agent Class - WORLD-CLASS COMPLETE
  *
- * ✅ MIGRATED TO @google/genai SDK
+ * ✅ SUPPORTS BOTH GOOGLE GEMINI AND ANTHROPIC CLAUDE
  * ✅ Web Search Tool - Search for documentation and solutions
  * ✅ Vector Memory - Semantic learning from past tasks
  * ✅ Code Analysis - Parse, type check, lint code
@@ -11,7 +11,8 @@
  *
  */
 
-import { GoogleGenAI } from "@google/genai"; // ✅ UPDATED IMPORT
+import { GoogleGenAI } from "@google/genai";
+import Anthropic from "@anthropic-ai/sdk";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
@@ -75,9 +76,10 @@ export interface AgentExecutionOutput {
 }
 
 export abstract class BaseAgent {
-  protected ai: GoogleGenAI; // ✅ NEW: Client-centric SDK
+  protected googleAI: GoogleGenAI | null = null;
+  protected anthropic: Anthropic | null = null;
   protected config: BaseAgentConfig;
-  protected selectedModel: string; // ✅ NEW: Store model name
+  protected selectedModel: string;
 
   protected tools: Map<string, ITool> = new Map();
   protected retryConfig: RetryConfig | null = null;
@@ -94,22 +96,38 @@ export abstract class BaseAgent {
     // Ensure tools are initialized before loading them
     initializeTools();
 
-    const apiKey = env.GOOGLE_API_KEY;
-    if (!apiKey) {
-      throw new Error(`GOOGLE_API_KEY required for ${config.name}`);
-    }
-
-    // ✅ NEW: Initialize client-centric SDK
-    this.ai = new GoogleGenAI({ apiKey });
-
-    // ✅ NEW: Store model name (no more model instance)
     this.selectedModel = config.modelName || AI_MODELS.FAST;
+
+    // ✅ NEW: Initialize appropriate SDK based on model
+    if (this.selectedModel.includes("claude")) {
+      // Use Anthropic SDK for Claude models
+      const apiKey = env.ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        throw new Error(
+          `ANTHROPIC_API_KEY required for ${config.name} using ${this.selectedModel}`
+        );
+      }
+      this.anthropic = new Anthropic({ apiKey });
+      logger.info(
+        `[${config.name}] Initialized with Anthropic Claude: ${this.selectedModel}`
+      );
+    } else {
+      // Use Google SDK for Gemini models
+      const apiKey = env.GOOGLE_API_KEY;
+      if (!apiKey) {
+        throw new Error(
+          `GOOGLE_API_KEY required for ${config.name} using ${this.selectedModel}`
+        );
+      }
+      this.googleAI = new GoogleGenAI({ apiKey });
+      logger.info(
+        `[${config.name}] Initialized with Google Gemini: ${this.selectedModel}`
+      );
+    }
 
     this.loadTools();
 
-    logger.info(
-      `[${config.name}] Initialized with model: ${this.selectedModel}, ${this.tools.size} tools`
-    );
+    logger.info(`[${config.name}] Ready with ${this.tools.size} tools`);
   }
 
   private loadTools(): void {
@@ -137,6 +155,7 @@ export abstract class BaseAgent {
       taskId,
       title: taskDetails.title,
       complexity: taskDetails.complexity,
+      model: this.selectedModel,
     });
 
     try {
@@ -319,30 +338,23 @@ export abstract class BaseAgent {
     try {
       logger.info(`[${this.config.name}] Loading project context`);
 
-      // ✅ ADD: Import the retry helper at the top of the file
-      const { withSandboxRetry } = await import("../utils/sandbox-retry");
-      const contextResult = await withSandboxRetry(
-        () =>
-          this.executeTool(
-            "context_loader",
-            {
-              operation: "smart_load",
-              taskDescription:
-                input.taskDetails.title + " " + input.taskDetails.description,
-              maxFiles: 15,
-              maxSize: 300000,
-            },
-            {
-              projectId: input.projectId,
-              userId: input.userId,
-            }
-          ),
-        "load-project-context",
-        3, // 3 retries
-        5000 // 5s delay
+      const contextResult = await this.executeTool(
+        "context_loader",
+        {
+          operation: "smart_load",
+          taskDescription:
+            input.taskDetails.title + " " + input.taskDetails.description,
+          maxFiles: 15,
+          maxSize: 300000, // 300KB limit
+        },
+        {
+          projectId: input.projectId,
+          userId: input.userId,
+        }
       );
 
       if (contextResult.success && contextResult.data) {
+        // Add loaded files to context
         const data = contextResult.data as {
           existingFiles?: Record<string, string>;
           structure?: unknown;
@@ -360,12 +372,12 @@ export abstract class BaseAgent {
       }
     } catch (error) {
       logger.warn(
-        `[${this.config.name}] Failed to load project context after retries`,
-        error instanceof Error ? { error: error.message } : { error }
+        `[${this.config.name}] Failed to load project context`,
+        toLogContext(error)
       );
-      // Don't throw - continue execution without context
     }
   }
+
   /**
    * ✅ NEW: Search for solution when error occurs
    */
@@ -641,7 +653,7 @@ export abstract class BaseAgent {
   }
 
   /**
-   * ✅ NEW: Helper method to call AI with new SDK structure
+   * ✅ NEW: Universal AI generation method that works with both Google and Anthropic
    * Subclasses can use this for consistent AI calls
    */
   protected async generateContent(
@@ -649,27 +661,142 @@ export abstract class BaseAgent {
     systemInstruction?: string
   ): Promise<string> {
     try {
-      const response = await this.ai.models.generateContent({
+      logger.info(`[${this.config.name}] Calling AI generation`, {
         model: this.selectedModel,
-        contents: [{ parts: [{ text: prompt }] }],
-        ...(systemInstruction && {
-          systemInstruction: { parts: [{ text: systemInstruction }] },
-        }),
-        config: {
-          temperature: 0.3,
-          topP: 0.95,
-          maxOutputTokens: 8192,
-        },
+        provider: this.selectedModel.includes("claude")
+          ? "Anthropic"
+          : "Google",
+        promptLength: prompt.length,
+        hasSystemInstruction: !!systemInstruction,
       });
 
-      return response.text || "";
+      let text: string;
+
+      if (this.selectedModel.includes("claude")) {
+        // Use Anthropic SDK
+        text = await this.generateWithClaude(prompt, systemInstruction);
+      } else {
+        // Use Google SDK
+        text = await this.generateWithGemini(prompt, systemInstruction);
+      }
+
+      // ✅ Log the response
+      logger.info(`[${this.config.name}] AI response received`, {
+        responseLength: text.length,
+        isEmpty: !text,
+        preview: text.substring(0, 200),
+      });
+
+      if (!text || text.trim().length === 0) {
+        logger.error(`[${this.config.name}] AI returned empty response`);
+        throw new Error("AI returned empty response");
+      }
+
+      return text;
     } catch (error) {
       logger.error(
         `[${this.config.name}] AI generation failed`,
-        toError(error)
+        toError(error),
+        {
+          model: this.selectedModel,
+          promptLength: prompt.length,
+        }
       );
       throw error;
     }
+  }
+
+  /**
+   * ✅ Generate content using Anthropic Claude
+   */
+  private async generateWithClaude(
+    prompt: string,
+    systemInstruction?: string
+  ): Promise<string> {
+    if (!this.anthropic) {
+      throw new Error("Anthropic client not initialized");
+    }
+
+    try {
+      const response = await this.anthropic.messages.create({
+        model: this.selectedModel,
+        max_tokens: 8192,
+        system: systemInstruction,
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+      });
+
+      // Extract text from content blocks
+      const textContent = response.content
+        .filter((block) => block.type === "text")
+        .map((block) => (block as { type: "text"; text: string }).text)
+        .join("\n");
+
+      // Check for stop reasons that indicate issues
+      if (response.stop_reason === "max_tokens") {
+        logger.warn(
+          `[${this.config.name}] Claude hit max_tokens limit, response may be truncated`
+        );
+      }
+
+      return textContent;
+    } catch (error) {
+      if (error instanceof Anthropic.APIError) {
+        logger.error(`[${this.config.name}] Anthropic API Error`, undefined, {
+          status: error.status,
+          message: error.message,
+        });
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * ✅ Generate content using Google Gemini
+   */
+  private async generateWithGemini(
+    prompt: string,
+    systemInstruction?: string
+  ): Promise<string> {
+    if (!this.googleAI) {
+      throw new Error("Google AI client not initialized");
+    }
+
+    const response = await this.googleAI.models.generateContent({
+      model: this.selectedModel,
+      contents: [{ parts: [{ text: prompt }] }],
+      ...(systemInstruction && {
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+      }),
+      config: {
+        temperature: 0.3,
+        topP: 0.95,
+        maxOutputTokens: 20000,
+      },
+    });
+
+    const text = response.text || "";
+
+    // Check for safety blocks
+    if (!text && response.candidates?.[0]?.finishReason) {
+      logger.error(
+        `[${this.config.name}] Gemini generation blocked`,
+        undefined,
+        {
+          finishReason: response.candidates[0].finishReason,
+          safetyRatings: response.candidates[0].safetyRatings,
+        }
+      );
+      throw new Error(
+        `AI generation blocked: ${response.candidates[0].finishReason}`
+      );
+    }
+
+    return text;
   }
 
   protected async logExecution(
