@@ -257,9 +257,23 @@ export abstract class BaseAgent {
             timestamp: new Date(),
           });
 
+          // 🔍 Detect AI/network errors
+          const isAIError = errorMessage.includes("AI") ||
+                           errorMessage.includes("API") ||
+                           errorMessage.includes("network") ||
+                           errorMessage.includes("timeout") ||
+                           errorMessage.includes("ECONNREFUSED") ||
+                           errorMessage.includes("ETIMEDOUT") ||
+                           errorMessage.includes("rate limit") ||
+                           errorMessage.includes("429");
+
           logger.error(
             `[${this.config.name}] Iteration ${iteration} failed`,
-            toError(error)
+            toError(error),
+            {
+              isAIError,
+              errorType: error instanceof Error ? error.constructor.name : typeof error,
+            }
           );
 
           const totalDuration = Date.now() - startTime;
@@ -270,8 +284,22 @@ export abstract class BaseAgent {
           );
 
           if (!retryDecision.shouldRetry) {
+            logger.warn(`[${this.config.name}] Stopping retries: ${retryDecision.reason}`);
             break;
           }
+
+          // ✅ EXPONENTIAL BACKOFF with jitter
+          const baseDelay = 2000; // 2 seconds
+          const exponentialDelay = baseDelay * Math.pow(2, iteration - 1); // 2s, 4s, 8s
+          const jitter = Math.random() * 1000; // Random 0-1s
+          const delayMs = Math.min(exponentialDelay + jitter, 30000); // Max 30s
+
+          logger.info(
+            `[${this.config.name}] Waiting ${Math.round(delayMs / 1000)}s before retry ${iteration + 1}...`,
+            { isAIError, delayMs: Math.round(delayMs) }
+          );
+
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
         }
       }
 
@@ -714,8 +742,19 @@ export abstract class BaseAgent {
       });
 
       if (!text || text.trim().length === 0) {
-        logger.error(`[${this.config.name}] AI returned empty response`);
-        throw new Error("AI returned empty response");
+        logger.error(`[${this.config.name}] AI returned empty response`, undefined, {
+          model: this.selectedModel,
+          provider: this.selectedModel.includes("claude") ? "Anthropic" : "Google",
+          promptLength: prompt.length,
+          hasSystemInstruction: !!systemInstruction,
+          responseReceived: !!text,
+          responseLength: text?.length || 0,
+        });
+        throw new Error(
+          `AI model failed to generate any output. This is likely a transient issue with the ${
+            this.selectedModel.includes("claude") ? "Anthropic" : "Google"
+          } API. Please retry.`
+        );
       }
 
       return text;
@@ -772,13 +811,21 @@ export abstract class BaseAgent {
       while (continueLoop && iterationCount < MAX_ITERATIONS) {
         iterationCount++;
 
-        const response = await this.anthropic.messages.create({
+        // ✅ Add timeout wrapper to prevent hanging
+        const API_TIMEOUT_MS = 120000; // 2 minutes
+        const responsePromise = this.anthropic.messages.create({
           model: this.selectedModel,
           max_tokens: 8192,
           system: systemInstruction,
           messages,
           tools,
         });
+
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`AI API call timed out after ${API_TIMEOUT_MS / 1000}s`)), API_TIMEOUT_MS)
+        );
+
+        const response = await Promise.race([responsePromise, timeoutPromise]);
 
         logger.info(`[${this.config.name}] Claude iteration ${iterationCount}`, {
           stopReason: response.stop_reason,
@@ -856,9 +903,30 @@ export abstract class BaseAgent {
       return finalResponse.trim();
     } catch (error) {
       if (error instanceof Anthropic.APIError) {
-        logger.error(`[${this.config.name}] Anthropic API Error`, undefined, {
+        // Provide detailed error information
+        const errorDetails = {
           status: error.status,
           message: error.message,
+          isRateLimit: error.status === 429,
+          isServerError: error.status && error.status >= 500,
+          isNetworkError: error.status === undefined,
+        };
+
+        logger.error(`[${this.config.name}] Anthropic API Error`, undefined, errorDetails);
+
+        // Enhance error message for better debugging
+        if (error.status === 429) {
+          throw new Error(`AI API rate limit exceeded. Please wait before retrying. (${error.message})`);
+        } else if (error.status && error.status >= 500) {
+          throw new Error(`AI API server error (${error.status}). This is a temporary issue. (${error.message})`);
+        } else if (!error.status) {
+          throw new Error(`AI API network error. Check your internet connection. (${error.message})`);
+        }
+      } else if (error instanceof Error) {
+        // Handle other errors
+        logger.error(`[${this.config.name}] Claude generation error`, error, {
+          errorName: error.name,
+          errorMessage: error.message,
         });
       }
       throw error;
