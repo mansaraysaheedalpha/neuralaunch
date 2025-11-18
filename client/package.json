@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && cross-env NODE_OPTIONS=--max-old-space-size=4096 next build",
+    "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
     "mcp:playwright": "playwright-mcp --port 3100"
@@ -13,6 +14,7 @@
     "@anthropic-ai/sdk": "^0.67.1",
     "@auth/core": "^0.41.1",
     "@auth/prisma-adapter": "^2.11.0",
+    "@prisma/client": "6.19.0",
     "@google/genai": "^1.28.0",
     "@hookform/resolvers": "^5.2.2",
     "@langchain/langgraph": "^1.0.1",
@@ -80,7 +82,6 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
-    "@prisma/client": "6.19.0",
     "@tailwindcss/typography": "^0.5.19",
     "@types/canvas-confetti": "^1.9.0",
     "@types/dockerode": "^3.3.45",
