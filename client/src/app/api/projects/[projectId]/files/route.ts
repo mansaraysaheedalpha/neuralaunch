@@ -117,14 +117,35 @@ export async function GET(
       const files = output.files || output.filesCreated || [];
       const filesData = output.filesData || [];
 
-      // Handle array of file paths
+      // 🔍 DEBUG: Log what we're extracting
+      logger.info(`[Files API] Task ${task.agentName}:`, {
+        hasOutput: !!output,
+        filesLength: Array.isArray(files) ? files.length : 0,
+        filesDataLength: Array.isArray(filesData) ? filesData.length : 0,
+        filesDataSample: Array.isArray(filesData) && filesData.length > 0
+          ? { path: filesData[0]?.path, hasContent: !!filesData[0]?.content, contentLength: filesData[0]?.content?.length }
+          : null,
+      });
+
+      // Handle array of file paths (can be strings or objects with path property)
       if (Array.isArray(files)) {
-        files.forEach((filePath: string) => {
-          if (typeof filePath === "string") {
+        files.forEach((fileItem: string | { path: string }) => {
+          // Extract path from string or object
+          const filePath = typeof fileItem === "string" ? fileItem : fileItem.path;
+
+          if (filePath) {
             // Try to find content in filesData
             const fileData = filesData.find(
               (f: FileData) => f.path === filePath || f.filePath === filePath
             );
+
+            logger.info(`[Files API] Processing file:`, {
+              filePath,
+              fileItemType: typeof fileItem,
+              foundInFilesData: !!fileData,
+              hasContent: !!fileData?.content,
+              contentLength: fileData?.content?.length,
+            });
 
             if (fileData && fileData.content) {
               filesMap.set(filePath, {
@@ -135,6 +156,8 @@ export async function GET(
                 linesOfCode: fileData.linesOfCode,
                 lastModified: task.completedAt || new Date(),
               });
+            } else {
+              logger.warn(`[Files API] No content found for file: ${filePath}`);
             }
           }
         });

@@ -88,9 +88,9 @@ export default function ProjectOverviewPage({ params }: ProjectOverviewPageProps
     { refreshInterval: 5000 }
   );
 
-  // Fetch tasks data
+  // Fetch tasks data (fetch ALL tasks, not just first 20)
   const { data: tasksData } = useSWR<TasksData>(
-    `/api/projects/${projectId}/tasks`,
+    `/api/projects/${projectId}/tasks?limit=1000`,
     fetcher<TasksData>,
     { refreshInterval: 5000 }
   );

@@ -165,20 +165,6 @@ export class IntegrationAgent extends BaseAgent {
     });
 
     try {
-      // Step 0: Verify workspace has files (debugging)
-      const workspaceCheck = await this.executeTool(
-        "command",
-        {
-          command: "ls -la && find . -type f -name '*.ts' -o -name '*.tsx' | head -20",
-          timeout: 30,
-        },
-        { projectId, userId }
-      );
-
-      logger.info(`[${this.name}] Workspace verification`, {
-        stdout: workspaceCheck.data,
-      });
-
       // Step 1: Load project context and tech stack
       const projectContext: ProjectContextData =
         await this.loadProjectContextData(projectId);

@@ -97,9 +97,9 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
     }
   );
 
-  // Fetch tasks data
+  // Fetch tasks data (fetch ALL tasks, not just first 20)
   const { data: tasksData, error: tasksError } = useSWR<TasksData, Error>(
-    `/api/projects/${projectId}/tasks`,
+    `/api/projects/${projectId}/tasks?limit=1000`,  // ✅ Fetch all tasks
     fetcher<TasksData>,
     { refreshInterval: 2000 }
   );
