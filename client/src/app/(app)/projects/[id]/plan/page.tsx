@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect } from "react";
 import useSWR, { mutate } from "swr";
 import {
   ArrowLeft,
@@ -13,6 +13,8 @@ import {
   RotateCcw,
   Send,
   Sparkles,
+  Github,
+  ExternalLink,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -143,6 +145,9 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
   const [isStarting, setIsStarting] = useState(false);
   const [analysisResult, setAnalysisResult] =
     useState<FeedbackAnalysisResult | null>(null);
+  const [isGitHubConnected, setIsGitHubConnected] = useState<boolean | null>(
+    null
+  );
 
   // Fetch project and plan data
   const { data: project, error: projectError } = useSWR<Project, Error>(
@@ -156,6 +161,28 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
     fetcher<PlanData>,
     { refreshInterval: 5000 }
   );
+
+  // Check GitHub connection status
+  useEffect(() => {
+    const checkGitHubStatus = async () => {
+      try {
+        const response = await fetch("/api/user/github-status");
+        if (response.ok) {
+          const data = (await response.json()) as {
+            isConnected: boolean;
+            hasToken: boolean;
+            ready: boolean;
+          };
+          setIsGitHubConnected(data.ready);
+        }
+      } catch (error) {
+        console.error("Failed to check GitHub status:", error);
+        setIsGitHubConnected(false);
+      }
+    };
+
+    void checkGitHubStatus();
+  }, []);
 
   // Handle feedback analysis
   const handleAnalyzeFeedback = async () => {
@@ -300,7 +327,29 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
       });
 
       if (!response.ok) {
-        const error = (await response.json()) as { error?: string };
+        const error = (await response.json()) as {
+          error?: string;
+          message?: string;
+          requiresGitHub?: boolean;
+          profileUrl?: string;
+        };
+
+        // Special handling for GitHub connection error
+        if (error.requiresGitHub) {
+          toast.error(
+            error.message ||
+              "Please connect your GitHub account before starting execution.",
+            {
+              action: {
+                label: "Connect GitHub",
+                onClick: () => router.push("/profile"),
+              },
+              duration: 10000,
+            }
+          );
+          return;
+        }
+
         throw new Error(error.error ?? "Failed to start execution");
       }
 
@@ -423,8 +472,13 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
               )}
               <Button
                 onClick={() => void handleStartExecution()}
-                disabled={isStarting}
+                disabled={isStarting || isGitHubConnected === false}
                 className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                title={
+                  isGitHubConnected === false
+                    ? "Connect GitHub to start execution"
+                    : undefined
+                }
               >
                 {isStarting ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -437,6 +491,41 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
           </div>
         </div>
       </div>
+
+      {/* GitHub Connection Warning */}
+      {isGitHubConnected === false && (
+        <div className="border-b bg-yellow-50 dark:bg-yellow-950/20">
+          <div className="container mx-auto px-4 py-4">
+            <Alert className="border-yellow-300 dark:border-yellow-800 bg-transparent">
+              <Github className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
+              <AlertDescription className="ml-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <strong className="font-semibold text-yellow-800 dark:text-yellow-300">
+                      GitHub Connection Required
+                    </strong>
+                    <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1">
+                      You need to connect your GitHub account before starting
+                      execution. Wave 1 will create a new repository for your
+                      project.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push("/profile")}
+                    className="ml-4 border-yellow-300 dark:border-yellow-700 hover:bg-yellow-100 dark:hover:bg-yellow-900/30"
+                  >
+                    <Github className="w-4 h-4 mr-2" />
+                    Connect GitHub
+                    <ExternalLink className="w-3 h-3 ml-1" />
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">

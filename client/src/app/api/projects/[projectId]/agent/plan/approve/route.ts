@@ -11,6 +11,10 @@ import {
   getRequestIdentifier,
   getClientIp,
 } from "@/lib/rate-limit";
+import {
+  validateGitHubForWave,
+  GitHubNotConnectedError,
+} from "@/lib/github-connection";
 
 const approveSchema = z.object({
   conversationId: z.string().min(1),
@@ -116,7 +120,28 @@ export async function POST(
       );
     }
 
-    // 6. Update plan approval status
+    // 6. Pre-flight check: Validate GitHub connection
+    try {
+      await validateGitHubForWave(userId);
+      logger.info("GitHub connection validated", { userId });
+    } catch (error) {
+      if (error instanceof GitHubNotConnectedError) {
+        logger.warn("GitHub not connected", { userId, projectId });
+        return NextResponse.json(
+          {
+            error: "GitHub account required",
+            message:
+              "Please connect your GitHub account before approving the plan. Go to your profile settings to connect GitHub.",
+            requiresGitHub: true,
+            profileUrl: "/profile",
+          },
+          { status: 400 }
+        );
+      }
+      throw error;
+    }
+
+    // 7. Update plan approval status
     await prisma.projectContext.update({
       where: { projectId: projectId },
       data: {
@@ -129,7 +154,7 @@ export async function POST(
       projectId: projectId,
     });
 
-    // 7. Trigger Wave 1 execution via Inngest
+    // 8. Trigger Wave 1 execution via Inngest
     await inngest.send({
       name: "agent/wave.start",
       data: {

@@ -9,6 +9,10 @@ import {
   getRequestIdentifier,
   getClientIp,
 } from "@/lib/rate-limit";
+import {
+  validateGitHubForWave,
+  GitHubNotConnectedError,
+} from "@/lib/github-connection";
 
 // Extend timeout for execution startup
 export const maxDuration = 60;
@@ -125,6 +129,27 @@ export async function POST(
         },
         { status: 400 }
       );
+    }
+
+    // 5. Pre-flight check: Validate GitHub connection
+    try {
+      await validateGitHubForWave(userId);
+      logger.info("GitHub connection validated", { userId });
+    } catch (error) {
+      if (error instanceof GitHubNotConnectedError) {
+        logger.warn("GitHub not connected", { userId, projectId });
+        return NextResponse.json(
+          {
+            error: "GitHub account required",
+            message:
+              "Please connect your GitHub account before starting execution. Go to your profile settings to connect GitHub.",
+            requiresGitHub: true,
+            profileUrl: "/profile",
+          },
+          { status: 400 }
+        );
+      }
+      throw error;
     }
 
     logger.info("Starting Wave 1 execution", { projectId });

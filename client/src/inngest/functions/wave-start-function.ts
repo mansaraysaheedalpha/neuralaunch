@@ -64,7 +64,12 @@ export const waveStartFunction = inngest.createFunction(
         const githubToken = user?.accounts[0]?.access_token;
 
         if (!githubToken) {
-          throw new Error("GitHub token not found. Please connect GitHub.");
+          log.error(
+            `[Wave ${waveNumber}] GitHub account not connected for user ${userId}`
+          );
+          throw new Error(
+            "GitHub account not connected. Please go to your profile settings and connect your GitHub account to continue."
+          );
         }
 
         if (waveNumber === 1) {
