@@ -33,6 +33,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   secret: env.NEXTAUTH_SECRET,
   callbacks: {
+    async signIn({ user, account, profile }) {
+      // Allow sign in - account linking will be handled automatically
+      // by allowDangerousEmailAccountLinking
+      return true;
+    },
     session({ session, user }) {
       if (session.user) {
         session.user.id = user.id;
@@ -56,6 +61,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   pages: {
     signIn: "/signin",
-    error: "/auth/error", // A custom error page
+    error: "/signin", // Redirect errors to signin page
   },
 });

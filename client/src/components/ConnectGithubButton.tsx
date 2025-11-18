@@ -1,6 +1,8 @@
 "use client";
-import { signIn } from "next-auth/react";
+import { signIn, signOut, useSession } from "next-auth/react";
 import { motion } from "framer-motion";
+import { useState } from "react";
+import { Loader2, AlertCircle } from "lucide-react";
 
 const GitHubIcon = () => (
   <svg className="w-5 h-5" viewBox="0 0 16 16">
@@ -12,16 +14,54 @@ const GitHubIcon = () => (
 );
 
 export default function ConnectGitHubButton() {
+  const { data: session } = useSession();
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [showWarning, setShowWarning] = useState(false);
+
+  const handleConnect = async () => {
+    setIsConnecting(true);
+    try {
+      // To link GitHub account, we need to sign out first, then sign in with GitHub
+      // This allows NextAuth's allowDangerousEmailAccountLinking to work
+      await signOut({ redirect: false });
+      await signIn("github", { callbackUrl: "/profile" });
+    } catch (error) {
+      console.error("Failed to connect GitHub:", error);
+      setIsConnecting(false);
+      setShowWarning(true);
+    }
+  };
+
   return (
-    <motion.button
-      whileHover={{ scale: 1.02, y: -2 }}
-      whileTap={{ scale: 0.98 }}
-      onClick={() => void signIn("github")}
-      className="group relative inline-flex items-center justify-center gap-3 px-6 py-3 bg-gradient-to-r from-gray-900 to-gray-800 dark:from-gray-700 dark:to-gray-600 border-2 border-transparent hover:border-gray-600 rounded-xl font-medium text-white transition-all duration-300 overflow-hidden shadow-lg hover:shadow-xl"
-    >
-      <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-      <GitHubIcon />
-      <span className="relative z-10">Connect GitHub Account</span>
-    </motion.button>
+    <div className="space-y-3">
+      {showWarning && (
+        <div className="flex items-start gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm">
+          <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-500 mt-0.5 flex-shrink-0" />
+          <p className="text-yellow-900 dark:text-yellow-200">
+            Failed to connect GitHub. Please try again or contact support if the issue persists.
+          </p>
+        </div>
+      )}
+      <motion.button
+        whileHover={{ scale: isConnecting ? 1 : 1.02, y: isConnecting ? 0 : -2 }}
+        whileTap={{ scale: isConnecting ? 1 : 0.98 }}
+        onClick={handleConnect}
+        disabled={isConnecting}
+        className="group relative inline-flex items-center justify-center gap-3 px-6 py-3 bg-gradient-to-r from-gray-900 to-gray-800 dark:from-gray-700 dark:to-gray-600 border-2 border-transparent hover:border-gray-600 rounded-xl font-medium text-white transition-all duration-300 overflow-hidden shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+        {isConnecting ? (
+          <Loader2 className="w-5 h-5 animate-spin relative z-10" />
+        ) : (
+          <GitHubIcon />
+        )}
+        <span className="relative z-10">
+          {isConnecting ? "Connecting..." : "Connect GitHub Account"}
+        </span>
+      </motion.button>
+      <p className="text-xs text-muted-foreground">
+        You'll be signed out briefly to connect your GitHub account. You'll be signed back in automatically.
+      </p>
+    </div>
   );
 }
