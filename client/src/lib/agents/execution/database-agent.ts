@@ -97,7 +97,10 @@ export class DatabaseAgent extends BaseAgent {
           iterations: 1,
           durationMs: 0,
           error: filesResult.error,
-          data: { filesCreated: filesResult.files },
+          data: {
+            filesCreated: filesResult.files,
+            filesData: filesResult.filesData,
+          },
         };
       }
 
@@ -116,7 +119,8 @@ export class DatabaseAgent extends BaseAgent {
           error: commandsResult.error,
           data: {
             filesCreated: filesResult.files,
-            commandsRun: commandsResult.commands,
+            filesData: filesResult.filesData,
+            commands: commandsResult.commands,
           },
         };
       }
@@ -137,7 +141,8 @@ export class DatabaseAgent extends BaseAgent {
           error: verification.issues.join("; "),
           data: {
             filesCreated: filesResult.files,
-            commandsRun: commandsResult.commands,
+            filesData: filesResult.filesData,
+            commands: commandsResult.commands,
           },
         };
       }
@@ -149,7 +154,8 @@ export class DatabaseAgent extends BaseAgent {
         durationMs: 0,
         data: {
           filesCreated: filesResult.files,
-          commandsRun: commandsResult.commands,
+          filesData: filesResult.filesData,
+          commands: commandsResult.commands,
           explanation: implementation.explanation,
         },
       };
@@ -233,7 +239,10 @@ export class DatabaseAgent extends BaseAgent {
           iterations: 1,
           durationMs: 0,
           error: filesResult.error,
-          data: { filesCreated: filesResult.files },
+          data: {
+            filesCreated: filesResult.files,
+            filesData: filesResult.filesData,
+          },
         };
       }
 
@@ -250,7 +259,8 @@ export class DatabaseAgent extends BaseAgent {
         durationMs: 0,
         data: {
           filesCreated: filesResult.files,
-          commandsRun: commandsResult.commands,
+          filesData: filesResult.filesData,
+          commands: commandsResult.commands.map(c => ({ command: c })),
           fixesApplied: fixes.explanation,
         },
       };
@@ -272,6 +282,61 @@ export class DatabaseAgent extends BaseAgent {
   /**
    * Generate database implementation using AI
    */
+  /**
+   * ✅ Load existing project context from previous waves
+   */
+  private async loadExistingContext(input: AgentExecutionInput): Promise<{
+    structure: string;
+    existingFiles: Array<{ path: string; content: string }>;
+    dependencies: string;
+  }> {
+    const { projectId, userId, taskDetails } = input;
+
+    try {
+      const structureResult = await this.executeTool(
+        "context_loader",
+        { operation: "scan_structure" },
+        { projectId, userId }
+      );
+
+      const filesResult = await this.executeTool(
+        "context_loader",
+        {
+          operation: "smart_load",
+          taskDescription: taskDetails.description,
+          pattern: "**/{prisma,*.prisma,migrations}/**/*", // Database-related files
+          maxFiles: 20,
+          maxSize: 500000,
+        },
+        { projectId, userId }
+      );
+
+      const depsResult = await this.executeTool(
+        "context_loader",
+        { operation: "load_dependencies" },
+        { projectId, userId }
+      );
+
+      return {
+        structure: structureResult.success
+          ? JSON.stringify(structureResult.data, null, 2)
+          : "No structure available",
+        existingFiles: filesResult.success
+          ? (filesResult.data as { files?: Array<{ path: string; content: string }> }).files || []
+          : [],
+        dependencies: depsResult.success
+          ? JSON.stringify(depsResult.data, null, 2)
+          : "No dependencies loaded",
+      };
+    } catch (error) {
+      logger.warn(
+        `[${this.config.name}] Failed to load existing context`,
+        toError(error)
+      );
+      return { structure: "", existingFiles: [], dependencies: "" };
+    }
+  }
+
   private async generateImplementation(input: AgentExecutionInput): Promise<{
     files: Array<{ path: string; content: string }>;
     commands: Array<{ command: string; description: string }>;
@@ -279,10 +344,23 @@ export class DatabaseAgent extends BaseAgent {
   } | null> {
     const { taskDetails, context } = input;
 
-    const prompt = this.buildDatabasePrompt(taskDetails, context);
+    // ✅ FIXED: Load existing context BEFORE generating
+    // This ensures continuity between waves - agent sees what previous waves created
+    const existingContext = await this.loadExistingContext(input);
+    const prompt = this.buildDatabasePrompt(taskDetails, context, existingContext);
 
     try {
-      const responseText = await this.generateContent(prompt);
+      // ✅ Enable native tool use for Claude (agentic capabilities)
+      // Claude can use tools during generation if it needs additional context
+      const responseText = await this.generateContent(
+        prompt,
+        undefined, // No system instruction
+        true, // Enable tools (agentic mode for Claude)
+        {
+          projectId: input.projectId,
+          userId: input.userId,
+        }
+      );
 
       return this.parseImplementationResponse(responseText);
     } catch (error) {
@@ -299,17 +377,26 @@ export class DatabaseAgent extends BaseAgent {
    */
   private buildDatabasePrompt(
     taskDetails: AgentExecutionInput["taskDetails"],
-    context: Record<string, unknown>
+    context: Record<string, unknown>,
+    existingContext: {
+      structure: string;
+      existingFiles: Array<{ path: string; content: string }>;
+      dependencies: string;
+    }
   ): string {
     const techStack: {
       database?: { type?: string; orm?: string };
       language?: string;
     } = context.techStack || {};
     const architecture = context.architecture || {};
-    const existingFiles = context._existingFiles || {};
     const memoryContext = context._memoryContext || "";
 
     return `You are DatabaseAgent, a specialized AI agent for database design and implementation.
+
+**🎯 CRITICAL: BUILD ON EXISTING DATABASE SCHEMA, DON'T START FROM SCRATCH**
+You are working on a project that may already have database models and migrations from previous development waves.
+Review the "Existing Codebase" section below carefully to understand what database schema already exists.
+Your new models must integrate seamlessly with existing schema, maintain referential integrity, and follow existing naming patterns.
 
 # Task
 ${taskDetails.title}
@@ -328,12 +415,38 @@ ${JSON.stringify(architecture, null, 2)}
 
 ${memoryContext ? `\n## Past Experience (Vector Memory)\n${typeof memoryContext === "string" ? memoryContext : JSON.stringify(memoryContext, null, 2)}\n` : ""}
 
+**📂 EXISTING CODEBASE (from previous waves):**
 ${
-  Object.keys(existingFiles).length > 0
-    ? `\n## Existing Files\n${Object.entries(existingFiles)
-        .map(([path, content]) => `### ${path}\n\`\`\`\n${content}\n\`\`\``)
-        .join("\n\n")}\n`
-    : ""
+  existingContext.existingFiles.length > 0
+    ? `
+**Project Structure:**
+${existingContext.structure}
+
+**Installed Dependencies:**
+${existingContext.dependencies}
+
+**Existing Database Files (${existingContext.existingFiles.length} files):**
+${existingContext.existingFiles
+  .map(
+    (file, idx) => `
+[File ${idx + 1}]: ${file.path}
+\`\`\`prisma
+${file.content.length > 3000 ? file.content.substring(0, 3000) + "\n... (truncated)" : file.content}
+\`\`\`
+`
+  )
+  .join("\n")}
+
+**INTEGRATION REQUIREMENTS:**
+1. Review existing Prisma schema models carefully
+2. Add new models that reference existing models appropriately
+3. Use existing enum types where applicable
+4. Follow existing naming conventions (camelCase, PascalCase)
+5. Maintain referential integrity with @relation directives
+6. Don't recreate models or fields that already exist
+7. If modifying existing models, ensure backward compatibility
+`
+    : "**No existing database schema found - you're starting fresh!**\n"
 }
 
 # Your Responsibilities
@@ -510,9 +623,11 @@ Generate the fixes now.`;
   ): Promise<{
     success: boolean;
     files: string[];
+    filesData: Array<{ path: string; content: string; linesOfCode: number }>;
     error?: string;
   }> {
     const writtenFiles: string[] = [];
+    const filesData: Array<{ path: string; content: string; linesOfCode: number }> = [];
 
     try {
       for (const file of files) {
@@ -528,22 +643,30 @@ Generate the fixes now.`;
 
         if (result.success) {
           writtenFiles.push(file.path);
+          // Store full file data for UI
+          filesData.push({
+            path: file.path,
+            content: file.content,
+            linesOfCode: file.content.split("\n").length,
+          });
         } else {
           return {
             success: false,
             files: writtenFiles,
+            filesData,
             error: `Failed to write ${file.path}: ${result.error}`,
           };
         }
       }
 
-      return { success: true, files: writtenFiles };
+      return { success: true, files: writtenFiles, filesData };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       return {
         success: false,
         files: writtenFiles,
+        filesData,
         error: errorMessage,
       };
     }
@@ -557,10 +680,15 @@ Generate the fixes now.`;
     context: { projectId: string; userId: string }
   ): Promise<{
     success: boolean;
-    commands: string[];
+    commands: Array<{ command: string; success: boolean; output: string; exitCode: number }>;
     error?: string;
   }> {
-    const executedCommands: string[] = [];
+    const results: Array<{
+      command: string;
+      success: boolean;
+      output: string;
+      exitCode: number;
+    }> = [];
 
     try {
       for (const cmd of commands) {
@@ -575,24 +703,30 @@ Generate the fixes now.`;
           context
         );
 
-        if (result.success) {
-          executedCommands.push(cmd.command);
-        } else {
+        const data = result.data as { stdout?: string; stderr?: string };
+        results.push({
+          command: cmd.command,
+          success: result.success,
+          output: data?.stdout || data?.stderr || result.error || "",
+          exitCode: result.success ? 0 : 1,
+        });
+
+        if (!result.success) {
           return {
             success: false,
-            commands: executedCommands,
+            commands: results,
             error: `Command failed: ${cmd.command} - ${result.error}`,
           };
         }
       }
 
-      return { success: true, commands: executedCommands };
+      return { success: true, commands: results };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       return {
         success: false,
-        commands: executedCommands,
+        commands: results,
         error: errorMessage,
       };
     }
@@ -603,7 +737,7 @@ Generate the fixes now.`;
    */
   private verifyImplementation(
     files: string[],
-    commands: string[],
+    commands: Array<{ command: string; success: boolean; output: string; exitCode: number }>,
     taskDetails: AgentExecutionInput["taskDetails"]
   ): { passed: boolean; issues: string[] } {
     const issues: string[] = [];
@@ -618,14 +752,14 @@ Generate the fixes now.`;
     }
 
     // Check if Prisma generate was run
-    const ranGenerate = commands.some((c) => c.includes("prisma generate"));
+    const ranGenerate = commands.some((c) => c.command.includes("prisma generate"));
     if (hasSchema && !ranGenerate) {
       issues.push("Prisma generate command not executed");
     }
 
     // Check if migration was created (for schema changes)
     const ranMigration = commands.some(
-      (c) => c.includes("prisma migrate") || c.includes("prisma db push")
+      (c) => c.command.includes("prisma migrate") || c.command.includes("prisma db push")
     );
     if (
       hasSchema &&

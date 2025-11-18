@@ -95,7 +95,10 @@ export class FrontendAgent extends BaseAgent {
           iterations: 1,
           durationMs: 0,
           error: filesResult.error,
-          data: { filesCreated: filesResult.files },
+          data: {
+            filesCreated: filesResult.files,
+            filesData: filesResult.filesData,
+          },
         };
       }
 
@@ -116,7 +119,8 @@ export class FrontendAgent extends BaseAgent {
           error: commandsResult.error,
           data: {
             filesCreated: filesResult.files,
-            commandsRun: commandsResult.commands as unknown as Array<string>,
+            filesData: filesResult.filesData,
+            commands: commandsResult.commands,
           },
         };
       }
@@ -140,7 +144,8 @@ export class FrontendAgent extends BaseAgent {
           error: verification.issues.join("; "),
           data: {
             filesCreated: filesResult.files,
-            commandsRun: commandsResult.commands as unknown as Array<string>,
+            filesData: filesResult.filesData,
+            commands: commandsResult.commands,
           },
         };
       }
@@ -156,7 +161,8 @@ export class FrontendAgent extends BaseAgent {
         durationMs: 0,
         data: {
           filesCreated: filesResult.files,
-          commandsRun: commandsResult.commands as unknown as Array<string>,
+          filesData: filesResult.filesData,
+          commands: commandsResult.commands,
           explanation: implementation.explanation,
         },
       };
@@ -241,7 +247,10 @@ export class FrontendAgent extends BaseAgent {
           iterations: 1,
           durationMs: 0,
           error: filesResult.error,
-          data: { filesCreated: filesResult.files },
+          data: {
+            filesCreated: filesResult.files,
+            filesData: filesResult.filesData,
+          },
         };
       }
 
@@ -266,7 +275,8 @@ export class FrontendAgent extends BaseAgent {
         durationMs: 0,
         data: {
           filesCreated: filesResult.files,
-          commandsRun: commandsResult.commands as unknown as Array<string>,
+          filesData: filesResult.filesData,
+          commands: commandsResult.commands,
           issuesFixed: issuesToFix.length,
           fixExplanation: fixes.explanation,
         },
@@ -611,15 +621,83 @@ Type Safety:
     }
   }
 
+  /**
+   * ✅ Load existing project context from previous waves
+   */
+  private async loadExistingContext(input: AgentExecutionInput): Promise<{
+    structure: string;
+    existingFiles: Array<{ path: string; content: string }>;
+    dependencies: string;
+  }> {
+    const { projectId, userId, taskDetails } = input;
+
+    try {
+      const structureResult = await this.executeTool(
+        "context_loader",
+        { operation: "scan_structure" },
+        { projectId, userId }
+      );
+
+      const filesResult = await this.executeTool(
+        "context_loader",
+        {
+          operation: "smart_load",
+          taskDescription: taskDetails.description,
+          pattern: "src/**/*.{ts,tsx,jsx,css}", // Frontend files
+          maxFiles: 20,
+          maxSize: 500000,
+        },
+        { projectId, userId }
+      );
+
+      const depsResult = await this.executeTool(
+        "context_loader",
+        { operation: "load_dependencies" },
+        { projectId, userId }
+      );
+
+      return {
+        structure: structureResult.success
+          ? JSON.stringify(structureResult.data, null, 2)
+          : "No structure available",
+        existingFiles: filesResult.success
+          ? (filesResult.data as { files?: Array<{ path: string; content: string }> }).files || []
+          : [],
+        dependencies: depsResult.success
+          ? JSON.stringify(depsResult.data, null, 2)
+          : "No dependencies loaded",
+      };
+    } catch (error) {
+      logger.warn(
+        `[${this.config.name}] Failed to load existing context`,
+        toError(error)
+      );
+      return { structure: "", existingFiles: [], dependencies: "" };
+    }
+  }
+
   private async generateImplementation(input: AgentExecutionInput): Promise<{
     files: Array<{ path: string; content: string }>;
     commands: string[];
     explanation: string;
   } | null> {
-    const prompt = this.buildGenericPrompt(input);
+    // ✅ FIXED: Load existing context BEFORE generating
+    // This ensures continuity between waves - agent sees what previous waves created
+    const existingContext = await this.loadExistingContext(input);
+    const prompt = this.buildGenericPrompt(input, existingContext);
 
     try {
-      const responseText = await this.generateContent(prompt);
+      // ✅ Enable native tool use for Claude (agentic capabilities)
+      // Claude can use tools during generation if it needs additional context
+      const responseText = await this.generateContent(
+        prompt,
+        undefined, // No system instruction
+        true, // Enable tools (agentic mode for Claude)
+        {
+          projectId: input.projectId,
+          userId: input.userId,
+        }
+      );
 
       return this.parseImplementation(responseText);
     } catch (error) {
@@ -634,7 +712,14 @@ Type Safety:
   /**
    * Build truly generic frontend prompt
    */
-  private buildGenericPrompt(input: AgentExecutionInput): string {
+  private buildGenericPrompt(
+    input: AgentExecutionInput,
+    existingContext: {
+      structure: string;
+      existingFiles: Array<{ path: string; content: string }>;
+      dependencies: string;
+    }
+  ): string {
     const { taskDetails, context } = input;
 
     // Extract tech stack from Planning Agent
@@ -668,6 +753,11 @@ Type Safety:
 
     return `
 You are the Frontend Agent, a specialized UI/component code generation expert.
+
+**🎯 CRITICAL: BUILD ON EXISTING CODE, DON'T START FROM SCRATCH**
+You are working on a project that may already have UI components and pages from previous development waves.
+Review the "Existing Codebase" section below carefully to understand what already exists.
+Your new components must integrate seamlessly, reuse existing components, and follow existing design patterns.
 
 **CRITICAL: Follow the EXACT tech stack specified. Do NOT use different technologies.**
 
@@ -706,6 +796,39 @@ ${JSON.stringify(context.architecture, null, 2)}
 \`\`\`
 
 ${context._memoryContext ? `**Relevant Past Experience:**\n${context._memoryContext}\n` : ""}
+
+**📂 EXISTING CODEBASE (from previous waves):**
+${
+  existingContext.existingFiles.length > 0
+    ? `
+**Project Structure:**
+${existingContext.structure}
+
+**Installed Dependencies:**
+${existingContext.dependencies}
+
+**Existing Files (${existingContext.existingFiles.length} files):**
+${existingContext.existingFiles
+  .map(
+    (file, idx) => `
+[File ${idx + 1}]: ${file.path}
+\`\`\`typescript
+${file.content.length > 3000 ? file.content.substring(0, 3000) + "\n... (truncated)" : file.content}
+\`\`\`
+`
+  )
+  .join("\n")}
+
+**INTEGRATION REQUIREMENTS:**
+1. Follow existing naming conventions and component structure
+2. Reuse existing UI components, hooks, and utilities
+3. Match existing styling patterns and theme configuration
+4. Use existing layout components (if any)
+5. Follow existing routing structure
+6. Don't recreate components or utilities that already exist
+`
+    : "**No existing code found - you're starting fresh!**\n"
+}
 
 **Available Tools:**
 ${this.getToolsDescription()}
@@ -1144,9 +1267,12 @@ export default function UserCard(props: UserCardProps) {
   ): Promise<{
     success: boolean;
     files: Array<{ path: string; lines: number; success: boolean }>;
+    filesData: Array<{ path: string; content: string; linesOfCode: number }>;
     error?: string;
   }> {
     const results: Array<{ path: string; lines: number; success: boolean }> =
+      [];
+    const filesData: Array<{ path: string; content: string; linesOfCode: number }> =
       [];
 
     for (const file of files) {
@@ -1161,11 +1287,22 @@ export default function UserCard(props: UserCardProps) {
           context
         );
 
+        const linesOfCode = file.content.split("\n").length;
+
         results.push({
           path: file.path,
-          lines: file.content.split("\n").length,
+          lines: linesOfCode,
           success: result.success,
         });
+
+        // Store full file data for UI
+        if (result.success) {
+          filesData.push({
+            path: file.path,
+            content: file.content,
+            linesOfCode,
+          });
+        }
 
         if (!result.success) {
           logger.warn(`[${this.config.name}] File write failed: ${file.path}`, {
@@ -1190,6 +1327,7 @@ export default function UserCard(props: UserCardProps) {
     return {
       success: allSuccess,
       files: results,
+      filesData,
       error: allSuccess ? undefined : "Some files failed to write",
     };
   }
@@ -1199,13 +1337,14 @@ export default function UserCard(props: UserCardProps) {
     context: { projectId: string; userId: string }
   ): Promise<{
     success: boolean;
-    commands: Array<{ command: string; success: boolean; output: string }>;
+    commands: Array<{ command: string; success: boolean; output: string; exitCode: number }>;
     error?: string;
   }> {
     const results: Array<{
       command: string;
       success: boolean;
       output: string;
+      exitCode: number;
     }> = [];
 
     for (const command of commands) {
@@ -1224,6 +1363,7 @@ export default function UserCard(props: UserCardProps) {
           command,
           success: result.success,
           output: data?.stdout || data?.stderr || result.error || "",
+          exitCode: result.success ? 0 : 1, // 0 for success, 1 for failure
         });
 
         if (!result.success) {
@@ -1240,6 +1380,7 @@ export default function UserCard(props: UserCardProps) {
           command,
           success: false,
           output: error instanceof Error ? error.message : "Unknown error",
+          exitCode: 1, // Non-zero exit code for errors
         });
       }
     }

@@ -12,7 +12,7 @@ import {
   AgentExecutionOutput,
 } from "../base/base-agent";
 import { logger } from "@/lib/logger";
-import { toError } from "@/lib/error-utils";
+import { toError, toLogContext } from "@/lib/error-utils";
 
 export class BackendAgent extends BaseAgent {
   constructor() {
@@ -90,7 +90,10 @@ export class BackendAgent extends BaseAgent {
           iterations: 1,
           durationMs: 0,
           error: filesResult.error,
-          data: { filesCreated: filesResult.files },
+          data: {
+            filesCreated: filesResult.files,
+            filesData: filesResult.filesData,
+          },
         };
       }
 
@@ -108,7 +111,8 @@ export class BackendAgent extends BaseAgent {
           error: commandsResult.error,
           data: {
             filesCreated: filesResult.files,
-            commandsRun: commandsResult.commands as unknown as Array<string>,
+            filesData: filesResult.filesData,
+            commands: commandsResult.commands,
           },
         };
       }
@@ -128,7 +132,8 @@ export class BackendAgent extends BaseAgent {
           error: verification.issues.join("; "),
           data: {
             filesCreated: filesResult.files,
-            commandsRun: commandsResult.commands as unknown as Array<string>,
+            filesData: filesResult.filesData,
+            commands: commandsResult.commands,
           },
         };
       }
@@ -140,7 +145,8 @@ export class BackendAgent extends BaseAgent {
         durationMs: 0,
         data: {
           filesCreated: filesResult.files,
-          commandsRun: commandsResult.commands as unknown as Array<string>,
+          filesData: filesResult.filesData,
+          commands: commandsResult.commands,
           explanation: implementation.explanation,
         },
       };
@@ -232,7 +238,10 @@ export class BackendAgent extends BaseAgent {
           iterations: 1,
           durationMs: 0,
           error: filesResult.error,
-          data: { filesCreated: filesResult.files },
+          data: {
+            filesCreated: filesResult.files,
+            filesData: filesResult.filesData,
+          },
         };
       }
 
@@ -257,7 +266,8 @@ export class BackendAgent extends BaseAgent {
         durationMs: 0,
         data: {
           filesCreated: filesResult.files,
-          commandsRun: commandsResult.commands as unknown as Array<string>,
+          filesData: filesResult.filesData,
+          commands: commandsResult.commands,
           issuesFixed: issuesToFix.length,
           fixExplanation: fixes.explanation,
         },
@@ -465,17 +475,93 @@ Generate the fixes now.
   }
 
   /**
-   * Generate implementation using AI
+   * ✅ Load existing project context from previous waves
+   * This ensures agents see what code already exists and don't generate disconnected code
+   */
+  private async loadExistingContext(input: AgentExecutionInput): Promise<{
+    structure: string;
+    existingFiles: Array<{ path: string; content: string }>;
+    dependencies: string;
+  }> {
+    const { projectId, userId, taskDetails } = input;
+
+    try {
+      // Step 1: Scan project structure
+      const structureResult = await this.executeTool(
+        "context_loader",
+        { operation: "scan_structure" },
+        { projectId, userId }
+      );
+
+      // Step 2: Load relevant existing files (smart load based on task)
+      const filesResult = await this.executeTool(
+        "context_loader",
+        {
+          operation: "smart_load",
+          taskDescription: taskDetails.description,
+          pattern: "src/**/*.ts", // Focus on source TypeScript files
+          maxFiles: 20, // Limit to prevent token overflow
+          maxSize: 500000, // 500KB max
+        },
+        { projectId, userId }
+      );
+
+      // Step 3: Load dependencies
+      const depsResult = await this.executeTool(
+        "context_loader",
+        { operation: "load_dependencies" },
+        { projectId, userId }
+      );
+
+      return {
+        structure: structureResult.success
+          ? JSON.stringify(structureResult.data, null, 2)
+          : "No structure available",
+        existingFiles: filesResult.success
+          ? (filesResult.data as { files?: Array<{ path: string; content: string }> }).files || []
+          : [],
+        dependencies: depsResult.success
+          ? JSON.stringify(depsResult.data, null, 2)
+          : "No dependencies loaded",
+      };
+    } catch (error) {
+      logger.warn(
+        `[${this.config.name}] Failed to load existing context, continuing without it`,
+        toLogContext(error)
+      );
+      return {
+        structure: "",
+        existingFiles: [],
+        dependencies: "",
+      };
+    }
+  }
+
+  /**
+   * Generate implementation using AI - loads context before generation
    */
   private async generateImplementation(input: AgentExecutionInput): Promise<{
     files: Array<{ path: string; content: string }>;
     commands: string[];
     explanation: string;
   } | null> {
-    const prompt = this.buildImplementationPrompt(input);
+    // ✅ FIXED: Load existing context BEFORE generating
+    // This ensures continuity between waves - agent sees what previous waves created
+    const existingContext = await this.loadExistingContext(input);
+    const prompt = this.buildImplementationPrompt(input, existingContext);
 
     try {
-      const responseText = await this.generateContent(prompt);
+      // ✅ Enable native tool use for Claude (agentic capabilities)
+      // Claude can use tools during generation if it needs additional context
+      const responseText = await this.generateContent(
+        prompt,
+        undefined, // No system instruction
+        true, // Enable tools (agentic mode for Claude)
+        {
+          projectId: input.projectId,
+          userId: input.userId,
+        }
+      );
 
       return this.parseImplementation(responseText);
     } catch (error) {
@@ -488,13 +574,25 @@ Generate the fixes now.
   }
 
   /**
-   * Build implementation prompt
+   * Build implementation prompt with existing project context
    */
-  private buildImplementationPrompt(input: AgentExecutionInput): string {
+  private buildImplementationPrompt(
+    input: AgentExecutionInput,
+    existingContext: {
+      structure: string;
+      existingFiles: Array<{ path: string; content: string }>;
+      dependencies: string;
+    }
+  ): string {
     const { taskDetails, context } = input;
 
     return `
 You are the Backend Agent, specialized in implementing backend code.
+
+**🎯 CRITICAL: BUILD ON EXISTING CODE, DON'T START FROM SCRATCH**
+You are working on a project that may already have code from previous development waves.
+Review the "Existing Codebase" section below carefully to understand what already exists.
+Your new code must integrate seamlessly with existing files, follow existing patterns, and maintain consistency.
 
 **Task:**
 - Title: ${taskDetails.title}
@@ -522,6 +620,39 @@ ${JSON.stringify(context.architecture, null, 2)}
 \`\`\`
 
 ${context._memoryContext ? `**Relevant Past Experience:**\n${context._memoryContext}\n` : ""}
+
+**📂 EXISTING CODEBASE (from previous waves):**
+${
+  existingContext.existingFiles.length > 0
+    ? `
+**Project Structure:**
+${existingContext.structure}
+
+**Installed Dependencies:**
+${existingContext.dependencies}
+
+**Existing Files (${existingContext.existingFiles.length} files):**
+${existingContext.existingFiles
+  .map(
+    (file, idx) => `
+[File ${idx + 1}]: ${file.path}
+\`\`\`typescript
+${file.content.length > 3000 ? file.content.substring(0, 3000) + "\n... (truncated)" : file.content}
+\`\`\`
+`
+  )
+  .join("\n")}
+
+**INTEGRATION REQUIREMENTS:**
+1. Follow existing naming conventions and code patterns
+2. Use existing utility functions and imports where applicable
+3. Ensure your code integrates with existing database models (if any)
+4. Match existing error handling patterns
+5. Use existing authentication/authorization middleware (if applicable)
+6. Don't recreate utilities or types that already exist
+`
+    : "**No existing code found - you're starting fresh!**\n"
+}
 
 **Available Tools:**
 ${this.getToolsDescription()}
@@ -613,9 +744,12 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
   ): Promise<{
     success: boolean;
     files: Array<{ path: string; lines: number; success: boolean }>;
+    filesData: Array<{ path: string; content: string; linesOfCode: number }>;
     error?: string;
   }> {
     const results: Array<{ path: string; lines: number; success: boolean }> =
+      [];
+    const filesData: Array<{ path: string; content: string; linesOfCode: number }> =
       [];
 
     for (const file of files) {
@@ -630,11 +764,22 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
           context
         );
 
+        const linesOfCode = file.content.split("\n").length;
+
         results.push({
           path: file.path,
-          lines: file.content.split("\n").length,
+          lines: linesOfCode,
           success: result.success,
         });
+
+        // Store full file data for UI
+        if (result.success) {
+          filesData.push({
+            path: file.path,
+            content: file.content,
+            linesOfCode,
+          });
+        }
 
         if (!result.success) {
           logger.warn(`[${this.config.name}] File write failed: ${file.path}`, {
@@ -659,6 +804,7 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
     return {
       success: allSuccess,
       files: results,
+      filesData,
       error: allSuccess ? undefined : "Some files failed to write",
     };
   }
@@ -671,13 +817,14 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
     context: { projectId: string; userId: string }
   ): Promise<{
     success: boolean;
-    commands: Array<{ command: string; success: boolean; output: string }>;
+    commands: Array<{ command: string; success: boolean; output: string; exitCode: number }>;
     error?: string;
   }> {
     const results: Array<{
       command: string;
       success: boolean;
       output: string;
+      exitCode: number;
     }> = [];
 
     for (const command of commands) {
@@ -704,6 +851,7 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
           command,
           success: result.success,
           output: data?.stdout || data?.stderr || result.error || "",
+          exitCode: result.success ? 0 : 1, // 0 for success, 1 for failure
         });
 
         if (!result.success) {
@@ -720,6 +868,7 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
           command,
           success: false,
           output: error instanceof Error ? error.message : "Unknown error",
+          exitCode: 1, // Non-zero exit code for errors
         });
       }
     }

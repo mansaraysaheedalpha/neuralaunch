@@ -663,12 +663,22 @@ export abstract class BaseAgent {
   /**
    * ✅ NEW: Universal AI generation method that works with both Google and Anthropic
    * Subclasses can use this for consistent AI calls
+   * @param prompt - The user prompt
+   * @param systemInstruction - Optional system instruction
+   * @param enableTools - Enable native tool use (agentic mode) - default true for Claude
+   * @param toolContext - Context for tool execution (projectId, userId)
    */
   protected async generateContent(
     prompt: string,
-    systemInstruction?: string
+    systemInstruction?: string,
+    enableTools?: boolean,
+    toolContext?: { projectId: string; userId: string }
   ): Promise<string> {
     try {
+      // Default enableTools to true for Claude (agentic mode), false for Gemini
+      const shouldEnableTools =
+        enableTools ?? this.selectedModel.includes("claude");
+
       logger.info(`[${this.config.name}] Calling AI generation`, {
         model: this.selectedModel,
         provider: this.selectedModel.includes("claude")
@@ -676,13 +686,20 @@ export abstract class BaseAgent {
           : "Google",
         promptLength: prompt.length,
         hasSystemInstruction: !!systemInstruction,
+        toolsEnabled: shouldEnableTools,
+        availableTools: this.tools.size,
       });
 
       let text: string;
 
       if (this.selectedModel.includes("claude")) {
-        // Use Anthropic SDK
-        text = await this.generateWithClaude(prompt, systemInstruction);
+        // Use Anthropic SDK with optional tool use
+        text = await this.generateWithClaude(
+          prompt,
+          systemInstruction,
+          shouldEnableTools,
+          toolContext
+        );
       } else {
         // Use Google SDK
         text = await this.generateWithGemini(prompt, systemInstruction);
@@ -715,43 +732,127 @@ export abstract class BaseAgent {
   }
 
   /**
-   * ✅ Generate content using Anthropic Claude
+   * ✅ Generate content using Anthropic Claude with optional native tool use (agentic mode)
    */
   private async generateWithClaude(
     prompt: string,
-    systemInstruction?: string
+    systemInstruction?: string,
+    enableTools = false,
+    toolContext?: { projectId: string; userId: string }
   ): Promise<string> {
     if (!this.anthropic) {
       throw new Error("Anthropic client not initialized");
     }
 
     try {
-      const response = await this.anthropic.messages.create({
+      // Convert tools to Anthropic format if tools are enabled
+      const tools = enableTools ? this.convertToolsToAnthropicFormat() : undefined;
+
+      logger.info(`[${this.config.name}] Calling Claude`, {
         model: this.selectedModel,
-        max_tokens: 8192,
-        system: systemInstruction,
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
+        toolsEnabled: enableTools,
+        toolsCount: tools?.length ?? 0,
       });
 
-      // Extract text from content blocks
-      const textContent = response.content
-        .filter((block) => block.type === "text")
-        .map((block) => (block as { type: "text"; text: string }).text)
-        .join("\n");
+      // Initial message
+      const messages: Anthropic.MessageParam[] = [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ];
 
-      // Check for stop reasons that indicate issues
-      if (response.stop_reason === "max_tokens") {
+      let finalResponse = "";
+      let continueLoop = true;
+      let iterationCount = 0;
+      const MAX_ITERATIONS = 10; // Prevent infinite loops
+
+      // Tool calling loop
+      while (continueLoop && iterationCount < MAX_ITERATIONS) {
+        iterationCount++;
+
+        const response = await this.anthropic.messages.create({
+          model: this.selectedModel,
+          max_tokens: 8192,
+          system: systemInstruction,
+          messages,
+          tools,
+        });
+
+        logger.info(`[${this.config.name}] Claude iteration ${iterationCount}`, {
+          stopReason: response.stop_reason,
+          contentBlocks: response.content.length,
+        });
+
+        // Check for stop reasons
+        if (response.stop_reason === "max_tokens") {
+          logger.warn(
+            `[${this.config.name}] Claude hit max_tokens limit, response may be truncated`
+          );
+        }
+
+        // Process response content
+        let hasToolUse = false;
+        const toolResults: Anthropic.MessageParam[] = [];
+
+        for (const block of response.content) {
+          if (block.type === "text") {
+            finalResponse += block.text + "\n";
+          } else if (block.type === "tool_use" && enableTools && toolContext) {
+            hasToolUse = true;
+            // Execute the tool
+            const toolResult = await this.executeClaudeTool(
+              block.name,
+              block.input as Record<string, unknown>,
+              toolContext
+            );
+
+            // Add tool result to messages for next iteration
+            toolResults.push({
+              role: "user",
+              content: [
+                {
+                  type: "tool_result",
+                  tool_use_id: block.id,
+                  content: JSON.stringify(toolResult),
+                },
+              ],
+            });
+
+            logger.info(`[${this.config.name}] Tool executed: ${block.name}`, {
+              success: toolResult.success,
+            });
+          }
+        }
+
+        // Add assistant response to messages
+        messages.push({
+          role: "assistant",
+          content: response.content,
+        });
+
+        // If there were tool uses, add tool results and continue loop
+        if (hasToolUse && toolResults.length > 0) {
+          messages.push(...toolResults);
+          continueLoop = true; // Continue to get Claude's response after tool use
+        } else {
+          // No more tool uses, we're done
+          continueLoop = false;
+        }
+
+        // Also stop if Claude says it's done (stop_reason is end_turn)
+        if (response.stop_reason === "end_turn") {
+          continueLoop = false;
+        }
+      }
+
+      if (iterationCount >= MAX_ITERATIONS) {
         logger.warn(
-          `[${this.config.name}] Claude hit max_tokens limit, response may be truncated`
+          `[${this.config.name}] Tool calling loop hit max iterations (${MAX_ITERATIONS})`
         );
       }
 
-      return textContent;
+      return finalResponse.trim();
     } catch (error) {
       if (error instanceof Anthropic.APIError) {
         logger.error(`[${this.config.name}] Anthropic API Error`, undefined, {
@@ -760,6 +861,87 @@ export abstract class BaseAgent {
         });
       }
       throw error;
+    }
+  }
+
+  /**
+   * Convert agent tools to Anthropic tool format
+   */
+  private convertToolsToAnthropicFormat(): Anthropic.Tool[] {
+    const anthropicTools: Anthropic.Tool[] = [];
+
+    for (const tool of this.tools.values()) {
+      const metadata = tool.getMetadata();
+
+      // Build input schema from parameters
+      const properties: Record<string, unknown> = {};
+      const required: string[] = [];
+
+      for (const param of metadata.parameters) {
+        properties[param.name] = {
+          type: this.mapToolParameterType(param.type),
+          description: param.description,
+        };
+
+        if (param.required) {
+          required.push(param.name);
+        }
+      }
+
+      anthropicTools.push({
+        name: metadata.name,
+        description: metadata.description,
+        input_schema: {
+          type: "object",
+          properties,
+          required,
+        },
+      });
+    }
+
+    return anthropicTools;
+  }
+
+  /**
+   * Map tool parameter types to JSON schema types
+   */
+  private mapToolParameterType(type: string): string {
+    const typeMap: Record<string, string> = {
+      string: "string",
+      number: "number",
+      boolean: "boolean",
+      array: "array",
+      object: "object",
+    };
+    return typeMap[type] || "string";
+  }
+
+  /**
+   * Execute a tool called by Claude
+   */
+  private async executeClaudeTool(
+    toolName: string,
+    input: Record<string, unknown>,
+    context: { projectId: string; userId: string }
+  ): Promise<ToolResult> {
+    try {
+      logger.info(`[${this.config.name}] Executing tool: ${toolName}`, {
+        input,
+      });
+
+      const result = await this.executeTool(toolName, input, context);
+
+      return result;
+    } catch (error) {
+      logger.error(
+        `[${this.config.name}] Tool execution failed: ${toolName}`,
+        toError(error)
+      );
+
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
     }
   }
 

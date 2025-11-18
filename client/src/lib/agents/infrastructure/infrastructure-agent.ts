@@ -36,7 +36,7 @@ export class InfrastructureAgent extends BaseAgent {
         "code_analysis",
         "context_loader",
       ],
-      modelName: AI_MODELS.OPENAI,
+      modelName: AI_MODELS.CLAUDE,
     });
   }
 
@@ -67,14 +67,24 @@ export class InfrastructureAgent extends BaseAgent {
     });
 
     try {
+      // ✅ Load existing project context
       if (this.tools.has("context_loader")) {
         await this.loadProjectContextInternal(input);
       }
 
       const prompt = this.buildTaskPrompt(taskDetails, context);
 
-      // Use the generateContent helper from BaseAgent
-      const responseText = await this.generateContent(prompt);
+      // ✅ Enable native tool use for Claude (agentic capabilities)
+      // Claude can use tools during generation if it needs additional context
+      const responseText = await this.generateContent(
+        prompt,
+        undefined, // No system instruction
+        true, // Enable tools (agentic mode for Claude)
+        {
+          projectId,
+          userId,
+        }
+      );
 
       const generatedFiles = this.parseGeneratedFiles(responseText);
 
@@ -103,7 +113,7 @@ export class InfrastructureAgent extends BaseAgent {
         durationMs: 0,
         data: {
           filesCreated: writtenFiles,
-          files: generatedFiles,
+          filesData: generatedFiles, // Changed from 'files' to 'filesData' to match UI expectations
         },
       };
     } catch (error) {
@@ -174,8 +184,16 @@ export class InfrastructureAgent extends BaseAgent {
         context
       );
 
-      // Use the generateContent helper from BaseAgent
-      const responseText = await this.generateContent(fixPrompt);
+      // ✅ Enable native tool use for Claude (agentic capabilities)
+      const responseText = await this.generateContent(
+        fixPrompt,
+        undefined, // No system instruction
+        true, // Enable tools
+        {
+          projectId,
+          userId,
+        }
+      );
 
       const fixes = this.parseGeneratedFiles(responseText);
 

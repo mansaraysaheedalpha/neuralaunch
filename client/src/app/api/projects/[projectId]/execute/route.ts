@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createApiLogger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
-import { executionCoordinator } from "@/lib/orchestrator/execution-coordinator";
+import { inngest } from "@/inngest/client";
 import {
   checkRateLimit,
   RATE_LIMITS,
@@ -58,9 +58,12 @@ export async function POST(
           status: 429,
           headers: {
             "Retry-After": rateLimitResult.retryAfter?.toString() || "60",
-            "X-RateLimit-Limit": RATE_LIMITS.AI_GENERATION.maxRequests.toString(),
+            "X-RateLimit-Limit":
+              RATE_LIMITS.AI_GENERATION.maxRequests.toString(),
             "X-RateLimit-Remaining": rateLimitResult.remaining.toString(),
-            "X-RateLimit-Reset": new Date(rateLimitResult.resetAt).toISOString(),
+            "X-RateLimit-Reset": new Date(
+              rateLimitResult.resetAt
+            ).toISOString(),
           },
         }
       );
@@ -124,39 +127,33 @@ export async function POST(
       );
     }
 
-    logger.info("Starting execution", { projectId });
+    logger.info("Starting Wave 1 execution", { projectId });
 
-    // 5. Start execution using the execution coordinator
-    const result = await executionCoordinator.start({
-      projectId,
-      userId,
-      conversationId: projectContext.conversationId,
-      autoStart: true, // Automatically trigger wave 1
+    // ✅ Trigger Wave Start Function (initializes GitHub repo, creates wave, and triggers agents)
+    // The wave-start-function handles:
+    // 1. GitHub repo initialization (Wave 1 only) or branch creation (Wave 2+)
+    // 2. ExecutionWave record creation
+    // 3. Building wave with executionCoordinator (3-task-per-agent limit)
+    // 4. Triggering agent executions
+    await inngest.send({
+      name: "agent/wave.start",
+      data: {
+        projectId,
+        userId,
+        conversationId: projectContext.conversationId,
+        waveNumber: 1,
+      },
     });
 
-    if (!result.success) {
-      logger.error("Execution coordination failed", undefined, { 
-        projectId, 
-        message: result.message 
-      });
-      return NextResponse.json(
-        { error: result.message },
-        { status: 500 }
-      );
-    }
-
-    logger.info("Execution triggered successfully", { 
+    logger.info("Wave 1 execution started via wave-start-function", {
       projectId,
-      waveNumber: result.waveNumber,
-      tasksTriggered: result.triggeredTasks.length,
     });
 
     return NextResponse.json({
       success: true,
-      message: result.message,
+      message: "Wave 1 execution started successfully. GitHub repo will be initialized and agents will begin work.",
       projectId,
-      waveNumber: result.waveNumber,
-      stats: result.stats,
+      waveNumber: 1,
       executionDashboard: `/projects/${projectId}/execution`,
     });
   } catch (error) {
