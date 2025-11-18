@@ -11,6 +11,7 @@ import {
   AgentExecutionInput,
   AgentExecutionOutput,
 } from "../base/base-agent";
+import type { ProjectContext } from "../types/common";
 import { logger } from "@/lib/logger";
 import { toError, toLogContext } from "@/lib/error-utils";
 
@@ -545,6 +546,10 @@ Generate the fixes now.
     commands: string[];
     explanation: string;
   } | null> {
+    // ✅ VALIDATE CONTEXT BEFORE GENERATION
+    // This will log warnings if context is incomplete but won't block generation
+    this.validateContext(input.context);
+
     // ✅ FIXED: Load existing context BEFORE generating
     // This ensures continuity between waves - agent sees what previous waves created
     const existingContext = await this.loadExistingContext(input);
@@ -571,6 +576,53 @@ Generate the fixes now.
       );
       return null;
     }
+  }
+
+  /**
+   * ✅ NEW: Validate that context has minimum required information
+   * Changed to warnings instead of hard failures - agent will use defaults
+   */
+  private validateContext(context: ProjectContext): {
+    isValid: boolean;
+    errors: string[];
+  } {
+    const warnings: string[] = [];
+
+    // Check tech stack (warnings only - we'll use defaults)
+    if (!context.techStack) {
+      warnings.push("Tech stack is missing - will use Next.js + Prisma defaults");
+    } else {
+      if (!context.techStack.backend?.framework) {
+        warnings.push("Backend framework not specified - will assume Next.js API Routes");
+      }
+      if (!context.techStack.database?.type) {
+        warnings.push("Database not specified - will assume PostgreSQL with Prisma");
+      }
+    }
+
+    // Check architecture (warnings only)
+    if (!context.architecture) {
+      warnings.push("Architecture information is missing - will use RESTful API defaults");
+    }
+
+    // Check codebase info (warning only)
+    if (!context.codebase) {
+      warnings.push("Codebase information is missing - starting fresh");
+    }
+
+    // Log warnings but allow generation to proceed
+    if (warnings.length > 0) {
+      logger.warn(
+        `[${this.config.name}] Context has ${warnings.length} warning(s), using defaults:`,
+        { warnings }
+      );
+    }
+
+    // Always return valid - we'll use defaults and the prompt has fallback instructions
+    return {
+      isValid: true,
+      errors: warnings, // These are now just warnings
+    };
   }
 
   /**
@@ -613,11 +665,29 @@ ${Array.isArray(taskDetails.acceptanceCriteria) ? taskDetails.acceptanceCriteria
 \`\`\`json
 ${JSON.stringify(context.techStack, null, 2)}
 \`\`\`
+${!context.techStack || !context.techStack.backend?.framework ? `
+⚠️ **TECH STACK IS INCOMPLETE!**
+Since specific tech stack details are missing, make reasonable assumptions:
+- Use **Next.js 15 API Routes** for backend (app/api/[route]/route.ts pattern)
+- Use **Prisma** as the ORM with PostgreSQL
+- Use **Zod** for validation
+- Use **TypeScript** with strict mode
+- Follow **RESTful API** conventions
+` : ""}
 
 **Architecture:**
 \`\`\`json
 ${JSON.stringify(context.architecture, null, 2)}
 \`\`\`
+${!context.architecture || !(context.architecture as { patterns?: unknown }).patterns ? `
+⚠️ **ARCHITECTURE IS INCOMPLETE!**
+Since specific patterns are missing, follow these defaults:
+- **API Routes**: app/api/[resource]/route.ts
+- **Database**: Prisma Client in src/lib/prisma.ts
+- **Validation**: Zod schemas for request/response
+- **Error Handling**: Try-catch with proper HTTP status codes
+- **Authentication**: Assume session/JWT based auth exists
+` : ""}
 
 ${context._memoryContext ? `**Relevant Past Experience:**\n${context._memoryContext}\n` : ""}
 
