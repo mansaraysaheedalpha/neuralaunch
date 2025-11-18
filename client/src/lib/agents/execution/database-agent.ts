@@ -10,6 +10,7 @@ import {
   AgentExecutionInput,
   AgentExecutionOutput,
 } from "../base/base-agent";
+import type { ProjectContext } from "../types/common";
 import { logger } from "@/lib/logger";
 import { toError, toLogContext } from "@/lib/error-utils";
 
@@ -305,8 +306,8 @@ export class DatabaseAgent extends BaseAgent {
           operation: "smart_load",
           taskDescription: taskDetails.description,
           pattern: "**/{prisma,*.prisma,migrations}/**/*", // Database-related files
-          maxFiles: 20,
-          maxSize: 500000,
+          maxFiles: 10, // ✅ REDUCED from 20 to prevent oversized prompts
+          maxSize: 200000, // ✅ REDUCED from 500KB to 200KB to prevent timeout
         },
         { projectId, userId }
       );
@@ -344,18 +345,23 @@ export class DatabaseAgent extends BaseAgent {
   } | null> {
     const { taskDetails, context } = input;
 
+    // ✅ VALIDATE CONTEXT BEFORE GENERATION
+    // This will log warnings if context is incomplete but won't block generation
+    this.validateContext(context);
+
     // ✅ FIXED: Load existing context BEFORE generating
     // This ensures continuity between waves - agent sees what previous waves created
     const existingContext = await this.loadExistingContext(input);
     const prompt = this.buildDatabasePrompt(taskDetails, context, existingContext);
 
     try {
-      // ✅ Enable native tool use for Claude (agentic capabilities)
-      // Claude can use tools during generation if it needs additional context
+      // ✅ FIXED: Disable tool use for schema generation
+      // Database schema design is straightforward - just need JSON output
+      // Tool calling was causing empty responses and silent failures
       const responseText = await this.generateContent(
         prompt,
         undefined, // No system instruction
-        true, // Enable tools (agentic mode for Claude)
+        false, // DISABLE tools - we just need direct JSON output
         {
           projectId: input.projectId,
           userId: input.userId,
@@ -373,23 +379,69 @@ export class DatabaseAgent extends BaseAgent {
   }
 
   /**
+   * ✅ NEW: Validate that context has minimum required information
+   * Changed to warnings instead of hard failures - agent will use defaults
+   */
+  private validateContext(context: ProjectContext): {
+    isValid: boolean;
+    errors: string[];
+  } {
+    const warnings: string[] = [];
+
+    // Check tech stack (warnings only - we'll use defaults)
+    if (!context.techStack) {
+      warnings.push("Tech stack is missing - will use PostgreSQL + Prisma defaults");
+    } else {
+      if (!context.techStack.database?.type) {
+        warnings.push("Database type not specified - will assume PostgreSQL with Prisma");
+      }
+    }
+
+    // Check architecture (warnings only)
+    if (!context.architecture) {
+      warnings.push("Architecture information is missing - will use Prisma defaults");
+    }
+
+    // Check codebase info (warning only)
+    if (!context.codebase) {
+      warnings.push("Codebase information is missing - starting fresh");
+    }
+
+    // Log warnings but allow generation to proceed
+    if (warnings.length > 0) {
+      logger.warn(
+        `[${this.config.name}] Context has ${warnings.length} warning(s), using defaults:`,
+        { warnings }
+      );
+    }
+
+    // Always return valid - we'll use defaults and the prompt has fallback instructions
+    return {
+      isValid: true,
+      errors: warnings, // These are now just warnings
+    };
+  }
+
+  /**
    * Build database-specific prompt
    */
   private buildDatabasePrompt(
     taskDetails: AgentExecutionInput["taskDetails"],
-    context: Record<string, unknown>,
+    context: ProjectContext,
     existingContext: {
       structure: string;
       existingFiles: Array<{ path: string; content: string }>;
       dependencies: string;
     }
   ): string {
-    const techStack: {
-      database?: { type?: string; orm?: string };
-      language?: string;
-    } = context.techStack || {};
+    const techStack = context.techStack || {};
     const architecture = context.architecture || {};
     const memoryContext = context._memoryContext || "";
+
+    // ✅ FIXED: Safe property access with proper type handling
+    const dbType = techStack.database?.type || "PostgreSQL";
+    const dbOrm = (techStack.database as { orm?: string })?.orm || "Prisma";
+    const lang = techStack.language || "TypeScript";
 
     return `You are DatabaseAgent, a specialized AI agent for database design and implementation.
 
@@ -406,12 +458,32 @@ ${taskDetails.description}
 
 ## Project Context
 **Tech Stack:**
-- Database: ${techStack.database?.type || "PostgreSQL"}
-- ORM: ${techStack.database?.orm || "Prisma"}
-- Language: ${techStack.language || "TypeScript"}
+- Database: ${dbType}
+- ORM: ${dbOrm}
+- Language: ${lang}
+${!context.techStack || !context.techStack.database?.type ? `
+
+⚠️ **TECH STACK IS INCOMPLETE!**
+Since specific database details are missing, make reasonable assumptions:
+- Use **PostgreSQL** as the database (industry standard, scalable)
+- Use **Prisma** as the ORM (TypeScript-first, type-safe)
+- Use **@prisma/client** for database access
+- Follow **Prisma best practices** for schema design
+- Include **proper indexes** for performance
+` : ""}
 
 **Architecture:**
 ${JSON.stringify(architecture, null, 2)}
+${!context.architecture || Object.keys(architecture).length === 0 ? `
+
+⚠️ **ARCHITECTURE IS INCOMPLETE!**
+Since specific patterns are missing, follow these defaults:
+- **Schema Location**: prisma/schema.prisma
+- **Client Location**: src/lib/prisma.ts
+- **Migrations**: Use Prisma Migrate (prisma migrate dev)
+- **Naming**: camelCase for fields, PascalCase for models
+- **Relations**: Use @relation with proper foreign keys
+` : ""}
 
 ${memoryContext ? `\n## Past Experience (Vector Memory)\n${typeof memoryContext === "string" ? memoryContext : JSON.stringify(memoryContext, null, 2)}\n` : ""}
 
@@ -576,14 +648,33 @@ Generate the fixes now.`;
     explanation: string;
   } | null {
     try {
-      // Extract JSON from markdown code blocks
-      const jsonMatch = responseText.match(/```json\n([\s\S]*?)\n```/);
+      // ✅ ENHANCED: Try multiple JSON extraction patterns
+      let jsonMatch = responseText.match(/```json\n([\s\S]*?)\n```/);
+
       if (!jsonMatch) {
-        logger.error(`[${this.config.name}] No JSON found in response`);
+        // Try without newlines after json
+        jsonMatch = responseText.match(/```json([\s\S]*?)```/);
+      }
+
+      if (!jsonMatch) {
+        // Try to find raw JSON object containing "files" key
+        jsonMatch = responseText.match(/(\{[\s\S]*?"files"[\s\S]*?\})\s*$/m);
+      }
+
+      if (!jsonMatch) {
+        logger.error(
+          `[${this.config.name}] No JSON found in response`,
+          new Error("JSON parsing failed"),
+          {
+            responseLength: responseText.length,
+            responsePreview: responseText.substring(0, 500),
+            hasJsonKeyword: responseText.includes('"files"'),
+          }
+        );
         return null;
       }
 
-      const parsed = JSON.parse(jsonMatch[1]) as {
+      const parsed = JSON.parse(jsonMatch[1].trim()) as {
         files: Array<{ path: string; content: string }>;
         commands: Array<{ command: string; description: string }>;
         explanation: string;
@@ -597,7 +688,11 @@ Generate the fixes now.`;
     } catch (error) {
       logger.error(
         `[${this.config.name}] Failed to parse response`,
-        toError(error)
+        toError(error),
+        {
+          responseLength: responseText.length,
+          responseStart: responseText.substring(0, 200),
+        }
       );
       return null;
     }

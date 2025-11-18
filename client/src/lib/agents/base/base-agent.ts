@@ -734,21 +734,27 @@ export abstract class BaseAgent {
         text = await this.generateWithGemini(prompt, systemInstruction);
       }
 
-      // ✅ Log the response
+      // ✅ ENHANCED: Detailed logging for debugging empty responses
       logger.info(`[${this.config.name}] AI response received`, {
         responseLength: text.length,
         isEmpty: !text,
         preview: text.substring(0, 200),
       });
 
+      // ✅ DIAGNOSTIC: Log full details if response is empty
       if (!text || text.trim().length === 0) {
-        logger.error(`[${this.config.name}] AI returned empty response`, undefined, {
+        logger.error(`[${this.config.name}] AI returned empty response - DIAGNOSTIC INFO`, undefined, {
           model: this.selectedModel,
           provider: this.selectedModel.includes("claude") ? "Anthropic" : "Google",
           promptLength: prompt.length,
+          promptPreview: prompt.substring(0, 500),
           hasSystemInstruction: !!systemInstruction,
+          systemInstructionLength: systemInstruction?.length || 0,
           responseReceived: !!text,
           responseLength: text?.length || 0,
+          responseValue: text || "(null/undefined)",
+          toolsEnabled: shouldEnableTools,
+          availableToolsCount: this.tools.size,
         });
         throw new Error(
           `AI model failed to generate any output. This is likely a transient issue with the ${
@@ -831,6 +837,14 @@ export abstract class BaseAgent {
           stopReason: response.stop_reason,
           contentBlocks: response.content.length,
         });
+
+        // ✅ SAFETY: Exit early if we're in a tool loop with no text output
+        if (iterationCount > 1 && finalResponse.trim().length === 0) {
+          logger.warn(
+            `[${this.config.name}] Tool loop iteration ${iterationCount} with no text output yet - stopping early to prevent empty response`
+          );
+          break;
+        }
 
         // Check for stop reasons
         if (response.stop_reason === "max_tokens") {
