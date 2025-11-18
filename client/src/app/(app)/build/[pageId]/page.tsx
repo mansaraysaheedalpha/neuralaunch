@@ -8,7 +8,7 @@ import LandingPageBuilder, {
   LandingPageFeature,
 } from "@/components/landing-page/LandingPageBuilder";
 import prisma from "@/lib/prisma";
-import { Prisma } from "@prisma/client"; // Import Prisma
+import { Prisma } from "@prisma/client";
 
 interface BuildPageProps {
   params: Promise<{ pageId: string }>; // Params are directly available in Server Components
