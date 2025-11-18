@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { User, Mail, Calendar, CheckCircle2, Github } from "lucide-react";
+import { User, Mail, CheckCircle2, Github } from "lucide-react";
 import { FcGoogle } from "react-icons/fc";
 
 export default async function ProfilePage() {
@@ -28,17 +28,6 @@ export default async function ProfilePage() {
 
   const githubAccount = accounts.find((acc) => acc.provider === "github");
   const googleAccount = accounts.find((acc) => acc.provider === "google");
-
-  // Get user details with creation date
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: {
-      createdAt: true,
-      name: true,
-      email: true,
-      image: true,
-    },
-  });
 
   const userInitials = session.user.name
     ? session.user.name
@@ -87,17 +76,6 @@ export default async function ProfilePage() {
                 <Mail className="w-4 h-4" />
                 <span className="text-sm">{session.user.email}</span>
               </div>
-              {user?.createdAt && (
-                <div className="flex items-center gap-2 text-muted-foreground mt-1">
-                  <Calendar className="w-4 h-4" />
-                  <span className="text-sm">
-                    Member since {new Date(user.createdAt).toLocaleDateString('en-US', {
-                      month: 'long',
-                      year: 'numeric'
-                    })}
-                  </span>
-                </div>
-              )}
             </div>
           </div>
         </CardContent>

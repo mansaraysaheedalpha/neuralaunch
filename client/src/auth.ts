@@ -33,7 +33,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   secret: env.NEXTAUTH_SECRET,
   callbacks: {
-    async signIn({ user, account, profile }) {
+    signIn() {
       // Allow sign in - account linking will be handled automatically
       // by allowDangerousEmailAccountLinking
       return true;

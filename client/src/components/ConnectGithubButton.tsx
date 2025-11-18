@@ -1,5 +1,5 @@
 "use client";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signIn, signOut } from "next-auth/react";
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { Loader2, AlertCircle } from "lucide-react";
@@ -14,7 +14,6 @@ const GitHubIcon = () => (
 );
 
 export default function ConnectGitHubButton() {
-  const { data: session } = useSession();
   const [isConnecting, setIsConnecting] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
 
@@ -45,7 +44,7 @@ export default function ConnectGitHubButton() {
       <motion.button
         whileHover={{ scale: isConnecting ? 1 : 1.02, y: isConnecting ? 0 : -2 }}
         whileTap={{ scale: isConnecting ? 1 : 0.98 }}
-        onClick={handleConnect}
+        onClick={() => void handleConnect()}
         disabled={isConnecting}
         className="group relative inline-flex items-center justify-center gap-3 px-6 py-3 bg-gradient-to-r from-gray-900 to-gray-800 dark:from-gray-700 dark:to-gray-600 border-2 border-transparent hover:border-gray-600 rounded-xl font-medium text-white transition-all duration-300 overflow-hidden shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
       >
@@ -60,7 +59,7 @@ export default function ConnectGitHubButton() {
         </span>
       </motion.button>
       <p className="text-xs text-muted-foreground">
-        You'll be signed out briefly to connect your GitHub account. You'll be signed back in automatically.
+        You&apos;ll be signed out briefly to connect your GitHub account. You&apos;ll be signed back in automatically.
       </p>
     </div>
   );
