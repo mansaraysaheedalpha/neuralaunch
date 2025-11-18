@@ -355,13 +355,13 @@ export class DatabaseAgent extends BaseAgent {
     const prompt = this.buildDatabasePrompt(taskDetails, context, existingContext);
 
     try {
-      // ✅ FIXED: Disable tool use for schema generation
-      // Database schema design is straightforward - just need JSON output
-      // Tool calling was causing empty responses and silent failures
+      // ✅ Enable native tool use for Claude (agentic capabilities)
+      // Claude can use tools during generation if it needs additional context
+      // Early exit guard in base-agent.ts prevents empty responses from tool loops
       const responseText = await this.generateContent(
         prompt,
         undefined, // No system instruction
-        false, // DISABLE tools - we just need direct JSON output
+        true, // Enable tools (agentic mode for Claude)
         {
           projectId: input.projectId,
           userId: input.userId,

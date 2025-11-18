@@ -475,6 +475,8 @@ ${this.getFrameworkFixPatterns(framework)}
 - Style with ${styling}
 - Files must be COMPLETE (not diffs)
 - Fix ALL issues
+- **ALL COMMANDS MUST BE NON-INTERACTIVE** (use --yes, -y, --defaults flags)
+- For shadcn/ui: use "npx shadcn-ui@latest init --defaults --yes" or "npx shadcn-ui@latest add <component> -y"
 
 Generate the fixes now.
 `.trim();
@@ -689,6 +691,7 @@ Type Safety:
     try {
       // ✅ Enable native tool use for Claude (agentic capabilities)
       // Claude can use tools during generation if it needs additional context
+      // Early exit guard in base-agent.ts prevents empty responses from tool loops
       const responseText = await this.generateContent(
         prompt,
         undefined, // No system instruction
@@ -899,6 +902,26 @@ Example usage:
 5. **LINE LIMIT**: Stay within ${taskDetails.estimatedLines} ± 50 lines
 6. **COMPLETE FILES**: Provide full, runnable code (not snippets)
 
+**CRITICAL: NON-INTERACTIVE COMMANDS ONLY:**
+When generating setup/install commands, you MUST use non-interactive flags:
+
+**Shadcn/ui Setup:**
+- ❌ BAD: "npx shadcn-ui@latest init" (interactive, will fail)
+- ✅ GOOD: "npx shadcn-ui@latest init --defaults --yes" (non-interactive, auto-accepts defaults)
+- ✅ BETTER: "npx shadcn-ui@latest init -y -d -s default -c zinc" (explicit config)
+
+**Shadcn/ui Component Installation:**
+- ✅ "npx shadcn-ui@latest add button card --yes" (auto-confirm)
+- ✅ "npx shadcn-ui@latest add button -y" (short form)
+
+**Other CLI Tools:**
+- Use --yes, -y, --defaults, --force, or --non-interactive flags
+- Avoid ANY commands that prompt for user input
+- Pre-configure all options via command-line flags
+
+**Why this matters:**
+The automation environment cannot respond to interactive prompts. All commands must run unattended.
+
 **FRAMEWORK-SPECIFIC REQUIREMENTS:**
 
 ${this.getFrameworkSpecificRequirements(framework, language, styling)}
@@ -923,12 +946,14 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
 
 **CRITICAL REMINDERS:**
 - Use ${framework}, NOT any other framework
-- Use ${language}, NOT any other language  
+- Use ${language}, NOT any other language
 - Use ${styling}, NOT any other styling solution
 - Follow ${framework} conventions and best practices
 - NO markdown code blocks around JSON
 - Files must be COMPLETE and RUNNABLE
 - Include proper imports and exports
+- **ALL commands MUST use non-interactive flags (--yes, -y, --defaults)**
+- For shadcn/ui: ALWAYS use "npx shadcn-ui@latest init --defaults --yes" (never without flags)
 `.trim();
   }
 
