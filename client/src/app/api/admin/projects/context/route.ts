@@ -1,17 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
 
 export const dynamic = 'force-dynamic';
+
+interface TechStack {
+  language?: string;
+  backend?: { framework?: string; runtime?: string };
+  database?: { type?: string; name?: string };
+  [key: string]: unknown;
+}
+
+interface Architecture {
+  patterns?: unknown;
+  [key: string]: unknown;
+}
+
+interface Codebase {
+  githubRepoUrl?: string;
+  [key: string]: unknown;
+}
 
 /**
  * GET /api/admin/projects/context
  * View all projects and their context status
  */
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const projects = await prisma.project.findMany({
+    const projectContexts = await prisma.projectContext.findMany({
       include: {
-        ProjectContext: true,
+        conversation: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -19,40 +42,38 @@ export async function GET(req: NextRequest) {
       take: 20,
     });
 
-    const projectsWithStatus = projects.map((project) => {
-      const ctx = project.ProjectContext;
-      const techStack = ctx?.techStack as any;
-      const architecture = ctx?.architecture as any;
-      const codebase = ctx?.codebase as any;
+    const projectsWithStatus = projectContexts.map((ctx) => {
+      const techStack = ctx.techStack as TechStack | null;
+      const architecture = ctx.architecture as Architecture | null;
+      const codebase = ctx.codebase as Codebase | null;
 
       return {
-        id: project.id,
-        name: project.name,
-        status: project.status,
-        createdAt: project.createdAt,
-        hasContext: !!ctx,
-        contextStatus: ctx
-          ? {
-              techStack: {
-                complete:
-                  !!techStack?.backend?.framework &&
-                  !!techStack?.database?.type &&
-                  !!techStack?.language,
-                hasBackend: !!techStack?.backend?.framework,
-                hasDatabase: !!techStack?.database?.type,
-                hasLanguage: !!techStack?.language,
-                data: techStack,
-              },
-              architecture: {
-                present: architecture && Object.keys(architecture).length > 0,
-                data: architecture,
-              },
-              codebase: {
-                hasGithub: !!codebase?.githubRepoUrl,
-                data: codebase,
-              },
-            }
-          : null,
+        id: ctx.projectId,
+        conversationId: ctx.conversationId,
+        conversationTitle: ctx.conversation.title,
+        currentPhase: ctx.currentPhase,
+        createdAt: ctx.createdAt,
+        hasContext: true,
+        contextStatus: {
+          techStack: {
+            complete:
+              !!techStack?.backend?.framework &&
+              !!techStack?.database?.type &&
+              !!techStack?.language,
+            hasBackend: !!techStack?.backend?.framework,
+            hasDatabase: !!techStack?.database?.type,
+            hasLanguage: !!techStack?.language,
+            data: techStack,
+          },
+          architecture: {
+            present: architecture && Object.keys(architecture).length > 0,
+            data: architecture,
+          },
+          codebase: {
+            hasGithub: !!codebase?.githubRepoUrl,
+            data: codebase,
+          },
+        },
       };
     });
 
@@ -96,35 +117,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if project exists
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      include: { ProjectContext: true },
+    // Check if project context exists
+    const existingContext = await prisma.projectContext.findUnique({
+      where: { projectId },
     });
 
-    if (!project) {
+    if (!existingContext) {
       return NextResponse.json(
-        { success: false, error: 'Project not found' },
+        { success: false, error: 'Project context not found. Please provide conversationId and userId to create it.' },
         { status: 404 }
       );
     }
 
     // Prepare update data
-    const updateData: any = {};
-    if (techStack) updateData.techStack = techStack;
-    if (architecture) updateData.architecture = architecture;
-    if (codebase) updateData.codebase = codebase;
+    const updateData: {
+      techStack?: Prisma.InputJsonValue;
+      architecture?: Prisma.InputJsonValue;
+      codebase?: Prisma.InputJsonValue;
+    } = {};
+    if (techStack) updateData.techStack = techStack as Prisma.InputJsonValue;
+    if (architecture) updateData.architecture = architecture as Prisma.InputJsonValue;
+    if (codebase) updateData.codebase = codebase as Prisma.InputJsonValue;
 
-    // Upsert ProjectContext
-    const context = await prisma.projectContext.upsert({
+    // Update existing ProjectContext (no upsert since we checked it exists)
+    const context = await prisma.projectContext.update({
       where: { projectId },
-      create: {
-        projectId,
-        techStack: techStack || {},
-        architecture: architecture || {},
-        codebase: codebase || {},
-      },
-      update: updateData,
+      data: updateData,
     });
 
     return NextResponse.json({
