@@ -74,9 +74,7 @@ export interface AtomicTask {
     | "frontend"
     | "backend"
     | "database"
-    | "infrastructure"
-    | "integration"
-    | "testing";
+    | "infrastructure";
   priority: number;
 
   complexity: "simple" | "medium";
@@ -1255,7 +1253,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
     "id": "task-001",
     "title": "Task title",
     "description": "Detailed description of what to build",
-    "category": "frontend | backend | database | infrastructure | integration | testing",
+    "category": "frontend | backend | database | infrastructure",
     "priority": 1,
     "complexity": "simple | medium",
     "dependencies": ["task-000"],
@@ -1564,8 +1562,6 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
       backend: "BackendAgent",
       database: "DatabaseAgent",
       infrastructure: "InfrastructureAgent",
-      integration: "IntegrationAgent",
-      testing: "TestingAgent",
     };
 
     return agentMap[category] || "InfrastructureAgent";

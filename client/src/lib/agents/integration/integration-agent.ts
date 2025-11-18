@@ -165,6 +165,20 @@ export class IntegrationAgent extends BaseAgent {
     });
 
     try {
+      // Step 0: Verify workspace has files (debugging)
+      const workspaceCheck = await this.executeTool(
+        "command",
+        {
+          command: "ls -la && find . -type f -name '*.ts' -o -name '*.tsx' | head -20",
+          timeout: 30,
+        },
+        { projectId, userId }
+      );
+
+      logger.info(`[${this.name}] Workspace verification`, {
+        stdout: workspaceCheck.data,
+      });
+
       // Step 1: Load project context and tech stack
       const projectContext: ProjectContextData =
         await this.loadProjectContextData(projectId);
@@ -328,9 +342,9 @@ export class IntegrationAgent extends BaseAgent {
     const contextResult = await this.executeTool(
       "context_loader",
       {
-        projectId,
-        includeFiles: true,
-        maxDepth: 5,
+        operation: "scan_structure",
+        maxFiles: 200,
+        maxSize: 1000000,
       },
       { projectId, userId }
     );
@@ -340,9 +354,11 @@ export class IntegrationAgent extends BaseAgent {
     }
 
     const data = contextResult.data as {
-      files?: Array<string | { path: string }>;
+      structure?: {
+        files?: Array<{ path: string; size: number; type: string }>;
+      };
     };
-    const allFiles = data?.files || [];
+    const allFiles = data?.structure?.files || [];
 
     // Categorize files based on tech stack
     const frontend: string[] = [];
@@ -350,7 +366,7 @@ export class IntegrationAgent extends BaseAgent {
     const shared: string[] = [];
 
     for (const file of allFiles) {
-      const path = typeof file === "string" ? file : file.path;
+      const path = file.path;
 
       // Frontend patterns (tech stack agnostic)
       if (
