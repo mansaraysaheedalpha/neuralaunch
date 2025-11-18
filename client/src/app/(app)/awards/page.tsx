@@ -5,7 +5,16 @@
 import useSWR from "swr";
 import { motion } from "framer-motion";
 import { Achievements } from "@/lib/achievements.config";
-import { Achievement } from "@prisma/client";
+
+// Define Achievement type locally (matches Prisma schema)
+interface Achievement {
+  id: string;
+  userId: string;
+  achievementType: string;
+  unlockedAt: Date | string;
+  metadata: Record<string, unknown> | null;
+  conversationId: string | null;
+}
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -82,7 +91,7 @@ export default function ProfilePage() {
   if (error)
     return (
       <div className="p-8 text-center text-destructive">
-                Failed to load achievements.      {" "}
+        Failed to load achievements.{" "}
       </div>
     ); // FIX 2: Check if the *entire response object* is loading
 
