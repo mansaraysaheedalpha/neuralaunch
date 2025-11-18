@@ -331,7 +331,7 @@ export class DatabaseAgent extends BaseAgent {
     } catch (error) {
       logger.warn(
         `[${this.config.name}] Failed to load existing context`,
-        toError(error)
+        toLogContext(error)
       );
       return { structure: "", existingFiles: [], dependencies: "" };
     }

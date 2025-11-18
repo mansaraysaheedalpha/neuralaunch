@@ -5,7 +5,8 @@
       "mcp__ide__getDiagnostics",
       "Bash(npx tsc:*)",
       "Bash(npx eslint:*)",
-      "Bash(pnpm run lint)"
+      "Bash(pnpm run lint)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

@@ -11,7 +11,7 @@ import {
 } from "../base/base-agent";
 import { AI_MODELS } from "@/lib/models";
 import { logger } from "@/lib/logger";
-import { toError } from "@/lib/error-utils";
+import { toError, toLogContext } from "@/lib/error-utils";
 import { createThoughtStream } from "../thought-stream";
 
 export class FrontendAgent extends BaseAgent {
@@ -670,7 +670,7 @@ Type Safety:
     } catch (error) {
       logger.warn(
         `[${this.config.name}] Failed to load existing context`,
-        toError(error)
+        toLogContext(error)
       );
       return { structure: "", existingFiles: [], dependencies: "" };
     }

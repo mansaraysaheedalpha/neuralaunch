@@ -17,7 +17,8 @@ import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { AI_MODELS } from "@/lib/models";
-import { toolRegistry, ITool, ToolContext } from "../tools/base-tool";
+import { toolRegistry } from "../tools/base-tool";
+import type { ITool, ToolContext, ToolResult } from "../tools/base-tool";
 import {
   retryStrategy,
   RetryConfig,
