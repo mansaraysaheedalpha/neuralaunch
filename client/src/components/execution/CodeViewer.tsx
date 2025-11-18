@@ -173,7 +173,7 @@ export function CodeViewer({
           >
             <div
               className="overflow-auto"
-              style={{ maxHeight }}
+              style={{ maxHeight: maxHeight === "100%" ? "calc(100vh - 350px)" : maxHeight }}
             >
               <SyntaxHighlighter
                 language={language}

@@ -904,22 +904,23 @@ export abstract class BaseAgent {
     } catch (error) {
       if (error instanceof Anthropic.APIError) {
         // Provide detailed error information
+        const status = error.status as number | undefined;
         const errorDetails = {
-          status: error.status,
+          status,
           message: error.message,
-          isRateLimit: error.status === 429,
-          isServerError: error.status && error.status >= 500,
-          isNetworkError: error.status === undefined,
+          isRateLimit: status === 429,
+          isServerError: status !== undefined && status >= 500,
+          isNetworkError: status === undefined,
         };
 
         logger.error(`[${this.config.name}] Anthropic API Error`, undefined, errorDetails);
 
         // Enhance error message for better debugging
-        if (error.status === 429) {
+        if (status === 429) {
           throw new Error(`AI API rate limit exceeded. Please wait before retrying. (${error.message})`);
-        } else if (error.status && error.status >= 500) {
-          throw new Error(`AI API server error (${error.status}). This is a temporary issue. (${error.message})`);
-        } else if (!error.status) {
+        } else if (status !== undefined && status >= 500) {
+          throw new Error(`AI API server error (${status}). This is a temporary issue. (${error.message})`);
+        } else if (status === undefined) {
           throw new Error(`AI API network error. Check your internet connection. (${error.message})`);
         }
       } else if (error instanceof Error) {

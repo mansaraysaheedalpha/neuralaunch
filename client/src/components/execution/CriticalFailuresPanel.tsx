@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, CheckCircle, Clock, XCircle, ChevronDown, ChevronRight } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, XCircle, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
 import { logger } from "@/lib/logger";
 import { toError } from "@/lib/error-utils";
 import { CriticalFailure, Issue, FixAttempt } from "@/types/component-props";
@@ -45,6 +45,7 @@ export function CriticalFailuresPanel({ projectId }: CriticalFailuresPanelProps)
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "open" | "resolved">("all");
   const [stats, setStats] = useState<FailureStats>({ total: 0 });
+  const [retryingTaskId, setRetryingTaskId] = useState<string | null>(null);
 
   const fetchFailures = useCallback(async () => {
     try {
@@ -99,6 +100,36 @@ export function CriticalFailuresPanel({ projectId }: CriticalFailuresPanelProps)
       await fetchFailures();
     } catch (error) {
       logger.error("Failed to update failure status", toError(error));
+    }
+  };
+
+  const retryTask = async (taskId: string) => {
+    try {
+      setRetryingTaskId(taskId);
+      logger.info(`Retrying task ${taskId}`);
+
+      const response = await fetch(`/api/projects/${projectId}/tasks/${taskId}/retry`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!response.ok) {
+        const error = await response.json() as { error?: string };
+        throw new Error(error.error || "Failed to retry task");
+      }
+
+      const result = await response.json() as { message?: string };
+      logger.info(`Task retry initiated: ${result.message || "Success"}`);
+
+      // Refresh failures list after a short delay to show updated status
+      setTimeout(() => {
+        void fetchFailures();
+      }, 2000);
+    } catch (error) {
+      logger.error("Failed to retry task", toError(error));
+      alert(`Failed to retry task: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setRetryingTaskId(null);
     }
   };
 
@@ -327,7 +358,28 @@ export function CriticalFailuresPanel({ projectId }: CriticalFailuresPanelProps)
                   )}
 
                   {/* Actions */}
-                  <div className="flex gap-2 pt-2">
+                  <div className="flex gap-2 pt-2 flex-wrap">
+                    {failure.status === "open" && failure.taskId && (
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => { void retryTask(failure.taskId!); }}
+                        disabled={retryingTaskId === failure.taskId}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        {retryingTaskId === failure.taskId ? (
+                          <>
+                            <RefreshCw className="h-3 w-3 mr-2 animate-spin" />
+                            Retrying...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-3 w-3 mr-2" />
+                            Retry Task
+                          </>
+                        )}
+                      </Button>
+                    )}
                     {failure.status === "open" && (
                       <>
                         <Button

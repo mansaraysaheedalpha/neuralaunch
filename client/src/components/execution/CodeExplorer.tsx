@@ -74,6 +74,15 @@ export function CodeExplorer({
 
   const handleFileClick = (path: string) => {
     setSelectedFile(path);
+    // 🔍 DEBUG: Log file selection
+    const fileData = files.find((f) => f.path === path);
+    console.log("[CodeExplorer] File clicked:", {
+      path,
+      fileFound: !!fileData,
+      hasContent: !!fileData?.content,
+      contentLength: fileData?.content?.length,
+      contentPreview: fileData?.content?.substring(0, 100),
+    });
   };
 
   const handleDownloadAll = () => {
@@ -99,10 +108,21 @@ export function CodeExplorer({
   const totalFiles = files.length;
   const totalLines = files.reduce((sum, f) => sum + (f.linesOfCode || 0), 0);
 
+  // 🔍 DEBUG: Log files on mount/update
+  console.log("[CodeExplorer] Files received:", {
+    totalFiles,
+    filesWithContent: files.filter(f => f.content).length,
+    sampleFile: files[0] ? {
+      path: files[0].path,
+      hasContent: !!files[0].content,
+      contentLength: files[0].content?.length,
+    } : null,
+  });
+
   return (
-    <div className={`flex gap-4 ${className}`}>
+    <div className={`flex gap-4 h-[calc(100vh-250px)] ${className}`}>
       {/* Left Sidebar - File Tree */}
-      <div className="w-80 flex-shrink-0 space-y-3">
+      <div className="w-80 flex-shrink-0 space-y-3 h-full overflow-y-auto">
         {/* Header */}
         <div className="rounded-lg border bg-card p-4">
           <div className="flex items-center justify-between mb-3">
@@ -169,7 +189,7 @@ export function CodeExplorer({
       </div>
 
       {/* Right Panel - Code Viewer */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 h-full">
         {selectedFileData ? (
           <CodeViewer
             file={{
@@ -178,7 +198,7 @@ export function CodeExplorer({
               linesOfCode: selectedFileData.linesOfCode,
             }}
             collapsible={false}
-            maxHeight="calc(100vh - 300px)"
+            maxHeight="100%"
           />
         ) : (
           <div className="rounded-lg border bg-card h-full flex items-center justify-center p-12">
