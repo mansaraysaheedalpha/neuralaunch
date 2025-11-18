@@ -7,7 +7,8 @@
       "Bash(npx eslint:*)",
       "Bash(pnpm run lint)",
       "Bash(npm run build:*)",
-      "Bash(npx shadcn:*)"
+      "Bash(npx shadcn:*)",
+      "Bash(npx prisma generate:*)"
     ],
     "deny": [],
     "ask": []
