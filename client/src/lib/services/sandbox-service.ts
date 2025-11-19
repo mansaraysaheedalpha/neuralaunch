@@ -213,19 +213,48 @@ class SandboxServiceClass {
         }
 
         if (containerUrl) {
-          try {
-            const health = await fetch(`${containerUrl}/health`, {
-              signal: AbortSignal.timeout(15000),
-            }); // 3s timeout
-            if (health.ok) {
+          // ✅ RETRY HEALTH CHECK: Don't immediately recreate on first failure
+          // The sandbox might still be booting from a previous wave
+          const maxRetries = 3;
+          let healthy = false;
+
+          for (let attempt = 1; attempt <= maxRetries && !healthy; attempt++) {
+            try {
               logger.info(
-                `[SandboxService] Found healthy sandbox for ${projectId} at ${containerUrl}`
+                `[SandboxService] Health check attempt ${attempt}/${maxRetries} for ${containerUrl}/health`
               );
-              return containerUrl;
+
+              const health = await fetch(`${containerUrl}/health`, {
+                signal: AbortSignal.timeout(5000), // 5s timeout per attempt
+              });
+
+              if (health.ok) {
+                healthy = true;
+                logger.info(
+                  `[SandboxService] ✅ Found healthy sandbox for ${projectId} at ${containerUrl} (attempt ${attempt})`
+                );
+                return containerUrl;
+              } else {
+                logger.warn(
+                  `[SandboxService] Health check attempt ${attempt}/${maxRetries} returned status ${health.status}`
+                );
+              }
+            } catch (error) {
+              logger.warn(
+                `[SandboxService] Health check attempt ${attempt}/${maxRetries} failed: ${error instanceof Error ? error.message : "fetch failed"}`
+              );
             }
-          } catch {
+
+            // Wait 2 seconds before retry (except on last attempt)
+            if (attempt < maxRetries) {
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+            }
+          }
+
+          // Only recreate if ALL retries failed
+          if (!healthy) {
             logger.warn(
-              `[SandboxService] Sandbox ${project.sandboxContainerId} found but unhealthy (failed health check at ${containerUrl}). Will recreate.`
+              `[SandboxService] Sandbox ${project.sandboxContainerId} unhealthy after ${maxRetries} attempts (${containerUrl}). Will recreate.`
             );
           }
         }
@@ -427,7 +456,49 @@ class SandboxServiceClass {
       logger.info(
         `[SandboxService] New sandbox ${container.id} for ${projectId} running at ${publicUrl}`
       );
-      await new Promise((resolve) => setTimeout(resolve, 8000)); // Wait for server boot
+
+      // ✅ CRITICAL FIX: Poll health endpoint until sandbox is actually ready
+      // Don't return until we can confirm the sandbox server is responding
+      const maxHealthChecks = 15; // 15 attempts = 30 seconds max
+      const healthCheckDelay = 2000; // 2 seconds between checks
+      let healthCheckAttempt = 0;
+      let isHealthy = false;
+
+      logger.info(
+        `[SandboxService] Waiting for sandbox health check at ${publicUrl}/health`
+      );
+
+      while (healthCheckAttempt < maxHealthChecks && !isHealthy) {
+        healthCheckAttempt++;
+        await new Promise((resolve) => setTimeout(resolve, healthCheckDelay));
+
+        try {
+          const healthResponse = await fetch(`${publicUrl}/health`, {
+            signal: AbortSignal.timeout(5000), // 5 second timeout per check
+          });
+
+          if (healthResponse.ok) {
+            isHealthy = true;
+            logger.info(
+              `[SandboxService] ✅ Sandbox ${container.id} is healthy after ${healthCheckAttempt} attempts (${healthCheckAttempt * healthCheckDelay / 1000}s)`
+            );
+          } else {
+            logger.warn(
+              `[SandboxService] Health check attempt ${healthCheckAttempt}/${maxHealthChecks} returned status ${healthResponse.status}`
+            );
+          }
+        } catch (error) {
+          logger.warn(
+            `[SandboxService] Health check attempt ${healthCheckAttempt}/${maxHealthChecks} failed: ${error instanceof Error ? error.message : "Unknown error"}`
+          );
+        }
+      }
+
+      if (!isHealthy) {
+        throw new Error(
+          `Sandbox container started but failed to become healthy after ${maxHealthChecks} attempts (${maxHealthChecks * healthCheckDelay / 1000}s). The sandbox server may be crashing or not starting properly.`
+        );
+      }
 
       return publicUrl; // Return the *publicly accessible* URL
     } catch (createError: unknown) {
