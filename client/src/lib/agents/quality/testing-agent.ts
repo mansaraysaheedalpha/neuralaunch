@@ -104,7 +104,7 @@ export class TestingAgent extends BaseAgent {
         "web_search", // For finding test patterns
         "browser_automation",
       ],
-      modelName: AI_MODELS.OPENAI, // GPT-4o for better test generation
+      modelName: AI_MODELS.CLAUDE, // Claude Sonnet 4.5 for better test generation
     });
   }
 
