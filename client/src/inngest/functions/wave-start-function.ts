@@ -220,12 +220,16 @@ export const waveStartFunction = inngest.createFunction(
 
       // ✅ Step 4: SEQUENTIALLY trigger and execute tasks in priority order
       // This is the key change for Priority 2: tasks run one at a time
+      // Each task MUST complete before the next one starts
       for (let i = 0; i < coordinatorResult.waveTasks.length; i++) {
         const task = coordinatorResult.waveTasks[i];
+        const taskNumber = i + 1;
+        const totalTasks = coordinatorResult.waveTasks.length;
 
-        await step.run(`execute-task-${i + 1}-priority-${task.priority}`, async () => {
+        // ✅ CRITICAL: Combine trigger + wait in SINGLE step to ensure strict sequencing
+        await step.run(`execute-and-wait-task-${taskNumber}`, async () => {
           log.info(
-            `[Wave ${waveNumber}] Starting task ${i + 1}/${coordinatorResult.waveTasks.length}: ${task.input.title} (Priority ${task.priority})`
+            `[Wave ${waveNumber}] 🚀 Starting task ${taskNumber}/${totalTasks}: ${task.input.title} (Priority ${task.priority}, ID: ${task.id})`
           );
 
           // Get event name for this agent type
@@ -269,19 +273,19 @@ export const waveStartFunction = inngest.createFunction(
           );
         });
 
-        // ✅ CRITICAL: Wait for this specific task to complete before starting next task
+        // ✅ Wait for THIS specific task to complete BEFORE moving to next iteration
         log.info(
-          `[Wave ${waveNumber}] Waiting for task ${i + 1}/${coordinatorResult.waveTasks.length} (${task.id}) to complete...`
+          `[Wave ${waveNumber}] ⏳ Waiting for task ${taskNumber}/${totalTasks} (${task.id}) to complete...`
         );
 
-        await step.waitForEvent(`wait-for-task-${i + 1}-completion`, {
+        await step.waitForEvent(`wait-task-${taskNumber}-${task.id}`, {
           event: "agent/task.complete",
-          timeout: "30m", // Generous timeout for complex tasks
-          if: `event.data.taskId == "${task.id}"`, // ✅ FIX: Match this specific taskId
+          timeout: "30m",
+          if: `event.data.taskId == "${task.id}"`,
         });
 
         log.info(
-          `[Wave ${waveNumber}] ✅ Task ${i + 1}/${coordinatorResult.waveTasks.length} (${task.id}) completed! Moving to next task...`
+          `[Wave ${waveNumber}] ✅ Task ${taskNumber}/${totalTasks} (${task.id}) COMPLETED! Proceeding to next task...`
         );
       }
 

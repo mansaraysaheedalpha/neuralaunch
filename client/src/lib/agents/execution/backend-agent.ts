@@ -212,7 +212,13 @@ export class BackendAgent extends BaseAgent {
         context
       );
 
-      const responseText = await this.generateContent(fixPrompt);
+      // ✅ FIXED: Disable tools for fix generation
+      const responseText = await this.generateContent(
+        fixPrompt,
+        undefined, // No system instruction
+        false, // DISABLE tools - direct JSON output prevents empty responses
+        { projectId, userId }
+      );
 
       const fixes = this.parseFixResponse(responseText);
 

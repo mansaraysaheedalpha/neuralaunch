@@ -186,11 +186,11 @@ export class InfrastructureAgent extends BaseAgent {
         context
       );
 
-      // ✅ Enable native tool use for Claude (agentic capabilities)
+      // ✅ FIXED: Disable tools for fix generation (was incorrectly enabled)
       const responseText = await this.generateContent(
         fixPrompt,
         undefined, // No system instruction
-        true, // Enable tools
+        false, // DISABLE tools - direct JSON output prevents empty responses
         {
           projectId,
           userId,
