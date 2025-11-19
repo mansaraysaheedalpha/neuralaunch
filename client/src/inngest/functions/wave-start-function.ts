@@ -95,6 +95,44 @@ export const waveStartFunction = inngest.createFunction(
             `[Wave ${waveNumber}] Repository created: ${setupResult.repoUrl}`
           );
 
+          // ✅ Initialize git in sandbox and set up remote
+          log.info(`[Wave ${waveNumber}] Initializing git in sandbox and setting up remote`);
+
+          const { GitTool } = await import("@/lib/agents/tools/git-tool");
+          const { SandboxService } = await import("@/lib/services/sandbox-service");
+          const gitTool = new GitTool();
+
+          // Step 1: Initialize git repository
+          const initResult = await gitTool.execute(
+            { operation: "init" },
+            { projectId, userId }
+          );
+
+          if (!initResult.success) {
+            log.warn(`[Wave ${waveNumber}] Git init warning: ${initResult.error}`);
+          } else {
+            log.info(`[Wave ${waveNumber}] ✅ Git initialized in sandbox`);
+          }
+
+          // Step 2: Set up git remote
+          const authenticatedUrl = setupResult.repoUrl!.replace(
+            "https://github.com/",
+            `https://${githubToken}@github.com/`
+          );
+
+          const remoteResult = await SandboxService.execCommand(
+            projectId,
+            userId,
+            `git remote remove origin 2>/dev/null || true && git remote add origin "${authenticatedUrl}"`,
+            30
+          );
+
+          if (remoteResult.status === "error") {
+            log.warn(`[Wave ${waveNumber}] Git remote setup warning: ${remoteResult.stderr}`);
+          } else {
+            log.info(`[Wave ${waveNumber}] ✅ Git remote configured`);
+          }
+
           return {
             repoUrl: setupResult.repoUrl,
             repoName: setupResult.repoName,
