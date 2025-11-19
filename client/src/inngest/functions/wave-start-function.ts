@@ -33,7 +33,8 @@ export const waveStartFunction = inngest.createFunction(
     retries: 2,
   },
   { event: "agent/wave.start" },
-  async ({ event, step }) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async ({ event, step }: any) => {
     const { projectId, userId, conversationId, waveNumber } = event.data;
     const phaseNumber = waveNumber; // Wave 1 = Phase 1, Wave 2 = Phase 2, etc.
 
@@ -174,12 +175,14 @@ export const waveStartFunction = inngest.createFunction(
         });
 
         // Create a map for quick lookup
-        const taskMap = new Map(tasksFromDB.map(t => [t.id, t]));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const taskMap = new Map(tasksFromDB.map((t: any) => [t.id, t]));
 
         // Return tasks in the EXACT order specified by phase.taskIds
         const orderedTasks = phase.taskIds
-          .map(id => taskMap.get(id))
-          .filter((task): task is NonNullable<typeof task> => task !== undefined);
+          .map((id: string) => taskMap.get(id))
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .filter((task: any): task is NonNullable<typeof task> => task !== undefined);
 
         log.info(`[Phase ${phaseNumber}] Loaded ${orderedTasks.length} tasks in planner order`);
 
