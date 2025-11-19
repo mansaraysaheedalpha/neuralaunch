@@ -1526,12 +1526,14 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
 
   /**
    * Create AgentTask records for execution agents
+   * ✅ FIX: Preserve task IDs from the execution plan so phases can reference them
    */
   private async createAgentTasks(
     projectId: string,
     tasks: AtomicTask[]
   ): Promise<void> {
     const agentTasks = tasks.map((task) => ({
+      id: task.id, // ✅ CRITICAL: Use the task ID from the plan
       projectId,
       agentName: this.determineAgentForTask(task.category),
       status: "pending",
@@ -1546,10 +1548,11 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
 
     await prisma.agentTask.createMany({
       data: agentTasks,
+      skipDuplicates: true, // Skip if task IDs already exist
     });
 
     logger.info(
-      `[${this.name}] Created ${agentTasks.length} AgentTask records`
+      `[${this.name}] Created ${agentTasks.length} AgentTask records with preserved IDs`
     );
   }
 
