@@ -820,7 +820,7 @@ export abstract class BaseAgent {
         // ✅ Add timeout wrapper to prevent hanging with retry logic
         const API_TIMEOUT_MS = 180000; // 3 minutes (increased for complex tasks)
         
-        let response: Anthropic.Message;
+        let response: Anthropic.Message | undefined;
         let apiCallAttempt = 0;
         const MAX_API_RETRIES = 2;
         
@@ -861,12 +861,16 @@ export abstract class BaseAgent {
             
             logger.warn(
               `[${this.config.name}] API call failed, retrying (${apiCallAttempt}/${MAX_API_RETRIES})`,
-              { error: errorMessage }
+              toLogContext(apiError)
             );
             
             // Wait before retry with exponential backoff
             await new Promise(resolve => setTimeout(resolve, 2000 * apiCallAttempt));
           }
+        }
+        
+        if (!response) {
+          throw new Error("Failed to get response from API after retries");
         }
 
         logger.info(`[${this.config.name}] Claude iteration ${iterationCount}`, {

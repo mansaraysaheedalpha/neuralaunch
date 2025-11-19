@@ -225,9 +225,9 @@ export class WebSearchTool extends BaseTool {
           try {
             searchResults = await this.searchWithDuckDuckGo(query, maxResults);
           } catch (ddgError) {
-            logger.error("[WebSearchTool] DuckDuckGo also failed", {
-              error: ddgError instanceof Error ? ddgError.message : String(ddgError),
-            });
+            logger.error("[WebSearchTool] DuckDuckGo also failed", 
+              ddgError instanceof Error ? ddgError : new Error(String(ddgError))
+            );
             // Return empty results instead of failing completely
             searchResults = { results: [], total: 0 };
           }
@@ -237,9 +237,9 @@ export class WebSearchTool extends BaseTool {
         try {
           searchResults = await this.searchWithDuckDuckGo(query, maxResults);
         } catch (ddgError) {
-          logger.error("[WebSearchTool] DuckDuckGo failed", {
-            error: ddgError instanceof Error ? ddgError.message : String(ddgError),
-          });
+          logger.error("[WebSearchTool] DuckDuckGo failed", 
+            ddgError instanceof Error ? ddgError : new Error(String(ddgError))
+          );
           // Return empty results instead of failing completely
           searchResults = { results: [], total: 0 };
         }
