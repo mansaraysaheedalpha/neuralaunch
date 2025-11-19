@@ -176,7 +176,7 @@ export interface PlanningOptions {
  */
 export class PlanningAgent {
   private anthropic: Anthropic | null;
-  private openai: OpenAI;
+  private _openai: OpenAI;
   public readonly name = "PlanningAgent";
   public readonly phase = "planning";
 
@@ -189,7 +189,7 @@ export class PlanningAgent {
     }
 
     // Initialize OpenAI (primary for JSON generation)
-    this.openai = new OpenAI({
+    this._openai = new OpenAI({
       apiKey: openaiKey,
       timeout: 180000,
       maxRetries: 2,
