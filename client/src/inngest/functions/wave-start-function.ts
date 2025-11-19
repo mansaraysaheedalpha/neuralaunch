@@ -99,7 +99,6 @@ export const waveStartFunction = inngest.createFunction(
           log.info(`[Wave ${waveNumber}] Initializing git in sandbox and setting up remote`);
 
           const { GitTool } = await import("@/lib/agents/tools/git-tool");
-          const { SandboxService } = await import("@/lib/services/sandbox-service");
           const gitTool = new GitTool();
 
           // Step 1: Initialize git repository
