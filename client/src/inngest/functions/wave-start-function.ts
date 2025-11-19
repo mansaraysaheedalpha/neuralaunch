@@ -1,57 +1,81 @@
 // src/inngest/functions/wave-start-function.ts
+/**
+ * Phase-Based Execution (formerly wave-start-function)
+ * Uses execution phases directly from Planning Agent
+ * Phase 1 = First execution phase from plan
+ * Phase 2 = Second execution phase from plan
+ * All tasks in a phase execute sequentially in planner-specified order
+ */
 import { inngest } from "../client";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { githubAgent } from "@/lib/agents/github/github-agent";
-import { executionCoordinator } from "@/lib/orchestrator/execution-coordinator"; // ✅ IMPORT
-import { SandboxService } from "@/lib/services/sandbox-service"; // ✅ NEW: For sandbox pre-initialization
+import { SandboxService } from "@/lib/services/sandbox-service";
+
+interface ExecutionPlan {
+  tasks: Array<{
+    id: string;
+    title: string;
+    category: string;
+    priority: number;
+    [key: string]: unknown;
+  }>;
+  phases: Array<{
+    name: string;
+    taskIds: string[];
+  }>;
+}
 
 export const waveStartFunction = inngest.createFunction(
   {
-    id: "wave-start-execution",
-    name: "Wave Start - Initialize Wave Execution",
+    id: "phase-execution",
+    name: "Phase Execution - Execute Tasks by Planner Phases",
     retries: 2,
   },
   { event: "agent/wave.start" },
   async ({ event, step }) => {
     const { projectId, userId, conversationId, waveNumber } = event.data;
+    const phaseNumber = waveNumber; // Wave 1 = Phase 1, Wave 2 = Phase 2, etc.
 
     const log = logger.child({
-      inngestFunction: "waveStart",
+      inngestFunction: "phaseExecution",
       projectId,
-      waveNumber,
+      phaseNumber,
     });
 
-    log.info(`[Wave ${waveNumber}] Starting wave execution`);
+    log.info(`[Phase ${phaseNumber}] Starting phase execution`);
 
     try {
-      // Step 1: Create ExecutionWave record
-      await step.run("create-wave-record", async () => {
-        // Check if wave already exists
-        const existingWave = await prisma.executionWave.findUnique({
-          where: {
-            projectId_waveNumber: { projectId, waveNumber },
-          },
+      // Step 1: Get execution plan from database
+      const planData = await step.run("load-execution-plan", async () => {
+        const project = await prisma.projectContext.findUnique({
+          where: { projectId },
+          select: { executionPlan: true },
         });
 
-        if (!existingWave) {
-          await prisma.executionWave.create({
-            data: {
-              projectId,
-              waveNumber,
-              status: "in_progress",
-              taskCount: 0, // Will be updated by coordinator
-            },
-          });
-          log.info(`[Wave ${waveNumber}] Created wave record`);
-        } else {
-          log.info(`[Wave ${waveNumber}] Wave record already exists`);
+        if (!project?.executionPlan) {
+          throw new Error("No execution plan found");
         }
+
+        const plan = project.executionPlan as ExecutionPlan;
+
+        if (!plan.phases || plan.phases.length === 0) {
+          throw new Error("No phases defined in execution plan");
+        }
+
+        if (phaseNumber > plan.phases.length) {
+          throw new Error(`Phase ${phaseNumber} does not exist (only ${plan.phases.length} phases)`);
+        }
+
+        const phase = plan.phases[phaseNumber - 1]; // 0-indexed
+
+        log.info(`[Phase ${phaseNumber}] Loaded phase: "${phase.name}" with ${phase.taskIds.length} tasks`);
+
+        return { plan, phase };
       });
 
-      // Step 2: GitHub Agent - Initialize repo (Wave 1 only) OR create branch
+      // Step 2: GitHub setup (Phase 1 only)
       const githubResult = await step.run("github-setup", async () => {
-        // Get GitHub token from user
         const user = await prisma.user.findUnique({
           where: { id: userId },
           select: {
@@ -65,17 +89,11 @@ export const waveStartFunction = inngest.createFunction(
         const githubToken = user?.accounts[0]?.access_token;
 
         if (!githubToken) {
-          log.error(
-            `[Wave ${waveNumber}] GitHub account not connected for user ${userId}`
-          );
-          throw new Error(
-            "GitHub account not connected. Please go to your profile settings and connect your GitHub account to continue."
-          );
+          throw new Error("GitHub account not connected");
         }
 
-        if (waveNumber === 1) {
-          // Wave 1: Initialize repository
-          log.info(`[Wave ${waveNumber}] Initializing GitHub repository`);
+        if (phaseNumber === 1) {
+          log.info(`[Phase ${phaseNumber}] Initializing GitHub repository`);
 
           const setupResult = await githubAgent.setupRepository({
             projectId,
@@ -91,162 +109,107 @@ export const waveStartFunction = inngest.createFunction(
             throw new Error(`GitHub setup failed: ${setupResult.message}`);
           }
 
-          log.info(
-            `[Wave ${waveNumber}] Repository created: ${setupResult.repoUrl}`
-          );
-
-          // ✅ Initialize git in sandbox and set up remote
-          log.info(`[Wave ${waveNumber}] Initializing git in sandbox and setting up remote`);
-
+          // Initialize git in sandbox
           const { GitTool } = await import("@/lib/agents/tools/git-tool");
           const gitTool = new GitTool();
 
-          // Step 1: Initialize git repository
-          const initResult = await gitTool.execute(
-            { operation: "init" },
-            { projectId, userId }
-          );
+          await gitTool.execute({ operation: "init" }, { projectId, userId });
 
-          if (!initResult.success) {
-            log.warn(`[Wave ${waveNumber}] Git init warning: ${initResult.error}`);
-          } else {
-            log.info(`[Wave ${waveNumber}] ✅ Git initialized in sandbox`);
-          }
-
-          // Step 2: Set up git remote
           const authenticatedUrl = setupResult.repoUrl!.replace(
             "https://github.com/",
             `https://${githubToken}@github.com/`
           );
 
-          const remoteResult = await SandboxService.execCommand(
+          await SandboxService.execCommand(
             projectId,
             userId,
             `git remote remove origin 2>/dev/null || true && git remote add origin "${authenticatedUrl}"`,
             30
           );
 
-          if (remoteResult.status === "error") {
-            log.warn(`[Wave ${waveNumber}] Git remote setup warning: ${remoteResult.stderr}`);
-          } else {
-            log.info(`[Wave ${waveNumber}] ✅ Git remote configured`);
-          }
+          log.info(`[Phase ${phaseNumber}] ✅ Repository and git initialized`);
 
           return {
             repoUrl: setupResult.repoUrl,
             repoName: setupResult.repoName,
-            branchName: "main", // Wave 1 works on main initially
+            branchName: "main",
           };
         } else {
-          // Waves 2+: Create new branch
           const projectContext = await prisma.projectContext.findUnique({
             where: { projectId },
             select: { codebase: true },
           });
 
-          type Codebase = { githubRepoName?: string };
-          let codebase: Codebase | undefined;
-          if (projectContext?.codebase && typeof projectContext.codebase === "object" && projectContext.codebase !== null) {
-            codebase = projectContext.codebase as Codebase;
-          }
+          const codebase = projectContext?.codebase as { githubRepoName?: string } | null;
           const repoName = codebase?.githubRepoName;
 
           if (!repoName) {
             throw new Error("GitHub repository not found");
           }
 
-          const branchName = `wave-${waveNumber}`;
-
-          log.info(`[Wave ${waveNumber}] Branch: ${branchName}`);
-
           return {
             repoName,
-            branchName,
+            branchName: `phase-${phaseNumber}`,
           };
         }
       });
 
-      // ✅ Step 2.5: PRE-INITIALIZE SANDBOX (CRITICAL: Prevents race condition!)
-      // This creates ONE sandbox BEFORE any agents start, ensuring all agents
-      // share the same container instead of creating 10+ separate containers
+      // Step 3: Pre-initialize sandbox
       await step.run("initialize-sandbox", async () => {
-        log.info(`[Wave ${waveNumber}] Pre-initializing sandbox to prevent race condition`);
-
-        try {
-          // SandboxService is a singleton instance, not a class
-          const sandboxUrl = await SandboxService.findOrCreateSandbox(projectId, userId);
-
-          log.info(`[Wave ${waveNumber}] ✅ Sandbox ready at ${sandboxUrl}`);
-
-          return { sandboxUrl, initialized: true };
-        } catch (error) {
-          const errorMsg = error instanceof Error ? error.message : "Unknown error";
-          log.error(`[Wave ${waveNumber}] Failed to initialize sandbox: ${errorMsg}`);
-          throw new Error(`Sandbox initialization failed: ${errorMsg}`);
-        }
+        log.info(`[Phase ${phaseNumber}] Pre-initializing sandbox`);
+        const sandboxUrl = await SandboxService.findOrCreateSandbox(projectId, userId);
+        log.info(`[Phase ${phaseNumber}] ✅ Sandbox ready: ${sandboxUrl}`);
       });
 
-      // ✅ Step 3: BUILD wave (get ordered task list, don't trigger yet)
-      const coordinatorResult = await step.run(
-        "build-wave-with-coordinator",
-        async () => {
-          log.info(
-            `[Wave ${waveNumber}] Building wave with ExecutionCoordinator`
-          );
+      // Step 4: Get ALL tasks for this phase from database
+      const phaseTasks = await step.run("load-phase-tasks", async () => {
+        const { phase } = planData;
 
-          // Call coordinator to build wave (autoTrigger=false for sequential execution)
-          const result = await executionCoordinator.buildWave({
+        // Get tasks in the EXACT order from phase.taskIds
+        const tasksFromDB = await prisma.agentTask.findMany({
+          where: {
             projectId,
-            userId,
-            conversationId,
-            waveNumber,
-            githubBranch: githubResult.branchName,
-            autoTrigger: false, // ✅ Don't trigger tasks yet - we'll do it sequentially
-          });
+            id: { in: phase.taskIds },
+          },
+        });
 
-          if (!result.success) {
-            throw new Error(`Wave building failed: ${result.message}`);
-          }
+        // Create a map for quick lookup
+        const taskMap = new Map(tasksFromDB.map(t => [t.id, t]));
 
-          log.info(`[Wave ${waveNumber}] Coordinator built wave (sequential execution):`, {
-            totalTasks: result.waveTasks.length,
-            taskPriorities: result.waveTasks.map((t) => t.priority).join(", "),
-            breakdown: result.waveBreakdown,
-          });
+        // Return tasks in the EXACT order specified by phase.taskIds
+        const orderedTasks = phase.taskIds
+          .map(id => taskMap.get(id))
+          .filter((task): task is NonNullable<typeof task> => task !== undefined);
 
-          return result;
-        }
-      );
+        log.info(`[Phase ${phaseNumber}] Loaded ${orderedTasks.length} tasks in planner order`);
 
-      // ✅ Step 4: SEQUENTIALLY trigger and execute tasks in priority order
-      // This is the key change for Priority 2: tasks run one at a time
-      // Each task MUST complete before the next one starts
-      for (let i = 0; i < coordinatorResult.waveTasks.length; i++) {
-        const task = coordinatorResult.waveTasks[i];
+        return orderedTasks;
+      });
+
+      // Step 5: Execute ALL tasks SEQUENTIALLY in exact planner order
+      for (let i = 0; i < phaseTasks.length; i++) {
+        const task = phaseTasks[i];
         const taskNumber = i + 1;
-        const totalTasks = coordinatorResult.waveTasks.length;
+        const totalTasks = phaseTasks.length;
 
-        // ✅ CRITICAL: Combine trigger + wait in SINGLE step to ensure strict sequencing
-        await step.run(`execute-and-wait-task-${taskNumber}`, async () => {
+        // Determine agent type
+        const agentMap: Record<string, string> = {
+          FrontendAgent: "agent/execution.frontend",
+          BackendAgent: "agent/execution.backend",
+          InfrastructureAgent: "agent/execution.infrastructure",
+          DatabaseAgent: "agent/execution.database",
+        };
+
+        const eventName = agentMap[task.agentName] || "agent/execution.generic";
+
+        await step.run(`execute-task-${taskNumber}-${task.id.slice(0, 8)}`, async () => {
           log.info(
-            `[Wave ${waveNumber}] 🚀 Starting task ${taskNumber}/${totalTasks}: ${task.input.title} (Priority ${task.priority}, ID: ${task.id})`
+            `[Phase ${phaseNumber}] 🚀 Task ${taskNumber}/${totalTasks}: ${task.input && typeof task.input === 'object' && 'title' in task.input ? String(task.input.title) : 'Unknown'} (${task.agentName})`
           );
 
-          // Get event name for this agent type
-          const eventMap: Record<string, string> = {
-            FrontendAgent: "agent/execution.frontend",
-            BackendAgent: "agent/execution.backend",
-            InfrastructureAgent: "agent/execution.infrastructure",
-            DatabaseAgent: "agent/execution.database",
-            IntegrationAgent: "agent/quality.integration",
-            TestingAgent: "agent/quality.testing",
-          };
-
-          const eventName = eventMap[task.agentName] || "agent/execution.generic";
-
-          // Trigger the task
+          // Trigger task
           await inngest.send({
-            name: eventName as "agent/execution.backend" | "agent/execution.frontend" | "agent/execution.infrastructure" | "agent/execution.database" | "agent/quality.integration" | "agent/quality.testing" | "agent/execution.generic",
+            name: eventName as "agent/execution.backend" | "agent/execution.frontend" | "agent/execution.infrastructure" | "agent/execution.database",
             data: {
               taskId: task.id,
               projectId,
@@ -254,76 +217,81 @@ export const waveStartFunction = inngest.createFunction(
               conversationId,
               taskInput: task.input,
               priority: task.priority,
-              waveNumber,
+              waveNumber: phaseNumber,
             },
           });
 
-          // Update task status to in_progress
+          // Mark as in_progress
           await prisma.agentTask.update({
             where: { id: task.id },
             data: {
               status: "in_progress",
               startedAt: new Date(),
               branchName: githubResult.branchName,
+              waveNumber: phaseNumber,
             },
           });
 
-          log.info(
-            `[Wave ${waveNumber}] ✅ Triggered ${task.agentName} for task ${task.id} via ${eventName}`
-          );
+          log.info(`[Phase ${phaseNumber}] ✅ Triggered ${task.agentName} for ${task.id}`);
         });
 
-        // ✅ Wait for THIS specific task to complete BEFORE moving to next iteration
-        log.info(
-          `[Wave ${waveNumber}] ⏳ Waiting for task ${taskNumber}/${totalTasks} (${task.id}) to complete...`
-        );
+        // Wait for task completion
+        log.info(`[Phase ${phaseNumber}] ⏳ Waiting for task ${taskNumber}/${totalTasks} to complete...`);
 
-        await step.waitForEvent(`wait-task-${taskNumber}-${task.id}`, {
+        await step.waitForEvent(`wait-task-completion-${task.id}`, {
           event: "agent/task.complete",
           timeout: "30m",
           if: `event.data.taskId == "${task.id}"`,
         });
 
-        log.info(
-          `[Wave ${waveNumber}] ✅ Task ${taskNumber}/${totalTasks} (${task.id}) COMPLETED! Proceeding to next task...`
-        );
+        log.info(`[Phase ${phaseNumber}] ✅ Task ${taskNumber}/${totalTasks} COMPLETED!`);
       }
 
-      // Step 5: Confirm all tasks completed
-      await step.run("confirm-all-tasks-complete", async () => {
-        log.info(
-          `[Wave ${waveNumber}] ✅ All ${coordinatorResult.waveTasks.length} tasks completed sequentially!`
-        );
-
-        // Update wave with final task count
-        await prisma.executionWave.update({
+      // Step 6: Mark phase complete
+      await step.run("mark-phase-complete", async () => {
+        await prisma.executionWave.upsert({
           where: {
-            projectId_waveNumber: { projectId, waveNumber },
+            projectId_waveNumber: { projectId, waveNumber: phaseNumber },
           },
-          data: {
-            taskCount: coordinatorResult.waveTasks.length,
+          create: {
+            projectId,
+            waveNumber: phaseNumber,
+            status: "completed",
+            taskCount: phaseTasks.length,
+            completedCount: phaseTasks.length,
+            completedAt: new Date(),
+          },
+          update: {
+            status: "completed",
+            completedCount: phaseTasks.length,
+            completedAt: new Date(),
           },
         });
+
+        log.info(`[Phase ${phaseNumber}] ✅ All ${phaseTasks.length} tasks completed!`);
       });
 
       return {
         success: true,
-        waveNumber,
-        tasksTriggered: coordinatorResult.triggeredTasks.length,
-        githubBranch: githubResult.branchName,
-        waveBreakdown: coordinatorResult.waveBreakdown,
+        phaseNumber,
+        phaseName: planData.phase.name,
+        tasksCompleted: phaseTasks.length,
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      log.error(`[Wave ${waveNumber}] Failed to start wave: ${errorMessage}`);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      log.error(`[Phase ${phaseNumber}] Failed: ${errorMessage}`);
 
-      // Mark wave as failed
-      await prisma.executionWave.update({
+      await prisma.executionWave.upsert({
         where: {
-          projectId_waveNumber: { projectId, waveNumber },
+          projectId_waveNumber: { projectId, waveNumber: phaseNumber },
         },
-        data: {
+        create: {
+          projectId,
+          waveNumber: phaseNumber,
+          status: "failed",
+          taskCount: 0,
+        },
+        update: {
           status: "failed",
         },
       });
