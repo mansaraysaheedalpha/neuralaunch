@@ -74,12 +74,14 @@ export class InfrastructureAgent extends BaseAgent {
 
       const prompt = this.buildTaskPrompt(taskDetails, context);
 
-      // ✅ Enable native tool use for Claude (agentic capabilities)
-      // Claude can use tools during generation if it needs additional context
+      // ✅ FIXED: Disable tool use for infrastructure file generation
+      // Infrastructure tasks need direct JSON output (file configurations)
+      // Tool calling causes empty responses as Claude enters tool loops
+      // Context is already loaded via loadProjectContextInternal() before this call
       const responseText = await this.generateContent(
         prompt,
         undefined, // No system instruction
-        true, // Enable tools (agentic mode for Claude)
+        false, // DISABLE tools - direct JSON output prevents empty responses
         {
           projectId,
           userId,
