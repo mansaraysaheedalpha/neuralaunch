@@ -107,7 +107,12 @@ export async function GET() {
  */
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const body = await req.json() as {
+      projectId?: string;
+      techStack?: unknown;
+      architecture?: unknown;
+      codebase?: unknown;
+    };
     const { projectId, techStack, architecture, codebase } = body;
 
     if (!projectId) {
@@ -135,9 +140,9 @@ export async function POST(req: NextRequest) {
       architecture?: Prisma.InputJsonValue;
       codebase?: Prisma.InputJsonValue;
     } = {};
-    if (techStack) updateData.techStack = techStack as Prisma.InputJsonValue;
-    if (architecture) updateData.architecture = architecture as Prisma.InputJsonValue;
-    if (codebase) updateData.codebase = codebase as Prisma.InputJsonValue;
+    if (techStack !== undefined) updateData.techStack = techStack as Prisma.InputJsonValue;
+    if (architecture !== undefined) updateData.architecture = architecture as Prisma.InputJsonValue;
+    if (codebase !== undefined) updateData.codebase = codebase as Prisma.InputJsonValue;
 
     // Update existing ProjectContext (no upsert since we checked it exists)
     const context = await prisma.projectContext.update({

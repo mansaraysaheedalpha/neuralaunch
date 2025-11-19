@@ -19,13 +19,6 @@ interface TaskInput {
   [key: string]: unknown;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-interface TaskOutput {
-  filesCreated?: Array<{ path: string; lines?: number } | string>;
-  commandsRun?: Array<{ command: string } | string>;
-  [key: string]: unknown;
-}
-
 /**
  * Database Agent Execution Function
  * Handles database schema design, migrations, and Prisma operations

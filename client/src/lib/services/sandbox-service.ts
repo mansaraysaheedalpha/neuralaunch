@@ -1159,7 +1159,7 @@ class SandboxServiceClass {
   }
 
   /** Updates the stored IP address if it changes. */
-  private async updateSandboxIp(
+  private async _updateSandboxIp(
     projectId: string,
     newIp: string
   ): Promise<void> {

@@ -476,7 +476,7 @@ export abstract class BaseAgent {
    * ✅ NEW: Analyze error with code analysis
    */
   private async analyzeError(
-    output: AgentExecutionOutput,
+    _output: AgentExecutionOutput,
     input: AgentExecutionInput
   ): Promise<void> {
     try {

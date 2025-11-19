@@ -95,7 +95,7 @@ function parseNewFormat(sectionText: string): ParsedTask[] {
 
   for (const match of matches) {
     const timeRange = match[1]; // e.g., "1-8" or "9-24"
-    const _blockTitle = match[2].trim(); // e.g., "Build the Test"
+    // match[2] contains the block title which we don't need for parsing tasks
     const taskLines = match[3]; // All checkbox lines
 
     // Extract individual checkbox tasks
