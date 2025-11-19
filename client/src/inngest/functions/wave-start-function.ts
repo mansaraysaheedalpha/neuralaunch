@@ -136,8 +136,8 @@ export const waveStartFunction = inngest.createFunction(
         log.info(`[Wave ${waveNumber}] Pre-initializing sandbox to prevent race condition`);
 
         try {
-          const sandboxService = new SandboxService();
-          const sandboxUrl = await sandboxService.findOrCreateSandbox(projectId, userId);
+          // SandboxService is a singleton instance, not a class
+          const sandboxUrl = await SandboxService.findOrCreateSandbox(projectId, userId);
 
           log.info(`[Wave ${waveNumber}] ✅ Sandbox ready at ${sandboxUrl}`);
 
