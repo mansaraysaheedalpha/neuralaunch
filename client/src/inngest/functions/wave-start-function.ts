@@ -41,7 +41,11 @@ export const waveStartFunction = inngest.createFunction(
   { event: "agent/wave.start" },
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async ({ event, step }: any) => {
-    const { projectId, userId, conversationId, waveNumber } = event.data;
+    // Extract and explicitly type event data to fix ESLint errors
+    const projectId = event.data.projectId as string;
+    const userId = event.data.userId as string;
+    const conversationId = event.data.conversationId as string;
+    const waveNumber = event.data.waveNumber as number;
     const phaseNumber = waveNumber; // Wave 1 = Phase 1, Wave 2 = Phase 2, etc.
 
     const log = logger.child({
