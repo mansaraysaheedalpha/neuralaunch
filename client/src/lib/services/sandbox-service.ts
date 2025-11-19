@@ -213,19 +213,21 @@ class SandboxServiceClass {
         }
 
         if (containerUrl) {
-          // ✅ RETRY HEALTH CHECK: Don't immediately recreate on first failure
-          // The sandbox might still be booting from a previous wave
-          const maxRetries = 3;
+          // ✅ INCREASED TOLERANCE: More retries, longer timeouts
+          // Sandbox containers are heavy (Node, Python, Go, Rust, etc.) and take time to boot
+          const maxRetries = 5; // Increased from 3
+          const retryDelay = 3000; // Increased from 2s to 3s
+          const healthTimeout = 10000; // Increased from 5s to 10s
           let healthy = false;
 
           for (let attempt = 1; attempt <= maxRetries && !healthy; attempt++) {
             try {
               logger.info(
-                `[SandboxService] Health check attempt ${attempt}/${maxRetries} for ${containerUrl}/health`
+                `[SandboxService] Health check attempt ${attempt}/${maxRetries} for ${containerUrl}/health (${healthTimeout}ms timeout)`
               );
 
               const health = await fetch(`${containerUrl}/health`, {
-                signal: AbortSignal.timeout(5000), // 5s timeout per attempt
+                signal: AbortSignal.timeout(healthTimeout),
               });
 
               if (health.ok) {
@@ -245,25 +247,48 @@ class SandboxServiceClass {
               );
             }
 
-            // Wait 2 seconds before retry (except on last attempt)
+            // Wait before retry (except on last attempt) - exponential backoff
             if (attempt < maxRetries) {
-              await new Promise((resolve) => setTimeout(resolve, 2000));
+              const backoff = retryDelay * attempt; // 3s, 6s, 9s, 12s
+              logger.info(`[SandboxService] Waiting ${backoff}ms before retry...`);
+              await new Promise((resolve) => setTimeout(resolve, backoff));
             }
           }
 
-          // Only recreate if ALL retries failed
+          // ⚠️ CRITICAL CHANGE: Don't recreate on health check failure
+          // Let the task fail gracefully rather than triggering container recreation death spiral
           if (!healthy) {
-            logger.warn(
-              `[SandboxService] Sandbox ${project.sandboxContainerId} unhealthy after ${maxRetries} attempts (${containerUrl}). Will recreate.`
+            const errorMsg = `Sandbox container exists but is not responding to health checks after ${maxRetries} attempts (total ${maxRetries * retryDelay / 1000}s with exponential backoff). The container may be: (1) Still booting (heavy image with many runtimes), (2) Crashed/unhealthy, or (3) Network unreachable. Container ID: ${project.sandboxContainerId}`;
+
+            logger.error(
+              `[SandboxService] ${errorMsg}`
             );
+
+            // Create a special error type that won't trigger recreation
+            const error: Error & { skipRecreation?: boolean } = new Error(errorMsg);
+            error.skipRecreation = true;
+            throw error;
           }
         }
 
+        // If we got here, container URL is null/empty - needs recreation
         logger.warn(
-          `[SandboxService] Sandbox ${project.sandboxContainerId} is in a bad state. Removing and recreating...`
+          `[SandboxService] Sandbox ${project.sandboxContainerId} has no accessible URL. Removing and recreating...`
         );
         await this.removeSandbox(projectId, userId);
       } catch (error: unknown) {
+        // ⚠️ Check if this is a "skip recreation" error from health check failure
+        if (
+          error &&
+          typeof error === "object" &&
+          "skipRecreation" in error &&
+          (error as { skipRecreation?: boolean }).skipRecreation
+        ) {
+          // Rethrow without recreating - let the task fail with clear error message
+          throw error;
+        }
+
+        // Handle normal Docker API errors
         if (
           error &&
           typeof error === "object" &&
