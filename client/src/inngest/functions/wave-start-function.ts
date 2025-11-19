@@ -337,6 +337,24 @@ export const waveStartFunction = inngest.createFunction(
         log.info(`[Phase ${phaseNumber}] ✅ All ${phaseTasks.length} tasks completed!`);
       });
 
+      // ✅ CRITICAL FIX: Trigger wave.complete event to continue with quality checks and next wave
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      await step.run("trigger-wave-complete", async () => {
+        log.info(`[Phase ${phaseNumber}] 🎯 Triggering wave.complete event for quality checks`);
+        
+        await inngest.send({
+          name: "agent/wave.complete",
+          data: {
+            projectId,
+            userId,
+            conversationId,
+            waveNumber: phaseNumber,
+          },
+        });
+        
+        log.info(`[Phase ${phaseNumber}] ✅ Wave complete event triggered - quality checks will now run`);
+      });
+
       return {
         success: true,
         phaseNumber,

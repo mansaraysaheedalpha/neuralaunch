@@ -25,29 +25,35 @@ export const testingAgentFunction = inngest.createFunction(
       projectId: string;
       userId: string;
       conversationId?: string;
-      taskInput: {
-        testType?: string;
-        sourceFiles?: string[];
-        waveNumber?: number;
-        [key: string]: unknown;
-      };
+      taskInput: unknown;
     };
 
-    // Ensure event.data is an object with required properties before destructuring
+    // ✅ FIXED: More flexible validation - taskInput can be unknown/null
     if (
       typeof event.data !== "object" ||
       event.data === null ||
       typeof (event.data as TestingAgentEventData).taskId !== "string" ||
       typeof (event.data as TestingAgentEventData).projectId !== "string" ||
-      typeof (event.data as TestingAgentEventData).userId !== "string" ||
-      typeof (event.data as TestingAgentEventData).taskInput !== "object"
+      typeof (event.data as TestingAgentEventData).userId !== "string"
     ) {
       throw new Error(
-        "event.data is missing required properties or is not a valid object"
+        "event.data is missing required properties (taskId, projectId, userId)"
       );
     }
-    const { taskId, projectId, userId, conversationId, taskInput } =
-      event.data as TestingAgentEventData;
+    
+    const eventData = event.data as TestingAgentEventData;
+    const { taskId, projectId, userId, conversationId } = eventData;
+    
+    // ✅ FIXED: Safely parse taskInput with defaults
+    const taskInputRaw = eventData.taskInput;
+    const taskInput = (typeof taskInputRaw === "object" && taskInputRaw !== null 
+      ? taskInputRaw 
+      : {}) as {
+        testType?: string;
+        sourceFiles?: string[];
+        waveNumber?: number;
+        [key: string]: unknown;
+      };
 
     logger.info(`[Inngest] Testing Agent triggered`, {
       taskId,

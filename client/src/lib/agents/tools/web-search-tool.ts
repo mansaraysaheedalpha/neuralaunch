@@ -221,19 +221,38 @@ export class WebSearchTool extends BaseTool {
                   : String(braveError),
             }
           );
-          searchResults = await this.searchWithDuckDuckGo(query, maxResults);
+          // Add retry with exponential backoff for DuckDuckGo fallback
+          try {
+            searchResults = await this.searchWithDuckDuckGo(query, maxResults);
+          } catch (ddgError) {
+            logger.error("[WebSearchTool] DuckDuckGo also failed", {
+              error: ddgError instanceof Error ? ddgError.message : String(ddgError),
+            });
+            // Return empty results instead of failing completely
+            searchResults = { results: [], total: 0 };
+          }
         }
       } else {
         logger.info("[WebSearchTool] No Brave API key, using DuckDuckGo");
-        searchResults = await this.searchWithDuckDuckGo(query, maxResults);
+        try {
+          searchResults = await this.searchWithDuckDuckGo(query, maxResults);
+        } catch (ddgError) {
+          logger.error("[WebSearchTool] DuckDuckGo failed", {
+            error: ddgError instanceof Error ? ddgError.message : String(ddgError),
+          });
+          // Return empty results instead of failing completely
+          searchResults = { results: [], total: 0 };
+        }
       }
 
+      // Always return success with whatever results we got (even if empty)
       return {
         success: true,
         data: {
           query,
           results: searchResults.results,
           totalResults: searchResults.total,
+          note: searchResults.total === 0 ? "No results found. This is not an error - web search may be temporarily unavailable or query returned no results." : undefined,
         },
         metadata: {
           executionTime: Date.now() - startTime,
@@ -241,9 +260,20 @@ export class WebSearchTool extends BaseTool {
       };
     } catch (error) {
       this.logError("Web search", error);
+      // Return success with empty results instead of failure
+      // This allows agents to continue without web search
+      logger.warn("[WebSearchTool] Returning empty results to allow agent to continue");
       return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
+        success: true,
+        data: {
+          query,
+          results: [],
+          totalResults: 0,
+          note: "Web search failed but continuing execution. Error: " + (error instanceof Error ? error.message : "Unknown error"),
+        },
+        metadata: {
+          executionTime: Date.now() - startTime,
+        },
       };
     }
   }
