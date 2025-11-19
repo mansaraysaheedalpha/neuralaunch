@@ -95,6 +95,44 @@ export const waveStartFunction = inngest.createFunction(
             `[Wave ${waveNumber}] Repository created: ${setupResult.repoUrl}`
           );
 
+          // ✅ Initialize git in sandbox and set up remote
+          log.info(`[Wave ${waveNumber}] Initializing git in sandbox and setting up remote`);
+
+          const { GitTool } = await import("@/lib/agents/tools/git-tool");
+          const { SandboxService } = await import("@/lib/services/sandbox-service");
+          const gitTool = new GitTool();
+
+          // Step 1: Initialize git repository
+          const initResult = await gitTool.execute(
+            { operation: "init" },
+            { projectId, userId }
+          );
+
+          if (!initResult.success) {
+            log.warn(`[Wave ${waveNumber}] Git init warning: ${initResult.error}`);
+          } else {
+            log.info(`[Wave ${waveNumber}] ✅ Git initialized in sandbox`);
+          }
+
+          // Step 2: Set up git remote
+          const authenticatedUrl = setupResult.repoUrl!.replace(
+            "https://github.com/",
+            `https://${githubToken}@github.com/`
+          );
+
+          const remoteResult = await SandboxService.execCommand(
+            projectId,
+            userId,
+            `git remote remove origin 2>/dev/null || true && git remote add origin "${authenticatedUrl}"`,
+            30
+          );
+
+          if (remoteResult.status === "error") {
+            log.warn(`[Wave ${waveNumber}] Git remote setup warning: ${remoteResult.stderr}`);
+          } else {
+            log.info(`[Wave ${waveNumber}] ✅ Git remote configured`);
+          }
+
           return {
             repoUrl: setupResult.repoUrl,
             repoName: setupResult.repoName,
@@ -234,17 +272,17 @@ export const waveStartFunction = inngest.createFunction(
 
         // ✅ CRITICAL: Wait for this specific task to complete before starting next task
         log.info(
-          `[Wave ${waveNumber}] Waiting for task ${i + 1}/${coordinatorResult.waveTasks.length} to complete...`
+          `[Wave ${waveNumber}] Waiting for task ${i + 1}/${coordinatorResult.waveTasks.length} (${task.id}) to complete...`
         );
 
         await step.waitForEvent(`wait-for-task-${i + 1}-completion`, {
           event: "agent/task.complete",
           timeout: "30m", // Generous timeout for complex tasks
-          match: "data.taskId", // Match on taskId to wait for this specific task
+          if: `event.data.taskId == "${task.id}"`, // ✅ FIX: Match this specific taskId
         });
 
         log.info(
-          `[Wave ${waveNumber}] ✅ Task ${i + 1}/${coordinatorResult.waveTasks.length} completed! Moving to next task...`
+          `[Wave ${waveNumber}] ✅ Task ${i + 1}/${coordinatorResult.waveTasks.length} (${task.id}) completed! Moving to next task...`
         );
       }
 
