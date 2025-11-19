@@ -817,21 +817,57 @@ export abstract class BaseAgent {
       while (continueLoop && iterationCount < MAX_ITERATIONS) {
         iterationCount++;
 
-        // ✅ Add timeout wrapper to prevent hanging
-        const API_TIMEOUT_MS = 120000; // 2 minutes
-        const responsePromise = this.anthropic.messages.create({
-          model: this.selectedModel,
-          max_tokens: 16384, // ✅ INCREASED: 16K tokens for large responses (database schemas, etc.)
-          system: systemInstruction,
-          messages,
-          tools,
-        });
+        // ✅ Add timeout wrapper to prevent hanging with retry logic
+        const API_TIMEOUT_MS = 180000; // 3 minutes (increased for complex tasks)
+        
+        let response: Anthropic.Message;
+        let apiCallAttempt = 0;
+        const MAX_API_RETRIES = 2;
+        
+        while (apiCallAttempt <= MAX_API_RETRIES) {
+          apiCallAttempt++;
+          
+          try {
+            const responsePromise = this.anthropic.messages.create({
+              model: this.selectedModel,
+              max_tokens: 16384, // ✅ INCREASED: 16K tokens for large responses (database schemas, etc.)
+              system: systemInstruction,
+              messages,
+              tools,
+            });
 
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`AI API call timed out after ${API_TIMEOUT_MS / 1000}s`)), API_TIMEOUT_MS)
-        );
+            const timeoutPromise = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error(`AI API call timed out after ${API_TIMEOUT_MS / 1000}s`)), API_TIMEOUT_MS)
+            );
 
-        const response = await Promise.race([responsePromise, timeoutPromise]);
+            response = await Promise.race([responsePromise, timeoutPromise]);
+            break; // Success, exit retry loop
+          } catch (apiError) {
+            if (apiCallAttempt > MAX_API_RETRIES) {
+              throw apiError; // Max retries reached, propagate error
+            }
+            
+            // Check if it's a retryable error
+            const errorMessage = apiError instanceof Error ? apiError.message : String(apiError);
+            const isRetryable = errorMessage.includes("timeout") || 
+                               errorMessage.includes("ECONNRESET") ||
+                               errorMessage.includes("ETIMEDOUT") ||
+                               errorMessage.includes("503") ||
+                               errorMessage.includes("502");
+            
+            if (!isRetryable) {
+              throw apiError; // Not retryable, propagate immediately
+            }
+            
+            logger.warn(
+              `[${this.config.name}] API call failed, retrying (${apiCallAttempt}/${MAX_API_RETRIES})`,
+              { error: errorMessage }
+            );
+            
+            // Wait before retry with exponential backoff
+            await new Promise(resolve => setTimeout(resolve, 2000 * apiCallAttempt));
+          }
+        }
 
         logger.info(`[${this.config.name}] Claude iteration ${iterationCount}`, {
           stopReason: response.stop_reason,
@@ -1040,37 +1076,85 @@ export abstract class BaseAgent {
       throw new Error("Google AI client not initialized");
     }
 
-    const response = await this.googleAI.models.generateContent({
-      model: this.selectedModel,
-      contents: [{ parts: [{ text: prompt }] }],
-      ...(systemInstruction && {
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-      }),
-      config: {
-        temperature: 0.3,
-        topP: 0.95,
-        maxOutputTokens: 20000,
-      },
-    });
+    // ✅ Add retry logic for Gemini API calls
+    let apiCallAttempt = 0;
+    const MAX_API_RETRIES = 2;
+    const API_TIMEOUT_MS = 180000; // 3 minutes
+    
+    while (apiCallAttempt <= MAX_API_RETRIES) {
+      apiCallAttempt++;
+      
+      try {
+        const responsePromise = this.googleAI.models.generateContent({
+          model: this.selectedModel,
+          contents: [{ parts: [{ text: prompt }] }],
+          ...(systemInstruction && {
+            systemInstruction: { parts: [{ text: systemInstruction }] },
+          }),
+          config: {
+            temperature: 0.3,
+            topP: 0.95,
+            maxOutputTokens: 20000,
+          },
+        });
 
-    const text = response.text || "";
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Gemini API call timed out after ${API_TIMEOUT_MS / 1000}s`)), API_TIMEOUT_MS)
+        );
 
-    // Check for safety blocks
-    if (!text && response.candidates?.[0]?.finishReason) {
-      logger.error(
-        `[${this.config.name}] Gemini generation blocked`,
-        undefined,
-        {
-          finishReason: response.candidates[0].finishReason,
-          safetyRatings: response.candidates[0].safetyRatings,
+        const response = await Promise.race([responsePromise, timeoutPromise]);
+        const text = response.text || "";
+
+        // Check for safety blocks
+        if (!text && response.candidates?.[0]?.finishReason) {
+          logger.error(
+            `[${this.config.name}] Gemini generation blocked`,
+            undefined,
+            {
+              finishReason: response.candidates[0].finishReason,
+              safetyRatings: response.candidates[0].safetyRatings,
+            }
+          );
+          throw new Error(
+            `AI generation blocked: ${response.candidates[0].finishReason}`
+          );
         }
-      );
-      throw new Error(
-        `AI generation blocked: ${response.candidates[0].finishReason}`
-      );
-    }
 
-    return text;
+        return text;
+      } catch (apiError) {
+        if (apiCallAttempt > MAX_API_RETRIES) {
+          throw apiError; // Max retries reached, propagate error
+        }
+        
+        // Check if it's a retryable error
+        const errorMessage = apiError instanceof Error ? apiError.message : String(apiError);
+        const isRetryable = errorMessage.includes("timeout") || 
+                           errorMessage.includes("ECONNRESET") ||
+                           errorMessage.includes("ETIMEDOUT") ||
+                           errorMessage.includes("503") ||
+                           errorMessage.includes("502") ||
+                           errorMessage.includes("429");
+        
+        if (!isRetryable && !errorMessage.includes("blocked")) {
+          throw apiError; // Not retryable, propagate immediately
+        }
+        
+        if (errorMessage.includes("blocked")) {
+          throw apiError; // Safety blocks are not retryable
+        }
+        
+        logger.warn(
+          `[${this.config.name}] Gemini API call failed, retrying (${apiCallAttempt}/${MAX_API_RETRIES})`,
+          { error: errorMessage }
+        );
+        
+        // Wait before retry with exponential backoff
+        await new Promise(resolve => setTimeout(resolve, 2000 * apiCallAttempt));
+      }
+    }
+    
+    // This should never be reached due to throw in the loop, but TypeScript needs it
+    throw new Error("Gemini API call failed after all retries");
   }
 
   protected async logExecution(
