@@ -282,7 +282,25 @@ ${taskDetails.acceptanceCriteria?.map((c) => `- [x] ${c}`).join("\n") || "N/A"}
         });
       }
 
-      // Step 9: Check if all wave tasks are complete
+      // Step 9: ✅ NEW - Emit task completion event for sequential execution
+      await step.run("emit-task-complete", async () => {
+        log.info("[Infrastructure Execution Agent] Emitting task completion event");
+
+        await inngest.send({
+          name: "agent/task.complete",
+          data: {
+            taskId,
+            projectId,
+            userId,
+            conversationId,
+            waveNumber,
+            agentName: "InfrastructureAgent",
+            success: true,
+          },
+        });
+      });
+
+      // Step 10: Check if all wave tasks are complete
       await step.run("check-wave-completion", async () => {
         if (!waveNumber) {
           log.info(

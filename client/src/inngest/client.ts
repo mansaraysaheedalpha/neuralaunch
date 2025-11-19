@@ -251,6 +251,20 @@ export type AgentEvents = {
   // COMPLETION EVENTS
   // ==========================================
 
+  // ✅ NEW: Task completion event for sequential execution
+  "agent/task.complete": {
+    data: {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      waveNumber?: number;
+      agentName: string;
+      success: boolean;
+      error?: string;
+    };
+  };
+
   "agent/execution.backend.complete": {
     data: {
       taskId: string;
