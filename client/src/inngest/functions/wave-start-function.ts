@@ -5,6 +5,12 @@
  * Phase 1 = First execution phase from plan
  * Phase 2 = Second execution phase from plan
  * All tasks in a phase execute sequentially in planner-specified order
+ *
+ * KEY IMPROVEMENTS:
+ * - No task limits (all tasks in phase execute)
+ * - Preserves exact planner order (no reordering)
+ * - Sequential execution (one task completes before next starts)
+ * - Simpler logic (reads directly from executionPlan.phases)
  */
 import { inngest } from "../client";
 import { logger } from "@/lib/logger";
