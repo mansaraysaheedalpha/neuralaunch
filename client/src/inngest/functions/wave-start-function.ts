@@ -149,7 +149,7 @@ export const waveStartFunction = inngest.createFunction(
         }
       });
 
-      // ✅ Step 3: USE EXECUTION COORDINATOR to build wave intelligently
+      // ✅ Step 3: BUILD wave (get ordered task list, don't trigger yet)
       const coordinatorResult = await step.run(
         "build-wave-with-coordinator",
         async () => {
@@ -157,21 +157,23 @@ export const waveStartFunction = inngest.createFunction(
             `[Wave ${waveNumber}] Building wave with ExecutionCoordinator`
           );
 
-          // Call the smart coordinator
+          // Call coordinator to build wave (autoTrigger=false for sequential execution)
           const result = await executionCoordinator.buildWave({
             projectId,
             userId,
             conversationId,
             waveNumber,
             githubBranch: githubResult.branchName,
+            autoTrigger: false, // ✅ Don't trigger tasks yet - we'll do it sequentially
           });
 
           if (!result.success) {
             throw new Error(`Wave building failed: ${result.message}`);
           }
 
-          log.info(`[Wave ${waveNumber}] Coordinator built wave:`, {
+          log.info(`[Wave ${waveNumber}] Coordinator built wave (sequential execution):`, {
             totalTasks: result.waveTasks.length,
+            taskPriorities: result.waveTasks.map((t) => t.priority).join(", "),
             breakdown: result.waveBreakdown,
           });
 
@@ -179,11 +181,77 @@ export const waveStartFunction = inngest.createFunction(
         }
       );
 
-      // Step 4: Trigger execution agents (coordinator already did this if autoTrigger=true)
-      // But let's explicitly log it here
-      await step.run("confirm-agents-triggered", async () => {
+      // ✅ Step 4: SEQUENTIALLY trigger and execute tasks in priority order
+      // This is the key change for Priority 2: tasks run one at a time
+      for (let i = 0; i < coordinatorResult.waveTasks.length; i++) {
+        const task = coordinatorResult.waveTasks[i];
+
+        await step.run(`execute-task-${i + 1}-priority-${task.priority}`, async () => {
+          log.info(
+            `[Wave ${waveNumber}] Starting task ${i + 1}/${coordinatorResult.waveTasks.length}: ${task.input.title} (Priority ${task.priority})`
+          );
+
+          // Get event name for this agent type
+          const eventMap: Record<string, string> = {
+            FrontendAgent: "agent/execution.frontend",
+            BackendAgent: "agent/execution.backend",
+            InfrastructureAgent: "agent/execution.infrastructure",
+            DatabaseAgent: "agent/execution.database",
+            IntegrationAgent: "agent/quality.integration",
+            TestingAgent: "agent/quality.testing",
+          };
+
+          const eventName = eventMap[task.agentName] || "agent/execution.generic";
+
+          // Trigger the task
+          await inngest.send({
+            name: eventName as "agent/execution.backend" | "agent/execution.frontend" | "agent/execution.infrastructure" | "agent/execution.database" | "agent/quality.integration" | "agent/quality.testing" | "agent/execution.generic",
+            data: {
+              taskId: task.id,
+              projectId,
+              userId,
+              conversationId,
+              taskInput: task.input,
+              priority: task.priority,
+              waveNumber,
+            },
+          });
+
+          // Update task status to in_progress
+          await prisma.agentTask.update({
+            where: { id: task.id },
+            data: {
+              status: "in_progress",
+              startedAt: new Date(),
+              branchName: githubResult.branchName,
+            },
+          });
+
+          log.info(
+            `[Wave ${waveNumber}] ✅ Triggered ${task.agentName} for task ${task.id} via ${eventName}`
+          );
+        });
+
+        // ✅ CRITICAL: Wait for this specific task to complete before starting next task
         log.info(
-          `[Wave ${waveNumber}] ✅ ${coordinatorResult.triggeredTasks.length} agents triggered`
+          `[Wave ${waveNumber}] Waiting for task ${i + 1}/${coordinatorResult.waveTasks.length} to complete...`
+        );
+
+        await step.waitForEvent(`wait-for-task-${i + 1}-completion`, {
+          event: "agent/task.complete",
+          timeout: "30m", // Generous timeout for complex tasks
+          match: "data.taskId", // Match on taskId to wait for this specific task
+        });
+
+        log.info(
+          `[Wave ${waveNumber}] ✅ Task ${i + 1}/${coordinatorResult.waveTasks.length} completed! Moving to next task...`
+        );
+      }
+
+      // Step 5: Confirm all tasks completed
+      await step.run("confirm-all-tasks-complete", async () => {
+        log.info(
+          `[Wave ${waveNumber}] ✅ All ${coordinatorResult.waveTasks.length} tasks completed sequentially!`
         );
 
         // Update wave with final task count

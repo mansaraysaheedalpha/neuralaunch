@@ -74,9 +74,9 @@ export interface CoordinatorOutput {
 export class ExecutionCoordinator {
   private readonly name = "ExecutionCoordinator";
 
-  // 🔥 NEW: Wave configuration
+  // 🔥 Wave configuration
   private readonly MAX_TASKS_PER_AGENT_PER_WAVE = 3;
-  private readonly PREFER_SIMPLE_TASKS_FIRST = true;
+  // Note: We no longer sort by complexity - planner order is preserved
 
   /**
    * Start execution of tasks for a project
@@ -212,7 +212,13 @@ export class ExecutionCoordinator {
   }
 
   /**
-   * ✅ UPDATED: Create wave with agent task limits
+   * ✅ UPDATED: Create wave with agent task limits, preserving planner order
+   *
+   * Priority 2 Fix: Preserve exact task order from planner
+   * - Sort ONLY by priority (planner already ordered tasks correctly)
+   * - No complexity sorting (that reorders tasks incorrectly)
+   * - Take first N tasks up to max per wave (12) and max per agent (3)
+   * - Tasks execute in the exact order planner specified
    */
   private createWaveWithLimit(
     readyTasks: ExecutionTask[],
@@ -222,23 +228,25 @@ export class ExecutionCoordinator {
     tasks: ExecutionTask[];
     agentAssignments: Map<string, ExecutionTask[]>;
   } {
-    // Sort tasks: simple first, then by priority
-    const sortedTasks = [...readyTasks].sort((a, b) => {
-      const aComplexity = a.input.complexity || "medium";
-      const bComplexity = b.input.complexity || "medium";
+    // ✅ FIX: Sort ONLY by priority to preserve planner order
+    // NO complexity sorting - planner already organized tasks in optimal order
+    const sortedTasks = [...readyTasks].sort((a, b) => a.priority - b.priority);
 
-      if (this.PREFER_SIMPLE_TASKS_FIRST) {
-        if (aComplexity === "simple" && bComplexity !== "simple") return -1;
-        if (aComplexity !== "simple" && bComplexity === "simple") return 1;
+    // Track tasks per agent to enforce 3-task limit
+    const tasksByAgent = new Map<string, ExecutionTask[]>();
+    const selectedTasks: ExecutionTask[] = [];
+    const MAX_TASKS_PER_WAVE = 12;
+
+    // Select tasks in priority order, respecting agent limits
+    for (const task of sortedTasks) {
+      // Stop if we hit wave limit
+      if (selectedTasks.length >= MAX_TASKS_PER_WAVE) {
+        logger.info(
+          `[${this.name}] Wave ${waveNumber} reached max tasks (${MAX_TASKS_PER_WAVE}), deferring remaining to next wave`
+        );
+        break;
       }
 
-      return a.priority - b.priority;
-    });
-
-    // Group tasks by agent
-    const tasksByAgent = new Map<string, ExecutionTask[]>();
-
-    for (const task of sortedTasks) {
       const agent = task.agentName;
 
       if (!tasksByAgent.has(agent)) {
@@ -250,30 +258,30 @@ export class ExecutionCoordinator {
       // ✅ KEY CONSTRAINT: Max 3 tasks per agent per wave
       if (agentTasks.length < this.MAX_TASKS_PER_AGENT_PER_WAVE) {
         agentTasks.push(task);
+        selectedTasks.push(task);
       } else {
         logger.info(
-          `[${this.name}] Agent ${agent} reached limit (${this.MAX_TASKS_PER_AGENT_PER_WAVE} tasks), skipping task ${task.id}`
+          `[${this.name}] Agent ${agent} reached limit (${this.MAX_TASKS_PER_AGENT_PER_WAVE} tasks), deferring task ${task.id} to next wave`
         );
       }
     }
 
-    // Flatten selected tasks
-    const waveTasks: ExecutionTask[] = [];
-    tasksByAgent.forEach((tasks) => waveTasks.push(...tasks));
-
     logger.info(
-      `[${this.name}] Wave ${waveNumber} composition:`,
+      `[${this.name}] Wave ${waveNumber} composition (planner order preserved):`,
       {
+        totalSelected: selectedTasks.length,
+        taskPriorities: selectedTasks.map((t) => t.priority).join(", "),
         agents: Array.from(tasksByAgent.entries()).map(([agent, tasks]) => ({
           agent,
           count: tasks.length,
+          priorities: tasks.map((t) => t.priority).join(", "),
         }))
       }
     );
 
     return {
       waveNumber,
-      tasks: waveTasks,
+      tasks: selectedTasks, // ✅ Returns tasks in priority order
       agentAssignments: tasksByAgent,
     };
   }

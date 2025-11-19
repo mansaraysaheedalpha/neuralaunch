@@ -264,6 +264,25 @@ ${taskDetails.acceptanceCriteria?.map((c) => `- [x] ${c}`).join("\n") || "N/A"}
         });
       }
 
+      // ✅ NEW - Emit task completion event for sequential execution
+      await step.run("emit-task-complete", async () => {
+        const waveNumber = event.data.waveNumber;
+        log.info("[Frontend Agent] Emitting task completion event");
+
+        await inngest.send({
+          name: "agent/task.complete",
+          data: {
+            taskId,
+            projectId,
+            userId,
+            conversationId,
+            waveNumber,
+            agentName: "FrontendAgent",
+            success: true,
+          },
+        });
+      });
+
       await step.run("check-wave-completion", async () => {
         const waveNumber = event.data.waveNumber;
 

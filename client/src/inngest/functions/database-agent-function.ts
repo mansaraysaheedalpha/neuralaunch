@@ -273,7 +273,26 @@ ${taskDetails.acceptanceCriteria?.map((c: string) => `- [x] ${c}`).join("\n") ||
         });
       }
 
-      // Step 10: Check if all wave tasks are complete
+      // Step 10: ✅ NEW - Emit task completion event for sequential execution
+      await step.run("emit-task-complete", async () => {
+        const waveNumber = (event.data as { waveNumber?: number }).waveNumber;
+        log.info("[Database Agent] Emitting task completion event");
+
+        await inngest.send({
+          name: "agent/task.complete",
+          data: {
+            taskId,
+            projectId,
+            userId,
+            conversationId,
+            waveNumber,
+            agentName: "DatabaseAgent",
+            success: true,
+          },
+        });
+      });
+
+      // Step 11: Check if all wave tasks are complete
       await step.run("check-wave-completion", async () => {
         const waveNumber = (event.data as { waveNumber?: number }).waveNumber;
 
