@@ -689,13 +689,14 @@ Type Safety:
     const prompt = this.buildGenericPrompt(input, existingContext);
 
     try {
-      // ✅ Enable native tool use for Claude (agentic capabilities)
-      // Claude can use tools during generation if it needs additional context
-      // Early exit guard in base-agent.ts prevents empty responses from tool loops
+      // ✅ FIXED: Disable tool use for component generation
+      // Frontend component generation is straightforward - just needs JSON output
+      // Tool calling causes empty responses as Claude enters tool loops
+      // Context is already loaded via loadExistingContext() before this call
       const responseText = await this.generateContent(
         prompt,
         undefined, // No system instruction
-        true, // Enable tools (agentic mode for Claude)
+        false, // DISABLE tools - direct JSON output prevents empty responses
         {
           projectId: input.projectId,
           userId: input.userId,
