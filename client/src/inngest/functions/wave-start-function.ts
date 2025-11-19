@@ -183,7 +183,35 @@ export const waveStartFunction = inngest.createFunction(
         }
       }) as { repoUrl?: string; repoName: string; branchName: string };
 
-      // Step 3: Pre-initialize sandbox
+      // Step 3: Initialize wave record in database
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+      await step.run("initialize-wave-record", async () => {
+        const { phase } = planData;
+
+        await prisma.executionWave.upsert({
+          where: {
+            projectId_waveNumber: { projectId, waveNumber: phaseNumber },
+          },
+          create: {
+            projectId,
+            waveNumber: phaseNumber,
+            status: "in_progress",
+            taskCount: phase.taskIds.length,
+            completedCount: 0,
+            startedAt: new Date(),
+          },
+          update: {
+            status: "in_progress",
+            taskCount: phase.taskIds.length,
+            completedCount: 0,
+            startedAt: new Date(),
+          },
+        });
+
+        log.info(`[Phase ${phaseNumber}] ✅ Wave record initialized with ${phase.taskIds.length} tasks`);
+      });
+
+      // Step 4: Pre-initialize sandbox
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       await step.run("initialize-sandbox", async () => {
         log.info(`[Phase ${phaseNumber}] Pre-initializing sandbox`);
@@ -191,7 +219,7 @@ export const waveStartFunction = inngest.createFunction(
         log.info(`[Phase ${phaseNumber}] ✅ Sandbox ready: ${sandboxUrl}`);
       });
 
-      // Step 4: Get ALL tasks for this phase from database
+      // Step 5: Get ALL tasks for this phase from database
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       const phaseTasks = await step.run("load-phase-tasks", async () => {
         const { phase } = planData;
@@ -217,7 +245,7 @@ export const waveStartFunction = inngest.createFunction(
         return orderedTasks;
       }) as PhaseTask[];
 
-      // Step 5: Execute ALL tasks SEQUENTIALLY in exact planner order
+      // Step 6: Execute ALL tasks SEQUENTIALLY in exact planner order
       for (let i = 0; i < phaseTasks.length; i++) {
         const task = phaseTasks[i];
         const taskNumber = i + 1;
@@ -284,7 +312,7 @@ export const waveStartFunction = inngest.createFunction(
         log.info(`[Phase ${phaseNumber}] ✅ Task ${taskNumber}/${totalTasks} COMPLETED!`);
       }
 
-      // Step 6: Mark phase complete
+      // Step 7: Mark phase complete
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       await step.run("mark-phase-complete", async () => {
         await prisma.executionWave.upsert({

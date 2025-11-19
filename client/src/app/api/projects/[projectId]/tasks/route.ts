@@ -170,7 +170,7 @@ export async function GET(
       });
     }
 
-    // 8. Fetch waves for this project
+    // 8. Fetch waves for this project with their associated tasks
     const waves = await prisma.executionWave.findMany({
       where: { projectId },
       orderBy: { waveNumber: "asc" },
@@ -191,6 +191,34 @@ export async function GET(
         completedAt: true,
       },
     });
+
+    // 8b. Get all tasks for all waves to associate them
+    const allWaveTasks = await prisma.agentTask.findMany({
+      where: {
+        projectId,
+        waveNumber: { not: null },
+      },
+      orderBy: [
+        { waveNumber: "asc" },
+        { createdAt: "asc" },
+      ],
+      select: {
+        id: true,
+        agentName: true,
+        status: true,
+        waveNumber: true,
+        input: true,
+        durationMs: true,
+        createdAt: true,
+      },
+    });
+
+    // 8c. Map tasks to their waves
+    const wavesWithTasks = waves.map((wave) => ({
+      ...wave,
+      number: wave.waveNumber,
+      tasks: allWaveTasks.filter((task) => task.waveNumber === wave.waveNumber),
+    }));
 
     // 9. Calculate task statistics
     const taskStats = await prisma.agentTask.groupBy({
@@ -234,12 +262,12 @@ export async function GET(
       limit,
       totalCount,
       tasksReturned: filteredTasks.length,
-      wavesCount: waves.length,
+      wavesCount: wavesWithTasks.length,
     });
 
     return NextResponse.json({
       tasks: filteredTasks,
-      waves,
+      waves: wavesWithTasks,
       pagination: {
         page,
         limit,
