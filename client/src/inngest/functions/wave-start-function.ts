@@ -234,17 +234,17 @@ export const waveStartFunction = inngest.createFunction(
 
         // ✅ CRITICAL: Wait for this specific task to complete before starting next task
         log.info(
-          `[Wave ${waveNumber}] Waiting for task ${i + 1}/${coordinatorResult.waveTasks.length} to complete...`
+          `[Wave ${waveNumber}] Waiting for task ${i + 1}/${coordinatorResult.waveTasks.length} (${task.id}) to complete...`
         );
 
         await step.waitForEvent(`wait-for-task-${i + 1}-completion`, {
           event: "agent/task.complete",
           timeout: "30m", // Generous timeout for complex tasks
-          match: "data.taskId", // Match on taskId to wait for this specific task
+          if: `event.data.taskId == "${task.id}"`, // ✅ FIX: Match this specific taskId
         });
 
         log.info(
-          `[Wave ${waveNumber}] ✅ Task ${i + 1}/${coordinatorResult.waveTasks.length} completed! Moving to next task...`
+          `[Wave ${waveNumber}] ✅ Task ${i + 1}/${coordinatorResult.waveTasks.length} (${task.id}) completed! Moving to next task...`
         );
       }
 
