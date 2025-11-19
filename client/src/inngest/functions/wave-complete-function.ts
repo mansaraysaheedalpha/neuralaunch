@@ -102,24 +102,31 @@ export const waveCompleteFunction = inngest.createFunction(
         }
       );
 
-      // Validate critic result
+      // Validate critic result and provide safe defaults
+      const criticApproved = criticResult?.data?.approved ?? false;
+      const criticScore = criticResult?.data?.score ?? 0;
+
       if (!criticResult || !criticResult.data || typeof criticResult.data.approved === 'undefined') {
-        throw new Error("Invalid critic result: missing 'approved' field");
+        log.warn(`[Wave ${waveNumber}] Invalid critic result, defaulting to not approved`, {
+          criticResultExists: !!criticResult,
+          dataExists: !!criticResult?.data,
+          approvedType: typeof criticResult?.data?.approved,
+        });
       }
 
       log.info(`[Wave ${waveNumber}] Critic review complete`, {
-        approved: criticResult.data.approved,
-        score: criticResult.data.score,
+        approved: criticApproved,
+        score: criticScore,
       });
 
       // ==========================================
       // STEP 3: TRIAGE - Route Based on Critic Result
       // ==========================================
       let shouldProceedToIntegration = false;
-      let reviewScore = criticResult.data.score || 0;
+      let reviewScore = criticScore;
       let hasWarnings = false;
 
-      if (criticResult.data.approved) {
+      if (criticApproved) {
         log.info(`[Wave ${waveNumber}] Code review approved, proceeding`);
         shouldProceedToIntegration = true;
       } else {

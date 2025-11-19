@@ -185,6 +185,13 @@ export class CriticAgent extends BaseAgent {
           iterations: 1,
           durationMs: 0,
           error: "No files provided for review",
+          data: {
+            approved: false, // Explicitly set approved to false when no files
+            report: undefined,
+            filesReviewed: 0,
+            criticalIssues: 0,
+            recommendations: [],
+          },
         };
       }
 
@@ -272,6 +279,13 @@ export class CriticAgent extends BaseAgent {
         iterations: 1,
         durationMs: 0,
         error: error instanceof Error ? error.message : "Unknown error",
+        data: {
+          approved: false, // Always provide approved field, even on error
+          report: undefined,
+          filesReviewed: 0,
+          criticalIssues: 0,
+          recommendations: [],
+        },
       };
     }
   }
