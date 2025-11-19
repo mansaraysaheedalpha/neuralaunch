@@ -821,7 +821,7 @@ export abstract class BaseAgent {
         const API_TIMEOUT_MS = 120000; // 2 minutes
         const responsePromise = this.anthropic.messages.create({
           model: this.selectedModel,
-          max_tokens: 8192,
+          max_tokens: 16384, // ✅ INCREASED: 16K tokens for large responses (database schemas, etc.)
           system: systemInstruction,
           messages,
           tools,
