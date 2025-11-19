@@ -158,8 +158,11 @@ class SandboxServiceClass {
   /**
    * Finds a running sandbox URL or creates a new one.
    * Returns the PUBLICLY ACCESSIBLE URL for the sandbox.
+   *
+   * ✅ PUBLIC: Can be called from wave-start to pre-initialize sandbox
+   * and prevent race conditions when multiple agents start simultaneously.
    */
-  private async findOrCreateSandbox(
+  async findOrCreateSandbox(
     projectId: string,
     userId: string
   ): Promise<string> {

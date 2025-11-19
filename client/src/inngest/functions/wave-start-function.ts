@@ -4,6 +4,7 @@ import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
 import { githubAgent } from "@/lib/agents/github/github-agent";
 import { executionCoordinator } from "@/lib/orchestrator/execution-coordinator"; // ✅ IMPORT
+import { SandboxService } from "@/lib/services/sandbox-service"; // ✅ NEW: For sandbox pre-initialization
 
 export const waveStartFunction = inngest.createFunction(
   {
@@ -125,6 +126,26 @@ export const waveStartFunction = inngest.createFunction(
             repoName,
             branchName,
           };
+        }
+      });
+
+      // ✅ Step 2.5: PRE-INITIALIZE SANDBOX (CRITICAL: Prevents race condition!)
+      // This creates ONE sandbox BEFORE any agents start, ensuring all agents
+      // share the same container instead of creating 10+ separate containers
+      await step.run("initialize-sandbox", async () => {
+        log.info(`[Wave ${waveNumber}] Pre-initializing sandbox to prevent race condition`);
+
+        try {
+          const sandboxService = new SandboxService();
+          const sandboxUrl = await sandboxService.findOrCreateSandbox(projectId, userId);
+
+          log.info(`[Wave ${waveNumber}] ✅ Sandbox ready at ${sandboxUrl}`);
+
+          return { sandboxUrl, initialized: true };
+        } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : "Unknown error";
+          log.error(`[Wave ${waveNumber}] Failed to initialize sandbox: ${errorMsg}`);
+          throw new Error(`Sandbox initialization failed: ${errorMsg}`);
         }
       });
 
