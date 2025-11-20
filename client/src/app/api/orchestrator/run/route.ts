@@ -64,12 +64,6 @@ const blueprintRequestSchema = z.object({
   async: z.boolean().optional().default(true),
 });
 
-// Legacy request (backward compatibility)
-const legacyRequestSchema = z.object({
-  conversationId: z.string().min(1, "Conversation ID is required"),
-  blueprint: z.string().min(1, "Blueprint is required"),
-  async: z.boolean().optional().default(true),
-});
 
 // Union of all schemas
 const runOrchestratorSchema = z.discriminatedUnion("sourceType", [
@@ -132,15 +126,6 @@ export const POST = createCORSHandler(async (req: NextRequest) => {
     // 3. Parse and validate request body
     const body: unknown = await req.json();
 
-    // Check if this is a legacy request (no sourceType)
-    if (
-      typeof body !== "object" ||
-      body === null ||
-      !("sourceType" in body)
-    ) {
-      logger.info("Legacy orchestrator request detected");
-      return handleLegacyRequest(body, userId, logger);
-    }
 
     // Validate modern request
     const validatedBody = runOrchestratorSchema.parse(body);
@@ -399,61 +384,6 @@ async function handleBlueprintRequest(
   }
 }
 
-/**
- * Handle legacy request (backward compatibility)
- */
-async function handleLegacyRequest(body: unknown, userId: string, logger: ReturnType<typeof createApiLogger>) {
-  try {
-    const validatedBody = legacyRequestSchema.parse(body);
-
-    const projectId = `proj_${Date.now()}_${validatedBody.conversationId.slice(0, 8)}`;
-
-    logger.info("Legacy orchestration request", {
-      projectId,
-      conversationId: validatedBody.conversationId,
-    });
-
-    if (validatedBody.async) {
-      await inngest.send({
-        name: "agent/orchestrator.run",
-        data: {
-          projectId,
-          userId,
-          conversationId: validatedBody.conversationId,
-          blueprint: validatedBody.blueprint,
-        },
-      });
-
-      return NextResponse.json({
-        success: true,
-        message: "Orchestration started. This will run in the background.",
-        projectId,
-        async: true,
-        statusEndpoint: `/api/orchestrator/status/${projectId}`,
-      });
-    } else {
-      const result = await orchestrator.execute({
-        projectId,
-        userId,
-        conversationId: validatedBody.conversationId,
-        blueprint: validatedBody.blueprint,
-      });
-
-      return NextResponse.json({
-        ...result,
-        async: false,
-      });
-    }
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Invalid legacy request", details: error.issues },
-        { status: 400 }
-      );
-    }
-    throw error;
-  }
-}
 
 // ==========================================
 // GET METHOD - Status Check
@@ -490,15 +420,7 @@ export function GET() {
           async: "boolean (default: true)",
         },
       },
-      legacy: {
-        description: "Backward compatibility mode",
-        endpoint: "POST /api/orchestrator/run",
-        payload: {
-          conversationId: "string",
-          blueprint: "string",
-          async: "boolean (default: true)",
-        },
-      },
+      
     },
     statusEndpoint: "GET /api/orchestrator/status/[projectId]",
     documentation: "https://docs.startupvalidator.app/api/orchestrator",
