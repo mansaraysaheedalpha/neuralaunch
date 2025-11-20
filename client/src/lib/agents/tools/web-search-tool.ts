@@ -14,6 +14,7 @@
 import { BaseTool, ToolParameter, ToolResult, ToolContext } from "./base-tool";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { retryWithBackoff, RetryPresets } from "@/lib/ai-retry";
 
 interface SearchResult {
   title: string;
@@ -282,6 +283,7 @@ export class WebSearchTool extends BaseTool {
    * Primary: Search using Brave Search API
    * Get API key: https://brave.com/search/api/
    * Free tier: 2000 queries/month
+   * ✅ ENHANCED: Added retry logic with exponential backoff
    */
   private async searchWithBrave(
     query: string,
@@ -294,27 +296,88 @@ export class WebSearchTool extends BaseTool {
     }
 
     try {
-      const response = await fetch(
-        `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=${maxResults}`,
+      // ✅ Wrap with retry logic
+      return await retryWithBackoff(
+        async () => {
+          const response = await fetch(
+            `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=${maxResults}`,
+            {
+              headers: {
+                Accept: "application/json",
+                "Accept-Encoding": "gzip",
+                "X-Subscription-Token": apiKey,
+              },
+              signal: AbortSignal.timeout(10000), // 10s timeout per request
+            }
+          );
+
+          // Handle specific error codes
+          if (response.status === 422) {
+            // Validation error - not retryable, likely bad query format
+            const errorText = await response.text().catch(() => "No error details");
+            logger.warn("[WebSearchTool] Brave Search validation error (422)", {
+              query,
+              error: errorText.substring(0, 200),
+            });
+            throw new Error(`Brave Search validation error: ${errorText.substring(0, 100)}`);
+          }
+
+          if (response.status === 429) {
+            // Rate limit - retryable
+            throw new Error(`Brave Search rate limit exceeded (429)`);
+          }
+
+          if (!response.ok) {
+            throw new Error(`Brave Search API error: ${response.status}`);
+          }
+
+          // Check content type before parsing
+          const contentType = response.headers.get("content-type") || "";
+          if (!contentType.includes("application/json")) {
+            throw new Error(`Brave Search returned non-JSON response: ${contentType}`);
+          }
+
+          const text = await response.text();
+          if (!text || text.trim().length === 0) {
+            throw new Error("Brave Search returned empty response");
+          }
+
+          let data: unknown;
+          try {
+            data = JSON.parse(text);
+          } catch {
+            logger.error("[WebSearchTool] Failed to parse Brave Search response", undefined, {
+              responsePreview: text.substring(0, 200),
+            });
+            throw new Error("Brave Search returned invalid JSON");
+          }
+
+          const results = normalizeBraveResults(data, maxResults);
+
+          return {
+            results,
+            total: results.length,
+          };
+        },
         {
-          headers: {
-            Accept: "application/json",
-            "X-Subscription-Token": apiKey,
+          ...RetryPresets.QUICK, // Quick retry for web searches
+          operationName: "Brave Search",
+          // Don't retry validation errors (422)
+          isRetryable: (error: Error) => {
+            const message = error.message.toLowerCase();
+            return (
+              !message.includes("validation") &&
+              !message.includes("422") &&
+              (message.includes("429") ||
+                message.includes("timeout") ||
+                message.includes("503") ||
+                message.includes("502") ||
+                message.includes("network") ||
+                message.includes("econnreset"))
+            );
           },
         }
       );
-
-      if (!response.ok) {
-        throw new Error(`Brave Search API error: ${response.status}`);
-      }
-
-      const data: unknown = await response.json();
-      const results = normalizeBraveResults(data, maxResults);
-
-      return {
-        results,
-        total: results.length,
-      };
     } catch (error) {
       throw new Error(
         `Brave Search failed: ${error instanceof Error ? error.message : "Unknown error"}`
@@ -323,30 +386,99 @@ export class WebSearchTool extends BaseTool {
   }
 
   /**
-   * Fallback: DuckDuckGo HTML scraping
+   * Fallback: DuckDuckGo Instant Answer API
    * Free, no API key needed
+   * ✅ ENHANCED: Added retry logic and better error handling
    */
   private async searchWithDuckDuckGo(
     query: string,
     maxResults: number
   ): Promise<SearchResponseData> {
     try {
-      // Use DuckDuckGo Instant Answer API (free, no key)
-      const response = await fetch(
-        `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`
+      // ✅ Wrap with retry logic
+      return await retryWithBackoff(
+        async () => {
+          // Use DuckDuckGo Instant Answer API (free, no key)
+          const response = await fetch(
+            `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`,
+            {
+              headers: {
+                "User-Agent": "NeuraLaunch/1.0",
+                Accept: "application/json",
+              },
+              signal: AbortSignal.timeout(10000), // 10s timeout per request
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error(`DuckDuckGo API error: ${response.status}`);
+          }
+
+          // ✅ ENHANCED: Better JSON parsing with error handling
+          const text = await response.text();
+
+          // Check for empty response
+          if (!text || text.trim().length === 0) {
+            logger.warn("[WebSearchTool] DuckDuckGo returned empty response", { query });
+            // Return empty results instead of throwing
+            return {
+              results: [],
+              total: 0,
+            };
+          }
+
+          let data: unknown;
+          try {
+            data = JSON.parse(text);
+          } catch (parseError) {
+            logger.error(
+              "[WebSearchTool] Failed to parse DuckDuckGo response",
+              undefined,
+              {
+                responsePreview: text.substring(0, 200),
+                parseError: parseError instanceof Error ? parseError.message : "Unknown",
+              }
+            );
+            // Return empty results instead of throwing
+            return {
+              results: [],
+              total: 0,
+            };
+          }
+
+          // DuckDuckGo sometimes returns empty JSON object for no results
+          if (!data || (typeof data === "object" && Object.keys(data).length === 0)) {
+            logger.info("[WebSearchTool] DuckDuckGo returned no results", { query });
+            return {
+              results: [],
+              total: 0,
+            };
+          }
+
+          const results = normalizeDuckDuckGoResults(data, query, maxResults);
+
+          return {
+            results,
+            total: results.length,
+          };
+        },
+        {
+          ...RetryPresets.QUICK, // Quick retry for web searches
+          operationName: "DuckDuckGo Search",
+          // Retry on network/timeout errors, but not on empty responses
+          isRetryable: (error: Error) => {
+            const message = error.message.toLowerCase();
+            return (
+              message.includes("timeout") ||
+              message.includes("503") ||
+              message.includes("502") ||
+              message.includes("network") ||
+              message.includes("econnreset") ||
+              message.includes("econnrefused")
+            );
+          },
+        }
       );
-
-      if (!response.ok) {
-        throw new Error(`DuckDuckGo API error: ${response.status}`);
-      }
-
-      const data: unknown = await response.json();
-      const results = normalizeDuckDuckGoResults(data, query, maxResults);
-
-      return {
-        results,
-        total: results.length,
-      };
     } catch (error) {
       throw new Error(
         `DuckDuckGo search failed: ${error instanceof Error ? error.message : "Unknown error"}`

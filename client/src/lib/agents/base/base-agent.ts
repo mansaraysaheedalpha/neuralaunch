@@ -30,6 +30,7 @@ import {
   FailureAttempt,
 } from "../error-recovery/error-recovery-system";
 import { toError, toLogContext } from "@/lib/error-utils";
+import { retryWithBackoff, RetryPresets } from "@/lib/ai-retry";
 
 // Import tools to ensure they're registered before agents try to use them
 import { initializeTools } from "../tools/index";
@@ -448,7 +449,7 @@ export abstract class BaseAgent {
       );
 
       if (searchResult.success && searchResult.data) {
-        const results = searchResult.data as { results?: SearchResult[] };
+        const results = searchResult.data as { results?: SearchResult[]; note?: string };
         if (results.results && results.results.length > 0) {
           const solutions = results.results
             .map(
@@ -461,6 +462,11 @@ export abstract class BaseAgent {
 
           logger.info(
             `[${this.config.name}] Found ${results.results.length} potential solutions`
+          );
+        } else {
+          // Log when search returns no results (not a critical issue)
+          logger.info(
+            `[${this.config.name}] Web search returned no results for error${results.note ? `: ${results.note}` : ""}`
           );
         }
       }
@@ -817,17 +823,14 @@ export abstract class BaseAgent {
       while (continueLoop && iterationCount < MAX_ITERATIONS) {
         iterationCount++;
 
-        // ✅ Add timeout wrapper to prevent hanging with retry logic
+        // ✅ ENHANCED: Use centralized retry utility with exponential backoff
         const API_TIMEOUT_MS = 180000; // 3 minutes (increased for complex tasks)
-        
-        let response: Anthropic.Message | undefined;
-        let apiCallAttempt = 0;
-        const MAX_API_RETRIES = 2;
-        
-        while (apiCallAttempt <= MAX_API_RETRIES) {
-          apiCallAttempt++;
-          
-          try {
+
+        const response = await retryWithBackoff(
+          async () => {
+            if (!this.anthropic) {
+              throw new Error("Anthropic client not initialized");
+            }
             const responsePromise = this.anthropic.messages.create({
               model: this.selectedModel,
               max_tokens: 16384, // ✅ INCREASED: 16K tokens for large responses (database schemas, etc.)
@@ -837,41 +840,19 @@ export abstract class BaseAgent {
             });
 
             const timeoutPromise = new Promise<never>((_, reject) =>
-              setTimeout(() => reject(new Error(`AI API call timed out after ${API_TIMEOUT_MS / 1000}s`)), API_TIMEOUT_MS)
+              setTimeout(
+                () => reject(new Error(`AI API call timed out after ${API_TIMEOUT_MS / 1000}s`)),
+                API_TIMEOUT_MS
+              )
             );
 
-            response = await Promise.race([responsePromise, timeoutPromise]);
-            break; // Success, exit retry loop
-          } catch (apiError) {
-            if (apiCallAttempt > MAX_API_RETRIES) {
-              throw apiError; // Max retries reached, propagate error
-            }
-            
-            // Check if it's a retryable error
-            const errorMessage = apiError instanceof Error ? apiError.message : String(apiError);
-            const isRetryable = errorMessage.includes("timeout") || 
-                               errorMessage.includes("ECONNRESET") ||
-                               errorMessage.includes("ETIMEDOUT") ||
-                               errorMessage.includes("503") ||
-                               errorMessage.includes("502");
-            
-            if (!isRetryable) {
-              throw apiError; // Not retryable, propagate immediately
-            }
-            
-            logger.warn(
-              `[${this.config.name}] API call failed, retrying (${apiCallAttempt}/${MAX_API_RETRIES})`,
-              toLogContext(apiError)
-            );
-            
-            // Wait before retry with exponential backoff
-            await new Promise(resolve => setTimeout(resolve, 2000 * apiCallAttempt));
+            return await Promise.race([responsePromise, timeoutPromise]);
+          },
+          {
+            ...RetryPresets.STANDARD,
+            operationName: `Claude API (${this.selectedModel})`,
           }
-        }
-        
-        if (!response) {
-          throw new Error("Failed to get response from API after retries");
-        }
+        );
 
         logger.info(`[${this.config.name}] Claude iteration ${iterationCount}`, {
           stopReason: response.stop_reason,
@@ -1080,15 +1061,14 @@ export abstract class BaseAgent {
       throw new Error("Google AI client not initialized");
     }
 
-    // ✅ Add retry logic for Gemini API calls
-    let apiCallAttempt = 0;
-    const MAX_API_RETRIES = 2;
+    // ✅ ENHANCED: Use centralized retry utility with exponential backoff
     const API_TIMEOUT_MS = 180000; // 3 minutes
-    
-    while (apiCallAttempt <= MAX_API_RETRIES) {
-      apiCallAttempt++;
-      
-      try {
+
+    return await retryWithBackoff(
+      async () => {
+        if (!this.googleAI) {
+          throw new Error("Google AI client not initialized");
+        }
         const responsePromise = this.googleAI.models.generateContent({
           model: this.selectedModel,
           contents: [{ parts: [{ text: prompt }] }],
@@ -1103,62 +1083,60 @@ export abstract class BaseAgent {
         });
 
         const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`Gemini API call timed out after ${API_TIMEOUT_MS / 1000}s`)), API_TIMEOUT_MS)
+          setTimeout(
+            () => reject(new Error(`Gemini API call timed out after ${API_TIMEOUT_MS / 1000}s`)),
+            API_TIMEOUT_MS
+          )
         );
 
         const response = await Promise.race([responsePromise, timeoutPromise]);
         const text = response.text || "";
 
-        // Check for safety blocks
+        // Check for safety blocks (these are not retryable)
         if (!text && response.candidates?.[0]?.finishReason) {
+          const finishReason = response.candidates[0].finishReason;
           logger.error(
             `[${this.config.name}] Gemini generation blocked`,
             undefined,
             {
-              finishReason: response.candidates[0].finishReason,
+              finishReason,
               safetyRatings: response.candidates[0].safetyRatings,
             }
           );
-          throw new Error(
-            `AI generation blocked: ${response.candidates[0].finishReason}`
-          );
+          // Throw a non-retryable error
+          const error = new Error(`AI generation blocked: ${finishReason}`) as Error & { retryable: boolean };
+          // Mark as non-retryable by adding a specific property
+          error.retryable = false;
+          throw error;
         }
 
         return text;
-      } catch (apiError) {
-        if (apiCallAttempt > MAX_API_RETRIES) {
-          throw apiError; // Max retries reached, propagate error
-        }
-        
-        // Check if it's a retryable error
-        const errorMessage = apiError instanceof Error ? apiError.message : String(apiError);
-        const isRetryable = errorMessage.includes("timeout") || 
-                           errorMessage.includes("ECONNRESET") ||
-                           errorMessage.includes("ETIMEDOUT") ||
-                           errorMessage.includes("503") ||
-                           errorMessage.includes("502") ||
-                           errorMessage.includes("429");
-        
-        if (!isRetryable && !errorMessage.includes("blocked")) {
-          throw apiError; // Not retryable, propagate immediately
-        }
-        
-        if (errorMessage.includes("blocked")) {
-          throw apiError; // Safety blocks are not retryable
-        }
-        
-        logger.warn(
-          `[${this.config.name}] Gemini API call failed, retrying (${apiCallAttempt}/${MAX_API_RETRIES})`,
-          { error: errorMessage }
-        );
-        
-        // Wait before retry with exponential backoff
-        await new Promise(resolve => setTimeout(resolve, 2000 * apiCallAttempt));
+      },
+      {
+        ...RetryPresets.STANDARD,
+        operationName: `Gemini API (${this.selectedModel})`,
+        // Custom retry logic to handle safety blocks
+        isRetryable: (error: Error) => {
+          // Don't retry if explicitly marked as non-retryable (safety blocks)
+          const errorWithRetryable = error as Error & { retryable?: boolean };
+          if (errorWithRetryable.retryable === false) {
+            return false;
+          }
+          // Use default retry logic for other errors
+          const errorMessage = error.message.toLowerCase();
+          return (
+            errorMessage.includes("timeout") ||
+            errorMessage.includes("econnreset") ||
+            errorMessage.includes("etimedout") ||
+            errorMessage.includes("503") ||
+            errorMessage.includes("502") ||
+            errorMessage.includes("529") ||
+            errorMessage.includes("overload") ||
+            errorMessage.includes("429")
+          );
+        },
       }
-    }
-    
-    // This should never be reached due to throw in the loop, but TypeScript needs it
-    throw new Error("Gemini API call failed after all retries");
+    );
   }
 
   protected async logExecution(

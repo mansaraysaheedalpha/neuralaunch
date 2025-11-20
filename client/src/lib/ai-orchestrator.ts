@@ -13,6 +13,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { AI_MODELS } from "./models";
 import { ExternalServiceError, withTimeout } from "./api-error";
 import { logger } from "./logger";
+import { retryWithBackoff, RetryPresets, classifyError, ErrorType } from "./ai-retry";
 
 // ==================== TASK TYPE DEFINITIONS ====================
 export enum AITaskType {
@@ -199,10 +200,18 @@ async function callGemini(
     if (stream && !enableSearchTool) {
       logger.info(`[callGemini] Starting stream for model ${modelId}`);
 
-      const response = await withTimeout(
-        ai.models.generateContentStream(requestPayload),
-        90000,
-        `Gemini streaming (${modelId})`
+      // ✅ Wrap streaming call with retry logic
+      const response = await retryWithBackoff(
+        () =>
+          withTimeout(
+            ai.models.generateContentStream(requestPayload),
+            90000,
+            `Gemini streaming (${modelId})`
+          ),
+        {
+          ...RetryPresets.STANDARD,
+          operationName: `Gemini streaming (${modelId})`,
+        }
       );
 
       return (async function* () {
@@ -237,10 +246,18 @@ async function callGemini(
       `[callGemini] Generating non-streamed content for model ${modelId}${enableSearchTool ? " with Search" : ""}`
     );
 
-    const response = await withTimeout(
-      ai.models.generateContent(requestPayload),
-      180000,
-      `Gemini generation (${modelId}) ${enableSearchTool ? "with Search" : ""}`
+    // ✅ Wrap non-streaming call with retry logic
+    const response = await retryWithBackoff(
+      () =>
+        withTimeout(
+          ai.models.generateContent(requestPayload),
+          180000,
+          `Gemini generation (${modelId}) ${enableSearchTool ? "with Search" : ""}`
+        ),
+      {
+        ...RetryPresets.STANDARD,
+        operationName: `Gemini generation (${modelId})`,
+      }
     );
 
     const responseText = response.text;
@@ -252,14 +269,33 @@ async function callGemini(
 
     return responseText;
   } catch (error) {
+    const errorType = classifyError(error);
     logger.error(
       `Gemini API error (${modelId})`,
-      error instanceof Error ? error : undefined
+      error instanceof Error ? error : undefined,
+      { errorType }
     );
+
     if (error instanceof ExternalServiceError) {
       throw error;
     }
     const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // ✅ ENHANCED: Specific handling for overload errors (529)
+    if (errorType === ErrorType.OVERLOADED) {
+      throw new ExternalServiceError(
+        "Google",
+        `Gemini API is currently overloaded (529). This is a temporary issue. The request has been automatically retried. If the issue persists, please try again later.`
+      );
+    }
+
+    // ✅ ENHANCED: Specific handling for rate limits (429)
+    if (errorType === ErrorType.RATE_LIMIT) {
+      throw new ExternalServiceError(
+        "Google",
+        `Gemini API rate limit exceeded (429). Please wait before making more requests.`
+      );
+    }
 
     // Enhanced error handling
     if (errorMessage.includes("API key not valid")) {
@@ -318,14 +354,22 @@ async function callOpenAI(
       : messages;
 
     if (stream) {
-      const completion = await withTimeout(
-        openai.chat.completions.create({
-          model: modelId,
-          messages: messageArray as OpenAI.Chat.ChatCompletionMessageParam[],
-          stream: true,
-        }),
-        120000,
-        `OpenAI streaming (${modelId})`
+      // ✅ Wrap streaming call with retry logic
+      const completion = await retryWithBackoff(
+        () =>
+          withTimeout(
+            openai.chat.completions.create({
+              model: modelId,
+              messages: messageArray as OpenAI.Chat.ChatCompletionMessageParam[],
+              stream: true,
+            }),
+            120000,
+            `OpenAI streaming (${modelId})`
+          ),
+        {
+          ...RetryPresets.STANDARD,
+          operationName: `OpenAI streaming (${modelId})`,
+        }
       );
 
       return (async function* () {
@@ -349,28 +393,56 @@ async function callOpenAI(
       })();
     }
 
-    const completion = await withTimeout(
-      openai.chat.completions.create({
-        model: modelId,
-        messages: messageArray as OpenAI.Chat.ChatCompletionMessageParam[],
-        ...(responseFormat && {
-          response_format: { type: "json_object" as const },
-        }),
-      }),
-      90000,
-      `OpenAI generation (${modelId})`
+    // ✅ Wrap non-streaming call with retry logic
+    const completion = await retryWithBackoff(
+      () =>
+        withTimeout(
+          openai.chat.completions.create({
+            model: modelId,
+            messages: messageArray as OpenAI.Chat.ChatCompletionMessageParam[],
+            ...(responseFormat && {
+              response_format: { type: "json_object" as const },
+            }),
+          }),
+          90000,
+          `OpenAI generation (${modelId})`
+        ),
+      {
+        ...RetryPresets.STANDARD,
+        operationName: `OpenAI generation (${modelId})`,
+      }
     );
 
     return completion.choices[0]?.message?.content || "";
   } catch (error) {
+    const errorType = classifyError(error);
     logger.error(
       `OpenAI API error (${modelId})`,
-      error instanceof Error ? error : undefined
+      error instanceof Error ? error : undefined,
+      { errorType }
     );
+
     if (error instanceof ExternalServiceError) {
       throw error;
     }
     const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // ✅ ENHANCED: Specific handling for overload errors (529)
+    if (errorType === ErrorType.OVERLOADED) {
+      throw new ExternalServiceError(
+        "OpenAI",
+        `OpenAI API is currently overloaded (529). This is a temporary issue. The request has been automatically retried. If the issue persists, please try again later.`
+      );
+    }
+
+    // ✅ ENHANCED: Specific handling for rate limits (429)
+    if (errorType === ErrorType.RATE_LIMIT) {
+      throw new ExternalServiceError(
+        "OpenAI",
+        `OpenAI API rate limit exceeded (429). Please wait before making more requests.`
+      );
+    }
+
     if (errorMessage.includes("Incorrect API key")) {
       throw new ExternalServiceError(
         "OpenAI",
@@ -403,6 +475,8 @@ async function callClaude(
     })) as Array<{ role: "user" | "assistant"; content: string }>;
 
     if (stream) {
+      // Note: Streaming mode doesn't wrap with retry as it returns an async iterator
+      // The iterator itself handles connection issues internally
       const response = anthropic.messages.stream({
         model: modelId,
         max_tokens: 16384,
@@ -433,28 +507,56 @@ async function callClaude(
       })();
     }
 
-    const response = await withTimeout(
-      anthropic.messages.create({
-        model: modelId,
-        max_tokens: 16384,
-        messages: claudeMessages,
-        ...(systemPrompt && { system: systemPrompt }),
-      }),
-      600000,
-      `Claude generation (${modelId})`
+    // ✅ Wrap non-streaming call with retry logic
+    const response = await retryWithBackoff(
+      () =>
+        withTimeout(
+          anthropic.messages.create({
+            model: modelId,
+            max_tokens: 16384,
+            messages: claudeMessages,
+            ...(systemPrompt && { system: systemPrompt }),
+          }),
+          600000,
+          `Claude generation (${modelId})`
+        ),
+      {
+        ...RetryPresets.STANDARD,
+        operationName: `Claude generation (${modelId})`,
+      }
     );
 
     const textContent = response.content.find((block) => block.type === "text");
     return textContent && "text" in textContent ? textContent.text : "";
   } catch (error) {
+    const errorType = classifyError(error);
     logger.error(
       `Claude API error (${modelId})`,
-      error instanceof Error ? error : undefined
+      error instanceof Error ? error : undefined,
+      { errorType }
     );
+
     if (error instanceof ExternalServiceError) {
       throw error;
     }
     const errorMessage = error instanceof Error ? error.message : String(error);
+
+    // ✅ ENHANCED: Specific handling for overload errors (529)
+    if (errorType === ErrorType.OVERLOADED) {
+      throw new ExternalServiceError(
+        "Claude",
+        `Claude API is currently overloaded (529). This is a temporary issue. The request has been automatically retried. If the issue persists, please try again later.`
+      );
+    }
+
+    // ✅ ENHANCED: Specific handling for rate limits (429)
+    if (errorType === ErrorType.RATE_LIMIT) {
+      throw new ExternalServiceError(
+        "Claude",
+        `Claude API rate limit exceeded (429). Please wait before making more requests.`
+      );
+    }
+
     if (errorMessage.includes("Invalid API Key")) {
       throw new ExternalServiceError(
         "Claude",
@@ -548,34 +650,51 @@ export async function executeAITask(
       { taskType, provider }
     );
 
-    // Fallback mechanism - but disable search on fallback
+    // ✅ ENHANCED: Improved fallback mechanism with retry logic
+    const errorType = classifyError(error);
+
+    // Only fallback if it's not an auth/client error
     if (
       (provider !== "GOOGLE" || enableSearchTool) &&
       taskType !== AITaskType.AGENT_EXECUTE_STEP &&
-      taskType !== AITaskType.AGENT_DEBUG_COMMAND
+      taskType !== AITaskType.AGENT_DEBUG_COMMAND &&
+      errorType !== ErrorType.AUTH_ERROR &&
+      errorType !== ErrorType.CLIENT_ERROR
     ) {
       logger.info(
-        `Attempting fallback to ${AI_MODELS.PRIMARY} (Google) WITHOUT search for ${taskType}`
+        `Attempting fallback to ${AI_MODELS.PRIMARY} (Google) WITHOUT search for ${taskType}`,
+        { originalProvider: provider, errorType }
       );
       try {
         const prompt =
           payload.prompt ||
           payload.messages?.map((m) => m.content).join("\n") ||
           "";
-        const fallbackResult = await callGemini(
-          AI_MODELS.PRIMARY,
-          prompt,
-          payload.systemInstruction,
-          payload.stream,
-          false, // No search on fallback
-          !!payload.responseFormat
+
+        // ✅ Fallback also uses retry logic
+        const fallbackResult = await retryWithBackoff(
+          () =>
+            callGemini(
+              AI_MODELS.PRIMARY,
+              prompt,
+              payload.systemInstruction,
+              payload.stream,
+              false, // No search on fallback
+              !!payload.responseFormat
+            ),
+          {
+            ...RetryPresets.CONSERVATIVE, // Use conservative retry for fallback
+            operationName: `Fallback Gemini (${taskType})`,
+          }
         );
-        logger.info(`Fallback successful for ${taskType}`);
+
+        logger.info(`✅ Fallback successful for ${taskType}`);
         return fallbackResult;
       } catch (fallbackError) {
         logger.error(
-          `Fallback also failed for ${taskType}`,
-          fallbackError instanceof Error ? fallbackError : undefined
+          `❌ Fallback also failed for ${taskType}`,
+          fallbackError instanceof Error ? fallbackError : undefined,
+          { errorType: classifyError(fallbackError) }
         );
         throw fallbackError;
       }

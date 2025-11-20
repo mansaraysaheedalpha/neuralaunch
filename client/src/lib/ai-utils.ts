@@ -15,6 +15,7 @@ import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenAI } from "@google/genai";
 import { env } from "./env";
+import { retryWithBackoff, RetryPresets } from "./ai-retry";
 
 // ==========================================
 // AI CLIENT INSTANCES
@@ -104,10 +105,18 @@ export async function cachedChatCompletion(
 
   const executeFn = async () => {
     const openai = getOpenAIClient();
-    return withTimeout(
-      () => openai.chat.completions.create({ ...params, stream: false }),
-      timeout,
-      `OpenAI chat completion (${params.model})`
+    // ✅ Wrap with retry logic
+    return retryWithBackoff(
+      () =>
+        withTimeout(
+          () => openai.chat.completions.create({ ...params, stream: false }),
+          timeout,
+          `OpenAI chat completion (${params.model})`
+        ),
+      {
+        ...RetryPresets.STANDARD,
+        operationName: `OpenAI chat completion (${params.model})`,
+      }
     );
   };
 
@@ -144,10 +153,18 @@ export async function cachedEmbedding(
 
   const executeFn = async () => {
     const openai = getOpenAIClient();
-    const response = await withTimeout(
-      () => openai.embeddings.create({ input: text, model }),
-      timeout,
-      `OpenAI embedding (${model})`
+    // ✅ Wrap with retry logic
+    const response = await retryWithBackoff(
+      () =>
+        withTimeout(
+          () => openai.embeddings.create({ input: text, model }),
+          timeout,
+          `OpenAI embedding (${model})`
+        ),
+      {
+        ...RetryPresets.STANDARD,
+        operationName: `OpenAI embedding (${model})`,
+      }
     );
     return response.data[0].embedding;
   };
@@ -193,10 +210,18 @@ export async function cachedAnthropicMessage(
 
   const executeFn = async () => {
     const anthropic = getAnthropicClient();
-    return withTimeout(
-      () => anthropic.messages.create({ ...params, stream: false }),
-      timeout,
-      `Anthropic message (${params.model})`
+    // ✅ Wrap with retry logic
+    return retryWithBackoff(
+      () =>
+        withTimeout(
+          () => anthropic.messages.create({ ...params, stream: false }),
+          timeout,
+          `Anthropic message (${params.model})`
+        ),
+      {
+        ...RetryPresets.STANDARD,
+        operationName: `Anthropic message (${params.model})`,
+      }
     );
   };
 
@@ -234,13 +259,22 @@ export async function cachedGoogleGenerate(
   const executeFn = async () => {
     const genAI = getGoogleAIClient();
 
-    const result = await withTimeout(
-      () => genAI.models.generateContent({
-        model: modelName,
-        contents: [{ parts: [{ text: prompt }] }],
-      }),
-      timeout,
-      `Google AI generation (${modelName})`
+    // ✅ Wrap with retry logic
+    const result = await retryWithBackoff(
+      () =>
+        withTimeout(
+          () =>
+            genAI.models.generateContent({
+              model: modelName,
+              contents: [{ parts: [{ text: prompt }] }],
+            }),
+          timeout,
+          `Google AI generation (${modelName})`
+        ),
+      {
+        ...RetryPresets.STANDARD,
+        operationName: `Google AI generation (${modelName})`,
+      }
     );
 
     return result.text || "";

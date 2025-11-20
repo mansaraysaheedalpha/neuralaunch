@@ -224,26 +224,62 @@ export const waveStartFunction = inngest.createFunction(
       const phaseTasks = await step.run("load-phase-tasks", async () => {
         const { phase } = planData;
 
-        // Get tasks in the EXACT order from phase.taskIds
-        const tasksFromDB = await prisma.agentTask.findMany({
-          where: {
-            projectId,
-            id: { in: phase.taskIds },
-          },
+        // ✅ FIX: Add diagnostic logging
+        log.info(`[Phase ${phaseNumber}] Phase configuration:`, {
+          phaseName: phase.name,
+          taskIdsCount: phase.taskIds?.length || 0,
+          hasTaskIds: !!phase.taskIds && phase.taskIds.length > 0,
         });
 
-        // Create a map for quick lookup
-        const taskMap = new Map(tasksFromDB.map((t) => [t.id, t]));
+        // ✅ FIX: If phase has taskIds, use them. Otherwise load all pending tasks
+        const tasksFromDB = phase.taskIds && phase.taskIds.length > 0
+          ? await prisma.agentTask.findMany({
+              where: {
+                projectId,
+                id: { in: phase.taskIds },
+              },
+            })
+          : await prisma.agentTask.findMany({
+              where: {
+                projectId,
+                status: "pending",
+                waveNumber: null, // Not yet assigned to a wave
+              },
+              orderBy: { priority: "asc" },
+              take: 12, // Max tasks for first wave
+            });
 
-        // Return tasks in the EXACT order specified by phase.taskIds
-        const orderedTasks = phase.taskIds
-          .map((id: string) => taskMap.get(id))
-          .filter((task): task is NonNullable<typeof task> => task !== undefined);
+        log.info(`[Phase ${phaseNumber}] Loaded ${tasksFromDB.length} tasks from database`, {
+          fromPhaseIds: phase.taskIds && phase.taskIds.length > 0,
+          taskStatuses: tasksFromDB.map(t => t.status),
+        });
 
-        log.info(`[Phase ${phaseNumber}] Loaded ${orderedTasks.length} tasks in planner order`);
+        // If using phase taskIds, preserve exact order. Otherwise use DB order
+        if (phase.taskIds && phase.taskIds.length > 0) {
+          // Create a map for quick lookup
+          const taskMap = new Map(tasksFromDB.map((t) => [t.id, t]));
 
-        return orderedTasks;
+          // Return tasks in the EXACT order specified by phase.taskIds
+          const orderedTasks = phase.taskIds
+            .map((id: string) => taskMap.get(id))
+            .filter((task): task is NonNullable<typeof task> => task !== undefined);
+
+          log.info(`[Phase ${phaseNumber}] Loaded ${orderedTasks.length} tasks in planner order`);
+
+          return orderedTasks;
+        } else {
+          // Use tasks in priority order from DB
+          log.info(`[Phase ${phaseNumber}] Using fallback: loaded ${tasksFromDB.length} pending tasks in priority order`);
+          return tasksFromDB;
+        }
       }) as PhaseTask[];
+
+      // ✅ SAFETY CHECK: Ensure we have tasks to execute
+      if (phaseTasks.length === 0) {
+        const taskIdsStr = planData.phase.taskIds ? JSON.stringify(planData.phase.taskIds) : "none";
+        log.error(`[Phase ${phaseNumber}] ❌ No tasks found for execution! Phase taskIds: ${taskIdsStr}`);
+        throw new Error(`No tasks found for Phase ${phaseNumber}. Please check that tasks were created during planning.`);
+      }
 
       // Step 6: Execute ALL tasks SEQUENTIALLY in exact planner order
       for (let i = 0; i < phaseTasks.length; i++) {

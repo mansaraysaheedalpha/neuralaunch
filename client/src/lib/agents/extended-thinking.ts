@@ -8,6 +8,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { ThoughtStream } from "./thought-stream";
 import { logger } from "@/lib/logger";
 import { env } from "@/lib/env";
+import { retryWithBackoff, RetryPresets } from "@/lib/ai-retry";
 
 interface ExtendedThinkingOptions {
   thoughts: ThoughtStream;
@@ -40,7 +41,7 @@ export async function executeWithExtendedThinking(
   const anthropic = new Anthropic({
     apiKey: env.ANTHROPIC_API_KEY,
     timeout: 30 * 60 * 1000,
-    maxRetries: 2,
+    maxRetries: 0, // Disable SDK retry, we use our centralized retry logic
   });
 
   try {
@@ -48,20 +49,28 @@ export async function executeWithExtendedThinking(
       "Engaging extended thinking mode for deeper analysis"
     );
 
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 16000,
-      thinking: {
-        type: "enabled",
-        budget_tokens: thinkingBudget,
-      },
-      messages: [
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-    });
+    // ✅ ENHANCED: Wrap with centralized retry logic with exponential backoff
+    const response = await retryWithBackoff(
+      () =>
+        anthropic.messages.create({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 16000,
+          thinking: {
+            type: "enabled",
+            budget_tokens: thinkingBudget,
+          },
+          messages: [
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+        }),
+      {
+        ...RetryPresets.STANDARD,
+        operationName: "Claude Extended Thinking",
+      }
+    );
 
     // Extract thinking and answer content
     let thinkingContent = "";
