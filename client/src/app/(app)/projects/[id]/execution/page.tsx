@@ -172,6 +172,11 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
       ? String(currentAgentRaw.name)
       : undefined;
 
+      const isExecuting =
+        project.status === "executing" || project.status === "completed";
+        const showPipeline =
+          (isInPlanningPhase || isPlanReview) && !isExecuting;
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -211,7 +216,10 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
                   </span>
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
                     <Clock className="w-3 h-3" />
-                    Started {project.createdAt ? new Date(project.createdAt).toLocaleTimeString() : "N/A"}
+                    Started{" "}
+                    {project.createdAt
+                      ? new Date(project.createdAt).toLocaleTimeString()
+                      : "N/A"}
                   </span>
                 </div>
               </div>
@@ -265,8 +273,8 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
             <Progress value={progress} className="h-3" />
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>
-                {currentAgent || currentPhase} • {activeAgents.length}{" "}
-                agents active
+                {currentAgent || currentPhase} • {activeAgents.length} agents
+                active
               </span>
               <span>
                 {completedTasks} / {totalTasks} tasks completed
@@ -323,7 +331,12 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
                 <CardTitle className="text-lg">Wave Timeline</CardTitle>
               </CardHeader>
               <CardContent>
-                <WaveTimeline waves={waves as unknown as import("@/types/component-props").Wave[]} currentWave={currentWave} />
+                <WaveTimeline
+                  waves={
+                    waves as unknown as import("@/types/component-props").Wave[]
+                  }
+                  currentWave={currentWave}
+                />
               </CardContent>
             </Card>
 
@@ -370,36 +383,44 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
           {/* Main Content Area */}
           <div className="space-y-6">
             {/* ✅ Show Agent Pipeline with Real-Time Thoughts during planning */}
-            {isInPlanningPhase || isPlanReview ? (
+            {showPipeline && (
               <AgentPipeline
                 currentPhase={currentPhase}
                 completedPhases={status?.completedPhases || []}
                 projectId={projectId}
-                currentAgent={currentAgent ? { name: currentAgent, description: "", icon: "" } : undefined}
+                currentAgent={
+                  currentAgent
+                    ? { name: currentAgent, description: "", icon: "" }
+                    : undefined
+                }
               />
-            ) : null}
-
-            {/* Show Agent Grid during execution phase */}
-            {!isInPlanningPhase && !isPlanReview && totalTasks > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>AI Agents</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <AgentGrid
-                    tasks={tasks as unknown as import("@/types/component-props").Task[]}
-                    activeAgents={activeAgents}
-                    _currentWave={currentWave}
-                  />
-                </CardContent>
-              </Card>
             )}
 
+            {/* Show Agent Grid during execution phase */}
+            {(isExecuting || (!isInPlanningPhase && !isPlanReview)) &&
+              totalTasks > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>AI Agents</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <AgentGrid
+                      tasks={
+                        tasks as unknown as import("@/types/component-props").Task[]
+                      }
+                      activeAgents={activeAgents}
+                      _currentWave={currentWave}
+                    />
+                  </CardContent>
+                </Card>
+              )}
             {/* ✅ NEW: Execution Tabs (Activity, Code, Commands, Wave Approval) */}
             <ExecutionTabs
               projectId={projectId}
               conversationId={project.conversationId || ""}
-              tasks={tasks as unknown as import("@/types/component-props").Task[]}
+              tasks={
+                tasks as unknown as import("@/types/component-props").Task[]
+              }
               currentWave={currentWave}
             />
           </div>

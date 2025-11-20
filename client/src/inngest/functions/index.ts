@@ -19,7 +19,6 @@ export { integrationAgentFunction } from "./integration-agent-function";
 export { infrastructureExecutionAgentFunction } from "./infrastructure-execution-agent-function";
 // ✅ One-time setup agents:
 export { documentationAgentFunction } from "./documentation-agent-function"
-export { infrastructureAgentFunction } from "./infrastructure-agent-function";
 export { optimizationAgentFunction } from "./optimization-agent-function";
 export { deployAgentFunction } from "./deploy-agent-function";
 export { fixCriticalIssuesFunction } from "./fix-critical-issues-function"

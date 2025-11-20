@@ -444,6 +444,7 @@ model ProjectContext {
   userId         String
   conversationId String
   currentPhase   String @default("analysis")
+  executionWaves   ExecutionWave[]
   blueprint      Json?
   techStack      Json?
   architecture   Json?
@@ -551,6 +552,7 @@ model AgentExecution {
 model ExecutionWave {
   id         String @id @default(cuid())
   projectId  String
+  projectContext   ProjectContext @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
   waveNumber Int
   status     String @default("in_progress") // in_progress, completed, failed
 

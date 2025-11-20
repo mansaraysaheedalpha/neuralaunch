@@ -1,5 +1,4 @@
 // src/lib/agents/execution/backend-agent-v2.ts
-// src/lib/agents/execution/backend-agent-v2.ts
 /**
  * Backend Agent V2 - WITH FIX MODE
  * Now supports fixing issues found by Critic Agent
@@ -27,11 +26,11 @@ export class BackendAgent extends BaseAgent {
         "filesystem",
         "git",
         "command",
-        "web_search",
+        "web_search", // ✅ Now actually used
         "code_analysis",
         "context_loader",
       ],
-      modelName: AI_MODELS.CLAUDE, // Claude Sonnet 4.5 for superior code generation and reasoning
+      modelName: AI_MODELS.CLAUDE,
     });
   }
 
@@ -44,20 +43,10 @@ export class BackendAgent extends BaseAgent {
       context: _context,
     } = input;
 
-    // ✅ Check if this is a fix request
+    // Check if this is a fix request
     const isFixMode = taskDetails.mode === "fix";
 
     if (isFixMode) {
-      logger.info(
-        `[${this.config.name}] FIX MODE: Fixing issues for task "${String(taskDetails.originalTaskId)}"`,
-        {
-          attempt: taskDetails.attempt,
-          issuesCount: Array.isArray(taskDetails.issuesToFix)
-            ? taskDetails.issuesToFix.length
-            : 0,
-        }
-      );
-
       return await this.executeFixMode(input);
     }
 
@@ -67,6 +56,7 @@ export class BackendAgent extends BaseAgent {
     );
 
     try {
+      // ✅ 1. Research & Generate (Now includes Web Search logic)
       const implementation = await this.generateImplementation(input);
 
       if (!implementation) {
@@ -79,6 +69,7 @@ export class BackendAgent extends BaseAgent {
         };
       }
 
+      // ✅ 2. Write Files (Building on top of codebase)
       const filesResult = await this.writeFiles(implementation.files, {
         projectId,
         userId,
@@ -98,6 +89,7 @@ export class BackendAgent extends BaseAgent {
         };
       }
 
+      // ✅ 3. Run Commands (Terminal Operations)
       const commandsResult = await this.runCommands(implementation.commands, {
         projectId,
         userId,
@@ -118,6 +110,7 @@ export class BackendAgent extends BaseAgent {
         };
       }
 
+      // ✅ 4. Self-Verification
       const verification = this.verifyImplementation(
         filesResult.files,
         commandsResult.commands,
@@ -198,14 +191,14 @@ export class BackendAgent extends BaseAgent {
 
       // Step 2: Generate fixes using AI
       const fixPrompt = this.buildFixPrompt(
-        issuesToFix.map(issue => ({
+        issuesToFix.map((issue) => ({
           file: issue.file,
           line: undefined,
           severity: "unknown",
           category: "unknown",
           message: issue.issue,
           suggestion: "",
-          codeSnippet: undefined
+          codeSnippet: undefined,
         })),
         existingFiles,
         taskDetails.attempt as number,
@@ -482,8 +475,7 @@ Generate the fixes now.
   }
 
   /**
-   * ✅ Load existing project context from previous waves
-   * This ensures agents see what code already exists and don't generate disconnected code
+   * ✅ Load existing project context with HIGHER LIMITS (Consistency Update)
    */
   private async loadExistingContext(input: AgentExecutionInput): Promise<{
     structure: string;
@@ -493,27 +485,26 @@ Generate the fixes now.
     const { projectId, userId, taskDetails } = input;
 
     try {
-      // Step 1: Scan project structure
+      // Step 1: Scan project structure (Full Tree)
       const structureResult = await this.executeTool(
         "context_loader",
         { operation: "scan_structure" },
         { projectId, userId }
       );
 
-      // Step 2: Load relevant existing files (smart load based on task)
+      // Step 2: Load relevant files (Increased to 50 / 1MB)
       const filesResult = await this.executeTool(
         "context_loader",
         {
           operation: "smart_load",
           taskDescription: taskDetails.description,
-          pattern: "src/**/*.ts", // Focus on source TypeScript files
-          maxFiles: 20, // Limit to prevent token overflow
-          maxSize: 500000, // 500KB max
+          pattern: "src/**/*.ts",
+          maxFiles: 50, // ✅ INCREASED from 20
+          maxSize: 1000000, // ✅ INCREASED from 500kb
         },
         { projectId, userId }
       );
 
-      // Step 3: Load dependencies
       const depsResult = await this.executeTool(
         "context_loader",
         { operation: "load_dependencies" },
@@ -525,7 +516,11 @@ Generate the fixes now.
           ? JSON.stringify(structureResult.data, null, 2)
           : "No structure available",
         existingFiles: filesResult.success
-          ? (filesResult.data as { files?: Array<{ path: string; content: string }> }).files || []
+          ? (
+              filesResult.data as {
+                files?: Array<{ path: string; content: string }>;
+              }
+            ).files || []
           : [],
         dependencies: depsResult.success
           ? JSON.stringify(depsResult.data, null, 2)
@@ -533,45 +528,94 @@ Generate the fixes now.
       };
     } catch (error) {
       logger.warn(
-        `[${this.config.name}] Failed to load existing context, continuing without it`,
+        `[${this.config.name}] Failed to load existing context`,
         toLogContext(error)
       );
-      return {
-        structure: "",
-        existingFiles: [],
-        dependencies: "",
-      };
+      return { structure: "", existingFiles: [], dependencies: "" };
     }
   }
 
   /**
-   * Generate implementation using AI - loads context before generation
+   * ✅ NEW: Dedicated Research Phase
+   * Searches for documentation if the task seems to require it.
+   */
+  private async conductResearch(
+    input: AgentExecutionInput
+  ): Promise<string | null> {
+    const { taskDetails, projectId, userId } = input;
+    const description = taskDetails.description.toLowerCase();
+
+    // Simple heuristic: Does this task look like it needs external docs?
+    // You can make this smarter later.
+    const needsResearch =
+      description.includes("integrate") ||
+      description.includes("api") ||
+      description.includes("library") ||
+      description.includes("sdk") ||
+      description.includes("setup");
+
+    if (!needsResearch) return null;
+
+    logger.info(
+      `[${this.config.name}] Conducting research for: ${taskDetails.title}`
+    );
+
+    try {
+      const result = await this.executeTool(
+        "web_search",
+        {
+          query: `${taskDetails.title} ${taskDetails.description} best practices documentation example`,
+          maxResults: 3,
+        },
+        { projectId, userId }
+      );
+
+      if (result.success && result.data) {
+        const searchData = result.data as {
+          results: Array<{ title: string; description: string }>;
+        };
+        const summary = searchData.results
+          .map((r) => `Title: ${r.title}\nInfo: ${r.description}`)
+          .join("\n\n");
+        return `\n**🔍 RESEARCH NOTES (Documentation):**\n${summary}\n`;
+      }
+    } catch {
+      logger.warn(
+        `[${this.config.name}] Research failed, proceeding without it.`
+      );
+    }
+    return null;
+  }
+
+  /**
+   * Generate implementation using AI
    */
   private async generateImplementation(input: AgentExecutionInput): Promise<{
     files: Array<{ path: string; content: string }>;
     commands: string[];
     explanation: string;
   } | null> {
-    // ✅ VALIDATE CONTEXT BEFORE GENERATION
-    // This will log warnings if context is incomplete but won't block generation
     this.validateContext(input.context);
 
-    // ✅ FIXED: Load existing context BEFORE generating
-    // This ensures continuity between waves - agent sees what previous waves created
+    // 1. Load Codebase Context
     const existingContext = await this.loadExistingContext(input);
-    const prompt = this.buildImplementationPrompt(input, existingContext);
+
+    // 2. ✅ Perform Research (Web Search)
+    const researchNotes = await this.conductResearch(input);
+
+    // 3. Build Prompt (Injecting Research)
+    const prompt = this.buildImplementationPrompt(
+      input,
+      existingContext,
+      researchNotes
+    );
 
     try {
-      // ✅ Enable native tool use for Claude (agentic capabilities)
-      // Claude can use tools during generation if it needs additional context
-      // ✅ FIXED: Disable tool use for backend code generation
-      // Backend tasks need direct JSON output (API routes, business logic)
-      // Tool calling causes empty responses as Claude enters tool loops
-      // Context is already loaded via loadExistingContext() before this call
+      // 4. Generate Code (Tools Disabled to protect JSON)
       const responseText = await this.generateContent(
         prompt,
-        undefined, // No system instruction
-        false, // DISABLE tools - direct JSON output prevents empty responses
+        undefined,
+        false, // Keep false for stability
         {
           projectId: input.projectId,
           userId: input.userId,
@@ -600,19 +644,27 @@ Generate the fixes now.
 
     // Check tech stack (warnings only - we'll use defaults)
     if (!context.techStack) {
-      warnings.push("Tech stack is missing - will use Next.js + Prisma defaults");
+      warnings.push(
+        "Tech stack is missing - will use Next.js + Prisma defaults"
+      );
     } else {
       if (!context.techStack.backend?.framework) {
-        warnings.push("Backend framework not specified - will assume Next.js API Routes");
+        warnings.push(
+          "Backend framework not specified - will assume Next.js API Routes"
+        );
       }
       if (!context.techStack.database?.type) {
-        warnings.push("Database not specified - will assume PostgreSQL with Prisma");
+        warnings.push(
+          "Database not specified - will assume PostgreSQL with Prisma"
+        );
       }
     }
 
     // Check architecture (warnings only)
     if (!context.architecture) {
-      warnings.push("Architecture information is missing - will use RESTful API defaults");
+      warnings.push(
+        "Architecture information is missing - will use RESTful API defaults"
+      );
     }
 
     // Check codebase info (warning only)
@@ -636,7 +688,8 @@ Generate the fixes now.
   }
 
   /**
-   * Build implementation prompt with existing project context
+   * Build implementation prompt
+   * ✅ Updated to accept Research Notes
    */
   private buildImplementationPrompt(
     input: AgentExecutionInput,
@@ -644,7 +697,8 @@ Generate the fixes now.
       structure: string;
       existingFiles: Array<{ path: string; content: string }>;
       dependencies: string;
-    }
+    },
+    researchNotes: string | null // <--- New Parameter
   ): string {
     const { taskDetails, context } = input;
 
@@ -653,53 +707,26 @@ You are the Backend Agent, specialized in implementing backend code.
 
 **🎯 CRITICAL: BUILD ON EXISTING CODE, DON'T START FROM SCRATCH**
 You are working on a project that may already have code from previous development waves.
-Review the "Existing Codebase" section below carefully to understand what already exists.
-Your new code must integrate seamlessly with existing files, follow existing patterns, and maintain consistency.
+Review the "Existing Codebase" section below carefully.
 
 **Task:**
 - Title: ${taskDetails.title}
 - Description: ${taskDetails.description}
-- Complexity: ${taskDetails.complexity}
-- Estimated Lines: ${taskDetails.estimatedLines}
 
 **Files to Create/Modify:**
 ${Array.isArray(taskDetails.files) ? taskDetails.files.map((f: string) => `- ${f}`).join("\n") : "Determine appropriate files"}
 
-**Endpoints (if applicable):**
-${Array.isArray(taskDetails.endpoints) ? taskDetails.endpoints.map((e: string) => `- ${e}`).join("\n") : "N/A"}
-
-**Acceptance Criteria:**
-${Array.isArray(taskDetails.acceptanceCriteria) ? taskDetails.acceptanceCriteria.map((c: string, i: number) => `${i + 1}. ${c}`).join("\n") : ""}
+${researchNotes ? researchNotes : ""}
 
 **Tech Stack:**
 \`\`\`json
 ${JSON.stringify(context.techStack, null, 2)}
 \`\`\`
-${!context.techStack || !context.techStack.backend?.framework ? `
-⚠️ **TECH STACK IS INCOMPLETE!**
-Since specific tech stack details are missing, make reasonable assumptions:
-- Use **Next.js 15 API Routes** for backend (app/api/[route]/route.ts pattern)
-- Use **Prisma** as the ORM with PostgreSQL
-- Use **Zod** for validation
-- Use **TypeScript** with strict mode
-- Follow **RESTful API** conventions
-` : ""}
 
 **Architecture:**
 \`\`\`json
 ${JSON.stringify(context.architecture, null, 2)}
 \`\`\`
-${!context.architecture || !(context.architecture as { patterns?: unknown }).patterns ? `
-⚠️ **ARCHITECTURE IS INCOMPLETE!**
-Since specific patterns are missing, follow these defaults:
-- **API Routes**: app/api/[resource]/route.ts
-- **Database**: Prisma Client in src/lib/prisma.ts
-- **Validation**: Zod schemas for request/response
-- **Error Handling**: Try-catch with proper HTTP status codes
-- **Authentication**: Assume session/JWT based auth exists
-` : ""}
-
-${context._memoryContext ? `**Relevant Past Experience:**\n${context._memoryContext}\n` : ""}
 
 **📂 EXISTING CODEBASE (from previous waves):**
 ${
@@ -708,7 +735,7 @@ ${
 **Project Structure:**
 ${existingContext.structure}
 
-**Installed Dependencies:**
+**Dependencies:**
 ${existingContext.dependencies}
 
 **Existing Files (${existingContext.existingFiles.length} files):**
@@ -722,14 +749,6 @@ ${file.content.length > 3000 ? file.content.substring(0, 3000) + "\n... (truncat
 `
   )
   .join("\n")}
-
-**INTEGRATION REQUIREMENTS:**
-1. Follow existing naming conventions and code patterns
-2. Use existing utility functions and imports where applicable
-3. Ensure your code integrates with existing database models (if any)
-4. Match existing error handling patterns
-5. Use existing authentication/authorization middleware (if applicable)
-6. Don't recreate utilities or types that already exist
 `
     : "**No existing code found - you're starting fresh!**\n"
 }
@@ -738,21 +757,10 @@ ${file.content.length > 3000 ? file.content.substring(0, 3000) + "\n... (truncat
 ${this.getToolsDescription()}
 
 **CRITICAL REQUIREMENTS:**
-1. **ATOMIC** - Implement ONLY this specific task, nothing more
-2. **PRODUCTION QUALITY** - TypeScript, error handling, validation
-3. **LINE LIMIT** - Stay within ${taskDetails.estimatedLines} ± 50 lines
-4. **COMPLETE FILES** - Provide full, runnable code (not snippets)
-5. **SECURITY** - Input validation, sanitization, authentication
-6. **TESTING** - Code must be testable
-
-**CODE STANDARDS:**
-- TypeScript with strict typing
-- Zod for validation
-- Proper HTTP status codes (200, 201, 400, 401, 404, 500)
-- Try-catch error handling
-- Meaningful variable names
-- JSDoc comments for functions
-- No console.log in production code (use logger)
+1. **ATOMIC** - Implement ONLY this specific task.
+2. **PRODUCTION QUALITY** - TypeScript, error handling, validation.
+3. **COMPLETE FILES** - Provide full, runnable code.
+4. **NO INTERACTIVE COMMANDS** - Use flags like --yes.
 
 **OUTPUT FORMAT:**
 Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
@@ -766,18 +774,11 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
     }
   ],
   "commands": [
-    "npm install zod",
-    "npx prisma generate"
+    "npm install zod"
   ],
   "explanation": "Brief explanation of implementation"
 }
 \`\`\`
-
-**IMPORTANT:**
-- NO markdown code blocks around JSON
-- NO text before or after JSON
-- Files must be COMPLETE and RUNNABLE
-- Follow the exact tech stack provided
 `.trim();
   }
 
@@ -829,8 +830,11 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
   }> {
     const results: Array<{ path: string; lines: number; success: boolean }> =
       [];
-    const filesData: Array<{ path: string; content: string; linesOfCode: number }> =
-      [];
+    const filesData: Array<{
+      path: string;
+      content: string;
+      linesOfCode: number;
+    }> = [];
 
     for (const file of files) {
       try {
@@ -897,7 +901,12 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
     context: { projectId: string; userId: string }
   ): Promise<{
     success: boolean;
-    commands: Array<{ command: string; success: boolean; output: string; exitCode: number }>;
+    commands: Array<{
+      command: string;
+      success: boolean;
+      output: string;
+      exitCode: number;
+    }>;
     error?: string;
   }> {
     const results: Array<{

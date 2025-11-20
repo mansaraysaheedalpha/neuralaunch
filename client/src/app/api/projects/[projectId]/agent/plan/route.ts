@@ -97,6 +97,7 @@ export async function POST(
         userId: true,
         currentPhase: true,
         architecture: true,
+        blueprint: true,
       },
     });
 
@@ -153,16 +154,27 @@ export async function POST(
     }
 
     // 6. Execute planning agent
-    logger.info("Executing planning agent", { 
+    logger.info("Executing planning agent", {
       projectId: projectId,
       options: validatedBody.options,
     });
+
+    const blueprint = projectContext.blueprint as string | null;
+    if (!blueprint) {
+      logger.warn("No blueprint found for planning", { projectId });
+      return NextResponse.json(
+        { error: "No blueprint available. Please complete analysis and validation first." },
+        { status: 400 }
+      );
+    }
 
     const result = await planningAgent.execute(
       {
         projectId: projectId,
         userId,
         conversationId: validatedBody.conversationId,
+        sourceType: "blueprint",
+        blueprint,
       },
       validatedBody.options
     );

@@ -2,6 +2,7 @@
 /**
  * Database Agent
  * Specialized in database schema design, migrations, and query optimization
+ * ✅ Version Aware (Checks package.json for Prisma/Drizzle versions)
  */
 
 import { AI_MODELS } from "@/lib/models";
@@ -32,50 +33,61 @@ export class DatabaseAgent extends BaseAgent {
         "filesystem",
         "git",
         "command",
-        "web_search",
+        "web_search", // ✅ Enabled for checking ORM docs
         "code_analysis",
         "context_loader",
       ],
-      modelName: AI_MODELS.CLAUDE, // Claude Sonnet 4.5 for superior database design and reasoning
+      modelName: AI_MODELS.CLAUDE,
     });
   }
 
   async executeTask(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
-    const { projectId, userId, taskDetails, context: _context } = input;
+    const { taskId: _taskId, projectId, userId, taskDetails, context } = input;
 
     // Check if this is a fix request
     const isFixMode = taskDetails.mode === "fix";
 
     if (isFixMode) {
-      logger.info(
-        `[${this.config.name}] FIX MODE: Fixing database issues for task "${
-          typeof taskDetails.originalTaskId === "string" ||
-          typeof taskDetails.originalTaskId === "number"
-            ? taskDetails.originalTaskId
-            : taskDetails.originalTaskId
-              ? JSON.stringify(taskDetails.originalTaskId)
-              : ""
-        }"`,
-        {
-          attempt: taskDetails.attempt,
-          issuesCount: Array.isArray(taskDetails.issuesToFix)
-            ? taskDetails.issuesToFix.length
-            : 0,
-        }
-      );
-
       return await this.executeFixMode(input);
     }
 
-    // Normal execution mode
     logger.info(
       `[${this.config.name}] Executing database task: "${taskDetails.title}"`
     );
 
     try {
-      const implementation = await this.generateImplementation(input);
+      // ✅ FIXED: Call the validator here!
+      this.validateContext(context);
 
-      if (!implementation) {
+      // 1. Load Context (Boosted to 50 files / 1MB)
+      const existingContext = await this.loadProjectContextInternal(input);
+
+      // 2. Detect Versions (Crucial for ORM compatibility)
+      const versions = this.detectVersions(existingContext.dependencies);
+      logger.info(`[${this.config.name}] Detected Environment`, versions);
+
+      // 3. Conduct Research
+      const researchNotes = await this.conductResearch(input, versions);
+
+      // 4. Generate Implementation
+      const prompt = this.buildDatabasePrompt(
+        taskDetails,
+        context,
+        existingContext,
+        researchNotes,
+        versions
+      );
+
+      const responseText = await this.generateContent(
+        prompt,
+        undefined,
+        false, // Tools disabled during generation to protect JSON
+        { projectId, userId }
+      );
+
+      const result = this.parseImplementationResponse(responseText);
+
+      if (!result) {
         return {
           success: false,
           message: "Failed to generate database implementation",
@@ -85,8 +97,8 @@ export class DatabaseAgent extends BaseAgent {
         };
       }
 
-      // Write schema/migration files
-      const filesResult = await this.writeFiles(implementation.files, {
+      // 5. Write Files
+      const filesResult = await this.writeFiles(result.files, {
         projectId,
         userId,
       });
@@ -105,8 +117,8 @@ export class DatabaseAgent extends BaseAgent {
         };
       }
 
-      // Run Prisma/database commands (migrations, generate, etc.)
-      const commandsResult = await this.runCommands(implementation.commands, {
+      // 6. Run Commands
+      const commandsResult = await this.runCommands(result.commands, {
         projectId,
         userId,
       });
@@ -117,7 +129,7 @@ export class DatabaseAgent extends BaseAgent {
           message: "Failed to execute database commands",
           iterations: 1,
           durationMs: 0,
-          error: commandsResult.error,
+          error: commandsResult.error || "Command execution failed",
           data: {
             filesCreated: filesResult.files,
             filesData: filesResult.filesData,
@@ -126,7 +138,7 @@ export class DatabaseAgent extends BaseAgent {
         };
       }
 
-      // Verify the database implementation
+      // 7. Verify
       const verification = this.verifyImplementation(
         filesResult.files,
         commandsResult.commands,
@@ -157,7 +169,7 @@ export class DatabaseAgent extends BaseAgent {
           filesCreated: filesResult.files,
           filesData: filesResult.filesData,
           commands: commandsResult.commands,
-          explanation: implementation.explanation,
+          explanation: result.explanation,
         },
       };
     } catch (error) {
@@ -267,7 +279,7 @@ export class DatabaseAgent extends BaseAgent {
         data: {
           filesCreated: filesResult.files,
           filesData: filesResult.filesData,
-          commands: commandsResult.commands.map(c => ({ command: c })),
+          commands: commandsResult.commands.map((c) => ({ command: c.command })),
           fixesApplied: fixes.explanation,
         },
       };
@@ -287,12 +299,75 @@ export class DatabaseAgent extends BaseAgent {
   }
 
   /**
-   * Generate database implementation using AI
+   * ✅ Version Detection Logic
+   * Scans dependencies to find specific versions.
    */
+  private detectVersions(dependencyString: string): Record<string, string> {
+    const versions: Record<string, string> = {};
+
+    const parsePackage = (name: string) => {
+      const regex = new RegExp(`"${name}":\\s*"\\^?([0-9\\.]+)"`);
+      const match = dependencyString.match(regex);
+      return match ? match[1] : "unknown";
+    };
+
+    versions.next = parsePackage("next");
+    versions.prisma = parsePackage("prisma");
+    versions.drizzle = parsePackage("drizzle-orm");
+
+    return versions;
+  }
+
   /**
-   * ✅ Load existing project context from previous waves
+   * ✅ Research Phase
    */
-  private async loadExistingContext(input: AgentExecutionInput): Promise<{
+  private async conductResearch(
+    input: AgentExecutionInput,
+    versions: Record<string, string>
+  ): Promise<string | null> {
+    const { taskDetails, projectId, userId } = input;
+
+    // Research if we are doing complex DB operations or migrations
+    const needsResearch =
+      taskDetails.description.includes("optimize") ||
+      taskDetails.description.includes("migration") ||
+      taskDetails.description.includes("relationship") ||
+      taskDetails.description.includes("index");
+
+    if (!needsResearch) return null;
+
+    const query = `${taskDetails.title} ${taskDetails.description} ${versions.prisma !== "unknown" ? "prisma" : "database"} best practices schema design`;
+
+    logger.info(`[${this.config.name}] Researching: ${query}`);
+
+    try {
+      const result = await this.executeTool(
+        "web_search",
+        { query, maxResults: 2 },
+        { projectId, userId }
+      );
+
+      if (result.success && result.data) {
+        const searchData = result.data as {
+          results: Array<{ title: string; description: string }>;
+        };
+        const summary = searchData.results
+          .map((r) => `Title: ${r.title}\nInfo: ${r.description}`)
+          .join("\n\n");
+        return `\n**🔍 DB RESEARCH:**\n${summary}\n`;
+      }
+    } catch (e) {
+      logger.warn(`[${this.config.name}] Research failed.`);
+    }
+    return null;
+  }
+
+  /**
+   * ✅ Load existing project context with HIGHER LIMITS
+   */
+  private async loadProjectContextInternal(
+    input: AgentExecutionInput
+  ): Promise<{
     structure: string;
     existingFiles: Array<{ path: string; content: string }>;
     dependencies: string;
@@ -311,9 +386,11 @@ export class DatabaseAgent extends BaseAgent {
         {
           operation: "smart_load",
           taskDescription: taskDetails.description,
-          pattern: "**/{prisma,*.prisma,migrations}/**/*", // Database-related files
-          maxFiles: 10, // ✅ REDUCED from 20 to prevent oversized prompts
-          maxSize: 200000, // ✅ REDUCED from 500KB to 200KB to prevent timeout
+          // ✅ Prioritize DB files, but allow viewing others
+          pattern:
+            "{prisma/**/*,src/db/**/*,drizzle/**/*,package.json,**/*.ts}",
+          maxFiles: 50,
+          maxSize: 1000000,
         },
         { projectId, userId }
       );
@@ -324,70 +401,36 @@ export class DatabaseAgent extends BaseAgent {
         { projectId, userId }
       );
 
+      const dependenciesData =
+        depsResult.success && depsResult.data
+          ? JSON.stringify(depsResult.data, null, 2)
+          : "";
+
       return {
         structure: structureResult.success
           ? JSON.stringify(structureResult.data, null, 2)
           : "No structure available",
         existingFiles: filesResult.success
-          ? (filesResult.data as { files?: Array<{ path: string; content: string }> }).files || []
+          ? (
+              filesResult.data as {
+                files?: Array<{ path: string; content: string }>;
+              }
+            ).files || []
           : [],
-        dependencies: depsResult.success
-          ? JSON.stringify(depsResult.data, null, 2)
-          : "No dependencies loaded",
+        dependencies: dependenciesData,
       };
     } catch (error) {
       logger.warn(
-        `[${this.config.name}] Failed to load existing context`,
+        `[${this.config.name}] Failed to load project context`,
         toLogContext(error)
       );
       return { structure: "", existingFiles: [], dependencies: "" };
     }
   }
 
-  private async generateImplementation(input: AgentExecutionInput): Promise<{
-    files: Array<{ path: string; content: string }>;
-    commands: Array<{ command: string; description: string }>;
-    explanation: string;
-  } | null> {
-    const { taskDetails, context } = input;
-
-    // ✅ VALIDATE CONTEXT BEFORE GENERATION
-    // This will log warnings if context is incomplete but won't block generation
-    this.validateContext(context);
-
-    // ✅ FIXED: Load existing context BEFORE generating
-    // This ensures continuity between waves - agent sees what previous waves created
-    const existingContext = await this.loadExistingContext(input);
-    const prompt = this.buildDatabasePrompt(taskDetails, context, existingContext);
-
-    try {
-      // ✅ FIXED: Disable tool use for schema generation
-      // Database schema design is straightforward - just needs JSON output
-      // Tool calling causes empty responses as Claude enters tool loops
-      // Context is already loaded via loadExistingContext() before this call
-      const responseText = await this.generateContent(
-        prompt,
-        undefined, // No system instruction
-        false, // DISABLE tools - direct JSON output prevents empty responses
-        {
-          projectId: input.projectId,
-          userId: input.userId,
-        }
-      );
-
-      return this.parseImplementationResponse(responseText);
-    } catch (error) {
-      logger.error(
-        `[${this.config.name}] AI generation failed`,
-        toError(error)
-      );
-      return null;
-    }
-  }
-
   /**
-   * ✅ NEW: Validate that context has minimum required information
-   * Changed to warnings instead of hard failures - agent will use defaults
+   * ✅ Validate Context Method
+   * Now this method is actually called at the start of executeTask
    */
   private validateContext(context: ProjectContext): {
     isValid: boolean;
@@ -395,26 +438,28 @@ export class DatabaseAgent extends BaseAgent {
   } {
     const warnings: string[] = [];
 
-    // Check tech stack (warnings only - we'll use defaults)
     if (!context.techStack) {
-      warnings.push("Tech stack is missing - will use PostgreSQL + Prisma defaults");
+      warnings.push(
+        "Tech stack is missing - will use PostgreSQL + Prisma defaults"
+      );
     } else {
       if (!context.techStack.database?.type) {
-        warnings.push("Database type not specified - will assume PostgreSQL with Prisma");
+        warnings.push(
+          "Database type not specified - will assume PostgreSQL with Prisma"
+        );
       }
     }
 
-    // Check architecture (warnings only)
     if (!context.architecture) {
-      warnings.push("Architecture information is missing - will use Prisma defaults");
+      warnings.push(
+        "Architecture information is missing - will use Prisma defaults"
+      );
     }
 
-    // Check codebase info (warning only)
     if (!context.codebase) {
       warnings.push("Codebase information is missing - starting fresh");
     }
 
-    // Log warnings but allow generation to proceed
     if (warnings.length > 0) {
       logger.warn(
         `[${this.config.name}] Context has ${warnings.length} warning(s), using defaults:`,
@@ -422,15 +467,15 @@ export class DatabaseAgent extends BaseAgent {
       );
     }
 
-    // Always return valid - we'll use defaults and the prompt has fallback instructions
     return {
       isValid: true,
-      errors: warnings, // These are now just warnings
+      errors: warnings,
     };
   }
-
+  
   /**
-   * Build database-specific prompt
+   * Build Database Prompt
+   * ✅ Injects Version Info & Research
    */
   private buildDatabasePrompt(
     taskDetails: AgentExecutionInput["taskDetails"],
@@ -439,60 +484,39 @@ export class DatabaseAgent extends BaseAgent {
       structure: string;
       existingFiles: Array<{ path: string; content: string }>;
       dependencies: string;
-    }
+    },
+    researchNotes: string | null,
+    versions: Record<string, string>
   ): string {
     const techStack = context.techStack || {};
     const architecture = context.architecture || {};
-    const memoryContext = context._memoryContext || "";
-
-    // ✅ FIXED: Safe property access with proper type handling
     const dbType = techStack.database?.type || "PostgreSQL";
     const dbOrm = (techStack.database as { orm?: string })?.orm || "Prisma";
-    const lang = techStack.language || "TypeScript";
 
-    return `You are DatabaseAgent, a specialized AI agent for database design and implementation.
+    return `
+You are DatabaseAgent, a specialized AI agent for database design and implementation.
 
 **🎯 CRITICAL: BUILD ON EXISTING DATABASE SCHEMA, DON'T START FROM SCRATCH**
-You are working on a project that may already have database models and migrations from previous development waves.
-Review the "Existing Codebase" section below carefully to understand what database schema already exists.
-Your new models must integrate seamlessly with existing schema, maintain referential integrity, and follow existing naming patterns.
+You are working on a project that may already have database models and migrations.
+Review the "Existing Codebase" section below carefully.
 
 # Task
 ${taskDetails.title}
-
-## Description
 ${taskDetails.description}
+
+**DETECTED ENVIRONMENT:**
+- Prisma: ${versions.prisma}
+- Drizzle: ${versions.drizzle}
+
+${researchNotes ? researchNotes : ""}
 
 ## Project Context
 **Tech Stack:**
 - Database: ${dbType}
 - ORM: ${dbOrm}
-- Language: ${lang}
-${!context.techStack || !context.techStack.database?.type ? `
-
-⚠️ **TECH STACK IS INCOMPLETE!**
-Since specific database details are missing, make reasonable assumptions:
-- Use **PostgreSQL** as the database (industry standard, scalable)
-- Use **Prisma** as the ORM (TypeScript-first, type-safe)
-- Use **@prisma/client** for database access
-- Follow **Prisma best practices** for schema design
-- Include **proper indexes** for performance
-` : ""}
 
 **Architecture:**
 ${JSON.stringify(architecture, null, 2)}
-${!context.architecture || Object.keys(architecture).length === 0 ? `
-
-⚠️ **ARCHITECTURE IS INCOMPLETE!**
-Since specific patterns are missing, follow these defaults:
-- **Schema Location**: prisma/schema.prisma
-- **Client Location**: src/lib/prisma.ts
-- **Migrations**: Use Prisma Migrate (prisma migrate dev)
-- **Naming**: camelCase for fields, PascalCase for models
-- **Relations**: Use @relation with proper foreign keys
-` : ""}
-
-${memoryContext ? `\n## Past Experience (Vector Memory)\n${typeof memoryContext === "string" ? memoryContext : JSON.stringify(memoryContext, null, 2)}\n` : ""}
 
 **📂 EXISTING CODEBASE (from previous waves):**
 ${
@@ -501,7 +525,7 @@ ${
 **Project Structure:**
 ${existingContext.structure}
 
-**Installed Dependencies:**
+**Dependencies:**
 ${existingContext.dependencies}
 
 **Existing Database Files (${existingContext.existingFiles.length} files):**
@@ -515,29 +539,15 @@ ${file.content.length > 3000 ? file.content.substring(0, 3000) + "\n... (truncat
 `
   )
   .join("\n")}
-
-**INTEGRATION REQUIREMENTS:**
-1. Review existing Prisma schema models carefully
-2. Add new models that reference existing models appropriately
-3. Use existing enum types where applicable
-4. Follow existing naming conventions (camelCase, PascalCase)
-5. Maintain referential integrity with @relation directives
-6. Don't recreate models or fields that already exist
-7. If modifying existing models, ensure backward compatibility
 `
     : "**No existing database schema found - you're starting fresh!**\n"
 }
 
 # Your Responsibilities
-1. **Schema Design**: Create Prisma schema models with proper relationships
-2. **Migrations**: Generate safe database migrations
-3. **Indexes**: Add appropriate indexes for performance
-4. **Validation**: Include Zod schemas for runtime validation
-5. **Queries**: Write optimized database queries
-6. **Types**: Generate TypeScript types from Prisma schema
-
-# Available Tools
-${this.getToolsDescription()}
+1. **Schema Design**: Create/Update models with proper relationships.
+2. **Migrations**: Generate safe migrations.
+3. **Validation**: Include Zod schemas if applicable.
+4. **Scripts**: Ensure seed scripts match package.json type (module vs commonjs).
 
 # Response Format
 Respond with a JSON object in this EXACT format:
@@ -548,52 +558,30 @@ Respond with a JSON object in this EXACT format:
     {
       "path": "prisma/schema.prisma",
       "content": "// Prisma schema content here"
-    },
-    {
-      "path": "src/lib/db/schemas/user.schema.ts",
-      "content": "// Zod validation schemas"
     }
   ],
   "commands": [
     {
       "command": "npx prisma generate",
       "description": "Generate Prisma Client"
-    },
-    {
-      "command": "npx prisma migrate dev --name init",
-      "description": "Create and apply migration"
     }
   ],
-  "explanation": "Brief explanation of the database implementation"
+  "explanation": "Brief explanation"
 }
 \`\`\`
-
-# Database Best Practices
-1. **Always** use proper indexing for foreign keys and frequently queried fields
-2. **Always** include created_at and updated_at timestamps
-3. **Always** use cascading deletes for dependent data
-4. **Always** validate data with Zod before database operations
-5. **Never** store sensitive data without encryption
-6. **Never** use SELECT * in production queries
-7. **Optimize** queries with proper joins and indexes
-8. **Use** transactions for multi-step operations
-
-# Prisma Schema Guidelines
-- Use @id for primary keys
-- Use @unique for unique constraints
-- Use @index for performance-critical fields
-- Use @@index for composite indexes
-- Use proper relation fields (@relation)
-- Use enum types for fixed value sets
-
-Generate a production-ready database implementation now.`;
+`.trim();
   }
 
   /**
    * Build fix prompt for database issues
    */
   private buildFixPrompt(
-    issuesToFix: Array<{ file: string; issue: string; severity?: string; message?: string }>,
+    issuesToFix: Array<{
+      file: string;
+      issue: string;
+      severity?: string;
+      message?: string;
+    }>,
     existingFiles: Record<string, string>,
     attempt: number,
     context: Record<string, unknown>
@@ -609,13 +597,15 @@ ${Object.entries(existingFiles)
   .join("\n\n")}
 
 ${context._errorSolution ? `\n# Potential Solutions\n${typeof context._errorSolution === "string" ? context._errorSolution : JSON.stringify(context._errorSolution, null, 2)}\n` : ""}
-${context._typeErrors
-  ? `\n# Type Errors\n${
-      typeof context._typeErrors === "string"
-        ? context._typeErrors
-        : JSON.stringify(context._typeErrors, null, 2)
-    }\n`
-  : ""}
+${
+  context._typeErrors
+    ? `\n# Type Errors\n${
+        typeof context._typeErrors === "string"
+          ? context._typeErrors
+          : JSON.stringify(context._typeErrors, null, 2)
+      }\n`
+    : ""
+}
 
 # Fix Requirements
 1. Fix ALL listed issues
@@ -646,61 +636,24 @@ ${context._typeErrors
 Generate the fixes now.`;
   }
 
-  /**
-   * Parse AI implementation response
-   */
-  private parseImplementationResponse(responseText: string): {
+  private parseImplementationResponse(text: string): {
     files: Array<{ path: string; content: string }>;
-    commands: Array<{ command: string; description: string }>;
+    commands: string[];
     explanation: string;
   } | null {
     try {
-      // ✅ ENHANCED: Try multiple JSON extraction patterns
-      let jsonMatch = responseText.match(/```json\n([\s\S]*?)\n```/);
-
-      if (!jsonMatch) {
-        // Try without newlines after json
-        jsonMatch = responseText.match(/```json([\s\S]*?)```/);
-      }
-
-      if (!jsonMatch) {
-        // Try to find raw JSON object containing "files" key
-        jsonMatch = responseText.match(/(\{[\s\S]*?"files"[\s\S]*?\})\s*$/m);
-      }
-
-      if (!jsonMatch) {
-        logger.error(
-          `[${this.config.name}] No JSON found in response`,
-          new Error("JSON parsing failed"),
-          {
-            responseLength: responseText.length,
-            responsePreview: responseText.substring(0, 500),
-            hasJsonKeyword: responseText.includes('"files"'),
-          }
-        );
-        return null;
-      }
-
-      const parsed = JSON.parse(jsonMatch[1].trim()) as {
+      const cleaned = text
+        .replace(/```json\n?/g, "")
+        .replace(/```\n?/g, "")
+        .trim();
+      // Handle cases where there's text before/after the JSON
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      return JSON.parse(jsonMatch ? jsonMatch[0] : cleaned) as {
         files: Array<{ path: string; content: string }>;
-        commands: Array<{ command: string; description: string }>;
+        commands: string[];
         explanation: string;
       };
-
-      return {
-        files: parsed.files || [],
-        commands: parsed.commands || [],
-        explanation: parsed.explanation || "",
-      };
-    } catch (error) {
-      logger.error(
-        `[${this.config.name}] Failed to parse response`,
-        toError(error),
-        {
-          responseLength: responseText.length,
-          responseStart: responseText.substring(0, 200),
-        }
-      );
+    } catch (_e) {
       return null;
     }
   }
@@ -710,128 +663,69 @@ Generate the fixes now.`;
    */
   private parseFixResponse(responseText: string): {
     files: Array<{ path: string; content: string }>;
-    commands: Array<{ command: string; description: string }>;
+    commands: string[];
     explanation: string;
   } | null {
     return this.parseImplementationResponse(responseText);
   }
 
-  /**
-   * Write files to disk
-   */
   private async writeFiles(
     files: Array<{ path: string; content: string }>,
-    context: { projectId: string; userId: string }
+    ctx: { projectId: string; userId: string }
   ): Promise<{
     success: boolean;
     files: string[];
     filesData: Array<{ path: string; content: string; linesOfCode: number }>;
     error?: string;
   }> {
-    const writtenFiles: string[] = [];
+    const results: Array<{ path: string; success: boolean }> = [];
     const filesData: Array<{ path: string; content: string; linesOfCode: number }> = [];
-
-    try {
-      for (const file of files) {
-        const result = await this.executeTool(
-          "filesystem",
-          {
-            operation: "write",
-            path: file.path,
-            content: file.content,
-          },
-          context
-        );
-
-        if (result.success) {
-          writtenFiles.push(file.path);
-          // Store full file data for UI
-          filesData.push({
-            path: file.path,
-            content: file.content,
-            linesOfCode: file.content.split("\n").length,
-          });
-        } else {
-          return {
-            success: false,
-            files: writtenFiles,
-            filesData,
-            error: `Failed to write ${file.path}: ${result.error}`,
-          };
-        }
-      }
-
-      return { success: true, files: writtenFiles, filesData };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      return {
-        success: false,
-        files: writtenFiles,
-        filesData,
-        error: errorMessage,
-      };
+    for (const file of files) {
+      const res = await this.executeTool(
+        "filesystem",
+        { operation: "write", path: file.path, content: file.content },
+        ctx
+      );
+      results.push({ path: file.path, success: res.success });
+      if (res.success)
+        filesData.push({
+          path: file.path,
+          content: file.content,
+          linesOfCode: file.content.split("\n").length,
+        });
     }
+    return {
+      success: results.every((r) => r.success),
+      files: results.map((r) => r.path),
+      filesData,
+    };
   }
 
-  /**
-   * Run database commands
-   */
   private async runCommands(
-    commands: Array<{ command: string; description: string }>,
-    context: { projectId: string; userId: string }
+    cmds: string[] | Array<{ command: string }>,
+    ctx: { projectId: string; userId: string }
   ): Promise<{
     success: boolean;
     commands: Array<{ command: string; success: boolean; output: string; exitCode: number }>;
     error?: string;
   }> {
-    const results: Array<{
-      command: string;
-      success: boolean;
-      output: string;
-      exitCode: number;
-    }> = [];
-
-    try {
-      for (const cmd of commands) {
-        logger.info(`[${this.config.name}] Running: ${cmd.command}`);
-
-        const result = await this.executeTool(
-          "command",
-          {
-            command: cmd.command,
-            description: cmd.description,
-          },
-          context
-        );
-
-        const data = result.data as { stdout?: string; stderr?: string };
-        results.push({
-          command: cmd.command,
-          success: result.success,
-          output: data?.stdout || data?.stderr || result.error || "",
-          exitCode: result.success ? 0 : 1,
-        });
-
-        if (!result.success) {
-          return {
-            success: false,
-            commands: results,
-            error: `Command failed: ${cmd.command} - ${result.error}`,
-          };
-        }
+    const results: Array<{ command: string; success: boolean; output: string; exitCode: number }> = [];
+    for (const cmd of cmds) {
+      const cmdStr = typeof cmd === "string" ? cmd : cmd.command;
+      // Safety check
+      if (cmdStr.includes("drop database") || cmdStr.includes("force")) {
+        logger.warn(`Skipping dangerous command: ${cmdStr}`);
+        continue;
       }
-
-      return { success: true, commands: results };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      return {
-        success: false,
-        commands: results,
-        error: errorMessage,
-      };
+      const res = await this.executeTool("command", { command: cmdStr }, ctx);
+      results.push({
+        command: cmdStr,
+        success: res.success,
+        output: (res.data as { stdout?: string })?.stdout || "",
+        exitCode: res.success ? 0 : 1,
+      });
     }
+    return { success: results.every((r) => r.success), commands: results };
   }
 
   /**
@@ -839,7 +733,12 @@ Generate the fixes now.`;
    */
   private verifyImplementation(
     files: string[],
-    commands: Array<{ command: string; success: boolean; output: string; exitCode: number }>,
+    commands: Array<{
+      command: string;
+      success: boolean;
+      output: string;
+      exitCode: number;
+    }>,
     taskDetails: AgentExecutionInput["taskDetails"]
   ): { passed: boolean; issues: string[] } {
     const issues: string[] = [];
@@ -854,14 +753,18 @@ Generate the fixes now.`;
     }
 
     // Check if Prisma generate was run
-    const ranGenerate = commands.some((c) => c.command.includes("prisma generate"));
+    const ranGenerate = commands.some((c) =>
+      c.command.includes("prisma generate")
+    );
     if (hasSchema && !ranGenerate) {
       issues.push("Prisma generate command not executed");
     }
 
     // Check if migration was created (for schema changes)
     const ranMigration = commands.some(
-      (c) => c.command.includes("prisma migrate") || c.command.includes("prisma db push")
+      (c) =>
+        c.command.includes("prisma migrate") ||
+        c.command.includes("prisma db push")
     );
     if (
       hasSchema &&

@@ -3,7 +3,6 @@ import { databaseAgent } from "@/lib/agents/execution/database-agent";
 import { inngest } from "../client";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
-import { executionCoordinator } from "@/lib/orchestrator/execution-coordinator";
 import { githubAgent } from "@/lib/agents/github/github-agent";
 import { createAgentError } from "@/lib/error-utils";
 import { env } from "@/lib/env";
@@ -27,7 +26,7 @@ export const databaseAgentFunction = inngest.createFunction(
   {
     id: "database-agent-execute",
     name: "Database Agent - Execute with Full Framework",
-    retries: 0, // Retry handled by BaseAgent framework
+    retries: 2, // Retry handled by BaseAgent framework
     timeouts: { start: "15m" },
   },
   { event: "agent/execution.database" },
@@ -78,16 +77,16 @@ export const databaseAgentFunction = inngest.createFunction(
       await step.run("git-init", async () => {
         const { GitTool } = await import("@/lib/agents/tools/git-tool");
         const gitTool = new GitTool();
-        await gitTool.execute(
-          { operation: "init" },
-          { projectId, userId }
-        );
+        await gitTool.execute({ operation: "init" }, { projectId, userId });
       });
 
       // Step 4: Create feature branch
       const branchName = await step.run("create-branch", async () => {
         type TaskInput = { title?: string };
-        const input: TaskInput = typeof task.input === "object" && task.input !== null ? task.input as TaskInput : {};
+        const input: TaskInput =
+          typeof task.input === "object" && task.input !== null
+            ? (task.input as TaskInput)
+            : {};
 
         const safeName = input.title
           ? input.title
@@ -101,6 +100,8 @@ export const databaseAgentFunction = inngest.createFunction(
 
         const { GitTool } = await import("@/lib/agents/tools/git-tool");
         const gitTool = new GitTool();
+
+        // Create branch from main/current
         const result = await gitTool.execute(
           { operation: "branch", branchName: branch },
           { projectId, userId }
@@ -132,12 +133,10 @@ export const databaseAgentFunction = inngest.createFunction(
       });
 
       if (!result.success) {
-        // Framework handles error recovery automatically
         log.warn("[Database Agent] Task failed after framework processing", {
           iterations: result.iterations,
           error: result.error,
         });
-
         throw new Error(result.error || "Task execution failed");
       }
 
@@ -155,24 +154,24 @@ export const databaseAgentFunction = inngest.createFunction(
             branchName: branchName,
             completedAt: new Date(),
             durationMs: result.durationMs,
-            output: result.data ? (result.data as unknown as Prisma.InputJsonValue) : undefined,
+            output: result.data
+              ? (result.data as unknown as Prisma.InputJsonValue)
+              : undefined,
           },
         });
       });
 
       // Step 7: Commit changes
       await step.run("git-commit", async () => {
-        // Stage all
         const { GitTool } = await import("@/lib/agents/tools/git-tool");
         const gitTool = new GitTool();
-        await gitTool.execute(
-          { operation: "add" },
-          { projectId, userId }
-        );
+        await gitTool.execute({ operation: "add" }, { projectId, userId });
 
-        // Commit
         type TaskInput = { title?: string };
-        const input: TaskInput = typeof task.input === "object" && task.input !== null ? task.input as TaskInput : {};
+        const input: TaskInput =
+          typeof task.input === "object" && task.input !== null
+            ? (task.input as TaskInput)
+            : {};
         const commitMessage = `feat(database): ${input.title}\n\nTask ID: ${taskId}\nIterations: ${result.iterations}`;
         await gitTool.execute(
           { operation: "commit", message: commitMessage },
@@ -180,14 +179,21 @@ export const databaseAgentFunction = inngest.createFunction(
         );
       });
 
-      // Step 8: Push to GitHub
+      // Step 8: Push to GitHub & Create PR
       type GithubInfo = { githubRepoUrl?: string; githubRepoName?: string };
       const githubInfo = projectContext.codebase as GithubInfo;
-      if (githubInfo && typeof githubInfo.githubRepoUrl === "string") {
-        await step.run("push-to-github", async () => {
+
+      if (
+        githubInfo &&
+        typeof githubInfo.githubRepoUrl === "string" &&
+        env.GITHUB_TOKEN
+      ) {
+        await step.run("push-and-pr", async () => {
           const { GitTool } = await import("@/lib/agents/tools/git-tool");
           const gitTool = new GitTool();
-          const pushResult = await gitTool.execute(
+
+          // Push
+          await gitTool.execute(
             {
               operation: "push",
               branchName,
@@ -197,29 +203,25 @@ export const databaseAgentFunction = inngest.createFunction(
             { projectId, userId }
           );
 
-          if (!pushResult.success) {
-            log.warn("[Database Agent] Git push failed", { error: pushResult.error });
-          }
-        });
-      }
+          // Create PR (if repo name exists)
+          if (githubInfo.githubRepoName) {
+            type TaskDetails = {
+              title?: string;
+              description?: string;
+              acceptanceCriteria?: string[];
+              [key: string]: unknown;
+            };
+            const taskDetails: TaskDetails =
+              typeof task.input === "object" && task.input !== null
+                ? (task.input as TaskDetails)
+                : {};
 
-      // Step 9: Create Pull Request
-      if (githubInfo?.githubRepoName && env.GITHUB_TOKEN) {
-        await step.run("create-pr", async () => {
-          type TaskDetails = {
-            title?: string;
-            description?: string;
-            acceptanceCriteria?: string[];
-            [key: string]: unknown;
-          };
-          const taskDetails: TaskDetails = typeof task.input === "object" && task.input !== null ? task.input as TaskDetails : {};
-
-          const prResult = await githubAgent.createPullRequest({
-            projectId,
-            repoName: githubInfo.githubRepoName ?? "",
-            branchName,
-            title: `Database: ${taskDetails.title}`,
-            description: `
+            const prResult = await githubAgent.createPullRequest({
+              projectId,
+              repoName: githubInfo.githubRepoName,
+              branchName,
+              title: `Database: ${taskDetails.title}`,
+              description: `
 ## Task: ${taskDetails.title}
 
 ${taskDetails.description}
@@ -231,10 +233,7 @@ ${taskDetails.description}
 - **Commands Run:** ${result.data?.commandsRun?.length || 0}
 
 ### Files Changed:
-${result.data?.filesCreated?.map((f) => `- ${typeof f === 'string' ? f : f.path}`).join("\n") || "N/A"}
-
-### Commands Executed:
-${result.data?.commandsRun?.map((c) => `- \`${typeof c === 'string' ? c : c.command}\``).join("\n") || "N/A"}
+${result.data?.filesCreated?.map((f) => `- ${typeof f === "string" ? f : f.path}`).join("\n") || "N/A"}
 
 ### Acceptance Criteria:
 ${taskDetails.acceptanceCriteria?.map((c: string) => `- [x] ${c}`).join("\n") || "N/A"}
@@ -244,29 +243,27 @@ ${taskDetails.acceptanceCriteria?.map((c: string) => `- [x] ${c}`).join("\n") ||
 **Status:** ✅ Completed
 
 ---
-*Generated by NeuraLaunch Database Agent with full framework support: tools, memory, dynamic retry, and error recovery.*
-            `,
-            githubToken: env.GITHUB_TOKEN!,
-          });
-
-          if (prResult.success) {
-            await prisma.agentTask.update({
-              where: { id: taskId },
-              data: {
-                prUrl: prResult.prUrl,
-                prNumber: prResult.prNumber,
-                reviewStatus: "pending",
-              },
+*Generated by NeuraLaunch Database Agent with full framework support.*
+              `,
+              githubToken: env.GITHUB_TOKEN!,
             });
 
-            log.info("[Database Agent] PR created", {
-              prUrl: prResult.prUrl,
-            });
+            if (prResult.success) {
+              await prisma.agentTask.update({
+                where: { id: taskId },
+                data: {
+                  prUrl: prResult.prUrl,
+                  prNumber: prResult.prNumber,
+                  reviewStatus: "pending",
+                },
+              });
+            }
           }
         });
       }
 
-      // Step 10: ✅ NEW - Emit task completion event for sequential execution
+      // Step 9: Emit Completion Signal
+      // ✅ The Worker's only job is to report completion.
       await step.run("emit-task-complete", async () => {
         const waveNumber = (event.data as { waveNumber?: number }).waveNumber;
         log.info("[Database Agent] Emitting task completion event");
@@ -285,94 +282,29 @@ ${taskDetails.acceptanceCriteria?.map((c: string) => `- [x] ${c}`).join("\n") ||
         });
       });
 
-      // Step 11: Check if all wave tasks are complete
-      await step.run("check-wave-completion", async () => {
-        const waveNumber = (event.data as { waveNumber?: number }).waveNumber;
-
-        if (!waveNumber) {
-          // Not part of a wave, just trigger coordinator resume
-          await executionCoordinator.resume(projectId, taskId);
-          return;
-        }
-
-        // Count completed vs total tasks in this wave
-        const waveTasks = await prisma.agentTask.findMany({
-          where: {
-            projectId,
-            waveNumber,
-          },
-          select: { id: true, status: true },
-        });
-
-        const completedCount = waveTasks.filter(
-          (t) => t.status === "completed"
-        ).length;
-        const totalCount = waveTasks.length;
-
-        log.info(
-          `[Database Agent] Wave ${waveNumber} progress: ${completedCount}/${totalCount}`
-        );
-
-        // Update wave record
-        await prisma.executionWave.update({
-          where: {
-            projectId_waveNumber: { projectId, waveNumber },
-          },
-          data: {
-            completedCount,
-          },
-        });
-
-        // If all tasks complete, trigger wave.complete
-        if (completedCount === totalCount) {
-          log.info(
-            `[Database Agent] All Wave ${waveNumber} tasks complete! Triggering quality checks`
-          );
-
-          await inngest.send({
-            name: "agent/wave.complete",
-            data: {
-              projectId,
-              userId,
-              conversationId,
-              waveNumber,
-            },
-          });
-        }
-      });
-
       return {
         success: true,
         taskId,
-        iterations: result.iterations,
         durationMs: result.durationMs,
-        filesCreated: result.data?.filesCreated?.length || 0,
-        branchName,
       };
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
 
-      log.error("[Database Agent] Execution failed", createAgentError(errorMessage, { taskId }));
+      log.error(
+        "[Database Agent] Execution failed",
+        createAgentError(errorMessage, { taskId })
+      );
 
-      // Update task status (if not already updated by framework)
       await step.run("mark-failed", async () => {
-        const currentTask = await prisma.agentTask.findUnique({
+        await prisma.agentTask.update({
           where: { id: taskId },
-          select: { status: true },
+          data: {
+            status: "failed",
+            error: errorMessage,
+            completedAt: new Date(),
+          },
         });
-
-        // Only update if not already handled by framework
-        if (currentTask?.status === "in_progress") {
-          await prisma.agentTask.update({
-            where: { id: taskId },
-            data: {
-              status: "failed",
-              error: errorMessage,
-              completedAt: new Date(),
-            },
-          });
-        }
       });
 
       throw error;

@@ -331,6 +331,8 @@ export class AgentOrchestrator {
       projectId: input.projectId,
       userId: input.userId,
       conversationId: input.conversationId,
+      sourceType: "blueprint",
+      blueprint: input.blueprint,
     });
 
     if (!result.success) {

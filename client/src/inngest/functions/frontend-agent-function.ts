@@ -2,14 +2,13 @@ import { frontendAgent } from "@/lib/agents/execution/frontend-agent";
 import { inngest } from "../client";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
-import { executionCoordinator } from "@/lib/orchestrator/execution-coordinator";
 import { githubAgent } from "@/lib/agents/github/github-agent";
 import { createAgentError } from "@/lib/error-utils";
 import { env } from "@/lib/env";
 import type { ProjectContext } from "@/lib/agents/types/common";
 import type { Prisma } from "@prisma/client";
 
-// Type definitions
+// Type definitions (Same as before)
 type TaskInput = {
   title: string;
   description: string;
@@ -25,7 +24,7 @@ type GitHubInfo = {
   [key: string]: unknown;
 };
 
-type TaskResultData = {
+type _TaskResultData = {
   filesCreated?: Array<{ path: string; lines: number }>;
   commandsRun?: unknown[];
   [key: string]: unknown;
@@ -39,7 +38,7 @@ export const frontendAgentFunction = inngest.createFunction(
   {
     id: "frontend-agent-execute",
     name: "Frontend Agent - Execute UI/Component Tasks",
-    retries: 0, // Retry handled by BaseAgent framework
+    retries: 2,
     timeouts: { start: "15m" },
   },
   { event: "agent/execution.frontend" },
@@ -65,7 +64,6 @@ export const frontendAgentFunction = inngest.createFunction(
         if (!taskRecord) {
           throw new Error(`Task ${taskId} not found`);
         }
-
         return taskRecord;
       });
 
@@ -80,20 +78,25 @@ export const frontendAgentFunction = inngest.createFunction(
         }
 
         return {
-          techStack: context.techStack as ProjectContext['techStack'],
+          techStack: context.techStack as ProjectContext["techStack"],
           architecture: context.architecture,
           codebase: context.codebase,
         } satisfies Partial<ProjectContext>;
       });
 
-      // Step 3: Validate environment and initialize
+      // Step 3: Validate environment
       await step.run("validate-and-init-environment", async () => {
-        const { ensureEnvironmentReady } = await import("@/lib/agents/utils/environment-validator");
+        const { ensureEnvironmentReady } = await import(
+          "@/lib/agents/utils/environment-validator"
+        );
         try {
           await ensureEnvironmentReady(projectId, userId);
           log.info("[Frontend Agent] Environment validation passed");
         } catch (envError) {
-          log.error("[Frontend Agent] Environment validation failed", envError as Error);
+          log.error(
+            "[Frontend Agent] Environment validation failed",
+            envError as Error
+          );
           throw envError;
         }
       });
@@ -112,6 +115,8 @@ export const frontendAgentFunction = inngest.createFunction(
 
         const { GitTool } = await import("@/lib/agents/tools/git-tool");
         const gitTool = new GitTool();
+
+        // Create branch from main/current
         const result = await gitTool.execute(
           { operation: "branch", branchName: branch },
           { projectId, userId }
@@ -147,7 +152,6 @@ export const frontendAgentFunction = inngest.createFunction(
           iterations: result.iterations,
           error: result.error,
         });
-
         throw new Error(result.error || "Task execution failed");
       }
 
@@ -156,7 +160,7 @@ export const frontendAgentFunction = inngest.createFunction(
         duration: result.durationMs,
       });
 
-      // Step 6: Update task with branch and completion
+      // Step 6: Update task with completion data
       await step.run("update-task", async () => {
         await prisma.agentTask.update({
           where: { id: taskId },
@@ -165,7 +169,9 @@ export const frontendAgentFunction = inngest.createFunction(
             branchName: branchName,
             completedAt: new Date(),
             durationMs: result.durationMs,
-            output: result.data ? (result.data as unknown as Prisma.InputJsonValue) : undefined,
+            output: result.data
+              ? (result.data as unknown as Prisma.InputJsonValue)
+              : undefined,
           },
         });
       });
@@ -174,10 +180,7 @@ export const frontendAgentFunction = inngest.createFunction(
       await step.run("git-commit", async () => {
         const { GitTool } = await import("@/lib/agents/tools/git-tool");
         const gitTool = new GitTool();
-        await gitTool.execute(
-          { operation: "add" },
-          { projectId, userId }
-        );
+        await gitTool.execute({ operation: "add" }, { projectId, userId });
 
         const taskInput = task.input as TaskInput;
         const commitMessage = `feat(frontend): ${taskInput.title}\n\nTask ID: ${taskId}\nIterations: ${result.iterations}`;
@@ -187,13 +190,15 @@ export const frontendAgentFunction = inngest.createFunction(
         );
       });
 
-      // Step 8: Push to GitHub
+      // Step 8: Push to GitHub & Create PR
       const githubInfo = projectContext.codebase as GitHubInfo;
-      if (githubInfo?.githubRepoUrl) {
-        await step.run("push-to-github", async () => {
+      if (githubInfo?.githubRepoUrl && env.GITHUB_TOKEN) {
+        await step.run("push-and-pr", async () => {
           const { GitTool } = await import("@/lib/agents/tools/git-tool");
           const gitTool = new GitTool();
-          const pushResult = await gitTool.execute(
+
+          // Push
+          await gitTool.execute(
             {
               operation: "push",
               branchName,
@@ -203,68 +208,36 @@ export const frontendAgentFunction = inngest.createFunction(
             { projectId, userId }
           );
 
-          if (!pushResult.success) {
-            log.warn("[Frontend Agent] Git push failed", { error: pushResult.error });
+          // Create PR (if repo name exists)
+          if (githubInfo.githubRepoName) {
+            const taskDetails = task.input as TaskInput;
+
+            const prResult = await githubAgent.createPullRequest({
+              projectId,
+              repoName: githubInfo.githubRepoName,
+              branchName,
+              title: `Frontend: ${taskDetails.title}`,
+              description: `## Task: ${taskDetails.title}\n\n${taskDetails.description || ""}`,
+              githubToken: env.GITHUB_TOKEN!,
+            });
+
+            if (prResult.success) {
+              await prisma.agentTask.update({
+                where: { id: taskId },
+                data: {
+                  prUrl: prResult.prUrl,
+                  prNumber: prResult.prNumber,
+                  reviewStatus: "pending",
+                },
+              });
+            }
           }
         });
       }
 
-      // Step 9: Create Pull Request
-      if (githubInfo?.githubRepoName && env.GITHUB_TOKEN) {
-        await step.run("create-pr", async () => {
-          const taskDetails = task.input as TaskInput;
-          const resultData = result.data as TaskResultData;
-
-          const prResult = await githubAgent.createPullRequest({
-            projectId,
-            repoName: githubInfo.githubRepoName!,
-            branchName,
-            title: `Frontend: ${taskDetails.title}`,
-            description: `
-## Task: ${taskDetails.title}
-
-${taskDetails.description || ""}
-
-### Completion Details:
-- **Iterations:** ${result.iterations}
-- **Duration:** ${Math.round(result.durationMs / 1000)}s
-- **Files Created:** ${resultData?.filesCreated?.length || 0}
-- **Commands Run:** ${resultData?.commandsRun?.length || 0}
-
-### Files Changed:
-${resultData?.filesCreated?.map((f) => `- ${f.path} (${f.lines} lines)`).join("\n") || "N/A"}
-
-### Acceptance Criteria:
-${taskDetails.acceptanceCriteria?.map((c) => `- [x] ${c}`).join("\n") || "N/A"}
-
-**Task ID:** ${taskId}
-**Agent:** Frontend Agent (with framework)
-**Status:** ✅ Completed
-
----
-*Generated by NeuraLaunch Frontend Agent - truly generic, works with React, Vue, Angular, Svelte, and more.*
-            `,
-            githubToken: env.GITHUB_TOKEN!,
-          });
-
-          if (prResult.success) {
-            await prisma.agentTask.update({
-              where: { id: taskId },
-              data: {
-                prUrl: prResult.prUrl,
-                prNumber: prResult.prNumber,
-                reviewStatus: "pending",
-              },
-            });
-
-            log.info("[Frontend Agent] PR created", {
-              prUrl: prResult.prUrl,
-            });
-          }
-        });
-      }
-
-      // ✅ NEW - Emit task completion event for sequential execution
+      // Step 9: Emit Completion Signal
+      // ✅ This is the ONLY job of the worker: Tell the foreman "I am done".
+      // The Foreman (wave-start-function) will handle wave completion.
       await step.run("emit-task-complete", async () => {
         const waveNumber = event.data.waveNumber;
         log.info("[Frontend Agent] Emitting task completion event");
@@ -283,93 +256,30 @@ ${taskDetails.acceptanceCriteria?.map((c) => `- [x] ${c}`).join("\n") || "N/A"}
         });
       });
 
-      await step.run("check-wave-completion", async () => {
-        const waveNumber = event.data.waveNumber;
-
-        if (!waveNumber) {
-          // Not part of a wave, just trigger coordinator resume
-          await executionCoordinator.resume(projectId, taskId);
-          return;
-        }
-
-        // Count completed vs total tasks in this wave
-        const waveTasks = await prisma.agentTask.findMany({
-          where: {
-            projectId,
-            waveNumber,
-          },
-          select: { id: true, status: true },
-        });
-
-        const completedCount = waveTasks.filter(
-          (t) => t.status === "completed"
-        ).length;
-        const totalCount = waveTasks.length;
-
-        log.info(
-          `[Frontend Agent] Wave ${waveNumber} progress: ${completedCount}/${totalCount}`
-        );
-
-        // Update wave record
-        await prisma.executionWave.update({
-          where: {
-            projectId_waveNumber: { projectId, waveNumber },
-          },
-          data: {
-            completedCount,
-          },
-        });
-
-        // If all tasks complete, trigger wave.complete
-        if (completedCount === totalCount) {
-          log.info(
-            `[Frontend Agent] All Wave ${waveNumber} tasks complete! Triggering quality checks`
-          );
-
-          await inngest.send({
-            name: "agent/wave.complete",
-            data: {
-              projectId,
-              userId,
-              conversationId,
-              waveNumber,
-            },
-          });
-        }
-      });
-
       return {
         success: true,
         taskId,
-        iterations: result.iterations,
         durationMs: result.durationMs,
-        filesCreated: result.data?.filesCreated?.length || 0,
-        branchName,
       };
     } catch (error) {
+      // Error handling remains the same
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
-
-      log.error("[Frontend Agent] Execution failed", createAgentError(errorMessage, { taskId }));
+      log.error(
+        "[Frontend Agent] Execution failed",
+        createAgentError(errorMessage, { taskId })
+      );
 
       await step.run("mark-failed", async () => {
-        const currentTask = await prisma.agentTask.findUnique({
+        await prisma.agentTask.update({
           where: { id: taskId },
-          select: { status: true },
+          data: {
+            status: "failed",
+            error: errorMessage,
+            completedAt: new Date(),
+          },
         });
-
-        if (currentTask?.status === "in_progress") {
-          await prisma.agentTask.update({
-            where: { id: taskId },
-            data: {
-              status: "failed",
-              error: errorMessage,
-              completedAt: new Date(),
-            },
-          });
-        }
       });
-
       throw error;
     }
   }

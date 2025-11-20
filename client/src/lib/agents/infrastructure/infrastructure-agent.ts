@@ -1,5 +1,4 @@
 // src/lib/agents/infrastructure/infrastructure-agent.ts
-// src/lib/agents/execution/infrastructure-agent.ts
 /**
  * Infrastructure Agent - WITH FIX MODE
  * Now supports fixing infrastructure issues
@@ -32,7 +31,7 @@ export class InfrastructureAgent extends BaseAgent {
       requiredTools: [
         "filesystem",
         "command",
-        "web_search",
+        "web_search", // ✅ Enabled
         "code_analysis",
         "context_loader",
       ],
@@ -43,53 +42,37 @@ export class InfrastructureAgent extends BaseAgent {
   async executeTask(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
     const { taskId: _taskId, projectId, userId, taskDetails, context } = input;
 
-    // ✅ Check if this is a fix request
     const isFixMode = taskDetails.mode === "fix";
 
     if (isFixMode) {
-      logger.info(
-        `[${this.config.name}] FIX MODE: Fixing infrastructure issues`,
-        {
-          attempt: taskDetails.attempt,
-          issuesCount: Array.isArray(taskDetails.issuesToFix)
-            ? taskDetails.issuesToFix.length
-            : 0,
-        }
-      );
-
       return await this.executeFixMode(input);
     }
 
-    // Normal execution mode
     logger.info(`[${this.config.name}] Starting infrastructure task`, {
       _taskId,
       title: taskDetails.title,
     });
 
     try {
-      // ✅ Load existing project context
-      if (this.tools.has("context_loader")) {
-        await this.loadProjectContextInternal(input);
-      }
+      // ✅ 1. Load Context (Boosted)
+      await this.loadProjectContextInternal(input);
 
-      const prompt = this.buildTaskPrompt(taskDetails, context);
+      // ✅ 2. Conduct Research (Optional)
+      const researchNotes = await this.conductResearch(input);
 
-      // ✅ FIXED: Disable tool use for infrastructure file generation
-      // Infrastructure tasks need direct JSON output (file configurations)
-      // Tool calling causes empty responses as Claude enters tool loops
-      // Context is already loaded via loadProjectContextInternal() before this call
+      // ✅ 3. Generate Config
+      const prompt = this.buildTaskPrompt(taskDetails, context, researchNotes);
+
       const responseText = await this.generateContent(
         prompt,
-        undefined, // No system instruction
-        false, // DISABLE tools - direct JSON output prevents empty responses
-        {
-          projectId,
-          userId,
-        }
+        undefined,
+        false, // Tools disabled to protect JSON
+        { projectId, userId }
       );
 
       const generatedFiles = this.parseGeneratedFiles(responseText);
 
+      // ✅ 4. Write Files
       const writtenFiles: string[] = [];
       for (const file of generatedFiles) {
         await this.executeTool(
@@ -115,7 +98,7 @@ export class InfrastructureAgent extends BaseAgent {
         durationMs: 0,
         data: {
           filesCreated: writtenFiles,
-          filesData: generatedFiles, // Changed from 'files' to 'filesData' to match UI expectations
+          filesData: generatedFiles,
         },
       };
     } catch (error) {
@@ -144,7 +127,9 @@ export class InfrastructureAgent extends BaseAgent {
 
     try {
       // Step 1: Load infrastructure files that need fixing
-      const isInfrastructureIssue = (value: unknown): value is InfrastructureIssue => {
+      const isInfrastructureIssue = (
+        value: unknown
+      ): value is InfrastructureIssue => {
         if (typeof value !== "object" || value === null) return false;
         const v = value as Record<string, unknown>;
         return (
@@ -398,14 +383,50 @@ Generate the fixed infrastructure configurations now.
   }
 
   /**
+   * ✅ Conduct Research for DevOps Best Practices
+   */
+  private async conductResearch(
+    input: AgentExecutionInput
+  ): Promise<string | null> {
+    const { taskDetails, projectId, userId } = input;
+
+    // Infrastructure tasks almost always benefit from looking up latest versions/configs
+    // e.g. "Latest node 20 dockerfile best practices"
+    const query = `${taskDetails.title} ${taskDetails.description} configuration best practices example`;
+
+    logger.info(`[${this.config.name}] Researching: ${query}`);
+
+    try {
+      const result = await this.executeTool(
+        "web_search",
+        { query, maxResults: 2 },
+        { projectId, userId }
+      );
+
+      if (result.success && result.data) {
+        const searchData = result.data as {
+          results: Array<{ title: string; description: string }>;
+        };
+        const summary = searchData.results
+          .map((r) => `Title: ${r.title}\nInfo: ${r.description}`)
+          .join("\n\n");
+        return `\n**🔍 DEVOPS RESEARCH (Best Practices):**\n${summary}\n`;
+      }
+    } catch (_e) {
+      logger.warn(`[${this.config.name}] Research failed, using defaults.`);
+    }
+    return null;
+  }
+
+  /**
    * Build AI prompt based on SPECIFIC task requirements
-   * Adapts to whatever the Planning Agent requested
+   * ✅ Updated to accept Research Notes
    */
   private buildTaskPrompt(
     taskDetails: AgentExecutionInput["taskDetails"],
-    context: Record<string, unknown>
+    context: Record<string, unknown>,
+    researchNotes: string | null
   ): string {
-    // Safely narrow technicalDetails before accessing its properties
     type TechDetails = { files?: string[]; technologies?: string[] };
     const techDetailsUnknown: unknown = taskDetails.technicalDetails;
 
@@ -414,12 +435,9 @@ Generate the fixed infrastructure configurations now.
 
     if (typeof techDetailsUnknown === "object" && techDetailsUnknown !== null) {
       const td = techDetailsUnknown as Partial<TechDetails>;
-      if (Array.isArray(td.files)) {
-        filesList = td.files.join(", ");
-      }
-      if (Array.isArray(td.technologies)) {
+      if (Array.isArray(td.files)) filesList = td.files.join(", ");
+      if (Array.isArray(td.technologies))
         technologiesList = td.technologies.join(", ");
-      }
     }
 
     return `
@@ -435,25 +453,16 @@ ${filesList}
 **TECHNOLOGIES:**
 ${technologiesList}
 
-**TECH STACK (for context):**
+${researchNotes ? researchNotes : ""}
+
+**TECH STACK:**
 ${JSON.stringify(context.techStack, null, 2)}
 
-**ARCHITECTURE (for context):**
+**ARCHITECTURE:**
 ${JSON.stringify(context.architecture, null, 2)}
 
-**EXISTING PROJECT CONTEXT:**
+**EXISTING FILES:**
 ${context._existingFiles ? `Files already exist: ${Object.keys(context._existingFiles).join(", ")}` : "Starting fresh"}
-
-**ACCEPTANCE CRITERIA:**
-${Array.isArray(taskDetails.acceptanceCriteria) ? taskDetails.acceptanceCriteria.map((c: string) => `- ${c}`).join("\n") : "Not specified"}
-
-**CRITICAL INSTRUCTIONS:**
-
-1. **Generate ONLY what's asked** - Don't create files not mentioned in the task
-2. **Adapt to the actual tech stack** - If it's Python, don't generate Node.js configs
-3. **Check existing files** - Don't overwrite existing configurations
-4. **Follow best practices** - Production-ready configurations
-5. **Be specific** - Use actual project details, not placeholders
 
 **OUTPUT FORMAT (JSON only):**
 
@@ -463,31 +472,12 @@ ${Array.isArray(taskDetails.acceptanceCriteria) ? taskDetails.acceptanceCriteria
     {
       "path": "exact/path/to/file",
       "content": "complete file content here",
-      "description": "Brief description of what this file does"
+      "description": "Brief description"
     }
   ],
-  "explanation": "Brief explanation of what was generated and why"
+  "explanation": "Brief explanation"
 }
 \`\`\`
-
-**EXAMPLES:**
-
-If task is "Create Dockerfile for Node.js API":
-- Generate ONLY Dockerfile (and maybe .dockerignore)
-- Use Node.js base image
-- Adapt to package manager (npm/yarn/pnpm)
-- Don't create docker-compose unless explicitly asked
-
-If task is "Setup environment variables":
-- Generate .env.example with actual variables from project
-- Don't create Dockerfile or other unrelated files
-
-If task is "Configure GitHub Actions for Python":
-- Generate .github/workflows/ci.yml
-- Use Python-specific steps (pytest, black, etc.)
-- Don't create Node.js workflows
-
-Generate the requested infrastructure configuration now.
 `.trim();
   }
 
@@ -520,18 +510,19 @@ Generate the requested infrastructure configuration now.
   }
 
   /**
-   * Load existing project context to avoid overwriting
-   * (renamed to avoid conflict with private member in BaseAgent)
+   * ✅ Load existing project context with HIGHER LIMITS
    */
-  private async loadProjectContextInternal(input: AgentExecutionInput): Promise<void> {
+  private async loadProjectContextInternal(
+    input: AgentExecutionInput
+  ): Promise<void> {
     try {
       const contextResult = await this.executeTool(
         "context_loader",
         {
           operation: "smart_load",
           taskDescription: input.taskDetails.title,
-          maxFiles: 50,
-          maxSize: 500000,
+          maxFiles: 50, // ✅ Boosted
+          maxSize: 1000000, // ✅ Boosted
         },
         {
           projectId: input.projectId,

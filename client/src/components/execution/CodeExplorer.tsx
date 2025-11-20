@@ -74,19 +74,9 @@ export function CodeExplorer({
 
   const handleFileClick = (path: string) => {
     setSelectedFile(path);
-    // 🔍 DEBUG: Log file selection
-    const fileData = files.find((f) => f.path === path);
-    console.log("[CodeExplorer] File clicked:", {
-      path,
-      fileFound: !!fileData,
-      hasContent: !!fileData?.content,
-      contentLength: fileData?.content?.length,
-      contentPreview: fileData?.content?.substring(0, 100),
-    });
   };
 
   const handleDownloadAll = () => {
-    // Create a zip of all files (simplified version)
     const filesData = files.map((f) => ({
       path: f.path,
       content: f.content,
@@ -104,20 +94,21 @@ export function CodeExplorer({
     URL.revokeObjectURL(url);
   };
 
-  const selectedFileData = files.find((f) => f.path === selectedFile);
+  // ✅ FIXED: Robust path matching
+  // Matches "src/index.ts" with "/src/index.ts" by stripping leading slashes
+  const selectedFileData = useMemo(() => {
+    if (!selectedFile) return undefined;
+
+    return files.find((f) => {
+      // Normalize both paths: remove leading slashes for comparison
+      const p1 = f.path.replace(/^\/+/, "");
+      const p2 = selectedFile.replace(/^\/+/, "");
+      return p1 === p2;
+    });
+  }, [files, selectedFile]);
+
   const totalFiles = files.length;
   const totalLines = files.reduce((sum, f) => sum + (f.linesOfCode || 0), 0);
-
-  // 🔍 DEBUG: Log files on mount/update
-  console.log("[CodeExplorer] Files received:", {
-    totalFiles,
-    filesWithContent: files.filter(f => f.content).length,
-    sampleFile: files[0] ? {
-      path: files[0].path,
-      hasContent: !!files[0].content,
-      contentLength: files[0].content?.length,
-    } : null,
-  });
 
   return (
     <div className={`flex gap-4 h-[calc(100vh-250px)] ${className}`}>
@@ -169,7 +160,9 @@ export function CodeExplorer({
         {/* File Tree */}
         <div className="rounded-lg border bg-card overflow-hidden">
           <div className="p-2 max-h-[600px] overflow-y-auto">
-            {filteredTree && filteredTree.children && filteredTree.children.length > 0 ? (
+            {filteredTree &&
+            filteredTree.children &&
+            filteredTree.children.length > 0 ? (
               <FileTreeNode
                 node={filteredTree}
                 expandedFolders={expandedFolders}

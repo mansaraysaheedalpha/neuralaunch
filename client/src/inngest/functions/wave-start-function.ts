@@ -1,4 +1,3 @@
-// src/inngest/functions/wave-start-function.ts
 /**
  * Phase-Based Execution (formerly wave-start-function)
  * Uses execution phases directly from Planning Agent
@@ -11,6 +10,7 @@
  * - Preserves exact planner order (no reordering)
  * - Sequential execution (one task completes before next starts)
  * - Simpler logic (reads directly from executionPlan.phases)
+ * - ✅ ADDED: Fast Fail Timeout (15m limit per task)
  */
 import { inngest } from "../client";
 import { logger } from "@/lib/logger";
@@ -75,7 +75,7 @@ export const waveStartFunction = inngest.createFunction(
     try {
       // Step 1: Get execution plan from database
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-      const planData = await step.run("load-execution-plan", async () => {
+      const planData = (await step.run("load-execution-plan", async () => {
         const project = await prisma.projectContext.findUnique({
           where: { projectId },
           select: { executionPlan: true },
@@ -92,19 +92,26 @@ export const waveStartFunction = inngest.createFunction(
         }
 
         if (phaseNumber > plan.phases.length) {
-          throw new Error(`Phase ${phaseNumber} does not exist (only ${plan.phases.length} phases)`);
+          throw new Error(
+            `Phase ${phaseNumber} does not exist (only ${plan.phases.length} phases)`
+          );
         }
 
         const phase = plan.phases[phaseNumber - 1]; // 0-indexed
 
-        log.info(`[Phase ${phaseNumber}] Loaded phase: "${phase.name}" with ${phase.taskIds.length} tasks`);
+        log.info(
+          `[Phase ${phaseNumber}] Loaded phase: "${phase.name}" with ${phase.taskIds.length} tasks`
+        );
 
         return { plan, phase };
-      }) as { plan: ExecutionPlan; phase: { name: string; taskIds: string[] } };
+      })) as {
+        plan: ExecutionPlan;
+        phase: { name: string; taskIds: string[] };
+      };
 
       // Step 2: GitHub setup (Phase 1 only)
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-      const githubResult = await step.run("github-setup", async () => {
+      const githubResult = (await step.run("github-setup", async () => {
         const user = await prisma.user.findUnique({
           where: { id: userId },
           select: {
@@ -169,7 +176,9 @@ export const waveStartFunction = inngest.createFunction(
             select: { codebase: true },
           });
 
-          const codebase = projectContext?.codebase as { githubRepoName?: string } | null;
+          const codebase = projectContext?.codebase as {
+            githubRepoName?: string;
+          } | null;
           const repoName = codebase?.githubRepoName;
 
           if (!repoName) {
@@ -181,7 +190,7 @@ export const waveStartFunction = inngest.createFunction(
             branchName: `phase-${phaseNumber}`,
           };
         }
-      }) as { repoUrl?: string; repoName: string; branchName: string };
+      })) as { repoUrl?: string; repoName: string; branchName: string };
 
       // Step 3: Initialize wave record in database
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
@@ -208,120 +217,120 @@ export const waveStartFunction = inngest.createFunction(
           },
         });
 
-        log.info(`[Phase ${phaseNumber}] ✅ Wave record initialized with ${phase.taskIds.length} tasks`);
+        log.info(
+          `[Phase ${phaseNumber}] ✅ Wave record initialized with ${phase.taskIds.length} tasks`
+        );
       });
 
       // Step 4: Pre-initialize sandbox
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       await step.run("initialize-sandbox", async () => {
         log.info(`[Phase ${phaseNumber}] Pre-initializing sandbox`);
-        const sandboxUrl = await SandboxService.findOrCreateSandbox(projectId, userId);
+        const sandboxUrl = await SandboxService.findOrCreateSandbox(
+          projectId,
+          userId
+        );
         log.info(`[Phase ${phaseNumber}] ✅ Sandbox ready: ${sandboxUrl}`);
       });
 
       // Step 5: Get ALL tasks for this phase from database
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-      const phaseTasks = await step.run("load-phase-tasks", async () => {
+      const phaseTasks = (await step.run("load-phase-tasks", async () => {
         const { phase } = planData;
 
-        // ✅ FIX: Add diagnostic logging
         log.info(`[Phase ${phaseNumber}] Phase configuration:`, {
           phaseName: phase.name,
           taskIdsCount: phase.taskIds?.length || 0,
           hasTaskIds: !!phase.taskIds && phase.taskIds.length > 0,
         });
 
-        // ✅ FIX: Try to load tasks by phase IDs first
-        let tasksFromDB = phase.taskIds && phase.taskIds.length > 0
-          ? await prisma.agentTask.findMany({
-              where: {
-                projectId,
-                id: { in: phase.taskIds },
-              },
-            })
-          : [];
+        let tasksFromDB =
+          phase.taskIds && phase.taskIds.length > 0
+            ? await prisma.agentTask.findMany({
+                where: {
+                  projectId,
+                  id: { in: phase.taskIds },
+                },
+              })
+            : [];
 
-        // ✅ ENHANCED FIX: If no tasks found with phase IDs, fall back to loading ALL pending tasks
-        // This handles cases where:
-        // - Tasks were created with different IDs than expected
-        // - The planning agent failed to preserve task IDs correctly
-        // - There's a mismatch between the plan and the database
+        // Fallback: If no tasks found with phase IDs, try loading pending tasks
         if (tasksFromDB.length === 0) {
-          log.warn(`[Phase ${phaseNumber}] No tasks found with phase taskIds, falling back to pending tasks`, {
-            expectedTaskIds: phase.taskIds,
-          });
+          log.warn(
+            `[Phase ${phaseNumber}] No tasks found with phase taskIds, falling back to pending tasks`,
+            {
+              expectedTaskIds: phase.taskIds,
+            }
+          );
 
           tasksFromDB = await prisma.agentTask.findMany({
             where: {
               projectId,
               status: "pending",
-              waveNumber: null, // Not yet assigned to a wave
+              waveNumber: null,
             },
             orderBy: { priority: "asc" },
-            take: 12, // Max tasks for first wave
+            take: 12,
           });
 
-          log.info(`[Phase ${phaseNumber}] Fallback loaded ${tasksFromDB.length} pending tasks`);
+          log.info(
+            `[Phase ${phaseNumber}] Fallback loaded ${tasksFromDB.length} pending tasks`
+          );
         }
 
-        log.info(`[Phase ${phaseNumber}] Loaded ${tasksFromDB.length} tasks from database`, {
-          fromPhaseIds: phase.taskIds && phase.taskIds.length > 0 && tasksFromDB.length > 0,
-          taskStatuses: tasksFromDB.map(t => t.status),
-          taskIds: tasksFromDB.map(t => t.id),
-        });
-
-        // If we loaded tasks by phase IDs, preserve exact order. Otherwise use DB order
-        if (phase.taskIds && phase.taskIds.length > 0 && tasksFromDB.length > 0) {
-          // Check if tasks were loaded by phase IDs (not fallback)
+        // Sort tasks
+        if (
+          phase.taskIds &&
+          phase.taskIds.length > 0 &&
+          tasksFromDB.length > 0
+        ) {
           const taskMap = new Map(tasksFromDB.map((t) => [t.id, t]));
-          const hasPhaseIdMatch = phase.taskIds.some((id: string) => taskMap.has(id));
+          const hasPhaseIdMatch = phase.taskIds.some((id: string) =>
+            taskMap.has(id)
+          );
 
           if (hasPhaseIdMatch) {
-            // Return tasks in the EXACT order specified by phase.taskIds
             const orderedTasks = phase.taskIds
               .map((id: string) => taskMap.get(id))
-              .filter((task): task is NonNullable<typeof task> => task !== undefined);
+              .filter(
+                (task): task is NonNullable<typeof task> => task !== undefined
+              );
 
-            log.info(`[Phase ${phaseNumber}] Returning ${orderedTasks.length} tasks in planner order`);
+            log.info(
+              `[Phase ${phaseNumber}] Returning ${orderedTasks.length} tasks in planner order`
+            );
             return orderedTasks;
           }
         }
 
-        // Use tasks in priority order from DB (either no phase IDs or fallback used)
-        log.info(`[Phase ${phaseNumber}] Returning ${tasksFromDB.length} tasks in priority order`);
+        log.info(
+          `[Phase ${phaseNumber}] Returning ${tasksFromDB.length} tasks in priority order`
+        );
         return tasksFromDB;
-      }) as PhaseTask[];
+      })) as PhaseTask[];
 
-      // ✅ SAFETY CHECK: Ensure we have tasks to execute
       if (phaseTasks.length === 0) {
-        const taskIdsStr = planData.phase.taskIds ? JSON.stringify(planData.phase.taskIds) : "none";
-        log.error(`[Phase ${phaseNumber}] ❌ No tasks found for execution! Phase taskIds: ${taskIdsStr}`);
-        
-        // ✅ ENHANCED ERROR: Provide more context for debugging
+        const taskIdsStr = planData.phase.taskIds
+          ? JSON.stringify(planData.phase.taskIds)
+          : "none";
+
         const allTasks = await prisma.agentTask.findMany({
           where: { projectId },
-          select: { id: true, status: true, waveNumber: true, priority: true },
+          select: { id: true, status: true },
         });
-        
-        log.info(`[Phase ${phaseNumber}] All tasks in project:`, {
-          totalTasks: allTasks.length,
-          tasks: allTasks,
-        });
-        
+
         throw new Error(
-          `No tasks found for Phase ${phaseNumber}. Expected task IDs: ${taskIdsStr}. ` +
-          `Total tasks in project: ${allTasks.length}. ` +
-          `Please check that tasks were created during planning with matching IDs.`
+          `No tasks found for Phase ${phaseNumber}. Expected IDs: ${taskIdsStr}. Total tasks in DB: ${allTasks.length}. Ensure Planning Agent synchronized IDs correctly.`
         );
       }
 
       // Step 6: Execute ALL tasks SEQUENTIALLY in exact planner order
+      // ✅ UPDATE: Added Fast-Fail Timeout Block
       for (let i = 0; i < phaseTasks.length; i++) {
         const task = phaseTasks[i];
         const taskNumber = i + 1;
         const totalTasks = phaseTasks.length;
 
-        // Determine agent type
         const agentMap: Record<string, string> = {
           FrontendAgent: "agent/execution.frontend",
           BackendAgent: "agent/execution.backend",
@@ -332,54 +341,102 @@ export const waveStartFunction = inngest.createFunction(
         const eventName = agentMap[task.agentName] || "agent/execution.generic";
 
         // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-        await step.run(`execute-task-${taskNumber}-${task.id.slice(0, 8)}`, async () => {
-          const taskTitle = task.input && typeof task.input === 'object' && 'title' in task.input
-            ? String((task.input as { title: unknown }).title)
-            : 'Unknown';
+        await step.run(
+          `execute-task-${taskNumber}-${task.id.slice(0, 8)}`,
+          async () => {
+            const taskTitle =
+              task.input &&
+              typeof task.input === "object" &&
+              "title" in task.input
+                ? String((task.input as { title: unknown }).title)
+                : "Unknown";
+
+            log.info(
+              `[Phase ${phaseNumber}] 🚀 Task ${taskNumber}/${totalTasks}: ${taskTitle} (${task.agentName})`
+            );
+
+            // Trigger task
+            await inngest.send({
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
+              name: eventName as never,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
+              data: {
+                taskId: task.id,
+                projectId,
+                userId,
+                taskInput: task.input,
+                priority: task.priority,
+                waveNumber: phaseNumber,
+              } as never,
+            });
+
+            // Mark as in_progress
+            await prisma.agentTask.update({
+              where: { id: task.id },
+              data: {
+                status: "in_progress",
+                startedAt: new Date(),
+                branchName: githubResult.branchName,
+                waveNumber: phaseNumber,
+              },
+            });
+
+            log.info(
+              `[Phase ${phaseNumber}] ✅ Triggered ${task.agentName} for ${task.id}`
+            );
+          }
+        );
+
+        // Wait for task completion with Timeout
+        log.info(
+          `[Phase ${phaseNumber}] ⏳ Waiting for task ${taskNumber}/${totalTasks} to complete...`
+        );
+
+        try {
+          // ✅ FAST FAIL IMPLEMENTATION
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+          await step.waitForEvent(`wait-task-completion-${task.id}`, {
+            event: "agent/task.complete",
+            timeout: "15m", // Fail if no response in 15 minutes
+            if: `event.data.taskId == "${task.id}"`,
+          });
 
           log.info(
-            `[Phase ${phaseNumber}] 🚀 Task ${taskNumber}/${totalTasks}: ${taskTitle} (${task.agentName})`
+            `[Phase ${phaseNumber}] ✅ Task ${taskNumber}/${totalTasks} COMPLETED!`
+          );
+        } catch (err) {
+          // ❌ HANDLE TIMEOUT
+          const error = err instanceof Error ? err : new Error("Unknown error");
+          log.error(
+            `[Phase ${phaseNumber}] ❌ Task ${task.id} Timed Out!`,
+            error
           );
 
-          // Trigger task
-          await inngest.send({
-            name: eventName as "agent/execution.backend" | "agent/execution.frontend" | "agent/execution.infrastructure" | "agent/execution.database",
-            data: {
-              taskId: task.id,
-              projectId,
-              userId,
-              conversationId,
-              taskInput: task.input,
-              priority: task.priority,
-              waveNumber: phaseNumber,
-            },
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+          await step.run(`handle-timeout-${task.id}`, async () => {
+            await prisma.agentTask.update({
+              where: { id: task.id },
+              data: {
+                status: "failed",
+                error:
+                  "Execution timed out after 15 minutes. Agent did not report back.",
+                completedAt: new Date(),
+              },
+            });
+
+            // Mark wave as failed
+            await prisma.executionWave.update({
+              where: {
+                projectId_waveNumber: { projectId, waveNumber: phaseNumber },
+              },
+              data: { status: "failed", failedCount: { increment: 1 } },
+            });
           });
 
-          // Mark as in_progress
-          await prisma.agentTask.update({
-            where: { id: task.id },
-            data: {
-              status: "in_progress",
-              startedAt: new Date(),
-              branchName: githubResult.branchName,
-              waveNumber: phaseNumber,
-            },
-          });
-
-          log.info(`[Phase ${phaseNumber}] ✅ Triggered ${task.agentName} for ${task.id}`);
-        });
-
-        // Wait for task completion
-        log.info(`[Phase ${phaseNumber}] ⏳ Waiting for task ${taskNumber}/${totalTasks} to complete...`);
-
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-        await step.waitForEvent(`wait-task-completion-${task.id}`, {
-          event: "agent/task.complete",
-          timeout: "30m",
-          if: `event.data.taskId == "${task.id}"`,
-        });
-
-        log.info(`[Phase ${phaseNumber}] ✅ Task ${taskNumber}/${totalTasks} COMPLETED!`);
+          throw new Error(
+            `Wave execution stopped: Task ${task.id} timed out (Agent unresponsive).`
+          );
+        }
       }
 
       // Step 7: Mark phase complete
@@ -404,14 +461,18 @@ export const waveStartFunction = inngest.createFunction(
           },
         });
 
-        log.info(`[Phase ${phaseNumber}] ✅ All ${phaseTasks.length} tasks completed!`);
+        log.info(
+          `[Phase ${phaseNumber}] ✅ All ${phaseTasks.length} tasks completed!`
+        );
       });
 
-      // ✅ CRITICAL FIX: Trigger wave.complete event to continue with quality checks and next wave
+      // Trigger wave.complete event
       // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
       await step.run("trigger-wave-complete", async () => {
-        log.info(`[Phase ${phaseNumber}] 🎯 Triggering wave.complete event for quality checks`);
-        
+        log.info(
+          `[Phase ${phaseNumber}] 🎯 Triggering wave.complete event for quality checks`
+        );
+
         await inngest.send({
           name: "agent/wave.complete",
           data: {
@@ -421,8 +482,10 @@ export const waveStartFunction = inngest.createFunction(
             waveNumber: phaseNumber,
           },
         });
-        
-        log.info(`[Phase ${phaseNumber}] ✅ Wave complete event triggered - quality checks will now run`);
+
+        log.info(
+          `[Phase ${phaseNumber}] ✅ Wave complete event triggered - quality checks will now run`
+        );
       });
 
       return {
@@ -432,7 +495,8 @@ export const waveStartFunction = inngest.createFunction(
         tasksCompleted: phaseTasks.length,
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
       log.error(`[Phase ${phaseNumber}] Failed: ${errorMessage}`);
 
       await prisma.executionWave.upsert({

@@ -29,8 +29,8 @@ export class FrontendAgent extends BaseAgent {
         "web_search",
         "code_analysis",
         "context_loader",
-        "image_generation", // Generate images for UI using OpenAI DALL-E
-        "video_generation", // Generate short videos for UI using Replicate/Runway
+        "image_generation",
+        "video_generation",
       ],
       modelName: AI_MODELS.CLAUDE,
     });
@@ -38,37 +38,44 @@ export class FrontendAgent extends BaseAgent {
 
   async executeTask(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
     const { projectId, userId, taskDetails, context: _context } = input;
-
-    // Create thought stream for real-time updates
     const thoughts = createThoughtStream(projectId, this.config.name);
 
-    // ✅ Check if this is a fix request
     const isFixMode = taskDetails.mode === "fix";
 
     if (isFixMode) {
-      logger.info(
-        `[${this.config.name}] FIX MODE: Fixing issues for task "${String(taskDetails.originalTaskId)}"`,
-        {
-          attempt: taskDetails.attempt,
-          issuesCount: Array.isArray(taskDetails.issuesToFix)
-            ? taskDetails.issuesToFix.length
-            : 0,
-        }
-      );
-      await thoughts.starting("fixing issues from code review");
       return await this.executeFixMode(input);
     }
 
-    // Normal execution mode
     logger.info(
       `[${this.config.name}] Executing frontend task: "${taskDetails.title}"`
     );
 
     try {
       await thoughts.starting(`frontend implementation: ${taskDetails.title}`);
-      await thoughts.analyzing("task requirements and dependencies");
 
-      const implementation = await this.generateImplementation(input);
+      // 1. Load Context
+      await thoughts.analyzing("task requirements and dependencies");
+      const existingContext = await this.loadExistingContext(input);
+
+      // 2. Conduct Research
+      const researchNotes = await this.conductResearch(input);
+
+      // 3. Generate Implementation
+      // ✅ We call buildGenericPrompt here, which uses the helper methods
+      const prompt = this.buildGenericPrompt(
+        input,
+        existingContext,
+        researchNotes
+      );
+
+      const responseText = await this.generateContent(
+        prompt,
+        undefined,
+        false, // Tools disabled during generation
+        { projectId, userId }
+      );
+
+      const implementation = this.parseImplementation(responseText);
 
       if (!implementation) {
         await thoughts.error("Failed to generate implementation plan");
@@ -81,6 +88,7 @@ export class FrontendAgent extends BaseAgent {
         };
       }
 
+      // 4. Write Files
       await thoughts.executing(`writing ${implementation.files.length} files`);
       const filesResult = await this.writeFiles(implementation.files, {
         projectId,
@@ -88,7 +96,6 @@ export class FrontendAgent extends BaseAgent {
       });
 
       if (!filesResult.success) {
-        await thoughts.error(`Failed to write files: ${filesResult.error}`);
         return {
           success: false,
           message: "Failed to write files",
@@ -102,6 +109,7 @@ export class FrontendAgent extends BaseAgent {
         };
       }
 
+      // 5. Run Commands
       await thoughts.executing(
         `running ${implementation.commands.length} setup commands`
       );
@@ -125,6 +133,7 @@ export class FrontendAgent extends BaseAgent {
         };
       }
 
+      // 6. Self-Verify
       await thoughts.analyzing("verifying implementation quality");
       const verification = this.verifyImplementation(
         filesResult.files,
@@ -133,9 +142,6 @@ export class FrontendAgent extends BaseAgent {
       );
 
       if (!verification.passed) {
-        await thoughts.error(
-          `Verification failed: ${verification.issues.join(", ")}`
-        );
         return {
           success: false,
           message: "Verification failed",
@@ -151,7 +157,7 @@ export class FrontendAgent extends BaseAgent {
       }
 
       await thoughts.completing(
-        `Successfully implemented ${filesResult.files.length} files with ${commandsResult.commands.length} commands`
+        `Successfully implemented ${filesResult.files.length} files`
       );
 
       return {
@@ -629,16 +635,50 @@ Type Safety:
     }
   }
 
-  /**
-   * ✅ Load existing project context from previous waves
-   */
+  private async conductResearch(
+    input: AgentExecutionInput
+  ): Promise<string | null> {
+    const { taskDetails, projectId, userId } = input;
+    const description = taskDetails.description.toLowerCase();
+    const needsResearch =
+      description.includes("install") ||
+      description.includes("setup") ||
+      description.includes("library") ||
+      description.includes("integrate");
+
+    if (!needsResearch) return null;
+
+    logger.info(`[${this.config.name}] Researching: ${taskDetails.title}`);
+    try {
+      const result = await this.executeTool(
+        "web_search",
+        {
+          query: `${taskDetails.title} ${taskDetails.description} documentation example`,
+          maxResults: 2,
+        },
+        { projectId, userId }
+      );
+      if (result.success && result.data) {
+        const searchData = result.data as {
+          results: Array<{ title: string; description: string }>;
+        };
+        const summary = searchData.results
+          .map((r) => `Title: ${r.title}\nInfo: ${r.description}`)
+          .join("\n\n");
+        return `\n**🔍 RESEARCH NOTES:**\n${summary}\n`;
+      }
+    } catch (e) {
+      logger.warn(`[${this.config.name}] Research failed.`);
+    }
+    return null;
+  }
+
   private async loadExistingContext(input: AgentExecutionInput): Promise<{
     structure: string;
     existingFiles: Array<{ path: string; content: string }>;
     dependencies: string;
   }> {
     const { projectId, userId, taskDetails } = input;
-
     try {
       const structureResult = await this.executeTool(
         "context_loader",
@@ -651,9 +691,9 @@ Type Safety:
         {
           operation: "smart_load",
           taskDescription: taskDetails.description,
-          pattern: "src/**/*.{ts,tsx,jsx,css}", // Frontend files
-          maxFiles: 20,
-          maxSize: 500000,
+          pattern: "src/**/*.{ts,tsx,jsx,css,vue,svelte}",
+          maxFiles: 50,
+          maxSize: 1000000,
         },
         { projectId, userId }
       );
@@ -669,7 +709,11 @@ Type Safety:
           ? JSON.stringify(structureResult.data, null, 2)
           : "No structure available",
         existingFiles: filesResult.success
-          ? (filesResult.data as { files?: Array<{ path: string; content: string }> }).files || []
+          ? (
+              filesResult.data as {
+                files?: Array<{ path: string; content: string }>;
+              }
+            ).files || []
           : [],
         dependencies: depsResult.success
           ? JSON.stringify(depsResult.data, null, 2)
@@ -677,50 +721,16 @@ Type Safety:
       };
     } catch (error) {
       logger.warn(
-        `[${this.config.name}] Failed to load existing context`,
+        `[${this.config.name}] Failed to load context`,
         toLogContext(error)
       );
       return { structure: "", existingFiles: [], dependencies: "" };
     }
   }
 
-  private async generateImplementation(input: AgentExecutionInput): Promise<{
-    files: Array<{ path: string; content: string }>;
-    commands: string[];
-    explanation: string;
-  } | null> {
-    // ✅ FIXED: Load existing context BEFORE generating
-    // This ensures continuity between waves - agent sees what previous waves created
-    const existingContext = await this.loadExistingContext(input);
-    const prompt = this.buildGenericPrompt(input, existingContext);
-
-    try {
-      // ✅ FIXED: Disable tool use for component generation
-      // Frontend component generation is straightforward - just needs JSON output
-      // Tool calling causes empty responses as Claude enters tool loops
-      // Context is already loaded via loadExistingContext() before this call
-      const responseText = await this.generateContent(
-        prompt,
-        undefined, // No system instruction
-        false, // DISABLE tools - direct JSON output prevents empty responses
-        {
-          projectId: input.projectId,
-          userId: input.userId,
-        }
-      );
-
-      return this.parseImplementation(responseText);
-    } catch (error) {
-      logger.error(
-        `[${this.config.name}] AI generation failed`,
-        toError(error)
-      );
-      return null;
-    }
-  }
-
   /**
-   * Build truly generic frontend prompt
+   * Build generic frontend prompt
+   * ✅ FIXED: Now actually uses getFrameworkSpecificRequirements and getPackageManager
    */
   private buildGenericPrompt(
     input: AgentExecutionInput,
@@ -728,213 +738,54 @@ Type Safety:
       structure: string;
       existingFiles: Array<{ path: string; content: string }>;
       dependencies: string;
-    }
+    },
+    researchNotes: string | null
   ): string {
     const { taskDetails, context } = input;
-
-    // Extract tech stack from Planning Agent
-    const techStack = (context.techStack as {
-      frontend?: {
-        framework?: string;
-        language?: string;
-        styling?: string;
-        stateManagement?: string;
-        router?: string;
-        formLibrary?: string;
-        uiLibrary?: string;
-      };
-      language?: string;
-      styling?: string;
-    }) || {};
-    type FrontendConfig = {
-      framework?: string;
-      language?: string;
-      styling?: string;
-      stateManagement?: string;
-      router?: string;
-      formLibrary?: string;
-      uiLibrary?: string;
-    };
-    const frontend: FrontendConfig = techStack.frontend || {};
+    const techStack = (context.techStack as { frontend?: { framework?: string; language?: string; styling?: string } }) || {};
+    const frontend = techStack.frontend || {};
     const framework = frontend.framework || "React";
-    const language = frontend.language || techStack.language || "TypeScript";
-    const styling = frontend.styling || techStack.styling || "Tailwind CSS";
-    const stateManagement = frontend.stateManagement || "React hooks";
+    const language = frontend.language || "TypeScript";
+    const styling = frontend.styling || "Tailwind CSS";
 
     return `
 You are the Frontend Agent, a specialized UI/component code generation expert.
 
 **🎯 CRITICAL: BUILD ON EXISTING CODE, DON'T START FROM SCRATCH**
-You are working on a project that may already have UI components and pages from previous development waves.
-Review the "Existing Codebase" section below carefully to understand what already exists.
-Your new components must integrate seamlessly, reuse existing components, and follow existing design patterns.
-
-**CRITICAL: Follow the EXACT tech stack specified. Do NOT use different technologies.**
+You are working on a project that may already have UI components and pages.
+Review the "Existing Codebase" section below carefully.
 
 **Task:**
 - Title: ${taskDetails.title}
 - Description: ${taskDetails.description}
-- Complexity: ${taskDetails.complexity}
-- Estimated Lines: ${taskDetails.estimatedLines}
 
-**Components to Create/Modify:**
-${Array.isArray(taskDetails.components) ? taskDetails.components.map((c: string) => `- ${c}`).join("\n") : Array.isArray(taskDetails.files) ? taskDetails.files.map((f: string) => `- ${f}`).join("\n") : "Determine appropriate components"}
+${researchNotes ? researchNotes : ""}
 
-**Pages/Routes (if applicable):**
-${Array.isArray(taskDetails.pages) ? taskDetails.pages.map((p: string) => `- ${p}`).join("\n") : "N/A"}
-
-**Acceptance Criteria:**
-${Array.isArray(taskDetails.acceptanceCriteria) ? taskDetails.acceptanceCriteria.map((c: string, i: number) => `${i + 1}. ${c}`).join("\n") : ""}
-
-**REQUIRED TECH STACK (DO NOT DEVIATE):**
+**REQUIRED TECH STACK:**
 - Framework: ${framework}
 - Language: ${language}
 - Styling: ${styling}
-- State Management: ${stateManagement}
-${frontend.router ? `- Router: ${frontend.router}` : ""}
-${frontend.formLibrary ? `- Forms: ${frontend.formLibrary}` : ""}
-${frontend.uiLibrary ? `- UI Library: ${frontend.uiLibrary}` : ""}
 
-**Full Tech Stack Context:**
-\`\`\`json
-${JSON.stringify(techStack, null, 2)}
-\`\`\`
-
-**Architecture Context:**
-\`\`\`json
-${JSON.stringify(context.architecture, null, 2)}
-\`\`\`
-
-${context._memoryContext ? `**Relevant Past Experience:**\n${context._memoryContext}\n` : ""}
-
-**📂 EXISTING CODEBASE (from previous waves):**
+**Existing Codebase:**
 ${
   existingContext.existingFiles.length > 0
-    ? `
-**Project Structure:**
-${existingContext.structure}
-
-**Installed Dependencies:**
-${existingContext.dependencies}
-
-**Existing Files (${existingContext.existingFiles.length} files):**
-${existingContext.existingFiles
-  .map(
-    (file, idx) => `
-[File ${idx + 1}]: ${file.path}
-\`\`\`typescript
-${file.content.length > 3000 ? file.content.substring(0, 3000) + "\n... (truncated)" : file.content}
-\`\`\`
-`
-  )
-  .join("\n")}
-
-**INTEGRATION REQUIREMENTS:**
-1. Follow existing naming conventions and component structure
-2. Reuse existing UI components, hooks, and utilities
-3. Match existing styling patterns and theme configuration
-4. Use existing layout components (if any)
-5. Follow existing routing structure
-6. Don't recreate components or utilities that already exist
-`
-    : "**No existing code found - you're starting fresh!**\n"
+    ? existingContext.existingFiles
+        .map((f) => `[${f.path}]:\n${f.content.substring(0, 1000)}`)
+        .join("\n")
+    : "No files found."
 }
+
+**Installed Dependencies (Version Context):**
+${existingContext.dependencies}
 
 **Available Tools:**
 ${this.getToolsDescription()}
 
-**IMAGE GENERATION (When Needed):**
-You have access to the image_generation tool powered by OpenAI DALL-E 3. Use it when:
-- The task requires hero images, banners, or featured images
-- UI mockups need custom illustrations or graphics
-- Design calls for unique icons or visual elements
-- Placeholder images should be replaced with real, contextual imagery
-
-When generating images:
-1. Create detailed, specific prompts describing style, colors, composition
-2. Choose appropriate size: 1792x1024 (landscape), 1024x1024 (square), 1024x1792 (portrait)
-3. Save to appropriate path (e.g., "public/images/hero.png", "public/assets/product-illustration.png")
-4. Reference the generated image in your code using the relative path
-5. Use quality: "standard" for most cases, "hd" for high-detail needs
-6. Use style: "natural" for realistic images, "vivid" for more dramatic/artistic results
-
-Example usage in your generated JSON:
-- First, call the image_generation tool to create the image
-- Then include the image path in your component code
-- Make sure the path matches where you saved the image
-
-**VIDEO GENERATION (When Needed):**
-You have access to the video_generation tool powered by Replicate (Stable Video Diffusion, Zeroscope) and Runway Gen-2. Use it when:
-- Hero sections need dynamic background videos
-- Product demos require video illustrations
-- Landing pages need animated content
-- UI needs looping background animations
-- Converting static images to animated videos
-
-Available models:
-- "replicate-zeroscope" (recommended): Text-to-video, cinematic quality, good for most use cases
-- "replicate-svd": Image-to-video, animates existing images (requires inputImage)
-- "runway-gen2": Highest quality, most expensive, best for premium projects
-
-When generating videos:
-1. Create detailed prompts describing motion, camera movement, style, and subject
-2. Choose duration: 3-10 seconds (4-5 seconds recommended for web backgrounds)
-3. Select appropriate aspect ratio: 16:9 (landscape), 9:16 (portrait), 1:1 (square)
-4. Save to appropriate path (e.g., "public/videos/hero-bg.mp4")
-5. Use fps: 24 (cinematic) or 30 (smooth)
-6. Reference the video in your code (HTML5 video tag, background video, etc.)
-
-Best practices:
-- Keep videos under 5 seconds for faster loading
-- Use 24 fps for most cases (smaller file size)
-- Describe camera motion clearly (pan, zoom, rotate, static)
-- For backgrounds, request loop-able animations
-- For image-to-video, use "replicate-svd" model with inputImage parameter
-
-Example usage:
-- Call video_generation tool first to create the video
-- Use <video> tag with autoplay, loop, muted attributes for backgrounds
-- Provide fallback image for browsers that don't support video
-
-**CODE REQUIREMENTS:**
-1. **TECH STACK COMPLIANCE**: Use ONLY ${framework} with ${language}
-2. **ATOMIC SCOPE**: Implement ONLY this specific component/page
-3. **PRODUCTION QUALITY**:
-   - ${language} with proper typing (if applicable)
-   - Proper component structure for ${framework}
-   - Responsive design
-   - Accessibility (ARIA labels, semantic HTML)
-   - Error handling
-4. **STYLING**: Use ${styling} as specified
-5. **LINE LIMIT**: Stay within ${taskDetails.estimatedLines} ± 50 lines
-6. **COMPLETE FILES**: Provide full, runnable code (not snippets)
-
-**CRITICAL: NON-INTERACTIVE COMMANDS ONLY:**
-When generating setup/install commands, you MUST use non-interactive flags:
-
-**Shadcn/ui Setup:**
-- ❌ BAD: "npx shadcn-ui@latest init" (interactive, will fail)
-- ✅ GOOD: "npx shadcn-ui@latest init --defaults --yes" (non-interactive, auto-accepts defaults)
-- ✅ BETTER: "npx shadcn-ui@latest init -y -d -s default -c zinc" (explicit config)
-
-**Shadcn/ui Component Installation:**
-- ✅ "npx shadcn-ui@latest add button card --yes" (auto-confirm)
-- ✅ "npx shadcn-ui@latest add button -y" (short form)
-
-**Other CLI Tools:**
-- Use --yes, -y, --defaults, --force, or --non-interactive flags
-- Avoid ANY commands that prompt for user input
-- Pre-configure all options via command-line flags
-
-**Why this matters:**
-The automation environment cannot respond to interactive prompts. All commands must run unattended.
-
-**FRAMEWORK-SPECIFIC REQUIREMENTS:**
-
+**FRAMEWORK REQUIREMENTS:**
 ${this.getFrameworkSpecificRequirements(framework, language, styling)}
 
 **OUTPUT FORMAT:**
-Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
+Respond with ONLY valid JSON:
 
 \`\`\`json
 {
@@ -945,22 +796,14 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
     }
   ],
   "commands": [
-    "${this.getPackageManager(framework)} install <packages if needed>"
+    "${this.getPackageManager(framework)} install lucide-react"
   ],
-  "explanation": "Brief explanation of implementation"
+  "explanation": "Brief explanation"
 }
 \`\`\`
 
 **CRITICAL REMINDERS:**
-- Use ${framework}, NOT any other framework
-- Use ${language}, NOT any other language
-- Use ${styling}, NOT any other styling solution
-- Follow ${framework} conventions and best practices
-- NO markdown code blocks around JSON
-- Files must be COMPLETE and RUNNABLE
-- Include proper imports and exports
 - **ALL commands MUST use non-interactive flags (--yes, -y, --defaults)**
-- For shadcn/ui: ALWAYS use "npx shadcn-ui@latest init --defaults --yes" (never without flags)
 `.trim();
   }
 
@@ -1263,32 +1106,22 @@ export default function UserCard(props: UserCardProps) {
     return managers[framework] || "npm";
   }
 
-  private parseImplementation(responseText: string): {
+  private parseImplementation(text: string): {
     files: Array<{ path: string; content: string }>;
     commands: string[];
     explanation: string;
   } | null {
     try {
-      let cleaned = responseText.trim();
-      cleaned = cleaned.replace(/```json\n?/g, "").replace(/```\n?/g, "");
-
-      const parsed = JSON.parse(cleaned) as {
-        files?: Array<{ path: string; content: string }>;
-        commands?: string[];
-        explanation?: string;
+      const cleaned = text
+        .replace(/```json\n?/g, "")
+        .replace(/```\n?/g, "")
+        .trim();
+      return JSON.parse(cleaned) as {
+        files: Array<{ path: string; content: string }>;
+        commands: string[];
+        explanation: string;
       };
-
-      return {
-        files: parsed.files || [],
-        commands: parsed.commands || [],
-        explanation: parsed.explanation || "No explanation provided",
-      };
-    } catch (error) {
-      logger.error(
-        `[${this.config.name}] Failed to parse AI response`,
-        error instanceof Error ? error : new Error(String(error)),
-        { preview: responseText.substring(0, 500) }
-      );
+    } catch (_e) {
       return null;
     }
   }
@@ -1304,8 +1137,11 @@ export default function UserCard(props: UserCardProps) {
   }> {
     const results: Array<{ path: string; lines: number; success: boolean }> =
       [];
-    const filesData: Array<{ path: string; content: string; linesOfCode: number }> =
-      [];
+    const filesData: Array<{
+      path: string;
+      content: string;
+      linesOfCode: number;
+    }> = [];
 
     for (const file of files) {
       try {
@@ -1369,7 +1205,12 @@ export default function UserCard(props: UserCardProps) {
     context: { projectId: string; userId: string }
   ): Promise<{
     success: boolean;
-    commands: Array<{ command: string; success: boolean; output: string; exitCode: number }>;
+    commands: Array<{
+      command: string;
+      success: boolean;
+      output: string;
+      exitCode: number;
+    }>;
     error?: string;
   }> {
     const results: Array<{

@@ -153,6 +153,37 @@ export abstract class BaseAgent {
     const startTime = Date.now();
     const { taskId, taskDetails } = input;
 
+    // ⬇️⬇️⬇️ INSERT THIS BLOCK ⬇️⬇️⬇️
+    // ✅ IDEMPOTENCY CHECK: Prevent double-billing on retries
+    try {
+      const existingTask = await prisma.agentTask.findUnique({
+        where: { id: taskId },
+        select: { status: true, output: true, branchName: true },
+      });
+
+      if (existingTask?.status === "completed") {
+        logger.info(
+          `[${this.config.name}] ⏭️ Task ${taskId} already completed. Skipping execution (Idempotency).`
+        );
+
+        // Return a fake "success" response using the existing data
+        return {
+          success: true,
+          message: "Task was already completed. Skipping re-execution.",
+          iterations: 0,
+          durationMs: 0,
+          data: (existingTask.output as AgentOutputData) || {},
+        };
+      }
+    } catch (dbError) {
+      // If DB fails here, log warning but continue (don't block execution)
+      logger.warn(
+        `[${this.config.name}] Idempotency check failed`,
+        toLogContext(dbError)
+      );
+    }
+    // ⬆️⬆️⬆️ END OF INSERT ⬆️⬆️⬆️
+
     logger.info(`[${this.config.name}] Starting execution`, {
       taskId,
       title: taskDetails.title,
@@ -203,13 +234,13 @@ export abstract class BaseAgent {
           `[${this.config.name}] Iteration ${iteration}/${this.retryConfig.maxIterations}`
         );
 
-         const ABSOLUTE_MAX_ATTEMPTS = 3;
-         if (iteration > ABSOLUTE_MAX_ATTEMPTS) {
-           logger.error(
-             `[${this.config.name}] ⛔ EMERGENCY STOP: ${ABSOLUTE_MAX_ATTEMPTS} attempts exceeded`
-           );
-           break; // Exit the loop
-         }
+        const ABSOLUTE_MAX_ATTEMPTS = 3;
+        if (iteration > ABSOLUTE_MAX_ATTEMPTS) {
+          logger.error(
+            `[${this.config.name}] ⛔ EMERGENCY STOP: ${ABSOLUTE_MAX_ATTEMPTS} attempts exceeded`
+          );
+          break; // Exit the loop
+        }
 
         try {
           output = await this.executeTask(input);
@@ -259,21 +290,23 @@ export abstract class BaseAgent {
           });
 
           // 🔍 Detect AI/network errors
-          const isAIError = errorMessage.includes("AI") ||
-                           errorMessage.includes("API") ||
-                           errorMessage.includes("network") ||
-                           errorMessage.includes("timeout") ||
-                           errorMessage.includes("ECONNREFUSED") ||
-                           errorMessage.includes("ETIMEDOUT") ||
-                           errorMessage.includes("rate limit") ||
-                           errorMessage.includes("429");
+          const isAIError =
+            errorMessage.includes("AI") ||
+            errorMessage.includes("API") ||
+            errorMessage.includes("network") ||
+            errorMessage.includes("timeout") ||
+            errorMessage.includes("ECONNREFUSED") ||
+            errorMessage.includes("ETIMEDOUT") ||
+            errorMessage.includes("rate limit") ||
+            errorMessage.includes("429");
 
           logger.error(
             `[${this.config.name}] Iteration ${iteration} failed`,
             toError(error),
             {
               isAIError,
-              errorType: error instanceof Error ? error.constructor.name : typeof error,
+              errorType:
+                error instanceof Error ? error.constructor.name : typeof error,
             }
           );
 
@@ -285,7 +318,9 @@ export abstract class BaseAgent {
           );
 
           if (!retryDecision.shouldRetry) {
-            logger.warn(`[${this.config.name}] Stopping retries: ${retryDecision.reason}`);
+            logger.warn(
+              `[${this.config.name}] Stopping retries: ${retryDecision.reason}`
+            );
             break;
           }
 

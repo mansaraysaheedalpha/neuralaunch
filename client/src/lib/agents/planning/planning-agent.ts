@@ -1,4 +1,5 @@
 // src/lib/agents/planning/planning-agent.ts
+
 /**
  * Enhanced Planning Agent with Dual-Mode Support
  * - Vision Mode: Converts freeform vision text into technical plans
@@ -15,6 +16,7 @@ import { AI_MODELS } from "@/lib/models";
 import { toError } from "@/lib/error-utils";
 import { createThoughtStream } from "@/lib/agents/thought-stream";
 import { env } from "@/lib/env";
+import { createId } from "@paralleldrive/cuid2"; // You might need to install this or use a utility
 import {
   executeWithExtendedThinking,
   buildChainOfThoughtPrompt,
@@ -59,22 +61,11 @@ export interface BlueprintPlanningInput extends BasePlanningInput {
 // Union type for all planning inputs
 export type PlanningInput = VisionPlanningInput | BlueprintPlanningInput;
 
-// Legacy interface for backward compatibility
-export interface LegacyPlanningInput {
-  projectId: string;
-  userId: string;
-  conversationId: string;
-}
-
 export interface AtomicTask {
   id: string;
   title: string;
   description: string;
-  category:
-    | "frontend"
-    | "backend"
-    | "database"
-    | "infrastructure";
+  category: "frontend" | "backend" | "database" | "infrastructure";
   priority: number;
 
   complexity: "simple" | "medium";
@@ -88,7 +79,6 @@ export interface AtomicTask {
   acceptanceCriteria: string[];
 }
 
-// Also update ExecutionPlan interface:
 export interface ExecutionPlan {
   architecture: TechnicalArchitecture;
   tasks: AtomicTask[];
@@ -132,10 +122,10 @@ export interface TechnicalArchitecture {
     scaling: string;
   };
   diagrams?: {
-    systemArchitecture: string; // Mermaid diagram showing system components
-    databaseSchema: string; // Mermaid ERD showing database relationships
-    dataFlow: string; // Mermaid sequence diagram showing data flow
-    deployment: string; // Mermaid diagram showing deployment architecture
+    systemArchitecture: string;
+    databaseSchema: string;
+    dataFlow: string;
+    deployment: string;
   };
 }
 
@@ -146,34 +136,15 @@ export interface PlanningOutput {
   executionId?: string;
 }
 
-// Extended thinking options for enhanced transparency
 export interface PlanningOptions {
-  enableDeepDive?: boolean; // Show raw AI reasoning
-  useExtendedThinking?: boolean; // Use Claude's extended thinking feature
-  useChainOfThought?: boolean; // Force step-by-step reasoning
+  enableDeepDive?: boolean;
+  useExtendedThinking?: boolean;
+  useChainOfThought?: boolean;
 }
 
 // ==========================================
 // PLANNING AGENT CLASS
 // ==========================================
-/**
- * Enhanced Planning Agent with Advanced AI Capabilities
- *
- * KEY FEATURES FOR EXCEPTIONAL PLANS:
- * ✅ Extended Thinking (8K-16K tokens) - Enabled by default for deep reasoning
- * ✅ Architecture Diagram Generation - Mermaid diagrams for system, database, data flow
- * ✅ Comprehensive Task Breakdown - Atomic tasks with clear dependencies
- * ✅ Multi-mode Support - Vision, Blueprint, and Legacy planning flows
- * ✅ Chain-of-Thought Reasoning - Step-by-step transparent decision making
- *
- * This agent generates plans that are:
- * - Easy for both AI agents AND human engineers to understand
- * - Detailed enough for precise execution regardless of task difficulty
- * - Visual with architecture diagrams for complex systems
- * - Comprehensive covering all features and requirements
- *
- * Uses Claude Sonnet 4.5 for superior JSON generation and architectural reasoning
- */
 export class PlanningAgent {
   private anthropic: Anthropic | null;
   private _openai: OpenAI;
@@ -188,14 +159,12 @@ export class PlanningAgent {
       throw new Error("OPENAI_API_KEY is required for PlanningAgent");
     }
 
-    // Initialize OpenAI (primary for JSON generation)
     this._openai = new OpenAI({
       apiKey: openaiKey,
       timeout: 180000,
       maxRetries: 2,
     });
 
-    // Keep Anthropic as fallback if needed
     if (anthropicKey) {
       this.anthropic = new Anthropic({
         apiKey: anthropicKey,
@@ -203,57 +172,46 @@ export class PlanningAgent {
         maxRetries: 2,
       });
     } else {
-      // Create a stub that throws if used
       this.anthropic = null;
     }
   }
+
   /**
-   * Main execution method - Routes to vision or blueprint planning
+   * Main execution method
    */
   async execute(
-    input: PlanningInput | LegacyPlanningInput,
+    input: PlanningInput,
     options?: PlanningOptions
   ): Promise<PlanningOutput> {
-    // Removed unused startTime variable
-
-    // Type guard to determine input type
-    if ("sourceType" in input) {
-      if (input.sourceType === "vision") {
-        logger.info(
-          `[${this.name}] Vision-based planning for ${input.projectId}`
-        );
-        return await this.executeVisionPlanning(input, options);
-      } else if (input.sourceType === "blueprint") {
-        logger.info(
-          `[${this.name}] Blueprint-based planning for ${input.projectId}`
-        );
-        return await this.executeBlueprintPlanning(input, options);
-      }
+    if (input.sourceType === "vision") {
+      logger.info(
+        `[${this.name}] Vision-based planning for ${input.projectId}`
+      );
+      return await this.executeVisionPlanning(input, options);
+    } else if (input.sourceType === "blueprint") {
+      logger.info(
+        `[${this.name}] Blueprint-based planning for ${input.projectId}`
+      );
+      return await this.executeBlueprintPlanning(input, options);
     }
 
-    // Legacy flow - treat as blueprint without validation data
-    logger.info(`[${this.name}] Legacy planning flow for ${input.projectId}`);
-    return await this.executeLegacyPlanning(input, options);
+    throw new Error("Invalid source type. Legacy planning has been removed.");
   }
 
   /**
    * VISION PLANNING MODE
-   * Converts freeform vision text into technical execution plan
    */
   private async executeVisionPlanning(
     input: VisionPlanningInput,
     options?: PlanningOptions
   ): Promise<PlanningOutput> {
     const startTime = Date.now();
-
-    // Extract options with defaults - Extended thinking enabled by default for exceptional plans
     const {
       enableDeepDive = false,
-      useExtendedThinking = true, // ✅ Enabled by default for comprehensive planning
+      useExtendedThinking = true,
       useChainOfThought = false,
     } = options || {};
 
-    // Create thought stream with deep dive support
     const thoughts = createThoughtStream(
       input.projectId,
       this.name,
@@ -263,21 +221,15 @@ export class PlanningAgent {
     try {
       await thoughts.starting("vision-based execution planning");
 
-      logger.info(`[${this.name}] Starting vision planning`, {
-        projectId: input.projectId,
-        projectName: input.projectName,
-        hasTechPreferences: !!input.techPreferences,
-      });
-
-      // Step 1: Analyze vision text with AI
+      // 1. Analyze Vision
       await thoughts.analyzing("project vision and extracting core features");
       const analysis = await this.analyzeVision(input.visionText, thoughts);
 
-      // Step 2: Extract technical requirements
+      // 2. Extract Requirements
       await thoughts.thinking("technical requirements based on vision");
       const requirements = this.extractRequirements(analysis, input);
 
-      // Step 3: Design architecture
+      // 3. Design Architecture
       await thoughts.deciding("optimal technical architecture");
       const architecture = await this.designArchitecture(
         requirements,
@@ -285,7 +237,7 @@ export class PlanningAgent {
         thoughts
       );
 
-      // Step 4: Generate execution plan
+      // 4. Generate Plan Prompt
       await thoughts.thinking("building comprehensive execution plan prompt");
       const prompt = this.buildVisionPlanningPrompt(
         input,
@@ -293,69 +245,36 @@ export class PlanningAgent {
         architecture
       );
 
+      // 5. Call AI
       await thoughts.accessing(
         "Claude AI",
         "Generating detailed task breakdown"
       );
-      logger.info(`[${this.name}] Generating vision-based execution plan...`);
-
-      let responseText: string;
-      let rawThinking: string | undefined;
-
-      // Use extended thinking or chain-of-thought if enabled
-      try {
-        if (useExtendedThinking && this.anthropic) {
-          await thoughts.thinking("Using extended thinking for deep analysis");
-          const result = await executeWithExtendedThinking({
-            thoughts,
-            prompt,
-            thinkingBudget: 10000,
-            parseSteps: true,
-          });
-          responseText = result.answer;
-          rawThinking = result.thinking;
-
-          await thoughts.emit("analyzing", "Extended thinking complete", {
-            thinkingTokens: result.thinkingTokens,
-            outputTokens: result.outputTokens,
-            thinkingLength: result.thinking.length,
-          });
-        } else if (useChainOfThought) {
-          await thoughts.thinking("Using chain-of-thought reasoning");
-          const cotPrompt = buildChainOfThoughtPrompt(prompt);
-          const fullResponse = await this.callClaude(cotPrompt, thoughts);
-          responseText = await parseChainOfThought(fullResponse, thoughts);
-        } else {
-          responseText = await this.callClaude(prompt, thoughts);
-        }
-      } catch (aiError) {
-        // If AI call fails, log error and try fallback without extended thinking
-        logger.error(
-          `[${this.name}] Primary AI call failed, trying fallback`,
-          toError(aiError)
-        );
-        await thoughts.emit(
-          "thinking",
-          "Primary AI call failed, using fallback method"
-        );
-        responseText = await this.callClaude(prompt, thoughts);
-      }
-
-      // Step 5: Parse and validate plan
-      await thoughts.analyzing("AI response and validating plan structure");
-      const plan = this.parsePlanningResponse(responseText);
-      this.validatePlan(plan);
-
-      await thoughts.emit(
-        "analyzing",
-        `Generated ${plan.tasks.length} atomic tasks across ${plan.phases.length} phases`,
-        {
-          taskCount: plan.tasks.length,
-          phaseCount: plan.phases.length,
-        }
+      const { responseText, rawThinking } = await this.executeAIRequest(
+        prompt,
+        thoughts,
+        { useExtendedThinking, useChainOfThought }
       );
 
-      // Step 6: Store results
+      // 6. Parse Plan
+      await thoughts.analyzing("AI response and validating plan structure");
+      let plan = this.parsePlanningResponse(responseText);
+      this.validatePlan(plan);
+
+      // ✅ CRITICAL FIX: Synchronize IDs before saving
+      // We generate real DB CUIDs and update the plan to match
+      await thoughts.executing("Synchronizing Task IDs with Database");
+      plan = this.synchronizeTaskIds(plan);
+
+      // 7. Create Agent Tasks (Using the synced IDs)
+      await thoughts.executing("creating agent task records");
+      await this.createAgentTasks(
+        input.projectId,
+        plan.tasks,
+        input.conversationId
+      );
+
+      // 8. Store Plan (Using the synced IDs)
       await thoughts.accessing("database", "Storing execution plan");
       await this.storePlanningResults(
         input.projectId,
@@ -369,22 +288,12 @@ export class PlanningAgent {
         rawThinking
       );
 
-      await thoughts.executing("creating agent task records");
-      await this.createAgentTasks(input.projectId, plan.tasks);
-
       const duration = Date.now() - startTime;
-      await thoughts.executing("logging planning execution");
       const executionId = await this.logExecution(input, plan, true, duration);
 
       await thoughts.completing(
         `Vision planning complete with ${plan.tasks.length} tasks in ${duration}ms`
       );
-
-      logger.info(`[${this.name}] Vision planning completed`, {
-        taskCount: plan.tasks.length,
-        phases: plan.phases.length,
-        duration: `${duration}ms`,
-      });
 
       return {
         success: true,
@@ -393,128 +302,74 @@ export class PlanningAgent {
         executionId,
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      const duration = Date.now() - startTime;
-
-      await thoughts.error(errorMessage, {
-        error: error instanceof Error ? error.stack : String(error),
-      });
-
-      logger.error(`[${this.name}] Vision planning failed:`, toError(error));
-
-      await this.logExecution(input, null, false, duration, errorMessage);
-
-      return {
-        success: false,
-        message: `Vision planning failed: ${errorMessage}`,
-      };
+      return this.handleError(error, input, startTime, thoughts);
     }
   }
 
   /**
    * BLUEPRINT PLANNING MODE
-   * Parses structured blueprint with optional sprint validation data
    */
   private async executeBlueprintPlanning(
     input: BlueprintPlanningInput,
     options?: PlanningOptions
   ): Promise<PlanningOutput> {
     const startTime = Date.now();
-
-    // Extract options with defaults - Extended thinking enabled by default for exceptional plans
     const {
       enableDeepDive = false,
-      useExtendedThinking = true, // ✅ Enabled by default for comprehensive planning
+      useExtendedThinking = true,
       useChainOfThought = false,
     } = options || {};
 
-    try {
-      logger.info(`[${this.name}] Starting blueprint planning`, {
-        projectId: input.projectId,
-        hasSprintData: !!input.sprintData,
-      });
+    const thoughts = createThoughtStream(
+      input.projectId,
+      this.name,
+      enableDeepDive
+    );
 
-      // Create thought stream with deep dive support
-      const thoughts = createThoughtStream(
-        input.projectId,
-        this.name,
-        enableDeepDive
-      );
+    try {
       await thoughts.starting("blueprint-based execution planning");
 
-      // Step 1: Parse blueprint structure
-      await thoughts.analyzing("blueprint structure");
+      // 1. Parse Blueprint
       const parsed = this.parseBlueprint(input.blueprint);
-
-      // Step 2: Integrate sprint validation data (if available)
-      if (input.sprintData) {
-        await thoughts.thinking("integrating sprint validation data");
-      }
       const enhanced = input.sprintData
         ? this.enhanceWithSprintData(parsed, input.sprintData)
         : parsed;
 
-      // Step 3: Generate execution plan
-      await thoughts.thinking("building comprehensive execution plan prompt");
+      // 2. Generate Prompt
       const prompt = this.buildBlueprintPlanningPrompt(
         input.blueprint,
         enhanced,
         input.sprintData
       );
 
+      // 3. Call AI
       await thoughts.accessing(
         "Claude AI",
         "Generating detailed task breakdown"
       );
-      logger.info(
-        `[${this.name}] Generating blueprint-based execution plan...`
+      const { responseText, rawThinking } = await this.executeAIRequest(
+        prompt,
+        thoughts,
+        { useExtendedThinking, useChainOfThought }
       );
 
-      let responseText: string;
-      let rawThinking: string | undefined;
-
-      // Use extended thinking or chain-of-thought if enabled
-      if (useExtendedThinking && this.anthropic) {
-        await thoughts.thinking("Using extended thinking for deep analysis");
-        const result = await executeWithExtendedThinking({
-          thoughts,
-          prompt,
-          thinkingBudget: 10000,
-          parseSteps: true,
-        });
-        responseText = result.answer;
-        rawThinking = result.thinking;
-
-        await thoughts.emit("analyzing", "Extended thinking complete", {
-          thinkingTokens: result.thinkingTokens,
-          outputTokens: result.outputTokens,
-          thinkingLength: result.thinking.length,
-        });
-      } else if (useChainOfThought) {
-        await thoughts.thinking("Using chain-of-thought reasoning");
-        const cotPrompt = buildChainOfThoughtPrompt(prompt);
-        const fullResponse = await this.callClaude(cotPrompt, thoughts);
-        responseText = await parseChainOfThought(fullResponse, thoughts);
-      } else {
-        responseText = await this.callClaude(prompt, thoughts);
-      }
-
-      // Step 4: Parse and validate plan
-      await thoughts.analyzing("AI response and validating plan structure");
-      const plan = this.parsePlanningResponse(responseText);
+      // 4. Parse Plan
+      let plan = this.parsePlanningResponse(responseText);
       this.validatePlan(plan);
 
-      await thoughts.emit(
-        "analyzing",
-        `Generated ${plan.tasks.length} atomic tasks across ${plan.phases.length} phases`,
-        {
-          taskCount: plan.tasks.length,
-          phaseCount: plan.phases.length,
-        }
+      // ✅ CRITICAL FIX: Synchronize IDs before saving
+      await thoughts.executing("Synchronizing Task IDs with Database");
+      plan = this.synchronizeTaskIds(plan);
+
+      // 5. Create Agent Tasks
+      await thoughts.executing("creating agent task records");
+      await this.createAgentTasks(
+        input.projectId,
+        plan.tasks,
+        input.conversationId
       );
 
-      // Step 5: Store results
+      // 6. Store Plan
       await thoughts.accessing("database", "Storing execution plan");
       await this.storePlanningResults(
         input.projectId,
@@ -527,136 +382,94 @@ export class PlanningAgent {
         rawThinking
       );
 
-      await thoughts.executing("creating agent task records");
-      await this.createAgentTasks(input.projectId, plan.tasks);
-
       const duration = Date.now() - startTime;
-      await thoughts.executing("logging planning execution");
       const executionId = await this.logExecution(input, plan, true, duration);
 
       await thoughts.completing(
         `Blueprint planning complete with ${plan.tasks.length} tasks in ${duration}ms`
       );
 
-      logger.info(`[${this.name}] Blueprint planning completed`, {
-        taskCount: plan.tasks.length,
-        phases: plan.phases.length,
-        sprintDataUsed: !!input.sprintData,
-        useExtendedThinking,
-        useChainOfThought,
-        duration: `${duration}ms`,
-      });
-
       return {
         success: true,
-        message: `Blueprint analyzed! Generated ${plan.tasks.length} tasks${
-          input.sprintData ? " prioritized by validation data" : ""
-        }.`,
+        message: `Blueprint analyzed! Generated ${plan.tasks.length} tasks.`,
         plan,
         executionId,
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      const duration = Date.now() - startTime;
-
-      logger.error(`[${this.name}] Blueprint planning failed:`, toError(error));
-
-      await this.logExecution(input, null, false, duration, errorMessage);
-
-      return {
-        success: false,
-        message: `Blueprint planning failed: ${errorMessage}`,
-      };
+      return this.handleError(error, input, startTime, thoughts);
     }
   }
 
+  // ==========================================
+  // CRITICAL FIX: ID SYNCHRONIZATION
+  // ==========================================
+
   /**
-   * LEGACY PLANNING MODE (backward compatibility)
-   * Uses existing ProjectContext flow
+   * Replaces the AI-generated IDs (e.g. "task-001") with real Database CUIDs.
+   * Updates dependencies and phase lists to match the new IDs.
    */
-  private async executeLegacyPlanning(
-    input: LegacyPlanningInput,
-    options?: PlanningOptions
-  ): Promise<PlanningOutput> {
-    const startTime = Date.now();
+  private synchronizeTaskIds(plan: ExecutionPlan): ExecutionPlan {
+    const idMap = new Map<string, string>();
+    const newTasks: AtomicTask[] = [];
 
-    // Extract options with defaults - Extended thinking enabled by default for exceptional plans
-    const {
-      enableDeepDive = false,
-      useExtendedThinking = true, // ✅ Enabled by default for comprehensive planning
-      useChainOfThought = false,
-    } = options || {};
+    // 1. Generate new IDs for all tasks
+    for (const task of plan.tasks) {
+      // If it's already a CUID, keep it. If it's "task-001", generate a new one.
+      const isCuid = task.id.length > 20 && !task.id.includes("-");
+      const newId = isCuid ? task.id : createId();
 
-    // Create thought stream with deep dive support
-    const thoughts = createThoughtStream(
-      input.projectId,
-      this.name,
-      enableDeepDive
+      idMap.set(task.id, newId);
+
+      newTasks.push({
+        ...task,
+        id: newId,
+        // We will update dependencies in the next loop
+      });
+    }
+
+    // 2. Update Dependencies within tasks
+    const tasksWithUpdatedDeps = newTasks.map((task) => ({
+      ...task,
+      dependencies: task.dependencies.map((depId) => idMap.get(depId) || depId),
+    }));
+
+    // 3. Update Phases
+    const updatedPhases = plan.phases.map((phase) => ({
+      ...phase,
+      taskIds: phase.taskIds.map((taskId) => idMap.get(taskId) || taskId),
+    }));
+
+    // 4. Update Critical Path
+    const updatedCriticalPath = plan.criticalPath.map(
+      (id) => idMap.get(id) || id
     );
 
+    logger.info(`[${this.name}] Synchronized ${plan.tasks.length} task IDs`, {
+      sampleMapping: Array.from(idMap.entries()).slice(0, 3),
+    });
+
+    return {
+      ...plan,
+      tasks: tasksWithUpdatedDeps,
+      phases: updatedPhases,
+      criticalPath: updatedCriticalPath,
+    };
+  }
+
+  // ==========================================
+  // AI EXECUTION HELPER
+  // ==========================================
+
+  private async executeAIRequest(
+    prompt: string,
+    thoughts: ReturnType<typeof createThoughtStream>,
+    options: { useExtendedThinking: boolean; useChainOfThought: boolean }
+  ): Promise<{ responseText: string; rawThinking?: string }> {
+    let responseText: string;
+    let rawThinking: string | undefined;
+
     try {
-      await thoughts.starting("blueprint-based execution planning");
-
-      logger.info(
-        `[${this.name}] Starting legacy planning for project ${input.projectId}`
-      );
-
-      // Step 1: Get project context (blueprint, tech stack, validation)
-      await thoughts.accessing(
-        "ProjectContext database",
-        "Retrieving project data"
-      );
-      const context = await this.getProjectContext(input.projectId);
-
-      if (!context) {
-        await thoughts.error(
-          "Project context not found - Previous agents must complete first"
-        );
-        throw new Error(
-          "Project context not found. Run previous agents first."
-        );
-      }
-
-      if (!context.validation) {
-        await thoughts.error(
-          "Validation results missing - Validation agent must run first"
-        );
-        throw new Error(
-          "Validation results not found. Run Validation Agent first."
-        );
-      }
-
-      // Step 2: Check if project is feasible
-      await thoughts.analyzing("validation results and feasibility");
-      const validation = context.validation as { feasible?: boolean };
-      if (!validation.feasible) {
-        await thoughts.error(
-          "Project not feasible - Blockers must be addressed first"
-        );
-        throw new Error(
-          "Project is not feasible according to validation. Address blockers first."
-        );
-      }
-
-      await thoughts.deciding("Project is feasible - proceeding with planning");
-
-      // Step 3: Generate planning prompt (using existing blueprint logic)
-      await thoughts.thinking("building comprehensive execution plan");
-      const prompt = this.buildLegacyPlanningPrompt(context);
-
-      // Step 4: Get AI planning analysis
-      await thoughts.accessing(
-        "Claude AI",
-        "Generating atomic tasks and phases"
-      );
-      logger.info(`[${this.name}] Requesting AI planning analysis...`);
-
-      let responseText: string;
-      let rawThinking: string | undefined;
-
-      // Use extended thinking or chain-of-thought if enabled
-      if (useExtendedThinking && this.anthropic) {
+      if (options.useExtendedThinking && this.anthropic) {
         await thoughts.thinking("Using extended thinking for deep analysis");
         const result = await executeWithExtendedThinking({
           thoughts,
@@ -666,13 +479,7 @@ export class PlanningAgent {
         });
         responseText = result.answer;
         rawThinking = result.thinking;
-
-        await thoughts.emit("analyzing", "Extended thinking complete", {
-          thinkingTokens: result.thinkingTokens,
-          outputTokens: result.outputTokens,
-          thinkingLength: result.thinking.length,
-        });
-      } else if (useChainOfThought) {
+      } else if (options.useChainOfThought) {
         await thoughts.thinking("Using chain-of-thought reasoning");
         const cotPrompt = buildChainOfThoughtPrompt(prompt);
         const fullResponse = await this.callClaude(cotPrompt, thoughts);
@@ -680,87 +487,137 @@ export class PlanningAgent {
       } else {
         responseText = await this.callClaude(prompt, thoughts);
       }
-
-      // Step 5: Parse AI response
-      await thoughts.analyzing("AI response and extracting plan structure");
-      const plan = this.parsePlanningResponse(responseText);
-
-      // Step 6: Validate plan structure
-      await thoughts.thinking("validating task dependencies and critical path");
-      this.validatePlan(plan);
-
+    } catch (aiError) {
+      logger.error(
+        `[${this.name}] Primary AI call failed, using fallback`,
+        toError(aiError)
+      );
       await thoughts.emit(
-        "analyzing",
-        `Plan validated: ${plan.tasks.length} tasks, ${plan.phases.length} phases`,
-        {
-          tasks: plan.tasks.length,
-          phases: plan.phases.length,
-        }
+        "thinking",
+        "Primary AI call failed, using fallback method"
       );
-
-      // Step 7: Store results in database
-      await thoughts.accessing("database", "Storing execution plan");
-      await this.storePlanningResults(
-        input.projectId,
-        plan,
-        "blueprint",
-        {
-          blueprint: context.blueprint,
-          techStack: context.techStack,
-        },
-        rawThinking
-      );
-
-      // Step 8: Create AgentTask records for execution
-      await thoughts.executing("creating agent task records for execution");
-      await this.createAgentTasks(input.projectId, plan.tasks);
-
-      // Step 9: Log execution
-      const duration = Date.now() - startTime;
-      await thoughts.executing("logging planning results");
-      const executionId = await this.logExecution(input, plan, true, duration);
-
-      await thoughts.completing(
-        `Planning complete with ${plan.tasks.length} tasks in ${duration}ms`
-      );
-
-      logger.info(`[${this.name}] Legacy planning completed`, {
-        projectId: input.projectId,
-        taskCount: plan.tasks.length,
-        phases: plan.phases.length,
-
-        duration: `${duration}ms`,
-      });
-
-      return {
-        success: true,
-        message: `Planning complete! Generated ${plan.tasks.length} tasks across ${plan.phases.length} phases.`,
-        plan,
-        executionId,
-      };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      const duration = Date.now() - startTime;
-
-      await thoughts.error(errorMessage, {
-        error: error instanceof Error ? error.stack : String(error),
-      });
-
-      logger.error(`[${this.name}] Legacy planning failed:`, toError(error));
-
-      await this.logExecution(input, null, false, duration, errorMessage);
-
-      return {
-        success: false,
-        message: `Planning failed: ${errorMessage}`,
-      };
+      responseText = await this.callClaude(prompt, thoughts);
     }
+
+    return { responseText, rawThinking };
   }
 
   // ==========================================
-  // GPT-4o API HELPER (Primary for JSON generation)
+  // ERROR HANDLING HELPER
   // ==========================================
+
+  private async handleError(
+    error: unknown,
+    input: PlanningInput,
+    startTime: number,
+    thoughts: ReturnType<typeof createThoughtStream>
+  ): Promise<PlanningOutput> {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    const duration = Date.now() - startTime;
+
+    await thoughts.error(errorMessage, {
+      error: error instanceof Error ? error.stack : String(error),
+    });
+
+    logger.error(`[${this.name}] Planning failed:`, toError(error));
+    await this.logExecution(input, null, false, duration, errorMessage);
+
+    return {
+      success: false,
+      message: `Planning failed: ${errorMessage}`,
+    };
+  }
+
+  // ==========================================
+  // DATABASE HELPERS
+  // ==========================================
+
+  /**
+   * Create AgentTask records for execution agents
+   * NOW SAFE: Uses the synchronized IDs from the plan
+   */
+  private async createAgentTasks(
+    projectId: string,
+    tasks: AtomicTask[],
+    conversationId: string
+  ): Promise<void> {
+    // 1. First, delete any pending tasks for this project to avoid duplicates from retries
+    // Be careful only to delete tasks that haven't started yet
+    await prisma.agentTask.deleteMany({
+      where: {
+        projectId,
+        status: "pending",
+      },
+    });
+
+    const agentTasks = tasks.map((task) => ({
+      id: task.id, // This is now a guaranteed CUID
+      projectId,
+      agentName: this.determineAgentForTask(task.category),
+      status: "pending",
+      priority: task.priority,
+      waveNumber: null, // Will be assigned by Inngest execution
+      input: {
+        ...task,
+        conversationId, // Pass conversation context to task
+        metadata: {
+          complexity: task.complexity,
+        },
+      } as unknown as Prisma.InputJsonValue,
+    }));
+
+    await prisma.agentTask.createMany({
+      data: agentTasks,
+      skipDuplicates: true,
+    });
+
+    logger.info(
+      `[${this.name}] Created ${agentTasks.length} AgentTask records in Database`
+    );
+  }
+
+  private async storePlanningResults(
+    projectId: string,
+    plan: ExecutionPlan,
+    sourceType: "vision" | "blueprint",
+    metadata: Record<string, unknown>,
+    rawThinking?: string
+  ): Promise<void> {
+    const planWithMetadata = {
+      ...plan,
+      metadata: {
+        sourceType,
+        ...metadata,
+        ...(rawThinking ? { extendedThinking: rawThinking } : {}),
+      },
+    };
+
+    // Upsert ProjectContext
+    await prisma.projectContext.upsert({
+      where: { projectId },
+      create: {
+        projectId,
+        userId: (metadata.userId as string) || "",
+        // Ensure conversationId is set
+        conversationId:
+          (metadata.conversationId as string) || `plan_${projectId}`,
+        executionPlan: planWithMetadata as unknown as Prisma.InputJsonValue,
+        originalPlan: planWithMetadata as unknown as Prisma.InputJsonValue,
+        currentPhase: "plan_review",
+        updatedAt: new Date(),
+      },
+      update: {
+        executionPlan: planWithMetadata as unknown as Prisma.InputJsonValue,
+        currentPhase: "plan_review",
+        updatedAt: new Date(),
+      },
+    });
+
+    logger.info(`[${this.name}] Stored execution plan in ProjectContext`, {
+      projectId,
+    });
+  }
 
   /**
    * Call Claude API with diagnostic logging
@@ -1113,27 +970,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
 `.trim();
   }
 
-  /**
-   * Build legacy planning prompt (from existing context)
-   */
-  private buildLegacyPlanningPrompt(context: Record<string, unknown>): string {
-    return `
-You are a world-class software architect and technical planner. Create a comprehensive execution plan for this project.
 
-PROJECT BLUEPRINT:
-${JSON.stringify(context.blueprint, null, 2)}
-
-RECOMMENDED TECH STACK:
-${JSON.stringify(context.techStack, null, 2)}
-
-VALIDATION RESULTS:
-${JSON.stringify(context.validation, null, 2)}
-
-${this.getSharedPlanningInstructions()}
-
-CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`json tags, no explanations before or after. Just pure JSON.
-`.trim();
-  }
 
   // ==========================================
   // SHARED HELPERS (used by all modes)
@@ -1466,95 +1303,6 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
     logger.info(`[${this.name}] Plan validation passed`);
   }
 
-  /**
-   * Store planning results in database
-   */
-  private async storePlanningResults(
-    projectId: string,
-    plan: ExecutionPlan,
-    sourceType: "vision" | "blueprint",
-    metadata: Record<string, unknown>,
-    rawThinking?: string
-  ): Promise<void> {
-    // Store the source type and metadata in the plan itself for reference
-    const planWithMetadata = {
-      ...plan,
-      metadata: {
-        sourceType,
-        ...metadata,
-        ...(rawThinking ? { extendedThinking: rawThinking } : {}),
-      },
-    };
-
-    // Check if this is the first time storing a plan
-    const existingContext = await prisma.projectContext.findUnique({
-      where: { projectId },
-      select: { originalPlan: true, executionPlan: true },
-    });
-
-    await prisma.projectContext.upsert({
-      where: { projectId },
-      create: {
-        projectId,
-        userId: (metadata.userId as string) || "",
-        conversationId:
-          (metadata.conversationId as string) || `${sourceType}_${projectId}`,
-        executionPlan: planWithMetadata as unknown as Prisma.InputJsonValue,
-        originalPlan: planWithMetadata as unknown as Prisma.InputJsonValue, // Store as original plan
-        currentPhase: "plan_review", // Set to plan_review instead of execution
-        updatedAt: new Date(),
-      },
-      update: {
-        executionPlan: planWithMetadata as unknown as Prisma.InputJsonValue,
-        // Only update originalPlan if it doesn't exist yet
-        ...(existingContext?.originalPlan
-          ? {}
-          : {
-              originalPlan:
-                planWithMetadata as unknown as Prisma.InputJsonValue,
-            }),
-        currentPhase: "plan_review",
-        updatedAt: new Date(),
-      },
-    });
-
-    logger.info(`[${this.name}] Stored execution plan in ProjectContext`, {
-      projectId,
-      sourceType,
-    });
-  }
-
-  /**
-   * Create AgentTask records for execution agents
-   * ✅ FIX: Preserve task IDs from the execution plan so phases can reference them
-   */
-  private async createAgentTasks(
-    projectId: string,
-    tasks: AtomicTask[]
-  ): Promise<void> {
-    const agentTasks = tasks.map((task) => ({
-      id: task.id, // ✅ CRITICAL: Use the task ID from the plan
-      projectId,
-      agentName: this.determineAgentForTask(task.category),
-      status: "pending",
-      priority: task.priority,
-      input: {
-        ...task,
-        metadata: {
-          complexity: task.complexity,
-        },
-      } as unknown as Prisma.InputJsonValue,
-    }));
-
-    await prisma.agentTask.createMany({
-      data: agentTasks,
-      skipDuplicates: true, // Skip if task IDs already exist
-    });
-
-    logger.info(
-      `[${this.name}] Created ${agentTasks.length} AgentTask records with preserved IDs`
-    );
-  }
 
   /**
    * Determine which execution agent should handle a task
@@ -1574,7 +1322,7 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
    * Log execution to AgentExecution table
    */
   private async logExecution(
-    input: PlanningInput | LegacyPlanningInput,
+    input: PlanningInput,
     plan: ExecutionPlan | null,
     success: boolean,
     durationMs: number,
@@ -1596,42 +1344,6 @@ CRITICAL: Return ONLY the JSON object, with no markdown code blocks, no \`\`\`js
     return execution.id;
   }
 
-  /**
-   * Get project context from database (legacy support)
-   */
-  private async getProjectContext(projectId: string) {
-    const context = await prisma.projectContext.findUnique({
-      where: { projectId },
-    });
-
-    if (!context) {
-      return null;
-    }
-
-    // Parse architecture if it's stored as JSON string
-    let architecture: Record<string, unknown> | null = null;
-    if (context.architecture) {
-      try {
-        architecture =
-          typeof context.architecture === "string"
-            ? (JSON.parse(context.architecture) as Record<string, unknown>)
-            : (context.architecture as Record<string, unknown>);
-      } catch (error) {
-        logger.warn(`[${this.name}] Failed to parse architecture JSON`, {
-          projectId,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
-    const validation = architecture?.validation;
-
-    return {
-      blueprint: context.blueprint,
-      techStack: context.techStack,
-      validation: validation,
-    };
-  }
 
   /**
    * Analyze user feedback on a plan without applying changes

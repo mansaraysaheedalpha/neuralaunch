@@ -15,7 +15,6 @@ import { criticAgentFunction } from "@/inngest/functions/critic-agent-function";
 import { waveStartFunction } from "@/inngest/functions/wave-start-function";
 import { waveCompleteFunction } from "@/inngest/functions/wave-complete-function";
 import { integrationAgentFunction } from "@/inngest/functions/integration-agent-function";
-import { infrastructureAgentFunction } from "@/inngest/functions/infrastructure-agent-function";
 import { infrastructureExecutionAgentFunction } from
   "@/inngest/functions/infrastructure-execution-agent-function";
 import { documentationAgentFunction } from "@/inngest/functions/documentation-agent-function";
@@ -26,6 +25,7 @@ import {
 } from "@/inngest/functions/monitoring-agent-function";
 import { optimizationAgentFunction } from "@/inngest/functions/optimization-agent-function";
 import { fixCriticalIssuesFunction } from "@/inngest/functions/fix-critical-issues-function";
+import { cleanupStuckTasks } from "@/inngest/functions/cleanup-stuck-tasks";
 import { env } from "@/lib/env";
 
 export const { GET, POST, PUT } = serve({
@@ -53,7 +53,6 @@ export const { GET, POST, PUT } = serve({
     fixCriticalIssuesFunction,
 
     // Infrastructure & Deployment
-    infrastructureAgentFunction,
     infrastructureExecutionAgentFunction,
     documentationAgentFunction,
     deployAgentFunction,
@@ -62,10 +61,9 @@ export const { GET, POST, PUT } = serve({
     monitoringAgentFunction,
     continuousMonitoringFunction,
     optimizationAgentFunction,
+    cleanupStuckTasks,
   ],
   signingKey:
-    env.NODE_ENV !== "development"
-      ? env.INNGEST_SIGNING_KEY
-      : undefined,
+    env.NODE_ENV !== "development" ? env.INNGEST_SIGNING_KEY : undefined,
 });
 
