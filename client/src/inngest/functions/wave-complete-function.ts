@@ -680,10 +680,10 @@ Test the changes live before approving this PR. The preview includes all code fr
         await step.run("send-completion-notification", async () => {
           log.info(`[Project] Sending completion notification to user`);
 
-          // Get project details for the notification
-          const project = await prisma.project.findUnique({
-            where: { id: projectId },
-            select: { name: true },
+          // Get project details for the notification (project name is in conversation title)
+          const conversation = await prisma.conversation.findUnique({
+            where: { id: conversationId },
+            select: { title: true },
           });
 
           const completedWaves = await prisma.executionWave.count({
@@ -696,7 +696,7 @@ Test the changes live before approving this PR. The preview includes all code fr
               userId,
               type: "project_complete",
               title: "Project Completed! 🎉",
-              message: `Your project "${project?.name || "Untitled"}" has been successfully completed with ${completedWaves} wave(s).`,
+              message: `Your project "${conversation?.title || "Untitled"}" has been successfully completed with ${completedWaves} wave(s).`,
               metadata: {
                 projectId,
                 totalWaves: completedWaves,
