@@ -38,6 +38,56 @@ import type {
 // Re-export types
 export * from "./types";
 
+// Valid provider and ORM values for runtime validation
+const VALID_PROVIDERS: DatabaseProvider[] = ["neon", "supabase", "mongodb", "planetscale", "upstash"];
+const VALID_ORMS: ORMType[] = ["prisma", "drizzle", "typeorm", "mongoose", "sequelize", "knex", "raw"];
+
+/**
+ * Validates and returns a DatabaseProvider, or null if invalid
+ */
+function validateProvider(value: unknown): DatabaseProvider | null {
+  if (typeof value === "string" && VALID_PROVIDERS.includes(value as DatabaseProvider)) {
+    return value as DatabaseProvider;
+  }
+  return null;
+}
+
+/**
+ * Validates and returns an ORMType, or null if invalid
+ */
+function validateORM(value: unknown): ORMType | null {
+  if (typeof value === "string" && VALID_ORMS.includes(value as ORMType)) {
+    return value as ORMType;
+  }
+  return null;
+}
+
+/**
+ * Safely extracts a string value from unknown data
+ */
+function safeString(value: unknown, fallback: string): string {
+  if (typeof value === "string" && value.length > 0) {
+    return value;
+  }
+  return fallback;
+}
+
+/**
+ * Validates and returns an array of issues, or empty array if invalid
+ */
+function validateIssuesArray(value: unknown): Array<{ file: string; issue: string }> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter(
+    (item): item is { file: string; issue: string } =>
+      typeof item === "object" &&
+      item !== null &&
+      typeof (item as Record<string, unknown>).file === "string" &&
+      typeof (item as Record<string, unknown>).issue === "string"
+  );
+}
+
 /**
  * Enhanced Database Agent
  * Handles the full database provisioning lifecycle
@@ -144,9 +194,9 @@ export class DatabaseAgent extends BaseAgent {
         confidence: requirements.confidence,
       });
 
-      // Phase 2: Select provider
-      const provider = (taskDetails.overrideProvider as DatabaseProvider) ||
-                       requirements.recommendedProvider;
+      // Phase 2: Select provider (with validation)
+      const overrideProvider = validateProvider(taskDetails.overrideProvider);
+      const provider = overrideProvider || requirements.recommendedProvider;
 
       // Check provider availability
       if (!isProviderAvailable(provider)) {
@@ -181,7 +231,7 @@ export class DatabaseAgent extends BaseAgent {
       const provisionResult = await provisionDatabase({
         provider,
         projectName,
-        region: context.techStack?.deployment as string || "us-east-1",
+        region: safeString(context.techStack?.deployment, "us-east-1"),
         tier: requirements.storage.tier === "free" ? "free" : "starter",
       });
 
@@ -225,7 +275,7 @@ export class DatabaseAgent extends BaseAgent {
 
       // Phase 5: Initialize schema
       logger.info(`[${this.config.name}] Phase 4: Initializing schema`);
-      const orm = (taskDetails.overrideOrm as ORMType) || requirements.orm;
+      const orm = validateORM(taskDetails.overrideOrm) || requirements.orm;
       const initResult = await this.initializeSchema(
         projectId,
         userId,
@@ -297,7 +347,7 @@ export class DatabaseAgent extends BaseAgent {
       const deps = await analyzeDependencies(projectFiles);
 
       // Determine ORM
-      const orm = (taskDetails.overrideOrm as ORMType) || deps.orm || "prisma";
+      const orm = validateORM(taskDetails.overrideOrm) || deps.orm || "prisma";
 
       // Generate schema using AI
       const schemaPrompt = this.buildSchemaPrompt(taskDetails, context, deps, orm);
@@ -357,7 +407,7 @@ export class DatabaseAgent extends BaseAgent {
       const projectFiles = await this.loadProjectFiles(projectId, userId);
       const deps = await analyzeDependencies(projectFiles);
 
-      const orm = (taskDetails.overrideOrm as ORMType) || deps.orm || "prisma";
+      const orm = validateORM(taskDetails.overrideOrm) || deps.orm || "prisma";
 
       // Create initializer context
       const ctx = this.createInitializerContext(projectId, userId, {
@@ -407,7 +457,7 @@ export class DatabaseAgent extends BaseAgent {
     const startTime = Date.now();
 
     try {
-      const issuesToFix = taskDetails.issuesToFix as Array<{ file: string; issue: string }> || [];
+      const issuesToFix = validateIssuesArray(taskDetails.issuesToFix);
 
       if (issuesToFix.length === 0) {
         return {
@@ -546,8 +596,9 @@ export class DatabaseAgent extends BaseAgent {
         if (result.success && (result.data as { content?: string })?.content) {
           files[filePath] = (result.data as { content: string }).content;
         }
-      } catch {
-        // File doesn't exist, skip
+      } catch (error) {
+        // File doesn't exist or read failed - expected for optional files
+        logger.debug(`[${this.config.name}] Could not read ${filePath}`, { error: toError(error).message });
       }
     }
 
@@ -569,8 +620,9 @@ export class DatabaseAgent extends BaseAgent {
           }
         }
       }
-    } catch {
-      // Context loader not available
+    } catch (error) {
+      // Context loader not available - non-critical, continue without structure
+      logger.debug(`[${this.config.name}] Context loader unavailable`, { error: toError(error).message });
     }
 
     return files;
@@ -596,8 +648,9 @@ export class DatabaseAgent extends BaseAgent {
         if (result.success && (result.data as { content?: string })?.content) {
           files[path] = (result.data as { content: string }).content;
         }
-      } catch {
-        // File doesn't exist
+      } catch (error) {
+        // File doesn't exist or read failed
+        logger.debug(`[${this.config.name}] Could not read file: ${path}`, { error: toError(error).message });
       }
     }
 

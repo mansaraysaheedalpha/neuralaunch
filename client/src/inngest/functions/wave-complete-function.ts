@@ -531,21 +531,235 @@ Test the changes live before approving this PR. The preview includes all code fr
         // No more waves - project is complete
         await step.run("mark-project-complete", async () => {
           log.info(`[Project] All waves complete! Marking project as completed`);
-          
+
           await prisma.projectContext.update({
             where: { projectId },
-            data: { 
+            data: {
               currentPhase: "completed",
               updatedAt: new Date(),
             },
           });
-
-          // TODO: Could trigger additional completion tasks here:
-          // - Generate final documentation
-          // - Merge all wave PRs into main
-          // - Send completion notification to user
-          // - Trigger production deployment (if user approved)
         });
+
+        // ==========================================
+        // PROJECT COMPLETION TASKS
+        // ==========================================
+
+        // Generate final documentation
+        await step.run("generate-final-documentation", async () => {
+          log.info(`[Project] Generating final project documentation`);
+
+          await inngest.send({
+            name: "agent/documentation.generate",
+            data: {
+              taskId: `project-${projectId}-final-docs`,
+              projectId,
+              userId,
+              conversationId,
+              taskInput: {
+                docType: "final",
+                includeApiDocs: true,
+                includeReadme: true,
+                includeChangelog: true,
+              },
+            },
+          });
+        });
+
+        // Collect all wave PRs for merging
+        const wavePRs = await step.run("collect-wave-prs", async () => {
+          const completedWaves = await prisma.executionWave.findMany({
+            where: {
+              projectId,
+              status: { in: ["completed", "completed_with_warnings"] }
+            },
+            orderBy: { waveNumber: "asc" },
+            select: { waveNumber: true },
+          });
+
+          const allPRs: Array<{ prNumber: number; prUrl: string; waveNumber: number }> = [];
+
+          for (const wave of completedWaves) {
+            const waveTasks = await prisma.agentTask.findMany({
+              where: {
+                projectId,
+                waveNumber: wave.waveNumber,
+                prNumber: { not: null },
+              },
+              select: { prNumber: true, prUrl: true },
+              distinct: ["prNumber"],
+            });
+
+            for (const task of waveTasks) {
+              if (task.prNumber && task.prUrl) {
+                allPRs.push({
+                  prNumber: task.prNumber,
+                  prUrl: task.prUrl,
+                  waveNumber: wave.waveNumber,
+                });
+              }
+            }
+          }
+
+          log.info(`[Project] Found ${allPRs.length} PRs to merge`);
+          return allPRs;
+        });
+
+        // Merge all wave PRs into main
+        if (wavePRs.length > 0) {
+          await step.run("merge-wave-prs", async () => {
+            log.info(`[Project] Merging ${wavePRs.length} wave PRs into main`);
+
+            const projectContext = await prisma.projectContext.findUnique({
+              where: { projectId },
+              select: { codebase: true },
+            });
+
+            const codebase = projectContext?.codebase as {
+              githubRepoName?: string;
+            } | null;
+            const repoName = codebase?.githubRepoName;
+
+            if (!repoName) {
+              log.warn(`[Project] No GitHub repo configured, skipping PR merge`);
+              return { merged: 0, skipped: wavePRs.length };
+            }
+
+            const user = await prisma.user.findUnique({
+              where: { id: userId },
+              select: {
+                accounts: {
+                  where: { provider: "github" },
+                  select: { access_token: true },
+                },
+              },
+            });
+
+            const githubToken = user?.accounts[0]?.access_token;
+
+            if (!githubToken) {
+              log.warn(`[Project] No GitHub token found, skipping PR merge`);
+              return { merged: 0, skipped: wavePRs.length };
+            }
+
+            const { githubAgent } = await import(
+              "@/lib/agents/github/github-agent"
+            );
+
+            let merged = 0;
+            let failed = 0;
+
+            for (const pr of wavePRs) {
+              try {
+                const mergeResult = await githubAgent.mergePullRequest({
+                  projectId,
+                  repoName,
+                  prNumber: pr.prNumber,
+                  githubToken,
+                  mergeMethod: "squash",
+                }) as { success: boolean; message?: string };
+
+                if (mergeResult.success) {
+                  merged++;
+                  log.info(`[Project] Merged PR #${pr.prNumber} (Wave ${pr.waveNumber})`);
+                } else {
+                  failed++;
+                  log.warn(`[Project] Failed to merge PR #${pr.prNumber}: ${mergeResult.message}`);
+                }
+              } catch (mergeError) {
+                failed++;
+                log.warn(`[Project] Error merging PR #${pr.prNumber}`, { error: toError(mergeError).message });
+              }
+            }
+
+            return { merged, failed };
+          });
+        }
+
+        // Send completion notification to user
+        await step.run("send-completion-notification", async () => {
+          log.info(`[Project] Sending completion notification to user`);
+
+          // Get project details for the notification
+          const project = await prisma.project.findUnique({
+            where: { id: projectId },
+            select: { name: true },
+          });
+
+          const completedWaves = await prisma.executionWave.count({
+            where: { projectId, status: { in: ["completed", "completed_with_warnings"] } },
+          });
+
+          await inngest.send({
+            name: "notification/user.notify",
+            data: {
+              userId,
+              type: "project_complete",
+              title: "Project Completed! 🎉",
+              message: `Your project "${project?.name || "Untitled"}" has been successfully completed with ${completedWaves} wave(s).`,
+              metadata: {
+                projectId,
+                totalWaves: completedWaves,
+                prsCreated: wavePRs.length,
+              },
+            },
+          });
+        });
+
+        // Check if user has approved production deployment
+        const shouldDeployProduction = await step.run("check-production-approval", async () => {
+          const projectSettings = await prisma.projectContext.findUnique({
+            where: { projectId },
+            select: { settings: true },
+          });
+
+          const settings = projectSettings?.settings as {
+            autoDeployProduction?: boolean;
+          } | null;
+
+          return settings?.autoDeployProduction === true;
+        });
+
+        // Trigger production deployment if approved
+        if (shouldDeployProduction) {
+          await step.run("trigger-production-deployment", async () => {
+            log.info(`[Project] Auto-deploying to production (user approved)`);
+
+            const projectContext = await prisma.projectContext.findUnique({
+              where: { projectId },
+              select: { architecture: true },
+            });
+
+            const architecture = projectContext?.architecture as {
+              infrastructureArchitecture?: {
+                hosting?: string;
+              };
+            } | null;
+            const platform =
+              (typeof architecture?.infrastructureArchitecture?.hosting === "string"
+                ? architecture.infrastructureArchitecture.hosting.toLowerCase()
+                : null) || "vercel";
+
+            await inngest.send({
+              name: "agent/deployment.deploy",
+              data: {
+                taskId: `deploy-project-${projectId}-production`,
+                projectId,
+                userId,
+                conversationId,
+                environment: "production" as const,
+                taskInput: {
+                  platform,
+                  environment: "production",
+                  runMigrations: true,
+                  productionBranch: "main",
+                },
+              },
+            });
+          });
+        } else {
+          log.info(`[Project] Production deployment not auto-approved, awaiting user action`);
+        }
       }
 
       return {
