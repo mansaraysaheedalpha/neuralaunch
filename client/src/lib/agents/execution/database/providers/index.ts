@@ -16,14 +16,18 @@ import type {
   DatabaseCredentials,
 } from "../types";
 
-// Provider registry
-const providers: Record<DatabaseProvider, BaseDatabaseProvider> = {
+// Provider registry - only includes implemented providers
+// MongoDB, PlanetScale, and Upstash are NOT implemented yet
+const providers: Partial<Record<DatabaseProvider, BaseDatabaseProvider>> = {
   neon: neonProvider,
   supabase: supabaseProvider,
-  mongodb: neonProvider, // Placeholder - MongoDB Atlas implementation would go here
-  planetscale: neonProvider, // Placeholder - PlanetScale implementation would go here
-  upstash: neonProvider, // Placeholder - Upstash implementation would go here
+  // mongodb: NOT IMPLEMENTED - would need MongoDB Atlas provider
+  // planetscale: NOT IMPLEMENTED - would need PlanetScale provider
+  // upstash: NOT IMPLEMENTED - would need Upstash provider
 };
+
+// Providers that are not yet implemented
+const UNIMPLEMENTED_PROVIDERS: DatabaseProvider[] = ["mongodb", "planetscale", "upstash"];
 
 // Environment variable names for provider API keys
 const PROVIDER_ENV_KEYS: Record<DatabaseProvider, string> = {
@@ -70,6 +74,12 @@ export function initializeProvider(
  * Get a provider instance
  */
 export function getProvider(provider: DatabaseProvider): BaseDatabaseProvider | null {
+  // Check if provider is not yet implemented
+  if (UNIMPLEMENTED_PROVIDERS.includes(provider)) {
+    logger.error(`[ProviderRegistry] Provider ${provider} is not yet implemented. Use 'neon' or 'supabase' instead.`);
+    return null;
+  }
+
   const providerInstance = providers[provider];
   if (!providerInstance) {
     logger.warn(`[ProviderRegistry] Unknown provider: ${provider}`);
@@ -85,9 +95,13 @@ export function getProvider(provider: DatabaseProvider): BaseDatabaseProvider | 
 }
 
 /**
- * Check if a provider is available (has API key configured)
+ * Check if a provider is available (has API key configured AND is implemented)
  */
 export function isProviderAvailable(provider: DatabaseProvider): boolean {
+  // Unimplemented providers are never available
+  if (UNIMPLEMENTED_PROVIDERS.includes(provider)) {
+    return false;
+  }
   const envKey = PROVIDER_ENV_KEYS[provider];
   const hasKey = !!(process.env as Record<string, string>)[envKey];
   return hasKey;
@@ -106,6 +120,17 @@ export function getAvailableProviders(): DatabaseProvider[] {
 export async function provisionDatabase(
   options: ProvisioningOptions
 ): Promise<ProvisioningResult> {
+  // Check for unimplemented providers first with specific error
+  if (UNIMPLEMENTED_PROVIDERS.includes(options.provider)) {
+    return {
+      success: false,
+      estimatedMonthlyCost: 0,
+      provisioningTimeMs: 0,
+      warnings: [],
+      error: `Provider '${options.provider}' is not yet implemented. Currently supported providers: neon, supabase. Please select an alternative provider.`,
+    };
+  }
+
   const provider = getProvider(options.provider);
 
   if (!provider) {

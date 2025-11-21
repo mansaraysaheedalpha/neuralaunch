@@ -202,14 +202,17 @@ export class SupabaseProvider extends BaseDatabaseProvider {
         return { success: false, error: "Missing required credentials" };
       }
 
-      // Verify Supabase URL format
-      const supabaseUrl = credentials.additionalEnvVars.SUPABASE_URL;
+      // Safely access additionalEnvVars with null check
+      const envVars = credentials.additionalEnvVars || {};
+      const supabaseUrl = envVars.SUPABASE_URL;
+
+      // Verify Supabase URL format and test connection
       if (supabaseUrl) {
         const healthUrl = `${supabaseUrl}/rest/v1/`;
         const response = await fetch(healthUrl, {
           method: "HEAD",
           headers: {
-            apikey: credentials.additionalEnvVars.SUPABASE_ANON_KEY || "",
+            apikey: envVars.SUPABASE_ANON_KEY || "",
           },
           signal: AbortSignal.timeout(10000),
         });

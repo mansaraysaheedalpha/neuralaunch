@@ -98,6 +98,28 @@ export class NeonProvider extends BaseDatabaseProvider {
       );
 
       const project = response.project;
+
+      // Validate response arrays before accessing
+      if (!response.connection_uris || response.connection_uris.length === 0) {
+        return {
+          success: false,
+          estimatedMonthlyCost: 0,
+          provisioningTimeMs: Date.now() - startTime,
+          warnings,
+          error: "Neon API returned no connection URIs. Project may have failed to initialize.",
+        };
+      }
+
+      if (!response.roles || response.roles.length === 0) {
+        return {
+          success: false,
+          estimatedMonthlyCost: 0,
+          provisioningTimeMs: Date.now() - startTime,
+          warnings,
+          error: "Neon API returned no database roles. Project may have failed to initialize.",
+        };
+      }
+
       const connectionUri = response.connection_uris[0];
       const role = response.roles.find(r => r.name !== "postgres") || response.roles[0];
 
@@ -192,9 +214,13 @@ export class NeonProvider extends BaseDatabaseProvider {
     }
   }
 
+  /**
+   * Validates credentials format (does NOT test actual database connectivity).
+   * Note: Actual connection testing would require a PostgreSQL client (pg).
+   * This method only validates that the credentials have the expected format.
+   */
   testConnection(credentials: DatabaseCredentials): { success: boolean; latencyMs?: number; error?: string } {
     try {
-      // Verify credentials format (actual connection testing would require pg client)
       const startTime = Date.now();
 
       // Verify required fields
@@ -205,6 +231,11 @@ export class NeonProvider extends BaseDatabaseProvider {
       // Verify host format (should be *.neon.tech)
       if (!credentials.host.includes(".neon.tech")) {
         return { success: false, error: "Invalid Neon host format" };
+      }
+
+      // Verify connection string exists
+      if (!credentials.connectionString) {
+        return { success: false, error: "Missing connection string" };
       }
 
       const latencyMs = Date.now() - startTime;

@@ -367,6 +367,7 @@ const rawSqlInitializer: OrmInitializer = {
   async initialize(ctx: InitializerContext): Promise<MigrationResult> {
     const startTime = Date.now();
     const migrationsRun: string[] = [];
+    const errors: string[] = [];
 
     try {
       logger.info("[RawSQLInitializer] Running SQL files");
@@ -383,21 +384,57 @@ const rawSqlInitializer: OrmInitializer = {
         "migrations/001_init.sql",
       ];
 
+      let sqlFilesFound = false;
+
       for (const sqlPath of sqlPaths) {
         const sqlFile = await ctx.readFile(sqlPath);
         if (sqlFile.success && sqlFile.content) {
-          // Execute SQL using psql or similar
-          // Note: This requires the database client to be available
-          logger.info(`[RawSQLInitializer] Found SQL file: ${sqlPath}`);
-          migrationsRun.push(`SQL: ${sqlPath}`);
+          sqlFilesFound = true;
+          logger.info(`[RawSQLInitializer] Executing SQL file: ${sqlPath}`);
+
+          // Execute SQL using psql command with DATABASE_URL
+          // The command reads from stdin, so we pipe the SQL content
+          const execResult = await ctx.executeCommand(
+            `psql "${ctx.credentials.connectionString}" -f "${sqlPath}"`
+          );
+
+          if (execResult.success) {
+            migrationsRun.push(`Executed: ${sqlPath}`);
+            logger.info(`[RawSQLInitializer] Successfully executed: ${sqlPath}`);
+          } else {
+            // Try alternative: use node-postgres via npx if psql not available
+            const altResult = await ctx.executeCommand(
+              `npx ts-node -e "
+                const { Client } = require('pg');
+                const fs = require('fs');
+                const sql = fs.readFileSync('${sqlPath}', 'utf8');
+                const client = new Client({ connectionString: process.env.DATABASE_URL });
+                client.connect().then(() => client.query(sql)).then(() => client.end()).catch(e => { console.error(e); process.exit(1); });
+              "`
+            );
+
+            if (altResult.success) {
+              migrationsRun.push(`Executed: ${sqlPath}`);
+              logger.info(`[RawSQLInitializer] Successfully executed via node: ${sqlPath}`);
+            } else {
+              errors.push(`Failed to execute ${sqlPath}: ${execResult.stderr || altResult.stderr}`);
+              logger.warn(`[RawSQLInitializer] Failed to execute: ${sqlPath}`, { error: execResult.stderr });
+            }
+          }
         }
       }
 
+      if (!sqlFilesFound) {
+        logger.info("[RawSQLInitializer] No SQL files found, skipping initialization");
+        migrationsRun.push("No SQL files found - environment configured only");
+      }
+
       return {
-        success: true,
+        success: errors.length === 0,
         migrationsRun,
         tablesCreated: [],
         duration: Date.now() - startTime,
+        error: errors.length > 0 ? errors.join("; ") : undefined,
       };
     } catch (error) {
       return {
