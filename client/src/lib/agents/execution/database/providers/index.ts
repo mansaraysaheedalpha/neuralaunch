@@ -29,8 +29,8 @@ const providers: Record<DatabaseProvider, BaseDatabaseProvider> = {
 // Environment variable names for provider API keys
 const PROVIDER_ENV_KEYS: Record<DatabaseProvider, string> = {
   neon: "NEON_API_KEY",
-  supabase: "SUPABASE_SERVICE_ROLE_KEY",
-  mongodb: "MONGODB_ATLAS_API_KEY",
+  supabase: "SUPABASE_API_KEY", // Matches env.ts definition
+  mongodb: "MONGODB_ATLAS_PUBLIC_KEY", // Matches env.ts definition
   planetscale: "PLANETSCALE_API_KEY",
   upstash: "UPSTASH_REDIS_REST_TOKEN",
 };
