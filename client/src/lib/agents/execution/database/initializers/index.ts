@@ -231,7 +231,7 @@ const drizzleInitializer: OrmInitializer = {
     }
   },
 
-  generateClient(_ctx: InitializerContext): { success: boolean; error?: string } {
+  async generateClient(_ctx: InitializerContext): Promise<{ success: boolean; error?: string }> {
     // Drizzle doesn't have a separate client generation step
     return { success: true };
   },
@@ -410,7 +410,7 @@ const rawSqlInitializer: OrmInitializer = {
     }
   },
 
-  generateClient(_ctx: InitializerContext): { success: boolean; error?: string } {
+  async generateClient(_ctx: InitializerContext): Promise<{ success: boolean; error?: string }> {
     return { success: true };
   },
 };
