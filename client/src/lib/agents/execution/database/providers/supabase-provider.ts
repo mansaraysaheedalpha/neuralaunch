@@ -110,7 +110,7 @@ export class SupabaseProvider extends BaseDatabaseProvider {
         );
         anonKey = keysResponse.anon_key;
         serviceRoleKey = keysResponse.service_role_key;
-      } catch (e) {
+      } catch {
         warnings.push("Could not retrieve API keys automatically");
       }
 

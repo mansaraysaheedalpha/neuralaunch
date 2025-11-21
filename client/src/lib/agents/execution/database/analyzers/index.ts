@@ -15,62 +15,6 @@ import type {
   StorageEstimate,
 } from "../types";
 
-// Provider selection rules
-const PROVIDER_SELECTION_RULES: Array<{
-  condition: (req: { deps: ReturnType<typeof analyzeDependencies>; features: ReturnType<typeof analyzeFeatures> }) => boolean;
-  provider: DatabaseProvider;
-  priority: number;
-  reason: string;
-}> = [
-  {
-    // MongoDB detected
-    condition: ({ deps }) =>
-      deps.then(d => d.databaseDependencies.some(dep => dep.includes('mongo'))).catch(() => false) as unknown as boolean,
-    provider: 'mongodb',
-    priority: 100,
-    reason: 'MongoDB dependencies detected',
-  },
-  {
-    // Redis/caching detected
-    condition: ({ features }) =>
-      features.then(f => f.needsCaching).catch(() => false) as unknown as boolean,
-    provider: 'upstash',
-    priority: 90,
-    reason: 'Caching layer needed',
-  },
-  {
-    // Realtime + Auth detected -> Supabase
-    condition: ({ features }) =>
-      features.then(f => f.needsRealtime && f.needsAuth).catch(() => false) as unknown as boolean,
-    provider: 'supabase',
-    priority: 85,
-    reason: 'Realtime and auth features needed',
-  },
-  {
-    // Just Auth detected -> Supabase
-    condition: ({ features }) =>
-      features.then(f => f.needsAuth && !f.needsVectorSearch).catch(() => false) as unknown as boolean,
-    provider: 'supabase',
-    priority: 70,
-    reason: 'Built-in auth needed',
-  },
-  {
-    // MySQL explicitly detected
-    condition: ({ deps }) =>
-      deps.then(d => d.databaseDependencies.some(dep => dep.includes('mysql'))).catch(() => false) as unknown as boolean,
-    provider: 'planetscale',
-    priority: 80,
-    reason: 'MySQL dependencies detected',
-  },
-  {
-    // Default: Neon PostgreSQL
-    condition: () => true,
-    provider: 'neon',
-    priority: 0,
-    reason: 'Default PostgreSQL provider (serverless, generous free tier)',
-  },
-];
-
 /**
  * Analyze project dependencies
  */

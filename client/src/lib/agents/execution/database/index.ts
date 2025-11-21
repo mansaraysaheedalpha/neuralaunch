@@ -17,24 +17,19 @@ import { logger } from "@/lib/logger";
 import { toError } from "@/lib/error-utils";
 
 // Import sub-modules
-import { analyzeProject, analyzeDependencies, analyzeFeatures } from "./analyzers";
+import { analyzeProject, analyzeDependencies } from "./analyzers";
 import {
   provisionDatabase,
   deleteDatabase,
   testConnection,
-  getProviderRecommendation,
   isProviderAvailable,
   getAvailableProviders,
   initializeProvider,
 } from "./providers";
-import { initializeDatabase, autoDetectAndInitialize, type InitializerContext } from "./initializers";
+import { initializeDatabase, type InitializerContext } from "./initializers";
 import type {
-  DatabaseAgentOutput,
-  DatabaseRequirements,
   DatabaseCredentials,
-  ProvisioningResult,
   RollbackPlan,
-  RollbackStep,
   DatabaseProvider,
   ORMType,
   MigrationResult,

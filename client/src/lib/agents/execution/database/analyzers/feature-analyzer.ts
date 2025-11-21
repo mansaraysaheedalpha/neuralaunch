@@ -95,7 +95,7 @@ export class FeatureAnalyzer {
   /**
    * Analyze project files to detect required database features
    */
-  async analyze(projectFiles: Record<string, string>): Promise<FeatureRequirements> {
+  analyze(projectFiles: Record<string, string>): FeatureRequirements {
     logger.info(`[${this.name}] Starting feature analysis`);
 
     const requirements: FeatureRequirements = {

@@ -5,7 +5,6 @@
  */
 
 import { logger } from "@/lib/logger";
-import { env } from "@/lib/env";
 import { BaseDatabaseProvider } from "./base-provider";
 import { neonProvider } from "./neon-provider";
 import { supabaseProvider } from "./supabase-provider";

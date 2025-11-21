@@ -192,17 +192,10 @@ export class NeonProvider extends BaseDatabaseProvider {
     }
   }
 
-  async testConnection(credentials: DatabaseCredentials): Promise<{ success: boolean; latencyMs?: number; error?: string }> {
+  testConnection(credentials: DatabaseCredentials): { success: boolean; latencyMs?: number; error?: string } {
     try {
-      // Use a simple HTTP endpoint to test if the host is reachable
-      // For actual connection testing, we'd use pg client but that requires the module
+      // Verify credentials format (actual connection testing would require pg client)
       const startTime = Date.now();
-
-      // Neon provides a health check endpoint
-      const healthUrl = `https://${credentials.host}:5432`;
-
-      // We can't directly test PostgreSQL from browser/serverless
-      // Instead, we'll verify the credentials format and trust Neon's provisioning
 
       // Verify required fields
       if (!credentials.host || !credentials.password || !credentials.database) {

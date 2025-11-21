@@ -46,7 +46,7 @@ export class DependencyAnalyzer {
   /**
    * Analyze project dependencies to detect database requirements
    */
-  async analyze(projectFiles: Record<string, string>): Promise<DependencyAnalysis> {
+  analyze(projectFiles: Record<string, string>): DependencyAnalysis {
     logger.info(`[${this.name}] Starting dependency analysis`);
 
     const result: DependencyAnalysis = {
