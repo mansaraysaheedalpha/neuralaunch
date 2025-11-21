@@ -140,8 +140,8 @@ export class DependencyAnalyzer {
     if (!content) return null;
 
     try {
-      return JSON.parse(content);
-    } catch (e) {
+      return JSON.parse(content) as Record<string, unknown>;
+    } catch {
       logger.warn(`[${this.name}] Failed to parse package.json`);
       return null;
     }

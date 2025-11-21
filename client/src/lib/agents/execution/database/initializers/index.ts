@@ -231,9 +231,9 @@ const drizzleInitializer: OrmInitializer = {
     }
   },
 
-  async generateClient(_ctx: InitializerContext): Promise<{ success: boolean; error?: string }> {
+  generateClient(_ctx: InitializerContext): Promise<{ success: boolean; error?: string }> {
     // Drizzle doesn't have a separate client generation step
-    return { success: true };
+    return Promise.resolve({ success: true });
   },
 };
 
@@ -295,8 +295,8 @@ const typeormInitializer: OrmInitializer = {
     }
   },
 
-  async generateClient(_ctx: InitializerContext): Promise<{ success: boolean; error?: string }> {
-    return { success: true };
+  generateClient(_ctx: InitializerContext): Promise<{ success: boolean; error?: string }> {
+    return Promise.resolve({ success: true });
   },
 };
 
@@ -345,8 +345,8 @@ DATABASE_URL="${ctx.credentials.connectionString}"
     }
   },
 
-  async generateClient(_ctx: InitializerContext): Promise<{ success: boolean; error?: string }> {
-    return { success: true };
+  generateClient(_ctx: InitializerContext): Promise<{ success: boolean; error?: string }> {
+    return Promise.resolve({ success: true });
   },
 };
 
@@ -410,8 +410,8 @@ const rawSqlInitializer: OrmInitializer = {
     }
   },
 
-  async generateClient(_ctx: InitializerContext): Promise<{ success: boolean; error?: string }> {
-    return { success: true };
+  generateClient(_ctx: InitializerContext): Promise<{ success: boolean; error?: string }> {
+    return Promise.resolve({ success: true });
   },
 };
 

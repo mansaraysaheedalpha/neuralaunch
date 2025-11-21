@@ -18,17 +18,17 @@ import type {
 /**
  * Analyze project dependencies
  */
-export async function analyzeDependencies(
+export function analyzeDependencies(
   projectFiles: Record<string, string>
 ) {
-  return dependencyAnalyzer.analyze(projectFiles);
+  return Promise.resolve(dependencyAnalyzer.analyze(projectFiles));
 }
 
 /**
  * Analyze project features
  */
-export async function analyzeFeatures(projectFiles: Record<string, string>) {
-  return featureAnalyzer.analyze(projectFiles);
+export function analyzeFeatures(projectFiles: Record<string, string>) {
+  return Promise.resolve(featureAnalyzer.analyze(projectFiles));
 }
 
 /**
@@ -36,7 +36,7 @@ export async function analyzeFeatures(projectFiles: Record<string, string>) {
  */
 export function estimateStorage(
   projectFiles: Record<string, string>,
-  deps: Awaited<ReturnType<typeof analyzeDependencies>>
+  _deps: Awaited<ReturnType<typeof analyzeDependencies>>
 ): StorageEstimate {
   let modelCount = 0;
   let complexityScore = 0;

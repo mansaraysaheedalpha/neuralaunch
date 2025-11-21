@@ -74,7 +74,7 @@ export class DatabaseAgent extends BaseAgent {
    * Main task execution method
    */
   async executeTask(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
-    const { taskId, projectId, userId, taskDetails, context } = input;
+    const { taskId, taskDetails } = input;
     const startTime = Date.now();
 
     // Reset rollback plan
@@ -360,7 +360,7 @@ export class DatabaseAgent extends BaseAgent {
       const orm = (taskDetails.overrideOrm as ORMType) || deps.orm || "prisma";
 
       // Create initializer context
-      const ctx = await this.createInitializerContext(projectId, userId, {
+      const ctx = this.createInitializerContext(projectId, userId, {
         provider: "neon",
         databaseType: "postgresql",
         host: "",
@@ -611,7 +611,7 @@ export class DatabaseAgent extends BaseAgent {
     projectId: string,
     userId: string,
     credentials: DatabaseCredentials,
-    orm: ORMType
+    _orm: ORMType
   ): Promise<{ success: boolean; filesCreated?: Array<{ path: string; linesOfCode: number }>; filesModified?: string[]; error?: string }> {
     const filesCreated: Array<{ path: string; linesOfCode: number }> = [];
     const filesModified: string[] = [];
@@ -690,7 +690,7 @@ DATABASE_URL="your-database-url-here"
     orm: ORMType
   ): Promise<MigrationResult> {
     try {
-      const ctx = await this.createInitializerContext(projectId, userId, credentials);
+      const ctx = this.createInitializerContext(projectId, userId, credentials);
       return await initializeDatabase(orm, ctx);
     } catch (error) {
       return {
@@ -706,11 +706,11 @@ DATABASE_URL="your-database-url-here"
   /**
    * Create initializer context
    */
-  private async createInitializerContext(
+  private createInitializerContext(
     projectId: string,
     userId: string,
     credentials: DatabaseCredentials
-  ): Promise<InitializerContext> {
+  ): InitializerContext {
     return {
       projectId,
       userId,
@@ -766,9 +766,9 @@ DATABASE_URL="your-database-url-here"
     try {
       const packageJson = files["package.json"];
       if (packageJson) {
-        const parsed = JSON.parse(packageJson);
+        const parsed = JSON.parse(packageJson) as { name?: string };
         if (parsed.name) {
-          return parsed.name;
+          return String(parsed.name);
         }
       }
     } catch {
@@ -870,7 +870,7 @@ Respond with a JSON object:
   private buildFixPrompt(
     issues: Array<{ file: string; issue: string }>,
     existingFiles: Record<string, string>,
-    context: AgentExecutionInput["context"]
+    _context: AgentExecutionInput["context"]
   ): string {
     return `You are a database expert. Fix the following issues:
 
@@ -902,7 +902,7 @@ ${Object.entries(existingFiles).map(([path, content]) => `## ${path}\n\`\`\`\n${
     try {
       const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
       const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-      return JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);
+      return JSON.parse(jsonMatch ? jsonMatch[0] : cleaned) as { files: Array<{ path: string; content: string }>; explanation: string };
     } catch {
       return null;
     }

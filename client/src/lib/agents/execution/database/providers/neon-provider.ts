@@ -129,7 +129,7 @@ export class NeonProvider extends BaseDatabaseProvider {
       }
 
       // Test connection
-      const testResult = await this.testConnection(credentials);
+      const testResult = this.testConnection(credentials);
       if (!testResult.success) {
         warnings.push(`Connection test failed: ${testResult.error}`);
       }
