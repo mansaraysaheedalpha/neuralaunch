@@ -1,5 +1,5 @@
 //src\inngest\functions\database-agent-function.ts
-import { databaseAgent } from "@/lib/agents/execution/database-agent";
+import { databaseAgent } from "@/lib/agents/execution/database";
 import { inngest } from "../client";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
@@ -7,7 +7,7 @@ import { githubAgent } from "@/lib/agents/github/github-agent";
 import { createAgentError } from "@/lib/error-utils";
 import { env } from "@/lib/env";
 import type { Prisma } from "@prisma/client";
-import type { ProjectContext } from "@/lib/agents/types/common";
+import type { ProjectContext, TechStack } from "@/lib/agents/types/common";
 
 // Type definitions
 interface TaskInput {
@@ -66,11 +66,19 @@ export const databaseAgentFunction = inngest.createFunction(
           throw new Error(`Project ${projectId} not found`);
         }
 
-        return {
-          techStack: context.techStack,
-          architecture: context.architecture,
-          codebase: context.codebase,
+        // Build a properly typed ProjectContext
+        const techStack = context.techStack as TechStack | null;
+        const architecture = context.architecture as Record<string, unknown> | null;
+        const codebase = context.codebase as Record<string, unknown> | null;
+
+        const projectCtx: ProjectContext = {
+          techStack: techStack || undefined,
+          architecture: architecture || undefined,
+          // Store codebase info in the context for other uses
+          _codebase: codebase || undefined,
         };
+
+        return { projectCtx, codebase };
       });
 
       // Step 3: Initialize Git if needed
@@ -128,7 +136,7 @@ export const databaseAgentFunction = inngest.createFunction(
           userId,
           conversationId,
           taskDetails: task.input as TaskInput,
-          context: projectContext as Partial<ProjectContext>,
+          context: projectContext.projectCtx,
         });
       });
 
@@ -181,7 +189,7 @@ export const databaseAgentFunction = inngest.createFunction(
 
       // Step 8: Push to GitHub & Create PR
       type GithubInfo = { githubRepoUrl?: string; githubRepoName?: string };
-      const githubInfo = projectContext.codebase as GithubInfo;
+      const githubInfo = projectContext.codebase as GithubInfo | null;
 
       if (
         githubInfo &&
