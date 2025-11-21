@@ -357,9 +357,7 @@ export const waveStartFunction = inngest.createFunction(
 
             // Trigger task
             await inngest.send({
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
               name: eventName as never,
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
               data: {
                 taskId: task.id,
                 projectId,

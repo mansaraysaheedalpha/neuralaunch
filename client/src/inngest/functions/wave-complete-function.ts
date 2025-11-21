@@ -691,7 +691,7 @@ Test the changes live before approving this PR. The preview includes all code fr
           });
 
           await inngest.send({
-            name: "notification/user.notify",
+            name: "notification/user.notify" as const,
             data: {
               userId,
               type: "project_complete",
@@ -708,16 +708,19 @@ Test the changes live before approving this PR. The preview includes all code fr
 
         // Check if user has approved production deployment
         const shouldDeployProduction = await step.run("check-production-approval", async () => {
-          const projectSettings = await prisma.projectContext.findUnique({
+          const projectContext = await prisma.projectContext.findUnique({
             where: { projectId },
-            select: { settings: true },
+            select: { codebase: true },
           });
 
-          const settings = projectSettings?.settings as {
-            autoDeployProduction?: boolean;
+          // Check codebase JSON field for deployment settings
+          const codebase = projectContext?.codebase as {
+            deploymentSettings?: {
+              autoDeployProduction?: boolean;
+            };
           } | null;
 
-          return settings?.autoDeployProduction === true;
+          return codebase?.deploymentSettings?.autoDeployProduction === true;
         });
 
         // Trigger production deployment if approved

@@ -412,7 +412,7 @@ Generate the fixed infrastructure configurations now.
           .join("\n\n");
         return `\n**🔍 DEVOPS RESEARCH (Best Practices):**\n${summary}\n`;
       }
-    } catch (_e) {
+    } catch {
       logger.warn(`[${this.config.name}] Research failed, using defaults.`);
     }
     return null;

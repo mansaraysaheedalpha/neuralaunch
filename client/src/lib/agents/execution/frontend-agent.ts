@@ -667,7 +667,7 @@ Type Safety:
           .join("\n\n");
         return `\n**🔍 RESEARCH NOTES:**\n${summary}\n`;
       }
-    } catch (e) {
+    } catch {
       logger.warn(`[${this.config.name}] Research failed.`);
     }
     return null;
@@ -1121,7 +1121,7 @@ export default function UserCard(props: UserCardProps) {
         commands: string[];
         explanation: string;
       };
-    } catch (_e) {
+    } catch {
       return null;
     }
   }

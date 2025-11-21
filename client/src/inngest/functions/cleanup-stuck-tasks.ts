@@ -72,7 +72,7 @@ export const cleanupStuckTasks = inngest.createFunction(
               },
               data: { status: "failed" },
             });
-          } catch (_e) {
+          } catch {
             // Wave might not exist or already be failed, ignore
           }
         }

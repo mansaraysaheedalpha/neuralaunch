@@ -524,7 +524,7 @@ export class ContextLoaderTool extends BaseTool {
         !Array.isArray(parsed)
         ? (parsed as Record<string, unknown>)
         : null;
-    } catch (_error) {
+    } catch {
       // Silent fail on parse error
       return null;
     }
@@ -604,7 +604,7 @@ export class ContextLoaderTool extends BaseTool {
     try {
       const matcher = new RegExp(`^${regexBody}$`);
       return (filePath: string) => matcher.test(filePath);
-    } catch (_error) {
+    } catch {
       return null;
     }
   }

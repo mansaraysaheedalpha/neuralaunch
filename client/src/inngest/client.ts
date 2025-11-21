@@ -464,6 +464,20 @@ export type AgentEvents = {
       error?: string;
     };
   };
+
+  // ==========================================
+  // NOTIFICATION EVENTS
+  // ==========================================
+
+  "notification/user.notify": {
+    data: {
+      userId: string;
+      type: string;
+      title: string;
+      message: string;
+      metadata?: Record<string, unknown>;
+    };
+  };
 };
 
 // Create the Inngest client

@@ -151,7 +151,7 @@ export class NeonProvider extends BaseDatabaseProvider {
       }
 
       // Test connection
-      const testResult = this.testConnection(credentials);
+      const testResult = await this.testConnection(credentials);
       if (!testResult.success) {
         warnings.push(`Connection test failed: ${testResult.error}`);
       }
@@ -219,36 +219,36 @@ export class NeonProvider extends BaseDatabaseProvider {
    * Note: Actual connection testing would require a PostgreSQL client (pg).
    * This method only validates that the credentials have the expected format.
    */
-  testConnection(credentials: DatabaseCredentials): { success: boolean; latencyMs?: number; error?: string } {
+  testConnection(credentials: DatabaseCredentials): Promise<{ success: boolean; latencyMs?: number; error?: string }> {
     try {
       const startTime = Date.now();
 
       // Verify required fields
       if (!credentials.host || !credentials.password || !credentials.database) {
-        return { success: false, error: "Missing required credentials" };
+        return Promise.resolve({ success: false, error: "Missing required credentials" });
       }
 
       // Verify host format (should be *.neon.tech)
       if (!credentials.host.includes(".neon.tech")) {
-        return { success: false, error: "Invalid Neon host format" };
+        return Promise.resolve({ success: false, error: "Invalid Neon host format" });
       }
 
       // Verify connection string exists
       if (!credentials.connectionString) {
-        return { success: false, error: "Missing connection string" };
+        return Promise.resolve({ success: false, error: "Missing connection string" });
       }
 
       const latencyMs = Date.now() - startTime;
 
-      return {
+      return Promise.resolve({
         success: true,
         latencyMs,
-      };
+      });
     } catch (error) {
-      return {
+      return Promise.resolve({
         success: false,
         error: error instanceof Error ? error.message : String(error),
-      };
+      });
     }
   }
 
