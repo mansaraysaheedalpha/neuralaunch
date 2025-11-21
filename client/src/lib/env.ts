@@ -137,6 +137,16 @@ const envSchema = z.object({
   NETLIFY_AUTH_TOKEN: z.string().optional(),
   DIGITALOCEAN_TOKEN: z.string().optional(),
 
+  // Database Providers (all optional - at least one recommended for auto-provisioning)
+  NEON_API_KEY: z.string().optional(), // Neon PostgreSQL (default, serverless)
+  SUPABASE_API_KEY: z.string().optional(), // Supabase Management API key
+  SUPABASE_ORG_ID: z.string().optional(), // Supabase organization ID for project creation
+  MONGODB_ATLAS_PUBLIC_KEY: z.string().optional(), // MongoDB Atlas API public key
+  MONGODB_ATLAS_PRIVATE_KEY: z.string().optional(), // MongoDB Atlas API private key
+  MONGODB_ATLAS_PROJECT_ID: z.string().optional(), // MongoDB Atlas project ID
+  PLANETSCALE_API_KEY: z.string().optional(), // PlanetScale API key
+  PLANETSCALE_ORG_ID: z.string().optional(), // PlanetScale organization ID
+
   // Public Environment Variables
   NEXT_PUBLIC_APP_URL: z.string().url().optional(),
   NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
