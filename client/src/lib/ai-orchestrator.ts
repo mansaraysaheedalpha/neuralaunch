@@ -508,6 +508,7 @@ async function callClaude(
     }
 
     // ✅ Wrap non-streaming call with retry logic
+    // ✅ PROMPT CACHING: Use cached system prompt for 90% cost reduction
     const response = await retryWithBackoff(
       () =>
         withTimeout(
@@ -515,7 +516,15 @@ async function callClaude(
             model: modelId,
             max_tokens: 16384,
             messages: claudeMessages,
-            ...(systemPrompt && { system: systemPrompt }),
+            ...(systemPrompt && {
+              system: [
+                {
+                  type: "text" as const,
+                  text: systemPrompt,
+                  cache_control: { type: "ephemeral" as const },
+                },
+              ],
+            }),
           }),
           600000,
           `Claude generation (${modelId})`

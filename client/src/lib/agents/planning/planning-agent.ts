@@ -653,9 +653,16 @@ BEGIN:`;
       if (!this.anthropic) {
         throw new Error("Anthropic client is not initialized.");
       }
+      // ✅ PROMPT CACHING: Cache system prompt for cost reduction
       const response = await this.anthropic.messages.create({
         model: AI_MODELS.CLAUDE,
-        system: systemPrompt,
+        system: [
+          {
+            type: "text" as const,
+            text: systemPrompt,
+            cache_control: { type: "ephemeral" as const },
+          },
+        ],
         messages: [
           {
             role: "user",

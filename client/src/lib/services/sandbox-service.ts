@@ -10,7 +10,7 @@ import { env } from "../env"; // Use validated env
 // --- CONFIGURATION ---
 const IS_PRODUCTION = env.NODE_ENV === "production";
 const SANDBOX_IMAGE_NAME =
-  "us-central1-docker.pkg.dev/gen-lang-client-0239783733/neuralaunch-images/neuralaunch-sandbox:v9";
+  "us-central1-docker.pkg.dev/gen-lang-client-0239783733/neuralaunch-images/neuralaunch-sandbox:v8";
 const SANDBOX_INTERNAL_PORT = "8080";
 const WORKSPACE_DIR_INSIDE_CONTAINER = "/workspace";
 
@@ -211,7 +211,9 @@ class SandboxServiceClass {
           }
         } else {
           // --- DEVELOPMENT: Check existing container ---
-          const portBindings = inspectData.HostConfig.PortBindings as Record<string, Array<{ HostPort: string }>> | undefined;
+          const portBindings = inspectData.HostConfig.PortBindings as
+            | Record<string, Array<{ HostPort: string }>>
+            | undefined;
           const devHostPort =
             portBindings?.[`${SANDBOX_INTERNAL_PORT}/tcp`]?.[0]?.HostPort;
           if (inspectData.State.Running && devHostPort) {
@@ -265,7 +267,9 @@ class SandboxServiceClass {
             // Wait before retry (except on last attempt) - exponential backoff
             if (attempt < maxRetries) {
               const backoff = retryDelay * attempt; // 3s, 6s, 9s, 12s
-              logger.info(`[SandboxService] Waiting ${backoff}ms before retry...`);
+              logger.info(
+                `[SandboxService] Waiting ${backoff}ms before retry...`
+              );
               await new Promise((resolve) => setTimeout(resolve, backoff));
             }
           }
@@ -273,14 +277,14 @@ class SandboxServiceClass {
           // ⚠️ CRITICAL CHANGE: Don't recreate on health check failure
           // Let the task fail gracefully rather than triggering container recreation death spiral
           if (!healthy) {
-            const errorMsg = `Sandbox container exists but is not responding to health checks after ${maxRetries} attempts (total ${maxRetries * retryDelay / 1000}s with exponential backoff). The container may be: (1) Still booting (heavy image with many runtimes), (2) Crashed/unhealthy, or (3) Network unreachable. Container ID: ${project.sandboxContainerId}`;
+            const errorMsg = `Sandbox container exists but is not responding to health checks after ${maxRetries} attempts (total ${(maxRetries * retryDelay) / 1000}s with exponential backoff). The container may be: (1) Still booting (heavy image with many runtimes), (2) Crashed/unhealthy, or (3) Network unreachable. Container ID: ${project.sandboxContainerId}`;
 
-            logger.error(
-              `[SandboxService] ${errorMsg}`
-            );
+            logger.error(`[SandboxService] ${errorMsg}`);
 
             // Create a special error type that won't trigger recreation
-            const error: Error & { skipRecreation?: boolean } = new Error(errorMsg);
+            const error: Error & { skipRecreation?: boolean } = new Error(
+              errorMsg
+            );
             error.skipRecreation = true;
             throw error;
           }
@@ -402,28 +406,36 @@ class SandboxServiceClass {
 
           // Create and store the pull promise to prevent concurrent pulls
           this.pullInProgress = (async () => {
-            logger.info(`[SandboxService] Pulling image: ${SANDBOX_IMAGE_NAME}`);
+            logger.info(
+              `[SandboxService] Pulling image: ${SANDBOX_IMAGE_NAME}`
+            );
 
             try {
               await new Promise<void>((resolve, reject) => {
                 // Pass pullOptions directly to docker.pull
-                this.docker.pull(SANDBOX_IMAGE_NAME, pullOptions, (err, stream) => {
-                  if (err)
-                    return reject(
-                      err instanceof Error ? err : new Error(String(err))
-                    );
-                  if (!stream)
-                    return reject(new Error("No stream returned from docker.pull"));
-
-                  // We must wait for the stream to end to know the pull is complete
-                  this.docker.modem.followProgress(stream, (err, _res) => {
+                this.docker.pull(
+                  SANDBOX_IMAGE_NAME,
+                  pullOptions,
+                  (err, stream) => {
                     if (err)
                       return reject(
                         err instanceof Error ? err : new Error(String(err))
                       );
-                    resolve();
-                  });
-                });
+                    if (!stream)
+                      return reject(
+                        new Error("No stream returned from docker.pull")
+                      );
+
+                    // We must wait for the stream to end to know the pull is complete
+                    this.docker.modem.followProgress(stream, (err, _res) => {
+                      if (err)
+                        return reject(
+                          err instanceof Error ? err : new Error(String(err))
+                        );
+                      resolve();
+                    });
+                  }
+                );
               });
               logger.info(`[SandboxService] Successfully pulled latest image.`);
               this.imageVerified = true;
@@ -445,9 +457,7 @@ class SandboxServiceClass {
           }
         }
       } else {
-        logger.info(
-          `[SandboxService] Image already verified, skipping pull.`
-        );
+        logger.info(`[SandboxService] Image already verified, skipping pull.`);
       }
 
       const containerConfig: Docker.ContainerCreateOptions = {
@@ -539,7 +549,10 @@ class SandboxServiceClass {
         healthCheckAttempt++;
 
         // Exponential backoff: 1s, 2s, 4s, 8s, 10s (capped), 10s, ...
-        const delay = Math.min(baseDelay * Math.pow(2, healthCheckAttempt - 1), maxDelay);
+        const delay = Math.min(
+          baseDelay * Math.pow(2, healthCheckAttempt - 1),
+          maxDelay
+        );
         await new Promise((resolve) => setTimeout(resolve, delay));
         totalWaitTime += delay;
 

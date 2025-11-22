@@ -866,10 +866,21 @@ export abstract class BaseAgent {
             if (!this.anthropic) {
               throw new Error("Anthropic client not initialized");
             }
+            // ✅ PROMPT CACHING: Cache system instruction for 90% cost reduction on repeated calls
+            // System prompt is converted to array format with cache_control for caching
+            // Cache is refreshed on each use (5-minute TTL by default)
             const responsePromise = this.anthropic.messages.create({
               model: this.selectedModel,
               max_tokens: 16384, // ✅ INCREASED: 16K tokens for large responses (database schemas, etc.)
-              system: systemInstruction,
+              ...(systemInstruction && {
+                system: [
+                  {
+                    type: "text" as const,
+                    text: systemInstruction,
+                    cache_control: { type: "ephemeral" as const },
+                  },
+                ],
+              }),
               messages,
               tools,
             });

@@ -25,7 +25,7 @@ import type {
   CreateBranchResult,
   DeleteBranchOptions,
   DeleteBranchResult,
-  DatabaseBranch,
+  // DatabaseBranch - Currently unused, keeping import for future use
   BranchInfo,
 } from "../types";
 
@@ -65,7 +65,8 @@ interface NeonBranchResponse {
   }>;
 }
 
-interface NeonEndpointResponse {
+// NeonEndpointResponse - Currently unused, keeping for future use
+interface _NeonEndpointResponse {
   endpoint: {
     id: string;
     host: string;

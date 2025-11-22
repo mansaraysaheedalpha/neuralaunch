@@ -96,13 +96,14 @@ export async function GET(
         };
 
     // 7. Determine active agents (for execution phase only)
+    // ✅ FIX: Check for both lowercase and uppercase status values
     let activeAgents: string[] = [];
     if (isExecutionPhase(currentPhase)) {
-      // Get currently running tasks
+      // Get currently running tasks - check both "in_progress" and "IN_PROGRESS"
       const activeTasks = await prisma.agentTask.findMany({
         where: {
           projectId,
-          status: "in_progress",
+          status: { in: ["in_progress", "IN_PROGRESS"] },
         },
         select: {
           agentName: true,

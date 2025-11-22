@@ -109,6 +109,9 @@ interface OrchestratorStatus {
   currentPhase?: string;
   currentAgent?: string;
   completedPhases?: string[];
+  isExecuting?: boolean;  // ✅ Added: Flag from API indicating execution phase
+  isPlanning?: boolean;
+  isPlanReview?: boolean;
 }
 
 const fetcher = async <T = unknown>(url: string): Promise<T> => {
@@ -213,10 +216,15 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
       ? String(currentAgentRaw.name)
       : undefined;
 
+      // ✅ FIX: Use API's isExecuting flag OR project status to determine execution state
       const isExecuting =
-        project.status === "executing" || project.status === "completed";
-        const showPipeline =
-          (isInPlanningPhase || isPlanReview) && !isExecuting;
+        status?.isExecuting === true ||
+        project.status === "executing" ||
+        project.status === "completed";
+
+      // ✅ FIX: Show pipeline ONLY during planning phase when NOT executing
+      // Once execution starts (user clicks "Start Execution"), show AgentGrid instead
+      const showPipeline = isInPlanningPhase && !isExecuting;
 
   // Calculate progress percentage for visual indicator
   const progressPercent = Math.round(progress);
@@ -432,7 +440,8 @@ export default function ExecutionDashboardPage({ params }: ExecutionPageProps) {
             )}
 
             {/* Agent Grid - Execution Phase */}
-            {(isExecuting || (!isInPlanningPhase && !isPlanReview)) && totalTasks > 0 && (
+            {/* ✅ FIX: Show AgentGrid when executing OR when not in planning phase */}
+            {isExecuting && totalTasks > 0 && (
               <Card className="overflow-hidden">
                 <div className="px-5 py-3 border-b bg-muted/30 flex items-center justify-between">
                   <h3 className="text-sm font-medium">AI Agents</h3>
