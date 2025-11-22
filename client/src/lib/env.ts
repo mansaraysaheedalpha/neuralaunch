@@ -139,6 +139,7 @@ const envSchema = z.object({
 
   // Database Providers (all optional - at least one recommended for auto-provisioning)
   NEON_API_KEY: z.string().optional(), // Neon PostgreSQL (default, serverless)
+  NEON_ORG_ID: z.string().optional(), // Neon organization ID (required for org accounts)
   SUPABASE_API_KEY: z.string().optional(), // Supabase Management API key
   SUPABASE_ORG_ID: z.string().optional(), // Supabase organization ID for project creation
   MONGODB_ATLAS_PUBLIC_KEY: z.string().optional(), // MongoDB Atlas API public key

@@ -79,6 +79,7 @@ export interface DatabaseRequirements {
 
 export interface ProviderConfig {
   apiKey: string;
+  orgId?: string;  // Required for Neon when account belongs to an organization
   baseUrl?: string;
   timeout?: number;
   region?: string;

@@ -134,7 +134,7 @@ export const integrationAgentFunction = inngest.createFunction(
       await inngest.send({
         name: "agent/quality.integration.complete",
         data: {
-          taskId: task.id,
+          taskId,  // Use original taskId from event, not database task.id
           projectId,
           waveNumber: taskInput.waveNumber,
           success: false,
@@ -219,7 +219,7 @@ export const integrationAgentFunction = inngest.createFunction(
       await inngest.send({
         name: "agent/quality.integration.complete",
         data: {
-          taskId: task.id,
+          taskId,  // Use original taskId from event, not database task.id
           projectId,
           waveNumber: taskInput.waveNumber,
           success: result.success,

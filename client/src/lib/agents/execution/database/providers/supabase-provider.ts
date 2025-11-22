@@ -42,7 +42,8 @@ export class SupabaseProvider extends BaseDatabaseProvider {
   }
 
   isConfigured(): boolean {
-    return !!this.config?.apiKey;
+    // Supabase requires both API key AND organization ID
+    return !!this.config?.apiKey && !!this.config?.orgId;
   }
 
   async provision(options: ProvisioningOptions): Promise<ProvisioningResult> {
@@ -52,7 +53,18 @@ export class SupabaseProvider extends BaseDatabaseProvider {
         estimatedMonthlyCost: 0,
         provisioningTimeMs: 0,
         warnings: [],
-        error: "Supabase API key not configured",
+        error: "Supabase API key not configured. Set SUPABASE_API_KEY environment variable.",
+      };
+    }
+
+    // Supabase requires organization ID for project creation
+    if (!this.config?.orgId) {
+      return {
+        success: false,
+        estimatedMonthlyCost: 0,
+        provisioningTimeMs: 0,
+        warnings: [],
+        error: "Supabase organization ID not configured. Set SUPABASE_ORG_ID environment variable. You can find your org ID in the Supabase dashboard URL: https://supabase.com/dashboard/org/[your-org-id]",
       };
     }
 
@@ -79,7 +91,7 @@ export class SupabaseProvider extends BaseDatabaseProvider {
           },
           body: JSON.stringify({
             name: this.sanitizeName(options.projectName),
-            organization_id: this.config.baseUrl, // Organization ID passed via baseUrl
+            organization_id: this.config.orgId,
             region: options.region || "us-east-1",
             plan: options.tier === "free" ? "free" : "pro",
             db_pass: dbPassword,

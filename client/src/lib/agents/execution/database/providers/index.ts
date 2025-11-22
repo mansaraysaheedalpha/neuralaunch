@@ -38,6 +38,14 @@ const PROVIDER_ENV_KEYS: Record<DatabaseProvider, string> = {
   upstash: "UPSTASH_REDIS_REST_TOKEN",
 };
 
+// Environment variable names for provider-specific organization/project IDs
+const PROVIDER_ORG_ENV_KEYS: Partial<Record<DatabaseProvider, string>> = {
+  neon: "NEON_ORG_ID",  // Required for Neon when account belongs to an organization
+  supabase: "SUPABASE_ORG_ID",
+  planetscale: "PLANETSCALE_ORG_ID",
+  mongodb: "MONGODB_ATLAS_PROJECT_ID",
+};
+
 /**
  * Initialize a provider with API credentials
  */
@@ -60,8 +68,18 @@ export function initializeProvider(
     return false;
   }
 
+  // Get organization/project ID from environment or config (required for some providers)
+  const orgEnvKey = PROVIDER_ORG_ENV_KEYS[provider];
+  const orgId = config?.baseUrl || (orgEnvKey ? (process.env as Record<string, string>)[orgEnvKey] : undefined);
+
+  // Warn if org ID is required but missing (for providers that need it)
+  if (orgEnvKey && !orgId) {
+    logger.warn(`[ProviderRegistry] No organization ID found for ${provider}. Set ${orgEnvKey} environment variable for project scoping.`);
+  }
+
   providerInstance.initialize({
     apiKey,
+    orgId,  // Organization ID for providers that require it (Neon, Supabase)
     baseUrl: config?.baseUrl,
     timeout: config?.timeout || 30000,
     region: config?.region,
@@ -96,6 +114,7 @@ export function getProvider(provider: DatabaseProvider): BaseDatabaseProvider | 
 
 /**
  * Check if a provider is available (has API key configured AND is implemented)
+ * For providers requiring org ID (like Supabase), also checks for that
  */
 export function isProviderAvailable(provider: DatabaseProvider): boolean {
   // Unimplemented providers are never available
@@ -104,6 +123,14 @@ export function isProviderAvailable(provider: DatabaseProvider): boolean {
   }
   const envKey = PROVIDER_ENV_KEYS[provider];
   const hasKey = !!(process.env as Record<string, string>)[envKey];
+
+  // Some providers require additional configuration (org ID)
+  const orgEnvKey = PROVIDER_ORG_ENV_KEYS[provider];
+  if (orgEnvKey) {
+    const hasOrgId = !!(process.env as Record<string, string>)[orgEnvKey];
+    return hasKey && hasOrgId;
+  }
+
   return hasKey;
 }
 

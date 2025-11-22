@@ -91,6 +91,7 @@ export class NeonProvider extends BaseDatabaseProvider {
               pg_version: 16, // Latest PostgreSQL version
               autoscaling_limit_min_cu: 0.25, // Minimum compute
               autoscaling_limit_max_cu: 0.25, // Free tier limit
+              ...(this.config.orgId && { org_id: this.config.orgId }), // Required for org accounts
             },
           }),
         },
