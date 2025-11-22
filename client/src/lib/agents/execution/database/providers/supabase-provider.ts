@@ -16,6 +16,30 @@ import type {
 
 const SUPABASE_API_BASE = "https://api.supabase.com/v1";
 
+// Valid Supabase regions (as of 2024)
+const VALID_SUPABASE_REGIONS = [
+  "us-west-1",      // West US (North California)
+  "us-west-2",      // West US (Oregon)
+  "us-east-1",      // East US (North Virginia)
+  "us-east-2",      // East US (Ohio)
+  "ca-central-1",   // Canada
+  "eu-west-1",      // Ireland
+  "eu-west-2",      // London
+  "eu-west-3",      // Paris
+  "eu-central-1",   // Frankfurt
+  "eu-central-2",   // Zurich
+  "eu-north-1",     // Stockholm
+  "ap-south-1",     // Mumbai
+  "ap-southeast-1", // Singapore
+  "ap-southeast-2", // Sydney
+  "ap-northeast-1", // Tokyo
+  "ap-northeast-2", // Seoul
+  "sa-east-1",      // São Paulo
+];
+
+// Default to us-west-1 which has better availability on free tier
+const DEFAULT_SUPABASE_REGION = "us-west-1";
+
 interface SupabaseProjectResponse {
   id: string;
   name: string;
@@ -72,9 +96,16 @@ export class SupabaseProvider extends BaseDatabaseProvider {
     const warnings: string[] = [];
 
     try {
+      // Validate and normalize region
+      let region = options.region || DEFAULT_SUPABASE_REGION;
+      if (!VALID_SUPABASE_REGIONS.includes(region)) {
+        logger.warn(`[${this.providerName}] Invalid region '${region}', falling back to ${DEFAULT_SUPABASE_REGION}`);
+        region = DEFAULT_SUPABASE_REGION;
+      }
+
       logger.info(`[${this.providerName}] Provisioning database`, {
         projectName: options.projectName,
-        region: options.region || "us-east-1",
+        region,
       });
 
       // Generate a secure database password
@@ -92,7 +123,7 @@ export class SupabaseProvider extends BaseDatabaseProvider {
           body: JSON.stringify({
             name: this.sanitizeName(options.projectName),
             organization_id: this.config.orgId,
-            region: options.region || "us-east-1",
+            region,  // Use validated region
             plan: options.tier === "free" ? "free" : "pro",
             db_pass: dbPassword,
           }),

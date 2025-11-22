@@ -402,6 +402,17 @@ export const waveStartFunction = inngest.createFunction(
           log.info(
             `[Phase ${phaseNumber}] ✅ Task ${taskNumber}/${totalTasks} COMPLETED!`
           );
+
+          // ✅ Update progress incrementally so UI reflects completion
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+          await step.run(`update-progress-${task.id}`, async () => {
+            await prisma.executionWave.update({
+              where: {
+                projectId_waveNumber: { projectId, waveNumber: phaseNumber },
+              },
+              data: { completedCount: taskNumber },
+            });
+          });
         } catch (err) {
           // ❌ HANDLE TIMEOUT
           const error = err instanceof Error ? err : new Error("Unknown error");

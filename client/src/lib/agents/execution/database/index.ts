@@ -42,6 +42,15 @@ export * from "./types";
 const VALID_PROVIDERS: DatabaseProvider[] = ["neon", "supabase", "mongodb", "planetscale", "upstash"];
 const VALID_ORMS: ORMType[] = ["prisma", "drizzle", "typeorm", "mongoose", "sequelize", "knex", "raw"];
 
+// Provider-specific default regions (each provider has different region formats/availability)
+const DEFAULT_REGIONS: Record<DatabaseProvider, string> = {
+  supabase: "us-west-1",      // Supabase uses standard AWS region IDs
+  neon: "aws-us-east-2",      // Neon requires "aws-" prefix
+  mongodb: "us-east-1",       // MongoDB Atlas uses standard regions
+  planetscale: "us-east",     // PlanetScale uses simplified region names
+  upstash: "us-east-1",       // Upstash uses standard AWS region IDs
+};
+
 /**
  * Validates and returns a DatabaseProvider, or null if invalid
  */
@@ -228,10 +237,14 @@ export class DatabaseAgent extends BaseAgent {
       logger.info(`[${this.config.name}] Phase 2: Provisioning database`);
       const projectName = this.extractProjectName(projectFiles, projectId);
 
+      // Use provider-specific default region if context doesn't specify one
+      const contextRegion = safeString(context.techStack?.deployment, "");
+      const region = contextRegion || DEFAULT_REGIONS[provider];
+
       const provisionResult = await provisionDatabase({
         provider,
         projectName,
-        region: safeString(context.techStack?.deployment, "us-east-1"),
+        region,
         tier: requirements.storage.tier === "free" ? "free" : "starter",
       });
 
