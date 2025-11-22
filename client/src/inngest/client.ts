@@ -94,7 +94,43 @@ export type AgentEvents = {
    // ==========================================
   // EXECUTION AGENT EVENTS
   // ==========================================
-  
+
+  // Unified execution agent for frontend, backend, and infrastructure tasks
+  // This consolidates 3 separate agents into 1 for simpler orchestration
+  "agent/execution.unified": {
+    data: {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      taskInput: unknown;
+      priority: number;
+      waveNumber?: number;
+      agentType: "frontend" | "backend" | "infrastructure"; // Which type of task
+      agentName: string; // Original agent name for logging
+    };
+    user?: {
+      id: string;
+    };
+  };
+
+  // Database agent remains separate (external API provisioning)
+  "agent/execution.database": {
+    data: {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      taskInput: unknown;
+      priority: number;
+      waveNumber?: number;
+    };
+    user?: {
+      id: string;
+    };
+  };
+
+  // Legacy events - kept for backwards compatibility but route to unified
   "agent/execution.backend": {
     data: {
       taskId: string;
@@ -134,20 +170,6 @@ export type AgentEvents = {
       taskInput: unknown;
       priority: number;
       waveNumber?: number;
-    };
-    user?: {
-      id: string;
-    };
-  };
-
-  "agent/execution.database": {
-    data: {
-      taskId: string;
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      taskInput: unknown;
-      priority: number;
     };
     user?: {
       id: string;
@@ -461,6 +483,29 @@ export type AgentEvents = {
       projectId: string;
       success: boolean;
       optimizations?: unknown;
+      error?: string;
+    };
+  };
+
+  // ==========================================
+  // DATABASE MIGRATION EVENTS
+  // ==========================================
+
+  "agent/database.migrate": {
+    data: {
+      taskId: string;
+      projectId: string;
+      userId: string;
+      conversationId: string;
+      taskInput: unknown;
+    };
+  };
+
+  "agent/database.migrate.complete": {
+    data: {
+      taskId: string;
+      projectId: string;
+      success: boolean;
       error?: string;
     };
   };

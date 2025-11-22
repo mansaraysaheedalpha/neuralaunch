@@ -1,4 +1,20 @@
+// src/inngest/functions/unified-execution-agent-function.ts
+/**
+ * Unified Execution Agent Function
+ *
+ * Consolidates Frontend, Backend, and Infrastructure execution into a single function.
+ * Benefits:
+ * - Single context load (vs 3 separate loads)
+ * - Unified error handling
+ * - Simpler orchestration
+ * - Better failure recovery
+ *
+ * Database Agent remains separate as it handles external API provisioning.
+ */
+
+import { frontendAgent } from "@/lib/agents/execution/frontend-agent";
 import { backendAgent } from "@/lib/agents/execution/backend-agent";
+import { infrastructureAgent } from "@/lib/agents/infrastructure/infrastructure-agent";
 import { inngest } from "../client";
 import { logger } from "@/lib/logger";
 import prisma from "@/lib/prisma";
@@ -11,10 +27,10 @@ import type { ProjectContext } from "@/lib/agents/types/common";
 // Type definitions
 interface TaskInput {
   title: string;
-  description: string;
+  description?: string;
   acceptanceCriteria?: string[];
-  complexity: "simple" | "medium";
-  estimatedLines: number;
+  complexity?: "simple" | "medium";
+  estimatedLines?: number;
   [key: string]: unknown;
 }
 
@@ -24,35 +40,77 @@ interface GitHubInfo {
   [key: string]: unknown;
 }
 
-interface TaskResultData {
-  filesCreated?: Array<{ path: string; lines?: number }>;
-  commandsRun?: unknown[];
+interface FileCreatedInfo {
+  path?: string;
+  lines?: number;
   [key: string]: unknown;
 }
 
+type AgentType = "frontend" | "backend" | "infrastructure";
+
+// Agent configuration
+const AGENT_CONFIG: Record<AgentType, {
+  branchPrefix: string;
+  commitPrefix: string;
+  prTitlePrefix: string;
+  agent: typeof frontendAgent | typeof backendAgent | typeof infrastructureAgent;
+}> = {
+  frontend: {
+    branchPrefix: "frontend",
+    commitPrefix: "feat(frontend)",
+    prTitlePrefix: "Frontend",
+    agent: frontendAgent,
+  },
+  backend: {
+    branchPrefix: "backend",
+    commitPrefix: "feat(backend)",
+    prTitlePrefix: "Backend",
+    agent: backendAgent,
+  },
+  infrastructure: {
+    branchPrefix: "infrastructure",
+    commitPrefix: "feat(infrastructure)",
+    prTitlePrefix: "Infrastructure",
+    agent: infrastructureAgent,
+  },
+};
+
 /**
- * Backend Agent Execution Function (V2)
- * Now uses the full framework: tools, memory, retry, error recovery
+ * Unified Execution Agent Function
+ * Handles frontend, backend, and infrastructure tasks in a single function
  */
-export const backendAgentFunction = inngest.createFunction(
+export const unifiedExecutionAgentFunction = inngest.createFunction(
   {
-    id: "backend-agent-execute-v2",
-    name: "Backend Agent V2 - Execute with Full Framework",
-    retries: 2, // Retry handled by BaseAgent framework
+    id: "unified-execution-agent",
+    name: "Unified Execution Agent - Frontend/Backend/Infrastructure",
+    retries: 2,
     timeouts: { start: "15m" },
   },
-  { event: "agent/execution.backend" },
+  { event: "agent/execution.unified" },
   async ({ event, step }) => {
-    const { taskId, projectId, userId, conversationId } = event.data;
+    const {
+      taskId,
+      projectId,
+      userId,
+      conversationId,
+      waveNumber,
+      agentType,
+      agentName
+    } = event.data;
+
+    const config = AGENT_CONFIG[agentType];
 
     const log = logger.child({
-      inngestFunction: "backendAgentExecuteV2",
+      inngestFunction: "unifiedExecutionAgent",
       projectId,
       taskId,
+      agentType,
+      agentName,
+      waveNumber,
       runId: event.id,
     });
 
-    log.info("[Backend Agent V2] Starting execution");
+    log.info(`[Unified Agent] Starting ${agentType} task execution`);
 
     try {
       // Step 1: Get task details
@@ -64,11 +122,10 @@ export const backendAgentFunction = inngest.createFunction(
         if (!taskRecord) {
           throw new Error(`Task ${taskId} not found`);
         }
-
         return taskRecord;
       });
 
-      // Step 2: Get project context
+      // Step 2: Get project context (loaded ONCE, used by all agent types)
       const projectContext = await step.run("fetch-context", async () => {
         const context = await prisma.projectContext.findUnique({
           where: { projectId },
@@ -79,82 +136,128 @@ export const backendAgentFunction = inngest.createFunction(
         }
 
         return {
-          techStack: context.techStack,
+          techStack: context.techStack as ProjectContext["techStack"],
           architecture: context.architecture,
           codebase: context.codebase,
-        };
+        } satisfies Partial<ProjectContext>;
       });
 
-      // Step 3: Validate environment and initialize
-      await step.run("validate-and-init-environment", async () => {
+      // Step 3: Validate environment
+      await step.run("validate-environment", async () => {
         const { ensureEnvironmentReady } = await import(
           "@/lib/agents/utils/environment-validator"
         );
         try {
           await ensureEnvironmentReady(projectId, userId);
-          log.info("[Backend Agent] Environment validation passed");
+          log.info(`[Unified Agent] Environment validation passed`);
         } catch (envError) {
-          log.error(
-            "[Backend Agent] Environment validation failed",
-            envError as Error
-          );
+          log.error(`[Unified Agent] Environment validation failed`, envError as Error);
           throw envError;
         }
       });
 
       // Step 4: Create feature branch
       const branchName = await step.run("create-branch", async () => {
-        const taskInput = task.input as TaskInput;
-        const safeName = taskInput.title
+        const input = task.input as TaskInput;
+        const title = typeof input.title === "string" ? input.title : "";
+        const safeName = title
           .toLowerCase()
           .replace(/[^a-z0-9\s]/g, "")
           .replace(/\s+/g, "-")
           .substring(0, 40);
 
-        const branch = `backend/${taskId.slice(0, 8)}-${safeName}`;
+        const branch = `${config.branchPrefix}/${taskId.slice(0, 8)}-${safeName}`;
 
         const { GitTool } = await import("@/lib/agents/tools/git-tool");
         const gitTool = new GitTool();
+
+        // ✅ CRITICAL FIX: Clean sandbox state before creating new branch
+        // Without this, branches are created from previous task's HEAD,
+        // causing "Snowball PRs" where Task 3 includes Task 1 + Task 2 code
+
+        // 1. Stash any uncommitted changes (safety net)
+        await gitTool.execute(
+          { operation: "custom", command: "git stash --include-untracked" },
+          { projectId, userId }
+        );
+
+        // 2. Checkout main/master and pull latest (try main first, then master)
+        const checkoutMain = await gitTool.execute(
+          { operation: "custom", command: "git checkout main && git pull origin main" },
+          { projectId, userId }
+        );
+
+        if (!checkoutMain.success) {
+          const checkoutMaster = await gitTool.execute(
+            { operation: "custom", command: "git checkout master && git pull origin master" },
+            { projectId, userId }
+          );
+
+          if (!checkoutMaster.success) {
+            log.warn(`[Unified Agent] Could not checkout main/master, creating branch from current HEAD`);
+          }
+        }
+
+        // 3. Now create the new branch off clean main/master
         const result = await gitTool.execute(
           { operation: "branch", branchName: branch },
           { projectId, userId }
         );
 
         if (!result.success) {
-          log.warn(
-            "[Backend Agent V2] Branch creation failed, continuing anyway"
-          );
+          log.warn(`[Unified Agent] Branch creation failed, continuing anyway`);
         }
 
         return branch;
       });
 
-      // Step 5: Execute task with FULL FRAMEWORK
+      // Step 5: Execute task with the appropriate agent
       const result = await step.run("execute-task", async () => {
-        log.info(
-          "[Backend Agent V2] Executing with framework (tools, memory, retry, recovery)"
-        );
+        log.info(`[Unified Agent] Executing ${agentType} task with framework`);
 
-        return await backendAgent.execute({
+        const taskInput = task.input as TaskInput;
+
+        // Build context appropriate for the agent type
+        const agentContext = agentType === "infrastructure"
+          ? {
+              techStack: typeof projectContext.techStack === "string"
+                ? projectContext.techStack
+                : projectContext.techStack
+                  ? JSON.stringify(projectContext.techStack)
+                  : "",
+              architecture: typeof projectContext.architecture === "string"
+                ? projectContext.architecture
+                : projectContext.architecture
+                  ? JSON.stringify(projectContext.architecture)
+                  : "",
+              codebase: (projectContext.codebase || {}) as GitHubInfo,
+            }
+          : projectContext;
+
+        return await config.agent.execute({
           taskId,
           projectId,
           userId,
           conversationId,
-          taskDetails: task.input as TaskInput,
-          context: projectContext as Partial<ProjectContext>,
+          taskDetails: {
+            ...taskInput,
+            estimatedLines: taskInput.estimatedLines ?? 100,
+            description: taskInput.description ?? "",
+            complexity: taskInput.complexity ?? "simple",
+          },
+          context: agentContext as Record<string, unknown>,
         });
       });
 
       if (!result.success) {
-        log.warn("[Backend Agent V2] Task failed after framework processing", {
+        log.warn(`[Unified Agent] ${agentType} task failed after framework processing`, {
           iterations: result.iterations,
           error: result.error,
         });
-
         throw new Error(result.error || "Task execution failed");
       }
 
-      log.info("[Backend Agent V2] Task completed successfully", {
+      log.info(`[Unified Agent] ${agentType} task completed successfully`, {
         iterations: result.iterations,
         duration: result.durationMs,
       });
@@ -177,14 +280,12 @@ export const backendAgentFunction = inngest.createFunction(
 
       // Step 7: Commit changes
       await step.run("git-commit", async () => {
-        // Stage all
         const { GitTool } = await import("@/lib/agents/tools/git-tool");
         const gitTool = new GitTool();
         await gitTool.execute({ operation: "add" }, { projectId, userId });
 
-        // Commit
         const taskInput = task.input as TaskInput;
-        const commitMessage = `feat(backend): ${taskInput.title}\n\nTask ID: ${taskId}\nIterations: ${result.iterations}`;
+        const commitMessage = `${config.commitPrefix}: ${taskInput.title}\n\nTask ID: ${taskId}\nIterations: ${result.iterations}`;
         await gitTool.execute(
           { operation: "commit", message: commitMessage },
           { projectId, userId }
@@ -197,6 +298,7 @@ export const backendAgentFunction = inngest.createFunction(
         await step.run("push-to-github", async () => {
           const { GitTool } = await import("@/lib/agents/tools/git-tool");
           const gitTool = new GitTool();
+
           const pushResult = await gitTool.execute(
             {
               operation: "push",
@@ -208,9 +310,7 @@ export const backendAgentFunction = inngest.createFunction(
           );
 
           if (!pushResult.success) {
-            log.warn("[Backend Agent V2] Git push failed", {
-              error: pushResult.error,
-            });
+            log.warn(`[Unified Agent] Git push failed`, { error: pushResult.error });
           }
         });
       }
@@ -219,36 +319,35 @@ export const backendAgentFunction = inngest.createFunction(
       if (githubInfo?.githubRepoName && env.GITHUB_TOKEN) {
         await step.run("create-pr", async () => {
           const taskDetails = task.input as TaskInput;
-          const resultData = result.data as TaskResultData | undefined;
+          const filesCreated = (result.data?.filesCreated as FileCreatedInfo[] | undefined) || [];
 
           const prResult = await githubAgent.createPullRequest({
             projectId,
             repoName: githubInfo.githubRepoName!,
             branchName,
-            title: `Backend: ${taskDetails.title}`,
+            title: `${config.prTitlePrefix}: ${taskDetails.title}`,
             description: `
 ## Task: ${taskDetails.title}
 
-${taskDetails.description}
+${taskDetails.description || ""}
 
 ### Completion Details:
 - **Iterations:** ${result.iterations}
 - **Duration:** ${Math.round(result.durationMs / 1000)}s
-- **Files Created:** ${resultData?.filesCreated?.length || 0}
-- **Commands Run:** ${resultData?.commandsRun?.length || 0}
+- **Files Created:** ${filesCreated.length}
 
 ### Files Changed:
-${resultData?.filesCreated?.map((f) => `- ${f.path} (${f.lines} lines)`).join("\n") || "N/A"}
+${filesCreated.map((f) => `- ${f.path || "unknown"}${f.lines ? ` (${f.lines} lines)` : ""}`).join("\n") || "N/A"}
 
 ### Acceptance Criteria:
 ${taskDetails.acceptanceCriteria?.map((c) => `- [x] ${c}`).join("\n") || "N/A"}
 
 **Task ID:** ${taskId}
-**Agent:** Backend Agent V2 (with framework)
-**Status:** ✅ Completed
+**Agent:** ${agentName} (Unified Execution)
+**Status:** Completed
 
 ---
-*Generated by NeuraLaunch Backend Agent with full framework support.*
+*Generated by NeuraLaunch Unified Execution Agent*
             `,
             githubToken: env.GITHUB_TOKEN!,
           });
@@ -263,19 +362,14 @@ ${taskDetails.acceptanceCriteria?.map((c) => `- [x] ${c}`).join("\n") || "N/A"}
               },
             });
 
-            log.info("[Backend Agent V2] PR created", {
-              prUrl: prResult.prUrl,
-            });
+            log.info(`[Unified Agent] PR created`, { prUrl: prResult.prUrl });
           }
         });
       }
 
-      // Step 10: Emit Completion Signal
-      // ✅ The Worker's only job is to report completion.
-      // The Wave Start Function (Foreman) will handle wave completion.
+      // Step 10: Emit task completion event
       await step.run("emit-task-complete", async () => {
-        const waveNumber = event.data.waveNumber;
-        log.info("[Backend Agent] Emitting task completion event");
+        log.info(`[Unified Agent] Emitting task completion event`);
 
         await inngest.send({
           name: "agent/task.complete",
@@ -285,7 +379,7 @@ ${taskDetails.acceptanceCriteria?.map((c) => `- [x] ${c}`).join("\n") || "N/A"}
             userId,
             conversationId,
             waveNumber,
-            agentName: "BackendAgent",
+            agentName,
             success: true,
           },
         });
@@ -294,25 +388,26 @@ ${taskDetails.acceptanceCriteria?.map((c) => `- [x] ${c}`).join("\n") || "N/A"}
       return {
         success: true,
         taskId,
+        agentType,
+        iterations: result.iterations,
         durationMs: result.durationMs,
+        branchName,
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
       log.error(
-        "[Backend Agent V2] Execution failed",
+        `[Unified Agent] ${agentType} execution failed`,
         createAgentError(errorMessage, { taskId })
       );
 
-      // Update task status (if not already updated by framework)
+      // Update task status
       await step.run("mark-failed", async () => {
         const currentTask = await prisma.agentTask.findUnique({
           where: { id: taskId },
           select: { status: true },
         });
 
-        // Only update if not already handled by framework
         if (currentTask?.status === "in_progress") {
           await prisma.agentTask.update({
             where: { id: taskId },

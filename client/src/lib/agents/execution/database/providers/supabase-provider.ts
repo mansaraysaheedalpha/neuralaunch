@@ -37,8 +37,22 @@ const VALID_SUPABASE_REGIONS = [
   "sa-east-1",      // São Paulo
 ];
 
-// Default to us-west-1 which has better availability on free tier
+// Default region with failover chain for resilience
 const DEFAULT_SUPABASE_REGION = "us-west-1";
+
+// Failover regions in order of preference
+// If primary region fails with 503, try these in order
+const SUPABASE_REGION_FAILOVER_CHAIN: Record<string, string[]> = {
+  "us-west-1": ["us-east-1", "us-west-2", "us-east-2"],
+  "us-west-2": ["us-east-1", "us-west-1", "us-east-2"],
+  "us-east-1": ["us-east-2", "us-west-1", "us-west-2"],
+  "us-east-2": ["us-east-1", "us-west-1", "us-west-2"],
+  "eu-west-1": ["eu-west-2", "eu-central-1", "eu-west-3"],
+  "eu-west-2": ["eu-west-1", "eu-central-1", "eu-west-3"],
+  "eu-central-1": ["eu-west-1", "eu-west-2", "eu-north-1"],
+  "ap-southeast-1": ["ap-southeast-2", "ap-northeast-1", "ap-south-1"],
+  "ap-southeast-2": ["ap-southeast-1", "ap-northeast-1", "ap-south-1"],
+};
 
 interface SupabaseProjectResponse {
   id: string;
@@ -95,117 +109,184 @@ export class SupabaseProvider extends BaseDatabaseProvider {
     const startTime = Date.now();
     const warnings: string[] = [];
 
-    try {
-      // Validate and normalize region
-      let region = options.region || DEFAULT_SUPABASE_REGION;
-      if (!VALID_SUPABASE_REGIONS.includes(region)) {
-        logger.warn(`[${this.providerName}] Invalid region '${region}', falling back to ${DEFAULT_SUPABASE_REGION}`);
-        region = DEFAULT_SUPABASE_REGION;
-      }
-
-      logger.info(`[${this.providerName}] Provisioning database`, {
-        projectName: options.projectName,
-        region,
-      });
-
-      // Generate a secure database password
-      const dbPassword = this.generatePassword(24);
-
-      // Create project via Supabase Management API
-      const projectResponse = await this.fetchWithRetry<SupabaseProjectResponse>(
-        `${SUPABASE_API_BASE}/projects`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${this.config.apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: this.sanitizeName(options.projectName),
-            organization_id: this.config.orgId,
-            region,  // Use validated region
-            plan: options.tier === "free" ? "free" : "pro",
-            db_pass: dbPassword,
-          }),
-        },
-        "createProject"
-      );
-
-      // Wait for project to be ready
-      const readyResult = await this.waitForReady(projectResponse.id, 600000); // 10 min for Supabase
-      if (!readyResult.ready) {
-        warnings.push(`Database may not be fully ready: ${readyResult.error}`);
-      }
-
-      // Get API keys
-      let anonKey = "";
-      let serviceRoleKey = "";
-      try {
-        const keysResponse = await this.fetchWithRetry<SupabaseApiKeysResponse>(
-          `${SUPABASE_API_BASE}/projects/${projectResponse.id}/api-keys`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${this.config.apiKey}`,
-            },
-          },
-          "getApiKeys"
-        );
-        anonKey = keysResponse.anon_key;
-        serviceRoleKey = keysResponse.service_role_key;
-      } catch {
-        warnings.push("Could not retrieve API keys automatically");
-      }
-
-      // Build credentials
-      const credentials: DatabaseCredentials = {
-        provider: "supabase",
-        databaseType: "postgresql",
-        host: projectResponse.database?.host || `db.${projectResponse.id}.supabase.co`,
-        port: 5432,
-        username: "postgres",
-        password: dbPassword,
-        database: "postgres",
-        sslMode: "require",
-        connectionString: `postgresql://postgres:${dbPassword}@db.${projectResponse.id}.supabase.co:5432/postgres`,
-        directUrl: `postgresql://postgres:${dbPassword}@db.${projectResponse.id}.supabase.co:5432/postgres?pgbouncer=false`,
-        additionalEnvVars: {
-          SUPABASE_URL: `https://${projectResponse.id}.supabase.co`,
-          SUPABASE_ANON_KEY: anonKey,
-          SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey,
-          NEXT_PUBLIC_SUPABASE_URL: `https://${projectResponse.id}.supabase.co`,
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: anonKey,
-        },
-      };
-
-      const provisioningTimeMs = Date.now() - startTime;
-
-      logger.info(`[${this.providerName}] Database provisioned successfully`, {
-        projectId: projectResponse.id,
-        provisioningTimeMs,
-      });
-
-      return {
-        success: true,
-        credentials,
-        resourceId: projectResponse.id,
-        resourceUrl: `https://supabase.com/dashboard/project/${projectResponse.id}`,
-        estimatedMonthlyCost: options.tier === "free" ? 0 : 25, // Free or Pro
-        provisioningTimeMs,
-        warnings,
-      };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error(`[${this.providerName}] Provisioning failed`, undefined, { error: errorMessage });
-
-      return {
-        success: false,
-        estimatedMonthlyCost: 0,
-        provisioningTimeMs: Date.now() - startTime,
-        warnings,
-        error: errorMessage,
-      };
+    // Validate and normalize region
+    let primaryRegion = options.region || DEFAULT_SUPABASE_REGION;
+    if (!VALID_SUPABASE_REGIONS.includes(primaryRegion)) {
+      logger.warn(`[${this.providerName}] Invalid region '${primaryRegion}', falling back to ${DEFAULT_SUPABASE_REGION}`);
+      primaryRegion = DEFAULT_SUPABASE_REGION;
     }
+
+    // Build region attempt list: primary + failover regions
+    const failoverRegions = SUPABASE_REGION_FAILOVER_CHAIN[primaryRegion] || ["us-east-1", "us-west-2"];
+    const regionsToTry = [primaryRegion, ...failoverRegions];
+
+    // Generate a secure database password (same across all attempts)
+    const dbPassword = this.generatePassword(24);
+
+    let lastError = "";
+
+    // Try each region in order until one succeeds
+    for (let i = 0; i < regionsToTry.length; i++) {
+      const region = regionsToTry[i];
+      const isFailover = i > 0;
+
+      if (isFailover) {
+        logger.warn(`[${this.providerName}] Attempting failover to region: ${region}`);
+        warnings.push(`Primary region ${primaryRegion} failed, using failover region ${region}`);
+      }
+
+      try {
+        logger.info(`[${this.providerName}] Provisioning database`, {
+          projectName: options.projectName,
+          region,
+          attempt: i + 1,
+          isFailover,
+        });
+
+        // Create project via Supabase Management API
+        const projectResponse = await this.createProjectInRegion(
+          options.projectName,
+          region,
+          options.tier || "free",
+          dbPassword
+        );
+
+        // Wait for project to be ready with dynamic polling
+        // Supabase can take up to 10 minutes, use exponential backoff to reduce API calls
+        const readyResult = await this.waitForReady(projectResponse.id, 600000, {
+          initialIntervalMs: 5000,   // Start at 5s
+          maxIntervalMs: 30000,       // Cap at 30s (reduces API calls significantly)
+          backoffMultiplier: 1.5,     // Gradual backoff
+        });
+
+        if (!readyResult.ready) {
+          warnings.push(`Database may not be fully ready: ${readyResult.error}`);
+        }
+
+        // Get API keys
+        let anonKey = "";
+        let serviceRoleKey = "";
+        try {
+          const keysResponse = await this.fetchWithRetry<SupabaseApiKeysResponse>(
+            `${SUPABASE_API_BASE}/projects/${projectResponse.id}/api-keys`,
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${this.config.apiKey}`,
+              },
+            },
+            "getApiKeys"
+          );
+          anonKey = keysResponse.anon_key;
+          serviceRoleKey = keysResponse.service_role_key;
+        } catch {
+          warnings.push("Could not retrieve API keys automatically");
+        }
+
+        // Build credentials
+        const credentials: DatabaseCredentials = {
+          provider: "supabase",
+          databaseType: "postgresql",
+          host: projectResponse.database?.host || `db.${projectResponse.id}.supabase.co`,
+          port: 5432,
+          username: "postgres",
+          password: dbPassword,
+          database: "postgres",
+          sslMode: "require",
+          connectionString: `postgresql://postgres:${dbPassword}@db.${projectResponse.id}.supabase.co:5432/postgres`,
+          directUrl: `postgresql://postgres:${dbPassword}@db.${projectResponse.id}.supabase.co:5432/postgres?pgbouncer=false`,
+          additionalEnvVars: {
+            SUPABASE_URL: `https://${projectResponse.id}.supabase.co`,
+            SUPABASE_ANON_KEY: anonKey,
+            SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey,
+            NEXT_PUBLIC_SUPABASE_URL: `https://${projectResponse.id}.supabase.co`,
+            NEXT_PUBLIC_SUPABASE_ANON_KEY: anonKey,
+          },
+        };
+
+        const provisioningTimeMs = Date.now() - startTime;
+
+        logger.info(`[${this.providerName}] Database provisioned successfully`, {
+          projectId: projectResponse.id,
+          region,
+          provisioningTimeMs,
+          usedFailover: isFailover,
+        });
+
+        return {
+          success: true,
+          credentials,
+          resourceId: projectResponse.id,
+          resourceUrl: `https://supabase.com/dashboard/project/${projectResponse.id}`,
+          estimatedMonthlyCost: options.tier === "free" ? 0 : 25, // Free or Pro
+          provisioningTimeMs,
+          warnings,
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        lastError = errorMessage;
+
+        // Check if this is a region-specific error (503) that should trigger failover
+        const isRegionError = errorMessage.includes("503") ||
+                             errorMessage.includes("service unavailable") ||
+                             errorMessage.includes("region") ||
+                             errorMessage.includes("capacity");
+
+        if (isRegionError && i < regionsToTry.length - 1) {
+          logger.warn(`[${this.providerName}] Region ${region} failed with recoverable error, will try failover`, {
+            error: errorMessage,
+            nextRegion: regionsToTry[i + 1],
+          });
+          continue; // Try next region
+        }
+
+        // Non-recoverable error or last region - fail
+        logger.error(`[${this.providerName}] Provisioning failed`, undefined, {
+          error: errorMessage,
+          region,
+          attempt: i + 1,
+        });
+      }
+    }
+
+    // All regions failed
+    return {
+      success: false,
+      estimatedMonthlyCost: 0,
+      provisioningTimeMs: Date.now() - startTime,
+      warnings,
+      error: `All regions failed. Last error: ${lastError}`,
+    };
+  }
+
+  /**
+   * Create a project in a specific region
+   * Separated to allow region failover logic
+   */
+  private async createProjectInRegion(
+    projectName: string,
+    region: string,
+    tier: string,
+    dbPassword: string
+  ): Promise<SupabaseProjectResponse> {
+    return this.fetchWithRetry<SupabaseProjectResponse>(
+      `${SUPABASE_API_BASE}/projects`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.config!.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: this.sanitizeName(projectName),
+          organization_id: this.config!.orgId,
+          region,
+          plan: tier === "free" ? "free" : "pro",
+          db_pass: dbPassword,
+        }),
+      },
+      "createProject"
+    );
   }
 
   async delete(resourceId: string): Promise<{ success: boolean; error?: string }> {

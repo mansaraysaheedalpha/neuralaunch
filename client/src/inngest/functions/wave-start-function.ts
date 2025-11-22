@@ -325,20 +325,23 @@ export const waveStartFunction = inngest.createFunction(
       }
 
       // Step 6: Execute ALL tasks SEQUENTIALLY in exact planner order
-      // ✅ UPDATE: Added Fast-Fail Timeout Block
+      // ✅ UPDATE: Uses Unified Execution Agent for frontend/backend/infrastructure
+      // Database Agent remains separate (external API provisioning)
       for (let i = 0; i < phaseTasks.length; i++) {
         const task = phaseTasks[i];
         const taskNumber = i + 1;
         const totalTasks = phaseTasks.length;
 
-        const agentMap: Record<string, string> = {
-          FrontendAgent: "agent/execution.frontend",
-          BackendAgent: "agent/execution.backend",
-          InfrastructureAgent: "agent/execution.infrastructure",
-          DatabaseAgent: "agent/execution.database",
-        };
+        // Determine if this is a unified agent task or database task
+        const unifiedAgents = ["FrontendAgent", "BackendAgent", "InfrastructureAgent"];
+        const isUnifiedAgent = unifiedAgents.includes(task.agentName);
 
-        const eventName = agentMap[task.agentName] || "agent/execution.generic";
+        // Map agent names to types for the unified agent
+        const agentTypeMap: Record<string, "frontend" | "backend" | "infrastructure"> = {
+          FrontendAgent: "frontend",
+          BackendAgent: "backend",
+          InfrastructureAgent: "infrastructure",
+        };
 
         // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
         await step.run(
@@ -355,18 +358,51 @@ export const waveStartFunction = inngest.createFunction(
               `[Phase ${phaseNumber}] 🚀 Task ${taskNumber}/${totalTasks}: ${taskTitle} (${task.agentName})`
             );
 
-            // Trigger task
-            await inngest.send({
-              name: eventName as never,
-              data: {
-                taskId: task.id,
-                projectId,
-                userId,
-                taskInput: task.input,
-                priority: task.priority,
-                waveNumber: phaseNumber,
-              } as never,
-            });
+            // Route to appropriate agent
+            if (isUnifiedAgent) {
+              // Use unified execution agent for frontend/backend/infrastructure
+              await inngest.send({
+                name: "agent/execution.unified" as never,
+                data: {
+                  taskId: task.id,
+                  projectId,
+                  userId,
+                  conversationId,
+                  taskInput: task.input,
+                  priority: task.priority,
+                  waveNumber: phaseNumber,
+                  agentType: agentTypeMap[task.agentName],
+                  agentName: task.agentName,
+                } as never,
+              });
+            } else if (task.agentName === "DatabaseAgent") {
+              // Database agent remains separate (external API provisioning)
+              await inngest.send({
+                name: "agent/execution.database" as never,
+                data: {
+                  taskId: task.id,
+                  projectId,
+                  userId,
+                  conversationId,
+                  taskInput: task.input,
+                  priority: task.priority,
+                  waveNumber: phaseNumber,
+                } as never,
+              });
+            } else {
+              // Fallback to generic for unknown agent types
+              await inngest.send({
+                name: "agent/execution.generic" as never,
+                data: {
+                  taskId: task.id,
+                  projectId,
+                  userId,
+                  conversationId,
+                  taskInput: task.input,
+                  priority: task.priority,
+                } as never,
+              });
+            }
 
             // Mark as in_progress
             await prisma.agentTask.update({
@@ -392,10 +428,14 @@ export const waveStartFunction = inngest.createFunction(
 
         try {
           // ✅ FAST FAIL IMPLEMENTATION
+          // ✅ FIXED: Added 2-minute buffer to account for:
+          // - Event propagation delay between agents
+          // - Inngest internal processing time
+          // - unified-execution-agent has 15m start timeout, so we wait 17m total
           // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
           await step.waitForEvent(`wait-task-completion-${task.id}`, {
             event: "agent/task.complete",
-            timeout: "15m", // Fail if no response in 15 minutes
+            timeout: "17m", // Agent has 15m, add 2m buffer for event propagation
             if: `event.data.taskId == "${task.id}"`,
           });
 
@@ -428,7 +468,7 @@ export const waveStartFunction = inngest.createFunction(
               data: {
                 status: "failed",
                 error:
-                  "Execution timed out after 15 minutes. Agent did not report back.",
+                  "Execution timed out after 17 minutes (15m agent limit + 2m buffer). Agent did not report completion.",
                 completedAt: new Date(),
               },
             });

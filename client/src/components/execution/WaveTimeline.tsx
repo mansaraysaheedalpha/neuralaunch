@@ -1,15 +1,13 @@
-// src/components/execution/WaveTimeline.tsx
+// src/components/execution/WaveTimeline.tsx - PROFESSIONAL UI REFACTOR
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2,
-  Circle,
   Loader2,
   XCircle,
   Clock,
-  ChevronDown,
-  ChevronUp,
+  ChevronRight,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
@@ -46,17 +44,15 @@ export default function WaveTimeline({
 
   if (!waves || waves.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground text-sm">
-        <p>No waves configured yet</p>
-        <p className="text-xs mt-1">
-          Waves will appear when orchestration starts
-        </p>
+      <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+        <Clock className="h-8 w-8 mb-2 opacity-40" />
+        <p className="text-sm">No waves yet</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2">
       {waves.map((wave, index) => {
         const isActive =
           wave.status === "active" ||
@@ -64,8 +60,7 @@ export default function WaveTimeline({
           wave.number === currentWave;
         const isCompleted = wave.status === "completed";
         const isFailed = wave.status === "failed";
-        const isPending =
-          wave.status === "pending" || wave.number > currentWave;
+        const isPending = wave.status === "pending" || wave.number > currentWave;
         const isExpanded = expandedWaves.has(wave.number);
 
         const taskCount = (wave.taskCount as number | undefined) || wave.tasks?.length || 0;
@@ -76,60 +71,74 @@ export default function WaveTimeline({
           ).length ||
           0;
 
+        const progress = taskCount > 0 ? Math.round((completedCount / taskCount) * 100) : 0;
+
         return (
           <motion.div
             key={wave.number || index}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className={`relative pl-6 pb-4 ${
-              index < waves.length - 1 ? "border-l-2" : ""
-            } ${
-              isCompleted
-                ? "border-green-500"
-                : isActive
-                  ? "border-blue-500"
-                  : "border-muted"
-            }`}
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05 }}
           >
-            {/* Status Icon */}
+            {/* Wave Card */}
             <div
-              className={`absolute left-[-9px] top-0 rounded-full p-1 ${
-                isCompleted
-                  ? "bg-green-500 text-white"
-                  : isActive
-                    ? "bg-blue-500 text-white"
-                    : isFailed
-                      ? "bg-red-500 text-white"
-                      : "bg-muted text-muted-foreground"
-              }`}
+              className={`
+                rounded-lg border transition-all duration-200 overflow-hidden
+                ${isActive ? "border-primary bg-primary/5" : ""}
+                ${isCompleted ? "border-emerald-300 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20" : ""}
+                ${isFailed ? "border-red-300 dark:border-red-800 bg-red-50/50 dark:bg-red-950/20" : ""}
+                ${isPending ? "border-muted bg-muted/20" : ""}
+              `}
             >
-              {isCompleted && <CheckCircle2 className="w-4 h-4" />}
-              {isActive && <Loader2 className="w-4 h-4 animate-spin" />}
-              {isFailed && <XCircle className="w-4 h-4" />}
-              {isPending && <Circle className="w-4 h-4" />}
-            </div>
-
-            {/* Wave Info */}
-            <div className="space-y-1">
-              <div
-                className="flex items-center justify-between cursor-pointer hover:bg-muted/50 rounded p-1 -m-1"
+              {/* Header */}
+              <button
+                className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-muted/30 transition-colors"
                 onClick={() => taskCount > 0 && toggleWave(wave.number)}
               >
-                <div className="flex items-center gap-2">
-                  <h4 className="font-semibold text-sm">
-                    Wave {wave.number || index + 1}
-                  </h4>
-                  {taskCount > 0 && (
-                    <span className="text-xs text-muted-foreground">
-                      ({completedCount}/{taskCount})
+                {/* Status Icon */}
+                <div className="flex-shrink-0">
+                  <WaveStatusIcon
+                    isCompleted={isCompleted}
+                    isActive={isActive}
+                    isFailed={isFailed}
+                    isPending={isPending}
+                  />
+                </div>
+
+                {/* Wave Info */}
+                <div className="flex-1 text-left min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">
+                      Wave {wave.number || index + 1}
                     </span>
+                    {taskCount > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {completedCount}/{taskCount}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Mini progress bar */}
+                  {taskCount > 0 && (
+                    <div className="h-1 w-full max-w-[100px] rounded-full bg-muted mt-1.5 overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          isCompleted
+                            ? "bg-emerald-500"
+                            : isFailed
+                              ? "bg-red-500"
+                              : "bg-primary"
+                        }`}
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+
+                {/* Time / Expand indicator */}
+                <div className="flex items-center gap-2 flex-shrink-0">
                   {(wave.startedAt || wave.completedAt) && (
-                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
+                    <span className="text-xs text-muted-foreground">
                       {wave.completedAt && wave.startedAt
                         ? `${Math.round(
                             (new Date(wave.completedAt).getTime() -
@@ -139,125 +148,128 @@ export default function WaveTimeline({
                           )}m`
                         : wave.startedAt
                           ? formatDistanceToNow(new Date(wave.startedAt), {
-                              addSuffix: true,
+                              addSuffix: false,
                             })
                           : ""}
                     </span>
                   )}
                   {taskCount > 0 && (
-                    <>
-                      {isExpanded ? (
-                        <ChevronUp className="w-4 h-4 text-muted-foreground" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                      )}
-                    </>
+                    <ChevronRight
+                      className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${
+                        isExpanded ? "rotate-90" : ""
+                      }`}
+                    />
                   )}
                 </div>
-              </div>
+              </button>
 
-              {/* Task Status Summary */}
-              {!isExpanded && taskCount > 0 && (
-                <div className="text-xs text-muted-foreground">
-                  {taskCount} task{taskCount !== 1 ? "s" : ""}
-                  {isCompleted && " completed"}
-                  {isActive && " in progress"}
-                  {isPending && " pending"}
-                </div>
-              )}
-
-              {/* ✅ FIX: Expandable Task List - Show all tasks when expanded */}
-              {isExpanded && wave.tasks && wave.tasks.length > 0 && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="mt-2 space-y-1 overflow-hidden"
-                >
-                  {wave.tasks.map((task: Task, taskIndex: number) => (
-                    <div
-                      key={task.id || taskIndex}
-                      className="flex items-center gap-2 text-xs py-1 px-2 rounded hover:bg-muted/50"
-                    >
-                      <div
-                        className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                          task.status === "COMPLETE" ||
-                          task.status === "completed"
-                            ? "bg-green-500"
-                            : task.status === "IN_PROGRESS" ||
-                                task.status === "in_progress"
-                              ? "bg-blue-500 animate-pulse"
-                              : task.status === "FAILED" ||
-                                  task.status === "failed"
-                                ? "bg-red-500"
-                                : "bg-muted"
-                        }`}
-                      />
-                      <span className="text-muted-foreground truncate flex-1">
-                        {task.title ||
-                          task.input?.title ||
-                          task.agentName ||
-                          "Task"}
-                      </span>
-                      {Boolean(task.durationMs) && typeof task.durationMs === "number" && (
-                        <span className="text-muted-foreground">
-                          {Math.round((task.durationMs) / 1000)}s
-                        </span>
-                      )}
+              {/* Expanded Task List */}
+              <AnimatePresence>
+                {isExpanded && wave.tasks && wave.tasks.length > 0 && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-3 pb-2.5 pt-1 border-t bg-muted/10">
+                      <div className="space-y-1">
+                        {wave.tasks.map((task: Task, taskIndex: number) => (
+                          <TaskItem key={task.id || taskIndex} task={task} />
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                </motion.div>
-              )}
-
-              {/* Collapsed view - show first 3 tasks */}
-              {!isExpanded &&
-                wave.tasks &&
-                wave.tasks.length > 0 &&
-                isActive && (
-                  <div className="mt-2 space-y-1">
-                    {wave.tasks
-                      .slice(0, 3)
-                      .map((task: Task, taskIndex: number) => (
-                        <div
-                          key={task.id || taskIndex}
-                          className="flex items-center gap-2 text-xs"
-                        >
-                          <div
-                            className={`w-2 h-2 rounded-full ${
-                              task.status === "COMPLETE" ||
-                              task.status === "completed"
-                                ? "bg-green-500"
-                                : task.status === "IN_PROGRESS" ||
-                                    task.status === "in_progress"
-                                  ? "bg-blue-500 animate-pulse"
-                                  : "bg-muted"
-                            }`}
-                          />
-                          <span className="text-muted-foreground truncate">
-                            {task.title ||
-                              task.input?.title ||
-                              task.agentName ||
-                              "Task"}
-                          </span>
-                        </div>
-                      ))}
-                    {wave.tasks.length > 3 && (
-                      <button
-                        onClick={() => toggleWave(wave.number)}
-                        className="text-xs text-primary hover:underline ml-4"
-                      >
-                        +{wave.tasks.length - 3} more
-                      </button>
-                    )}
-                  </div>
+                  </motion.div>
                 )}
+              </AnimatePresence>
             </div>
           </motion.div>
         );
       })}
+    </div>
+  );
+}
 
-      {/* ✅ FIX: REMOVED HARDCODED Quality Check and Deployment phases
-          These should come from the waves array if they exist, not hardcoded */}
+// ═══════════════════════════════════════════════════════════════════
+// WAVE STATUS ICON
+// ═══════════════════════════════════════════════════════════════════
+function WaveStatusIcon({
+  isCompleted,
+  isActive,
+  isFailed,
+  isPending,
+}: {
+  isCompleted: boolean;
+  isActive: boolean;
+  isFailed: boolean;
+  isPending: boolean;
+}) {
+  if (isCompleted) {
+    return (
+      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white">
+        <CheckCircle2 className="h-3.5 w-3.5" />
+      </div>
+    );
+  }
+  if (isFailed) {
+    return (
+      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-white">
+        <XCircle className="h-3.5 w-3.5" />
+      </div>
+    );
+  }
+  if (isActive) {
+    return (
+      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      </div>
+    );
+  }
+  if (isPending) {
+    return (
+      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <div className="h-2 w-2 rounded-full bg-current" />
+      </div>
+    );
+  }
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// TASK ITEM
+// ═══════════════════════════════════════════════════════════════════
+function TaskItem({ task }: { task: Task }) {
+  const isComplete = task.status === "COMPLETE" || task.status === "completed";
+  const isInProgress = task.status === "IN_PROGRESS" || task.status === "in_progress";
+  const isFailed = task.status === "FAILED" || task.status === "failed";
+
+  return (
+    <div className="flex items-center gap-2 py-1 px-2 rounded hover:bg-muted/50 transition-colors">
+      {/* Status dot */}
+      <div
+        className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${
+          isComplete
+            ? "bg-emerald-500"
+            : isInProgress
+              ? "bg-blue-500 animate-pulse"
+              : isFailed
+                ? "bg-red-500"
+                : "bg-muted-foreground/40"
+        }`}
+      />
+
+      {/* Task title */}
+      <span className="text-xs text-muted-foreground truncate flex-1">
+        {task.title || task.input?.title || task.agentName || "Task"}
+      </span>
+
+      {/* Duration */}
+      {typeof task.durationMs === "number" && task.durationMs > 0 && (
+        <span className="text-xs text-muted-foreground/60 flex-shrink-0">
+          {Math.round(task.durationMs / 1000)}s
+        </span>
+      )}
     </div>
   );
 }

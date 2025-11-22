@@ -276,7 +276,168 @@ export const waveCompleteFunction = inngest.createFunction(
       }
 
       // ==========================================
-      // ✅ STEP 5: DEPLOY PREVIEW (NEW!)
+      // ✅ STEP 5: CREATE DATABASE BRANCH FOR PREVIEW
+      // ==========================================
+      // CRITICAL FIX: Previously runMigrations was false, which caused 500 errors
+      // if schema changes were made. Now we:
+      // 1. Create a database branch (Neon/Supabase)
+      // 2. Run migrations on the branch
+      // 3. Inject branch DATABASE_URL into preview deployment
+      // 4. Clean up branch when PR is merged
+      const dbBranchResult = await step.run("create-database-branch", async () => {
+        log.info(`[Wave ${waveNumber}] Creating database branch for preview`);
+
+        // Get database provider and credentials from project context
+        const projectContext = await prisma.projectContext.findUnique({
+          where: { projectId },
+          select: {
+            codebase: true,
+            architecture: true,
+            techStack: true,
+          },
+        });
+
+        const techStack = projectContext?.techStack as {
+          database?: {
+            provider?: string;
+          };
+        } | null;
+
+        const codebase = projectContext?.codebase as {
+          databaseProjectId?: string;
+          databaseBranchId?: string;
+          databaseProvider?: string;
+        } | null;
+
+        const provider = codebase?.databaseProvider || techStack?.database?.provider;
+
+        // Only Neon and Supabase support branching
+        if (provider !== "neon" && provider !== "supabase") {
+          log.info(`[Wave ${waveNumber}] Database provider ${provider} does not support branching, using main DB`);
+          return {
+            branchCreated: false,
+            reason: `Provider ${provider || "unknown"} does not support database branching`,
+            connectionString: null,
+            branchId: null,
+          };
+        }
+
+        // Get API key from user's connected accounts
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            accounts: {
+              where: { provider: provider === "neon" ? "neon" : "supabase" },
+              select: { access_token: true },
+            },
+          },
+        });
+
+        const apiKey = user?.accounts[0]?.access_token;
+
+        if (!apiKey) {
+          log.warn(`[Wave ${waveNumber}] No ${provider} API key found, using main DB`);
+          return {
+            branchCreated: false,
+            reason: `No ${provider} API key configured`,
+            connectionString: null,
+            branchId: null,
+          };
+        }
+
+        const dbProjectId = codebase?.databaseProjectId;
+        const parentBranchId = codebase?.databaseBranchId || "main";
+
+        if (!dbProjectId) {
+          log.warn(`[Wave ${waveNumber}] No database project ID found, using main DB`);
+          return {
+            branchCreated: false,
+            reason: "No database project ID found",
+            connectionString: null,
+            branchId: null,
+          };
+        }
+
+        // Import and use the branch service
+        const { databaseBranchService } = await import(
+          "@/lib/agents/execution/database/services/branch-service"
+        );
+
+        const branchName = `wave-${waveNumber}-preview`;
+
+        const result = await databaseBranchService.createBranch({
+          provider,
+          projectId: dbProjectId,
+          parentBranchId,
+          branchName,
+          apiKey,
+        });
+
+        if (!result.success) {
+          log.warn(`[Wave ${waveNumber}] Database branch creation failed: ${result.error}`);
+          return {
+            branchCreated: false,
+            reason: result.error || "Branch creation failed",
+            connectionString: null,
+            branchId: null,
+          };
+        }
+
+        log.info(`[Wave ${waveNumber}] Database branch created: ${result.branch?.id}`);
+
+        // NOTE: Branch info storage is skipped until ExecutionWave schema has metadata field
+        // TODO: Add 'metadata Json?' field to ExecutionWave model and store branch info for cleanup
+
+        return {
+          branchCreated: true,
+          connectionString: result.connectionString,
+          directUrl: result.directUrl,
+          branchId: result.branch?.id,
+          branchName,
+        };
+      });
+
+      // ==========================================
+      // STEP 5B: RUN MIGRATIONS ON DATABASE BRANCH
+      // ==========================================
+      const migrationResult = await step.run("run-migrations-on-branch", async () => {
+        if (!dbBranchResult.branchCreated || !dbBranchResult.connectionString) {
+          log.info(`[Wave ${waveNumber}] Skipping migrations - no database branch`);
+          return { success: true, skipped: true };
+        }
+
+        log.info(`[Wave ${waveNumber}] Running migrations on database branch`);
+
+        // Trigger migration agent with the branch DATABASE_URL
+        await inngest.send({
+          name: "agent/database.migrate",
+          data: {
+            taskId: `migrate-wave-${waveNumber}-branch`,
+            projectId,
+            userId,
+            conversationId,
+            taskInput: {
+              mode: "migrate",
+              connectionString: dbBranchResult.connectionString,
+              directUrl: dbBranchResult.directUrl,
+            },
+          },
+        });
+
+        return { success: true, triggered: true };
+      });
+
+      // Wait for migrations if triggered
+      if ("triggered" in migrationResult && migrationResult.triggered) {
+        await step.waitForEvent("wait-for-migrations", {
+          event: "agent/database.migrate.complete",
+          timeout: "10m",
+          match: "data.taskId",
+        });
+      }
+
+      // ==========================================
+      // STEP 5C: DEPLOY PREVIEW WITH BRANCH DATABASE
       // ==========================================
       await step.run(
         "trigger-preview-deployment",
@@ -299,6 +460,18 @@ export const waveCompleteFunction = inngest.createFunction(
               ? architecture.infrastructureArchitecture.hosting.toLowerCase()
               : null) || "vercel";
 
+          // Build environment variables for preview
+          // If we have a database branch, inject its connection string
+          const previewEnvVars: Record<string, string> = {};
+
+          if (dbBranchResult.branchCreated && dbBranchResult.connectionString) {
+            previewEnvVars.DATABASE_URL = dbBranchResult.connectionString;
+            if (dbBranchResult.directUrl) {
+              previewEnvVars.DIRECT_URL = dbBranchResult.directUrl;
+            }
+            log.info(`[Wave ${waveNumber}] Injecting database branch URL into preview`);
+          }
+
           await inngest.send({
             name: "agent/deployment.deploy",
             data: {
@@ -309,14 +482,17 @@ export const waveCompleteFunction = inngest.createFunction(
               environment: "preview" as const,
               taskInput: {
                 platform,
-                environment: "preview", // 🔥 PREVIEW, not production
-                runMigrations: false, // Don't run migrations on preview
-                previewBranch: `wave-${waveNumber}`, // Deploy from wave branch
+                environment: "preview",
+                // ✅ FIXED: Migrations already ran on branch, no need to run again
+                runMigrations: false,
+                previewBranch: `wave-${waveNumber}`,
+                // ✅ NEW: Inject branch-specific env vars
+                environmentVariables: previewEnvVars,
               },
             },
           });
 
-          return { platform };
+          return { platform, hasDbBranch: dbBranchResult.branchCreated };
         }
       );
 
@@ -337,7 +513,7 @@ export const waveCompleteFunction = inngest.createFunction(
           );
           return null;
         }
-        
+
         if (!deploymentResult.data.success) {
           log.warn(
             `[Wave ${waveNumber}] Preview deployment failed, continuing without URL`
@@ -352,7 +528,7 @@ export const waveCompleteFunction = inngest.createFunction(
         await prisma.executionWave.update({
           where: { projectId_waveNumber: { projectId, waveNumber } },
           data: {
-            previewUrl: url, // ✅ NEW FIELD (add to schema)
+            previewUrl: url,
             previewDeployedAt: new Date(),
           },
         });
@@ -361,14 +537,17 @@ export const waveCompleteFunction = inngest.createFunction(
       });
 
       // ==========================================
-      // STEP 6: GITHUB PR CREATION (with preview URL)
+      // STEP 6: AGGREGATE TASK BRANCHES INTO WAVE-MERGE BRANCH
       // ==========================================
-      const prResult = await step.run("create-github-pr", async () => {
-        log.info(`[Wave ${waveNumber}] Creating GitHub PR`);
+      // ✅ CRITICAL FIX: Previously only branches[0] was used for PR,
+      // ignoring code from other tasks. Now we merge ALL task branches
+      // into a single wave-N-merge branch before creating the PR.
+      const waveMergeBranch = await step.run("aggregate-task-branches", async () => {
+        log.info(`[Wave ${waveNumber}] Aggregating all task branches into merge branch`);
 
         const waveTasks = await prisma.agentTask.findMany({
           where: { projectId, waveNumber },
-          select: { branchName: true, agentName: true },
+          select: { branchName: true, agentName: true, id: true },
         });
 
         const branches = waveTasks
@@ -379,8 +558,7 @@ export const waveCompleteFunction = inngest.createFunction(
           throw new Error("No branches found for PR creation");
         }
 
-        const mainBranch = branches[0];
-
+        // Get GitHub credentials and repo info
         const projectContext = await prisma.projectContext.findUnique({
           where: { projectId },
           select: { codebase: true },
@@ -415,7 +593,91 @@ export const waveCompleteFunction = inngest.createFunction(
           "@/lib/agents/github/github-agent"
         );
 
-        // ✅ Build PR description with preview URL
+        // If only one branch, no need to merge - just use it directly
+        if (branches.length === 1) {
+          log.info(`[Wave ${waveNumber}] Only one task branch, using directly: ${branches[0]}`);
+          return {
+            mergeBranch: branches[0],
+            branchCount: 1,
+            mergedBranches: branches,
+            failedBranches: [] as string[],
+            waveTasks,
+            repoName,
+            githubToken,
+          };
+        }
+
+        // Create the wave-N-merge branch name
+        const mergeBranchName = `wave-${waveNumber}-merge`;
+
+        log.info(`[Wave ${waveNumber}] Creating merge branch: ${mergeBranchName} from ${branches.length} task branches`);
+
+        // Use githubAgent to create the merge branch from main and merge all task branches
+        const mergeResult = await githubAgent.createMergeBranch({
+          projectId,
+          repoName,
+          mergeBranchName,
+          sourceBranches: branches,
+          baseBranch: "main", // Start from main
+          githubToken,
+        }) as {
+          success: boolean;
+          message?: string;
+          mergeBranch?: string;
+          mergedBranches?: string[];
+          failedBranches?: string[];
+          conflicts?: Array<{ branch: string; conflictingFiles: string[] }>;
+        };
+
+        if (!mergeResult.success) {
+          // If merge failed due to conflicts, log details and fail gracefully
+          if (mergeResult.conflicts && mergeResult.conflicts.length > 0) {
+            log.error(`[Wave ${waveNumber}] Merge conflicts detected`, undefined, {
+              conflicts: mergeResult.conflicts,
+            });
+            throw new Error(
+              `Merge conflicts detected in wave ${waveNumber}. Conflicting branches: ${
+                mergeResult.conflicts.map(c => c.branch).join(", ")
+              }. Manual resolution required.`
+            );
+          }
+          throw new Error(`Failed to create merge branch: ${mergeResult.message ?? "Unknown error"}`);
+        }
+
+        log.info(`[Wave ${waveNumber}] Successfully merged ${mergeResult.mergedBranches?.length ?? 0} branches into ${mergeBranchName}`, {
+          mergedBranches: mergeResult.mergedBranches,
+          failedBranches: mergeResult.failedBranches,
+        });
+
+        // If some branches failed to merge but we have at least one success
+        if (mergeResult.failedBranches && mergeResult.failedBranches.length > 0) {
+          log.warn(`[Wave ${waveNumber}] Some branches failed to merge`, {
+            failedBranches: mergeResult.failedBranches,
+          });
+        }
+
+        return {
+          mergeBranch: mergeBranchName,
+          branchCount: branches.length,
+          mergedBranches: mergeResult.mergedBranches ?? branches,
+          failedBranches: mergeResult.failedBranches ?? [],
+          waveTasks,
+          repoName,
+          githubToken,
+        };
+      });
+
+      // ==========================================
+      // STEP 7: GITHUB PR CREATION (with preview URL)
+      // ==========================================
+      const prResult = await step.run("create-github-pr", async () => {
+        log.info(`[Wave ${waveNumber}] Creating GitHub PR from branch: ${waveMergeBranch.mergeBranch}`);
+
+        const { githubAgent } = await import(
+          "@/lib/agents/github/github-agent"
+        );
+
+        // ✅ Build PR description with preview URL and merged branch info
         const prDescription = `
 ## Wave ${waveNumber} Changes
 
@@ -423,7 +685,17 @@ export const waveCompleteFunction = inngest.createFunction(
 **Status:** ${hasWarnings ? "⚠️ Completed with warnings" : "✅ All checks passed"}
 
 ### Tasks Completed:
-${waveTasks.map((t) => `- ${t.agentName}`).join("\n")}
+${waveMergeBranch.waveTasks.map((t) => `- ${t.agentName}${t.branchName ? ` (\`${t.branchName}\`)` : ""}`).join("\n")}
+
+### Branches Merged:
+${waveMergeBranch.branchCount > 1
+  ? `This PR aggregates **${waveMergeBranch.branchCount}** task branches into \`${waveMergeBranch.mergeBranch}\`:\n${waveMergeBranch.mergedBranches.map(b => `- \`${b}\``).join("\n")}`
+  : `Single task branch: \`${waveMergeBranch.mergeBranch}\``
+}
+${waveMergeBranch.failedBranches && waveMergeBranch.failedBranches.length > 0
+  ? `\n⚠️ **Failed to merge:** ${waveMergeBranch.failedBranches.map(b => `\`${b}\``).join(", ")}`
+  : ""
+}
 
 ${hasWarnings ? "\n⚠️ **Warning:** Some medium-priority issues remain unfixed. Review recommended." : ""}
 
@@ -450,13 +722,14 @@ Test the changes live before approving this PR. The preview includes all code fr
 **Auto-generated by NeuraLaunch Agent System**
         `;
 
+        // ✅ Use the aggregated merge branch instead of just branches[0]
         const prResultRaw = await githubAgent.createPullRequest({
           projectId,
-          repoName,
-          branchName: mainBranch,
+          repoName: waveMergeBranch.repoName,
+          branchName: waveMergeBranch.mergeBranch,
           title: `Wave ${waveNumber} - Feature Implementation${hasWarnings ? " ⚠️" : ""}`,
           description: prDescription,
-          githubToken,
+          githubToken: waveMergeBranch.githubToken,
         });
 
         const prResult = prResultRaw as {
@@ -482,11 +755,12 @@ Test the changes live before approving this PR. The preview includes all code fr
         return {
           prUrl: prResult.prUrl ?? "",
           prNumber: prResult.prNumber ?? 0,
+          branchesIncluded: waveMergeBranch.branchCount,
         };
       });
 
       // ==========================================
-      // STEP 7: MARK WAVE COMPLETE
+      // STEP 8: MARK WAVE COMPLETE
       // ==========================================
       await step.run("mark-wave-complete", async () => {
         await prisma.executionWave.update({
@@ -500,7 +774,7 @@ Test the changes live before approving this PR. The preview includes all code fr
       });
 
       // ==========================================
-      // STEP 8: CHECK FOR MORE WAVES
+      // STEP 9: CHECK FOR MORE WAVES
       // ==========================================
       const hasMoreTasks = await step.run("check-more-waves", async () => {
         const pendingCount = await prisma.agentTask.count({
@@ -510,7 +784,7 @@ Test the changes live before approving this PR. The preview includes all code fr
       });
 
       // ==========================================
-      // STEP 9: TRIGGER NEXT WAVE OR COMPLETE PROJECT
+      // STEP 10: TRIGGER NEXT WAVE OR COMPLETE PROJECT
       // ==========================================
       if (hasMoreTasks) {
         // More waves to execute - trigger next wave
@@ -770,11 +1044,12 @@ Test the changes live before approving this PR. The preview includes all code fr
         waveNumber,
         prUrl: prResult.prUrl,
         prNumber: prResult.prNumber,
+        branchesIncluded: prResult.branchesIncluded, // ✅ Number of task branches merged
         previewUrl, // ✅ Include preview URL in response
         hasMoreWaves: hasMoreTasks,
         criticScore: reviewScore,
         hasWarnings,
-        message: hasMoreTasks 
+        message: hasMoreTasks
           ? `Wave ${waveNumber} complete! Starting Wave ${waveNumber + 1}...`
           : `Wave ${waveNumber} complete! All waves finished - project completed! 🎉`,
       };

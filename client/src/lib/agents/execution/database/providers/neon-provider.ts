@@ -19,7 +19,8 @@ const NEON_API_BASE = "https://console.neon.tech/api/v2";
 
 interface NeonCreateProjectResponse {
   project: NeonProject;
-  connection_uris: Array<{
+  // Note: These arrays are returned at the top level of the response, not nested in project
+  connection_uris?: Array<{
     connection_uri: string;
     connection_parameters: {
       host: string;
@@ -28,9 +29,30 @@ interface NeonCreateProjectResponse {
       password: string;
     };
   }>;
-  roles: Array<{
+  roles?: Array<{
     name: string;
     password: string;
+  }>;
+  // Branches are returned at top level, not in project object
+  branches?: Array<{
+    id: string;
+    name: string;
+    project_id: string;
+    current_state: string;
+  }>;
+  // Databases at top level
+  databases?: Array<{
+    id: number;
+    name: string;
+    owner_name: string;
+    branch_id: string;
+  }>;
+  // Endpoints at top level
+  endpoints?: Array<{
+    id: string;
+    host: string;
+    type: string;
+    branch_id: string;
   }>;
 }
 
@@ -40,6 +62,17 @@ interface NeonProjectStatusResponse {
     name: string;
     current_state: string;
   };
+}
+
+// Response for listing projects (idempotency check)
+interface NeonListProjectsResponse {
+  projects: Array<{
+    id: string;
+    name: string;
+    region_id: string;
+    created_at: string;
+    current_state: string;
+  }>;
 }
 
 export class NeonProvider extends BaseDatabaseProvider {
@@ -68,10 +101,36 @@ export class NeonProvider extends BaseDatabaseProvider {
 
     const startTime = Date.now();
     const warnings: string[] = [];
+    const sanitizedName = this.sanitizeName(options.projectName);
 
     try {
+      // ===== IDEMPOTENCY CHECK =====
+      // Before creating a new project, check if one with the same name already exists
+      // This prevents duplicate database creation if the agent is run twice
+      const existingProject = await this.findProjectByName(sanitizedName);
+
+      if (existingProject) {
+        logger.warn(`[${this.providerName}] Project with name '${sanitizedName}' already exists`, {
+          existingProjectId: existingProject.id,
+          existingRegion: existingProject.region_id,
+        });
+
+        // Return error asking for manual intervention
+        // We can't return credentials because we don't have the password
+        return {
+          success: false,
+          estimatedMonthlyCost: 0,
+          provisioningTimeMs: Date.now() - startTime,
+          warnings: [`Existing project found: ${existingProject.id}`],
+          error: `A Neon project named '${sanitizedName}' already exists (ID: ${existingProject.id}). ` +
+                 `To avoid duplicate databases, please either: ` +
+                 `1) Delete the existing project at https://console.neon.tech/app/projects/${existingProject.id}, or ` +
+                 `2) Use a different project name.`,
+        };
+      }
+
       logger.info(`[${this.providerName}] Provisioning database`, {
-        projectName: options.projectName,
+        projectName: sanitizedName,
         region: options.region || "aws-us-east-2",
       });
 
@@ -100,6 +159,31 @@ export class NeonProvider extends BaseDatabaseProvider {
 
       const project = response.project;
 
+      // Log response structure for debugging (without sensitive data)
+      logger.debug(`[${this.providerName}] API response structure`, {
+        hasProject: !!project,
+        projectId: project?.id,
+        hasConnectionUris: !!response.connection_uris,
+        connectionUrisCount: response.connection_uris?.length || 0,
+        hasRoles: !!response.roles,
+        rolesCount: response.roles?.length || 0,
+        hasBranches: !!response.branches,
+        branchesCount: response.branches?.length || 0,
+        hasProjectBranches: !!project?.branches,
+        projectBranchesCount: project?.branches?.length || 0,
+      });
+
+      // Validate response - project must exist
+      if (!project || !project.id) {
+        return {
+          success: false,
+          estimatedMonthlyCost: 0,
+          provisioningTimeMs: Date.now() - startTime,
+          warnings,
+          error: "Neon API returned invalid response: missing project data.",
+        };
+      }
+
       // Validate response arrays before accessing
       if (!response.connection_uris || response.connection_uris.length === 0) {
         return {
@@ -107,7 +191,7 @@ export class NeonProvider extends BaseDatabaseProvider {
           estimatedMonthlyCost: 0,
           provisioningTimeMs: Date.now() - startTime,
           warnings,
-          error: "Neon API returned no connection URIs. Project may have failed to initialize.",
+          error: `Neon API returned no connection URIs for project ${project.id}. Project may have failed to initialize.`,
         };
       }
 
@@ -117,7 +201,7 @@ export class NeonProvider extends BaseDatabaseProvider {
           estimatedMonthlyCost: 0,
           provisioningTimeMs: Date.now() - startTime,
           warnings,
-          error: "Neon API returned no database roles. Project may have failed to initialize.",
+          error: `Neon API returned no database roles for project ${project.id}. Project may have failed to initialize.`,
         };
       }
 
@@ -127,21 +211,72 @@ export class NeonProvider extends BaseDatabaseProvider {
       // Parse connection parameters
       const connParams = connectionUri.connection_parameters;
 
+      // Get branch ID from top-level response (not from project object)
+      // Neon API returns branches at the response root level
+      const branchId = response.branches?.[0]?.id ||
+                       project.branches?.[0]?.id || // Fallback to project.branches if present
+                       "";
+
+      if (!branchId) {
+        logger.warn(`[${this.providerName}] No branch ID found in response, using empty string`);
+      }
+
+      // ===== FIX #1: Handle Neon V2 API password behavior =====
+      // In V2 API, roles array often returns password: null for security reasons.
+      // We must use connParams.password as primary, with role.password as fallback.
+      const password = connParams.password || role.password;
+
+      if (!password) {
+        return {
+          success: false,
+          estimatedMonthlyCost: 0,
+          provisioningTimeMs: Date.now() - startTime,
+          warnings,
+          error: `Neon API returned no password for database role. Project ${project.id} may require manual password reset.`,
+        };
+      }
+
+      // ===== FIX #2: Handle Neon V2 connection pooling correctly =====
+      // In V2 API, the default host returned is the POOLER host (contains "-pooler").
+      // For Prisma's directUrl, we need the NON-POOLER host.
+      // Pooler host: ep-xxxx-pooler.region.aws.neon.tech
+      // Direct host: ep-xxxx.region.aws.neon.tech
+      const poolerHost = connParams.host;
+      const isPoolerHost = poolerHost.includes("-pooler");
+      const directHost = isPoolerHost
+        ? poolerHost.replace("-pooler", "")
+        : poolerHost;
+
+      logger.debug(`[${this.providerName}] Connection hosts`, {
+        poolerHost,
+        directHost,
+        isPoolerHost,
+      });
+
+      // Build connection strings
+      // - connectionString: Uses pooler for connection pooling (default for app)
+      // - directUrl: Uses direct connection for Prisma migrations (no pgbouncer)
+      const connectionString = connectionUri.connection_uri;
+
+      // Construct directUrl with non-pooler host for Prisma migrations
+      // This ensures migrations don't go through pgbouncer which can cause issues
+      const directUrl = `postgresql://${connParams.role}:${password}@${directHost}:5432/${connParams.database}?sslmode=require`;
+
       // Build credentials
       const credentials: DatabaseCredentials = {
         provider: "neon",
         databaseType: "postgresql",
-        host: connParams.host,
+        host: poolerHost, // Use pooler host as default (better for connection pooling)
         port: 5432,
         username: connParams.role,
-        password: role.password || connParams.password,
+        password,
         database: connParams.database,
         sslMode: "require",
-        connectionString: connectionUri.connection_uri,
-        directUrl: connectionUri.connection_uri.replace("?sslmode=require", "?sslmode=require&pgbouncer=false"),
+        connectionString,
+        directUrl,
         additionalEnvVars: {
           NEON_PROJECT_ID: project.id,
-          NEON_BRANCH_ID: project.branches[0]?.id || "",
+          NEON_BRANCH_ID: branchId,
         },
       };
 
@@ -289,6 +424,60 @@ export class NeonProvider extends BaseDatabaseProvider {
   buildConnectionString(credentials: Partial<DatabaseCredentials>): string {
     const { host, port, username, password, database, sslMode } = credentials;
     return `postgresql://${username}:${password}@${host}:${port || 5432}/${database}?sslmode=${sslMode || "require"}`;
+  }
+
+  /**
+   * Find an existing project by name (for idempotency check)
+   * Returns the project if found, null otherwise
+   */
+  private async findProjectByName(
+    projectName: string
+  ): Promise<{ id: string; name: string; region_id: string } | null> {
+    if (!this.config?.apiKey) {
+      return null;
+    }
+
+    try {
+      logger.debug(`[${this.providerName}] Checking for existing project`, { projectName });
+
+      // List all projects and find one with matching name
+      const response = await this.fetchWithRetry<NeonListProjectsResponse>(
+        `${NEON_API_BASE}/projects`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${this.config.apiKey}`,
+          },
+        },
+        "listProjects"
+      );
+
+      // Find project with exact name match (case-insensitive for safety)
+      const existingProject = response.projects.find(
+        (p) => p.name.toLowerCase() === projectName.toLowerCase()
+      );
+
+      if (existingProject) {
+        logger.debug(`[${this.providerName}] Found existing project`, {
+          projectId: existingProject.id,
+          projectName: existingProject.name,
+        });
+        return {
+          id: existingProject.id,
+          name: existingProject.name,
+          region_id: existingProject.region_id,
+        };
+      }
+
+      return null;
+    } catch (error) {
+      // If we can't check for existing projects, log warning and proceed
+      // This is a non-critical check, so we don't want to fail provisioning
+      logger.warn(`[${this.providerName}] Could not check for existing projects`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    }
   }
 }
 

@@ -74,26 +74,51 @@ DIRECT_URL="${ctx.credentials.directUrl || ctx.credentials.connectionString}"
         // Run existing migrations
         const migrateResult = await ctx.executeCommand("npx prisma migrate deploy");
         if (!migrateResult.success) {
-          // Try db push as fallback
-          logger.warn("[PrismaInitializer] migrate deploy failed, trying db push");
-          const pushResult = await ctx.executeCommand("npx prisma db push --accept-data-loss");
-          if (!pushResult.success) {
+          // ✅ FIXED: Never use --accept-data-loss automatically
+          // This could delete data columns in production without warning
+          logger.warn("[PrismaInitializer] migrate deploy failed, trying safe db push");
+
+          // First try WITHOUT --accept-data-loss (safe mode)
+          const safePushResult = await ctx.executeCommand("npx prisma db push");
+
+          if (!safePushResult.success) {
+            // Check if the error is specifically about data loss
+            const requiresDataLoss = safePushResult.stderr.toLowerCase().includes("data loss") ||
+                                     safePushResult.stderr.toLowerCase().includes("drop column") ||
+                                     safePushResult.stderr.toLowerCase().includes("destructive");
+
+            if (requiresDataLoss) {
+              // ✅ FAIL SAFELY - Don't auto-accept data loss
+              return {
+                success: false,
+                migrationsRun,
+                tablesCreated,
+                duration: Date.now() - startTime,
+                error: `Database schema change requires data loss. Manual intervention required. ` +
+                       `Run "npx prisma db push --accept-data-loss" manually after reviewing changes. ` +
+                       `Original error: ${safePushResult.stderr}`,
+                stdout: safePushResult.stdout,
+                stderr: safePushResult.stderr,
+              };
+            }
+
+            // Non-data-loss error - just fail normally
             return {
               success: false,
               migrationsRun,
               tablesCreated,
               duration: Date.now() - startTime,
-              error: `Database sync failed: ${pushResult.stderr}`,
-              stdout: pushResult.stdout,
-              stderr: pushResult.stderr,
+              error: `Database sync failed: ${safePushResult.stderr}`,
+              stdout: safePushResult.stdout,
+              stderr: safePushResult.stderr,
             };
           }
-          migrationsRun.push("prisma db push");
+          migrationsRun.push("prisma db push (safe mode)");
         } else {
           migrationsRun.push("prisma migrate deploy");
         }
       } else {
-        // No migrations - use db push for initial setup
+        // No migrations - use db push for initial setup (fresh database, no data loss risk)
         const pushResult = await ctx.executeCommand("npx prisma db push");
         if (!pushResult.success) {
           return {
@@ -402,23 +427,56 @@ const rawSqlInitializer: OrmInitializer = {
             migrationsRun.push(`Executed: ${sqlPath}`);
             logger.info(`[RawSQLInitializer] Successfully executed: ${sqlPath}`);
           } else {
-            // Try alternative: use node-postgres via npx if psql not available
-            const altResult = await ctx.executeCommand(
-              `npx ts-node -e "
-                const { Client } = require('pg');
-                const fs = require('fs');
-                const sql = fs.readFileSync('${sqlPath}', 'utf8');
-                const client = new Client({ connectionString: process.env.DATABASE_URL });
-                client.connect().then(() => client.query(sql)).then(() => client.end()).catch(e => { console.error(e); process.exit(1); });
-              "`
-            );
+            // psql failed - check if it's a "command not found" error
+            const isPsqlMissing = execResult.stderr.toLowerCase().includes("not found") ||
+                                  execResult.stderr.toLowerCase().includes("not recognized") ||
+                                  execResult.exitCode === 127;
 
-            if (altResult.success) {
-              migrationsRun.push(`Executed: ${sqlPath}`);
-              logger.info(`[RawSQLInitializer] Successfully executed via node: ${sqlPath}`);
+            if (isPsqlMissing) {
+              // psql not available - try node-postgres only if pg is in project dependencies
+              // First, check if pg is available by checking package.json
+              const packageJsonResult = await ctx.readFile("package.json");
+              const hasPgDependency = packageJsonResult.success &&
+                                      packageJsonResult.content &&
+                                      (packageJsonResult.content.includes('"pg"') ||
+                                       packageJsonResult.content.includes("'pg'"));
+
+              if (hasPgDependency) {
+                // Project has pg - try using it via npx
+                logger.info(`[RawSQLInitializer] psql not available, trying node-postgres (pg found in dependencies)`);
+                const altResult = await ctx.executeCommand(
+                  `npx ts-node -e "
+                    const { Client } = require('pg');
+                    const fs = require('fs');
+                    const sql = fs.readFileSync('${sqlPath}', 'utf8');
+                    const client = new Client({ connectionString: process.env.DATABASE_URL });
+                    client.connect().then(() => client.query(sql)).then(() => client.end()).catch(e => { console.error(e); process.exit(1); });
+                  "`
+                );
+
+                if (altResult.success) {
+                  migrationsRun.push(`Executed: ${sqlPath}`);
+                  logger.info(`[RawSQLInitializer] Successfully executed via node-postgres: ${sqlPath}`);
+                } else {
+                  errors.push(`Failed to execute ${sqlPath}: ${altResult.stderr}`);
+                  logger.warn(`[RawSQLInitializer] node-postgres execution failed: ${sqlPath}`, { error: altResult.stderr });
+                }
+              } else {
+                // Neither psql nor pg available - provide helpful error
+                errors.push(
+                  `Cannot execute ${sqlPath}: psql command not found and 'pg' package not in project dependencies. ` +
+                  `Please either install PostgreSQL CLI tools (psql) or add 'pg' to your project dependencies.`
+                );
+                logger.error(`[RawSQLInitializer] No SQL execution method available`, undefined, {
+                  sqlPath,
+                  hasPsql: false,
+                  hasPgDependency: false,
+                });
+              }
             } else {
-              errors.push(`Failed to execute ${sqlPath}: ${execResult.stderr || altResult.stderr}`);
-              logger.warn(`[RawSQLInitializer] Failed to execute: ${sqlPath}`, { error: execResult.stderr });
+              // psql is available but execution failed (connection error, SQL error, etc.)
+              errors.push(`Failed to execute ${sqlPath}: ${execResult.stderr}`);
+              logger.warn(`[RawSQLInitializer] psql execution failed: ${sqlPath}`, { error: execResult.stderr });
             }
           }
         }

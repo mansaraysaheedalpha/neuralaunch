@@ -100,10 +100,12 @@ function validateIssuesArray(value: unknown): Array<{ file: string; issue: strin
 /**
  * Enhanced Database Agent
  * Handles the full database provisioning lifecycle
+ *
+ * CONCURRENCY NOTE: This agent is exported as a singleton, so we must NOT
+ * store per-execution state (like rollbackPlan) as class properties.
+ * Instead, state is passed through method parameters.
  */
 export class DatabaseAgent extends BaseAgent {
-  private rollbackPlan: RollbackPlan = { steps: [], canRollback: true, warnings: [] };
-
   constructor() {
     super({
       name: "DatabaseAgent",
@@ -131,13 +133,16 @@ export class DatabaseAgent extends BaseAgent {
 
   /**
    * Main task execution method
+   *
+   * CONCURRENCY SAFE: rollbackPlan is a local variable, not a class property.
+   * This ensures concurrent executions don't interfere with each other.
    */
   async executeTask(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
     const { taskId, taskDetails } = input;
     const startTime = Date.now();
 
-    // Reset rollback plan
-    this.rollbackPlan = { steps: [], canRollback: true, warnings: [] };
+    // Create a LOCAL rollback plan for this execution (concurrency safe)
+    const rollbackPlan: RollbackPlan = { steps: [], canRollback: true, warnings: [] };
 
     // Determine mode
     const mode = taskDetails.mode || "provision";
@@ -151,7 +156,7 @@ export class DatabaseAgent extends BaseAgent {
     try {
       switch (mode) {
         case "provision":
-          return await this.executeProvisionMode(input);
+          return await this.executeProvisionMode(input, rollbackPlan);
         case "schema":
           return await this.executeSchemaMode(input);
         case "migrate":
@@ -159,15 +164,15 @@ export class DatabaseAgent extends BaseAgent {
         case "fix":
           return await this.executeFixMode(input);
         default:
-          return await this.executeProvisionMode(input);
+          return await this.executeProvisionMode(input, rollbackPlan);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error(`[${this.config.name}] Execution failed`, toError(error));
 
-      // Attempt rollback
-      if (this.rollbackPlan.steps.length > 0) {
-        await this.executeRollback(input);
+      // Attempt rollback using the local rollbackPlan
+      if (rollbackPlan.steps.length > 0) {
+        await this.executeRollback(input, rollbackPlan);
       }
 
       return {
@@ -177,7 +182,7 @@ export class DatabaseAgent extends BaseAgent {
         durationMs: Date.now() - startTime,
         error: errorMessage,
         data: {
-          rollbackPlan: this.rollbackPlan,
+          rollbackPlan,
         },
       };
     }
@@ -185,8 +190,13 @@ export class DatabaseAgent extends BaseAgent {
 
   /**
    * Provision Mode - Full database provisioning lifecycle
+   * @param input - Agent execution input
+   * @param rollbackPlan - Local rollback plan for this execution (concurrency safe)
    */
-  private async executeProvisionMode(input: AgentExecutionInput): Promise<AgentExecutionOutput> {
+  private async executeProvisionMode(
+    input: AgentExecutionInput,
+    rollbackPlan: RollbackPlan
+  ): Promise<AgentExecutionOutput> {
     const { projectId, userId, taskDetails, context } = input;
     const startTime = Date.now();
     const warnings: string[] = [];
@@ -263,8 +273,8 @@ export class DatabaseAgent extends BaseAgent {
         };
       }
 
-      // Add to rollback plan
-      this.rollbackPlan.steps.push({
+      // Add to rollback plan (local variable, concurrency safe)
+      rollbackPlan.steps.push({
         action: "delete_database",
         target: provisionResult.resourceId || "",
         data: { provider },
@@ -533,15 +543,21 @@ export class DatabaseAgent extends BaseAgent {
 
   /**
    * Execute rollback plan
+   * @param input - Agent execution input
+   * @param rollbackPlan - Local rollback plan to execute (concurrency safe)
    */
-  private async executeRollback(input: AgentExecutionInput): Promise<void> {
+  private async executeRollback(
+    input: AgentExecutionInput,
+    rollbackPlan: RollbackPlan
+  ): Promise<void> {
     const { projectId, userId } = input;
 
     logger.info(`[${this.config.name}] Executing rollback`, {
-      steps: this.rollbackPlan.steps.length,
+      steps: rollbackPlan.steps.length,
     });
 
-    for (const step of this.rollbackPlan.steps.reverse()) {
+    // Reverse iterate through steps (LIFO order for proper rollback)
+    for (const step of [...rollbackPlan.steps].reverse()) {
       try {
         switch (step.action) {
           case "delete_database":
@@ -571,7 +587,7 @@ export class DatabaseAgent extends BaseAgent {
         }
       } catch (error) {
         logger.error(`[${this.config.name}] Rollback step failed`, toError(error));
-        this.rollbackPlan.warnings.push(`Failed to rollback ${step.action}: ${step.target}`);
+        rollbackPlan.warnings.push(`Failed to rollback ${step.action}: ${step.target}`);
       }
     }
   }
@@ -672,6 +688,7 @@ export class DatabaseAgent extends BaseAgent {
 
   /**
    * Configure application with database credentials
+   * IMPORTANT: Merges with existing .env file to preserve other variables
    */
   private async configureApplication(
     projectId: string,
@@ -683,56 +700,63 @@ export class DatabaseAgent extends BaseAgent {
     const filesModified: string[] = [];
 
     try {
-      // Build .env content
-      let envContent = `# Database Configuration (auto-generated by DatabaseAgent)
-DATABASE_URL="${credentials.connectionString}"
-`;
+      // Step 1: Read existing .env file if it exists
+      let existingEnvContent = "";
+      let envFileExists = false;
+
+      try {
+        const readResult = await this.executeTool(
+          "filesystem",
+          { operation: "read", path: ".env" },
+          { projectId, userId }
+        );
+        if (readResult.success && (readResult.data as { content?: string })?.content) {
+          existingEnvContent = (readResult.data as { content: string }).content;
+          envFileExists = true;
+          logger.info(`[${this.config.name}] Found existing .env file, will merge database credentials`);
+        }
+      } catch {
+        // .env doesn't exist yet - that's fine, we'll create it
+        logger.info(`[${this.config.name}] No existing .env file, creating new one`);
+      }
+
+      // Step 2: Parse existing env vars into a Map to preserve them
+      const envVars = this.parseEnvFile(existingEnvContent);
+
+      // Step 3: Add/update database credentials (these take precedence)
+      envVars.set("DATABASE_URL", credentials.connectionString);
 
       if (credentials.directUrl) {
-        envContent += `DIRECT_URL="${credentials.directUrl}"
-`;
+        envVars.set("DIRECT_URL", credentials.directUrl);
       }
 
       // Add provider-specific variables
       for (const [key, value] of Object.entries(credentials.additionalEnvVars)) {
         if (value) {
-          envContent += `${key}="${value}"
-`;
+          envVars.set(key, value);
         }
       }
 
-      // Write .env file
+      // Step 4: Rebuild .env content preserving comments and structure
+      const mergedEnvContent = this.buildEnvFileContent(existingEnvContent, envVars, credentials);
+
+      // Step 5: Write merged .env file
       const envResult = await this.executeTool(
         "filesystem",
-        { operation: "write", path: ".env", content: envContent },
+        { operation: "write", path: ".env", content: mergedEnvContent },
         { projectId, userId }
       );
 
       if (envResult.success) {
-        filesCreated.push({ path: ".env", linesOfCode: envContent.split("\n").length });
+        if (envFileExists) {
+          filesModified.push(".env");
+        } else {
+          filesCreated.push({ path: ".env", linesOfCode: mergedEnvContent.split("\n").length });
+        }
       }
 
-      // Update .env.example (without sensitive values)
-      let envExampleContent = `# Database Configuration
-DATABASE_URL="your-database-url-here"
-`;
-
-      if (credentials.directUrl) {
-        envExampleContent += `DIRECT_URL="your-direct-url-here"
-`;
-      }
-
-      for (const key of Object.keys(credentials.additionalEnvVars)) {
-        envExampleContent += `${key}="your-${key.toLowerCase().replace(/_/g, "-")}-here"
-`;
-      }
-
-      await this.executeTool(
-        "filesystem",
-        { operation: "write", path: ".env.example", content: envExampleContent },
-        { projectId, userId }
-      );
-
+      // Step 6: Update .env.example (merge, don't overwrite)
+      await this.updateEnvExample(projectId, userId, credentials);
       filesModified.push(".env.example");
 
       return { success: true, filesCreated, filesModified };
@@ -743,6 +767,204 @@ DATABASE_URL="your-database-url-here"
         filesModified,
         error: error instanceof Error ? error.message : String(error),
       };
+    }
+  }
+
+  /**
+   * Parse .env file content into a Map of key-value pairs
+   */
+  private parseEnvFile(content: string): Map<string, string> {
+    const envVars = new Map<string, string>();
+
+    if (!content) return envVars;
+
+    const lines = content.split("\n");
+    for (const line of lines) {
+      // Skip comments and empty lines
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+
+      // Parse KEY=VALUE or KEY="VALUE"
+      const match = trimmed.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/i);
+      if (match) {
+        const key = match[1];
+        let value = match[2];
+
+        // Remove surrounding quotes if present
+        if ((value.startsWith('"') && value.endsWith('"')) ||
+            (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+
+        envVars.set(key, value);
+      }
+    }
+
+    return envVars;
+  }
+
+  /**
+   * Build .env file content, preserving existing structure and comments
+   */
+  private buildEnvFileContent(
+    existingContent: string,
+    envVars: Map<string, string>,
+    credentials: DatabaseCredentials
+  ): string {
+    const lines: string[] = [];
+    const writtenKeys = new Set<string>();
+    const databaseKeys = new Set([
+      "DATABASE_URL",
+      "DIRECT_URL",
+      ...Object.keys(credentials.additionalEnvVars),
+    ]);
+
+    // If there's existing content, preserve its structure
+    if (existingContent) {
+      const existingLines = existingContent.split("\n");
+      let _inDatabaseSection = false;
+
+      for (const line of existingLines) {
+        const trimmed = line.trim();
+
+        // Detect database section header (tracked for potential future use)
+        if (trimmed.includes("Database Configuration") || trimmed.includes("DATABASE_URL")) {
+          _inDatabaseSection = true;
+        }
+
+        // Check if this is a key=value line
+        const match = trimmed.match(/^([A-Z_][A-Z0-9_]*)=/i);
+        if (match) {
+          const key = match[1];
+
+          // If it's a database key, update it with new value
+          if (databaseKeys.has(key) && envVars.has(key)) {
+            lines.push(`${key}="${envVars.get(key)}"`);
+            writtenKeys.add(key);
+          } else if (envVars.has(key)) {
+            // Keep existing non-database var
+            lines.push(`${key}="${envVars.get(key)}"`);
+            writtenKeys.add(key);
+          } else {
+            // Keep the line as-is
+            lines.push(line);
+          }
+        } else {
+          // Keep comments and empty lines
+          lines.push(line);
+        }
+      }
+    }
+
+    // Add database section if we haven't written all database keys yet
+    const unwrittenDatabaseKeys = [...databaseKeys].filter(k => !writtenKeys.has(k) && envVars.has(k));
+    if (unwrittenDatabaseKeys.length > 0) {
+      // Add a separator if there's existing content
+      if (lines.length > 0 && lines[lines.length - 1] !== "") {
+        lines.push("");
+      }
+
+      lines.push("# Database Configuration (auto-generated by DatabaseAgent)");
+
+      for (const key of unwrittenDatabaseKeys) {
+        const value = envVars.get(key);
+        if (value) {
+          lines.push(`${key}="${value}"`);
+          writtenKeys.add(key);
+        }
+      }
+    }
+
+    // Add any remaining new keys that weren't in the original file
+    const remainingKeys = [...envVars.keys()].filter(k => !writtenKeys.has(k));
+    if (remainingKeys.length > 0) {
+      if (lines.length > 0 && lines[lines.length - 1] !== "") {
+        lines.push("");
+      }
+      for (const key of remainingKeys) {
+        lines.push(`${key}="${envVars.get(key)}"`);
+      }
+    }
+
+    // Ensure file ends with newline
+    let result = lines.join("\n");
+    if (!result.endsWith("\n")) {
+      result += "\n";
+    }
+
+    return result;
+  }
+
+  /**
+   * Update .env.example with database placeholders (merge, don't overwrite)
+   */
+  private async updateEnvExample(
+    projectId: string,
+    userId: string,
+    credentials: DatabaseCredentials
+  ): Promise<void> {
+    // Read existing .env.example
+    let existingContent = "";
+    try {
+      const readResult = await this.executeTool(
+        "filesystem",
+        { operation: "read", path: ".env.example" },
+        { projectId, userId }
+      );
+      if (readResult.success && (readResult.data as { content?: string })?.content) {
+        existingContent = (readResult.data as { content: string }).content;
+      }
+    } catch {
+      // Doesn't exist yet
+    }
+
+    // Parse existing keys
+    const existingKeys = new Set<string>();
+    for (const line of existingContent.split("\n")) {
+      const match = line.trim().match(/^([A-Z_][A-Z0-9_]*)=/i);
+      if (match) {
+        existingKeys.add(match[1]);
+      }
+    }
+
+    // Build new entries for database vars that don't exist yet
+    const newEntries: string[] = [];
+
+    if (!existingKeys.has("DATABASE_URL")) {
+      newEntries.push('DATABASE_URL="your-database-url-here"');
+    }
+
+    if (credentials.directUrl && !existingKeys.has("DIRECT_URL")) {
+      newEntries.push('DIRECT_URL="your-direct-url-here"');
+    }
+
+    for (const key of Object.keys(credentials.additionalEnvVars)) {
+      if (!existingKeys.has(key)) {
+        newEntries.push(`${key}="your-${key.toLowerCase().replace(/_/g, "-")}-here"`);
+      }
+    }
+
+    // If there are new entries, append them
+    if (newEntries.length > 0) {
+      let content = existingContent;
+
+      // Add separator if needed
+      if (content && !content.endsWith("\n\n") && !content.endsWith("\n")) {
+        content += "\n";
+      }
+      if (content && !content.includes("Database Configuration")) {
+        content += "\n# Database Configuration\n";
+      } else if (!content) {
+        content = "# Environment Variables\n\n# Database Configuration\n";
+      }
+
+      content += newEntries.join("\n") + "\n";
+
+      await this.executeTool(
+        "filesystem",
+        { operation: "write", path: ".env.example", content },
+        { projectId, userId }
+      );
     }
   }
 

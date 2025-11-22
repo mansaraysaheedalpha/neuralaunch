@@ -673,9 +673,15 @@ Type Safety:
     return null;
   }
 
+  /**
+   * ✅ FIXED: Smart Context Loading (Token-Efficient)
+   * Reduced from 50 files/1MB to 10 files/200KB + summaries
+   * Token reduction: ~90%
+   */
   private async loadExistingContext(input: AgentExecutionInput): Promise<{
     structure: string;
     existingFiles: Array<{ path: string; content: string }>;
+    fileSummaries: Array<{ path: string; summary: string }>;
     dependencies: string;
   }> {
     const { projectId, userId, taskDetails } = input;
@@ -692,11 +698,24 @@ Type Safety:
           operation: "smart_load",
           taskDescription: taskDetails.description,
           pattern: "src/**/*.{ts,tsx,jsx,css,vue,svelte}",
-          maxFiles: 50,
-          maxSize: 1000000,
+          maxFiles: 10,       // ✅ REDUCED from 50
+          maxSize: 200000,    // ✅ REDUCED from 1MB to 200KB
         },
         { projectId, userId }
       );
+
+      // Split files: full content for first 5, summaries for rest
+      const rawFiles = filesResult.success
+        ? (filesResult.data as { files?: Array<{ path: string; content: string }> }).files || []
+        : [];
+
+      const fullContentFiles = rawFiles.slice(0, 5);
+      const summaryOnlyFiles = rawFiles.slice(5);
+
+      const fileSummaries = summaryOnlyFiles.map(file => ({
+        path: file.path,
+        summary: this.generateFileSummary(file.content),
+      }));
 
       const depsResult = await this.executeTool(
         "context_loader",
@@ -708,13 +727,8 @@ Type Safety:
         structure: structureResult.success
           ? JSON.stringify(structureResult.data, null, 2)
           : "No structure available",
-        existingFiles: filesResult.success
-          ? (
-              filesResult.data as {
-                files?: Array<{ path: string; content: string }>;
-              }
-            ).files || []
-          : [],
+        existingFiles: fullContentFiles,
+        fileSummaries,
         dependencies: depsResult.success
           ? JSON.stringify(depsResult.data, null, 2)
           : "No dependencies loaded",
@@ -724,19 +738,48 @@ Type Safety:
         `[${this.config.name}] Failed to load context`,
         toLogContext(error)
       );
-      return { structure: "", existingFiles: [], dependencies: "" };
+      return { structure: "", existingFiles: [], fileSummaries: [], dependencies: "" };
     }
   }
 
   /**
+   * Generate compact file summary (exports, signatures, first lines)
+   */
+  private generateFileSummary(content: string): string {
+    const lines = content.split("\n");
+    const summary: string[] = [];
+
+    // Extract imports (first 5)
+    const imports = lines.filter(l => l.trim().startsWith("import ")).slice(0, 5);
+    if (imports.length > 0) {
+      summary.push("// Imports:", ...imports);
+    }
+
+    // Extract exports and component definitions
+    const exportLines = lines.filter(l =>
+      l.includes("export ") ||
+      /^(export\s+)?(const|let|function|class|interface|type)\s+\w+/.test(l.trim())
+    );
+
+    if (exportLines.length > 0) {
+      summary.push("", "// Exports & Definitions:");
+      summary.push(...exportLines.slice(0, 15).map(l => l.trim()));
+    }
+
+    summary.push("", `// Total: ${lines.length} lines`);
+    return summary.join("\n");
+  }
+
+  /**
    * Build generic frontend prompt
-   * ✅ FIXED: Now actually uses getFrameworkSpecificRequirements and getPackageManager
+   * ✅ FIXED: Token-efficient context with summaries
    */
   private buildGenericPrompt(
     input: AgentExecutionInput,
     existingContext: {
       structure: string;
       existingFiles: Array<{ path: string; content: string }>;
+      fileSummaries: Array<{ path: string; summary: string }>;
       dependencies: string;
     },
     researchNotes: string | null
@@ -748,12 +791,24 @@ Type Safety:
     const language = frontend.language || "TypeScript";
     const styling = frontend.styling || "Tailwind CSS";
 
+    // Build compact file sections
+    const fullFilesSection = existingContext.existingFiles.length > 0
+      ? existingContext.existingFiles.map(f =>
+          `[${f.path}]:\n${f.content.length > 2000 ? f.content.substring(0, 2000) + "\n// ... truncated" : f.content}`
+        ).join("\n\n")
+      : "";
+
+    const summariesSection = existingContext.fileSummaries.length > 0
+      ? existingContext.fileSummaries.map(f =>
+          `[Summary: ${f.path}]:\n${f.summary}`
+        ).join("\n\n")
+      : "";
+
     return `
 You are the Frontend Agent, a specialized UI/component code generation expert.
 
 **🎯 CRITICAL: BUILD ON EXISTING CODE, DON'T START FROM SCRATCH**
 You are working on a project that may already have UI components and pages.
-Review the "Existing Codebase" section below carefully.
 
 **Task:**
 - Title: ${taskDetails.title}
@@ -767,19 +822,12 @@ ${researchNotes ? researchNotes : ""}
 - Styling: ${styling}
 
 **Existing Codebase:**
-${
-  existingContext.existingFiles.length > 0
-    ? existingContext.existingFiles
-        .map((f) => `[${f.path}]:\n${f.content.substring(0, 1000)}`)
-        .join("\n")
-    : "No files found."
-}
+${fullFilesSection ? `**Full Files (${existingContext.existingFiles.length}):**\n${fullFilesSection}` : ""}
+${summariesSection ? `\n**File Summaries (${existingContext.fileSummaries.length} additional):**\n${summariesSection}` : ""}
+${!fullFilesSection && !summariesSection ? "No files found." : ""}
 
-**Installed Dependencies (Version Context):**
+**Installed Dependencies:**
 ${existingContext.dependencies}
-
-**Available Tools:**
-${this.getToolsDescription()}
 
 **FRAMEWORK REQUIREMENTS:**
 ${this.getFrameworkSpecificRequirements(framework, language, styling)}
@@ -1222,6 +1270,7 @@ export default function UserCard(props: UserCardProps) {
 
     for (const command of commands) {
       try {
+        if(this.isDangerousCommand(command)){continue;}
         const result = await this.executeTool(
           "command",
           {
@@ -1302,6 +1351,15 @@ export default function UserCard(props: UserCardProps) {
       passed: issues.length === 0,
       issues,
     };
+  }
+
+  private isDangerousCommand(cmd: string): boolean {
+    const t = cmd.toLowerCase().trim();
+    const allowed = ["npm ","yarn ","pnpm ","bun ","npx ","git status","git log","mkdir ","node ","tsc ","jest ","eslint ","prettier "];
+    if (allowed.some(a => t.startsWith(a.toLowerCase()))) return false;
+    const blocked = ["rm -rf","drop database","curl | sh","sudo ","| sh","| bash"];
+    if (blocked.some(b => t.includes(b.toLowerCase()))) return true;
+    return true; // Block non-allowlisted
   }
 }
 
