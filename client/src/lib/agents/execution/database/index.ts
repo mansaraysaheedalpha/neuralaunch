@@ -202,6 +202,23 @@ export class DatabaseAgent extends BaseAgent {
     const warnings: string[] = [];
 
     try {
+      // ✅ IDEMPOTENCY CHECK: Check if DATABASE_URL already exists
+      // This prevents re-provisioning if database was already set up
+      const existingDbUrl = await this.checkExistingDatabaseUrl(projectId, userId);
+      if (existingDbUrl) {
+        logger.info(`[${this.config.name}] DATABASE_URL already exists, skipping provisioning`);
+        return {
+          success: true,
+          message: "Database already provisioned - DATABASE_URL found in environment",
+          iterations: 1,
+          durationMs: Date.now() - startTime,
+          data: {
+            alreadyProvisioned: true,
+            explanation: "Database was previously provisioned. DATABASE_URL is already configured in the project environment. No action needed.",
+          },
+        };
+      }
+
       // Phase 1: Load and analyze project
       logger.info(`[${this.config.name}] Phase 1: Analyzing project`);
       const projectFiles = await this.loadProjectFiles(projectId, userId);
@@ -595,6 +612,59 @@ export class DatabaseAgent extends BaseAgent {
   // ==========================================
   // HELPER METHODS
   // ==========================================
+
+  /**
+   * Check if DATABASE_URL is already configured in the project's .env file
+   * This provides idempotency - if database is already provisioned, skip re-provisioning
+   */
+  private async checkExistingDatabaseUrl(projectId: string, userId: string): Promise<boolean> {
+    try {
+      // Check .env file
+      const envResult = await this.executeTool(
+        "filesystem",
+        { operation: "read", path: ".env" },
+        { projectId, userId }
+      );
+
+      if (envResult.success) {
+        const envContent = (envResult.data as { content?: string })?.content || "";
+        // Check for DATABASE_URL or common database connection patterns
+        const hasDbUrl = /^DATABASE_URL\s*=/m.test(envContent);
+        const hasDirectUrl = /^DIRECT_URL\s*=/m.test(envContent);
+        const hasNeonUrl = /neon\.tech/i.test(envContent);
+        const hasSupabaseUrl = /supabase\.co/i.test(envContent);
+
+        if (hasDbUrl || hasDirectUrl || hasNeonUrl || hasSupabaseUrl) {
+          logger.info(`[${this.config.name}] Found existing database configuration in .env`);
+          return true;
+        }
+      }
+
+      // Also check .env.local
+      const envLocalResult = await this.executeTool(
+        "filesystem",
+        { operation: "read", path: ".env.local" },
+        { projectId, userId }
+      );
+
+      if (envLocalResult.success) {
+        const envLocalContent = (envLocalResult.data as { content?: string })?.content || "";
+        const hasDbUrl = /^DATABASE_URL\s*=/m.test(envLocalContent);
+        if (hasDbUrl) {
+          logger.info(`[${this.config.name}] Found existing DATABASE_URL in .env.local`);
+          return true;
+        }
+      }
+
+      return false;
+    } catch (error) {
+      // If we can't read .env, assume no existing database
+      logger.debug(`[${this.config.name}] Could not check for existing DATABASE_URL`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    }
+  }
 
   /**
    * Load project files for analysis
