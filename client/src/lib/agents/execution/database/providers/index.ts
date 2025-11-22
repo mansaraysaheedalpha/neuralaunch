@@ -70,7 +70,7 @@ export function initializeProvider(
 
   // Get organization/project ID from environment or config (required for some providers)
   const orgEnvKey = PROVIDER_ORG_ENV_KEYS[provider];
-  const orgId = config?.baseUrl || (orgEnvKey ? (process.env as Record<string, string>)[orgEnvKey] : undefined);
+  const orgId = config?.orgId || (orgEnvKey ? (process.env as Record<string, string>)[orgEnvKey] : undefined);
 
   // Warn if org ID is required but missing (for providers that need it)
   if (orgEnvKey && !orgId) {

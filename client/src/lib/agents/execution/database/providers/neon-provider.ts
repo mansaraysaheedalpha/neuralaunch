@@ -441,8 +441,13 @@ export class NeonProvider extends BaseDatabaseProvider {
       logger.debug(`[${this.providerName}] Checking for existing project`, { projectName });
 
       // List all projects and find one with matching name
+      // Include org_id if configured (required for organization accounts)
+      const url = this.config.orgId
+        ? `${NEON_API_BASE}/projects?org_id=${this.config.orgId}`
+        : `${NEON_API_BASE}/projects`;
+
       const response = await this.fetchWithRetry<NeonListProjectsResponse>(
-        `${NEON_API_BASE}/projects`,
+        url,
         {
           method: "GET",
           headers: {
