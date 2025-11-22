@@ -298,22 +298,46 @@ export const unifiedExecutionAgentFunction = inngest.createFunction(
       });
 
       // Step 7: Commit changes
-      await step.run("git-commit", async () => {
+      const commitResult = await step.run("git-commit", async () => {
         const { GitTool } = await import("@/lib/agents/tools/git-tool");
         const gitTool = new GitTool();
-        await gitTool.execute({ operation: "add" }, { projectId, userId });
+
+        // Add all files
+        const addResult = await gitTool.execute({ operation: "add" }, { projectId, userId });
+        if (!addResult.success) {
+          log.warn(`[Unified Agent] Git add failed`, { error: addResult.error });
+        }
 
         const taskInput = task.input as TaskInput;
         const commitMessage = `${config.commitPrefix}: ${taskInput.title}\n\nTask ID: ${taskId}\nIterations: ${result.iterations}`;
-        await gitTool.execute(
+        const commitRes = await gitTool.execute(
           { operation: "commit", message: commitMessage },
           { projectId, userId }
         );
+
+        if (!commitRes.success) {
+          log.warn(`[Unified Agent] Git commit failed`, { error: commitRes.error });
+          return { success: false, error: commitRes.error };
+        }
+
+        log.info(`[Unified Agent] Successfully committed changes`);
+        return { success: true, message: "Changes committed" };
       });
+
+      log.info(`[Unified Agent] Git commit result`, { commitResult });
 
       // Step 8: Push to GitHub
       // ✅ FIX: Use user's OAuth token instead of env.GITHUB_TOKEN
       const githubInfo = projectContext.codebase as GitHubInfo;
+
+      // Log what we have for debugging
+      log.info(`[Unified Agent] GitHub info check`, {
+        hasCodebase: !!projectContext.codebase,
+        githubRepoUrl: githubInfo?.githubRepoUrl || "NOT SET",
+        githubRepoName: githubInfo?.githubRepoName || "NOT SET",
+        hasUserToken: !!userGitHubToken,
+      });
+
       if (githubInfo?.githubRepoUrl && userGitHubToken) {
         await step.run("push-to-github", async () => {
           const { GitTool } = await import("@/lib/agents/tools/git-tool");
@@ -403,22 +427,35 @@ ${taskDetails.acceptanceCriteria?.map((c) => `- [x] ${c}`).join("\n") || "N/A"}
       }
 
       // Step 10: Emit task completion event
-      await step.run("emit-task-complete", async () => {
-        log.info(`[Unified Agent] Emitting task completion event`);
+      // ✅ CRITICAL: This MUST run to unblock wave-start-function from waiting
+      const emitResult = await step.run("emit-task-complete", async () => {
+        log.info(`[Unified Agent] Emitting task completion event for task ${taskId}`);
 
-        await inngest.send({
-          name: "agent/task.complete",
-          data: {
-            taskId,
-            projectId,
-            userId,
-            conversationId,
-            waveNumber,
-            agentName,
-            success: true,
-          },
-        });
+        try {
+          await inngest.send({
+            name: "agent/task.complete",
+            data: {
+              taskId,
+              projectId,
+              userId,
+              conversationId,
+              waveNumber,
+              agentName,
+              success: true,
+            },
+          });
+
+          log.info(`[Unified Agent] ✅ Task completion event emitted successfully`);
+          return { success: true, eventEmitted: true };
+        } catch (emitError) {
+          const errorInstance = emitError instanceof Error ? emitError : new Error(String(emitError));
+          log.error(`[Unified Agent] ❌ Failed to emit task completion event`, errorInstance);
+          // Re-throw to ensure the step is marked as failed
+          throw emitError;
+        }
       });
+
+      log.info(`[Unified Agent] Emit result`, { emitResult });
 
       return {
         success: true,

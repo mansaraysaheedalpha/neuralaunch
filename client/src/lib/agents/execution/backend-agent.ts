@@ -1058,7 +1058,7 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
   private verifyImplementation(
     files: Array<{ path: string; lines: number; success: boolean }>,
     commands: Array<{ command: string; success: boolean; output: string }>,
-    taskDetails: AgentExecutionInput["taskDetails"]
+    _taskDetails: AgentExecutionInput["taskDetails"]
   ): {
     passed: boolean;
     issues: string[];
@@ -1077,13 +1077,8 @@ Respond with ONLY valid JSON (no markdown, no explanations outside JSON):
       issues.push(`${failedCommands.length} command(s) failed`);
     }
 
-    // Check 3: Line count within limits
+    // Check 3: Line count validation (minimum only - max limit removed per user request)
     const totalLines = files.reduce((sum, f) => sum + f.lines, 0);
-    const maxLines = taskDetails.estimatedLines * 1.5; // Allow 50% buffer
-
-    if (totalLines > maxLines) {
-      issues.push(`Code too large: ${totalLines} lines (limit: ${maxLines})`);
-    }
 
     // Check 4: Minimum lines (ensure not empty)
     if (totalLines < 10) {

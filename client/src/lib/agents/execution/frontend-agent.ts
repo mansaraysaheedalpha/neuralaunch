@@ -1319,7 +1319,7 @@ export default function UserCard(props: UserCardProps) {
   private verifyImplementation(
     files: Array<{ path: string; lines: number; success: boolean }>,
     commands: Array<{ command: string; success: boolean; output: string }>,
-    taskDetails: AgentExecutionInput["taskDetails"]
+    _taskDetails: AgentExecutionInput["taskDetails"]
   ): {
     passed: boolean;
     issues: string[];
@@ -1336,13 +1336,10 @@ export default function UserCard(props: UserCardProps) {
       issues.push(`${failedCommands.length} command(s) failed`);
     }
 
+    // Line count validation (max limit removed per user request)
     const totalLines = files.reduce((sum, f) => sum + f.lines, 0);
-    const maxLines = taskDetails.estimatedLines * 1.5;
 
-    if (totalLines > maxLines) {
-      issues.push(`Code too large: ${totalLines} lines (limit: ${maxLines})`);
-    }
-
+    // Minimum lines check (ensure not empty)
     if (totalLines < 10) {
       issues.push(`Code too small: ${totalLines} lines (suspicious)`);
     }
