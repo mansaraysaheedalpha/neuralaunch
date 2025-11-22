@@ -70,21 +70,41 @@ export abstract class BaseDatabaseProvider {
   }
 
   /**
-   * Wait for database to be ready
+   * Wait for database to be ready with dynamic polling (exponential backoff)
+   *
+   * @param resourceId - The resource ID to check
+   * @param timeoutMs - Maximum wait time (default 5 minutes)
+   * @param options - Polling options for dynamic backoff
    */
   async waitForReady(
     resourceId: string,
     timeoutMs: number = 300000, // 5 minutes default
-    pollIntervalMs: number = 5000
+    options: {
+      initialIntervalMs?: number;
+      maxIntervalMs?: number;
+      backoffMultiplier?: number;
+    } = {}
   ): Promise<{ ready: boolean; error?: string }> {
+    const {
+      initialIntervalMs = 5000,   // Start at 5s
+      maxIntervalMs = 30000,       // Cap at 30s
+      backoffMultiplier = 1.5,     // Increase by 50% each time
+    } = options;
+
     const startTime = Date.now();
+    let currentInterval = initialIntervalMs;
+    let pollCount = 0;
 
     logger.info(`[${this.providerName}] Waiting for database to be ready`, {
       resourceId,
       timeoutMs,
+      initialIntervalMs,
+      maxIntervalMs,
     });
 
     while (Date.now() - startTime < timeoutMs) {
+      pollCount++;
+
       try {
         const status = await this.getStatus(resourceId);
 
@@ -92,6 +112,7 @@ export abstract class BaseDatabaseProvider {
           logger.info(`[${this.providerName}] Database is ready`, {
             resourceId,
             waitTimeMs: Date.now() - startTime,
+            pollCount,
           });
           return { ready: true };
         }
@@ -107,20 +128,36 @@ export abstract class BaseDatabaseProvider {
         logger.debug(`[${this.providerName}] Database not ready yet`, {
           resourceId,
           status: status.status,
+          pollCount,
+          nextIntervalMs: currentInterval,
         });
       } catch (error) {
         logger.warn(`[${this.providerName}] Error checking status`, {
           resourceId,
           error: error instanceof Error ? error.message : String(error),
+          pollCount,
         });
       }
 
-      await this.sleep(pollIntervalMs);
+      // Wait with current interval
+      await this.sleep(currentInterval);
+
+      // Exponential backoff: increase interval up to max
+      currentInterval = Math.min(
+        currentInterval * backoffMultiplier,
+        maxIntervalMs
+      );
     }
+
+    logger.warn(`[${this.providerName}] Timeout waiting for database`, {
+      resourceId,
+      timeoutMs,
+      pollCount,
+    });
 
     return {
       ready: false,
-      error: `Timeout: Database not ready after ${timeoutMs / 1000}s`,
+      error: `Timeout: Database not ready after ${timeoutMs / 1000}s (${pollCount} polls)`,
     };
   }
 

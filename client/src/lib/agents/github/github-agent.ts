@@ -58,6 +58,24 @@ export interface MergePRInput {
   mergeMethod?: "merge" | "squash" | "rebase";
 }
 
+export interface CreateMergeBranchInput {
+  projectId: string;
+  repoName: string; // format: "owner/repo"
+  mergeBranchName: string; // e.g., "wave-1-merge"
+  sourceBranches: string[]; // branches to merge into the merge branch
+  baseBranch?: string; // defaults to 'main'
+  githubToken: string;
+}
+
+export interface CreateMergeBranchOutput {
+  success: boolean;
+  message?: string;
+  mergeBranch?: string;
+  mergedBranches?: string[];
+  failedBranches?: string[];
+  conflicts?: Array<{ branch: string; conflictingFiles: string[] }>;
+}
+
 // ==========================================
 // GITHUB AGENT CLASS
 // ==========================================
@@ -297,6 +315,178 @@ export class GitHubAgent {
       return {
         success: false,
         message: `PR merge failed: ${errorMessage}`,
+      };
+    }
+  }
+
+  /**
+   * Create a merge branch that aggregates multiple task branches
+   * ✅ CRITICAL: This fixes the "Partial PR" bug where only one branch was used
+   *
+   * This method:
+   * 1. Creates a new branch from the base branch (main)
+   * 2. Merges each source branch into it sequentially
+   * 3. Reports which branches were successfully merged vs failed
+   */
+  async createMergeBranch(
+    input: CreateMergeBranchInput
+  ): Promise<CreateMergeBranchOutput> {
+    const { repoName, mergeBranchName, sourceBranches, baseBranch = "main", githubToken } = input;
+
+    logger.info(`[${this.name}] Creating merge branch ${mergeBranchName} from ${sourceBranches.length} source branches`);
+
+    const mergedBranches: string[] = [];
+    const failedBranches: string[] = [];
+    const conflicts: Array<{ branch: string; conflictingFiles: string[] }> = [];
+
+    try {
+      const octokit = new Octokit({ auth: githubToken });
+      const [owner, repo] = repoName.split("/");
+
+      // Step 1: Get the SHA of the base branch (main)
+      const { data: baseBranchRef } = await octokit.rest.git.getRef({
+        owner,
+        repo,
+        ref: `heads/${baseBranch}`,
+      });
+      const baseSha = baseBranchRef.object.sha;
+
+      logger.info(`[${this.name}] Base branch ${baseBranch} SHA: ${baseSha}`);
+
+      // Step 2: Check if merge branch already exists, delete it if so
+      try {
+        await octokit.rest.git.getRef({
+          owner,
+          repo,
+          ref: `heads/${mergeBranchName}`,
+        });
+
+        // Branch exists, delete it to start fresh
+        logger.info(`[${this.name}] Merge branch ${mergeBranchName} already exists, deleting it`);
+        await octokit.rest.git.deleteRef({
+          owner,
+          repo,
+          ref: `heads/${mergeBranchName}`,
+        });
+      } catch (error) {
+        // Branch doesn't exist, which is fine
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "status" in error &&
+          (error as { status?: number }).status !== 404
+        ) {
+          throw error;
+        }
+      }
+
+      // Step 3: Create the merge branch from base
+      await octokit.rest.git.createRef({
+        owner,
+        repo,
+        ref: `refs/heads/${mergeBranchName}`,
+        sha: baseSha,
+      });
+
+      logger.info(`[${this.name}] Created merge branch ${mergeBranchName}`);
+
+      // Step 4: Merge each source branch into the merge branch
+      for (const sourceBranch of sourceBranches) {
+        try {
+          logger.info(`[${this.name}] Merging ${sourceBranch} into ${mergeBranchName}`);
+
+          // Use the merge API to merge the source branch
+          await octokit.rest.repos.merge({
+            owner,
+            repo,
+            base: mergeBranchName,
+            head: sourceBranch,
+            commit_message: `Merge ${sourceBranch} into ${mergeBranchName}`,
+          });
+
+          mergedBranches.push(sourceBranch);
+          logger.info(`[${this.name}] Successfully merged ${sourceBranch}`);
+
+        } catch (error: unknown) {
+          // Check if it's a merge conflict
+          if (
+            typeof error === "object" &&
+            error !== null &&
+            "status" in error &&
+            (error as { status?: number }).status === 409
+          ) {
+            // Merge conflict
+            logger.warn(`[${this.name}] Merge conflict for ${sourceBranch}`);
+            failedBranches.push(sourceBranch);
+            conflicts.push({
+              branch: sourceBranch,
+              conflictingFiles: ["Unable to determine conflicting files via API"],
+            });
+          } else if (
+            typeof error === "object" &&
+            error !== null &&
+            "status" in error &&
+            (error as { status?: number }).status === 404
+          ) {
+            // Branch not found
+            logger.warn(`[${this.name}] Branch ${sourceBranch} not found`);
+            failedBranches.push(sourceBranch);
+          } else {
+            // Other error
+            logger.error(`[${this.name}] Failed to merge ${sourceBranch}:`, toError(error));
+            failedBranches.push(sourceBranch);
+          }
+        }
+      }
+
+      // Step 5: Evaluate success
+      if (mergedBranches.length === 0) {
+        // No branches merged, this is a failure
+        logger.error(`[${this.name}] No branches could be merged into ${mergeBranchName}`);
+
+        // Clean up the empty merge branch
+        try {
+          await octokit.rest.git.deleteRef({
+            owner,
+            repo,
+            ref: `heads/${mergeBranchName}`,
+          });
+        } catch {
+          // Ignore cleanup errors
+        }
+
+        return {
+          success: false,
+          message: "No branches could be merged",
+          failedBranches,
+          conflicts: conflicts.length > 0 ? conflicts : undefined,
+        };
+      }
+
+      // At least some branches merged
+      logger.info(`[${this.name}] Merge branch created successfully`, {
+        mergeBranch: mergeBranchName,
+        mergedCount: mergedBranches.length,
+        failedCount: failedBranches.length,
+      });
+
+      return {
+        success: true,
+        message: `Successfully merged ${mergedBranches.length}/${sourceBranches.length} branches`,
+        mergeBranch: mergeBranchName,
+        mergedBranches,
+        failedBranches: failedBranches.length > 0 ? failedBranches : undefined,
+        conflicts: conflicts.length > 0 ? conflicts : undefined,
+      };
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      logger.error(`[${this.name}] Failed to create merge branch:`, toError(error));
+
+      return {
+        success: false,
+        message: `Failed to create merge branch: ${errorMessage}`,
+        failedBranches: sourceBranches,
       };
     }
   }

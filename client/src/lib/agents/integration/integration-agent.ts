@@ -324,13 +324,13 @@ export class IntegrationAgent extends BaseAgent {
       techStack: techStack?.frontend?.framework,
     });
 
-    // Load entire project structure
+    // Load project structure (token-efficient limits)
     const contextResult = await this.executeTool(
       "context_loader",
       {
         operation: "scan_structure",
-        maxFiles: 200,
-        maxSize: 1000000,
+        maxFiles: 50,      // ✅ REDUCED from 200 - integration only needs structure, not content
+        maxSize: 100000,   // ✅ REDUCED from 1MB to 100KB
       },
       { projectId, userId }
     );
@@ -405,6 +405,8 @@ export class IntegrationAgent extends BaseAgent {
 
   /**
    * Extract API contracts from frontend code
+   * ✅ FIXED: Uses batch processing to avoid token overflow
+   * Processes files in batches of 3, reading actual content
    */
   private async extractFrontendContracts(
     projectId: string,
@@ -424,7 +426,7 @@ export class IntegrationAgent extends BaseAgent {
     responseType: string;
     expectedStatus: number[];
   }>> {
-    logger.info(`[${this.name}] Extracting frontend API contracts`);
+    logger.info(`[${this.name}] Extracting frontend API contracts from ${frontendFiles.length} files`);
 
     const contracts: {
       endpoint: string;
@@ -436,26 +438,76 @@ export class IntegrationAgent extends BaseAgent {
       expectedStatus: number[];
     }[] = [];
 
-    // Use AI to extract API calls from frontend files
-    const prompt = `You are analyzing frontend code to extract API contracts.
+    // ✅ Filter to only files likely to contain API calls
+    const apiRelevantFiles = frontendFiles.filter(f =>
+      f.includes("api") ||
+      f.includes("fetch") ||
+      f.includes("service") ||
+      f.includes("hook") ||
+      f.includes("query") ||
+      f.includes("page") ||
+      f.includes("action") ||
+      f.endsWith(".tsx") ||
+      f.endsWith(".ts")
+    ).slice(0, 15); // Max 15 files to analyze
 
-Tech Stack:
-${JSON.stringify(techStack, null, 2)}
+    // ✅ Process in batches of 3 files to avoid token overflow
+    const BATCH_SIZE = 3;
+    const MAX_FILE_SIZE = 8000; // Max chars per file to include
 
-Frontend Files:
-${frontendFiles.slice(0, 20).join("\n")} ${frontendFiles.length > 20 ? `\n... and ${frontendFiles.length - 20} more` : ""}
+    for (let i = 0; i < apiRelevantFiles.length; i += BATCH_SIZE) {
+      const batch = apiRelevantFiles.slice(i, i + BATCH_SIZE);
 
-Task: Extract all API calls made by the frontend.
+      // Load file contents for this batch
+      const fileContents: Array<{ path: string; content: string }> = [];
 
-For each API call, extract:
+      for (const filePath of batch) {
+        try {
+          const result = await this.executeTool(
+            "filesystem",
+            { operation: "read", path: filePath },
+            { projectId, userId }
+          );
+
+          if (result.success && result.data) {
+            const content = (result.data as { content?: string }).content || "";
+            // Truncate large files
+            const truncatedContent = content.length > MAX_FILE_SIZE
+              ? content.substring(0, MAX_FILE_SIZE) + "\n// ... truncated ..."
+              : content;
+            fileContents.push({ path: filePath, content: truncatedContent });
+          }
+        } catch {
+          // Skip files that can't be read
+          logger.warn(`[${this.name}] Could not read file: ${filePath}`);
+        }
+      }
+
+      if (fileContents.length === 0) continue;
+
+      // Build prompt for this batch
+      const prompt = `You are analyzing frontend code to extract API contracts.
+
+Tech Stack: ${techStack?.frontend?.framework || "Unknown"}
+
+Files to analyze:
+${fileContents.map(f => `
+=== ${f.path} ===
+\`\`\`typescript
+${f.content}
+\`\`\`
+`).join("\n")}
+
+Task: Extract all API calls (fetch, axios, api client calls) from these files.
+
+For each API call found, extract:
 1. Endpoint (e.g., "/api/users", "/api/auth/login")
-2. HTTP Method (GET, POST, PUT, DELETE, etc.)
-3. Expected request body structure (if POST/PUT)
+2. HTTP Method (GET, POST, PUT, DELETE)
+3. Request body structure (if POST/PUT)
 4. Expected response type (if typed)
-5. Expected status codes (if handled)
-6. File and line number where the call is made
+5. File and approximate line number
 
-Return JSON array:
+Return JSON array (empty [] if no API calls found):
 [
   {
     "endpoint": "/api/users",
@@ -463,44 +515,51 @@ Return JSON array:
     "file": "src/app/users/page.tsx",
     "line": 15,
     "requestBody": null,
-    "responseType": "{ users: User[] }",
+    "responseType": "User[]",
     "expectedStatus": [200]
   }
 ]
 
-Be thorough but only include actual API calls to backend endpoints.
-Respond ONLY with valid JSON array, no markdown.`;
+Only include actual API calls to backend. Respond ONLY with valid JSON array.`;
 
-    try {
-      const text = await this.generateContent(prompt);
+      try {
+        const text = await this.generateContent(prompt);
 
-      // Parse JSON from response
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]) as Array<{
-          endpoint: string;
-          method: string;
-          file: string;
-          line: number;
-          requestBody: unknown;
-          responseType: string;
-          expectedStatus: number[];
-        }>;
-        contracts.push(...parsed);
+        // Parse JSON from response
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]) as Array<{
+            endpoint: string;
+            method: string;
+            file: string;
+            line: number;
+            requestBody: unknown;
+            responseType: string;
+            expectedStatus: number[];
+          }>;
+          contracts.push(...parsed);
+        }
+      } catch (error) {
+        logger.warn(
+          `[${this.name}] Failed to extract contracts from batch ${i / BATCH_SIZE + 1}`,
+          { error: error instanceof Error ? error.message : String(error) }
+        );
       }
-    } catch (error) {
-      logger.error(
-        `[${this.name}] Failed to extract frontend contracts`,
-        error instanceof Error ? error : new Error(String(error))
-      );
     }
 
-    logger.info(`[${this.name}] Extracted ${contracts.length} API contracts`);
-    return contracts;
+    // Deduplicate contracts by endpoint+method
+    const uniqueContracts = Array.from(
+      new Map(contracts.map(c => [`${c.method}:${c.endpoint}`, c])).values()
+    );
+
+    logger.info(`[${this.name}] Extracted ${uniqueContracts.length} unique API contracts`);
+    return uniqueContracts;
   }
 
   /**
    * Extract API endpoints from backend code
+   * ✅ FIXED: Uses batch processing to avoid token overflow
+   * Processes files in batches of 3, reading actual content
    */
   private async extractBackendEndpoints(
     projectId: string,
@@ -517,7 +576,7 @@ Respond ONLY with valid JSON array, no markdown.`;
     statusCodes: number[];
     requiresAuth: boolean;
   }>> {
-    logger.info(`[${this.name}] Extracting backend API endpoints`);
+    logger.info(`[${this.name}] Extracting backend API endpoints from ${backendFiles.length} files`);
 
     const endpoints: Array<{
       endpoint: string;
@@ -530,27 +589,76 @@ Respond ONLY with valid JSON array, no markdown.`;
       requiresAuth: boolean;
     }> = [];
 
-    // Use AI to extract API endpoints from backend files
-    const prompt = `You are analyzing backend code to extract API endpoint implementations.
+    // ✅ Filter to only files likely to contain API endpoints
+    const apiRelevantFiles = backendFiles.filter(f =>
+      f.includes("api") ||
+      f.includes("route") ||
+      f.includes("controller") ||
+      f.includes("handler") ||
+      f.includes("endpoint") ||
+      f.includes("server") ||
+      f.match(/\/(get|post|put|delete|patch)\./i) // Next.js App Router conventions
+    ).slice(0, 15); // Max 15 files to analyze
 
-Tech Stack:
-${JSON.stringify(techStack, null, 2)}
+    // ✅ Process in batches of 3 files to avoid token overflow
+    const BATCH_SIZE = 3;
+    const MAX_FILE_SIZE = 8000; // Max chars per file to include
 
-Backend Files:
-${backendFiles.slice(0, 20).join("\n")} ${backendFiles.length > 20 ? `\n... and ${backendFiles.length - 20} more` : ""}
+    for (let i = 0; i < apiRelevantFiles.length; i += BATCH_SIZE) {
+      const batch = apiRelevantFiles.slice(i, i + BATCH_SIZE);
 
-Task: Extract all API endpoint definitions/implementations.
+      // Load file contents for this batch
+      const fileContents: Array<{ path: string; content: string }> = [];
 
-For each endpoint, extract:
-1. Endpoint path (e.g., "/api/users", "/api/auth/login")
-2. HTTP Method (GET, POST, PUT, DELETE, etc.)
+      for (const filePath of batch) {
+        try {
+          const result = await this.executeTool(
+            "filesystem",
+            { operation: "read", path: filePath },
+            { projectId, userId }
+          );
+
+          if (result.success && result.data) {
+            const content = (result.data as { content?: string }).content || "";
+            // Truncate large files
+            const truncatedContent = content.length > MAX_FILE_SIZE
+              ? content.substring(0, MAX_FILE_SIZE) + "\n// ... truncated ..."
+              : content;
+            fileContents.push({ path: filePath, content: truncatedContent });
+          }
+        } catch {
+          // Skip files that can't be read
+          logger.warn(`[${this.name}] Could not read file: ${filePath}`);
+        }
+      }
+
+      if (fileContents.length === 0) continue;
+
+      // Build prompt for this batch
+      const prompt = `You are analyzing backend code to extract API endpoint definitions.
+
+Tech Stack: ${techStack?.backend?.framework || "Unknown"}
+
+Files to analyze:
+${fileContents.map(f => `
+=== ${f.path} ===
+\`\`\`typescript
+${f.content}
+\`\`\`
+`).join("\n")}
+
+Task: Extract all API endpoint definitions from these files.
+
+For each endpoint found, extract:
+1. Endpoint path (e.g., "/api/users")
+2. HTTP Method (GET, POST, PUT, DELETE)
 3. Request body schema (if POST/PUT)
 4. Response structure/type
 5. Status codes returned
-6. Authentication required (true/false)
-7. File and line number where defined
+6. Requires authentication (true/false)
+7. File and approximate line number
 
-Return JSON array:
+Return JSON array (empty [] if no endpoints found):
 [
   {
     "endpoint": "/api/users",
@@ -558,44 +666,47 @@ Return JSON array:
     "file": "src/app/api/users/route.ts",
     "line": 10,
     "requestBodySchema": null,
-    "responseStructure": "{ users: User[] }",
+    "responseStructure": "User[]",
     "statusCodes": [200, 404],
     "requiresAuth": true
   }
 ]
 
-Be thorough and include all endpoints defined in the backend.
-Respond ONLY with valid JSON array, no markdown.`;
+Only include actual API endpoint definitions. Respond ONLY with valid JSON array.`;
 
-    try {
-      const text = await this.generateContent(prompt);
+      try {
+        const text = await this.generateContent(prompt);
 
-      // Parse JSON from response
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]) as Array<{
-          endpoint: string;
-          method: string;
-          file: string;
-          line: number;
-          requestBodySchema: unknown;
-          responseStructure: string;
-          statusCodes: number[];
-          requiresAuth: boolean;
-        }>;
-        endpoints.push(...parsed);
+        // Parse JSON from response
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]) as Array<{
+            endpoint: string;
+            method: string;
+            file: string;
+            line: number;
+            requestBodySchema: unknown;
+            responseStructure: string;
+            statusCodes: number[];
+            requiresAuth: boolean;
+          }>;
+          endpoints.push(...parsed);
+        }
+      } catch (error) {
+        logger.warn(
+          `[${this.name}] Failed to extract endpoints from batch ${i / BATCH_SIZE + 1}`,
+          { error: error instanceof Error ? error.message : String(error) }
+        );
       }
-    } catch (error) {
-      logger.error(
-        `[${this.name}] Failed to extract backend endpoints`,
-        error instanceof Error ? error : new Error(String(error))
-      );
     }
 
-    logger.info(
-      `[${this.name}] Extracted ${endpoints.length} backend endpoints`
+    // Deduplicate endpoints by path+method
+    const uniqueEndpoints = Array.from(
+      new Map(endpoints.map(e => [`${e.method}:${e.endpoint}`, e])).values()
     );
-    return endpoints;
+
+    logger.info(`[${this.name}] Extracted ${uniqueEndpoints.length} unique backend endpoints`);
+    return uniqueEndpoints;
   }
 
   /**

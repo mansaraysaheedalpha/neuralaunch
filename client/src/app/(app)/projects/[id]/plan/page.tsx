@@ -432,143 +432,115 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
 
   const plan = planData.plan;
   const revisionCount = planData.plan?.metadata?.revisionCount || 0;
+  const taskCount = plan?.tasks?.length || 0;
+  const phaseCount = plan?.phases?.length || 0;
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/50">
-        <div className="container mx-auto px-4 py-6">
-          <div className="flex items-center justify-between">
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+      {/* ═══════════════════════════════════════════════════════════════════
+          HEADER - Clean, minimal
+      ═══════════════════════════════════════════════════════════════════ */}
+      <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-xl">
+        <div className="container mx-auto px-6">
+          <div className="flex h-16 items-center justify-between">
+            {/* Left: Back + Title */}
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Link href={`/projects/${projectId}/execution`}>
-                  <Button variant="ghost" size="sm">
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Back to Execution
-                  </Button>
-                </Link>
-                <Link href={`/projects/${projectId}`}>
-                  <Button variant="ghost" size="sm">
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Back to Project
-                  </Button>
-                </Link>
-              </div>
-              <div>
-                <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
-                  <FileText className="w-8 h-8 text-primary" />
-                  Execution Plan
-                </h1>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Review and modify your project execution plan
-                </p>
+              <Link href={`/projects/${projectId}/execution`}>
+                <Button variant="ghost" size="icon" className="h-9 w-9">
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              </Link>
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+                  <FileText className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h1 className="text-lg font-semibold">Execution Plan</h1>
+                  {revisionCount > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {revisionCount} revision{revisionCount > 1 ? "s" : ""}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {revisionCount > 0 && (
-                <Badge variant="secondary">
-                  {revisionCount} revision{revisionCount > 1 ? "s" : ""}
-                </Badge>
+
+            {/* Right: Start Button */}
+            <Button
+              onClick={() => void handleStartExecution()}
+              disabled={isStarting || isGitHubConnected === false}
+              className="bg-emerald-600 hover:bg-emerald-700 gap-2"
+              title={isGitHubConnected === false ? "Connect GitHub to start execution" : undefined}
+            >
+              {isStarting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4" />
               )}
+              Start Execution
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          GITHUB WARNING BANNER
+      ═══════════════════════════════════════════════════════════════════ */}
+      {isGitHubConnected === false && (
+        <div className="border-b bg-amber-50/50 dark:bg-amber-950/20">
+          <div className="container mx-auto px-6 py-3">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <Github className="h-5 w-5 text-amber-600" />
+                <div>
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                    GitHub Connection Required
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    Connect GitHub to enable repository creation
+                  </p>
+                </div>
+              </div>
               <Button
-                onClick={() => void handleStartExecution()}
-                disabled={isStarting || isGitHubConnected === false}
-                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-                title={
-                  isGitHubConnected === false
-                    ? "Connect GitHub to start execution"
-                    : undefined
-                }
+                variant="outline"
+                size="sm"
+                onClick={() => router.push("/profile")}
+                className="border-amber-300 dark:border-amber-700 gap-2"
               >
-                {isStarting ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Play className="w-4 h-4 mr-2" />
-                )}
-                Start Execution
+                <Github className="h-4 w-4" />
+                Connect
+                <ExternalLink className="h-3 w-3" />
               </Button>
             </div>
           </div>
         </div>
-      </div>
-
-      {/* GitHub Connection Warning */}
-      {isGitHubConnected === false && (
-        <div className="border-b bg-yellow-50 dark:bg-yellow-950/20">
-          <div className="container mx-auto px-4 py-4">
-            <Alert className="border-yellow-300 dark:border-yellow-800 bg-transparent">
-              <Github className="h-4 w-4 text-yellow-600 dark:text-yellow-500" />
-              <AlertDescription className="ml-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <strong className="font-semibold text-yellow-800 dark:text-yellow-300">
-                      GitHub Connection Required
-                    </strong>
-                    <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1">
-                      You need to connect your GitHub account before starting
-                      execution. Wave 1 will create a new repository for your
-                      project.
-                    </p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push("/profile")}
-                    className="ml-4 border-yellow-300 dark:border-yellow-700 hover:bg-yellow-100 dark:hover:bg-yellow-900/30"
-                  >
-                    <Github className="w-4 h-4 mr-2" />
-                    Connect GitHub
-                    <ExternalLink className="w-3 h-3 ml-1" />
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
-          </div>
-        </div>
       )}
 
-      {/* Main Content */}
-      <div className="container mx-auto px-4 py-8">
+      {/* ═══════════════════════════════════════════════════════════════════
+          MAIN CONTENT
+      ═══════════════════════════════════════════════════════════════════ */}
+      <main className="container mx-auto px-6 py-6">
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Left Column: Plan Details */}
           <div className="lg:col-span-2 space-y-6">
             <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="tasks">Tasks</TabsTrigger>
-                <TabsTrigger value="architecture">Architecture</TabsTrigger>
+              <TabsList className="grid w-full grid-cols-3 h-10">
+                <TabsTrigger value="overview" className="text-sm">Overview</TabsTrigger>
+                <TabsTrigger value="tasks" className="text-sm">Tasks</TabsTrigger>
+                <TabsTrigger value="architecture" className="text-sm">Architecture</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="overview" className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Plan Summary</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-muted-foreground">
-                          Total Tasks
-                        </p>
-                        <p className="text-2xl font-bold">
-                          {plan.tasks?.length || 0}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Phases</p>
-                        <p className="text-2xl font-bold">
-                          {plan.phases?.length || 0}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-sm text-muted-foreground">
-                          Critical Path
-                        </p>
-                        <p className="text-2xl font-bold">
-                          {plan.criticalPath?.length || 0} tasks
-                        </p>
-                      </div>
+              <TabsContent value="overview" className="space-y-4 mt-4">
+                {/* Plan Summary - Compact Stats */}
+                <Card className="overflow-hidden">
+                  <div className="px-5 py-3 border-b bg-muted/30">
+                    <h3 className="text-sm font-medium">Plan Summary</h3>
+                  </div>
+                  <CardContent className="p-0">
+                    <div className="grid grid-cols-3 divide-x">
+                      <PlanStat label="Tasks" value={taskCount} />
+                      <PlanStat label="Phases" value={phaseCount} />
+                      <PlanStat label="Critical Path" value={plan?.criticalPath?.length || 0} />
                     </div>
                   </CardContent>
                 </Card>
@@ -974,7 +946,19 @@ export default function PlanReviewPage({ params }: PlanReviewPageProps) {
             </Card>
           </div>
         </div>
-      </div>
+      </main>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PLAN STAT COMPONENT
+// ═══════════════════════════════════════════════════════════════════
+function PlanStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="px-5 py-4 text-center">
+      <p className="text-2xl font-bold">{value}</p>
+      <p className="text-xs text-muted-foreground mt-0.5">{label}</p>
     </div>
   );
 }

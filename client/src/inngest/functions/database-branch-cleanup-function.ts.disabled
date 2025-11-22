@@ -1,0 +1,310 @@
+// src/inngest/functions/database-branch-cleanup-function.ts
+/**
+ * Database Branch Cleanup Function
+ *
+ * Cleans up database branches when:
+ * 1. A wave's PR is merged
+ * 2. A wave's PR is closed without merging
+ * 3. A project is deleted
+ *
+ * This prevents orphaned database branches from accumulating
+ * and consuming resources in Neon/Supabase.
+ */
+
+import { inngest } from "../client";
+import { logger } from "@/lib/logger";
+import prisma from "@/lib/prisma";
+import { toError } from "@/lib/error-utils";
+
+export const databaseBranchCleanupFunction = inngest.createFunction(
+  {
+    id: "database-branch-cleanup",
+    name: "Database Branch Cleanup",
+    retries: 3,
+  },
+  [
+    { event: "github/pr.merged" },
+    { event: "github/pr.closed" },
+    { event: "project/wave.cleanup" },
+  ],
+  async ({ event, step }) => {
+    const log = logger.child({
+      inngestFunction: "databaseBranchCleanup",
+      eventName: event.name,
+    });
+
+    log.info("Starting database branch cleanup");
+
+    try {
+      // Extract project and wave info from event
+      const { projectId, waveNumber, userId } = event.data as {
+        projectId: string;
+        waveNumber?: number;
+        userId: string;
+      };
+
+      // Step 1: Get wave metadata with database branch info
+      const wavesToCleanup = await step.run("get-waves-to-cleanup", async () => {
+        if (waveNumber !== undefined) {
+          // Cleanup specific wave
+          const wave = await prisma.executionWave.findUnique({
+            where: { projectId_waveNumber: { projectId, waveNumber } },
+            select: {
+              waveNumber: true,
+              metadata: true,
+            },
+          });
+
+          return wave ? [wave] : [];
+        } else {
+          // Cleanup all waves for project (project deletion)
+          return await prisma.executionWave.findMany({
+            where: { projectId },
+            select: {
+              waveNumber: true,
+              metadata: true,
+            },
+          });
+        }
+      });
+
+      if (wavesToCleanup.length === 0) {
+        log.info("No waves found to cleanup");
+        return { success: true, cleanedUp: 0 };
+      }
+
+      // Step 2: Get user's API keys for database providers
+      const userAccounts = await step.run("get-user-accounts", async () => {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            accounts: {
+              where: {
+                provider: { in: ["neon", "supabase"] },
+              },
+              select: {
+                provider: true,
+                access_token: true,
+              },
+            },
+          },
+        });
+
+        return user?.accounts || [];
+      });
+
+      // Step 3: Get database project info
+      const projectContext = await step.run("get-project-context", async () => {
+        return await prisma.projectContext.findUnique({
+          where: { projectId },
+          select: {
+            codebase: true,
+          },
+        });
+      });
+
+      const codebase = projectContext?.codebase as {
+        databaseProjectId?: string;
+      } | null;
+
+      const dbProjectId = codebase?.databaseProjectId;
+
+      // Step 4: Delete each database branch
+      const results = await step.run("delete-database-branches", async () => {
+        const { databaseBranchService } = await import(
+          "@/lib/agents/execution/database/services/branch-service"
+        );
+
+        const cleanupResults: Array<{
+          waveNumber: number;
+          success: boolean;
+          error?: string;
+        }> = [];
+
+        for (const wave of wavesToCleanup) {
+          const metadata = wave.metadata as {
+            databaseBranchId?: string;
+            databaseProvider?: string;
+          } | null;
+
+          if (!metadata?.databaseBranchId || !metadata?.databaseProvider) {
+            log.info(`Wave ${wave.waveNumber} has no database branch, skipping`);
+            cleanupResults.push({
+              waveNumber: wave.waveNumber,
+              success: true,
+            });
+            continue;
+          }
+
+          const provider = metadata.databaseProvider;
+          const branchId = metadata.databaseBranchId;
+
+          // Find API key for this provider
+          const account = userAccounts.find(a => a.provider === provider);
+
+          if (!account?.access_token) {
+            log.warn(`No API key found for ${provider}, cannot cleanup branch`);
+            cleanupResults.push({
+              waveNumber: wave.waveNumber,
+              success: false,
+              error: `No API key for ${provider}`,
+            });
+            continue;
+          }
+
+          if (!dbProjectId) {
+            log.warn("No database project ID found, cannot cleanup branch");
+            cleanupResults.push({
+              waveNumber: wave.waveNumber,
+              success: false,
+              error: "No database project ID",
+            });
+            continue;
+          }
+
+          // Delete the branch
+          const result = await databaseBranchService.deleteBranch({
+            provider: provider as "neon" | "supabase",
+            projectId: dbProjectId,
+            branchId,
+            apiKey: account.access_token,
+          });
+
+          if (result.success) {
+            log.info(`Deleted database branch for wave ${wave.waveNumber}`, {
+              branchId,
+              provider,
+            });
+
+            // Clear branch info from wave metadata
+            await prisma.executionWave.update({
+              where: { projectId_waveNumber: { projectId, waveNumber: wave.waveNumber } },
+              data: {
+                metadata: {
+                  ...(wave.metadata as Record<string, unknown> || {}),
+                  databaseBranchId: null,
+                  databaseBranchDeleted: true,
+                  databaseBranchDeletedAt: new Date().toISOString(),
+                },
+              },
+            });
+
+            cleanupResults.push({
+              waveNumber: wave.waveNumber,
+              success: true,
+            });
+          } else {
+            log.warn(`Failed to delete database branch for wave ${wave.waveNumber}`, {
+              error: result.error,
+            });
+
+            cleanupResults.push({
+              waveNumber: wave.waveNumber,
+              success: false,
+              error: result.error,
+            });
+          }
+        }
+
+        return cleanupResults;
+      });
+
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.filter(r => !r.success).length;
+
+      log.info("Database branch cleanup complete", {
+        successCount,
+        failCount,
+        total: results.length,
+      });
+
+      return {
+        success: failCount === 0,
+        cleanedUp: successCount,
+        failed: failCount,
+        results,
+      };
+    } catch (error) {
+      log.error("Database branch cleanup failed", toError(error));
+      throw toError(error);
+    }
+  }
+);
+
+/**
+ * Scheduled cleanup function to catch any orphaned branches
+ * Runs daily to clean up branches older than 7 days
+ */
+export const scheduledBranchCleanupFunction = inngest.createFunction(
+  {
+    id: "scheduled-database-branch-cleanup",
+    name: "Scheduled Database Branch Cleanup",
+    retries: 1,
+  },
+  { cron: "0 3 * * *" }, // Run at 3 AM daily
+  async ({ step }) => {
+    const log = logger.child({
+      inngestFunction: "scheduledBranchCleanup",
+    });
+
+    log.info("Starting scheduled database branch cleanup");
+
+    // Find waves with database branches older than 7 days
+    const staleWaves = await step.run("find-stale-waves", async () => {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      // Find completed waves with database branches that are old
+      const waves = await prisma.executionWave.findMany({
+        where: {
+          status: { in: ["completed", "completed_with_warnings", "failed"] },
+          createdAt: { lt: sevenDaysAgo },
+          // Has metadata with databaseBranchId
+          metadata: {
+            path: ["databaseBranchId"],
+            not: null as unknown as undefined,
+          },
+        },
+        select: {
+          projectId: true,
+          waveNumber: true,
+          metadata: true,
+          project: {
+            select: {
+              userId: true,
+            },
+          },
+        },
+        take: 50, // Process in batches
+      });
+
+      return waves;
+    });
+
+    if (staleWaves.length === 0) {
+      log.info("No stale database branches found");
+      return { success: true, cleanedUp: 0 };
+    }
+
+    log.info(`Found ${staleWaves.length} stale database branches to cleanup`);
+
+    // Trigger cleanup for each stale wave
+    for (const wave of staleWaves) {
+      await step.run(`cleanup-wave-${wave.projectId}-${wave.waveNumber}`, async () => {
+        await inngest.send({
+          name: "project/wave.cleanup",
+          data: {
+            projectId: wave.projectId,
+            waveNumber: wave.waveNumber,
+            userId: wave.project.userId,
+          },
+        });
+      });
+    }
+
+    return {
+      success: true,
+      triggeredCleanups: staleWaves.length,
+    };
+  }
+);

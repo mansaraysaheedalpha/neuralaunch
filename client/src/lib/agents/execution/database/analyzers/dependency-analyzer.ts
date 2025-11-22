@@ -227,6 +227,14 @@ export class DependencyAnalyzer {
 
   /**
    * Parse Python requirements.txt
+   * Handles various requirement formats including:
+   * - Simple: django
+   * - With version: django==4.0
+   * - With specifiers: django>=4.0,<5.0
+   * - Compatible release: django~=4.0
+   * - With comments: django # The web framework
+   * - With environment markers: django; python_version >= "3.8"
+   * - Extras: django[mysql]>=4.0
    */
   private parsePythonDeps(content: string, result: DependencyAnalysis): void {
     result.language = 'python';
@@ -241,23 +249,84 @@ export class DependencyAnalyzer {
 
     const pythonDbPatterns = ['psycopg2', 'mysql-connector', 'pymysql', 'motor', 'redis'];
 
-    const lines = content.toLowerCase().split('\n');
-    for (const line of lines) {
-      const pkg = line.split('==')[0].split('>=')[0].split('<=')[0].trim();
+    const lines = content.split('\n');
+    for (const rawLine of lines) {
+      // Parse the requirement line robustly
+      const parsed = this.parsePythonRequirementLine(rawLine);
+      if (!parsed) continue;
+
+      const { packageName, version } = parsed;
+      const pkgLower = packageName.toLowerCase();
 
       for (const [pattern, orm] of Object.entries(pythonOrmPatterns)) {
-        if (pkg.includes(pattern)) {
+        if (pkgLower.includes(pattern)) {
           result.orm = orm;
-          result.ormVersion = this.extractPythonVersion(line);
+          result.ormVersion = version;
         }
       }
 
       for (const pattern of pythonDbPatterns) {
-        if (pkg.includes(pattern)) {
-          result.databaseDependencies.push(pkg);
+        if (pkgLower.includes(pattern)) {
+          result.databaseDependencies.push(packageName);
         }
       }
     }
+  }
+
+  /**
+   * Parse a single Python requirement line
+   * Returns null for empty lines, comments, or invalid lines
+   */
+  private parsePythonRequirementLine(line: string): { packageName: string; version: string | null } | null {
+    // Trim whitespace
+    let cleaned = line.trim();
+
+    // Skip empty lines
+    if (!cleaned) return null;
+
+    // Skip pure comment lines (lines starting with #)
+    if (cleaned.startsWith('#')) return null;
+
+    // Skip options lines (-r, -e, --index-url, etc.)
+    if (cleaned.startsWith('-')) return null;
+
+    // Remove inline comments: "django # The web framework" -> "django"
+    const commentIndex = cleaned.indexOf('#');
+    if (commentIndex !== -1) {
+      cleaned = cleaned.substring(0, commentIndex).trim();
+    }
+
+    // Remove environment markers: "django; python_version >= '3.8'" -> "django"
+    const markerIndex = cleaned.indexOf(';');
+    if (markerIndex !== -1) {
+      cleaned = cleaned.substring(0, markerIndex).trim();
+    }
+
+    // Skip if nothing left after cleaning
+    if (!cleaned) return null;
+
+    // Extract package name and version using regex
+    // Handles: pkg, pkg==1.0, pkg>=1.0, pkg<=1.0, pkg~=1.0, pkg!=1.0, pkg[extra]>=1.0
+    // Version specifier regex: matches ==, >=, <=, ~=, !=, <, > followed by version
+    const versionSpecifierRegex = /^([a-zA-Z0-9_\-\.]+(?:\[[^\]]+\])?)\s*((?:[<>=!~]+[^,<>=!~\s]+,?\s*)+)?$/;
+    const match = cleaned.match(versionSpecifierRegex);
+
+    if (match) {
+      const packageName = match[1].replace(/\[[^\]]+\]/, '').trim(); // Remove extras like [mysql]
+      const versionPart = match[2] ? match[2].trim() : null;
+
+      // Extract just the first version number for simplicity
+      let version: string | null = null;
+      if (versionPart) {
+        const versionMatch = versionPart.match(/[<>=!~]+\s*([0-9][^\s,]*)/);
+        version = versionMatch ? versionMatch[1] : null;
+      }
+
+      return { packageName, version };
+    }
+
+    // Fallback: just return the cleaned string as package name
+    return { packageName: cleaned, version: null };
   }
 
   /**
@@ -345,14 +414,6 @@ export class DependencyAnalyzer {
    */
   private cleanVersion(version: string): string {
     return version.replace(/[\^~>=<]/g, '').trim();
-  }
-
-  /**
-   * Extract version from Python requirement line
-   */
-  private extractPythonVersion(line: string): string | null {
-    const match = line.match(/[=<>]+(.+)$/);
-    return match ? match[1].trim() : null;
   }
 }
 

@@ -72,15 +72,25 @@ export class InfrastructureAgent extends BaseAgent {
 
       const generatedFiles = this.parseGeneratedFiles(responseText);
 
-      // ✅ 4. Write Files
+      // ✅ 4. Write Files (with secret sanitization)
       const writtenFiles: string[] = [];
+      const sanitizationWarnings: string[] = [];
+
       for (const file of generatedFiles) {
+        // ✅ SECURITY FIX: Sanitize secrets before writing
+        const { sanitizedContent, warnings } = this.sanitizeSecrets(file.path, file.content);
+
+        if (warnings.length > 0) {
+          sanitizationWarnings.push(...warnings);
+          logger.warn(`[${this.config.name}] Sanitized secrets in ${file.path}`, { warnings });
+        }
+
         await this.executeTool(
           "filesystem",
           {
             operation: "write",
             path: file.path,
-            content: file.content,
+            content: sanitizedContent,
           },
           { projectId, userId }
         );
@@ -510,7 +520,100 @@ ${context._existingFiles ? `Files already exist: ${Object.keys(context._existing
   }
 
   /**
-   * ✅ Load existing project context with HIGHER LIMITS
+   * ✅ SECURITY FIX: Sanitize hardcoded secrets in generated files
+   * AI often hallucinates default passwords like "password123" or "secret_key"
+   * This replaces them with environment variable references
+   */
+  private sanitizeSecrets(
+    filePath: string,
+    content: string
+  ): { sanitizedContent: string; warnings: string[] } {
+    const warnings: string[] = [];
+    let sanitizedContent = content;
+
+    // Patterns that indicate secret values (key=value patterns)
+    const secretPatterns = [
+      // PASSWORD patterns
+      { regex: /(\b(?:PASSWORD|PASSWD|PASS)\s*[=:]\s*)["']?([^"'\s\n]{4,})["']?/gi, envVar: "DB_PASSWORD" },
+      { regex: /(POSTGRES_PASSWORD\s*[=:]\s*)["']?([^"'\s\n]{4,})["']?/gi, envVar: "POSTGRES_PASSWORD" },
+      { regex: /(MYSQL_PASSWORD\s*[=:]\s*)["']?([^"'\s\n]{4,})["']?/gi, envVar: "MYSQL_PASSWORD" },
+      { regex: /(MYSQL_ROOT_PASSWORD\s*[=:]\s*)["']?([^"'\s\n]{4,})["']?/gi, envVar: "MYSQL_ROOT_PASSWORD" },
+      { regex: /(REDIS_PASSWORD\s*[=:]\s*)["']?([^"'\s\n]{4,})["']?/gi, envVar: "REDIS_PASSWORD" },
+
+      // SECRET/KEY patterns
+      { regex: /(\b(?:SECRET_KEY|SECRET)\s*[=:]\s*)["']?([^"'\s\n]{8,})["']?/gi, envVar: "SECRET_KEY" },
+      { regex: /(JWT_SECRET\s*[=:]\s*)["']?([^"'\s\n]{8,})["']?/gi, envVar: "JWT_SECRET" },
+      { regex: /(API_KEY\s*[=:]\s*)["']?([^"'\s\n]{8,})["']?/gi, envVar: "API_KEY" },
+      { regex: /(API_SECRET\s*[=:]\s*)["']?([^"'\s\n]{8,})["']?/gi, envVar: "API_SECRET" },
+      { regex: /(AUTH_SECRET\s*[=:]\s*)["']?([^"'\s\n]{8,})["']?/gi, envVar: "AUTH_SECRET" },
+      { regex: /(ENCRYPTION_KEY\s*[=:]\s*)["']?([^"'\s\n]{8,})["']?/gi, envVar: "ENCRYPTION_KEY" },
+      { regex: /(NEXTAUTH_SECRET\s*[=:]\s*)["']?([^"'\s\n]{8,})["']?/gi, envVar: "NEXTAUTH_SECRET" },
+
+      // TOKEN patterns
+      { regex: /(ACCESS_TOKEN\s*[=:]\s*)["']?([^"'\s\n]{8,})["']?/gi, envVar: "ACCESS_TOKEN" },
+      { regex: /(REFRESH_TOKEN\s*[=:]\s*)["']?([^"'\s\n]{8,})["']?/gi, envVar: "REFRESH_TOKEN" },
+      { regex: /(GITHUB_TOKEN\s*[=:]\s*)["']?([^"'\s\n]{8,})["']?/gi, envVar: "GITHUB_TOKEN" },
+    ];
+
+    // Common weak/default passwords to always flag
+    const weakPasswords = [
+      "password", "password123", "123456", "admin", "root", "secret",
+      "changeme", "default", "test", "example", "12345678", "qwerty",
+    ];
+
+    // Determine the environment variable syntax based on file type
+    const isYaml = filePath.endsWith(".yml") || filePath.endsWith(".yaml");
+    const isDockerCompose = filePath.includes("docker-compose") || filePath.includes("compose.");
+    const isEnvFile = filePath.endsWith(".env") || filePath.includes(".env.");
+    const isDockerfile = filePath.toLowerCase().includes("dockerfile");
+
+    const getEnvRef = (varName: string): string => {
+      if (isDockerCompose || isYaml) return `\${${varName}}`;
+      if (isDockerfile) return `\${${varName}}`;
+      if (isEnvFile) return `\${${varName}}`; // Will be replaced by actual env var at runtime
+      return `process.env.${varName}`;
+    };
+
+    // Check for weak passwords in any context
+    for (const weakPwd of weakPasswords) {
+      const weakPwdRegex = new RegExp(`["']${weakPwd}["']`, "gi");
+      if (weakPwdRegex.test(sanitizedContent)) {
+        warnings.push(`Found weak/default password "${weakPwd}" in ${filePath}`);
+      }
+    }
+
+    // Apply secret pattern replacements
+    for (const { regex, envVar } of secretPatterns) {
+      const matches = sanitizedContent.match(regex);
+      if (matches) {
+        for (const match of matches) {
+          // Extract the value part
+          const valueMatch = match.match(/[=:]\s*["']?([^"'\s\n]+)["']?$/i);
+          if (valueMatch) {
+            const value = valueMatch[1];
+
+            // Skip if already an env var reference
+            if (value.startsWith("${") || value.startsWith("process.env.")) continue;
+
+            // Skip if it's a placeholder like <your-password>
+            if (value.startsWith("<") && value.endsWith(">")) continue;
+
+            // Replace with env var reference
+            const replacement = match.replace(valueMatch[0], `=${getEnvRef(envVar)}`);
+            sanitizedContent = sanitizedContent.replace(match, replacement);
+            warnings.push(`Replaced hardcoded ${envVar} with environment variable reference`);
+          }
+        }
+      }
+    }
+
+    return { sanitizedContent, warnings };
+  }
+
+  /**
+   * ✅ FIXED: Token-efficient context loading
+   * Reduced from 50 files/1MB to 10 files/200KB
+   * Infrastructure tasks typically need less code context than frontend/backend
    */
   private async loadProjectContextInternal(
     input: AgentExecutionInput
@@ -521,8 +624,8 @@ ${context._existingFiles ? `Files already exist: ${Object.keys(context._existing
         {
           operation: "smart_load",
           taskDescription: input.taskDetails.title,
-          maxFiles: 50, // ✅ Boosted
-          maxSize: 1000000, // ✅ Boosted
+          maxFiles: 10,      // ✅ REDUCED from 50
+          maxSize: 200000,   // ✅ REDUCED from 1MB to 200KB
         },
         {
           projectId: input.projectId,

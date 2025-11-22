@@ -10,7 +10,7 @@ import { env } from "../env"; // Use validated env
 // --- CONFIGURATION ---
 const IS_PRODUCTION = env.NODE_ENV === "production";
 const SANDBOX_IMAGE_NAME =
-  "us-central1-docker.pkg.dev/gen-lang-client-0239783733/neuralaunch-images/neuralaunch-sandbox:v8";
+  "us-central1-docker.pkg.dev/gen-lang-client-0239783733/neuralaunch-images/neuralaunch-sandbox:v9";
 const SANDBOX_INTERNAL_PORT = "8080";
 const WORKSPACE_DIR_INSIDE_CONTAINER = "/workspace";
 
@@ -40,11 +40,26 @@ interface FileWriteResult {
 }
 
 /**
+ * SECURITY: Escape shell arguments (POSIX compliant)
+ * Prevents command injection by wrapping arguments in single quotes
+ * and escaping any embedded single quotes.
+ */
+function shellEscape(arg: string): string {
+  // If the string contains any special characters, wrap in single quotes
+  if (/[^A-Za-z0-9_\/:=-]/.test(arg)) {
+    return "'" + arg.replace(/'/g, "'\\''") + "'";
+  }
+  return arg;
+}
+
+/**
  * Manages the lifecycle and communication with secure Docker sandboxes.
  * Connects to local Docker in development and remote GCE VM in production.
  */
 class SandboxServiceClass {
   private docker: Docker;
+  private pullInProgress: Promise<void> | null = null; // Prevents concurrent pulls
+  private imageVerified = false; // Skip redundant pulls after first success
 
   constructor() {
     if (IS_PRODUCTION) {
@@ -373,41 +388,65 @@ class SandboxServiceClass {
       }
       // --- END: DOCKERODE INTERNAL AUTHENTICATION FIX ---
 
-      // The pull operation now receives the credentials directly in the options object.
-      try {
-        logger.info(`[SandboxService] Pulling image: ${SANDBOX_IMAGE_NAME}`);
+      // RACE CONDITION FIX: Prevent concurrent pulls by reusing in-flight promise
+      // Skip pull entirely if image was already verified in this process lifetime
+      if (!this.imageVerified) {
+        if (this.pullInProgress) {
+          logger.info(
+            `[SandboxService] Image pull already in progress, waiting for completion...`
+          );
+          await this.pullInProgress;
+        } else {
+          // The options argument for docker.pull is used to pass auth credentials
+          const pullOptions = authConfig ? { authconfig: authConfig } : {};
 
-        // The options argument for docker.pull is used to pass auth credentials
-        const pullOptions = authConfig ? { authconfig: authConfig } : {};
+          // Create and store the pull promise to prevent concurrent pulls
+          this.pullInProgress = (async () => {
+            logger.info(`[SandboxService] Pulling image: ${SANDBOX_IMAGE_NAME}`);
 
-        await new Promise<void>((resolve, reject) => {
-          // Pass pullOptions directly to docker.pull
-          this.docker.pull(SANDBOX_IMAGE_NAME, pullOptions, (err, stream) => {
-            if (err)
-              return reject(
-                err instanceof Error ? err : new Error(String(err))
-              );
-            if (!stream)
-              return reject(new Error("No stream returned from docker.pull"));
+            try {
+              await new Promise<void>((resolve, reject) => {
+                // Pass pullOptions directly to docker.pull
+                this.docker.pull(SANDBOX_IMAGE_NAME, pullOptions, (err, stream) => {
+                  if (err)
+                    return reject(
+                      err instanceof Error ? err : new Error(String(err))
+                    );
+                  if (!stream)
+                    return reject(new Error("No stream returned from docker.pull"));
 
-            // We must wait for the stream to end to know the pull is complete
-            this.docker.modem.followProgress(stream, (err, _res) => {
-              if (err)
-                return reject(
-                  err instanceof Error ? err : new Error(String(err))
-                );
-              resolve();
-            });
-          });
-        });
-        logger.info(`[SandboxService] Successfully pulled latest image.`);
-      } catch (pullError: unknown) {
-        logger.error(
-          `[SandboxService] FATAL: Failed to pull sandbox image:`,
-          pullError instanceof Error ? pullError : undefined
-        );
-        throw new Error(
-          `Failed to pull sandbox image: ${pullError instanceof Error ? pullError.message : String(pullError)}`
+                  // We must wait for the stream to end to know the pull is complete
+                  this.docker.modem.followProgress(stream, (err, _res) => {
+                    if (err)
+                      return reject(
+                        err instanceof Error ? err : new Error(String(err))
+                      );
+                    resolve();
+                  });
+                });
+              });
+              logger.info(`[SandboxService] Successfully pulled latest image.`);
+              this.imageVerified = true;
+            } finally {
+              this.pullInProgress = null;
+            }
+          })();
+
+          try {
+            await this.pullInProgress;
+          } catch (pullError: unknown) {
+            logger.error(
+              `[SandboxService] FATAL: Failed to pull sandbox image:`,
+              pullError instanceof Error ? pullError : undefined
+            );
+            throw new Error(
+              `Failed to pull sandbox image: ${pullError instanceof Error ? pullError.message : String(pullError)}`
+            );
+          }
+        }
+      } else {
+        logger.info(
+          `[SandboxService] Image already verified, skipping pull.`
         );
       }
 
@@ -482,12 +521,15 @@ class SandboxServiceClass {
         `[SandboxService] New sandbox ${container.id} for ${projectId} running at ${publicUrl}`
       );
 
-      // ✅ CRITICAL FIX: Poll health endpoint until sandbox is actually ready
+      // ✅ CRITICAL FIX: Poll health endpoint with exponential backoff
       // Don't return until we can confirm the sandbox server is responding
-      const maxHealthChecks = 15; // 15 attempts = 30 seconds max
-      const healthCheckDelay = 2000; // 2 seconds between checks
+      const maxHealthChecks = 10;
+      const baseDelay = 1000; // Start with 1 second
+      const maxDelay = 10000; // Cap at 10 seconds
+      const healthTimeout = 5000; // 5 second timeout per check
       let healthCheckAttempt = 0;
       let isHealthy = false;
+      let totalWaitTime = 0;
 
       logger.info(
         `[SandboxService] Waiting for sandbox health check at ${publicUrl}/health`
@@ -495,17 +537,21 @@ class SandboxServiceClass {
 
       while (healthCheckAttempt < maxHealthChecks && !isHealthy) {
         healthCheckAttempt++;
-        await new Promise((resolve) => setTimeout(resolve, healthCheckDelay));
+
+        // Exponential backoff: 1s, 2s, 4s, 8s, 10s (capped), 10s, ...
+        const delay = Math.min(baseDelay * Math.pow(2, healthCheckAttempt - 1), maxDelay);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        totalWaitTime += delay;
 
         try {
           const healthResponse = await fetch(`${publicUrl}/health`, {
-            signal: AbortSignal.timeout(5000), // 5 second timeout per check
+            signal: AbortSignal.timeout(healthTimeout),
           });
 
           if (healthResponse.ok) {
             isHealthy = true;
             logger.info(
-              `[SandboxService] ✅ Sandbox ${container.id} is healthy after ${healthCheckAttempt} attempts (${healthCheckAttempt * healthCheckDelay / 1000}s)`
+              `[SandboxService] ✅ Sandbox ${container.id} is healthy after ${healthCheckAttempt} attempts (${totalWaitTime / 1000}s total wait)`
             );
           } else {
             logger.warn(
@@ -521,7 +567,7 @@ class SandboxServiceClass {
 
       if (!isHealthy) {
         throw new Error(
-          `Sandbox container started but failed to become healthy after ${maxHealthChecks} attempts (${maxHealthChecks * healthCheckDelay / 1000}s). The sandbox server may be crashing or not starting properly.`
+          `Sandbox container started but failed to become healthy after ${maxHealthChecks} attempts (${totalWaitTime / 1000}s total wait with exponential backoff). The sandbox server may be crashing or not starting properly.`
         );
       }
 
@@ -807,8 +853,10 @@ class SandboxServiceClass {
     details?: string;
   }> {
     try {
-      const safeMessage = message.replace(/"/g, '\\"');
-      const commitCmd = `git commit --allow-empty-message -m "${safeMessage}"`;
+      // ✅ SECURITY FIX: Use shell-safe escaping to prevent command injection
+      // The simple replace(/"/g, '\\"') was vulnerable to: foo"; rm -rf /; echo "
+      const safeMessage = shellEscape(message);
+      const commitCmd = `git commit --allow-empty-message -m ${safeMessage}`;
       const commitResult = await this.execCommand(
         projectId,
         userId,
@@ -888,7 +936,9 @@ class SandboxServiceClass {
         );
       } // 2. Try to create branch from origin/main
 
-      const branchCmd = `git checkout -b "${branchName}" origin/main`;
+      // ✅ SECURITY FIX: Use shell-safe escaping to prevent command injection
+      const safeBranchName = shellEscape(branchName);
+      const branchCmd = `git checkout -b ${safeBranchName} origin/main`;
       const branchResult = await this.execCommand(
         projectId,
         userId,
@@ -902,7 +952,7 @@ class SandboxServiceClass {
           logger.warn(
             `[Sandbox Git] Branch '${branchName}' already exists. Checking it out...`
           );
-          const checkoutCmd = `git checkout "${branchName}"`;
+          const checkoutCmd = `git checkout ${safeBranchName}`;
           const checkoutResult = await this.execCommand(
             projectId,
             userId,

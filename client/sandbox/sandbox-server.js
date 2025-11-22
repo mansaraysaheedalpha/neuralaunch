@@ -17,6 +17,59 @@ app.use(express.json());
 const PORT = 8080;
 const WORKSPACE_DIR = "/workspace";
 
+/**
+ * SECURITY: Securely validate that a path is within the sandbox directory.
+ * Uses fs.realpath to resolve symlinks and prevent path traversal attacks.
+ * @param {string} requestedPath - The user-provided relative path
+ * @returns {Promise<{valid: boolean, resolvedPath?: string, error?: string}>}
+ */
+async function securePathValidation(requestedPath) {
+  try {
+    const joinedPath = path.join(WORKSPACE_DIR, requestedPath);
+    const normalizedPath = path.normalize(joinedPath);
+
+    // First check: basic path traversal via .. sequences
+    const normalizedWorkspace = path.normalize(WORKSPACE_DIR);
+    if (!normalizedPath.startsWith(normalizedWorkspace)) {
+      return { valid: false, error: "Path traversal detected" };
+    }
+
+    // For writes, the file may not exist yet, so we validate the parent directory
+    // For reads, we validate the actual file
+    try {
+      // Try to resolve the full path (works for reads and existing files)
+      const realPath = await fs.realpath(normalizedPath);
+      const realWorkspace = await fs.realpath(normalizedWorkspace);
+
+      if (!realPath.startsWith(realWorkspace)) {
+        return { valid: false, error: "Symlink path traversal detected" };
+      }
+      return { valid: true, resolvedPath: normalizedPath };
+    } catch (e) {
+      if (e.code === 'ENOENT') {
+        // File doesn't exist - resolve parent directory instead (for writes)
+        const parentDir = path.dirname(normalizedPath);
+        try {
+          // Ensure parent exists (may need to be created)
+          await fs.mkdir(parentDir, { recursive: true });
+          const realParent = await fs.realpath(parentDir);
+          const realWorkspace = await fs.realpath(normalizedWorkspace);
+
+          if (!realParent.startsWith(realWorkspace)) {
+            return { valid: false, error: "Symlink path traversal detected in parent" };
+          }
+          return { valid: true, resolvedPath: normalizedPath };
+        } catch (parentErr) {
+          return { valid: false, error: `Parent directory validation failed: ${parentErr.message}` };
+        }
+      }
+      return { valid: false, error: `Path resolution failed: ${e.message}` };
+    }
+  } catch (error) {
+    return { valid: false, error: `Validation error: ${error.message}` };
+  }
+}
+
 // Pusher Configuration
 let pusher;
 if (
@@ -354,18 +407,18 @@ app.post("/fs/write", async (req, res) => {
     });
   }
 
-  const safeFilePath = path.join(WORKSPACE_DIR, relativePath);
-  const normalizedSandboxDir = path.normalize(WORKSPACE_DIR);
-  const normalizedFilePath = path.normalize(safeFilePath);
-
-  if (!normalizedFilePath.startsWith(normalizedSandboxDir)) {
-    console.warn(`[Sandbox] Path traversal attempt: ${safeFilePath}`);
+  // SECURITY FIX: Use secure path validation with symlink resolution
+  const validation = await securePathValidation(relativePath);
+  if (!validation.valid) {
+    console.warn(`[Sandbox] Path traversal attempt: ${relativePath} - ${validation.error}`);
     return res.status(403).json({
       status: "error",
       path: relativePath,
       message: "Forbidden: Path is outside of sandbox.",
     });
   }
+
+  const safeFilePath = validation.resolvedPath;
 
   try {
     await fs.mkdir(path.dirname(safeFilePath), { recursive: true });
@@ -396,16 +449,17 @@ app.post("/fs/read", async (req, res) => {
     });
   }
 
-  const safeFilePath = path.join(WORKSPACE_DIR, relativePath);
-  const normalizedSandboxDir = path.normalize(WORKSPACE_DIR);
-  const normalizedFilePath = path.normalize(safeFilePath);
-
-  if (!normalizedFilePath.startsWith(normalizedSandboxDir)) {
+  // SECURITY FIX: Use secure path validation with symlink resolution
+  const validation = await securePathValidation(relativePath);
+  if (!validation.valid) {
+    console.warn(`[Sandbox] Path traversal attempt on read: ${relativePath} - ${validation.error}`);
     return res.status(403).json({
       status: "error",
       message: "Forbidden: Path is outside of sandbox.",
     });
   }
+
+  const safeFilePath = validation.resolvedPath;
 
   try {
     const content = await fs.readFile(safeFilePath, "utf8");

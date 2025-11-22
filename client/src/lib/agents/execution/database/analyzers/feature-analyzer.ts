@@ -94,6 +94,9 @@ export class FeatureAnalyzer {
 
   /**
    * Analyze project files to detect required database features
+   *
+   * IMPORTANT: Iterates through files individually to avoid memory issues
+   * with large projects (e.g., package-lock.json, large seed files)
    */
   analyze(projectFiles: Record<string, string>): FeatureRequirements {
     logger.info(`[${this.name}] Starting feature analysis`);
@@ -108,13 +111,15 @@ export class FeatureAnalyzer {
       detectedFeatures: [],
     };
 
-    // Combine all file contents for pattern matching
-    const allContent = Object.values(projectFiles).join('\n');
     const allPaths = Object.keys(projectFiles);
 
-    // Check each feature
+    // ===== MEMORY FIX: Iterate through files individually =====
+    // Instead of joining all content into one massive string,
+    // we check patterns per-file to avoid memory issues with large projects
+
+    // Check each feature by iterating through files
     for (const [featureName, config] of Object.entries(FEATURE_PATTERNS)) {
-      const detected = this.detectFeature(allContent, allPaths, config);
+      const detected = this.detectFeatureInFiles(projectFiles, allPaths, config);
 
       if (detected.found) {
         switch (featureName) {
@@ -167,21 +172,55 @@ export class FeatureAnalyzer {
   }
 
   /**
-   * Detect a specific feature based on patterns and file paths
+   * Detect a specific feature by iterating through files individually
+   * MEMORY-EFFICIENT: Does not join all files into one string
    */
-  private detectFeature(
-    content: string,
+  private detectFeatureInFiles(
+    projectFiles: Record<string, string>,
     paths: string[],
     config: { patterns: RegExp[]; files: string[] }
   ): { found: boolean; indicators: string[] } {
     const indicators: string[] = [];
+    const patternMatchCounts = new Map<string, number>();
 
-    // Check content patterns
-    for (const pattern of config.patterns) {
-      const matches = content.match(new RegExp(pattern.source, 'gi'));
-      if (matches && matches.length > 0) {
-        indicators.push(`Pattern: ${pattern.source.substring(0, 30)}... (${matches.length} matches)`);
+    // Skip files that are likely to be large and irrelevant
+    const SKIP_FILES = [
+      'package-lock.json',
+      'yarn.lock',
+      'pnpm-lock.yaml',
+      '.min.js',
+      '.min.css',
+      'node_modules',
+      '.map',
+    ];
+
+    // Iterate through each file individually (memory-efficient)
+    for (const [filePath, content] of Object.entries(projectFiles)) {
+      // Skip large/irrelevant files
+      if (SKIP_FILES.some(skip => filePath.includes(skip))) {
+        continue;
       }
+
+      // Skip files larger than 500KB to prevent memory issues
+      if (content.length > 500000) {
+        logger.debug(`[${this.name}] Skipping large file: ${filePath} (${Math.round(content.length / 1024)}KB)`);
+        continue;
+      }
+
+      // Check content patterns for this file
+      for (const pattern of config.patterns) {
+        const matches = content.match(new RegExp(pattern.source, 'gi'));
+        if (matches && matches.length > 0) {
+          const patternKey = pattern.source.substring(0, 30);
+          const currentCount = patternMatchCounts.get(patternKey) || 0;
+          patternMatchCounts.set(patternKey, currentCount + matches.length);
+        }
+      }
+    }
+
+    // Convert pattern matches to indicators
+    for (const [patternKey, count] of patternMatchCounts) {
+      indicators.push(`Pattern: ${patternKey}... (${count} matches)`);
     }
 
     // Check file path patterns

@@ -329,6 +329,60 @@ export interface UpstashDatabase {
 }
 
 // ==========================================
+// DATABASE BRANCHING TYPES (for Preview Deployments)
+// ==========================================
+
+export interface DatabaseBranch {
+  id: string;
+  name: string;
+  parentBranchId: string;
+  projectId: string;
+  provider: DatabaseProvider;
+  status: 'creating' | 'ready' | 'error' | 'deleted';
+  createdAt: Date;
+  credentials?: DatabaseCredentials;
+  endpoint?: {
+    id: string;
+    host: string;
+  };
+}
+
+export interface CreateBranchOptions {
+  provider: DatabaseProvider;
+  projectId: string;  // Neon project ID or Supabase project ref
+  parentBranchId: string;  // Main branch to fork from
+  branchName: string;  // e.g., "wave-1-preview"
+  apiKey: string;
+}
+
+export interface CreateBranchResult {
+  success: boolean;
+  branch?: DatabaseBranch;
+  connectionString?: string;
+  directUrl?: string;
+  error?: string;
+}
+
+export interface DeleteBranchOptions {
+  provider: DatabaseProvider;
+  projectId: string;
+  branchId: string;
+  apiKey: string;
+}
+
+export interface DeleteBranchResult {
+  success: boolean;
+  error?: string;
+}
+
+export interface BranchInfo {
+  id: string;
+  name: string;
+  ready: boolean;
+  connectionString?: string;
+}
+
+// ==========================================
 // LOGGING AND METRICS
 // ==========================================
 

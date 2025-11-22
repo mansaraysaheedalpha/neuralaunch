@@ -228,6 +228,7 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
 
               // Trigger the agent to fix issues
               const agentEvent = getAgentEventName(task.agentName || "");
+              const agentType = getAgentType(task.agentName || "");
 
               // Send event to trigger agent fix (bypassing strict typing for dynamic event data)
               await inngest.send({
@@ -243,6 +244,11 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
                   issuesToFix: taskIssues,
                   attempt,
                   priority: 1,
+                  // Include agentType and agentName for unified agent
+                  ...(agentType && {
+                    agentType,
+                    agentName: task.agentName,
+                  }),
                 },
               } as Parameters<typeof inngest.send>[0]);
 
@@ -272,16 +278,13 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
 
             for (const result of fixResults) {
               try {
-                const eventName = getAgentCompleteEventName(result.agentName) as
-                  | "agent/execution.backend.complete"
-                  | "agent/execution.frontend.complete"
-                  | "agent/execution.infrastructure.complete";
+                // Unified agents emit agent/task.complete
                 const completion = await step.waitForEvent(
-                  eventName,
+                  `wait-fix-${result.taskId}`,
                   {
-                    event: eventName,
+                    event: "agent/task.complete",
                     timeout: "15m",
-                    match: "data.taskId",
+                    if: `event.data.taskId == "${result.taskId}-fix-${attempt}"`,
                   }
                 );
 
@@ -577,22 +580,25 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
 );
 
 // Helper utility functions
-function getAgentEventName(agentName: string): string {
-  const eventMap: Record<string, string> = {
-    BackendAgent: "agent/execution.backend",
-    FrontendAgent: "agent/execution.frontend",
-    InfrastructureAgent: "agent/execution.infrastructure",
-  };
+const UNIFIED_AGENTS = ["FrontendAgent", "BackendAgent", "InfrastructureAgent"];
 
-  return eventMap[agentName] || "agent/execution.generic";
+function isUnifiedAgent(agentName: string): boolean {
+  return UNIFIED_AGENTS.includes(agentName);
 }
 
-function getAgentCompleteEventName(agentName: string): string {
-  const eventMap: Record<string, string> = {
-    BackendAgent: "agent/execution.backend.complete",
-    FrontendAgent: "agent/execution.frontend.complete",
-    InfrastructureAgent: "agent/execution.infrastructure.complete",
+function getAgentType(agentName: string): "frontend" | "backend" | "infrastructure" | null {
+  const typeMap: Record<string, "frontend" | "backend" | "infrastructure"> = {
+    FrontendAgent: "frontend",
+    BackendAgent: "backend",
+    InfrastructureAgent: "infrastructure",
   };
+  return typeMap[agentName] || null;
+}
 
-  return eventMap[agentName] || "agent/execution.generic.complete";
+function getAgentEventName(agentName: string): string {
+  // Unified agents use the unified event
+  if (isUnifiedAgent(agentName)) {
+    return "agent/execution.unified";
+  }
+  return "agent/execution.generic";
 }

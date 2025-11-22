@@ -4,19 +4,22 @@ import { inngest } from "@/inngest/client";
 import {
   orchestratorRunFunction,
   orchestratorResumeFunction,
-  orchestratorVisionFunction, // ✅ ADD THIS
-  orchestratorBlueprintFunction, // ✅ ADD THIS
+  orchestratorVisionFunction,
+  orchestratorBlueprintFunction,
 } from "@/inngest/functions/orchestrator-functions";
-import { backendAgentFunction } from "@/inngest/functions/backend-agent-function";
-import { frontendAgentFunction } from "@/inngest/functions/frontend-agent-function";
+// ✅ Unified Execution Agent (consolidates frontend/backend/infrastructure)
+import { unifiedExecutionAgentFunction } from "@/inngest/functions/unified-execution-agent-function";
+// Database agent remains separate (external API provisioning)
 import { databaseAgentFunction } from "@/inngest/functions/database-agent-function";
+// Quality agents
 import { testingAgentFunction } from "@/inngest/functions/testing-agent-function";
 import { criticAgentFunction } from "@/inngest/functions/critic-agent-function";
+import { integrationAgentFunction } from "@/inngest/functions/integration-agent-function";
+import { fixCriticalIssuesFunction } from "@/inngest/functions/fix-critical-issues-function";
+// Wave management
 import { waveStartFunction } from "@/inngest/functions/wave-start-function";
 import { waveCompleteFunction } from "@/inngest/functions/wave-complete-function";
-import { integrationAgentFunction } from "@/inngest/functions/integration-agent-function";
-import { infrastructureExecutionAgentFunction } from
-  "@/inngest/functions/infrastructure-execution-agent-function";
+// Other agents
 import { documentationAgentFunction } from "@/inngest/functions/documentation-agent-function";
 import { deployAgentFunction } from "@/inngest/functions/deploy-agent-function";
 import {
@@ -24,7 +27,6 @@ import {
   continuousMonitoringFunction,
 } from "@/inngest/functions/monitoring-agent-function";
 import { optimizationAgentFunction } from "@/inngest/functions/optimization-agent-function";
-import { fixCriticalIssuesFunction } from "@/inngest/functions/fix-critical-issues-function";
 import { cleanupStuckTasks } from "@/inngest/functions/cleanup-stuck-tasks";
 import { env } from "@/lib/env";
 
@@ -34,26 +36,26 @@ export const { GET, POST, PUT } = serve({
     // ✅ Orchestrator functions
     orchestratorRunFunction,
     orchestratorResumeFunction,
-    orchestratorVisionFunction, // ✅ CRITICAL: Add this
-    orchestratorBlueprintFunction, // ✅ CRITICAL: Add this
+    orchestratorVisionFunction,
+    orchestratorBlueprintFunction,
 
-    // Execution agents
-    backendAgentFunction,
-    frontendAgentFunction,
+    // ✅ Unified Execution Agent (frontend/backend/infrastructure)
+    unifiedExecutionAgentFunction,
+
+    // Database agent (separate - external API provisioning)
     databaseAgentFunction,
+
+    // Quality agents
     testingAgentFunction,
     criticAgentFunction,
+    integrationAgentFunction,
+    fixCriticalIssuesFunction,
 
     // Wave management
     waveStartFunction,
     waveCompleteFunction,
 
-    // Quality & Integration
-    integrationAgentFunction,
-    fixCriticalIssuesFunction,
-
-    // Infrastructure & Deployment
-    infrastructureExecutionAgentFunction,
+    // Deployment & Documentation
     documentationAgentFunction,
     deployAgentFunction,
 

@@ -96,35 +96,68 @@ export async function POST(
     });
 
     // 6. Trigger agent execution via Inngest
-    const eventMap: Record<string, string> = {
-      FrontendAgent: "agent/execution.frontend",
-      BackendAgent: "agent/execution.backend",
-      InfrastructureAgent: "agent/execution.infrastructure",
-      DatabaseAgent: "agent/execution.database",
-      IntegrationAgent: "agent/quality.integration",
-      TestingAgent: "agent/quality.testing",
+    // Unified agents: Frontend, Backend, Infrastructure route to unified execution agent
+    const UNIFIED_AGENTS = ["FrontendAgent", "BackendAgent", "InfrastructureAgent"];
+    const agentTypeMap: Record<string, "frontend" | "backend" | "infrastructure"> = {
+      FrontendAgent: "frontend",
+      BackendAgent: "backend",
+      InfrastructureAgent: "infrastructure",
     };
 
-    const eventName = (eventMap[task.agentName] || "agent/execution.generic") as
-      | "agent/execution.backend"
-      | "agent/execution.frontend"
-      | "agent/execution.infrastructure"
-      | "agent/execution.database"
-      | "agent/quality.integration"
-      | "agent/quality.testing"
-      | "agent/execution.generic";
+    if (UNIFIED_AGENTS.includes(task.agentName)) {
+      // Use unified execution agent
+      await inngest.send({
+        name: "agent/execution.unified",
+        data: {
+          taskId: task.id,
+          projectId: task.projectId,
+          userId,
+          conversationId: project.conversationId || "",
+          taskInput: task.input as Record<string, unknown>,
+          priority: task.priority || 1,
+          waveNumber: task.waveNumber || undefined,
+          agentType: agentTypeMap[task.agentName],
+          agentName: task.agentName,
+        },
+      });
+    } else if (task.agentName === "DatabaseAgent") {
+      // Database agent remains separate
+      await inngest.send({
+        name: "agent/execution.database",
+        data: {
+          taskId: task.id,
+          projectId: task.projectId,
+          userId,
+          conversationId: project.conversationId || "",
+          taskInput: task.input as Record<string, unknown>,
+          priority: task.priority || 1,
+          waveNumber: task.waveNumber || undefined,
+        },
+      });
+    } else {
+      // Quality agents and others use their specific events
+      const eventMap: Record<string, string> = {
+        IntegrationAgent: "agent/quality.integration",
+        TestingAgent: "agent/quality.testing",
+      };
 
-    await inngest.send({
-      name: eventName,
-      data: {
-        taskId: task.id,
-        projectId: task.projectId,
-        userId,
-        conversationId: project.conversationId || "",
-        taskInput: task.input as Record<string, unknown>,
-        priority: task.priority || 1,
-      },
-    });
+      const eventName = (eventMap[task.agentName] || "agent/execution.generic") as
+        | "agent/quality.integration"
+        | "agent/quality.testing"
+        | "agent/execution.generic";
+
+      await inngest.send({
+        name: eventName,
+        data: {
+          taskId: task.id,
+          projectId: task.projectId,
+          userId,
+          conversationId: project.conversationId || "",
+          taskInput: task.input as Record<string, unknown>,
+          priority: task.priority || 1,
+        },
+      });
+    }
 
     logger.info(`Task retry initiated successfully`, {
       taskId,

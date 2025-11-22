@@ -68,6 +68,12 @@ RUN pip3 install --no-cache-dir \
     mypy
 
 # ==========================================
+# CREATE NON-ROOT USER (SECURITY)
+# ==========================================
+
+RUN groupadd -r neura && useradd -r -g neura -m -s /bin/bash neura
+
+# ==========================================
 # GO
 # ==========================================
 
@@ -76,18 +82,21 @@ RUN wget -q https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz \
     && rm go${GO_VERSION}.linux-amd64.tar.gz
 
 ENV PATH="/usr/local/go/bin:${PATH}"
-ENV GOPATH="/root/go"
+ENV GOPATH="/home/neura/go"
 ENV PATH="${GOPATH}/bin:${PATH}"
 
 # ==========================================
-# RUST
+# RUST (install as neura user)
 # ==========================================
 
+USER neura
+ENV HOME="/home/neura"
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain ${RUST_VERSION} \
     && . "$HOME/.cargo/env" \
     && rustup component add clippy rustfmt
+USER root
 
-ENV PATH="/root/.cargo/bin:${PATH}"
+ENV PATH="/home/neura/.cargo/bin:${PATH}"
 
 # ==========================================
 # PHP
@@ -148,9 +157,10 @@ RUN npm install express pusher
 # Copy sandbox server
 COPY sandbox-server.js .
 
-# Create workspace directory
+# Create workspace directory with proper ownership
 RUN mkdir -p /workspace \
-    && chmod 777 /workspace
+    && chown -R neura:neura /workspace \
+    && chmod 755 /workspace
 
 # ==========================================
 # VERIFY INSTALLATIONS
@@ -176,6 +186,9 @@ RUN echo "=== Verifying Installations ===" \
 # RUNTIME CONFIGURATION
 # ==========================================
 
+# Ensure app directory is accessible by neura
+RUN chown -R neura:neura /app
+
 WORKDIR /workspace
 
 EXPOSE 8080
@@ -183,5 +196,8 @@ EXPOSE 8080
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
+
+# SECURITY: Run as non-root user
+USER neura
 
 CMD ["node", "/app/sandbox-server.js"]
