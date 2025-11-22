@@ -1,4 +1,4 @@
-// client/src/components/landing-page/CofounderChat.tsx
+// client/src/components/CofounderChat.tsx
 "use client";
 
 import { useState, FormEvent, useEffect, useRef } from "react";
