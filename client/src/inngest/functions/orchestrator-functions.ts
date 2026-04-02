@@ -116,6 +116,7 @@ export const orchestratorResumeFunction = inngest.createFunction(
 
     try {
       const result = await step.run("resume-orchestrator", async () => {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         return await orchestrator.resume(projectId, userId, conversationId);
       });
 

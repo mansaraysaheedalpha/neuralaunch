@@ -77,7 +77,9 @@ const HeroSection = () => {
   const headlineWords = "Build the Right Thing, Faster.".split(" ");
   const primaryWordIndex = 5;
 
+  // eslint-disable-next-line react-hooks/purity
   const particleOffsets = useMemo(
+    // eslint-disable-next-line react-hooks/purity
     () => Array.from({ length: 8 }, () => Math.random() * 30 - 15),
     []
   );

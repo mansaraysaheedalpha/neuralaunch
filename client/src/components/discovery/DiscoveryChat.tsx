@@ -84,7 +84,7 @@ export function DiscoveryChat({ onComplete }: DiscoveryChatProps) {
       }
     }
 
-    init();
+    void init();
     return () => { cancelled = true; abortRef.current?.abort(); };
   }, []);
 
@@ -163,7 +163,7 @@ export function DiscoveryChat({ onComplete }: DiscoveryChatProps) {
   const canSubmit = !!sessionId && !isSynthesizing && input.trim().length > 0
     && status !== 'loading' && status !== 'streaming';
 
-  const handleSubmit = (e: FormEvent) => { e.preventDefault(); if (canSubmit) sendMessage(input); };
+  const handleSubmit = (e: FormEvent) => { e.preventDefault(); if (canSubmit) void sendMessage(input); };
 
   return (
     <div className="flex flex-col h-full max-w-2xl mx-auto w-full">
@@ -183,7 +183,7 @@ export function DiscoveryChat({ onComplete }: DiscoveryChatProps) {
           maxRows={5}
           className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none py-2"
           onKeyDown={e => {
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (canSubmit) sendMessage(input); }
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (canSubmit) void sendMessage(input); }
           }}
         />
         <Button type="submit" size="icon" disabled={!canSubmit} variant="ghost">

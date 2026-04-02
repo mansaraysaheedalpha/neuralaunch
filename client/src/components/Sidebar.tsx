@@ -60,7 +60,7 @@ export default function Sidebar({
     error: _error,
     setError,
   } = useConversationStore();
-  const { setMessages, setError: setChatError } = useChatStore();
+  const { setMessages: _setMessages, setError: _setChatError } = useChatStore();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const pathname = usePathname();
   const router = useRouter();

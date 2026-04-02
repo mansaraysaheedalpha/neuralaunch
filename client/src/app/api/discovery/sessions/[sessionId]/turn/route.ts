@@ -10,7 +10,7 @@ import {
 } from '@/lib/rate-limit';
 import {
   getSession, saveSession, extractContext, applyUpdate, generateQuestion,
-  canSynthesise, INTERVIEW_PHASES,
+  canSynthesise,
 } from '@/lib/discovery';
 
 const TurnRequestSchema = z.object({
@@ -85,6 +85,7 @@ export async function POST(
     await prisma.discoverySession.update({
       where: { id: sessionId },
       data: {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
         beliefState:      JSON.parse(JSON.stringify(nextState.context)),
         phase:            nextState.phase,
         questionCount:    nextState.questionCount,

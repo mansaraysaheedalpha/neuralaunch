@@ -48,6 +48,7 @@ export default function MetricsChart({ projectId }: MetricsChartProps) {
       return points;
     };
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setData(generateMockData());
   }, [projectId]);
 
