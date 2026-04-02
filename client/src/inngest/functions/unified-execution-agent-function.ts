@@ -85,8 +85,8 @@ export const unifiedExecutionAgentFunction = inngest.createFunction(
     name: "Unified Execution Agent - Frontend/Backend/Infrastructure",
     retries: 2,
     timeouts: { start: "15m" },
+    triggers: [{ event: "agent/execution.unified" }],
   },
-  { event: "agent/execution.unified" },
   async ({ event, step }) => {
     const {
       taskId,
@@ -94,9 +94,9 @@ export const unifiedExecutionAgentFunction = inngest.createFunction(
       userId,
       conversationId,
       waveNumber,
-      agentType,
       agentName
     } = event.data;
+    const agentType = event.data.agentType as AgentType;
 
     const config = AGENT_CONFIG[agentType];
 

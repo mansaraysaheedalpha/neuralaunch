@@ -28,6 +28,8 @@ model User {
   vercelTeamId       String?
   thoughtPreferences Json?
   preferences        UserPreferences?
+  discoverySessions  DiscoverySession[]
+  recommendations    Recommendation[]
 }
 
 model UserPreferences {
@@ -790,6 +792,82 @@ model AgentThought {
 // ==========================================
 // DEPLOYMENT TRACKING
 // ==========================================
+
+// ==========================================
+// PHASE 1 — DISCOVERY ENGINE
+// ==========================================
+
+enum DiscoverySessionStatus {
+  ACTIVE
+  COMPLETE
+  EXPIRED
+}
+
+/**
+ * DiscoverySession
+ *
+ * Represents one adaptive interview run for a user.
+ * The beliefState JSON column is the typed DiscoveryContext from
+ * src/lib/discovery/context-schema.ts — each field carries a value,
+ * confidence score, and timestamp.
+ */
+model DiscoverySession {
+  id               String                 @id @default(cuid())
+  userId           String
+  user             User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status           DiscoverySessionStatus @default(ACTIVE)
+
+  // Interview state
+  phase            String                 @default("ORIENTATION")
+  questionCount    Int                    @default(0)
+  questionsInPhase Int                    @default(0)
+  activeField      String?
+
+  // The belief state is the DiscoveryContext — serialised as JSON.
+  // Typed accessors in src/lib/discovery/context-schema.ts are the only
+  // way to read/write this field. Never mutate it raw.
+  beliefState      Json
+
+  recommendation   Recommendation?
+
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  completedAt      DateTime?
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([createdAt])
+}
+
+/**
+ * Recommendation
+ *
+ * The single structured output produced by the synthesis engine.
+ * Shape is validated against RecommendationSchema (Zod) before write.
+ * One-to-one with DiscoverySession.
+ */
+model Recommendation {
+  id                    String           @id @default(cuid())
+  userId                String
+  user                  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId             String           @unique
+  session               DiscoverySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  // Core recommendation fields (mirroring RecommendationSchema)
+  path                  String           @db.Text
+  reasoning             String           @db.Text
+  firstThreeSteps       Json             // String[]
+  timeToFirstResult     String
+  risks                 Json             // { risk: string; mitigation: string }[]
+  assumptions           Json             // String[]
+  whatWouldMakeThisWrong String          @db.Text
+  alternativeRejected   Json             // { alternative: string; whyNotForThem: string }
+
+  createdAt             DateTime         @default(now())
+
+  @@index([userId])
+  @@index([sessionId])
+}
 
 model Deployment {
   id        String @id @default(cuid())

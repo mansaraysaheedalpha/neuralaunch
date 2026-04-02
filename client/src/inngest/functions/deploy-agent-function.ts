@@ -44,11 +44,11 @@ export const deployAgentFunction = inngest.createFunction(
     name: "Deploy Agent - Multi-Platform Deployment",
     retries: 1, // Only retry once for deployments
     concurrency: {
-      limit: 1, // Only one deployment at a time per project
+      limit: 1,
       key: "event.data.projectId",
     },
+    triggers: [{ event: "agent/deployment.deploy" }],
   },
-  { event: "agent/deployment.deploy" },
   async ({ event, step }) => {
     // Define TaskInputType interface
     interface TaskInputType {

@@ -47,8 +47,8 @@ export const integrationAgentFunction = inngest.createFunction(
     id: "integration-agent-verification",
     name: "Integration Agent - Contract Verification",
     retries: 2,
+    triggers: [{ event: "agent/quality.integration" }],
   },
-  { event: "agent/quality.integration" },
   async ({ event, step }) => {
     const { taskId, projectId, userId, conversationId, taskInput } = event.data as {
       taskId: string;

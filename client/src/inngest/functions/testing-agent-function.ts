@@ -16,8 +16,8 @@ export const testingAgentFunction = inngest.createFunction(
     id: "testing-agent-execution",
     name: "Testing Agent - Generate and Run Tests",
     retries: 2,
+    triggers: [{ event: "agent/quality.testing" }],
   },
-  { event: "agent/quality.testing" },
   async ({ event, step }) => {
     // Define a type for event data
     type TestingAgentEventData = {

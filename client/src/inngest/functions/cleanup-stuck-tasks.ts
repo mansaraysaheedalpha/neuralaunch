@@ -9,8 +9,7 @@ import { logger } from "@/lib/logger";
  * for more than 30 minutes (Zombie Tasks).
  */
 export const cleanupStuckTasks = inngest.createFunction(
-  { id: "cleanup-stuck-tasks", name: "Watchdog: Cleanup Stuck Tasks" },
-  { cron: "*/10 * * * *" }, // Run every 10 minutes
+  { id: "cleanup-stuck-tasks", name: "Watchdog: Cleanup Stuck Tasks", triggers: [{ cron: "*/10 * * * *" }] },
   async ({ step }) => {
     const STUCK_THRESHOLD_MINUTES = 30;
     const cutoffDate = new Date(
