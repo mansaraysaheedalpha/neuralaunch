@@ -33,9 +33,9 @@ export const optimizationAgentFunction = inngest.createFunction(
   {
     id: "optimization-agent-apply",
     name: "Optimization Agent - Apply Performance Improvements",
-    retries: 1, // Only retry once
+    retries: 1,
+    triggers: [{ event: "agent/optimization.start" }],
   },
-  { event: "agent/optimization.start" },
   async ({ event, step }) => {
     const eventData = event.data as {
       taskId: string;
@@ -340,8 +340,8 @@ export const scheduledOptimizationFunction = inngest.createFunction(
   {
     id: "scheduled-optimization-check",
     name: "Scheduled Optimization - Weekly Optimization Check",
+    triggers: [{ cron: "0 0 * * 0" }],
   },
-  { cron: "0 0 * * 0" }, // Every Sunday at midnight
   async ({ step }) => {
     logger.info(`[Inngest] Running scheduled optimization check`);
 

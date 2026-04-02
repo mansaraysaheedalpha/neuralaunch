@@ -153,8 +153,8 @@ const HeroSection = () => {
           variants={fadeIn}
           className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8"
         >
-          {/* Button 1: Generate Blueprint (Validation-First) */}
-          <Link href="/generate" passHref>
+          {/* Button 1: Start Discovery (Primary CTA) */}
+          <Link href="/discovery" passHref>
             <motion.span
               whileHover={{
                 scale: 1.05,
@@ -175,8 +175,8 @@ const HeroSection = () => {
               }}
               className="text-lg inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-primary to-secondary text-primary-foreground rounded-xl font-semibold shadow-lg transition-all duration-300 cursor-pointer"
             >
-              <FileText className="w-5 h-5" />
-              Generate Your Blueprint
+              <BrainCircuit className="w-5 h-5" />
+              Start Your Discovery
               <ArrowRight className="w-5 h-5" />
             </motion.span>
           </Link>
@@ -565,44 +565,40 @@ const FinalCTASection = () => (
         variants={fadeIn}
         className="text-5xl md:text-6xl font-black tracking-tight text-foreground mb-6"
       >
-        Ready to Validate Your Vision?
+        Ready to Find Your Path?
       </motion.h2>
       <motion.p
         variants={fadeIn}
         className="text-xl md:text-2xl text-muted-foreground mb-12 max-w-xl mx-auto"
       >
-        {" "}
-        {/* Increased bottom margin */}
-        Stop guessing, start validating. Get your AI-powered blueprint and
-        launch your startup with confidence.
+        Answer a few honest questions. Get one clear direction — built
+        specifically for your situation.
       </motion.p>
       <motion.div variants={fadeIn}>
-        <Link href="/generate" passHref>
+        <Link href="/discovery" passHref>
           <motion.span
             whileHover={{
               scale: 1.05,
               boxShadow: "0px 10px 20px hsla(var(--primary), 0.3)",
             }}
             whileTap={{ scale: 0.95 }}
-            // --- ADD GLOWING/BREATHING ANIMATION ---
             animate={{
-              scale: [1, 1.02, 1], // Subtle scale pulse
+              scale: [1, 1.02, 1],
               boxShadow: [
-                "0px 0px 0px 0px hsla(var(--primary), 0.4)", // No glow
-                "0px 0px 15px 5px hsla(var(--primary), 0.6)", // Max glow
-                "0px 0px 0px 0px hsla(var(--primary), 0.4)", // Back to subtle glow/no glow
+                "0px 0px 0px 0px hsla(var(--primary), 0.4)",
+                "0px 0px 15px 5px hsla(var(--primary), 0.6)",
+                "0px 0px 0px 0px hsla(var(--primary), 0.4)",
               ],
             }}
             transition={{
-              duration: 2.5, // Duration of one cycle
+              duration: 2.5,
               ease: "easeInOut",
-              repeat: Infinity, // Loop forever
-              repeatDelay: 1, // Pause slightly between pulses
+              repeat: Infinity,
+              repeatDelay: 1,
             }}
-            // ----------------------------------------
-            className="inline-flex items-center gap-2 px-10 py-5 bg-gradient-to-r from-primary to-secondary text-primary-foreground  md:text-xl rounded-xl font-semibold text-lg shadow-lg transition-all duration-300 cursor-pointer"
+            className="inline-flex items-center gap-2 px-10 py-5 bg-gradient-to-r from-primary to-secondary text-primary-foreground md:text-xl rounded-xl font-semibold text-lg shadow-lg transition-all duration-300 cursor-pointer"
           >
-            Start Generating
+            Start Your Discovery
             <ArrowRight className="w-6 h-6" />
           </motion.span>
         </Link>

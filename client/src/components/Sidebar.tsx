@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import toast from "react-hot-toast";
 import { useConversationStore } from "@/lib/stores/conversationStore";
-import { Award, Rocket } from "lucide-react";
+import { Award, Rocket, Compass } from "lucide-react";
 import { useChatStore } from "@/lib/stores/chatStore";
 
 // Define the Conversation type to match what the API returns
@@ -117,28 +117,12 @@ export default function Sidebar({
       {/* Header */}
       <div className="p-4 border-b border-border flex-shrink-0 flex items-center gap-2">
         <Link
-          href="/generate"
-          onClick={() => {
-            setMessages([]);
-            setChatError(null);
-            setMobileMenuOpen(false);
-          }}
+          href="/discovery"
+          onClick={() => setMobileMenuOpen(false)}
           className="flex-1 flex items-center justify-center px-4 py-3 bg-primary text-primary-foreground rounded-xl font-semibold transition-all duration-200 shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 transform hover:scale-[1.02] active:scale-[0.98] group"
         >
-          <svg
-            className="w-5 h-5 mr-2 flex-shrink-0"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 4v16m8-8H4"
-            />
-          </svg>
-          <span className="truncate">New Chat</span>
+          <Compass className="w-5 h-5 mr-2 flex-shrink-0" />
+          <span className="truncate">Start Discovery</span>
         </Link>
         <button
           onClick={() => setSidebarOpen(false)}
@@ -184,6 +168,40 @@ export default function Sidebar({
 
       {/* Navigation */}
       <div className="p-2">
+        <Link
+          href="/discovery"
+          onClick={() => setMobileMenuOpen(false)}
+          className={`group relative flex items-center px-3 py-3 rounded-xl transition-all duration-200 ${
+            pathname === "/discovery" || pathname?.startsWith("/discovery/")
+              ? "bg-primary/10"
+              : "hover:bg-muted"
+          }`}
+        >
+          {(pathname === "/discovery" || pathname?.startsWith("/discovery/")) && (
+            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full" />
+          )}
+          <div
+            className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center mr-3 transition-all duration-200 ${
+              pathname === "/discovery" || pathname?.startsWith("/discovery/")
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
+            }`}
+          >
+            <Compass className="w-4 h-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p
+              className={`text-base font-medium truncate ${
+                pathname === "/discovery" || pathname?.startsWith("/discovery/")
+                  ? "text-primary font-semibold"
+                  : "text-foreground"
+              }`}
+            >
+              Discovery
+            </p>
+          </div>
+        </Link>
+
         <Link
           href="/trends"
           onClick={() => setMobileMenuOpen(false)}
@@ -427,6 +445,17 @@ export default function Sidebar({
           <line x1="9" y1="3" x2="9" y2="21" />
         </svg>
       </button>
+      <Link
+        href="/discovery"
+        className={`group relative flex items-center justify-center w-10 h-10 rounded-lg transition-colors mb-1 ${
+          pathname === "/discovery" || pathname?.startsWith("/discovery/")
+            ? "bg-primary/10 text-primary"
+            : "hover:bg-muted text-muted-foreground"
+        }`}
+        title="Discovery"
+      >
+        <Compass className="w-5 h-5" />
+      </Link>
       <Link
         href="/trends"
         className={`group relative flex items-center justify-center w-10 h-10 rounded-lg transition-colors ${

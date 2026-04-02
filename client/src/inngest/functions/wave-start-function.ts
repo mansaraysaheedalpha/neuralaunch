@@ -51,8 +51,8 @@ export const waveStartFunction = inngest.createFunction(
     id: "phase-execution",
     name: "Phase Execution - Execute Tasks by Planner Phases",
     retries: 2,
+    triggers: [{ event: "agent/wave.start" }],
   },
-  { event: "agent/wave.start" },
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async ({ event, step }: any) => {
     // Extract and explicitly type event data to fix ESLint errors

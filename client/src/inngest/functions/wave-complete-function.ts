@@ -9,8 +9,8 @@ export const waveCompleteFunction = inngest.createFunction(
     id: "wave-complete-handler",
     name: "Wave Complete - Triage Center with Preview Deployment",
     retries: 2,
+    triggers: [{ event: "agent/wave.complete" }],
   },
-  { event: "agent/wave.complete" },
   async ({ event, step }) => {
     const { projectId, userId, conversationId, waveNumber } = event.data;
 

@@ -28,8 +28,8 @@ export const documentationAgentFunction = inngest.createFunction(
     id: "documentation-agent-generation",
     name: "Documentation Agent - Generate Project Docs",
     retries: 2,
+    triggers: [{ event: "agent/documentation.generate" }],
   },
-  { event: "agent/documentation.generate" },
   async ({ event, step }) => {
     const { taskId, projectId, userId, conversationId } = event.data;
     const taskInput = event.data.taskInput as DocumentationTaskInput | undefined;

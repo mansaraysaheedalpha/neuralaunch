@@ -1,6 +1,6 @@
 // src/inngest/client.ts
 
-import { Inngest, EventSchemas } from "inngest";
+import { Inngest } from "inngest";
 
 // Define the events and their expected data payloads
 export type AgentEvents = {
@@ -525,10 +525,9 @@ export type AgentEvents = {
   };
 };
 
-// Create the Inngest client
-// It automatically reads INNGEST_EVENT_KEY from process.env
-// Ensure INNGEST_SIGNING_KEY is also set in production environments for security
+// Create the Inngest client.
+// Reads INNGEST_EVENT_KEY and INNGEST_SIGNING_KEY automatically from process.env.
+// AgentEvents above serves as the authoritative event payload reference for this project.
 export const inngest = new Inngest({
-  id: "neuralaunch-agent", // Unique ID for your app in Inngest
-  schemas: new EventSchemas().fromRecord<AgentEvents>(), // Optional: for stronger type safety
+  id: "neuralaunch-agent",
 });
