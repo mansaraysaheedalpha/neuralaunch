@@ -29,6 +29,7 @@ export function ThinkingPanel({ isVisible }: ThinkingPanelProps) {
 
   useEffect(() => {
     if (!isVisible) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCurrentStep(0);
       if (intervalRef.current) clearInterval(intervalRef.current);
       return;
