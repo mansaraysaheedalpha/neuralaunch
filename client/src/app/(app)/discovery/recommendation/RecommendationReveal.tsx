@@ -2,7 +2,6 @@
 'use client';
 
 import { motion } from 'motion/react';
-import type { Recommendation } from '@/lib/discovery';
 
 interface Props {
   recommendation: {

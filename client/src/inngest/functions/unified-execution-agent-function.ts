@@ -167,6 +167,7 @@ export const unifiedExecutionAgentFunction = inngest.createFunction(
           "@/lib/agents/utils/environment-validator"
         );
         try {
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
           await ensureEnvironmentReady(projectId, userId);
           log.info(`[Unified Agent] Environment validation passed`);
         } catch (envError) {

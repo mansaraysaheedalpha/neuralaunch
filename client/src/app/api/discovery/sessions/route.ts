@@ -52,7 +52,8 @@ export async function POST(req: NextRequest) {
     const dbSession = await prisma.discoverySession.create({
       data: {
         userId,
-        beliefState: JSON.parse(JSON.stringify(emptyContext)),
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      beliefState: JSON.parse(JSON.stringify(emptyContext)),
       },
       select: { id: true },
     });

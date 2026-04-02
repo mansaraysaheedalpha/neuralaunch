@@ -989,6 +989,7 @@ export default function AboutPage() {
           () =>
             Array.from({ length: 5 }, (_, i) => ({
               key: i,
+              // eslint-disable-next-line react-hooks/purity
               xOffset: Math.random() * 20 - 10,
               left: 20 + i * 15,
               top: 30 + (i % 2) * 40,

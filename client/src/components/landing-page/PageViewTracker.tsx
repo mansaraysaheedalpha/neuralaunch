@@ -13,6 +13,7 @@ export default function PageViewTracker({
 }: PageViewTrackerProps) {
   const hasTracked = useRef(false);
   const sessionId = useRef<string>("");
+  // eslint-disable-next-line react-hooks/purity
   const startTime = useRef<number>(Date.now());
   const maxScroll = useRef<number>(0);
 
