@@ -12,8 +12,8 @@ export const orchestratorRunFunction = inngest.createFunction(
     name: "Agent Orchestrator - Run Full Analysis Pipeline",
     retries: 3,
     timeouts: { start: "30m" },
+    triggers: [{ event: "agent/orchestrator.run" }],
   },
-  { event: "agent/orchestrator.run" },
   async ({ event, step }) => {
     const { projectId, userId, conversationId, blueprint } = event.data;
 
@@ -100,8 +100,8 @@ export const orchestratorResumeFunction = inngest.createFunction(
     name: "Agent Orchestrator - Resume Pipeline",
     retries: 2,
     timeouts: { start: "20m" },
+    triggers: [{ event: "agent/orchestrator.resume" }],
   },
-  { event: "agent/orchestrator.resume" },
   async ({ event, step }) => {
     const { projectId, userId, conversationId } = event.data;
 
@@ -152,8 +152,8 @@ export const orchestratorVisionFunction = inngest.createFunction(
     name: "Agent Orchestrator - Vision to App Build",
     retries: 3,
     timeouts: { start: "30m" },
+    triggers: [{ event: "agent/orchestrator.vision" }],
   },
-  { event: "agent/orchestrator.vision" },
   async ({ event, step }) => {
     const { projectId, userId, visionText, projectName, techPreferences } = event.data;
 
@@ -246,8 +246,8 @@ export const orchestratorBlueprintFunction = inngest.createFunction(
     name: "Agent Orchestrator - Blueprint to MVP Build",
     retries: 3,
     timeouts: { start: "30m" },
+    triggers: [{ event: "agent/orchestrator.blueprint" }],
   },
-  { event: "agent/orchestrator.blueprint" },
   async ({ event, step }) => {
     const { projectId, userId, conversationId, blueprint, sprintData } = event.data;
 

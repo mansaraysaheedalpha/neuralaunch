@@ -21,9 +21,9 @@ export const monitoringAgentFunction = inngest.createFunction(
   {
     id: "monitoring-agent-health-check",
     name: "Monitoring Agent - Health & Performance Monitoring",
-    retries: 1, // Don't retry monitoring failures
+    retries: 1,
+    triggers: [{ event: "agent/monitoring.start" }],
   },
-  { event: "agent/monitoring.start" },
   async ({ event, step }) => {
     interface MonitoringAgentEventData {
       taskId: string;
@@ -408,8 +408,8 @@ export const continuousMonitoringFunction = inngest.createFunction(
   {
     id: "continuous-monitoring-cron",
     name: "Continuous Monitoring - Scheduled Health Checks",
+    triggers: [{ cron: "*/5 * * * *" }],
   },
-  { cron: "*/5 * * * *" }, // Every 5 minutes
   async ({ step }) => {
     logger.info(`[Inngest] Running scheduled monitoring checks`);
 

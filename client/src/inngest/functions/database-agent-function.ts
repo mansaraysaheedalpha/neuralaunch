@@ -26,10 +26,10 @@ export const databaseAgentFunction = inngest.createFunction(
   {
     id: "database-agent-execute",
     name: "Database Agent - Execute with Full Framework",
-    retries: 2, // Retry handled by BaseAgent framework
+    retries: 2,
     timeouts: { start: "15m" },
+    triggers: [{ event: "agent/execution.database" }],
   },
-  { event: "agent/execution.database" },
   async ({ event, step }) => {
     const { taskId, projectId, userId, conversationId } = event.data;
 

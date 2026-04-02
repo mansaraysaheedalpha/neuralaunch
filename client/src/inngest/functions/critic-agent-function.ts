@@ -37,8 +37,8 @@ export const criticAgentFunction = inngest.createFunction(
     id: "critic-agent-review",
     name: "Critic Agent - Code Review & Quality Gate",
     retries: 2,
+    triggers: [{ event: "agent/quality.critic" }],
   },
-  { event: "agent/quality.critic" },
   async ({ event, step }) => {
     const eventData = event.data as CriticEventData;
     const { taskId, projectId, userId, conversationId, taskInput: typedTaskInput } = eventData;

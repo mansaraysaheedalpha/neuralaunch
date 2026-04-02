@@ -95,8 +95,8 @@ export const fixCriticalIssuesFunction = inngest.createFunction(
       limit: 1,
       key: "event.data.projectId",
     },
+    triggers: [{ event: "agent/quality.fix-issues" }],
   },
-  { event: "agent/quality.fix-issues" },
   async ({ event, step }) => {
     const { projectId, userId, conversationId, waveNumber } = event.data;
 

@@ -28,7 +28,6 @@ import {
 } from "@/inngest/functions/monitoring-agent-function";
 import { optimizationAgentFunction } from "@/inngest/functions/optimization-agent-function";
 import { cleanupStuckTasks } from "@/inngest/functions/cleanup-stuck-tasks";
-import { env } from "@/lib/env";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -65,7 +64,6 @@ export const { GET, POST, PUT } = serve({
     optimizationAgentFunction,
     cleanupStuckTasks,
   ],
-  signingKey:
-    env.NODE_ENV !== "development" ? env.INNGEST_SIGNING_KEY : undefined,
+  // signingKey is read automatically from INNGEST_SIGNING_KEY env var in v4
 });
 
