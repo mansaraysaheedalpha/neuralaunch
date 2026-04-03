@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     const writer = writable.getWriter();
     const chunks: Uint8Array[] = [];
 
-    void stream.toTextStream().pipeTo(
+    void stream.textStream.pipeTo(
       new WritableStream({
         write(chunk) {
           chunks.push(new TextEncoder().encode(chunk));
