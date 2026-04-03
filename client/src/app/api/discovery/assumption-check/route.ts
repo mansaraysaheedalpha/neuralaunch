@@ -10,9 +10,10 @@ import {
 import { MODELS } from '@/lib/discovery';
 
 const RequestSchema = z.object({
-  assumption: z.string().min(1).max(500),
-  path:       z.string().max(500),
-  reasoning:  z.string().max(2000),
+  assumption:    z.string().min(1).max(500),
+  path:          z.string().max(500),
+  reasoning:     z.string().max(2000),
+  clarification: z.string().max(1000).optional(),
 });
 
 /**
@@ -46,7 +47,11 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   }
-  const { assumption, path, reasoning } = parsed.data;
+  const { assumption, path, reasoning, clarification } = parsed.data;
+
+  const clarificationBlock = clarification
+    ? `\nThe person added this clarification: "${clarification}"\n`
+    : '';
 
   const result = streamText({
     model:  aiSdkAnthropic(MODELS.INTERVIEW),
@@ -55,7 +60,7 @@ export async function POST(req: NextRequest) {
       role:    'user',
       content: `Recommendation: "${path}"
 Reasoning: "${reasoning}"
-Assumption that does NOT apply to this person: "${assumption}"
+Assumption that does NOT apply to this person: "${assumption}"${clarificationBlock}
 
 In 2-3 plain sentences: explain specifically what changes about this recommendation if this assumption is false. Be concrete — reference the assumption and the recommendation directly. End with what they should consider instead.`,
     }],
