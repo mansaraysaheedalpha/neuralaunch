@@ -5,8 +5,10 @@ import { logger } from '@/lib/logger';
 import {
   getSession,
   deleteSession,
-  runSynthesis,
   runResearch,
+  summariseContext,
+  eliminateAlternatives,
+  runFinalSynthesis,
 } from '@/lib/discovery';
 
 /**
@@ -45,28 +47,40 @@ export const discoverySessionFunction = inngest.createFunction(
       return state;
     });
 
-    // Steps 2a + 2b: Run research and synthesis prep in parallel
-    const [researchResult] = await Promise.all([
-      step.run('run-research', async () => {
-        return await runResearch(
-          interviewState.context,
-          interviewState.audienceType ?? null,
-          sessionId,
-        );
-      }),
-    ]);
+    // Step 2: Summarise context into a coherent factual brief
+    const summary = await step.run('summarise-context', async () => {
+      return await summariseContext(interviewState.context);
+    });
 
-    // Step 3: Synthesise with research findings available
-    const recommendation = await step.run('run-synthesis-chain', async () => {
-      return await runSynthesis(
+    // Step 3: Eliminate alternatives and identify the chosen direction.
+    // Research runs after this — it targets the specific path chosen, not generic goals.
+    const analysis = await step.run('eliminate-alternatives', async () => {
+      return await eliminateAlternatives(summary);
+    });
+
+    // Step 4: Run targeted research now that the recommended direction is known.
+    // The query for the primary path is built from the "strongest fit" conclusion in analysis.
+    const researchResult = await step.run('run-research', async () => {
+      return await runResearch(
         interviewState.context,
+        interviewState.audienceType ?? null,
         sessionId,
+        summary,
+        analysis,
+      );
+    });
+
+    // Step 5: Final synthesis — direction + evidence + audience framing
+    const recommendation = await step.run('run-final-synthesis', async () => {
+      return await runFinalSynthesis(
+        summary,
+        analysis,
         interviewState.audienceType ?? null,
         researchResult.findings,
       );
     });
 
-    // Step 3: Persist the recommendation to the database
+    // Step 6: Persist the recommendation to the database
     await step.run('persist-recommendation', async () => {
       await prisma.recommendation.create({
         data: {
@@ -86,7 +100,7 @@ export const discoverySessionFunction = inngest.createFunction(
       log.debug('Recommendation persisted', { sessionId });
     });
 
-    // Step 4: Clean up Redis — session state is now in DB
+    // Step 7: Clean up Redis — session state is now in DB
     await step.run('cleanup-redis-session', async () => {
       await deleteSession(sessionId);
     });

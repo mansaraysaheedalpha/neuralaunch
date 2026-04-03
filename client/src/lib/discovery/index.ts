@@ -16,7 +16,7 @@ export { selectNextField, computeOverallCompleteness } from './question-selector
 export type { GuardResult } from './assumption-guard';
 export { canSynthesise, evaluate } from './assumption-guard';
 
-export { runSynthesis } from './synthesis-engine';
+export { runSynthesis, summariseContext, eliminateAlternatives, runFinalSynthesis } from './synthesis-engine';
 export type { ResearchSummary } from './research-engine';
 export { runResearch } from './research-engine';
 
