@@ -2,8 +2,12 @@
 import 'server-only';
 import { Redis } from '@upstash/redis';
 import { env } from '@/lib/env';
+import prisma from '@/lib/prisma';
 import { SESSION_KEY_PREFIX, SESSION_TTL_SECONDS } from './constants';
 import { InterviewState } from './interview-engine';
+import { DiscoveryContextSchema, createEmptyContext } from './context-schema';
+import type { InterviewPhase } from './constants';
+import type { DiscoveryContextField } from './context-schema';
 
 // ---------------------------------------------------------------------------
 // Redis client — lazy-initialised so module can be imported in non-Redis envs
@@ -40,21 +44,60 @@ function sessionKey(sessionId: string): string {
 /**
  * getSession
  *
- * Retrieves the interview state for the given session ID.
+ * Retrieves the interview state for the given session ID from Redis.
+ * Falls back to Prisma if Redis is unavailable — reconstructs InterviewState
+ * from the beliefState JSON column that is synced on every turn.
  * Returns null if the session does not exist or has expired.
- * Resets the sliding TTL on every read.
+ * Resets the sliding TTL on every successful Redis read.
  */
 export async function getSession(sessionId: string): Promise<InterviewState | null> {
-  const redis = getRedis();
-  const key   = sessionKey(sessionId);
-  const raw   = await redis.get<InterviewState>(key);
+  try {
+    const redis = getRedis();
+    const key   = sessionKey(sessionId);
+    const raw   = await redis.get<InterviewState>(key);
 
-  if (!raw) return null;
+    if (!raw) return null;
 
-  // Slide the TTL — the session stays alive as long as the user is active
-  await redis.expire(key, SESSION_TTL_SECONDS);
+    // Slide the TTL — the session stays alive as long as the user is active
+    await redis.expire(key, SESSION_TTL_SECONDS);
 
-  return raw;
+    return raw;
+  } catch {
+    // Redis unavailable — reconstruct state from Prisma as fallback
+    const record = await prisma.discoverySession.findUnique({
+      where:  { id: sessionId },
+      select: {
+        id:               true,
+        userId:           true,
+        phase:            true,
+        questionCount:    true,
+        questionsInPhase: true,
+        activeField:      true,
+        beliefState:      true,
+        status:           true,
+        createdAt:        true,
+        updatedAt:        true,
+      },
+    });
+
+    if (!record) return null;
+
+    const parsed  = DiscoveryContextSchema.safeParse(record.beliefState);
+    const context = parsed.success ? parsed.data : createEmptyContext();
+
+    return {
+      sessionId:        record.id,
+      userId:           record.userId,
+      phase:            record.phase as InterviewPhase,
+      context,
+      questionCount:    record.questionCount,
+      questionsInPhase: record.questionsInPhase,
+      isComplete:       record.status === 'COMPLETE',
+      activeField:      (record.activeField ?? null) as DiscoveryContextField | null,
+      createdAt:        record.createdAt.toISOString(),
+      updatedAt:        record.updatedAt.toISOString(),
+    };
+  }
 }
 
 /**

@@ -57,9 +57,9 @@ const QUESTION_POOL = [
 ] as const;
 
 const INTENT_CHIPS = [
-  'Validate a new idea',
-  'Refine my existing concept',
-  'Research my competitors',
+  'Validate an idea',
+  'Refine my concept',
+  'Research competitors',
   'Scope my MVP',
 ] as const;
 
@@ -106,7 +106,7 @@ export function WelcomeLayer({ firstName, isVisible, onChipClick }: WelcomeLayer
           initial={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -12 }}
           transition={{ duration: 0.2, ease: 'easeIn' }}
-          className="flex flex-col items-center justify-center flex-1 gap-6 px-6 pb-8 select-none"
+          className="flex flex-col items-center gap-6 w-full select-none"
         >
           {/* Greeting */}
           <h2 className="text-3xl font-semibold text-foreground tracking-tight text-center">
@@ -123,8 +123,8 @@ export function WelcomeLayer({ firstName, isVisible, onChipClick }: WelcomeLayer
             </p>
           </div>
 
-          {/* Intent chips */}
-          <div className="flex flex-wrap justify-center gap-2 max-w-lg">
+          {/* Intent chips — single row */}
+          <div className="flex flex-nowrap justify-center gap-2">
             {INTENT_CHIPS.map(chip => (
               <button
                 key={chip}

@@ -3,7 +3,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Brain } from 'lucide-react';
+import { Brain, AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 const STEPS = [
   'Analysing your context',
@@ -14,7 +15,9 @@ const STEPS = [
 const STEP_DURATION_MS = 2800;
 
 interface ThinkingPanelProps {
-  isVisible: boolean;
+  isVisible:      boolean;
+  synthesisError?: boolean;
+  onRetry?:        () => void;
 }
 
 /**
@@ -23,7 +26,7 @@ interface ThinkingPanelProps {
  * Displays a 3-step animated indicator during recommendation synthesis.
  * Shown when the backend transitions to SYNTHESIS phase.
  */
-export function ThinkingPanel({ isVisible }: ThinkingPanelProps) {
+export function ThinkingPanel({ isVisible, synthesisError, onRetry }: ThinkingPanelProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -46,7 +49,7 @@ export function ThinkingPanel({ isVisible }: ThinkingPanelProps) {
 
   return (
     <AnimatePresence>
-      {isVisible && (
+      {isVisible && !synthesisError && (
         <motion.div
           key="thinking-panel"
           initial={{ opacity: 0, y: 12 }}
@@ -87,6 +90,25 @@ export function ThinkingPanel({ isVisible }: ThinkingPanelProps) {
               </motion.div>
             ))}
           </div>
+        </motion.div>
+      )}
+
+      {synthesisError && (
+        <motion.div
+          key="thinking-error"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.3 }}
+          className="flex flex-col items-center gap-4 py-8"
+        >
+          <AlertCircle className="size-8 text-destructive" />
+          <p className="text-sm text-muted-foreground text-center max-w-xs">
+            Something went wrong generating your recommendation. Please try again.
+          </p>
+          <Button variant="outline" size="sm" onClick={onRetry}>
+            Try again
+          </Button>
         </motion.div>
       )}
     </AnimatePresence>

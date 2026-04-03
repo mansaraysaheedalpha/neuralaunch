@@ -36,16 +36,24 @@ const FIELD_LABELS: Record<DiscoveryContextField, string> = {
  * Produces a single, conversational discovery question aimed at the given field.
  * Returns a StreamTextResult so the API route can pipe it directly to the client.
  * The stream is intentionally short: 1–3 sentences.
+ *
+ * @param unclear - When true, the previous answer for this field was not understood.
+ *                  The prompt instructs the model to acknowledge this and ask more specifically.
  */
 export function generateQuestion(
   field:   DiscoveryContextField,
   phase:   InterviewPhase,
   context: DiscoveryContext,
+  unclear  = false,
 ) {
   const knownFacts = Object.entries(context)
     .filter(([, f]) => f.value !== null && f.confidence > 0.5)
     .map(([k, f]) => `  ${k}: ${JSON.stringify(f.value)}`)
     .join('\n');
+
+  const unclearPrefix = unclear
+    ? `Note: the person's previous answer about ${FIELD_LABELS[field]} wasn't clear enough to extract useful information. Gently acknowledge that you'd like to understand better, then ask a more specific question about ${FIELD_LABELS[field]}.\n\n`
+    : '';
 
   return streamText({
     model:  aiSdkAnthropic(MODELS.INTERVIEW),
@@ -61,7 +69,7 @@ We need to learn about: ${FIELD_LABELS[field]}
 Context gathered so far:
 ${knownFacts || '  (nothing yet)'}
 
-Ask one clear, direct question to learn about ${FIELD_LABELS[field]}.
+${unclearPrefix}Ask one clear, direct question to learn about ${FIELD_LABELS[field]}.
 Keep it natural given what we already know about this person.`,
     }],
   });
