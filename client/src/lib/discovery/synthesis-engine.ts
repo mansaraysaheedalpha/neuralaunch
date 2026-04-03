@@ -5,6 +5,7 @@ import { generateObject } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { DiscoveryContext } from './context-schema';
 import { RecommendationSchema, Recommendation } from './recommendation-schema';
+import type { AudienceType } from './constants';
 import { MODELS } from './constants';
 import { logger } from '@/lib/logger';
 
@@ -77,10 +78,28 @@ Be ruthless. This person needs ONE clear answer, not a menu.`,
 // Step 3 — Synthesise the final recommendation as structured output
 // ---------------------------------------------------------------------------
 
+const AUDIENCE_SYNTHESIS_CONTEXT: Record<AudienceType, string> = {
+  LOST_GRADUATE:
+    'This person is a recent graduate without clear direction. Frame the recommendation in terms of building momentum and discovering fit through action — not optimising for scale. The first steps must be achievable without prior business experience.',
+  STUCK_FOUNDER:
+    'This person has tried building before and stalled. The recommendation must acknowledge their experience and directly address why this path is different from what they attempted before. Do not recommend something that requires the same conditions that caused them to stop.',
+  ESTABLISHED_OWNER:
+    'This person already runs a business. Frame the recommendation at a strategic level — leverage, bottlenecks, and compounding advantage. Do not recommend basics they have already mastered. The first steps should move something that already exists, not build from zero.',
+  ASPIRING_BUILDER:
+    'This person is a motivated first-time builder with a clear idea. The recommendation must sharpen their path to their first paying customer and challenge any untested assumptions about who will pay and why. Keep it concrete and executable.',
+  MID_JOURNEY_PROFESSIONAL:
+    'This person is currently employed and managing a transition. Every recommendation must account for limited available time and the real risk of income disruption. The first steps must be achievable evenings and weekends, or the recommendation is not realistic for them.',
+};
+
 async function synthesiseRecommendation(
-  summary:   string,
-  analysis:  string,
+  summary:      string,
+  analysis:     string,
+  audienceType: AudienceType | null,
 ): Promise<Recommendation> {
+  const audienceBlock = audienceType
+    ? `\nAUDIENCE CONTEXT:\n${AUDIENCE_SYNTHESIS_CONTEXT[audienceType]}\n`
+    : '';
+
   const { object } = await generateObject({
     model:  aiSdkAnthropic(MODELS.SYNTHESIS),
     schema: RecommendationSchema,
@@ -92,7 +111,7 @@ PERSON SUMMARY:
 ${summary}
 
 STRATEGIC ANALYSIS:
-${analysis}
+${analysis}${audienceBlock}
 
 RULES — you must follow these precisely:
 1. Recommend EXACTLY ONE path. Not two. Not "it depends." ONE.
@@ -124,8 +143,9 @@ Produce the recommendation now.`,
  * Steps 1 and 2 use claude-sonnet-4-6 for cost control.
  */
 export async function runSynthesis(
-  context:   DiscoveryContext,
-  sessionId: string,
+  context:      DiscoveryContext,
+  sessionId:    string,
+  audienceType: AudienceType | null = null,
 ): Promise<Recommendation> {
   const log = logger.child({ module: 'SynthesisEngine', sessionId });
 
@@ -136,7 +156,7 @@ export async function runSynthesis(
   const analysis = await eliminateAlternatives(summary);
 
   log.debug('Starting synthesis step 3: generate structured recommendation');
-  const recommendation = await synthesiseRecommendation(summary, analysis);
+  const recommendation = await synthesiseRecommendation(summary, analysis, audienceType);
 
   log.debug('Synthesis complete');
   return recommendation;

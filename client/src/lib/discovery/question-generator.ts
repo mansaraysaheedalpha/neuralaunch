@@ -3,6 +3,7 @@ import 'server-only';
 import { streamText } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { DiscoveryContext, DiscoveryContextField } from './context-schema';
+import type { AudienceType } from './constants';
 import { InterviewPhase, MODELS } from './constants';
 
 type FieldBelief = { value: unknown; confidence: number };
@@ -32,10 +33,30 @@ const FIELD_LABELS: Record<DiscoveryContextField, string> = {
 // Public entry point
 // ---------------------------------------------------------------------------
 
-const INTERVIEWER_SYSTEM = `You are a sharp, empathetic discovery interviewer helping someone find their right startup path.
+// Audience-specific framing injected into the interviewer system prompt.
+// Tells the model WHO it is talking to so it can match tone and frame questions
+// in terms that resonate with that person's actual situation.
+const AUDIENCE_CONTEXT: Record<AudienceType, string> = {
+  LOST_GRADUATE:
+    'You are talking to a recent graduate who is unsure what direction to take. They may feel overwhelmed by options and lack of experience. Frame questions around what excites or frustrates them, not around business metrics they may not understand yet.',
+  STUCK_FOUNDER:
+    'You are talking to someone who has tried building something before and stalled or failed. They carry experience but also likely some self-doubt or fatigue. Frame questions to acknowledge what they have already learned, and probe gently on what is genuinely different this time.',
+  ESTABLISHED_OWNER:
+    'You are talking to someone who already has a running business. They are not a beginner. Frame questions at a strategic level — around growth levers, leverage points, bottlenecks, and decision trade-offs rather than basics.',
+  ASPIRING_BUILDER:
+    'You are talking to a first-time builder with a clear idea who wants to execute. They are motivated and relatively focused. Frame questions to sharpen their thinking on feasibility, first customers, and realistic constraints — not to challenge whether they should try.',
+  MID_JOURNEY_PROFESSIONAL:
+    'You are talking to someone currently employed who is considering a transition or side project. Time and risk tolerance are their primary constraints. Frame questions around what they can realistically do given employment constraints, and what the decision is actually costing them by waiting.',
+};
+
+function buildSystem(audienceType?: AudienceType): string {
+  const base = `You are a sharp, empathetic discovery interviewer helping someone find their right startup path.
 Your questions are short, specific, and conversational — never more than 2 sentences.
 Ask ONE question only. Never list multiple questions.
 Do not give praise, filler, or commentary. Just ask.`;
+  if (!audienceType) return base;
+  return `${base}\n\n${AUDIENCE_CONTEXT[audienceType]}`;
+}
 
 /**
  * generateQuestion
@@ -48,11 +69,14 @@ Do not give praise, filler, or commentary. Just ask.`;
  * @param options.insufficientSignal - Ask a more focused, concrete version (terse user)
  */
 export function generateQuestion(
-  field:   DiscoveryContextField | 'psych_probe',
-  phase:   InterviewPhase,
-  context: DiscoveryContext,
-  options: { unclear?: boolean; insufficientSignal?: boolean } = {},
+  field:        DiscoveryContextField | 'psych_probe',
+  phase:        InterviewPhase,
+  context:      DiscoveryContext,
+  options:      { unclear?: boolean; insufficientSignal?: boolean } = {},
+  audienceType?: AudienceType,
 ) {
+  const system = buildSystem(audienceType);
+
   // Psychological probe — question derived from what the user has already said
   if (field === 'psych_probe') {
     const relevant = (['whatTriedBefore', 'situation', 'biggestConcern'] as const)
@@ -63,7 +87,7 @@ export function generateQuestion(
 
     return streamText({
       model:  aiSdkAnthropic(MODELS.INTERVIEW),
-      system: INTERVIEWER_SYSTEM,
+      system,
       messages: [{
         role:    'user',
         content: `Based on what this person has shared: ${relevant || 'limited context so far'}
@@ -91,7 +115,7 @@ Do not use generic examples. Derive the question from what they actually said.`,
 
   return streamText({
     model:  aiSdkAnthropic(MODELS.INTERVIEW),
-    system: INTERVIEWER_SYSTEM,
+    system,
     messages: [{
       role:    'user',
       content: `Current interview phase: ${phase}
