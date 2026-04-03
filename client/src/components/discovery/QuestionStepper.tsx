@@ -42,6 +42,7 @@ export function QuestionStepper({
 
   // Clear and refocus when question advances
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setAnswer('');
     textareaRef.current?.focus();
   }, [currentIndex]);
