@@ -37,10 +37,13 @@ export default async function RecommendationDetailPage({
       whatWouldMakeThisWrong: true,
       alternativeRejected:    true,
       createdAt:              true,
+      session: { select: { conversationId: true } },
     },
   });
 
   if (!recommendation) notFound();
+
+  const conversationId = recommendation.session?.conversationId ?? null;
 
   return (
     <div className="flex flex-col h-full">
@@ -51,6 +54,14 @@ export default async function RecommendationDetailPage({
         >
           ← All recommendations
         </Link>
+        {conversationId && (
+          <Link
+            href={`/chat/${conversationId}`}
+            className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+          >
+            View interview transcript →
+          </Link>
+        )}
       </div>
       <Suspense fallback={
         <div className="flex-1 flex items-center justify-center">
