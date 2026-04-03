@@ -32,8 +32,9 @@ export function getRedisClient(): Redis | null {
   try {
     // Create Redis client
     redis = new Redis({
-      url: env.UPSTASH_REDIS_REST_URL,
-      token: env.UPSTASH_REDIS_REST_TOKEN,
+      url:                  env.UPSTASH_REDIS_REST_URL,
+      token:                env.UPSTASH_REDIS_REST_TOKEN,
+      enableAutoPipelining: false,
     });
 
     logger.info("Redis client initialized successfully");

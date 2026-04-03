@@ -80,18 +80,8 @@ async function checkRateLimitRedis(
   const key = `ratelimit:${identifier}`;
 
   try {
-    // Use Redis pipeline for atomic operations
-    const pipeline = redis.pipeline();
-
-    // Get current count
-    pipeline.get<number>(key);
-
-    // Get TTL
-    pipeline.ttl(key);
-
-    const results = await pipeline.exec();
-    const count = results[0] as number | null;
-    const ttl = results[1] as number;
+    const count = await redis.get<number>(key);
+    const ttl   = await redis.ttl(key);
 
     // If no entry exists or TTL expired, create a new window
     if (count === null || ttl === -2) {
