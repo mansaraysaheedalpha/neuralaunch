@@ -67,45 +67,41 @@ export function useDiscoverySession({ onComplete }: Options): DiscoverySessionSt
   const abortRef            = useRef<AbortController | null>(null);
   const pollIntervalRef     = useRef(3000);
 
-  // Session init — fires once on mount.
-  // Pre-creates the session silently so the stepper does NOT appear
-  // until the user sends their first message.
-  useEffect(() => {
-    let cancelled = false;
-
-    async function init() {
-      setStatus('loading');
-      try {
-        const res = await fetch('/api/discovery/sessions', { method: 'POST' });
-        if (!res.ok) throw new Error(`Session create failed: ${res.status}`);
-
-        const sid = res.headers.get('X-Session-Id');
-        const cid = res.headers.get('X-Conversation-Id');
-        if (!sid) throw new Error('Missing X-Session-Id');
-
-        sessionIdRef.current      = sid;
-        conversationIdRef.current = cid;
-        if (!cancelled) {
-          setSessionId(sid);
-          setStatus('idle');
-        }
-      } catch (err) {
-        logger.error('Discovery session init failed', err instanceof Error ? err : undefined);
-        if (!cancelled) setStatus('error');
-      }
+  // Session is created lazily on the user's first message — not on mount.
+  // This prevents a sidebar entry being created every time /discovery is loaded.
+  async function initSession(firstMessage: string): Promise<string | null> {
+    try {
+      const res = await fetch('/api/discovery/sessions', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ firstMessage }),
+      });
+      if (!res.ok) throw new Error(`Session create failed: ${res.status}`);
+      const sid = res.headers.get('X-Session-Id');
+      const cid = res.headers.get('X-Conversation-Id');
+      if (!sid) throw new Error('Missing X-Session-Id');
+      sessionIdRef.current      = sid;
+      conversationIdRef.current = cid;
+      setSessionId(sid);
+      return sid;
+    } catch (err) {
+      logger.error('Discovery session init failed', err instanceof Error ? err : undefined);
+      return null;
     }
-
-    void init();
-    return () => { cancelled = true; abortRef.current?.abort(); };
-  }, []);
+  }
 
   const sendMessage = useCallback(async (userContent: string) => {
-    const sid = sessionIdRef.current;
-    if (!sid || !userContent.trim()) return;
+    if (!userContent.trim()) return;
+
+    setStatus('loading');
+    let sid = sessionIdRef.current;
+    if (!sid) {
+      sid = await initSession(userContent);
+      if (!sid) { setStatus('error'); return; }
+    }
 
     const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: userContent };
     setMessages(prev => [...prev, userMsg]);
-    setStatus('loading');
     abortRef.current = new AbortController();
 
     const history = messages
@@ -199,7 +195,7 @@ export function useDiscoverySession({ onComplete }: Options): DiscoverySessionSt
   return {
     messages,
     status,
-    sessionReady:   !!sessionId,
+    sessionReady:   true,
     isSynthesizing,
     synthesisError,
     stepperVisible,
