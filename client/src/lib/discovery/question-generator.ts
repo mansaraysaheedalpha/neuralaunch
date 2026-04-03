@@ -1,4 +1,5 @@
 // src/lib/discovery/question-generator.ts
+import 'server-only';
 import { streamText } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { DiscoveryContext, DiscoveryContextField } from './context-schema';

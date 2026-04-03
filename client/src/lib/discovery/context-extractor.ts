@@ -1,4 +1,5 @@
 // src/lib/discovery/context-extractor.ts
+import 'server-only';
 import { generateObject } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';

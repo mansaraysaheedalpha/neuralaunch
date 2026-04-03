@@ -3,8 +3,8 @@
 
 import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
-import { MAX_QUESTIONS_PER_PHASE, MAX_TOTAL_QUESTIONS } from '@/lib/discovery';
-import type { InterviewPhase } from '@/lib/discovery';
+import { MAX_QUESTIONS_PER_PHASE, MAX_TOTAL_QUESTIONS } from '@/lib/discovery/client';
+import type { InterviewPhase } from '@/lib/discovery/client';
 
 type ActivePhase = Exclude<InterviewPhase, 'SYNTHESIS'>;
 

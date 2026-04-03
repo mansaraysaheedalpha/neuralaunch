@@ -7,7 +7,7 @@ import TextareaAutosize from 'react-textarea-autosize';
 import { SendHorizontal } from 'lucide-react';
 import { logger } from '@/lib/logger';
 import { Button } from '@/components/ui/button';
-import type { Recommendation, InterviewPhase } from '@/lib/discovery';
+import type { Recommendation, InterviewPhase } from '@/lib/discovery/client';
 import { PhaseIndicator } from './PhaseIndicator';
 import { ContextProgress } from './ContextProgress';
 import { MessageList, type ChatMessage } from './MessageList';

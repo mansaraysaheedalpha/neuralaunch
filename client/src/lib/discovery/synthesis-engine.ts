@@ -1,4 +1,5 @@
 // src/lib/discovery/synthesis-engine.ts
+import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 import { generateObject } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';

@@ -4,7 +4,7 @@
 import { useRouter } from 'next/navigation';
 import { useCallback } from 'react';
 import { DiscoveryChat } from '@/components/discovery';
-import type { Recommendation } from '@/lib/discovery';
+import type { Recommendation } from '@/lib/discovery/client';
 
 /**
  * DiscoveryChatClient

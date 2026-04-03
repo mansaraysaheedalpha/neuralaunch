@@ -3,7 +3,7 @@
 
 import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
-import type { InterviewPhase } from '@/lib/discovery';
+import type { InterviewPhase } from '@/lib/discovery/client';
 
 const PHASES: Array<{ key: Exclude<InterviewPhase, 'SYNTHESIS'>; label: string }> = [
   { key: 'ORIENTATION',   label: 'Orientation' },

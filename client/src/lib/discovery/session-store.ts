@@ -1,4 +1,5 @@
 // src/lib/discovery/session-store.ts
+import 'server-only';
 import { Redis } from '@upstash/redis';
 import { env } from '@/lib/env';
 import { SESSION_KEY_PREFIX, SESSION_TTL_SECONDS } from './constants';
