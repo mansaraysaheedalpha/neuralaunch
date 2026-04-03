@@ -72,6 +72,7 @@ export function DiscoveryChat({ firstName, onComplete }: DiscoveryChatProps) {
       onChange={e => setInput(e.target.value)}
       disabled={!sessionReady || isSynthesizing}
       placeholder="Share your thoughts…"
+      autoFocus={!hasStarted}
       maxRows={5}
       className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none py-2"
       onKeyDown={e => {
