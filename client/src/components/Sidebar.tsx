@@ -203,6 +203,28 @@ export default function Sidebar({
         </Link>
 
         <Link
+          href="/discovery/recommendations"
+          onClick={() => setMobileMenuOpen(false)}
+          className={`group relative flex items-center px-3 py-2 rounded-xl transition-all duration-200 ml-8 ${
+            pathname === "/discovery/recommendations" || pathname?.startsWith("/discovery/recommendations/")
+              ? "bg-primary/10"
+              : "hover:bg-muted"
+          }`}
+        >
+          <div className="flex-1 min-w-0">
+            <p
+              className={`text-sm truncate ${
+                pathname === "/discovery/recommendations" || pathname?.startsWith("/discovery/recommendations/")
+                  ? "text-primary font-semibold"
+                  : "text-muted-foreground group-hover:text-foreground"
+              }`}
+            >
+              Past recommendations
+            </p>
+          </div>
+        </Link>
+
+        <Link
           href="/trends"
           onClick={() => setMobileMenuOpen(false)}
           className={`group relative flex items-center px-3 py-3 rounded-xl transition-all duration-200 ${
