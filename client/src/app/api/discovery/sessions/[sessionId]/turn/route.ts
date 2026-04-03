@@ -39,7 +39,7 @@ export async function POST(
 
   const clientIp = getClientIp(req.headers);
   const rateLimitResult = await checkRateLimit({
-    ...RATE_LIMITS.AI_GENERATION,
+    ...RATE_LIMITS.DISCOVERY_TURN,
     identifier: getRequestIdentifier(userId, clientIp),
   });
   if (!rateLimitResult.success) {

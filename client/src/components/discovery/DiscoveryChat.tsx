@@ -113,12 +113,17 @@ export function DiscoveryChat({ onComplete }: DiscoveryChatProps) {
 
       const ct = res.headers.get('content-type') ?? '';
       if (ct.includes('application/json')) {
-        const data = await res.json() as { status?: string };
+        // Body is consumed here — must return in ALL branches to avoid locking the stream
+        const data = await res.json() as { status?: string; error?: string };
         if (data.status === 'synthesizing') {
           setIsSynthesizing(true);
           setStatus('idle');
-          return;
+        } else {
+          // Any other JSON response (error, unexpected status) — surface as error
+          logger.error('Unexpected turn response', new Error(data.error ?? JSON.stringify(data)));
+          setStatus('error');
         }
+        return;
       }
 
       const p = res.headers.get('X-Phase') as InterviewPhase | null;

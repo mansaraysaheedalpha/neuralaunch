@@ -193,10 +193,17 @@ export async function checkRateLimit(config: RateLimitConfig): Promise<RateLimit
  * Common rate limit configurations
  */
 export const RATE_LIMITS = {
-  // Strict limits for expensive AI operations
+  // Strict limits for expensive AI operations (project generation etc)
   AI_GENERATION: {
     maxRequests: 5,
     windowSeconds: 60, // 5 requests per minute
+  },
+
+  // Discovery interview turns — looser limit to allow full interview sessions
+  // A full session is ~15 turns; allow up to 30/5min to cover retries
+  DISCOVERY_TURN: {
+    maxRequests: 30,
+    windowSeconds: 300,
   },
 
   // Moderate limits for authenticated API calls

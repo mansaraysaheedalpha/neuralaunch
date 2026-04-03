@@ -103,11 +103,9 @@ RULES — you must follow these precisely:
 
 Produce the recommendation now.`,
     }],
-    providerOptions: {
-      anthropic: {
-        thinking: { type: 'enabled', effort: 'high' },
-      },
-    },
+    // Note: extended thinking is intentionally omitted from generateObject —
+    // it uses tool_use internally, which requires an Anthropic beta header
+    // not supported by the AI SDK. Strategic reasoning is done in steps 1 & 2.
   });
 
   return object;
