@@ -7,8 +7,6 @@ import { logger } from '@/lib/logger';
 import type { Recommendation, InterviewPhase } from '@/lib/discovery/client';
 import type { ChatMessage } from './MessageList';
 
-const ESTIMATED_QUESTIONS = 8;
-
 type ChatStatus  = 'idle' | 'loading' | 'streaming' | 'error';
 type RecResponse = { recommendation: Recommendation } | { status: 'pending' };
 
@@ -38,7 +36,6 @@ export interface DiscoverySessionState {
   stepperVisible:    boolean;
   currentQuestion:   string;
   questionIndex:     number;
-  totalEstimate:     number;
   sendMessage:       (content: string) => Promise<void>;
   setStepperVisible: (v: boolean) => void;
 }
@@ -61,7 +58,6 @@ export function useDiscoverySession({ onComplete }: Options): DiscoverySessionSt
   const [stepperVisible,  setStepperVisible]  = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState('');
   const [questionIndex,   setQuestionIndex]   = useState(0);
-  const [totalEstimate,   setTotalEstimate]   = useState(ESTIMATED_QUESTIONS);
 
   const sessionIdRef        = useRef<string | null>(null);
   const conversationIdRef   = useRef<string | null>(null);
@@ -146,11 +142,7 @@ export function useDiscoverySession({ onComplete }: Options): DiscoverySessionSt
 
       const nextPhase = res.headers.get('X-Phase') as InterviewPhase | null;
       const nextCount = res.headers.get('X-Question-Count');
-      if (nextCount) {
-        const qNum = Number(nextCount);
-        setQuestionIndex(qNum);
-        setTotalEstimate(prev => Math.max(prev, qNum + 2));
-      }
+      if (nextCount) setQuestionIndex(Number(nextCount));
       if (nextPhase === 'SYNTHESIS') {
         setStepperVisible(false);
         setIsSynthesizing(true);
@@ -198,7 +190,6 @@ export function useDiscoverySession({ onComplete }: Options): DiscoverySessionSt
     setStepperVisible,
     currentQuestion,
     questionIndex,
-    totalEstimate,
     sendMessage,
   };
 }

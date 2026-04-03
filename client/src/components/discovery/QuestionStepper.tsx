@@ -2,8 +2,8 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { ArrowRight, Check, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
+import { ArrowRight, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface QuestionStepperProps {
@@ -11,8 +11,6 @@ interface QuestionStepperProps {
   currentQuestion: string;
   /** 0-based index of the current question */
   currentIndex:    number;
-  /** Total questions estimated for this session (updates as session progresses) */
-  totalEstimate:   number;
   /** Called with the answer text when user submits */
   onAnswer:        (answer: string) => void;
   /** Called when user dismisses the stepper to answer in the main input */
@@ -32,7 +30,6 @@ interface QuestionStepperProps {
 export function QuestionStepper({
   currentQuestion,
   currentIndex,
-  totalEstimate,
   onAnswer,
   onDismiss,
   isVisible,
@@ -47,9 +44,7 @@ export function QuestionStepper({
     textareaRef.current?.focus();
   }, [currentIndex]);
 
-  const canSubmit     = answer.trim().length > 0;
-  const isLastQuestion = currentIndex >= totalEstimate - 1;
-  const progress       = totalEstimate > 0 ? ((currentIndex) / totalEstimate) * 100 : 0;
+  const canSubmit = answer.trim().length > 0;
 
   function handleSubmit() {
     if (!canSubmit) return;
@@ -75,33 +70,19 @@ export function QuestionStepper({
           transition={{ duration: 0.2, ease: 'easeOut' }}
           className="border-t border-border bg-background px-4 pt-3 pb-2"
         >
-          {/* Header row: label + counter + dismiss */}
-          <div className="flex items-center justify-between mb-2">
+          {/* Header row: label + question number + dismiss */}
+          <div className="flex items-center justify-between mb-3">
             <span className="text-xs text-muted-foreground uppercase tracking-wider">
-              Discovery questions
+              Discovery · Question {currentIndex + 1}
             </span>
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-mono text-muted-foreground">
-                {currentIndex + 1} / {totalEstimate}
-              </span>
-              <button
-                type="button"
-                onClick={onDismiss}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-                aria-label="Dismiss stepper"
-              >
-                <X className="size-3.5" />
-              </button>
-            </div>
-          </div>
-
-          {/* Progress bar */}
-          <div className="w-full h-0.5 bg-muted rounded-full mb-3 overflow-hidden">
-            <motion.div
-              className="h-full bg-primary rounded-full"
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.25, ease: 'easeOut' }}
-            />
+            <button
+              type="button"
+              onClick={onDismiss}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Dismiss stepper"
+            >
+              <X className="size-3.5" />
+            </button>
           </div>
 
           {/* Question text */}
@@ -136,35 +117,13 @@ export function QuestionStepper({
               className={cn(
                 'flex-shrink-0 size-8 rounded-lg flex items-center justify-center transition-colors',
                 canSubmit
-                  ? isLastQuestion
-                    ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                    : 'bg-muted text-foreground hover:bg-border'
+                  ? 'bg-muted text-foreground hover:bg-border'
                   : 'bg-muted text-muted-foreground cursor-not-allowed',
               )}
-              aria-label={isLastQuestion ? 'Submit final answer' : 'Next question'}
+              aria-label="Next question"
             >
-              {isLastQuestion
-                ? <Check className="size-4" />
-                : <ArrowRight className="size-4" />
-              }
+              <ArrowRight className="size-4" />
             </button>
-          </div>
-
-          {/* Dot indicators */}
-          <div className="flex justify-center gap-1.5 mt-3">
-            {Array.from({ length: totalEstimate }).map((_, i) => (
-              <div
-                key={i}
-                className={cn(
-                  'size-1.5 rounded-full transition-colors duration-200',
-                  i < currentIndex
-                    ? 'bg-primary/50'
-                    : i === currentIndex
-                    ? 'bg-primary'
-                    : 'bg-muted',
-                )}
-              />
-            ))}
           </div>
 
           {/* Keyboard hint */}

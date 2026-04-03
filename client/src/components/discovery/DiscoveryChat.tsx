@@ -4,6 +4,7 @@
 import { useState, useRef, useCallback, type FormEvent } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 import { SendHorizontal } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import type { Recommendation } from '@/lib/discovery/client';
 import { MessageList } from './MessageList';
@@ -36,7 +37,6 @@ export function DiscoveryChat({ firstName, onComplete }: DiscoveryChatProps) {
     setStepperVisible,
     currentQuestion,
     questionIndex,
-    totalEstimate,
     sendMessage,
   } = useDiscoverySession({ onComplete });
 
@@ -83,7 +83,6 @@ export function DiscoveryChat({ firstName, onComplete }: DiscoveryChatProps) {
       <QuestionStepper
         currentQuestion={currentQuestion}
         currentIndex={questionIndex}
-        totalEstimate={totalEstimate}
         isVisible={stepperVisible && !isSynthesizing}
         onAnswer={answer => {
           setStepperVisible(false);
@@ -95,9 +94,16 @@ export function DiscoveryChat({ firstName, onComplete }: DiscoveryChatProps) {
         }}
       />
 
+      {/* Main input — hidden while stepper is active; centered on empty state */}
+      {!stepperVisible && !isSynthesizing && (
       <form
         onSubmit={handleSubmit}
-        className="flex gap-2 items-end border-t border-border px-4 py-3 bg-background"
+        className={cn(
+          'flex gap-2 items-end bg-background',
+          hasStarted
+            ? 'border-t border-border px-4 py-3'
+            : 'rounded-xl border border-border px-4 py-2 mx-6 mb-8 self-center max-w-2xl w-full',
+        )}
       >
         <TextareaAutosize
           ref={mainInputRef}
@@ -123,6 +129,7 @@ export function DiscoveryChat({ firstName, onComplete }: DiscoveryChatProps) {
           <SendHorizontal className="size-4" />
         </Button>
       </form>
+      )}
     </div>
   );
 }
