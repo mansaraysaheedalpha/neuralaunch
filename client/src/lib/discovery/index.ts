@@ -17,8 +17,10 @@ export type { GuardResult } from './assumption-guard';
 export { canSynthesise, evaluate } from './assumption-guard';
 
 export { runSynthesis } from './synthesis-engine';
+export type { ResearchSummary } from './research-engine';
+export { runResearch } from './research-engine';
 
-export { getSession, saveSession, deleteSession } from './session-store';
+export { getSession, saveSession, deleteSession, teeDiscoveryStream } from './session-store';
 
 export type { ExtractionResult } from './context-extractor';
 export { extractContext, detectAudienceType } from './context-extractor';
@@ -28,7 +30,6 @@ export {
   generateFrustrationResponse,
   generateClarificationResponse,
 } from './question-generator';
-export { teeDiscoveryStream } from './stream-tee';
 
 export {
   INTERVIEW_PHASES,

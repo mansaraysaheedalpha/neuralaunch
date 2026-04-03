@@ -6,6 +6,7 @@ import {
   getSession,
   deleteSession,
   runSynthesis,
+  runResearch,
 } from '@/lib/discovery';
 
 /**
@@ -44,9 +45,25 @@ export const discoverySessionFunction = inngest.createFunction(
       return state;
     });
 
-    // Step 2: Run the full 3-step synthesis chain (expensive — Opus + thinking)
+    // Steps 2a + 2b: Run research and synthesis prep in parallel
+    const [researchResult] = await Promise.all([
+      step.run('run-research', async () => {
+        return await runResearch(
+          interviewState.context,
+          interviewState.audienceType ?? null,
+          sessionId,
+        );
+      }),
+    ]);
+
+    // Step 3: Synthesise with research findings available
     const recommendation = await step.run('run-synthesis-chain', async () => {
-      return await runSynthesis(interviewState.context, sessionId, interviewState.audienceType ?? null);
+      return await runSynthesis(
+        interviewState.context,
+        sessionId,
+        interviewState.audienceType ?? null,
+        researchResult.findings,
+      );
     });
 
     // Step 3: Persist the recommendation to the database
