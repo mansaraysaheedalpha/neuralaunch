@@ -6,13 +6,17 @@ import { useCallback } from 'react';
 import { DiscoveryChat } from '@/components/discovery';
 import type { Recommendation } from '@/lib/discovery/client';
 
+interface DiscoveryChatClientProps {
+  firstName: string;
+}
+
 /**
  * DiscoveryChatClient
  *
  * Thin client wrapper that connects DiscoveryChat to Next.js navigation.
  * Navigates to the recommendation page when synthesis completes.
  */
-export function DiscoveryChatClient() {
+export function DiscoveryChatClient({ firstName }: DiscoveryChatClientProps) {
   const router = useRouter();
 
   const handleComplete = useCallback((_recommendation: Recommendation, conversationId: string) => {
@@ -22,5 +26,5 @@ export function DiscoveryChatClient() {
     router.push(dest);
   }, [router]);
 
-  return <DiscoveryChat onComplete={handleComplete} />;
+  return <DiscoveryChat firstName={firstName} onComplete={handleComplete} />;
 }
