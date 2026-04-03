@@ -131,18 +131,20 @@ export function RecommendationReveal({ recommendation: r }: Props) {
     <div className="flex-1 overflow-y-auto">
       <div className="max-w-2xl mx-auto px-6 py-10 flex flex-col gap-8">
 
-        {/* Committed summary — always visible, visually distinct */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.05 }}
-          className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4"
-        >
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-2">
-            Your Recommendation
-          </p>
-          <p className="text-sm text-foreground leading-relaxed">{r.summary}</p>
-        </motion.div>
+        {/* Committed summary — only shown when populated (absent on pre-migration records) */}
+        {r.summary && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4"
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-2">
+              Your Recommendation
+            </p>
+            <p className="text-sm text-foreground leading-relaxed">{r.summary}</p>
+          </motion.div>
+        )}
 
         {/* What Would Make This Wrong — directly after summary */}
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
