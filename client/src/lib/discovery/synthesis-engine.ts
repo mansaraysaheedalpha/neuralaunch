@@ -15,7 +15,7 @@ const anthropicClient = new Anthropic();
 // Step 1 — Summarise gathered context into verified facts
 // ---------------------------------------------------------------------------
 
-async function summariseContext(context: DiscoveryContext): Promise<string> {
+export async function summariseContext(context: DiscoveryContext): Promise<string> {
   const fields = Object.entries(context)
     .filter(([, field]) => field.value !== null && field.confidence > 0.3)
     .map(([key, field]) => `${key}: ${JSON.stringify(field.value)} (confidence: ${field.confidence.toFixed(2)})`)
@@ -50,7 +50,7 @@ Be direct. Do not give advice. Only state what the data confirms.`,
 // Step 2 — Map context against recommendation space, eliminate alternatives
 // ---------------------------------------------------------------------------
 
-async function eliminateAlternatives(summary: string): Promise<string> {
+export async function eliminateAlternatives(summary: string): Promise<string> {
   const response = await anthropicClient.messages.create({
     model:      MODELS.INTERVIEW,
     max_tokens: 1024,
@@ -91,7 +91,7 @@ const AUDIENCE_SYNTHESIS_CONTEXT: Record<AudienceType, string> = {
     'This person is currently employed and managing a transition. Every recommendation must account for limited available time and the real risk of income disruption. The first steps must be achievable evenings and weekends, or the recommendation is not realistic for them.',
 };
 
-async function synthesiseRecommendation(
+export async function runFinalSynthesis(
   summary:      string,
   analysis:     string,
   audienceType: AudienceType | null,
@@ -163,7 +163,7 @@ export async function runSynthesis(
   const analysis = await eliminateAlternatives(summary);
 
   log.debug('Starting synthesis step 3: generate structured recommendation');
-  const recommendation = await synthesiseRecommendation(summary, analysis, audienceType, research);
+  const recommendation = await runFinalSynthesis(summary, analysis, audienceType, research);
 
   log.debug('Synthesis complete');
   return recommendation;

@@ -19,20 +19,35 @@ export interface ResearchSummary {
 // Query builders — targeted per audience type and context
 // ---------------------------------------------------------------------------
 
+// Extracts the chosen direction from eliminateAlternatives output.
+// The function always ends with: "The strongest fit is: [direction] because [reason]."
+function extractChosenDirection(analysis: string): string | null {
+  const match = analysis.match(/The strongest fit is:\s*([^.]+)/i);
+  return match ? match[1].trim() : null;
+}
+
 function buildQueries(
   context:      DiscoveryContext,
   audienceType: AudienceType | null,
+  summary?:     string,
+  analysis?:    string,
 ): string[] {
   const goal       = context.primaryGoal?.value    as string | undefined;
   const situation  = context.situation?.value      as string | undefined;
   const market     = context.geographicMarket?.value as string | undefined;
   const technical  = context.technicalAbility?.value as string | undefined;
 
-  const marketSuffix = market ? ` in ${market}` : '';
+  const marketSuffix     = market ? ` in ${market}` : '';
+  const chosenDirection  = analysis ? extractChosenDirection(analysis) : null;
   const queries: string[] = [];
 
-  // Query 1 — primary goal landscape
-  if (goal) {
+  // Query 1 — targeted at the specific recommended direction when available
+  if (chosenDirection) {
+    queries.push(`What is working right now for people pursuing: ${chosenDirection}${marketSuffix}? Tactics, pricing, first steps, and real results 2024 2025`);
+  } else if (summary) {
+    const hook = summary.split('.').slice(0, 2).join('.').trim();
+    queries.push(`${hook}. What specific tactics and paths are producing results for someone in this situation${marketSuffix} right now? 2024 2025`);
+  } else if (goal) {
     queries.push(`What is working right now for people trying to ${goal}${marketSuffix}? Current tactics and results 2024 2025`);
   } else if (situation) {
     queries.push(`What startup paths are gaining traction for people who are ${situation}${marketSuffix} 2024 2025`);
@@ -85,6 +100,8 @@ export async function runResearch(
   context:      DiscoveryContext,
   audienceType: AudienceType | null,
   sessionId:    string,
+  summary?:     string,
+  analysis?:    string,
 ): Promise<ResearchSummary> {
   const log = logger.child({ module: 'ResearchEngine', sessionId });
 
@@ -94,7 +111,7 @@ export async function runResearch(
   }
 
   const client  = tavily({ apiKey: env.TAVILY_API_KEY });
-  const queries = buildQueries(context, audienceType);
+  const queries = buildQueries(context, audienceType, summary, analysis);
 
   log.debug('Running research queries', { queries });
 
