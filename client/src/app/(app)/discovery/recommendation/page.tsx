@@ -46,16 +46,22 @@ export default async function RecommendationPage({
 
   return (
     <div className="flex flex-col h-full">
-      {conversationId && (
-        <div className="flex justify-end px-6 pt-4">
+      <div className="flex justify-between px-6 pt-4">
+        <Link
+          href="/discovery/recommendations"
+          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+        >
+          Past recommendations
+        </Link>
+        {conversationId && (
           <Link
             href={`/chat/${conversationId}`}
             className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
           >
             View interview transcript →
           </Link>
-        </div>
-      )}
+        )}
+      </div>
       <Suspense fallback={<div className="flex-1 flex items-center justify-center"><span className="text-muted-foreground text-sm">Loading…</span></div>}>
         <RecommendationReveal recommendation={recommendation} />
       </Suspense>

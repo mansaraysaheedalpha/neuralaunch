@@ -2,9 +2,9 @@
 'use client';
 
 import { useState, useRef, useCallback, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import TextareaAutosize from 'react-textarea-autosize';
 import { SendHorizontal } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import type { Recommendation } from '@/lib/discovery/client';
 import { MessageList } from './MessageList';
@@ -24,6 +24,7 @@ interface DiscoveryChatProps {
  * to useDiscoverySession; owns only local input state and rendering.
  */
 export function DiscoveryChat({ firstName, onComplete }: DiscoveryChatProps) {
+  const router = useRouter();
   const [input,      setInput]      = useState('');
   const [hasStarted, setHasStarted] = useState(false);
   const mainInputRef = useRef<HTMLTextAreaElement>(null);
@@ -33,6 +34,7 @@ export function DiscoveryChat({ firstName, onComplete }: DiscoveryChatProps) {
     status,
     sessionReady,
     isSynthesizing,
+    synthesisError,
     stepperVisible,
     setStepperVisible,
     currentQuestion,
@@ -63,6 +65,29 @@ export function DiscoveryChat({ firstName, onComplete }: DiscoveryChatProps) {
     handleSend(content);
   };
 
+  const inputField = (
+    <TextareaAutosize
+      ref={mainInputRef}
+      value={input}
+      onChange={e => setInput(e.target.value)}
+      disabled={!sessionReady || isSynthesizing}
+      placeholder="Share your thoughts…"
+      maxRows={5}
+      className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none py-2"
+      onKeyDown={e => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          if (canSubmit) {
+            const content = input;
+            setInput('');
+            setStepperVisible(false);
+            handleSend(content);
+          }
+        }
+      }}
+    />
+  );
+
   return (
     <div className="flex flex-col h-full relative">
 
@@ -71,14 +96,30 @@ export function DiscoveryChat({ firstName, onComplete }: DiscoveryChatProps) {
           messages={messages}
           isLoading={isLoading && !stepperVisible}
           isSynthesizing={isSynthesizing}
+          synthesisError={synthesisError}
+          onRetry={() => router.push('/discovery')}
         />
       )}
 
-      <WelcomeLayer
-        firstName={firstName}
-        isVisible={!hasStarted && !isSynthesizing}
-        onChipClick={handleChipClick}
-      />
+      {/* Empty state — welcome + input grouped and vertically centered */}
+      {!hasStarted && !stepperVisible && !isSynthesizing && (
+        <div className="flex-1 flex flex-col items-center justify-center gap-5 px-4 pb-6">
+          <WelcomeLayer
+            firstName={firstName}
+            isVisible
+            onChipClick={handleChipClick}
+          />
+          <form
+            onSubmit={handleSubmit}
+            className="flex gap-2 items-end w-full max-w-2xl rounded-xl border border-border bg-background px-4 py-3"
+          >
+            {inputField}
+            <Button type="submit" size="icon" disabled={!canSubmit} variant="ghost">
+              <SendHorizontal className="size-4" />
+            </Button>
+          </form>
+        </div>
+      )}
 
       <QuestionStepper
         currentQuestion={currentQuestion}
@@ -94,41 +135,17 @@ export function DiscoveryChat({ firstName, onComplete }: DiscoveryChatProps) {
         }}
       />
 
-      {/* Main input — hidden while stepper is active; centered on empty state */}
-      {!stepperVisible && !isSynthesizing && (
-      <form
-        onSubmit={handleSubmit}
-        className={cn(
-          'flex gap-2 items-end bg-background',
-          hasStarted
-            ? 'border-t border-border px-4 py-3'
-            : 'rounded-xl border border-border px-4 py-2 mx-6 mb-8 self-center max-w-2xl w-full',
-        )}
-      >
-        <TextareaAutosize
-          ref={mainInputRef}
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          disabled={!sessionReady || isSynthesizing}
-          placeholder={isSynthesizing ? 'Generating your recommendation…' : 'Share your thoughts…'}
-          maxRows={5}
-          className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none py-2"
-          onKeyDown={e => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              if (canSubmit) {
-                const content = input;
-                setInput('');
-                setStepperVisible(false);
-                handleSend(content);
-              }
-            }
-          }}
-        />
-        <Button type="submit" size="icon" disabled={!canSubmit} variant="ghost">
-          <SendHorizontal className="size-4" />
-        </Button>
-      </form>
+      {/* Bottom input bar — once conversation is active and stepper dismissed */}
+      {hasStarted && !stepperVisible && !isSynthesizing && (
+        <form
+          onSubmit={handleSubmit}
+          className="flex gap-2 items-end border-t border-border bg-background px-4 py-3"
+        >
+          {inputField}
+          <Button type="submit" size="icon" disabled={!canSubmit} variant="ghost">
+            <SendHorizontal className="size-4" />
+          </Button>
+        </form>
       )}
     </div>
   );

@@ -85,6 +85,19 @@ export async function POST(
   try {
     const activeField = state.activeField ?? 'situation';
     const updates    = await extractContext(message, activeField, history);
+
+    // Extraction miss — answer wasn't understood; re-ask the same question more specifically
+    if (Object.keys(updates).length === 0) {
+      await saveSession(sessionId, state); // reset TTL without advancing state
+      const stream   = generateQuestion(activeField, state.phase as never, state.context, true);
+      const readable = teeDiscoveryStream(stream.textStream, conversationId);
+      const response = new NextResponse(readable);
+      response.headers.set('Content-Type', 'text/plain; charset=utf-8');
+      response.headers.set('X-Phase', state.phase);
+      response.headers.set('X-Question-Count', String(state.questionCount));
+      return response;
+    }
+
     const phaseCrossed = false;
     const nextState    = applyUpdate(state, updates, phaseCrossed);
 
