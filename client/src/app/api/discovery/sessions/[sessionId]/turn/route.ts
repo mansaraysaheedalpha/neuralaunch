@@ -10,7 +10,8 @@ import {
 } from '@/lib/rate-limit';
 import {
   getSession, saveSession, extractContext, applyUpdate, generateQuestion,
-  canSynthesise, teeDiscoveryStream,
+  canSynthesise, teeDiscoveryStream, detectAudienceType, computeOverallCompleteness,
+  generateMetaResponse, generateFrustrationResponse, generateClarificationResponse,
 } from '@/lib/discovery';
 
 const TurnRequestSchema = z.object({
@@ -18,13 +19,13 @@ const TurnRequestSchema = z.object({
   history: z.string().max(8000).default(''),
 });
 
-/**
- * POST /api/discovery/sessions/[sessionId]/turn
- *
- * Processes one user message in the discovery interview.
- * Persists user message + AI response to the linked Conversation for sidebar history.
- * Streams the next question, OR triggers synthesis via Inngest if ready.
- */
+function buildStreamResponse(s: ReadableStream<string>, cid: string|null, p: string, n: number): NextResponse {
+  const r = new NextResponse(teeDiscoveryStream(s, cid));
+  r.headers.set('Content-Type', 'text/plain; charset=utf-8');
+  r.headers.set('X-Phase', p); r.headers.set('X-Question-Count', String(n));
+  return r;
+}
+/** POST — process one discovery turn, stream the next question, or trigger synthesis. */
 export async function POST(
   req:     NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },
@@ -73,7 +74,7 @@ export async function POST(
     where: { id: sessionId },
     select: { conversationId: true },
   });
-  const conversationId = dbSession?.conversationId ?? null;
+  const conversationId: string | null = dbSession?.conversationId ?? null;
 
   // Persist user message immediately (fire-and-forget, non-fatal)
   if (conversationId) {
@@ -83,23 +84,29 @@ export async function POST(
   }
 
   try {
-    const activeField = state.activeField ?? 'situation';
-    const updates    = await extractContext(message, activeField, history);
-
-    // Extraction miss — answer wasn't understood; re-ask the same question more specifically
+    const rawField    = state.activeField ?? 'situation';
+    const activeField = rawField === 'psych_probe' ? 'biggestConcern' : rawField;
+    const { updates, inputType, contradicts } = await extractContext(message, activeField, history, state.context[activeField]);
+    if (inputType === 'offtopic') { await saveSession(sessionId, state); return buildStreamResponse(generateMetaResponse(message).textStream, conversationId, state.phase, state.questionCount); }
+    if (inputType === 'frustrated') { await saveSession(sessionId, state); return buildStreamResponse(generateFrustrationResponse(message, activeField).textStream, conversationId, state.phase, state.questionCount); }
+    if (contradicts) { await saveSession(sessionId, state); return buildStreamResponse(generateClarificationResponse(message, activeField, state.context[activeField]).textStream, conversationId, state.phase, state.questionCount); }
+    // Genuine extraction miss — re-ask with clarification, or skip after 2 consecutive misses
     if (Object.keys(updates).length === 0) {
-      await saveSession(sessionId, state); // reset TTL without advancing state
-      const stream   = generateQuestion(activeField, state.phase as never, state.context, true);
-      const readable = teeDiscoveryStream(stream.textStream, conversationId);
-      const response = new NextResponse(readable);
-      response.headers.set('Content-Type', 'text/plain; charset=utf-8');
-      response.headers.set('X-Phase', state.phase);
-      response.headers.set('X-Question-Count', String(state.questionCount));
-      return response;
+      if (state.consecutiveMisses >= 1) {
+        const skipped = { ...applyUpdate(state, {}, false), consecutiveMisses: 0 };
+        await saveSession(sessionId, skipped);
+        if (!skipped.activeField) return NextResponse.json({ status: 'synthesizing' });
+        return buildStreamResponse(generateQuestion(skipped.activeField, skipped.phase as never, skipped.context).textStream, conversationId, skipped.phase, skipped.questionCount);
+      }
+      await saveSession(sessionId, { ...state, consecutiveMisses: 1 });
+      return buildStreamResponse(generateQuestion(rawField, state.phase as never, state.context, { unclear: true }).textStream, conversationId, state.phase, state.questionCount);
     }
 
-    const phaseCrossed = false;
-    const nextState    = applyUpdate(state, updates, phaseCrossed);
+    let nextState = { ...applyUpdate(state, updates, false), consecutiveMisses: 0 };
+    if (!nextState.audienceType && nextState.questionCount >= 2) {
+      const { audienceType } = await detectAudienceType(nextState.context, history);
+      nextState = { ...nextState, audienceType };
+    }
 
     await saveSession(sessionId, nextState);
     await prisma.discoverySession.update({
@@ -131,14 +138,8 @@ export async function POST(
       return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
     }
 
-    const stream   = generateQuestion(nextField, nextState.phase as never, nextState.context);
-    const readable = teeDiscoveryStream(stream.textStream, conversationId);
-
-    const response = new NextResponse(readable);
-    response.headers.set('Content-Type', 'text/plain; charset=utf-8');
-    response.headers.set('X-Phase', nextState.phase);
-    response.headers.set('X-Question-Count', String(nextState.questionCount));
-    return response;
+    const insufficientSignal = nextState.questionCount >= 6 && computeOverallCompleteness(nextState.context) < 0.35;
+    return buildStreamResponse(generateQuestion(nextField, nextState.phase as never, nextState.context, { insufficientSignal }).textStream, conversationId, nextState.phase, nextState.questionCount);
   } catch (error) {
     log.error('Turn processing failed', error instanceof Error ? error : undefined);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -61,7 +61,13 @@ export async function getSession(sessionId: string): Promise<InterviewState | nu
     // Slide the TTL — the session stays alive as long as the user is active
     await redis.expire(key, SESSION_TTL_SECONDS);
 
-    return raw;
+    // Guard against sessions written before new fields were added
+    return {
+      ...raw,
+      consecutiveMisses:     raw.consecutiveMisses     ?? 0,
+      audienceType:          raw.audienceType          ?? null,
+      psychConstraintProbed: raw.psychConstraintProbed ?? false,
+    };
   } catch {
     // Redis unavailable — reconstruct state from Prisma as fallback
     const record = await prisma.discoverySession.findUnique({
@@ -86,16 +92,19 @@ export async function getSession(sessionId: string): Promise<InterviewState | nu
     const context = parsed.success ? parsed.data : createEmptyContext();
 
     return {
-      sessionId:        record.id,
-      userId:           record.userId,
-      phase:            record.phase as InterviewPhase,
+      sessionId:         record.id,
+      userId:            record.userId,
+      phase:             record.phase as InterviewPhase,
       context,
-      questionCount:    record.questionCount,
-      questionsInPhase: record.questionsInPhase,
-      isComplete:       record.status === 'COMPLETE',
-      activeField:      (record.activeField ?? null) as DiscoveryContextField | null,
-      createdAt:        record.createdAt.toISOString(),
-      updatedAt:        record.updatedAt.toISOString(),
+      questionCount:     record.questionCount,
+      questionsInPhase:  record.questionsInPhase,
+      isComplete:        record.status === 'COMPLETE',
+      activeField:           (record.activeField ?? null) as DiscoveryContextField | 'psych_probe' | null,
+      audienceType:          null,
+      consecutiveMisses:     0, // transient — always 0 when reconstructing from Prisma
+      psychConstraintProbed: false,
+      createdAt:         record.createdAt.toISOString(),
+      updatedAt:         record.updatedAt.toISOString(),
     };
   }
 }
