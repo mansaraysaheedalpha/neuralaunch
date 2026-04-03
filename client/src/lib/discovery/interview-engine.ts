@@ -169,9 +169,8 @@ export function advance(state: InterviewState): {
  * Returns a new state object — never mutates.
  */
 export function applyUpdate(
-  state:        InterviewState,
-  updates:      Partial<DiscoveryContext>,
-  phaseCrossed: boolean,
+  state:   InterviewState,
+  updates: Partial<DiscoveryContext>,
 ): InterviewState {
   const mergedContext = { ...state.context };
   const wasPsychProbe = state.activeField === 'psych_probe';
@@ -195,16 +194,19 @@ export function applyUpdate(
   const { nextField, nextPhase, readyForSynthesis } = advance({
     ...state,
     context:               mergedContext,
-    questionsInPhase:      phaseCrossed ? 0 : state.questionsInPhase + 1,
+    questionsInPhase:      state.questionsInPhase + 1,
     psychConstraintProbed,
   });
+
+  const phaseChanged       = nextPhase !== state.phase;
+  const nextQuestionsInPhase = phaseChanged ? 1 : state.questionsInPhase + 1;
 
   return {
     ...state,
     context:               mergedContext,
     phase:                 nextPhase,
     questionCount:         state.questionCount + 1,
-    questionsInPhase:      phaseCrossed ? 1 : state.questionsInPhase + 1,
+    questionsInPhase:      nextQuestionsInPhase,
     isComplete:            readyForSynthesis,
     activeField:           nextField,
     consecutiveMisses:     0,

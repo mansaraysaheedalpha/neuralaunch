@@ -93,7 +93,7 @@ export async function POST(
     // Genuine extraction miss — re-ask with clarification, or skip after 2 consecutive misses
     if (Object.keys(updates).length === 0) {
       if (state.consecutiveMisses >= 1) {
-        const skipped = { ...applyUpdate(state, {}, false), consecutiveMisses: 0 };
+        const skipped = { ...applyUpdate(state, {}), consecutiveMisses: 0 };
         await saveSession(sessionId, skipped);
         if (!skipped.activeField) return NextResponse.json({ status: 'synthesizing' });
         return buildStreamResponse(generateQuestion(skipped.activeField, skipped.phase as never, skipped.context).textStream, conversationId, skipped.phase, skipped.questionCount);
@@ -102,7 +102,7 @@ export async function POST(
       return buildStreamResponse(generateQuestion(rawField, state.phase as never, state.context, { unclear: true }).textStream, conversationId, state.phase, state.questionCount);
     }
 
-    let nextState = { ...applyUpdate(state, updates, false), consecutiveMisses: 0 };
+    let nextState = { ...applyUpdate(state, updates), consecutiveMisses: 0 };
     if (!nextState.audienceType && nextState.questionCount >= 2) {
       const { audienceType } = await detectAudienceType(nextState.context, history);
       nextState = { ...nextState, audienceType };
