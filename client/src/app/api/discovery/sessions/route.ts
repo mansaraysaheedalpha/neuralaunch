@@ -6,11 +6,16 @@ import { logger } from '@/lib/logger';
 import {
   checkRateLimit, RATE_LIMITS, getRequestIdentifier, getClientIp,
 } from '@/lib/rate-limit';
+import { z } from 'zod';
 import {
   createEmptyContext,
   createInterviewState,
   saveSession,
 } from '@/lib/discovery';
+
+const CreateSessionSchema = z.object({
+  firstMessage: z.string().max(500).optional(),
+});
 
 /**
  * POST /api/discovery/sessions
@@ -41,13 +46,19 @@ export async function POST(req: NextRequest) {
 
   const log = logger.child({ route: 'POST /api/discovery/sessions', userId });
 
+  const body: unknown = req.headers.get('content-type')?.includes('application/json')
+    ? await req.json().catch(() => ({}))
+    : {};
+  const { firstMessage } = CreateSessionSchema.parse(body);
+  const title = firstMessage?.trim().slice(0, 80) || 'Discovery Interview';
+
   try {
     const emptyContext = createEmptyContext();
 
     // Create Conversation + DiscoverySession atomically
     const { sessionId, conversationId } = await prisma.$transaction(async (tx) => {
       const conversation = await tx.conversation.create({
-        data: { userId, title: 'Discovery Interview' },
+        data: { userId, title },
         select: { id: true },
       });
 
