@@ -10,8 +10,10 @@ import { MODELS } from './constants';
 // Extraction result schema — all fields optional, typed correctly
 // ---------------------------------------------------------------------------
 
+// Claude's structured output rejects minimum/maximum on number types —
+// range is enforced via the prompt instead.
 const fieldUpdate = (valueSchema: z.ZodTypeAny) =>
-  z.object({ value: valueSchema, confidence: z.number().min(0).max(1) }).optional();
+  z.object({ value: valueSchema, confidence: z.number() }).optional();
 
 const ExtractionResultSchema = z.object({
   situation:            fieldUpdate(z.string()),
