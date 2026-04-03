@@ -46,7 +46,7 @@ export const discoverySessionFunction = inngest.createFunction(
 
     // Step 2: Run the full 3-step synthesis chain (expensive — Opus + thinking)
     const recommendation = await step.run('run-synthesis-chain', async () => {
-      return await runSynthesis(interviewState.context, sessionId);
+      return await runSynthesis(interviewState.context, sessionId, interviewState.audienceType ?? null);
     });
 
     // Step 3: Persist the recommendation to the database
