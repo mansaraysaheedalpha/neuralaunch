@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && cross-env NODE_OPTIONS=--max-old-space-size=4096 next build",
+    "build": "prisma migrate deploy && prisma generate && cross-env NODE_OPTIONS=--max-old-space-size=4096 next build",
     "postinstall": "prisma generate && node scripts/fix-prisma-pnpm.js",
     "start": "next start",
     "lint": "eslint",
