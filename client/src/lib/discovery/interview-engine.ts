@@ -3,7 +3,6 @@ import type { AudienceType } from './constants';
 import {
   INTERVIEW_PHASES,
   InterviewPhase,
-  MAX_QUESTIONS_PER_PHASE,
   MAX_TOTAL_QUESTIONS,
 } from './constants';
 import {
@@ -137,12 +136,11 @@ export function advance(state: InterviewState): {
     return { nextField: 'psych_probe', nextPhase: currentPhase, readyForSynthesis: false };
   }
 
-  const phaseFields    = PHASE_FIELDS[currentPhase];
-  const phaseLimit     = MAX_QUESTIONS_PER_PHASE[currentPhase];
-  const phaseExhausted = state.questionsInPhase >= phaseLimit;
-  const nextField      = phaseExhausted
-    ? null
-    : selectNextField(state.context, phaseFields, state.audienceType ?? undefined);
+  // Phase ends when selectNextField finds no more fields worth asking about —
+  // i.e. all fields in this phase are above the confidence threshold.
+  // No per-phase hard cap: a verbose user exits early, a terse user stays longer.
+  const phaseFields = PHASE_FIELDS[currentPhase];
+  const nextField   = selectNextField(state.context, phaseFields, state.audienceType ?? undefined);
 
   if (nextField !== null) {
     return { nextField, nextPhase: currentPhase, readyForSynthesis: false };
