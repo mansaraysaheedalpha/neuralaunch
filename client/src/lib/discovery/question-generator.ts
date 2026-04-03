@@ -7,6 +7,26 @@ import type { AudienceType } from './constants';
 import { InterviewPhase, MODELS } from './constants';
 
 type FieldBelief = { value: unknown; confidence: number };
+type HistoryMessage = { role: 'user' | 'assistant'; content: string };
+
+// ---------------------------------------------------------------------------
+// History parser — converts flat "role: content\n" string to message array
+// ---------------------------------------------------------------------------
+
+function parseHistory(raw: string): HistoryMessage[] {
+  if (!raw.trim()) return [];
+  return raw.trim().split('\n')
+    .map(line => {
+      const colonIdx = line.indexOf(': ');
+      if (colonIdx === -1) return null;
+      const role    = line.slice(0, colonIdx).trim();
+      const content = line.slice(colonIdx + 2).trim();
+      if (!content) return null;
+      if (role === 'user' || role === 'assistant') return { role, content } as HistoryMessage;
+      return null;
+    })
+    .filter((m): m is HistoryMessage => m !== null);
+}
 
 // ---------------------------------------------------------------------------
 // Field labels — human-readable descriptions for the prompt
@@ -74,8 +94,10 @@ export function generateQuestion(
   context:      DiscoveryContext,
   options:      { unclear?: boolean; insufficientSignal?: boolean } = {},
   audienceType?: AudienceType,
+  conversationHistory?: string,
 ) {
-  const system = buildSystem(audienceType);
+  const system        = buildSystem(audienceType);
+  const priorMessages = conversationHistory ? parseHistory(conversationHistory) : [];
 
   // Psychological probe — question derived from what the user has already said
   if (field === 'psych_probe') {
@@ -88,15 +110,18 @@ export function generateQuestion(
     return streamText({
       model:  aiSdkAnthropic(MODELS.INTERVIEW),
       system,
-      messages: [{
-        role:    'user',
-        content: `Based on what this person has shared: ${relevant || 'limited context so far'}
+      messages: [
+        ...priorMessages,
+        {
+          role:    'user',
+          content: `Based on what this person has shared: ${relevant || 'limited context so far'}
 
 There are signs of a motivational or psychological barrier — not just a practical one.
 Ask ONE direct but kind question probing this barrier specifically.
 The question must feel like it flows naturally from their own words — personal, not clinical.
 Do not use generic examples. Derive the question from what they actually said.`,
-      }],
+        },
+      ],
     });
   }
 
@@ -116,17 +141,21 @@ Do not use generic examples. Derive the question from what they actually said.`,
   return streamText({
     model:  aiSdkAnthropic(MODELS.INTERVIEW),
     system,
-    messages: [{
-      role:    'user',
-      content: `Current interview phase: ${phase}
+    messages: [
+      ...priorMessages,
+      {
+        role:    'user',
+        content: `Current interview phase: ${phase}
 We need to learn about: ${FIELD_LABELS[field]}
 
 Context gathered so far:
 ${knownFacts || '  (nothing yet)'}
 
 ${unclearPrefix}${thinSignalPrefix}Ask one clear, direct question to learn about ${FIELD_LABELS[field]}.
-Keep it natural given what we already know about this person.`,
-    }],
+Keep it natural given what we already know about this person.
+IMPORTANT: Do not ask about any topic the person has already answered in the conversation above.`,
+      },
+    ],
   });
 }
 
@@ -136,11 +165,20 @@ Keep it natural given what we already know about this person.`,
  * Streams a brief, warm answer to a meta/off-topic question the user asked
  * mid-interview, then re-invites them to continue.
  */
-export function generateMetaResponse(userMessage: string) {
+export function generateMetaResponse(
+  userMessage:         string,
+  phase:               string,
+  questionCount:       number,
+  conversationHistory?: string,
+) {
+  const priorMessages = conversationHistory ? parseHistory(conversationHistory) : [];
   return streamText({
     model:  aiSdkAnthropic(MODELS.INTERVIEW),
-    system: `You are the NeuraLaunch discovery assistant. The user has asked a meta-question mid-interview. Answer it briefly and warmly in 1-2 sentences, then invite them to continue the interview.`,
-    messages: [{ role: 'user', content: userMessage }],
+    system: `You are the NeuraLaunch discovery assistant conducting a startup discovery interview. You are currently in the ${phase} phase, question ${questionCount} of this session. The user has asked a meta-question. Answer it briefly and warmly in 1-2 sentences, then re-invite them to continue — referencing where you left off. Do NOT introduce yourself or start fresh. You are mid-interview.`,
+    messages: [
+      ...priorMessages,
+      { role: 'user', content: userMessage },
+    ],
   });
 }
 
@@ -152,13 +190,18 @@ export function generateMetaResponse(userMessage: string) {
  * and gently re-asks. Never robotic.
  */
 export function generateFrustrationResponse(
-  userMessage: string,
-  field:       DiscoveryContextField,
+  userMessage:          string,
+  field:                DiscoveryContextField,
+  conversationHistory?: string,
 ) {
+  const priorMessages = conversationHistory ? parseHistory(conversationHistory) : [];
   return streamText({
     model:  aiSdkAnthropic(MODELS.INTERVIEW),
     system: `You are the NeuraLaunch discovery assistant. The user seems frustrated or resistant. Acknowledge their feeling warmly and humanly — no platitudes or hollow phrases. In one sentence, explain why understanding ${FIELD_LABELS[field]} helps you give them a genuinely useful recommendation. Then ask the question again in a softer, more open way. Max 3 sentences total.`,
-    messages: [{ role: 'user', content: userMessage }],
+    messages: [
+      ...priorMessages,
+      { role: 'user', content: userMessage },
+    ],
   });
 }
 
@@ -169,14 +212,19 @@ export function generateFrustrationResponse(
  * contradicts a previously captured high-confidence value for the same field.
  */
 export function generateClarificationResponse(
-  userMessage:    string,
-  field:          DiscoveryContextField,
-  currentBelief:  FieldBelief,
+  userMessage:          string,
+  field:                DiscoveryContextField,
+  currentBelief:        FieldBelief,
+  conversationHistory?: string,
 ) {
-  const existing = currentBelief.value != null ? JSON.stringify(currentBelief.value) : 'something';
+  const existing      = currentBelief.value != null ? JSON.stringify(currentBelief.value) : 'something';
+  const priorMessages = conversationHistory ? parseHistory(conversationHistory) : [];
   return streamText({
     model:  aiSdkAnthropic(MODELS.INTERVIEW),
     system: `You are the NeuraLaunch discovery assistant. The user's latest answer about ${FIELD_LABELS[field]} seems to contradict what they said earlier (${existing}). Surface this gently: "Earlier you mentioned ${existing}, but now it sounds like [new thing] — just want to make sure I understand correctly. Which reflects your situation better?" Keep it to 2 sentences.`,
-    messages: [{ role: 'user', content: userMessage }],
+    messages: [
+      ...priorMessages,
+      { role: 'user', content: userMessage },
+    ],
   });
 }

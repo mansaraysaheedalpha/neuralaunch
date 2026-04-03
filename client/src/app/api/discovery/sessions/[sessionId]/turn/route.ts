@@ -87,19 +87,19 @@ export async function POST(
     const rawField    = state.activeField ?? 'situation';
     const activeField = rawField === 'psych_probe' ? 'biggestConcern' : rawField;
     const { updates, inputType, contradicts } = await extractContext(message, activeField, history, state.context[activeField]);
-    if (inputType === 'offtopic') { await saveSession(sessionId, state); return buildStreamResponse(generateMetaResponse(message).textStream, conversationId, state.phase, state.questionCount); }
-    if (inputType === 'frustrated') { await saveSession(sessionId, state); return buildStreamResponse(generateFrustrationResponse(message, activeField).textStream, conversationId, state.phase, state.questionCount); }
-    if (contradicts) { await saveSession(sessionId, state); return buildStreamResponse(generateClarificationResponse(message, activeField, state.context[activeField]).textStream, conversationId, state.phase, state.questionCount); }
+    if (inputType === 'offtopic') { await saveSession(sessionId, state); return buildStreamResponse(generateMetaResponse(message, state.phase, state.questionCount, history).textStream, conversationId, state.phase, state.questionCount); }
+    if (inputType === 'frustrated') { await saveSession(sessionId, state); return buildStreamResponse(generateFrustrationResponse(message, activeField, history).textStream, conversationId, state.phase, state.questionCount); }
+    if (contradicts) { await saveSession(sessionId, state); return buildStreamResponse(generateClarificationResponse(message, activeField, state.context[activeField], history).textStream, conversationId, state.phase, state.questionCount); }
     // Genuine extraction miss — re-ask with clarification, or skip after 2 consecutive misses
     if (Object.keys(updates).length === 0) {
       if (state.consecutiveMisses >= 1) {
         const skipped = { ...applyUpdate(state, {}), consecutiveMisses: 0 };
         await saveSession(sessionId, skipped);
         if (!skipped.activeField) return NextResponse.json({ status: 'synthesizing' });
-        return buildStreamResponse(generateQuestion(skipped.activeField, skipped.phase as never, skipped.context, {}, skipped.audienceType ?? undefined).textStream, conversationId, skipped.phase, skipped.questionCount);
+        return buildStreamResponse(generateQuestion(skipped.activeField, skipped.phase as never, skipped.context, {}, skipped.audienceType ?? undefined, history).textStream, conversationId, skipped.phase, skipped.questionCount);
       }
       await saveSession(sessionId, { ...state, consecutiveMisses: 1 });
-      return buildStreamResponse(generateQuestion(rawField, state.phase as never, state.context, { unclear: true }, state.audienceType ?? undefined).textStream, conversationId, state.phase, state.questionCount);
+      return buildStreamResponse(generateQuestion(rawField, state.phase as never, state.context, { unclear: true }, state.audienceType ?? undefined, history).textStream, conversationId, state.phase, state.questionCount);
     }
 
     let nextState = { ...applyUpdate(state, updates), consecutiveMisses: 0 };
@@ -139,7 +139,7 @@ export async function POST(
     }
 
     const insufficientSignal = nextState.questionCount >= 6 && computeOverallCompleteness(nextState.context) < 0.35;
-    return buildStreamResponse(generateQuestion(nextField, nextState.phase as never, nextState.context, { insufficientSignal }, nextState.audienceType ?? undefined).textStream, conversationId, nextState.phase, nextState.questionCount);
+    return buildStreamResponse(generateQuestion(nextField, nextState.phase as never, nextState.context, { insufficientSignal }, nextState.audienceType ?? undefined, history).textStream, conversationId, nextState.phase, nextState.questionCount);
   } catch (error) {
     log.error('Turn processing failed', error instanceof Error ? error : undefined);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
