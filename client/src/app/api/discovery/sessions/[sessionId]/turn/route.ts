@@ -10,7 +10,7 @@ import {
 } from '@/lib/rate-limit';
 import {
   getSession, saveSession, extractContext, applyUpdate, generateQuestion,
-  canSynthesise,
+  canSynthesise, teeDiscoveryStream,
 } from '@/lib/discovery';
 
 const TurnRequestSchema = z.object({
@@ -118,33 +118,8 @@ export async function POST(
       return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
     }
 
-    const stream = generateQuestion(nextField, nextState.phase as never, nextState.context);
-
-    // Tee the stream: send to client AND collect for Message persistence
-    const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
-    const writer = writable.getWriter();
-    const chunks: Uint8Array[] = [];
-
-    void stream.textStream.pipeTo(
-      new WritableStream({
-        write(chunk) {
-          chunks.push(new TextEncoder().encode(chunk));
-          void writer.write(new TextEncoder().encode(chunk));
-        },
-        close() {
-          void writer.close().then(async () => {
-            if (conversationId) {
-              const fullText = chunks.map(c => new TextDecoder().decode(c)).join('');
-              if (fullText) {
-                await prisma.message.create({
-                  data: { conversationId, role: 'assistant', content: fullText },
-                }).catch(() => { /* non-fatal */ });
-              }
-            }
-          });
-        },
-      }),
-    );
+    const stream   = generateQuestion(nextField, nextState.phase as never, nextState.context);
+    const readable = teeDiscoveryStream(stream.textStream, conversationId);
 
     const response = new NextResponse(readable);
     response.headers.set('Content-Type', 'text/plain; charset=utf-8');
