@@ -1,5 +1,6 @@
 // src/app/(app)/discovery/recommendation/page.tsx
 import { Suspense } from 'react';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
@@ -10,12 +11,19 @@ import { RecommendationReveal } from './RecommendationReveal';
  *
  * Server Component — loads the most recent Recommendation for the user
  * and passes it to the animated reveal client component.
+ * Accepts ?from=[conversationId] to surface a link back to the interview transcript.
  * Redirects back to the interview if synthesis is not yet complete.
  */
-export default async function RecommendationPage() {
+export default async function RecommendationPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string }>;
+}) {
   const session = await auth();
   if (!session?.user?.id) redirect('/signin');
   const userId = session.user.id;
+
+  const { from: conversationId } = await searchParams;
 
   const recommendation = await prisma.recommendation.findFirst({
     where:   { userId },
@@ -37,8 +45,20 @@ export default async function RecommendationPage() {
   if (!recommendation) redirect('/discovery');
 
   return (
-    <Suspense fallback={<div className="flex-1 flex items-center justify-center"><span className="text-muted-foreground text-sm">Loading…</span></div>}>
-      <RecommendationReveal recommendation={recommendation} />
-    </Suspense>
+    <div className="flex flex-col h-full">
+      {conversationId && (
+        <div className="flex justify-end px-6 pt-4">
+          <Link
+            href={`/chat/${conversationId}`}
+            className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+          >
+            View interview transcript →
+          </Link>
+        </div>
+      )}
+      <Suspense fallback={<div className="flex-1 flex items-center justify-center"><span className="text-muted-foreground text-sm">Loading…</span></div>}>
+        <RecommendationReveal recommendation={recommendation} />
+      </Suspense>
+    </div>
   );
 }

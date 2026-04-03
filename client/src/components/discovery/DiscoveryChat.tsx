@@ -16,7 +16,7 @@ type ChatStatus  = 'idle' | 'loading' | 'streaming' | 'error';
 type RecResponse = { recommendation: Recommendation } | { status: 'pending' };
 
 interface DiscoveryChatProps {
-  onComplete?: (recommendation: Recommendation) => void;
+  onComplete?: (recommendation: Recommendation, conversationId: string) => void;
 }
 
 const recFetcher = (url: string): Promise<RecResponse> =>
@@ -54,6 +54,7 @@ export function DiscoveryChat({ onComplete }: DiscoveryChatProps) {
   const [isSynthesizing, setIsSynthesizing] = useState(false);
 
   const sessionIdRef        = useRef<string | null>(null);
+  const conversationIdRef   = useRef<string | null>(null);
   const calledOnCompleteRef = useRef(false);
   const abortRef            = useRef<AbortController | null>(null);
 
@@ -69,6 +70,7 @@ export function DiscoveryChat({ onComplete }: DiscoveryChatProps) {
         const sid = res.headers.get('X-Session-Id');
         if (!sid) throw new Error('Missing X-Session-Id');
         sessionIdRef.current = sid;
+        conversationIdRef.current = res.headers.get('X-Conversation-Id');
         setSessionId(sid);
         if (!res.body) { setStatus('idle'); return; }
         const msgId = crypto.randomUUID();
@@ -161,7 +163,7 @@ export function DiscoveryChat({ onComplete }: DiscoveryChatProps) {
   useEffect(() => {
     if (!recommendation || calledOnCompleteRef.current) return;
     calledOnCompleteRef.current = true;
-    onComplete?.(recommendation);
+    onComplete?.(recommendation, conversationIdRef.current ?? '');
   }, [recommendation, onComplete]);
 
   const isLoading = status === 'loading';

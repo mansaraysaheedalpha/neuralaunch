@@ -15,7 +15,6 @@ import {
 
 const TurnRequestSchema = z.object({
   message: z.string().min(1).max(4000),
-  /** The conversationHistory sent from the client for context extraction accuracy */
   history: z.string().max(8000).default(''),
 });
 
@@ -23,9 +22,8 @@ const TurnRequestSchema = z.object({
  * POST /api/discovery/sessions/[sessionId]/turn
  *
  * Processes one user message in the discovery interview.
- * - Extracts structured context from the message
- * - Advances the interview state machine
- * - Streams the next question, OR triggers synthesis via Inngest if ready
+ * Persists user message + AI response to the linked Conversation for sidebar history.
+ * Streams the next question, OR triggers synthesis via Inngest if ready.
  */
 export async function POST(
   req:     NextRequest,
@@ -59,7 +57,6 @@ export async function POST(
   }
   const { message, history } = parsed.data;
 
-  // Load state from Redis — 401 if session doesn't belong to this user
   const state = await getSession(sessionId);
   if (!state) {
     return NextResponse.json({ error: 'Session not found or expired' }, { status: 404 });
@@ -71,16 +68,26 @@ export async function POST(
     return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
   }
 
-  try {
-    // Step 1: extract context from this message
-    const activeField = state.activeField ?? 'situation';
-    const updates = await extractContext(message, activeField, history);
+  // Fetch conversationId for message persistence (best-effort — non-blocking)
+  const dbSession = await prisma.discoverySession.findUnique({
+    where: { id: sessionId },
+    select: { conversationId: true },
+  });
+  const conversationId = dbSession?.conversationId ?? null;
 
-    // Step 2: advance state machine
-    const phaseCrossed = false; // phase transitions are handled inside applyUpdate → advance
+  // Persist user message immediately (fire-and-forget, non-fatal)
+  if (conversationId) {
+    prisma.message.create({
+      data: { conversationId, role: 'user', content: message },
+    }).catch(() => { /* non-fatal */ });
+  }
+
+  try {
+    const activeField = state.activeField ?? 'situation';
+    const updates    = await extractContext(message, activeField, history);
+    const phaseCrossed = false;
     const nextState    = applyUpdate(state, updates, phaseCrossed);
 
-    // Step 3: persist to Redis + DB
     await saveSession(sessionId, nextState);
     await prisma.discoverySession.update({
       where: { id: sessionId },
@@ -95,7 +102,6 @@ export async function POST(
       select: { id: true },
     });
 
-    // Step 4: synthesis or next question
     if (canSynthesise(nextState.context) || nextState.isComplete) {
       log.debug('Triggering synthesis');
       await inngest.send({ name: 'discovery/synthesis.requested', data: { sessionId, userId } });
@@ -107,15 +113,42 @@ export async function POST(
       return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
     }
 
-    // Stream next question
     const nextField = nextState.activeField;
     if (!nextField) {
       return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
     }
 
     const stream = generateQuestion(nextField, nextState.phase as never, nextState.context);
-    const response = stream.toTextStreamResponse();
-    response.headers.set('X-Phase',        nextState.phase);
+
+    // Tee the stream: send to client AND collect for Message persistence
+    const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+    const writer = writable.getWriter();
+    const chunks: Uint8Array[] = [];
+
+    void stream.toTextStream().pipeTo(
+      new WritableStream({
+        write(chunk) {
+          chunks.push(new TextEncoder().encode(chunk));
+          void writer.write(new TextEncoder().encode(chunk));
+        },
+        close() {
+          void writer.close().then(async () => {
+            if (conversationId) {
+              const fullText = chunks.map(c => new TextDecoder().decode(c)).join('');
+              if (fullText) {
+                await prisma.message.create({
+                  data: { conversationId, role: 'assistant', content: fullText },
+                }).catch(() => { /* non-fatal */ });
+              }
+            }
+          });
+        },
+      }),
+    );
+
+    const response = new NextResponse(readable);
+    response.headers.set('Content-Type', 'text/plain; charset=utf-8');
+    response.headers.set('X-Phase', nextState.phase);
     response.headers.set('X-Question-Count', String(nextState.questionCount));
     return response;
   } catch (error) {

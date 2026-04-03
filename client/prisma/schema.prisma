@@ -95,8 +95,9 @@ model Conversation {
 
   // ===================== THIS IS THE CHANGE =====================
   // The 'tags' field now points to the new join table.
-  tags     TagsOnConversations[]
-  memories AiMemory[]
+  tags             TagsOnConversations[]
+  memories         AiMemory[]
+  discoverySession DiscoverySession?
   // ==============================================================
 
   @@index([createdAt])
@@ -816,6 +817,10 @@ model DiscoverySession {
   userId           String
   user             User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   status           DiscoverySessionStatus @default(ACTIVE)
+
+  // Linked conversation — messages are persisted here for sidebar history
+  conversationId   String?                @unique
+  conversation     Conversation?          @relation(fields: [conversationId], references: [id], onDelete: SetNull)
 
   // Interview state
   phase            String                 @default("ORIENTATION")

@@ -18,8 +18,8 @@ import {
  * POST /api/discovery/sessions
  *
  * Creates a new discovery session for the authenticated user.
- * Initialises the belief state in Redis and persists the session record to the DB.
- * Returns the sessionId and streams the opening question.
+ * Also creates a linked Conversation so messages appear in the sidebar.
+ * Streams the opening question; saves it as a Message after streaming.
  */
 export async function POST(req: NextRequest) {
   const authSession = await auth();
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   }
   const userId = authSession.user.id;
 
-  const clientIp  = getClientIp(req.headers);
+  const clientIp = getClientIp(req.headers);
   const rateLimitResult = await checkRateLimit({
     ...RATE_LIMITS.AI_GENERATION,
     identifier: getRequestIdentifier(userId, clientIp),
@@ -36,10 +36,7 @@ export async function POST(req: NextRequest) {
   if (!rateLimitResult.success) {
     return NextResponse.json(
       { error: 'Rate limit exceeded', retryAfter: rateLimitResult.retryAfter },
-      {
-        status: 429,
-        headers: { 'Retry-After': String(rateLimitResult.retryAfter ?? 60) },
-      },
+      { status: 429, headers: { 'Retry-After': String(rateLimitResult.retryAfter ?? 60) } },
     );
   }
 
@@ -48,32 +45,63 @@ export async function POST(req: NextRequest) {
   try {
     const emptyContext = createEmptyContext();
 
-    // Persist session to DB — belief state starts empty
-    const dbSession = await prisma.discoverySession.create({
-      data: {
-        userId,
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      beliefState: JSON.parse(JSON.stringify(emptyContext)),
-      },
-      select: { id: true },
+    // Create Conversation + DiscoverySession atomically
+    const { sessionId, conversationId } = await prisma.$transaction(async (tx) => {
+      const conversation = await tx.conversation.create({
+        data: { userId, title: 'Discovery Interview' },
+        select: { id: true },
+      });
+
+      const session = await tx.discoverySession.create({
+        data: {
+          userId,
+          conversationId: conversation.id,
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          beliefState: JSON.parse(JSON.stringify(emptyContext)),
+        },
+        select: { id: true },
+      });
+
+      return { sessionId: session.id, conversationId: conversation.id };
     });
 
-    const sessionId = dbSession.id;
-    log.debug('Created discovery session', { sessionId });
+    log.debug('Created discovery session', { sessionId, conversationId });
 
     // Seed Redis with the interview state
     const interviewState = createInterviewState(sessionId, userId);
     await saveSession(sessionId, interviewState);
 
-    // Stream the opening question for the 'situation' field
-    const stream = generateQuestion(
-      'situation',
-      INTERVIEW_PHASES.ORIENTATION,
-      emptyContext,
+    // Stream the opening question and collect the full text to persist
+    const stream = generateQuestion('situation', INTERVIEW_PHASES.ORIENTATION, emptyContext);
+
+    // Collect streamed text so we can save it as a Message after streaming
+    const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
+    const writer = writable.getWriter();
+    const chunks: Uint8Array[] = [];
+
+    void stream.toTextStream().pipeTo(
+      new WritableStream({
+        write(chunk) {
+          chunks.push(new TextEncoder().encode(chunk));
+          void writer.write(new TextEncoder().encode(chunk));
+        },
+        close() {
+          void writer.close().then(async () => {
+            const fullText = chunks.map(c => new TextDecoder().decode(c)).join('');
+            if (fullText) {
+              await prisma.message.create({
+                data: { conversationId, role: 'assistant', content: fullText },
+              }).catch(() => { /* non-fatal — message history best-effort */ });
+            }
+          });
+        },
+      }),
     );
 
-    const response = stream.toTextStreamResponse();
+    const response = new NextResponse(readable);
+    response.headers.set('Content-Type', 'text/plain; charset=utf-8');
     response.headers.set('X-Session-Id', sessionId);
+    response.headers.set('X-Conversation-Id', conversationId);
     return response;
   } catch (error) {
     log.error('Failed to create discovery session', error instanceof Error ? error : undefined);

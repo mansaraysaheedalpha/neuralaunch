@@ -15,8 +15,11 @@ import type { Recommendation } from '@/lib/discovery/client';
 export function DiscoveryChatClient() {
   const router = useRouter();
 
-  const handleComplete = useCallback((_recommendation: Recommendation) => {
-    router.push('/discovery/recommendation');
+  const handleComplete = useCallback((_recommendation: Recommendation, conversationId: string) => {
+    const dest = conversationId
+      ? `/discovery/recommendation?from=${conversationId}`
+      : '/discovery/recommendation';
+    router.push(dest);
   }, [router]);
 
   return <DiscoveryChat onComplete={handleComplete} />;
