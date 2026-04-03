@@ -95,9 +95,14 @@ async function synthesiseRecommendation(
   summary:      string,
   analysis:     string,
   audienceType: AudienceType | null,
+  research:     string,
 ): Promise<Recommendation> {
   const audienceBlock = audienceType
     ? `\nAUDIENCE CONTEXT:\n${AUDIENCE_SYNTHESIS_CONTEXT[audienceType]}\n`
+    : '';
+
+  const researchBlock = research
+    ? `\nCURRENT LANDSCAPE INTELLIGENCE (use to sharpen tactics — do not replace your judgment with this):\n${research}\n`
     : '';
 
   const { object } = await generateObject({
@@ -111,7 +116,7 @@ PERSON SUMMARY:
 ${summary}
 
 STRATEGIC ANALYSIS:
-${analysis}${audienceBlock}
+${analysis}${audienceBlock}${researchBlock}
 
 RULES — you must follow these precisely:
 1. Recommend EXACTLY ONE path. Not two. Not "it depends." ONE.
@@ -120,6 +125,7 @@ RULES — you must follow these precisely:
 4. The risks and assumptions must be honest, not reassuring.
 5. whatWouldMakeThisWrong must genuinely challenge your recommendation.
 6. summary must be 2-3 plain sentences: what the recommendation is, why it fits this person specifically, and what the first move is. It is the complete conclusion — a reader who reads only this must leave knowing exactly what to do.
+7. If landscape intelligence is provided, use it to make the tactics in firstThreeSteps more specific and current. Do not present research findings as alternatives — use them to sharpen the ONE path you have already chosen.
 
 Produce the recommendation now.`,
     }],
@@ -146,6 +152,7 @@ export async function runSynthesis(
   context:      DiscoveryContext,
   sessionId:    string,
   audienceType: AudienceType | null = null,
+  research:     string = '',
 ): Promise<Recommendation> {
   const log = logger.child({ module: 'SynthesisEngine', sessionId });
 
@@ -156,7 +163,7 @@ export async function runSynthesis(
   const analysis = await eliminateAlternatives(summary);
 
   log.debug('Starting synthesis step 3: generate structured recommendation');
-  const recommendation = await synthesiseRecommendation(summary, analysis, audienceType);
+  const recommendation = await synthesiseRecommendation(summary, analysis, audienceType, research);
 
   log.debug('Synthesis complete');
   return recommendation;

@@ -116,6 +116,7 @@ const envSchema = z.object({
 
   // Web Search
   BRAVE_SEARCH_API_KEY: z.string().optional(),
+  TAVILY_API_KEY: z.string().optional(),
 
   // MCP Servers
   MCP_SERVERS: z.string().optional(),
