@@ -7,53 +7,25 @@ import { DiscoveryContext, DiscoveryContextField } from './context-schema';
 import { MODELS } from './constants';
 
 // ---------------------------------------------------------------------------
-// Extraction result schema — all fields optional, typed correctly
+// Minimal flat schema — one field at a time to stay within Claude's complexity limit.
+// Value is always a string; array/enum fields are coerced in parseFieldValue().
 // ---------------------------------------------------------------------------
-
-// Claude's structured output rejects minimum/maximum on number types —
-// range is enforced via the prompt instead.
-const fieldUpdate = (valueSchema: z.ZodTypeAny) =>
-  z.object({ value: valueSchema, confidence: z.number() }).optional();
 
 const ExtractionResultSchema = z.object({
-  situation:            fieldUpdate(z.string()),
-  background:           fieldUpdate(z.string()),
-  whatTriedBefore:      fieldUpdate(z.array(z.string())),
-  primaryGoal:          fieldUpdate(z.string()),
-  successDefinition:    fieldUpdate(z.string()),
-  timeHorizon:          fieldUpdate(z.string()),
-  availableTimePerWeek: fieldUpdate(z.string()),
-  availableBudget:      fieldUpdate(z.string()),
-  teamSize:             fieldUpdate(z.enum(['solo', 'small_team', 'established_team'])),
-  technicalAbility:     fieldUpdate(z.enum(['none', 'basic', 'intermediate', 'strong'])),
-  geographicMarket:     fieldUpdate(z.string()),
-  commitmentLevel:      fieldUpdate(z.enum(['exploring', 'committed', 'all_in'])),
-  biggestConcern:       fieldUpdate(z.string()),
-  whyNow:               fieldUpdate(z.string()),
+  extracted:  z.boolean().describe('true if the user mentioned this field, false if not'),
+  value:      z.string().describe('The extracted value. For lists, separate items with " | ".'),
+  confidence: z.number().describe('How confident: 0.9-1.0 explicit, 0.6-0.8 inferred, 0.3-0.5 implied'),
 });
 
-type ExtractionResult = z.infer<typeof ExtractionResultSchema>;
-
 // ---------------------------------------------------------------------------
-// Helpers
+// Coerce the raw string value to the correct DiscoveryContext field type
 // ---------------------------------------------------------------------------
 
-function toContextUpdate(extraction: ExtractionResult): Partial<DiscoveryContext> {
-  const now    = new Date().toISOString();
-  const update: Partial<DiscoveryContext> = {};
-
-  for (const key of Object.keys(extraction) as DiscoveryContextField[]) {
-    const field = (extraction as Record<string, { value: unknown; confidence: number } | undefined>)[key];
-    if (field !== undefined) {
-      (update as Record<string, unknown>)[key] = {
-        value:       field.value,
-        confidence:  field.confidence,
-        extractedAt: now,
-      };
-    }
+function parseFieldValue(field: DiscoveryContextField, raw: string): unknown {
+  if (field === 'whatTriedBefore') {
+    return raw.split('|').map(s => s.trim()).filter(Boolean);
   }
-
-  return update;
+  return raw; // strings and enum fields are returned as-is
 }
 
 // ---------------------------------------------------------------------------
@@ -63,9 +35,7 @@ function toContextUpdate(extraction: ExtractionResult): Partial<DiscoveryContext
 /**
  * extractContext
  *
- * Parses a user's free-text message and maps it to typed DiscoveryContext fields.
- * Primarily extracts `activeField`; opportunistically extracts any other fields mentioned.
- *
+ * Extracts one field at a time from the user's message using a minimal flat schema.
  * Returns a Partial<DiscoveryContext> ready to pass to applyUpdate().
  */
 export async function extractContext(
@@ -78,7 +48,9 @@ export async function extractContext(
     schema: ExtractionResultSchema,
     messages: [{
       role:    'user',
-      content: `You are extracting structured information from a person's message during a startup discovery interview.
+      content: `You are extracting one piece of information from a user's message in a startup discovery interview.
+
+FIELD TO EXTRACT: ${activeField}
 
 CONVERSATION SO FAR:
 ${conversationHistory}
@@ -86,18 +58,23 @@ ${conversationHistory}
 LATEST USER MESSAGE:
 "${userMessage}"
 
-PRIMARY FIELD TO EXTRACT: ${activeField}
-
-Rules:
-- Confidence 0.9–1.0: user stated it explicitly and clearly
-- Confidence 0.6–0.8: reasonably inferred from what they said
-- Confidence 0.3–0.5: only weakly implied
-- Omit a field entirely if it was not mentioned
-
-Extract the ${activeField} field. Also extract any other fields the user happened to mention.
-Be conservative — prefer lower confidence when in doubt.`,
+Extract the value for "${activeField}" from the user's message.
+- extracted: true only if the user actually mentioned something relevant to this field
+- value: the relevant content in the user's own words (for lists, separate with " | ")
+- confidence: 0.9-1.0 if explicit, 0.6-0.8 if inferred, 0.3-0.5 if weakly implied
+If the user did not mention anything relevant to "${activeField}", set extracted to false and value to "".`,
     }],
   });
 
-  return toContextUpdate(object);
+  if (!object.extracted || !object.value) {
+    return {};
+  }
+
+  return {
+    [activeField]: {
+      value:       parseFieldValue(activeField, object.value),
+      confidence:  object.confidence,
+      extractedAt: new Date().toISOString(),
+    },
+  } as Partial<DiscoveryContext>;
 }
