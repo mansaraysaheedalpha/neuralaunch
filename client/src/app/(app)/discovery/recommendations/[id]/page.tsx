@@ -27,6 +27,7 @@ export default async function RecommendationDetailPage({
     where:  { id, userId },
     select: {
       id:                     true,
+      summary:                true,
       path:                   true,
       reasoning:              true,
       firstThreeSteps:        true,
