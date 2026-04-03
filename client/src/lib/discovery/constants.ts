@@ -50,6 +50,20 @@ export const MODELS = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Audience types — classified silently within the first 2 exchanges
+// ---------------------------------------------------------------------------
+
+export const AUDIENCE_TYPES = {
+  LOST_GRADUATE:            'LOST_GRADUATE',
+  STUCK_FOUNDER:            'STUCK_FOUNDER',
+  ESTABLISHED_OWNER:        'ESTABLISHED_OWNER',
+  ASPIRING_BUILDER:         'ASPIRING_BUILDER',
+  MID_JOURNEY_PROFESSIONAL: 'MID_JOURNEY_PROFESSIONAL',
+} as const;
+
+export type AudienceType = typeof AUDIENCE_TYPES[keyof typeof AUDIENCE_TYPES];
+
+// ---------------------------------------------------------------------------
 // Session
 // ---------------------------------------------------------------------------
 

@@ -1,6 +1,6 @@
 // src/lib/discovery/question-selector.ts
 import { DiscoveryContext, DiscoveryContextField } from './context-schema';
-import { MIN_FIELD_CONFIDENCE } from './constants';
+import { AudienceType, MIN_FIELD_CONFIDENCE } from './constants';
 
 // ---------------------------------------------------------------------------
 // Field importance weights
@@ -31,6 +31,36 @@ const FIELD_WEIGHTS: Record<DiscoveryContextField, number> = {
   whyNow:               0.6,
 };
 
+// Per-audience-type field importance multipliers.
+// Boosts fields that are most diagnostic for each audience type.
+const AUDIENCE_FIELD_BOOST: Partial<Record<AudienceType, Partial<Record<DiscoveryContextField, number>>>> = {
+  LOST_GRADUATE: {
+    background:      1.4,
+    primaryGoal:     1.3,
+    commitmentLevel: 1.2,
+  },
+  STUCK_FOUNDER: {
+    whatTriedBefore: 1.5,
+    commitmentLevel: 1.4,
+    whyNow:          1.3,
+    biggestConcern:  1.2,
+  },
+  ESTABLISHED_OWNER: {
+    availableBudget:  1.4,
+    teamSize:         1.3,
+    geographicMarket: 1.2,
+  },
+  ASPIRING_BUILDER: {
+    technicalAbility:     1.3,
+    availableTimePerWeek: 1.2,
+  },
+  MID_JOURNEY_PROFESSIONAL: {
+    availableTimePerWeek: 1.5,
+    commitmentLevel:      1.4,
+    availableBudget:      1.2,
+  },
+};
+
 // ---------------------------------------------------------------------------
 // Information gain scoring
 // ---------------------------------------------------------------------------
@@ -38,14 +68,19 @@ const FIELD_WEIGHTS: Record<DiscoveryContextField, number> = {
 /**
  * Scores a single field by how much we would gain from asking about it.
  *
- * Score = weight × (1 - current_confidence)
+ * Score = weight × audience_boost × (1 - current_confidence)
  * A field with high weight and low confidence gives the most gain.
  * A field we already know well (confidence ≥ threshold) scores 0.
  */
-function fieldGainScore(field: DiscoveryContextField, context: DiscoveryContext): number {
+function fieldGainScore(
+  field:        DiscoveryContextField,
+  context:      DiscoveryContext,
+  audienceType?: AudienceType,
+): number {
   const current = context[field];
   if (current.confidence >= MIN_FIELD_CONFIDENCE) return 0; // already known
-  return FIELD_WEIGHTS[field] * (1 - current.confidence);
+  const boost = audienceType ? (AUDIENCE_FIELD_BOOST[audienceType]?.[field] ?? 1.0) : 1.0;
+  return FIELD_WEIGHTS[field] * boost * (1 - current.confidence);
 }
 
 // ---------------------------------------------------------------------------
@@ -66,14 +101,15 @@ function fieldGainScore(field: DiscoveryContextField, context: DiscoveryContext)
  * Information Gain) principle from the research document.
  */
 export function selectNextField(
-  context:    DiscoveryContext,
-  candidates: DiscoveryContextField[],
+  context:       DiscoveryContext,
+  candidates:    DiscoveryContextField[],
+  audienceType?: AudienceType,
 ): DiscoveryContextField | null {
   let bestField: DiscoveryContextField | null = null;
   let bestScore = 0;
 
   for (const field of candidates) {
-    const score = fieldGainScore(field, context);
+    const score = fieldGainScore(field, context, audienceType);
     if (score > bestScore) {
       bestScore = score;
       bestField = field;
@@ -81,6 +117,39 @@ export function selectNextField(
   }
 
   return bestField; // null if all candidates are sufficiently known
+}
+
+// ---------------------------------------------------------------------------
+// Psychological blocker detection
+// ---------------------------------------------------------------------------
+
+const PSYCH_BLOCKER_PATTERNS = [
+  /\babandon/i,    /\bgave up\b/i,   /\bgive up\b/i, /\bnever finish/i,
+  /\bdisciplin/i,  /\bprocrastinat/i, /\bdistract/i,
+  /\bafraid\b/i,   /\bscared\b/i,    /\bimposter/i,
+  /\bdon.t know if i can\b/i,         /\bnot sure (if )?(i.m|i am)\b/i,
+  /\bkeep (starting|stopping|quitting)\b/i,
+  /\bwon.t (sell|talk to|reach out)\b/i,
+];
+
+/**
+ * detectsPsychBlocker
+ *
+ * Returns true when extracted context signals a motivational or psychological
+ * barrier — not just a practical one. Triggers injection of one psych probe
+ * question into the interview flow.
+ */
+export function detectsPsychBlocker(context: DiscoveryContext): boolean {
+  const probeFields: DiscoveryContextField[] = [
+    'situation', 'whatTriedBefore', 'biggestConcern', 'commitmentLevel', 'whyNow',
+  ];
+  const combined = probeFields
+    .map(f => {
+      const v = context[f].value;
+      return typeof v === 'string' ? v : Array.isArray(v) ? v.join(' ') : '';
+    })
+    .join(' ');
+  return PSYCH_BLOCKER_PATTERNS.some(p => p.test(combined));
 }
 
 /**

@@ -30,6 +30,7 @@ export default async function RecommendationPage({
     orderBy: { createdAt: 'desc' },
     select: {
       id:                     true,
+      summary:                true,
       path:                   true,
       reasoning:              true,
       firstThreeSteps:        true,

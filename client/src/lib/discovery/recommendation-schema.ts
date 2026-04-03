@@ -9,6 +9,15 @@ import { z } from 'zod';
  * Persisted to the Recommendation Prisma model.
  */
 export const RecommendationSchema = z.object({
+  /**
+   * Committed upfront summary — 2-3 plain sentences stating what the recommendation is,
+   * why it fits this person specifically, and what the first move is.
+   * Full conclusion upfront. A busy reader who reads only this leaves knowing exactly what to do.
+   */
+  summary: z.string().describe(
+    '2-3 plain sentences: what the recommendation is, why it fits this specific person, and what their first move is. Full conclusion upfront — no hedging, no teaser. Someone who reads only this must leave knowing exactly what to do.'
+  ),
+
   /** The one recommended path — a short, declarative statement */
   // Claude's structured output rejects min/max constraints on numbers and arrays —
   // lengths and ranges are enforced via the prompt descriptions instead.

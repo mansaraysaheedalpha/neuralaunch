@@ -100,6 +100,7 @@ RULES — you must follow these precisely:
 3. Do not hedge with words like "might", "could consider", "perhaps". Be definitive.
 4. The risks and assumptions must be honest, not reassuring.
 5. whatWouldMakeThisWrong must genuinely challenge your recommendation.
+6. summary must be 2-3 plain sentences: what the recommendation is, why it fits this person specifically, and what the first move is. It is the complete conclusion — a reader who reads only this must leave knowing exactly what to do.
 
 Produce the recommendation now.`,
     }],
