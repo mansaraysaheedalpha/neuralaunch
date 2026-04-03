@@ -1,4 +1,5 @@
 // src/lib/discovery/interview-engine.ts
+import type { AudienceType } from './constants';
 import {
   INTERVIEW_PHASES,
   InterviewPhase,
@@ -10,7 +11,7 @@ import {
   DiscoveryContextField,
   createEmptyContext,
 } from './context-schema';
-import { selectNextField } from './question-selector';
+import { detectsPsychBlocker, selectNextField } from './question-selector';
 import { canSynthesise } from './assumption-guard';
 
 // ---------------------------------------------------------------------------
@@ -18,17 +19,23 @@ import { canSynthesise } from './assumption-guard';
 // ---------------------------------------------------------------------------
 
 export interface InterviewState {
-  sessionId:        string;
-  userId:           string;
-  phase:            InterviewPhase;
-  context:          DiscoveryContext;
-  questionCount:    number;
-  questionsInPhase: number;
-  isComplete:       boolean;
+  sessionId:             string;
+  userId:                string;
+  phase:                 InterviewPhase;
+  context:               DiscoveryContext;
+  questionCount:         number;
+  questionsInPhase:      number;
+  isComplete:            boolean;
   /** The field the engine is currently asking about — null between turns */
-  activeField:      DiscoveryContextField | null;
-  createdAt:        string;
-  updatedAt:        string;
+  activeField:           DiscoveryContextField | 'psych_probe' | null;
+  /** Audience type, classified silently after 2nd exchange */
+  audienceType:          AudienceType | null;
+  /** Number of consecutive extraction misses on the current field. Resets to 0 on any successful extraction. */
+  consecutiveMisses:     number;
+  /** True once a psych probe question has been asked — ensures it fires at most once */
+  psychConstraintProbed: boolean;
+  createdAt:             string;
+  updatedAt:             string;
 }
 
 // ---------------------------------------------------------------------------
@@ -80,14 +87,17 @@ export function createInterviewState(sessionId: string, userId: string): Intervi
   return {
     sessionId,
     userId,
-    phase:            INTERVIEW_PHASES.ORIENTATION,
-    context:          createEmptyContext(),
-    questionCount:    0,
-    questionsInPhase: 0,
-    isComplete:       false,
-    activeField:      null,
-    createdAt:        now,
-    updatedAt:        now,
+    phase:                 INTERVIEW_PHASES.ORIENTATION,
+    context:               createEmptyContext(),
+    questionCount:         0,
+    questionsInPhase:      0,
+    isComplete:            false,
+    activeField:           null,
+    audienceType:          null,
+    consecutiveMisses:     0,
+    psychConstraintProbed: false,
+    createdAt:             now,
+    updatedAt:             now,
   };
 }
 
@@ -102,8 +112,8 @@ export function createInterviewState(sessionId: string, userId: string): Intervi
  * - Mark the session as ready for synthesis
  */
 export function advance(state: InterviewState): {
-  nextField:       DiscoveryContextField | null;
-  nextPhase:       InterviewPhase;
+  nextField:         DiscoveryContextField | 'psych_probe' | null;
+  nextPhase:         InterviewPhase;
   readyForSynthesis: boolean;
 } {
   // Hard ceiling — never ask more than the maximum
@@ -122,10 +132,17 @@ export function advance(state: InterviewState): {
     return { nextField: null, nextPhase: INTERVIEW_PHASES.SYNTHESIS, readyForSynthesis: true };
   }
 
-  const phaseFields   = PHASE_FIELDS[currentPhase];
-  const phaseLimit    = MAX_QUESTIONS_PER_PHASE[currentPhase];
+  // Inject psychological probe once if a motivational blocker is detected
+  if (!state.psychConstraintProbed && detectsPsychBlocker(state.context)) {
+    return { nextField: 'psych_probe', nextPhase: currentPhase, readyForSynthesis: false };
+  }
+
+  const phaseFields    = PHASE_FIELDS[currentPhase];
+  const phaseLimit     = MAX_QUESTIONS_PER_PHASE[currentPhase];
   const phaseExhausted = state.questionsInPhase >= phaseLimit;
-  const nextField     = phaseExhausted ? null : selectNextField(state.context, phaseFields);
+  const nextField      = phaseExhausted
+    ? null
+    : selectNextField(state.context, phaseFields, state.audienceType ?? undefined);
 
   if (nextField !== null) {
     return { nextField, nextPhase: currentPhase, readyForSynthesis: false };
@@ -140,7 +157,9 @@ export function advance(state: InterviewState): {
   }
 
   const nextPhaseFields = PHASE_FIELDS[nextPhase];
-  const firstField      = selectNextField(state.context, nextPhaseFields);
+  const firstField      = selectNextField(
+    state.context, nextPhaseFields, state.audienceType ?? undefined,
+  );
 
   return { nextField: firstField, nextPhase, readyForSynthesis: false };
 }
@@ -155,6 +174,7 @@ export function applyUpdate(
   phaseCrossed: boolean,
 ): InterviewState {
   const mergedContext = { ...state.context };
+  const wasPsychProbe = state.activeField === 'psych_probe';
 
   for (const key of Object.keys(updates) as DiscoveryContextField[]) {
     const incoming = updates[key];
@@ -170,21 +190,26 @@ export function applyUpdate(
     }
   }
 
+  const psychConstraintProbed = wasPsychProbe ? true : state.psychConstraintProbed;
+
   const { nextField, nextPhase, readyForSynthesis } = advance({
     ...state,
-    context:          mergedContext,
-    questionsInPhase: phaseCrossed ? 0 : state.questionsInPhase + 1,
+    context:               mergedContext,
+    questionsInPhase:      phaseCrossed ? 0 : state.questionsInPhase + 1,
+    psychConstraintProbed,
   });
 
   return {
     ...state,
-    context:          mergedContext,
-    phase:            nextPhase,
-    questionCount:    state.questionCount + 1,
-    questionsInPhase: phaseCrossed ? 1 : state.questionsInPhase + 1,
-    isComplete:       readyForSynthesis,
-    activeField:      nextField,
-    updatedAt:        new Date().toISOString(),
+    context:               mergedContext,
+    phase:                 nextPhase,
+    questionCount:         state.questionCount + 1,
+    questionsInPhase:      phaseCrossed ? 1 : state.questionsInPhase + 1,
+    isComplete:            readyForSynthesis,
+    activeField:           nextField,
+    consecutiveMisses:     0,
+    psychConstraintProbed,
+    updatedAt:             new Date().toISOString(),
   };
 }
 

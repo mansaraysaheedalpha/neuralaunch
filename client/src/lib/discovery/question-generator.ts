@@ -5,6 +5,8 @@ import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { DiscoveryContext, DiscoveryContextField } from './context-schema';
 import { InterviewPhase, MODELS } from './constants';
 
+type FieldBelief = { value: unknown; confidence: number };
+
 // ---------------------------------------------------------------------------
 // Field labels — human-readable descriptions for the prompt
 // ---------------------------------------------------------------------------
@@ -30,37 +32,66 @@ const FIELD_LABELS: Record<DiscoveryContextField, string> = {
 // Public entry point
 // ---------------------------------------------------------------------------
 
+const INTERVIEWER_SYSTEM = `You are a sharp, empathetic discovery interviewer helping someone find their right startup path.
+Your questions are short, specific, and conversational — never more than 2 sentences.
+Ask ONE question only. Never list multiple questions.
+Do not give praise, filler, or commentary. Just ask.`;
+
 /**
  * generateQuestion
  *
- * Produces a single, conversational discovery question aimed at the given field.
+ * Produces a single, conversational discovery question aimed at the given field,
+ * OR a context-derived psychological probe when field is 'psych_probe'.
  * Returns a StreamTextResult so the API route can pipe it directly to the client.
- * The stream is intentionally short: 1–3 sentences.
  *
- * @param unclear - When true, the previous answer for this field was not understood.
- *                  The prompt instructs the model to acknowledge this and ask more specifically.
+ * @param options.unclear            - Re-ask the same field more specifically (extraction miss)
+ * @param options.insufficientSignal - Ask a more focused, concrete version (terse user)
  */
 export function generateQuestion(
-  field:   DiscoveryContextField,
+  field:   DiscoveryContextField | 'psych_probe',
   phase:   InterviewPhase,
   context: DiscoveryContext,
-  unclear  = false,
+  options: { unclear?: boolean; insufficientSignal?: boolean } = {},
 ) {
+  // Psychological probe — question derived from what the user has already said
+  if (field === 'psych_probe') {
+    const relevant = (['whatTriedBefore', 'situation', 'biggestConcern'] as const)
+      .map(k => context[k])
+      .filter(f => f.value !== null && f.confidence > 0.4)
+      .map(f => (Array.isArray(f.value) ? f.value.join(', ') : String(f.value)))
+      .join('. ');
+
+    return streamText({
+      model:  aiSdkAnthropic(MODELS.INTERVIEW),
+      system: INTERVIEWER_SYSTEM,
+      messages: [{
+        role:    'user',
+        content: `Based on what this person has shared: ${relevant || 'limited context so far'}
+
+There are signs of a motivational or psychological barrier — not just a practical one.
+Ask ONE direct but kind question probing this barrier specifically.
+The question must feel like it flows naturally from their own words — personal, not clinical.
+Do not use generic examples. Derive the question from what they actually said.`,
+      }],
+    });
+  }
+
   const knownFacts = Object.entries(context)
     .filter(([, f]) => f.value !== null && f.confidence > 0.5)
     .map(([k, f]) => `  ${k}: ${JSON.stringify(f.value)}`)
     .join('\n');
 
-  const unclearPrefix = unclear
+  const unclearPrefix = options.unclear
     ? `Note: the person's previous answer about ${FIELD_LABELS[field]} wasn't clear enough to extract useful information. Gently acknowledge that you'd like to understand better, then ask a more specific question about ${FIELD_LABELS[field]}.\n\n`
+    : '';
+
+  const thinSignalPrefix = options.insufficientSignal && !options.unclear
+    ? `Note: answers have been very brief so far. Ask a more focused, concrete version of this question — give them a specific angle to respond to rather than a broad open-ended one.\n\n`
     : '';
 
   return streamText({
     model:  aiSdkAnthropic(MODELS.INTERVIEW),
-    system: `You are a sharp, empathetic discovery interviewer helping someone find their right startup path.
-Your questions are short, specific, and conversational — never more than 2 sentences.
-Ask ONE question only. Never list multiple questions.
-Do not give praise, filler, or commentary. Just ask.`,
+    system: INTERVIEWER_SYSTEM,
     messages: [{
       role:    'user',
       content: `Current interview phase: ${phase}
@@ -69,8 +100,59 @@ We need to learn about: ${FIELD_LABELS[field]}
 Context gathered so far:
 ${knownFacts || '  (nothing yet)'}
 
-${unclearPrefix}Ask one clear, direct question to learn about ${FIELD_LABELS[field]}.
+${unclearPrefix}${thinSignalPrefix}Ask one clear, direct question to learn about ${FIELD_LABELS[field]}.
 Keep it natural given what we already know about this person.`,
     }],
+  });
+}
+
+/**
+ * generateMetaResponse
+ *
+ * Streams a brief, warm answer to a meta/off-topic question the user asked
+ * mid-interview, then re-invites them to continue.
+ */
+export function generateMetaResponse(userMessage: string) {
+  return streamText({
+    model:  aiSdkAnthropic(MODELS.INTERVIEW),
+    system: `You are the NeuraLaunch discovery assistant. The user has asked a meta-question mid-interview. Answer it briefly and warmly in 1-2 sentences, then invite them to continue the interview.`,
+    messages: [{ role: 'user', content: userMessage }],
+  });
+}
+
+/**
+ * generateFrustrationResponse
+ *
+ * Streams an empathetic, human response when the user expresses resistance
+ * or frustration. Acknowledges their feeling, explains why the field matters,
+ * and gently re-asks. Never robotic.
+ */
+export function generateFrustrationResponse(
+  userMessage: string,
+  field:       DiscoveryContextField,
+) {
+  return streamText({
+    model:  aiSdkAnthropic(MODELS.INTERVIEW),
+    system: `You are the NeuraLaunch discovery assistant. The user seems frustrated or resistant. Acknowledge their feeling warmly and humanly — no platitudes or hollow phrases. In one sentence, explain why understanding ${FIELD_LABELS[field]} helps you give them a genuinely useful recommendation. Then ask the question again in a softer, more open way. Max 3 sentences total.`,
+    messages: [{ role: 'user', content: userMessage }],
+  });
+}
+
+/**
+ * generateClarificationResponse
+ *
+ * Streams a gentle clarification request when the user's latest answer
+ * contradicts a previously captured high-confidence value for the same field.
+ */
+export function generateClarificationResponse(
+  userMessage:    string,
+  field:          DiscoveryContextField,
+  currentBelief:  FieldBelief,
+) {
+  const existing = currentBelief.value != null ? JSON.stringify(currentBelief.value) : 'something';
+  return streamText({
+    model:  aiSdkAnthropic(MODELS.INTERVIEW),
+    system: `You are the NeuraLaunch discovery assistant. The user's latest answer about ${FIELD_LABELS[field]} seems to contradict what they said earlier (${existing}). Surface this gently: "Earlier you mentioned ${existing}, but now it sounds like [new thing] — just want to make sure I understand correctly. Which reflects your situation better?" Keep it to 2 sentences.`,
+    messages: [{ role: 'user', content: userMessage }],
   });
 }

@@ -20,12 +20,19 @@ export { runSynthesis } from './synthesis-engine';
 
 export { getSession, saveSession, deleteSession } from './session-store';
 
-export { extractContext } from './context-extractor';
-export { generateQuestion } from './question-generator';
+export type { ExtractionResult } from './context-extractor';
+export { extractContext, detectAudienceType } from './context-extractor';
+export {
+  generateQuestion,
+  generateMetaResponse,
+  generateFrustrationResponse,
+  generateClarificationResponse,
+} from './question-generator';
 export { teeDiscoveryStream } from './stream-tee';
 
 export {
   INTERVIEW_PHASES,
+  AUDIENCE_TYPES,
   MIN_FIELD_CONFIDENCE,
   SYNTHESIS_READINESS_RATIO,
   MAX_QUESTIONS_PER_PHASE,
@@ -34,4 +41,5 @@ export {
   SESSION_TTL_SECONDS,
   SESSION_KEY_PREFIX,
 } from './constants';
-export type { InterviewPhase } from './constants';
+export type { InterviewPhase, AudienceType } from './constants';
+export { detectsPsychBlocker } from './question-selector';
