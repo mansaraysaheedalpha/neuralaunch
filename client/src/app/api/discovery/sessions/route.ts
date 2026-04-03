@@ -9,10 +9,7 @@ import {
 import {
   createEmptyContext,
   createInterviewState,
-  generateQuestion,
   saveSession,
-  teeDiscoveryStream,
-  INTERVIEW_PHASES,
 } from '@/lib/discovery';
 
 /**
@@ -20,7 +17,8 @@ import {
  *
  * Creates a new discovery session for the authenticated user.
  * Also creates a linked Conversation so messages appear in the sidebar.
- * Streams the opening question; saves it as a Message after streaming.
+ * Does NOT stream an opening question — the interview begins when the
+ * user sends their first message to the turn endpoint.
  */
 export async function POST(req: NextRequest) {
   const authSession = await auth();
@@ -72,12 +70,7 @@ export async function POST(req: NextRequest) {
     const interviewState = createInterviewState(sessionId, userId);
     await saveSession(sessionId, interviewState);
 
-    // Stream the opening question and persist it as a Message when done
-    const stream   = generateQuestion('situation', INTERVIEW_PHASES.ORIENTATION, emptyContext);
-    const readable = teeDiscoveryStream(stream.textStream, conversationId);
-
-    const response = new NextResponse(readable);
-    response.headers.set('Content-Type', 'text/plain; charset=utf-8');
+    const response = NextResponse.json({ ok: true }, { status: 201 });
     response.headers.set('X-Session-Id', sessionId);
     response.headers.set('X-Conversation-Id', conversationId);
     return response;
