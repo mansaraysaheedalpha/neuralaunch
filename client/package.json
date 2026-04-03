@@ -42,7 +42,7 @@
     "@react-three/postprocessing": "^3.0.4",
     "@sentry/nextjs": "^10.25.0",
     "@sparticuz/chromium": "^141.0.0",
-    "@upstash/redis": "^1.35.6",
+    "@upstash/redis": "^1.37.0",
     "@upstash/vector": "^1.2.2",
     "@vercel/analytics": "^1.5.0",
     "@vercel/speed-insights": "^1.2.0",
