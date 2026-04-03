@@ -11,6 +11,7 @@ import {
   createInterviewState,
   generateQuestion,
   saveSession,
+  teeDiscoveryStream,
   INTERVIEW_PHASES,
 } from '@/lib/discovery';
 
@@ -71,32 +72,9 @@ export async function POST(req: NextRequest) {
     const interviewState = createInterviewState(sessionId, userId);
     await saveSession(sessionId, interviewState);
 
-    // Stream the opening question and collect the full text to persist
-    const stream = generateQuestion('situation', INTERVIEW_PHASES.ORIENTATION, emptyContext);
-
-    // Collect streamed text so we can save it as a Message after streaming
-    const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
-    const writer = writable.getWriter();
-    const chunks: Uint8Array[] = [];
-
-    void stream.textStream.pipeTo(
-      new WritableStream({
-        write(chunk) {
-          chunks.push(new TextEncoder().encode(chunk));
-          void writer.write(new TextEncoder().encode(chunk));
-        },
-        close() {
-          void writer.close().then(async () => {
-            const fullText = chunks.map(c => new TextDecoder().decode(c)).join('');
-            if (fullText) {
-              await prisma.message.create({
-                data: { conversationId, role: 'assistant', content: fullText },
-              }).catch(() => { /* non-fatal — message history best-effort */ });
-            }
-          });
-        },
-      }),
-    );
+    // Stream the opening question and persist it as a Message when done
+    const stream   = generateQuestion('situation', INTERVIEW_PHASES.ORIENTATION, emptyContext);
+    const readable = teeDiscoveryStream(stream.textStream, conversationId);
 
     const response = new NextResponse(readable);
     response.headers.set('Content-Type', 'text/plain; charset=utf-8');

@@ -22,6 +22,7 @@ export { getSession, saveSession, deleteSession } from './session-store';
 
 export { extractContext } from './context-extractor';
 export { generateQuestion } from './question-generator';
+export { teeDiscoveryStream } from './stream-tee';
 
 export {
   INTERVIEW_PHASES,
