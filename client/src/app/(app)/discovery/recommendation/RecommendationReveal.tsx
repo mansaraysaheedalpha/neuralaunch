@@ -2,8 +2,9 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, ArrowRight, Loader2 } from 'lucide-react';
 import { AssumptionRow } from './AssumptionRow';
 
 interface Props {
@@ -63,10 +64,24 @@ function Section({ label, delay = 0, children }: { label: string; delay?: number
  * - Inline assumption flag with live scoped response (see AssumptionRow)
  */
 export function RecommendationReveal({ recommendation: r }: Props) {
+  const router      = useRouter();
   const steps       = r.firstThreeSteps as string[];
   const risks       = r.risks as RiskRow[];
   const assumptions = r.assumptions as string[];
   const alt         = r.alternativeRejected as AltRow;
+  const [generating, setGenerating] = useState(false);
+
+  async function handleGenerateRoadmap() {
+    setGenerating(true);
+    try {
+      const res = await fetch(`/api/discovery/recommendations/${r.id}/roadmap`, { method: 'POST' });
+      if (res.ok || res.status === 409) {
+        router.push(`/discovery/roadmap/${r.id}`);
+      }
+    } finally {
+      setGenerating(false);
+    }
+  }
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -139,6 +154,29 @@ export function RecommendationReveal({ recommendation: r }: Props) {
             <p className="text-muted-foreground text-xs leading-relaxed">{alt.whyNotForThem}</p>
           </div>
         </Section>
+
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.0 }}
+          className="pt-4 border-t border-border"
+        >
+          <p className="text-xs text-muted-foreground mb-3">
+            Ready to turn this recommendation into a step-by-step execution plan?
+          </p>
+          <button
+            onClick={() => { void handleGenerateRoadmap(); }}
+            disabled={generating}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
+          >
+            {generating ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <ArrowRight className="size-4" />
+            )}
+            {generating ? 'Starting…' : 'Generate My Execution Roadmap'}
+          </button>
+        </motion.div>
 
       </div>
     </div>

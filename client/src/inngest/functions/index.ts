@@ -23,6 +23,10 @@ export { fixCriticalIssuesFunction } from "./fix-critical-issues-function";
 export { waveStartFunction } from "./wave-start-function";
 export { waveCompleteFunction } from "./wave-complete-function";
 
+// Discovery engine
+export { discoverySessionFunction } from "./discovery-session-function";
+export { roadmapGenerationFunction } from "./roadmap-generation-function";
+
 // ✅ One-time setup agents:
 export { documentationAgentFunction } from "./documentation-agent-function";
 export { optimizationAgentFunction } from "./optimization-agent-function";
