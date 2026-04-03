@@ -61,7 +61,9 @@ export function WelcomeLayer({ firstName, isVisible, onChipClick }: WelcomeLayer
 
   // Derive client-side only to avoid SSR mismatch
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setGreeting(getGreeting(firstName));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setInsight(getInsight());
   }, [firstName]);
 
