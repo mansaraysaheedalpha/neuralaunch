@@ -3,6 +3,11 @@ import 'server-only';
 import { Redis } from '@upstash/redis';
 import { env } from '@/lib/env';
 import prisma from '@/lib/prisma';
+import { SESSION_KEY_PREFIX, SESSION_TTL_SECONDS } from './constants';
+import { InterviewState } from './interview-engine';
+import { DiscoveryContextSchema, createEmptyContext } from './context-schema';
+import type { InterviewPhase } from './constants';
+import type { DiscoveryContextField } from './context-schema';
 
 // ---------------------------------------------------------------------------
 // Stream tee — pipes AI textStream to client AND persists to Conversation
@@ -46,11 +51,6 @@ export function teeDiscoveryStream(
 
   return readable;
 }
-import { SESSION_KEY_PREFIX, SESSION_TTL_SECONDS } from './constants';
-import { InterviewState } from './interview-engine';
-import { DiscoveryContextSchema, createEmptyContext } from './context-schema';
-import type { InterviewPhase } from './constants';
-import type { DiscoveryContextField } from './context-schema';
 
 // ---------------------------------------------------------------------------
 // Redis client — lazy-initialised so module can be imported in non-Redis envs
