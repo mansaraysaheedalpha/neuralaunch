@@ -33,6 +33,7 @@ export interface DiscoverySessionState {
   status:            ChatStatus;
   sessionReady:      boolean;
   isSynthesizing:    boolean;
+  synthesisError:    boolean;
   stepperVisible:    boolean;
   currentQuestion:   string;
   questionIndex:     number;
@@ -55,6 +56,7 @@ export function useDiscoverySession({ onComplete }: Options): DiscoverySessionSt
   const [status,          setStatus]          = useState<ChatStatus>('idle');
   const [sessionId,       setSessionId]       = useState<string | null>(null);
   const [isSynthesizing,  setIsSynthesizing]  = useState(false);
+  const [synthesisError,  setSynthesisError]  = useState(false);
   const [stepperVisible,  setStepperVisible]  = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState('');
   const [questionIndex,   setQuestionIndex]   = useState(0);
@@ -63,8 +65,11 @@ export function useDiscoverySession({ onComplete }: Options): DiscoverySessionSt
   const conversationIdRef   = useRef<string | null>(null);
   const calledOnCompleteRef = useRef(false);
   const abortRef            = useRef<AbortController | null>(null);
+  const pollIntervalRef     = useRef(3000);
 
-  // Session init — fires once on mount
+  // Session init — fires once on mount.
+  // Pre-creates the session silently so the stepper does NOT appear
+  // until the user sends their first message.
   useEffect(() => {
     let cancelled = false;
 
@@ -80,20 +85,10 @@ export function useDiscoverySession({ onComplete }: Options): DiscoverySessionSt
 
         sessionIdRef.current      = sid;
         conversationIdRef.current = cid;
-        setSessionId(sid);
-
-        if (!res.body) { setStatus('idle'); return; }
-
-        setStepperVisible(true);
-        setQuestionIndex(0);
-        setCurrentQuestion('');
-        setStatus('streaming');
-
-        await readTextStream(res.body, chunk => {
-          if (!cancelled) setCurrentQuestion(chunk);
-        });
-
-        if (!cancelled) setStatus('idle');
+        if (!cancelled) {
+          setSessionId(sid);
+          setStatus('idle');
+        }
       } catch (err) {
         logger.error('Discovery session init failed', err instanceof Error ? err : undefined);
         if (!cancelled) setStatus('error');
@@ -152,6 +147,8 @@ export function useDiscoverySession({ onComplete }: Options): DiscoverySessionSt
 
       if (!res.body) { setStatus('idle'); return; }
 
+      // Show stepper when the AI's question starts streaming
+      setStepperVisible(true);
       setCurrentQuestion('');
       setStatus('streaming');
       await readTextStream(res.body, chunk => { setCurrentQuestion(chunk); });
@@ -163,13 +160,31 @@ export function useDiscoverySession({ onComplete }: Options): DiscoverySessionSt
     }
   }, [messages]);
 
-  // Recommendation polling
+  // 5-minute synthesis timeout — stops polling and surfaces error to user
+  useEffect(() => {
+    if (!isSynthesizing) return;
+    pollIntervalRef.current = 3000;
+    const timer = setTimeout(() => {
+      if (!calledOnCompleteRef.current) {
+        setIsSynthesizing(false);
+        setSynthesisError(true);
+      }
+    }, 5 * 60 * 1000);
+    return () => clearTimeout(timer);
+  }, [isSynthesizing]);
+
+  // Recommendation polling — exponential backoff, capped at 30s
   const recKey = isSynthesizing && sessionId
     ? `/api/discovery/sessions/${sessionId}/recommendation`
     : null;
 
   const { data: recData } = useSWR<RecResponse>(recKey, recFetcher, {
-    refreshInterval: d => (d && 'recommendation' in d ? 0 : 3000),
+    refreshInterval: d => {
+      if (d && 'recommendation' in d) return 0;
+      const next = pollIntervalRef.current;
+      pollIntervalRef.current = Math.min(next * 2, 30000);
+      return next;
+    },
     revalidateOnFocus: false,
   });
 
@@ -186,6 +201,7 @@ export function useDiscoverySession({ onComplete }: Options): DiscoverySessionSt
     status,
     sessionReady:   !!sessionId,
     isSynthesizing,
+    synthesisError,
     stepperVisible,
     setStepperVisible,
     currentQuestion,

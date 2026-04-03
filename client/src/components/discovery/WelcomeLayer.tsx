@@ -4,23 +4,23 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 
-const INSIGHT_POOL = [
-  'Most ideas fail validation because founders validate their solution, not the problem.',
-  'A fundable idea solves a problem someone is already paying to fix — just badly.',
-  'Talking to 10 customers before building saves months of building the wrong thing.',
-  'Market sizing mistakes usually come from top-down guessing, not bottom-up counting.',
-  'Conviction is tested by what you do when the first attempt fails, not by how you feel now.',
-  'The riskiest assumption in most ideas is that people will pay — not that it can be built.',
-  'Competitors existing is a signal the market is real. No competitors usually means no market.',
-  'The best early customers are people who have already tried to solve the problem themselves.',
-  'Scope creep at the idea stage kills more startups than technical debt ever will.',
-  'Distribution is harder than the product. Most founders learn this too late.',
-  'A good MVP answers one question: will people pay for this? Everything else is extra.',
-  'The difference between a hobby and a business is whether strangers give you money.',
-  'Talking to users is not market research — it is product development.',
-  'Ideas that sound boring to outsiders often make the best businesses.',
-  'Urgency matters more than interest. People buy what they need now, not what they want someday.',
-  'The founder who ships something ugly in week 2 learns more than the one who plans for months.',
+const QUESTION_POOL = [
+  'What problem are you trying to solve, and who wakes up every day frustrated by it?',
+  'If you could not raise funding, what is the smallest version of this you could charge for next week?',
+  'Have you talked to anyone who has this problem? What did they actually tell you?',
+  'What are people doing right now to solve this problem, and why is that not enough?',
+  'Who is the one person who would pay for this before it is finished — and why them specifically?',
+  'Is the problem urgent, or just interesting? What is the difference for your target customer?',
+  'What does success look like in 90 days — not eventually, but in 90 days?',
+  'How do you know this is a real problem and not just one you personally have?',
+  'Who is your first customer — not the ideal one, the first one you would call tomorrow?',
+  'What is the riskiest assumption in your idea right now? Have you tested it?',
+  'What would make you abandon this idea? If nothing comes to mind, what does that tell you?',
+  'What does the competitive landscape tell you about whether this market is real?',
+  'If you built this and nobody paid for it, what would you have learned?',
+  'What is the one thing that, if you got it wrong, would make everything else irrelevant?',
+  'What do you want to build — and is that the same thing as what people actually need?',
+  'What existing behaviour are you trying to change, and how hard has that proven to be for others?',
 ] as const;
 
 const INTENT_CHIPS = [
@@ -44,27 +44,25 @@ function getGreeting(firstName: string): string {
   return `Good evening${name}`;
 }
 
-function getInsight(): string {
-  const idx = Math.floor(Date.now() / (1000 * 60 * 60 * 4)) % INSIGHT_POOL.length;
-  return INSIGHT_POOL[idx];
-}
-
 /**
  * WelcomeLayer
  *
  * Empty-state layer shown before the first message is sent.
+ * Displays a time-aware greeting and a randomly selected discovery
+ * question (changes on every page load) scoped to NeuraLaunch's purpose.
  * Fades out permanently once the conversation starts.
  */
 export function WelcomeLayer({ firstName, isVisible, onChipClick }: WelcomeLayerProps) {
-  const [greeting, setGreeting] = useState('');
-  const [insight,  setInsight]  = useState('');
+  const [greeting,  setGreeting]  = useState('');
+  const [question,  setQuestion]  = useState('');
 
-  // Derive client-side only to avoid SSR mismatch
+  // Derived client-side only to avoid SSR mismatch.
+  // Question randomises on every mount (page load / navigation).
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setGreeting(getGreeting(firstName));
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setInsight(getInsight());
+    setQuestion(QUESTION_POOL[Math.floor(Math.random() * QUESTION_POOL.length)]);
   }, [firstName]);
 
   return (
@@ -82,10 +80,13 @@ export function WelcomeLayer({ firstName, isVisible, onChipClick }: WelcomeLayer
             {greeting}
           </h2>
 
-          {/* Rotating insight block */}
-          <div className="max-w-md w-full rounded-xl bg-muted/50 px-5 py-4">
-            <p className="text-sm text-muted-foreground leading-relaxed text-center">
-              {insight}
+          {/* Rotating discovery question */}
+          <div className="max-w-md w-full rounded-xl bg-muted/50 px-5 py-4 space-y-2">
+            <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest text-center">
+              Think about this
+            </p>
+            <p className="text-sm text-foreground/80 leading-relaxed text-center">
+              {question}
             </p>
           </div>
 
