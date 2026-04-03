@@ -1,7 +1,7 @@
 // src/components/discovery/DiscoveryChat.tsx
 'use client';
 
-import { useState, useRef, useCallback, type FormEvent } from 'react';
+import { useState, useRef, useCallback, useEffect, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import TextareaAutosize from 'react-textarea-autosize';
 import { SendHorizontal } from 'lucide-react';
@@ -46,10 +46,11 @@ export function DiscoveryChat({ firstName, onComplete }: DiscoveryChatProps) {
   const canSubmit = sessionReady && !isSynthesizing && input.trim().length > 0
     && status !== 'loading' && status !== 'streaming';
 
-  const handleChipClick = useCallback((text: string) => {
-    setInput(text);
-    mainInputRef.current?.focus();
-  }, []);
+  // Focus the input as soon as the session is ready (disabled→enabled transition
+  // means autoFocus fires too early, before the input is interactive).
+  useEffect(() => {
+    if (sessionReady && !hasStarted) mainInputRef.current?.focus();
+  }, [sessionReady, hasStarted]);
 
   const handleSend = useCallback((content: string) => {
     setHasStarted(true);
@@ -72,7 +73,6 @@ export function DiscoveryChat({ firstName, onComplete }: DiscoveryChatProps) {
       onChange={e => setInput(e.target.value)}
       disabled={!sessionReady || isSynthesizing}
       placeholder="Share your thoughts…"
-      autoFocus={!hasStarted}
       maxRows={5}
       className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none py-2"
       onKeyDown={e => {
@@ -108,7 +108,6 @@ export function DiscoveryChat({ firstName, onComplete }: DiscoveryChatProps) {
           <WelcomeLayer
             firstName={firstName}
             isVisible
-            onChipClick={handleChipClick}
           />
           <form
             onSubmit={handleSubmit}

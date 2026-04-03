@@ -56,17 +56,9 @@ const QUESTION_POOL = [
   'What part of the problem are you solving because it is important versus because it is easy to build?',
 ] as const;
 
-const INTENT_CHIPS = [
-  'Validate an idea',
-  'Refine my concept',
-  'Research competitors',
-  'Scope my MVP',
-] as const;
-
 interface WelcomeLayerProps {
-  firstName:    string;
-  isVisible:    boolean;
-  onChipClick:  (text: string) => void;
+  firstName: string;
+  isVisible: boolean;
 }
 
 function getGreeting(firstName: string): string {
@@ -85,9 +77,9 @@ function getGreeting(firstName: string): string {
  * question (changes on every page load) scoped to NeuraLaunch's purpose.
  * Fades out permanently once the conversation starts.
  */
-export function WelcomeLayer({ firstName, isVisible, onChipClick }: WelcomeLayerProps) {
-  const [greeting,  setGreeting]  = useState('');
-  const [question,  setQuestion]  = useState('');
+export function WelcomeLayer({ firstName, isVisible }: WelcomeLayerProps) {
+  const [greeting, setGreeting] = useState('');
+  const [question, setQuestion] = useState('');
 
   // Derived client-side only to avoid SSR mismatch.
   // Question randomises on every mount (page load / navigation).
@@ -108,12 +100,10 @@ export function WelcomeLayer({ firstName, isVisible, onChipClick }: WelcomeLayer
           transition={{ duration: 0.2, ease: 'easeIn' }}
           className="flex flex-col items-center gap-6 w-full select-none"
         >
-          {/* Greeting */}
           <h2 className="text-3xl font-semibold text-foreground tracking-tight text-center">
             {greeting}
           </h2>
 
-          {/* Rotating discovery question */}
           <div className="max-w-md w-full rounded-xl bg-muted/50 px-5 py-4 space-y-2">
             <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest text-center">
               Think about this
@@ -121,20 +111,6 @@ export function WelcomeLayer({ firstName, isVisible, onChipClick }: WelcomeLayer
             <p className="text-sm text-foreground/80 leading-relaxed text-center">
               {question}
             </p>
-          </div>
-
-          {/* Intent chips — single row */}
-          <div className="flex flex-nowrap justify-center gap-2">
-            {INTENT_CHIPS.map(chip => (
-              <button
-                key={chip}
-                type="button"
-                onClick={() => onChipClick(chip)}
-                className="rounded-full border border-border px-4 py-1.5 text-sm text-muted-foreground hover:border-primary hover:text-primary transition-colors duration-150"
-              >
-                {chip}
-              </button>
-            ))}
           </div>
         </motion.div>
       )}
