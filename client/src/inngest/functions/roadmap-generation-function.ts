@@ -25,7 +25,8 @@ export const roadmapGenerationFunction = inngest.createFunction(
     timeouts: { start: '5m' },
     triggers: [{ event: ROADMAP_EVENT }],
     onFailure: async ({ event }) => {
-      const { recommendationId } = event.data as { recommendationId: string; userId: string };
+      // onFailure receives a wrapper event; original data is at event.data.event.data
+      const { recommendationId } = event.data.event.data as { recommendationId: string; userId: string };
       await prisma.roadmap.updateMany({
         where: { recommendationId, status: 'GENERATING' },
         data:  { status: 'FAILED' },
