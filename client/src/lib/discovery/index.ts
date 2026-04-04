@@ -26,6 +26,7 @@ export type { ExtractionResult } from './context-extractor';
 export { extractContext, detectAudienceType } from './context-extractor';
 export {
   generateQuestion,
+  generateReflection,
   generateMetaResponse,
   generateFrustrationResponse,
   generateClarificationResponse,
