@@ -95,6 +95,7 @@ export function generateQuestion(
   options:      { unclear?: boolean; insufficientSignal?: boolean } = {},
   audienceType?: AudienceType,
   conversationHistory?: string,
+  askedFields?:  DiscoveryContextField[],
 ) {
   const system        = buildSystem(audienceType);
   const priorMessages = conversationHistory ? parseHistory(conversationHistory) : [];
@@ -138,12 +139,18 @@ Do not use generic examples. Derive the question from what they actually said.`,
     ? `Note: answers have been very brief so far. Ask a more focused, concrete version of this question — give them a specific angle to respond to rather than a broad open-ended one.\n\n`
     : '';
 
-  // Enumerate every dimension already established — both from the extracted belief state
-  // and low-confidence partial answers — so the audit prompt has a complete picture.
-  const coveredDimensions = Object.entries(context)
-    .filter(([, f]) => f.value !== null && f.confidence > 0.3)
-    .map(([k]) => FIELD_LABELS[k as DiscoveryContextField])
-    .join(', ');
+  // Build the deterministic "already asked" list from two sources:
+  // 1. askedFields — every field the engine has generated a question for (tracked server-side, never inferred)
+  // 2. Extracted belief state — fields with sufficient confidence, whether or not a direct question was asked
+  // These are combined and deduplicated so the audit is always complete.
+  const askedLabels = [
+    ...new Set([
+      ...(askedFields ?? []).map(k => FIELD_LABELS[k]),
+      ...Object.entries(context)
+        .filter(([, f]) => f.value !== null && f.confidence > 0.3)
+        .map(([k]) => FIELD_LABELS[k as DiscoveryContextField]),
+    ]),
+  ].join(', ');
 
   return streamText({
     model:  aiSdkAnthropic(MODELS.INTERVIEW),
@@ -158,13 +165,13 @@ We need to learn about: ${FIELD_LABELS[field]}
 Context gathered so far:
 ${knownFacts || '  (nothing yet)'}
 
-${unclearPrefix}${thinSignalPrefix}MANDATORY AUDIT — complete this before writing the question:
-Step 1 — Dimensions already answered: ${coveredDimensions || 'none yet'}.
-Step 2 — Read every exchange in the conversation history above. List any topic the person addressed, even partially, that is not in Step 1.
-Step 3 — Confirm that ${FIELD_LABELS[field]} was NOT addressed in Step 1 or Step 2. If it was, you must not ask about it — ask the system to move on instead.
-Step 4 — Write a single question that targets ONLY ${FIELD_LABELS[field]} and touches nothing from Step 1 or Step 2.
+${unclearPrefix}${thinSignalPrefix}ALREADY COVERED — do not ask about any of these again:
+${askedLabels || 'nothing yet'}
 
-Output only the question. No preamble, no audit visible in the response.`,
+These dimensions were either directly asked or established through the conversation. They are closed. Do not return to them even indirectly.
+
+Ask one clear, direct question to learn about ${FIELD_LABELS[field]}.
+Keep it natural given what we already know about this person.`,
       },
     ],
   });

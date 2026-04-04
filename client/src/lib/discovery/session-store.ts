@@ -110,6 +110,7 @@ export async function getSession(sessionId: string): Promise<InterviewState | nu
       consecutiveMisses:     raw.consecutiveMisses     ?? 0,
       audienceType:          raw.audienceType          ?? null,
       psychConstraintProbed: raw.psychConstraintProbed ?? false,
+      askedFields:           raw.askedFields           ?? [],
     };
   } catch {
     // Redis unavailable — reconstruct state from Prisma as fallback
@@ -146,6 +147,7 @@ export async function getSession(sessionId: string): Promise<InterviewState | nu
       audienceType:          null,
       consecutiveMisses:     0, // transient — always 0 when reconstructing from Prisma
       psychConstraintProbed: false,
+      askedFields:           [], // transient — not persisted to Prisma
       createdAt:         record.createdAt.toISOString(),
       updatedAt:         record.updatedAt.toISOString(),
     };

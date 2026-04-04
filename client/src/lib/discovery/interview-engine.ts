@@ -33,6 +33,8 @@ export interface InterviewState {
   consecutiveMisses:     number;
   /** True once a psych probe question has been asked — ensures it fires at most once */
   psychConstraintProbed: boolean;
+  /** Every field the engine has generated a question for — deterministic repeat-prevention */
+  askedFields:           DiscoveryContextField[];
   createdAt:             string;
   updatedAt:             string;
 }
@@ -95,6 +97,7 @@ export function createInterviewState(sessionId: string, userId: string): Intervi
     audienceType:          null,
     consecutiveMisses:     0,
     psychConstraintProbed: false,
+    askedFields:           [],
     createdAt:             now,
     updatedAt:             now,
   };
@@ -189,6 +192,14 @@ export function applyUpdate(
 
   const psychConstraintProbed = wasPsychProbe ? true : state.psychConstraintProbed;
 
+  // Record every real field the engine has asked about — deterministic, never inferred.
+  // psych_probe is excluded: it doesn't correspond to a DiscoveryContextField.
+  const askedFields: DiscoveryContextField[] = wasPsychProbe
+    ? state.askedFields
+    : state.activeField && !state.askedFields.includes(state.activeField as DiscoveryContextField)
+      ? [...state.askedFields, state.activeField as DiscoveryContextField]
+      : state.askedFields;
+
   const { nextField, nextPhase, readyForSynthesis } = advance({
     ...state,
     context:               mergedContext,
@@ -209,6 +220,7 @@ export function applyUpdate(
     activeField:           nextField,
     consecutiveMisses:     0,
     psychConstraintProbed,
+    askedFields,
     updatedAt:             new Date().toISOString(),
   };
 }
