@@ -828,6 +828,7 @@ model DiscoverySession {
   questionCount    Int                    @default(0)
   questionsInPhase Int                    @default(0)
   activeField      String?
+  audienceType     String?
 
   // The belief state is the DiscoveryContext — serialised as JSON.
   // Typed accessors in src/lib/discovery/context-schema.ts are the only

@@ -24,6 +24,13 @@ export const roadmapGenerationFunction = inngest.createFunction(
     retries:  2,
     timeouts: { start: '5m' },
     triggers: [{ event: ROADMAP_EVENT }],
+    onFailure: async ({ event }) => {
+      const { recommendationId } = event.data as { recommendationId: string; userId: string };
+      await prisma.roadmap.updateMany({
+        where: { recommendationId, status: 'GENERATING' },
+        data:  { status: 'FAILED' },
+      });
+    },
   },
   async ({ event, step }) => {
     const { recommendationId, userId } = event.data as {
@@ -60,7 +67,7 @@ export const roadmapGenerationFunction = inngest.createFunction(
             session: {
               select: {
                 beliefState:  true,
-                activeField:  true,
+                audienceType: true,
               },
             },
           },
@@ -69,9 +76,11 @@ export const roadmapGenerationFunction = inngest.createFunction(
         if (!rec) throw new Error(`Recommendation ${recommendationId} not found`);
         if (rec.userId !== userId) throw new Error('Recommendation ownership mismatch');
 
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         const parsed      = DiscoveryContextSchema.safeParse(rec.session.beliefState);
         const ctx         = parsed.success ? parsed.data : createEmptyContext();
-        const audType     = (rec.session.activeField ?? null) as AudienceType | null;
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        const audType     = (rec.session.audienceType ?? null) as AudienceType | null;
 
         return {
           recommendation: rec as unknown as Recommendation,

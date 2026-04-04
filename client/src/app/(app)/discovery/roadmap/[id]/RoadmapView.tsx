@@ -94,9 +94,14 @@ export function RoadmapView({ recommendationId }: { recommendationId: string }) 
   const [failed, setFailed]  = useState(false);
 
   useEffect(() => {
-    let timeout: ReturnType<typeof setTimeout>;
+    let pollTimeout:    ReturnType<typeof setTimeout>;
+    const deadline =    Date.now() + 3 * 60 * 1000; // 3-minute hard stop
+    let cancelled  =    false;
 
     async function poll() {
+      if (cancelled) return;
+      if (Date.now() >= deadline) { setFailed(true); setLoading(false); return; }
+
       try {
         const res = await fetch(`/api/discovery/recommendations/${recommendationId}/roadmap`);
         if (!res.ok) { setFailed(true); setLoading(false); return; }
@@ -104,11 +109,12 @@ export function RoadmapView({ recommendationId }: { recommendationId: string }) 
         const json = await res.json() as PollResponse;
 
         if (json.status === 'not_started' || json.status === 'GENERATING') {
-          timeout = setTimeout(() => { void poll(); }, 3000);
+          pollTimeout = setTimeout(() => { void poll(); }, 3000);
         } else if (json.status === 'READY') {
           setData(json);
           setLoading(false);
         } else {
+          // FAILED or unknown
           setFailed(true);
           setLoading(false);
         }
@@ -119,7 +125,7 @@ export function RoadmapView({ recommendationId }: { recommendationId: string }) 
     }
 
     void poll();
-    return () => clearTimeout(timeout);
+    return () => { cancelled = true; clearTimeout(pollTimeout); };
   }, [recommendationId]);
 
   if (loading) {

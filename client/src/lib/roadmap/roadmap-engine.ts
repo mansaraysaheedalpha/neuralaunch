@@ -14,8 +14,7 @@ import { logger } from '@/lib/logger';
 // ---------------------------------------------------------------------------
 
 function resolveWeeklyHours(context: DiscoveryContext): number {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-  const availableTimeValue = context.availableTime?.value as string | null | undefined;
+  const availableTimeValue = context.availableTimePerWeek?.value as string | null | undefined;
   const raw = availableTimeValue ?? undefined;
   if (!raw) return 10; // default: 1-2 hours/day
 
@@ -66,27 +65,22 @@ export async function generateRoadmap(
   const weeklyHours  = resolveWeeklyHours(context);
   const audienceRule = audienceType ? AUDIENCE_ROADMAP_RULES[audienceType] : '';
 
-  // Cross-module Zod inference: ESLint's TS service does not resolve
-  // beliefField<T>.value through the @/ alias the same way tsc does.
-  // tsc compiles clean; these suppressions cover only that tool gap.
-  /* eslint-disable @typescript-eslint/no-unsafe-member-access */
-  const availableTime    = context.availableTime?.value    as string | undefined;
-  const financialRunway  = context.financialRunway?.value  as string | undefined;
-  const technicalAbility = context.technicalAbility?.value as string | undefined;
-  const teamSize         = context.teamSize?.value         as string | undefined;
-  const market           = context.geographicMarket?.value as string | undefined;
-  const devotionLevel    = context.devotionLevel?.value    as string | undefined;
-  const financialGoal    = context.financialGoal?.value    as string | undefined;
-  /* eslint-enable @typescript-eslint/no-unsafe-member-access */
+  const availableTime    = context.availableTimePerWeek?.value as string | undefined;
+  const budget           = context.availableBudget?.value      as string | undefined;
+  const technicalAbility = context.technicalAbility?.value     as string | undefined;
+  const teamSize         = context.teamSize?.value             as string | undefined;
+  const market           = context.geographicMarket?.value     as string | undefined;
+  const commitment       = context.commitmentLevel?.value      as string | undefined;
+  const primaryGoal      = context.primaryGoal?.value          as string | undefined;
 
   const contextSummary = [
     availableTime    && `Available time: ${availableTime}`,
-    financialRunway  && `Financial runway: ${financialRunway}`,
+    budget           && `Available budget: ${budget}`,
     technicalAbility && `Technical ability: ${technicalAbility}`,
     teamSize         && `Team: ${teamSize}`,
     market           && `Market: ${market}`,
-    devotionLevel    && `Commitment level: ${devotionLevel}`,
-    financialGoal    && `Financial goal: ${financialGoal}`,
+    commitment       && `Commitment level: ${commitment}`,
+    primaryGoal      && `Primary goal: ${primaryGoal}`,
   ].filter(Boolean).join('\n');
 
   const firstStepsBlock = recommendation.firstThreeSteps

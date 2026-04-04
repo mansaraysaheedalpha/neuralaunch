@@ -118,6 +118,7 @@ export async function POST(
         questionCount:    nextState.questionCount,
         questionsInPhase: nextState.questionsInPhase,
         activeField:      nextState.activeField ?? null,
+        audienceType:     nextState.audienceType ?? null,
       },
       select: { id: true },
     });

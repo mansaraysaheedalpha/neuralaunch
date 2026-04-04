@@ -81,8 +81,8 @@ export const discoverySessionFunction = inngest.createFunction(
     });
 
     // Step 6: Persist the recommendation to the database
-    await step.run('persist-recommendation', async () => {
-      await prisma.recommendation.create({
+    const { recommendationId } = await step.run('persist-recommendation', async () => {
+      const rec = await prisma.recommendation.create({
         data: {
           userId,
           sessionId,
@@ -96,11 +96,21 @@ export const discoverySessionFunction = inngest.createFunction(
           whatWouldMakeThisWrong: recommendation.whatWouldMakeThisWrong,
           alternativeRejected:    recommendation.alternativeRejected,
         },
+        select: { id: true },
       });
       log.debug('Recommendation persisted', { sessionId });
+      return { recommendationId: rec.id };
     });
 
-    // Step 7: Clean up Redis — session state is now in DB
+    // Step 7: Warm up roadmap generation immediately — it runs in the background
+    // while the user reads their recommendation, so it may be ready when they click.
+    // step.sendEvent is idempotent — safe to retry without duplicate events.
+    await step.sendEvent('trigger-roadmap-generation', {
+      name: 'discovery/roadmap.requested',
+      data: { recommendationId, userId },
+    });
+
+    // Step 8: Clean up Redis — session state is now in DB
     await step.run('cleanup-redis-session', async () => {
       await deleteSession(sessionId);
     });
