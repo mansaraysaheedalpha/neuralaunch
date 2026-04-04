@@ -139,18 +139,11 @@ Do not use generic examples. Derive the question from what they actually said.`,
     ? `Note: answers have been very brief so far. Ask a more focused, concrete version of this question — give them a specific angle to respond to rather than a broad open-ended one.\n\n`
     : '';
 
-  // Build the deterministic "already asked" list from two sources:
-  // 1. askedFields — every field the engine has generated a question for (tracked server-side, never inferred)
-  // 2. Extracted belief state — fields with sufficient confidence, whether or not a direct question was asked
-  // These are combined and deduplicated so the audit is always complete.
-  const askedLabels = [
-    ...new Set([
-      ...(askedFields ?? []).map(k => FIELD_LABELS[k]),
-      ...Object.entries(context)
-        .filter(([, f]) => f.value !== null && f.confidence > 0.3)
-        .map(([k]) => FIELD_LABELS[k as DiscoveryContextField]),
-    ]),
-  ].join(', ');
+  // Deterministic closed-field list — only fields the engine has explicitly asked about.
+  // Intentionally excludes the belief state confidence overlay: fields below MIN_FIELD_CONFIDENCE
+  // will be re-scheduled by selectNextField, so listing them as closed would contradict the
+  // engine's own field selection. askedFields and selectNextField are the single source of truth.
+  const askedLabels = (askedFields ?? []).map(k => FIELD_LABELS[k]).join(', ');
 
   return streamText({
     model:  aiSdkAnthropic(MODELS.INTERVIEW),
