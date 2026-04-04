@@ -33,6 +33,8 @@ export interface InterviewState {
   consecutiveMisses:     number;
   /** True once a psych probe question has been asked — ensures it fires at most once */
   psychConstraintProbed: boolean;
+  /** True once a pricing-history follow-up has been asked — ensures it fires at most once */
+  pricingProbed:         boolean;
   /** Every field the engine has generated a question for — deterministic repeat-prevention */
   askedFields:           DiscoveryContextField[];
   createdAt:             string;
@@ -97,6 +99,7 @@ export function createInterviewState(sessionId: string, userId: string): Intervi
     audienceType:          null,
     consecutiveMisses:     0,
     psychConstraintProbed: false,
+    pricingProbed:         false,
     askedFields:           [],
     createdAt:             now,
     updatedAt:             now,

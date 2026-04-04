@@ -120,6 +120,36 @@ export function selectNextField(
 }
 
 // ---------------------------------------------------------------------------
+// Pricing change detection
+// ---------------------------------------------------------------------------
+
+const PRICING_CHANGE_PATTERNS = [
+  // Price level changes: "I lowered/raised/dropped/reduced/increased my prices/rates/fees"
+  /\b(lowered|raised|dropped|cut|reduced|increased|halved)\b.{0,40}\b(price|prices|rate|rates|fee|fees|charge|charges)\b/i,
+  // "I changed / adjusted what I charge"
+  /\b(changed|adjusted|tweaked)\b.{0,30}\b(pric|rate|fee|what.{0,10}charg)/i,
+  // Experimented with pricing
+  /\btried.{0,30}\b(different.{0,15}price|pric|charg|rate)/i,
+  // Promotion / discount experiments (time-bound)
+  /\b(ran|offered|did|tried)\b.{0,20}\b(discount|promotion|promo|sale|deal)\b/i,
+  // Model switch: "switched from hourly to fixed", "moved to a retainer"
+  /\bswitched?.{0,30}\b(hourly|monthly|fixed|per.session|retainer|subscription|flat.rate)\b/i,
+  // "started charging" — implies a shift from prior state
+  /\b(started|began)\b.{0,20}\bcharging\b/i,
+];
+
+/**
+ * detectsPricingChange
+ *
+ * Returns true when a user message signals a historical pricing experiment:
+ * a past price change, model switch, promotion, or discount trial.
+ * Does NOT trigger on simple statements of current price ("I charge $30/month").
+ */
+export function detectsPricingChange(message: string): boolean {
+  return PRICING_CHANGE_PATTERNS.some(p => p.test(message));
+}
+
+// ---------------------------------------------------------------------------
 // Psychological blocker detection
 // ---------------------------------------------------------------------------
 

@@ -27,10 +27,13 @@ export { extractContext, detectAudienceType } from './context-extractor';
 export {
   generateQuestion,
   generateReflection,
+} from './question-generator';
+export {
   generateMetaResponse,
   generateFrustrationResponse,
   generateClarificationResponse,
-} from './question-generator';
+  generatePricingFollowUp,
+} from './response-generator';
 
 export {
   INTERVIEW_PHASES,
@@ -44,4 +47,4 @@ export {
   SESSION_KEY_PREFIX,
 } from './constants';
 export type { InterviewPhase, AudienceType } from './constants';
-export { detectsPsychBlocker } from './question-selector';
+export { detectsPsychBlocker, detectsPricingChange } from './question-selector';

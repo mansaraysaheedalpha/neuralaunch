@@ -12,6 +12,7 @@ import {
   getSession, saveSession, extractContext, applyUpdate, generateQuestion, generateReflection,
   canSynthesise, teeDiscoveryStream, detectAudienceType, computeOverallCompleteness,
   generateMetaResponse, generateFrustrationResponse, generateClarificationResponse,
+  generatePricingFollowUp, detectsPricingChange,
 } from '@/lib/discovery';
 
 const TurnRequestSchema = z.object({
@@ -135,6 +136,13 @@ export async function POST(
     const nextField = nextState.activeField;
     if (!nextField) {
       return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
+    }
+
+    // Pricing-change interstitial — fires once, immediately, in the same turn the signal appears.
+    // Saves pricingProbed: true to Redis so it cannot repeat on a later turn.
+    if (detectsPricingChange(message) && !state.pricingProbed) {
+      await saveSession(sessionId, { ...nextState, pricingProbed: true });
+      return buildStreamResponse(generatePricingFollowUp(message, history, nextState.audienceType ?? undefined).textStream, conversationId, nextState.phase, nextState.questionCount);
     }
 
     const insufficientSignal = nextState.questionCount >= 6 && computeOverallCompleteness(nextState.context) < 0.35;

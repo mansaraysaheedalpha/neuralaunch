@@ -6,14 +6,14 @@ import { DiscoveryContext, DiscoveryContextField } from './context-schema';
 import type { AudienceType } from './constants';
 import { InterviewPhase, MODELS } from './constants';
 
-type FieldBelief = { value: unknown; confidence: number };
 type HistoryMessage = { role: 'user' | 'assistant'; content: string };
 
 // ---------------------------------------------------------------------------
 // History parser — converts flat "role: content\n" string to message array
+// Exported for use by response-generator.ts (internal sibling module only)
 // ---------------------------------------------------------------------------
 
-function parseHistory(raw: string): HistoryMessage[] {
+export function parseHistory(raw: string): HistoryMessage[] {
   if (!raw.trim()) return [];
   return raw.trim().split('\n')
     .map(line => {
@@ -32,7 +32,8 @@ function parseHistory(raw: string): HistoryMessage[] {
 // Field labels — human-readable descriptions for the prompt
 // ---------------------------------------------------------------------------
 
-const FIELD_LABELS: Record<DiscoveryContextField, string> = {
+// Exported for use by response-generator.ts (internal sibling module only)
+export const FIELD_LABELS: Record<DiscoveryContextField, string> = {
   situation:            'their current situation',
   background:           'their relevant experience and skills',
   whatTriedBefore:      'what they have already attempted',
@@ -69,7 +70,8 @@ const AUDIENCE_CONTEXT: Record<AudienceType, string> = {
     'You are talking to someone currently employed who is considering a transition or side project. Time and risk tolerance are their primary constraints. Frame questions around what they can realistically do given employment constraints, and what the decision is actually costing them by waiting.',
 };
 
-function buildSystem(audienceType?: AudienceType): string {
+// Exported for use by response-generator.ts (internal sibling module only)
+export function buildSystem(audienceType?: AudienceType): string {
   const base = `You are a sharp, empathetic discovery interviewer helping someone find their right startup path.
 Your questions are short, specific, and conversational — never more than 2 sentences.
 Ask ONE question only. Never list multiple questions.
@@ -213,72 +215,3 @@ Write the reflection. Rules:
   });
 }
 
-/**
- * generateMetaResponse
- *
- * Streams a brief, warm answer to a meta/off-topic question the user asked
- * mid-interview, then re-invites them to continue.
- */
-export function generateMetaResponse(
-  userMessage:         string,
-  phase:               string,
-  questionCount:       number,
-  conversationHistory?: string,
-) {
-  const priorMessages = conversationHistory ? parseHistory(conversationHistory) : [];
-  return streamText({
-    model:  aiSdkAnthropic(MODELS.INTERVIEW),
-    system: `You are the NeuraLaunch discovery assistant conducting a startup discovery interview. You are currently in the ${phase} phase, question ${questionCount} of this session. The user has asked a meta-question. Answer it briefly and warmly in 1-2 sentences, then re-invite them to continue — referencing where you left off. Do NOT introduce yourself or start fresh. You are mid-interview.`,
-    messages: [
-      ...priorMessages,
-      { role: 'user', content: userMessage },
-    ],
-  });
-}
-
-/**
- * generateFrustrationResponse
- *
- * Streams an empathetic, human response when the user expresses resistance
- * or frustration. Acknowledges their feeling, explains why the field matters,
- * and gently re-asks. Never robotic.
- */
-export function generateFrustrationResponse(
-  userMessage:          string,
-  field:                DiscoveryContextField,
-  conversationHistory?: string,
-) {
-  const priorMessages = conversationHistory ? parseHistory(conversationHistory) : [];
-  return streamText({
-    model:  aiSdkAnthropic(MODELS.INTERVIEW),
-    system: `You are the NeuraLaunch discovery assistant. The user seems frustrated or resistant. Acknowledge their feeling warmly and humanly — no platitudes or hollow phrases. In one sentence, explain why understanding ${FIELD_LABELS[field]} helps you give them a genuinely useful recommendation. Then ask the question again in a softer, more open way. Max 3 sentences total.`,
-    messages: [
-      ...priorMessages,
-      { role: 'user', content: userMessage },
-    ],
-  });
-}
-
-/**
- * generateClarificationResponse
- *
- * Streams a gentle clarification request when the user's latest answer
- * contradicts a previously captured high-confidence value for the same field.
- */
-export function generateClarificationResponse(
-  userMessage:          string,
-  field:                DiscoveryContextField,
-  currentBelief:        FieldBelief,
-  conversationHistory?: string,
-) {
-  const existing      = currentBelief.value != null ? JSON.stringify(currentBelief.value) : 'something';
-  const priorMessages = conversationHistory ? parseHistory(conversationHistory) : [];
-  return streamText({
-    model:  aiSdkAnthropic(MODELS.INTERVIEW),
-    system: `You are the NeuraLaunch discovery assistant. The user's latest answer about ${FIELD_LABELS[field]} seems to contradict what they said earlier (${existing}). Surface this gently: "Earlier you mentioned ${existing}, but now it sounds like [new thing] — just want to make sure I understand correctly. Which reflects your situation better?" Keep it to 2 sentences.`,
-    messages: [
-      ...priorMessages,
-      { role: 'user', content: userMessage },
-    ],
-  });
-}
