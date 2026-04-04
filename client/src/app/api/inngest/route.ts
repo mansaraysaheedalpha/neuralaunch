@@ -28,14 +28,16 @@ import {
 } from "@/inngest/functions/monitoring-agent-function";
 import { optimizationAgentFunction } from "@/inngest/functions/optimization-agent-function";
 import { cleanupStuckTasks } from "@/inngest/functions/cleanup-stuck-tasks";
-// Phase 1 — Discovery Engine
+// Discovery Engine (Phase 1 + Phase 2)
 import { discoverySessionFunction } from "@/inngest/functions/discovery-session-function";
+import { roadmapGenerationFunction } from "@/inngest/functions/roadmap-generation-function";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [
-    // Phase 1 — Discovery Engine
+    // Discovery Engine (Phase 1 + Phase 2)
     discoverySessionFunction,
+    roadmapGenerationFunction,
 
     // ✅ Orchestrator functions
     orchestratorRunFunction,

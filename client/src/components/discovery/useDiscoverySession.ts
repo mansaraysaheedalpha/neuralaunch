@@ -4,7 +4,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import useSWR from 'swr';
 import { logger } from '@/lib/logger';
-import type { Recommendation, InterviewPhase } from '@/lib/discovery/client';
+import type { Recommendation } from '@/lib/discovery/client';
 import type { ChatMessage } from './MessageList';
 
 type ChatStatus  = 'idle' | 'loading' | 'streaming' | 'error';
@@ -66,6 +66,9 @@ export function useDiscoverySession({ onComplete }: Options): DiscoverySessionSt
   const calledOnCompleteRef = useRef(false);
   const abortRef            = useRef<AbortController | null>(null);
   const pollIntervalRef     = useRef(3000);
+  // Full bidirectional history — user answers + AI questions. Separate from
+  // `messages` display state so the chat UI is not affected.
+  const historyRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
 
   // Session is created lazily on the user's first message — not on mount.
   // This prevents a sidebar entry being created every time /discovery is loaded.
@@ -104,10 +107,13 @@ export function useDiscoverySession({ onComplete }: Options): DiscoverySessionSt
     setMessages(prev => [...prev, userMsg]);
     abortRef.current = new AbortController();
 
-    const history = messages
+    // Capture history BEFORE adding the current message, then append it.
+    // This gives the server the full prior conversation without the current turn.
+    const history = historyRef.current
       .map(m => `${m.role}: ${m.content}`)
       .join('\n')
       .slice(0, 7500);
+    historyRef.current = [...historyRef.current, { role: 'user', content: userContent }];
 
     try {
       const res = await fetch(`/api/discovery/sessions/${sid}/turn`, {
@@ -131,30 +137,45 @@ export function useDiscoverySession({ onComplete }: Options): DiscoverySessionSt
         return;
       }
 
-      const nextPhase = res.headers.get('X-Phase') as InterviewPhase | null;
-      const nextCount = res.headers.get('X-Question-Count');
+      const nextCount             = res.headers.get('X-Question-Count');
+      const isSynthesisTransition = res.headers.get('X-Synthesis-Transition') === 'true';
       if (nextCount) setQuestionIndex(Number(nextCount));
-      if (nextPhase === 'SYNTHESIS') {
-        setStepperVisible(false);
-        setIsSynthesizing(true);
-        setStatus('idle');
-        return;
-      }
 
       if (!res.body) { setStatus('idle'); return; }
 
-      // Show stepper when the AI's question starts streaming
-      setStepperVisible(true);
-      setCurrentQuestion('');
       setStatus('streaming');
-      await readTextStream(res.body, chunk => { setCurrentQuestion(chunk); });
+      let finalContent = '';
+
+      if (isSynthesisTransition) {
+        // Reflection — stream directly into message list, not the stepper.
+        // Synthesis is already running in Inngest; this gives the user a moment
+        // to feel heard before the ThinkingPanel appears.
+        const reflectionId = crypto.randomUUID();
+        setMessages(prev => [...prev, { id: reflectionId, role: 'assistant', content: '' }]);
+        await readTextStream(res.body, chunk => {
+          finalContent = chunk;
+          setMessages(prev => prev.map(m => m.id === reflectionId ? { ...m, content: chunk } : m));
+        });
+        setIsSynthesizing(true);
+      } else {
+        // Normal next question — show in stepper, add to history
+        setStepperVisible(true);
+        setCurrentQuestion('');
+        await readTextStream(res.body, chunk => {
+          setCurrentQuestion(chunk);
+          finalContent = chunk;
+        });
+        if (finalContent) {
+          historyRef.current = [...historyRef.current, { role: 'assistant', content: finalContent }];
+        }
+      }
       setStatus('idle');
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       logger.error('Discovery turn failed', err instanceof Error ? err : undefined);
       setStatus('error');
     }
-  }, [messages]);
+  }, []);
 
   // 5-minute synthesis timeout — stops polling and surfaces error to user
   useEffect(() => {
