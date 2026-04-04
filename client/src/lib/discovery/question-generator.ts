@@ -160,6 +160,49 @@ IMPORTANT: Do not ask about any topic the person has already answered in the con
 }
 
 /**
+ * generateReflection
+ *
+ * Streams the Stage 3 "Understand" moment from the vision doc — 3-5 sentences
+ * that reflect the user's situation back to them before the recommendation appears.
+ * Called immediately after canSynthesise() returns true, while Inngest generates
+ * the recommendation in the background.
+ */
+export function generateReflection(
+  context:              DiscoveryContext,
+  audienceType:         AudienceType | null,
+  conversationHistory?: string,
+) {
+  const knownFacts = Object.entries(context)
+    .filter(([, f]) => f.value !== null && f.confidence > 0.5)
+    .map(([k, f]) => `  ${k}: ${JSON.stringify(f.value)}`)
+    .join('\n');
+
+  const priorMessages  = conversationHistory ? parseHistory(conversationHistory) : [];
+  const audienceNote   = audienceType ? `\nAudience type: ${audienceType}\n` : '';
+
+  return streamText({
+    model:  aiSdkAnthropic(MODELS.INTERVIEW),
+    system: `You are closing a discovery interview. Write a short reflection — 3 to 5 sentences — that will be shown to the user before their recommendation. This reflection must make them feel genuinely heard. Use their specific words. Write in prose, not bullets.`,
+    messages: [
+      ...priorMessages,
+      {
+        role:    'user',
+        content: `Context gathered:
+${knownFacts || '(limited context)'}
+${audienceNote}
+Write the reflection. Rules:
+- 3-5 sentences maximum. Prose only — no bullets, no headers.
+- Sentence 1-2: state their core situation in their own language. Specific — not generic.
+- Sentence 3: name the one central tension or constraint that shapes everything else for them.
+- Sentence 4-5: signal the direction the recommendation will address — without revealing it.
+- Do NOT use phrases like "based on what you've shared" or "from our conversation today".
+- The last sentence must create a bridge to what is coming.`,
+      },
+    ],
+  });
+}
+
+/**
  * generateMetaResponse
  *
  * Streams a brief, warm answer to a meta/off-topic question the user asked

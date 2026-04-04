@@ -4,7 +4,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import useSWR from 'swr';
 import { logger } from '@/lib/logger';
-import type { Recommendation, InterviewPhase } from '@/lib/discovery/client';
+import type { Recommendation } from '@/lib/discovery/client';
 import type { ChatMessage } from './MessageList';
 
 type ChatStatus  = 'idle' | 'loading' | 'streaming' | 'error';
@@ -137,30 +137,37 @@ export function useDiscoverySession({ onComplete }: Options): DiscoverySessionSt
         return;
       }
 
-      const nextPhase = res.headers.get('X-Phase') as InterviewPhase | null;
-      const nextCount = res.headers.get('X-Question-Count');
+      const nextCount             = res.headers.get('X-Question-Count');
+      const isSynthesisTransition = res.headers.get('X-Synthesis-Transition') === 'true';
       if (nextCount) setQuestionIndex(Number(nextCount));
-      if (nextPhase === 'SYNTHESIS') {
-        setStepperVisible(false);
-        setIsSynthesizing(true);
-        setStatus('idle');
-        return;
-      }
 
       if (!res.body) { setStatus('idle'); return; }
 
-      // Show stepper when the AI's question starts streaming
-      setStepperVisible(true);
-      setCurrentQuestion('');
       setStatus('streaming');
-      let finalQuestion = '';
-      await readTextStream(res.body, chunk => {
-        setCurrentQuestion(chunk);
-        finalQuestion = chunk;
-      });
-      // Add the AI's question to history so the next turn has full bidirectional context
-      if (finalQuestion) {
-        historyRef.current = [...historyRef.current, { role: 'assistant', content: finalQuestion }];
+      let finalContent = '';
+
+      if (isSynthesisTransition) {
+        // Reflection — stream directly into message list, not the stepper.
+        // Synthesis is already running in Inngest; this gives the user a moment
+        // to feel heard before the ThinkingPanel appears.
+        const reflectionId = crypto.randomUUID();
+        setMessages(prev => [...prev, { id: reflectionId, role: 'assistant', content: '' }]);
+        await readTextStream(res.body, chunk => {
+          finalContent = chunk;
+          setMessages(prev => prev.map(m => m.id === reflectionId ? { ...m, content: chunk } : m));
+        });
+        setIsSynthesizing(true);
+      } else {
+        // Normal next question — show in stepper, add to history
+        setStepperVisible(true);
+        setCurrentQuestion('');
+        await readTextStream(res.body, chunk => {
+          setCurrentQuestion(chunk);
+          finalContent = chunk;
+        });
+        if (finalContent) {
+          historyRef.current = [...historyRef.current, { role: 'assistant', content: finalContent }];
+        }
       }
       setStatus('idle');
     } catch (err) {

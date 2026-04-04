@@ -9,7 +9,7 @@ import {
   checkRateLimit, RATE_LIMITS, getRequestIdentifier, getClientIp,
 } from '@/lib/rate-limit';
 import {
-  getSession, saveSession, extractContext, applyUpdate, generateQuestion,
+  getSession, saveSession, extractContext, applyUpdate, generateQuestion, generateReflection,
   canSynthesise, teeDiscoveryStream, detectAudienceType, computeOverallCompleteness,
   generateMetaResponse, generateFrustrationResponse, generateClarificationResponse,
 } from '@/lib/discovery';
@@ -125,12 +125,10 @@ export async function POST(
     if (canSynthesise(nextState.context) || nextState.isComplete) {
       log.debug('Triggering synthesis');
       await inngest.send({ name: 'discovery/synthesis.requested', data: { sessionId, userId } });
-      await prisma.discoverySession.update({
-        where:  { id: sessionId },
-        data:   { status: 'COMPLETE', completedAt: new Date() },
-        select: { id: true },
-      });
-      return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
+      await prisma.discoverySession.update({ where: { id: sessionId }, data: { status: 'COMPLETE', completedAt: new Date() }, select: { id: true } });
+      const ref = buildStreamResponse(generateReflection(nextState.context, nextState.audienceType, history).textStream, conversationId, 'SYNTHESIS', nextState.questionCount);
+      ref.headers.set('X-Synthesis-Transition', 'true');
+      return ref;
     }
 
     const nextField = nextState.activeField;
