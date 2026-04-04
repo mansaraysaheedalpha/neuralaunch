@@ -138,6 +138,13 @@ Do not use generic examples. Derive the question from what they actually said.`,
     ? `Note: answers have been very brief so far. Ask a more focused, concrete version of this question — give them a specific angle to respond to rather than a broad open-ended one.\n\n`
     : '';
 
+  // Enumerate every dimension already established — both from the extracted belief state
+  // and low-confidence partial answers — so the audit prompt has a complete picture.
+  const coveredDimensions = Object.entries(context)
+    .filter(([, f]) => f.value !== null && f.confidence > 0.3)
+    .map(([k]) => FIELD_LABELS[k as DiscoveryContextField])
+    .join(', ');
+
   return streamText({
     model:  aiSdkAnthropic(MODELS.INTERVIEW),
     system,
@@ -151,9 +158,13 @@ We need to learn about: ${FIELD_LABELS[field]}
 Context gathered so far:
 ${knownFacts || '  (nothing yet)'}
 
-${unclearPrefix}${thinSignalPrefix}Ask one clear, direct question to learn about ${FIELD_LABELS[field]}.
-Keep it natural given what we already know about this person.
-IMPORTANT: Do not ask about any topic the person has already answered in the conversation above.`,
+${unclearPrefix}${thinSignalPrefix}MANDATORY AUDIT — complete this before writing the question:
+Step 1 — Dimensions already answered: ${coveredDimensions || 'none yet'}.
+Step 2 — Read every exchange in the conversation history above. List any topic the person addressed, even partially, that is not in Step 1.
+Step 3 — Confirm that ${FIELD_LABELS[field]} was NOT addressed in Step 1 or Step 2. If it was, you must not ask about it — ask the system to move on instead.
+Step 4 — Write a single question that targets ONLY ${FIELD_LABELS[field]} and touches nothing from Step 1 or Step 2.
+
+Output only the question. No preamble, no audit visible in the response.`,
       },
     ],
   });
