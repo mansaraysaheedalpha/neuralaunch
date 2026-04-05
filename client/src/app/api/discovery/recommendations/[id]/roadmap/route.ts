@@ -45,8 +45,16 @@ export async function POST(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   if (recommendation.roadmap?.status === 'READY') {
-    return NextResponse.json({ error: 'Roadmap already exists' }, { status: 409 });
+    return NextResponse.json({ status: 'ready' }, { status: 200 });
   }
+
+  // Reset to GENERATING synchronously before firing Inngest so the polling
+  // client never sees a stale FAILED status from a previous attempt.
+  await prisma.roadmap.upsert({
+    where:  { recommendationId },
+    create: { userId, recommendationId, status: 'GENERATING', phases: [] },
+    update: { status: 'GENERATING', phases: [] },
+  });
 
   await inngest.send({
     name: ROADMAP_EVENT,

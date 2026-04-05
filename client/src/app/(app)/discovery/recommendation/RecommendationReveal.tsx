@@ -78,7 +78,7 @@ export function RecommendationReveal({ recommendation: r, roadmapReady = false }
     setGenerating(true);
     try {
       const res = await fetch(`/api/discovery/recommendations/${r.id}/roadmap`, { method: 'POST' });
-      if (res.ok || res.status === 409) {
+      if (res.ok) {
         router.push(`/discovery/roadmap/${r.id}`);
       }
     } finally {
