@@ -36,7 +36,7 @@ export default async function RoadmapPage({
     <div className="flex flex-col h-full">
       <div className="flex justify-between px-6 pt-4">
         <Link
-          href={`/discovery/recommendation`}
+          href={`/discovery/recommendations/${recommendationId}`}
           className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
         >
           ← Back to recommendation

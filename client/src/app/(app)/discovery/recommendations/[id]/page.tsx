@@ -37,13 +37,15 @@ export default async function RecommendationDetailPage({
       whatWouldMakeThisWrong: true,
       alternativeRejected:    true,
       createdAt:              true,
-      session: { select: { conversationId: true } },
+      roadmap:                { select: { status: true } },
+      session:                { select: { conversationId: true } },
     },
   });
 
   if (!recommendation) notFound();
 
   const conversationId = recommendation.session?.conversationId ?? null;
+  const roadmapReady   = recommendation.roadmap?.status === 'READY';
 
   return (
     <div className="flex flex-col h-full">
@@ -68,7 +70,7 @@ export default async function RecommendationDetailPage({
           <span className="text-muted-foreground text-sm">Loading…</span>
         </div>
       }>
-        <RecommendationReveal recommendation={recommendation} />
+        <RecommendationReveal recommendation={recommendation} roadmapReady={roadmapReady} />
       </Suspense>
     </div>
   );

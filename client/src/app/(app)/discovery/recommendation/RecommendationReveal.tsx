@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, ArrowRight, Loader2 } from 'lucide-react';
@@ -21,6 +22,8 @@ interface Props {
     alternativeRejected:    unknown;
     createdAt:              Date;
   };
+  /** True when a READY roadmap already exists for this recommendation */
+  roadmapReady?: boolean;
 }
 
 type RiskRow = { risk: string; mitigation: string };
@@ -63,7 +66,7 @@ function Section({ label, delay = 0, children }: { label: string; delay?: number
  * - All remaining sections individually collapsible (expanded by default)
  * - Inline assumption flag with live scoped response (see AssumptionRow)
  */
-export function RecommendationReveal({ recommendation: r }: Props) {
+export function RecommendationReveal({ recommendation: r, roadmapReady = false }: Props) {
   const router      = useRouter();
   const steps       = r.firstThreeSteps as string[];
   const risks       = r.risks as RiskRow[];
@@ -161,21 +164,38 @@ export function RecommendationReveal({ recommendation: r }: Props) {
           transition={{ delay: 1.0 }}
           className="pt-4 border-t border-border"
         >
-          <p className="text-xs text-muted-foreground mb-3">
-            Ready to turn this recommendation into a step-by-step execution plan?
-          </p>
-          <button
-            onClick={() => { void handleGenerateRoadmap(); }}
-            disabled={generating}
-            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
-          >
-            {generating ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <ArrowRight className="size-4" />
-            )}
-            {generating ? 'Starting…' : 'Generate My Execution Roadmap'}
-          </button>
+          {roadmapReady ? (
+            <>
+              <p className="text-xs text-muted-foreground mb-3">
+                Your execution roadmap is ready.
+              </p>
+              <Link
+                href={`/discovery/roadmap/${r.id}`}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+              >
+                <ArrowRight className="size-4" />
+                View My Execution Roadmap
+              </Link>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground mb-3">
+                Ready to turn this recommendation into a step-by-step execution plan?
+              </p>
+              <button
+                onClick={() => { void handleGenerateRoadmap(); }}
+                disabled={generating}
+                className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
+              >
+                {generating ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <ArrowRight className="size-4" />
+                )}
+                {generating ? 'Starting…' : 'Generate My Execution Roadmap'}
+              </button>
+            </>
+          )}
         </motion.div>
 
       </div>

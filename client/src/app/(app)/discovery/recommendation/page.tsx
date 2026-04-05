@@ -40,10 +40,13 @@ export default async function RecommendationPage({
       whatWouldMakeThisWrong: true,
       alternativeRejected:    true,
       createdAt:              true,
+      roadmap:                { select: { status: true } },
     },
   });
 
   if (!recommendation) redirect('/discovery');
+
+  const roadmapReady = recommendation.roadmap?.status === 'READY';
 
   return (
     <div className="flex flex-col h-full">
@@ -64,7 +67,7 @@ export default async function RecommendationPage({
         )}
       </div>
       <Suspense fallback={<div className="flex-1 flex items-center justify-center"><span className="text-muted-foreground text-sm">Loading…</span></div>}>
-        <RecommendationReveal recommendation={recommendation} />
+        <RecommendationReveal recommendation={recommendation} roadmapReady={roadmapReady} />
       </Suspense>
     </div>
   );

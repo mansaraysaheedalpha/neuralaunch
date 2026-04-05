@@ -22,6 +22,7 @@ export default async function RecommendationsPage() {
       id:        true,
       path:      true,
       createdAt: true,
+      roadmap:   { select: { status: true } },
     },
   });
 
@@ -46,21 +47,33 @@ export default async function RecommendationsPage() {
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
-          {recommendations.map(rec => (
-            <li key={rec.id}>
-              <Link
-                href={`/discovery/recommendations/${rec.id}`}
-                className="flex flex-col gap-1 rounded-lg border border-border p-4 hover:bg-muted/50 transition-colors"
-              >
-                <span className="text-sm font-medium text-foreground leading-snug">{rec.path}</span>
-                <span className="text-xs text-muted-foreground">
-                  {rec.createdAt.toLocaleDateString(undefined, {
-                    year: 'numeric', month: 'long', day: 'numeric',
-                  })}
-                </span>
-              </Link>
-            </li>
-          ))}
+          {recommendations.map(rec => {
+            const hasRoadmap = rec.roadmap?.status === 'READY';
+            return (
+              <li key={rec.id} className="flex flex-col gap-0 rounded-lg border border-border overflow-hidden">
+                <Link
+                  href={`/discovery/recommendations/${rec.id}`}
+                  className="flex flex-col gap-1 p-4 hover:bg-muted/50 transition-colors"
+                >
+                  <span className="text-sm font-medium text-foreground leading-snug">{rec.path}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {rec.createdAt.toLocaleDateString(undefined, {
+                      year: 'numeric', month: 'long', day: 'numeric',
+                    })}
+                  </span>
+                </Link>
+                {hasRoadmap && (
+                  <Link
+                    href={`/discovery/roadmap/${rec.id}`}
+                    className="flex items-center gap-1.5 px-4 py-2 border-t border-border bg-muted/30 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                  >
+                    <span className="size-1.5 rounded-full bg-primary/60 shrink-0" />
+                    View execution roadmap
+                  </Link>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
