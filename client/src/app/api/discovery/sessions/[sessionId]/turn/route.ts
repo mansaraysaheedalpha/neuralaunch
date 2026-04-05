@@ -85,6 +85,7 @@ export async function POST(
   }
 
   try {
+    const t0          = Date.now();
     const rawField    = state.activeField ?? 'situation';
     const activeField = rawField === 'psych_probe' ? 'biggestConcern' : rawField;
     const { updates, inputType, contradicts } = await extractContext(message, activeField, history, state.context[activeField]);
@@ -128,25 +129,19 @@ export async function POST(
       },
       select: { id: true },
     });
-
+    log.debug('Turn checkpoint', { sessionId, dbWriteMs: Date.now() - t0, questionCount: nextState.questionCount });
     if (canSynthesise(nextState.context) || nextState.isComplete) {
-      log.debug('Triggering synthesis');
       await inngest.send({ name: 'discovery/synthesis.requested', data: { sessionId, userId } });
       await prisma.discoverySession.update({ where: { id: sessionId }, data: { status: 'COMPLETE', completedAt: new Date() }, select: { id: true } });
       const ref = buildStreamResponse(generateReflection(nextState.context, nextState.audienceType, history).textStream, conversationId, 'SYNTHESIS', nextState.questionCount);
       ref.headers.set('X-Synthesis-Transition', 'true');
       return ref;
     }
-
     const nextField = nextState.activeField;
-    if (!nextField) {
-      return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
-    }
-
-    // Pricing-change interstitial — fires once in the same turn the signal appears.
+    if (!nextField) return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
     if (detectsPricingChange(message) && !state.pricingProbed) { await saveSession(sessionId, { ...nextState, pricingProbed: true }); return buildStreamResponse(generatePricingFollowUp(message, history, nextState.audienceType ?? undefined).textStream, conversationId, nextState.phase, nextState.questionCount); }
-
     const insufficientSignal = nextState.questionCount >= 6 && computeOverallCompleteness(nextState.context) < 0.35;
+    log.debug('Turn stream start', { sessionId, totalToStreamMs: Date.now() - t0, inputType, phase: nextState.phase });
     return buildStreamResponse(generateQuestion(nextField, nextState.phase as never, nextState.context, { insufficientSignal }, nextState.audienceType ?? undefined, history, nextState.askedFields).textStream, conversationId, nextState.phase, nextState.questionCount);
   } catch (error) {
     log.error('Turn processing failed', error instanceof Error ? error : undefined);
