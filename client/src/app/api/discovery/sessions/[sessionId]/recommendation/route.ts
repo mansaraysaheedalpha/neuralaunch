@@ -28,7 +28,7 @@ export async function GET(
     // Verify the session belongs to this user
     const session = await prisma.discoverySession.findUnique({
       where:  { id: sessionId },
-      select: { userId: true, status: true },
+      select: { userId: true, status: true, synthesisStep: true },
     });
 
     if (!session) {
@@ -55,9 +55,9 @@ export async function GET(
     });
 
     if (!recommendation) {
-      // Synthesis may still be running
+      // Synthesis may still be running — include current step for ThinkingPanel progress
       log.debug('Recommendation not yet available', { sessionStatus: session.status });
-      return NextResponse.json({ status: 'pending' }, { status: 202 });
+      return NextResponse.json({ status: 'pending', synthesisStep: session.synthesisStep ?? null }, { status: 202 });
     }
 
     return NextResponse.json({ recommendation });

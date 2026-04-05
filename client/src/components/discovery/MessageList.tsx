@@ -12,10 +12,11 @@ export interface ChatMessage {
 }
 
 interface MessageListProps {
-  messages:       ChatMessage[];
-  isLoading:      boolean;
-  isSynthesizing: boolean;
+  messages:        ChatMessage[];
+  isLoading:       boolean;
+  isSynthesizing:  boolean;
   synthesisError?: boolean;
+  synthesisStep?:  string | null;
   onRetry?:        () => void;
 }
 
@@ -24,7 +25,7 @@ interface MessageListProps {
  *
  * Renders the scrollable chat message feed, typing indicator, and ThinkingPanel.
  */
-export function MessageList({ messages, isLoading, isSynthesizing, synthesisError, onRetry }: MessageListProps) {
+export function MessageList({ messages, isLoading, isSynthesizing, synthesisError, synthesisStep, onRetry }: MessageListProps) {
   return (
     <div className="flex-1 overflow-y-auto py-6 flex flex-col gap-4 px-4">
       <AnimatePresence initial={false}>
@@ -59,7 +60,7 @@ export function MessageList({ messages, isLoading, isSynthesizing, synthesisErro
         </div>
       )}
 
-      <ThinkingPanel isVisible={isSynthesizing || !!synthesisError} synthesisError={synthesisError} onRetry={onRetry} />
+      <ThinkingPanel isVisible={isSynthesizing || !!synthesisError} synthesisError={synthesisError} synthesisStep={synthesisStep} onRetry={onRetry} />
     </div>
   );
 }

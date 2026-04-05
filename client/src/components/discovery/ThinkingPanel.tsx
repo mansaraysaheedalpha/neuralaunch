@@ -6,46 +6,63 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Brain, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+// Each key maps to a synthesisStep value written by the Inngest function.
+// Labels are what the user sees — written to reflect the real work happening.
 const STEPS = [
-  'Analysing your context',
-  'Weighing options',
-  'Generating recommendation',
+  { key: 'loading',      label: 'Reading your answers'          },
+  { key: 'summarising',  label: 'Understanding your situation'  },
+  { key: 'evaluating',   label: 'Identifying the right path'    },
+  { key: 'researching',  label: 'Researching your market'       },
+  { key: 'synthesising', label: 'Building your recommendation'  },
 ] as const;
 
-const STEP_DURATION_MS = 2800;
+type StepKey = typeof STEPS[number]['key'];
+const STEP_KEYS: readonly StepKey[] = STEPS.map(s => s.key) as StepKey[];
+
+// Timer only runs when live step data hasn't arrived yet — caps at step 1
+// so it never gets ahead of what the backend is actually doing.
+const FALLBACK_STEP_DURATION_MS = 2500;
+const FALLBACK_STEP_CAP = 1;
 
 interface ThinkingPanelProps {
   isVisible:      boolean;
   synthesisError?: boolean;
+  synthesisStep?:  string | null;
   onRetry?:        () => void;
 }
 
 /**
  * ThinkingPanel
  *
- * Displays a 3-step animated indicator during recommendation synthesis.
- * Shown when the backend transitions to SYNTHESIS phase.
+ * Shows real-time synthesis progress during recommendation generation.
+ * Each step label corresponds to a real Inngest pipeline step — progress
+ * is driven by synthesisStep values written to the DB and returned by the
+ * recommendation polling endpoint. A timer fallback runs for the first few
+ * seconds before the first live update arrives.
  */
-export function ThinkingPanel({ isVisible, synthesisError, onRetry }: ThinkingPanelProps) {
-  const [currentStep, setCurrentStep] = useState(0);
+export function ThinkingPanel({ isVisible, synthesisError, synthesisStep, onRetry }: ThinkingPanelProps) {
+  const [fallbackStep, setFallbackStep] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const liveIdx   = synthesisStep ? STEP_KEYS.indexOf(synthesisStep as StepKey) : -1;
+  const activeIdx = liveIdx >= 0 ? liveIdx : fallbackStep;
+
   useEffect(() => {
-    if (!isVisible) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCurrentStep(0);
-      if (intervalRef.current) clearInterval(intervalRef.current);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+
+    if (!isVisible || liveIdx >= 0) {
+      // Live data arrived — stop fallback timer. Reset on hide.
+      if (!isVisible) setFallbackStep(0);
       return;
     }
 
+    // No live data yet — slowly advance through first two steps as a placeholder
     intervalRef.current = setInterval(() => {
-      setCurrentStep(prev => Math.min(prev + 1, STEPS.length - 1));
-    }, STEP_DURATION_MS);
+      setFallbackStep(prev => Math.min(prev + 1, FALLBACK_STEP_CAP));
+    }, FALLBACK_STEP_DURATION_MS);
 
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [isVisible]);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [isVisible, liveIdx]);
 
   return (
     <AnimatePresence>
@@ -56,7 +73,7 @@ export function ThinkingPanel({ isVisible, synthesisError, onRetry }: ThinkingPa
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
           transition={{ duration: 0.3 }}
-          className="flex flex-col items-center gap-5 py-8"
+          className="flex flex-col items-center gap-6 py-10"
         >
           <motion.div
             animate={{ rotate: 360 }}
@@ -66,29 +83,39 @@ export function ThinkingPanel({ isVisible, synthesisError, onRetry }: ThinkingPa
             <Brain className="size-8" />
           </motion.div>
 
-          <div className="flex flex-col items-center gap-2">
-            {STEPS.map((step, idx) => (
-              <motion.div
-                key={step}
-                animate={{
-                  opacity: idx <= currentStep ? 1 : 0.3,
-                  scale: idx === currentStep ? 1.03 : 1,
-                }}
-                transition={{ duration: 0.4 }}
-                className="flex items-center gap-2 text-sm"
-              >
-                <motion.span
-                  animate={{ backgroundColor: idx < currentStep ? 'var(--primary)' : idx === currentStep ? 'var(--primary)' : 'var(--muted)' }}
-                  className="size-2 rounded-full inline-block"
-                />
-                <span className={idx <= currentStep ? 'text-foreground' : 'text-muted-foreground'}>
-                  {step}
-                </span>
-                {idx < currentStep && (
-                  <span className="text-primary text-xs">✓</span>
-                )}
-              </motion.div>
-            ))}
+          <div className="flex flex-col items-center gap-3">
+            {STEPS.map((step, idx) => {
+              const isDone    = idx < activeIdx;
+              const isActive  = idx === activeIdx;
+              const isPending = idx > activeIdx;
+
+              return (
+                <motion.div
+                  key={step.key}
+                  animate={{ opacity: isPending ? 0.3 : 1, scale: isActive ? 1.03 : 1 }}
+                  transition={{ duration: 0.4 }}
+                  className="flex items-center gap-2.5 text-sm"
+                >
+                  {isDone ? (
+                    <span className="size-2 rounded-full bg-primary inline-block shrink-0" />
+                  ) : isActive ? (
+                    <motion.span
+                      animate={{ opacity: [1, 0.4, 1] }}
+                      transition={{ duration: 1.2, repeat: Infinity }}
+                      className="size-2 rounded-full bg-primary inline-block shrink-0"
+                    />
+                  ) : (
+                    <span className="size-2 rounded-full bg-muted inline-block shrink-0" />
+                  )}
+
+                  <span className={isPending ? 'text-muted-foreground' : 'text-foreground'}>
+                    {step.label}
+                  </span>
+
+                  {isDone && <span className="text-primary text-xs">✓</span>}
+                </motion.div>
+              );
+            })}
           </div>
         </motion.div>
       )}

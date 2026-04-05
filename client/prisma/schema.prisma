@@ -838,6 +838,10 @@ model DiscoverySession {
   // Timestamp of the last completed turn — used for incomplete session detection
   lastTurnAt            DateTime?
 
+  // Current step of the synthesis pipeline — written by the Inngest function so
+  // the client can show real progress rather than a time-based animation.
+  synthesisStep         String?
+
   // The belief state is the DiscoveryContext — serialised as JSON.
   // Typed accessors in src/lib/discovery/context-schema.ts are the only
   // way to read/write this field. Never mutate it raw.

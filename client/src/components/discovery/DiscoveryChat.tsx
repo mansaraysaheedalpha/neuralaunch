@@ -44,6 +44,7 @@ export function DiscoveryChat({ firstName, onComplete, resume }: DiscoveryChatPr
     sessionReady,
     isSynthesizing,
     synthesisError,
+    synthesisStep,
     stepperVisible,
     setStepperVisible,
     currentQuestion,
@@ -107,6 +108,7 @@ export function DiscoveryChat({ firstName, onComplete, resume }: DiscoveryChatPr
           isLoading={isLoading && !stepperVisible}
           isSynthesizing={isSynthesizing}
           synthesisError={synthesisError}
+          synthesisStep={synthesisStep}
           onRetry={() => router.push('/discovery')}
         />
       )}

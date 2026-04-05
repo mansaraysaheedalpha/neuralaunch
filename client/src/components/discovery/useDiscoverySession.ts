@@ -8,7 +8,7 @@ import type { Recommendation } from '@/lib/discovery/client';
 import type { ChatMessage } from './MessageList';
 
 type ChatStatus  = 'idle' | 'loading' | 'streaming' | 'error';
-type RecResponse = { recommendation: Recommendation } | { status: 'pending' };
+type RecResponse = { recommendation: Recommendation } | { status: 'pending'; synthesisStep: string | null };
 
 const recFetcher = (url: string): Promise<RecResponse> =>
   fetch(url).then(r => r.json() as Promise<RecResponse>);
@@ -34,6 +34,7 @@ export interface DiscoverySessionState {
   sessionReady:      boolean;
   isSynthesizing:    boolean;
   synthesisError:    boolean;
+  synthesisStep:     string | null;
   stepperVisible:    boolean;
   currentQuestion:   string;
   questionIndex:     number;
@@ -216,6 +217,7 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
   });
 
   const recommendation = recData && 'recommendation' in recData ? recData.recommendation : null;
+  const synthesisStep  = recData && 'status' in recData ? recData.synthesisStep : null;
 
   useEffect(() => {
     if (!recommendation || calledOnCompleteRef.current) return;
@@ -229,6 +231,7 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
     sessionReady:   true,
     isSynthesizing,
     synthesisError,
+    synthesisStep,
     stepperVisible,
     setStepperVisible,
     currentQuestion,

@@ -41,6 +41,7 @@ export const discoverySessionFunction = inngest.createFunction(
 
     // Step 1: Load the belief state from Redis
     const interviewState = await step.run('load-belief-state', async () => {
+      try { await prisma.discoverySession.update({ where: { id: sessionId }, data: { synthesisStep: 'loading' }, select: { id: true } }); } catch { /* non-fatal */ }
       const state = await getSession(sessionId);
       if (!state) throw new Error(`Session ${sessionId} not found in Redis`);
       if (state.userId !== userId) throw new Error(`Session ownership mismatch`);
@@ -49,18 +50,21 @@ export const discoverySessionFunction = inngest.createFunction(
 
     // Step 2: Summarise context into a coherent factual brief
     const summary = await step.run('summarise-context', async () => {
+      try { await prisma.discoverySession.update({ where: { id: sessionId }, data: { synthesisStep: 'summarising' }, select: { id: true } }); } catch { /* non-fatal */ }
       return await summariseContext(interviewState.context);
     });
 
     // Step 3: Eliminate alternatives and identify the chosen direction.
     // Research runs after this — it targets the specific path chosen, not generic goals.
     const analysis = await step.run('eliminate-alternatives', async () => {
+      try { await prisma.discoverySession.update({ where: { id: sessionId }, data: { synthesisStep: 'evaluating' }, select: { id: true } }); } catch { /* non-fatal */ }
       return await eliminateAlternatives(summary);
     });
 
     // Step 4: Run targeted research now that the recommended direction is known.
     // The query for the primary path is built from the "strongest fit" conclusion in analysis.
     const researchResult = await step.run('run-research', async () => {
+      try { await prisma.discoverySession.update({ where: { id: sessionId }, data: { synthesisStep: 'researching' }, select: { id: true } }); } catch { /* non-fatal */ }
       return await runResearch(
         interviewState.context,
         interviewState.audienceType ?? null,
@@ -72,6 +76,7 @@ export const discoverySessionFunction = inngest.createFunction(
 
     // Step 5: Final synthesis — direction + evidence + audience framing
     const recommendation = await step.run('run-final-synthesis', async () => {
+      try { await prisma.discoverySession.update({ where: { id: sessionId }, data: { synthesisStep: 'synthesising' }, select: { id: true } }); } catch { /* non-fatal */ }
       return await runFinalSynthesis(
         summary,
         analysis,
