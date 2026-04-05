@@ -13,6 +13,7 @@ import {
   canSynthesise, teeDiscoveryStream, detectAudienceType, computeOverallCompleteness,
   generateMetaResponse, generateFrustrationResponse, generateClarificationResponse,
   generatePricingFollowUp, detectsPricingChange, generateClarificationConfirmation,
+  MIN_FIELD_CONFIDENCE,
 } from '@/lib/discovery';
 
 const TurnRequestSchema = z.object({
@@ -92,11 +93,13 @@ export async function POST(
     if (inputType === 'offtopic') { await saveSession(sessionId, state); return buildStreamResponse(generateMetaResponse(message, state.phase, state.questionCount, history).textStream, conversationId, state.phase, state.questionCount); }
     if (inputType === 'frustrated') { await saveSession(sessionId, state); return buildStreamResponse(generateFrustrationResponse(message, activeField, history).textStream, conversationId, state.phase, state.questionCount); }
     if (inputType === 'clarification') { const lq = history.split('\n').filter(l => l.startsWith('assistant:')).pop()?.replace(/^assistant:\s*/, '') ?? ''; await saveSession(sessionId, state); return buildStreamResponse(generateClarificationConfirmation(message, lq, activeField, history, state.audienceType ?? undefined).textStream, conversationId, state.phase, state.questionCount); }
+    if (inputType === 'synthesis_request') { await saveSession(sessionId, { ...state, isComplete: true }); await inngest.send({ name: 'discovery/synthesis.requested', data: { sessionId, userId } }); await prisma.discoverySession.update({ where: { id: sessionId }, data: { status: 'COMPLETE', completedAt: new Date() }, select: { id: true } }); const sr = buildStreamResponse(generateReflection(state.context, state.audienceType, history).textStream, conversationId, 'SYNTHESIS', state.questionCount); sr.headers.set('X-Synthesis-Transition', 'true'); return sr; }
     if (contradicts) { await saveSession(sessionId, state); return buildStreamResponse(generateClarificationResponse(message, activeField, state.context[activeField], history).textStream, conversationId, state.phase, state.questionCount); }
     // Genuine extraction miss — re-ask with clarification, or skip after 2 consecutive misses
     if (Object.keys(updates).length === 0) {
       if (state.consecutiveMisses >= 1) {
-        const skipped = { ...applyUpdate(state, {}), consecutiveMisses: 0 };
+        const skipCtx = rawField !== 'psych_probe' ? { ...state.context, [activeField]: { ...state.context[activeField], confidence: MIN_FIELD_CONFIDENCE } } : state.context;
+        const skipped = { ...applyUpdate({ ...state, context: skipCtx }, {}), consecutiveMisses: 0 };
         await saveSession(sessionId, skipped);
         if (!skipped.activeField) return NextResponse.json({ status: 'synthesizing' });
         return buildStreamResponse(generateQuestion(skipped.activeField, skipped.phase as never, skipped.context, {}, skipped.audienceType ?? undefined, history, skipped.askedFields).textStream, conversationId, skipped.phase, skipped.questionCount);
@@ -106,10 +109,7 @@ export async function POST(
     }
 
     let nextState = { ...applyUpdate(state, updates), consecutiveMisses: 0 };
-    if (!nextState.audienceType && nextState.questionCount >= 2) {
-      const { audienceType } = await detectAudienceType(nextState.context, history);
-      nextState = { ...nextState, audienceType };
-    }
+    if (!nextState.audienceType && nextState.questionCount >= 2) { const { audienceType } = await detectAudienceType(nextState.context, history); nextState = { ...nextState, audienceType }; }
 
     await saveSession(sessionId, nextState);
     await prisma.discoverySession.update({
@@ -134,8 +134,7 @@ export async function POST(
       await inngest.send({ name: 'discovery/synthesis.requested', data: { sessionId, userId } });
       await prisma.discoverySession.update({ where: { id: sessionId }, data: { status: 'COMPLETE', completedAt: new Date() }, select: { id: true } });
       const ref = buildStreamResponse(generateReflection(nextState.context, nextState.audienceType, history).textStream, conversationId, 'SYNTHESIS', nextState.questionCount);
-      ref.headers.set('X-Synthesis-Transition', 'true');
-      return ref;
+      ref.headers.set('X-Synthesis-Transition', 'true'); return ref;
     }
     const nextField = nextState.activeField;
     if (!nextField) return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
