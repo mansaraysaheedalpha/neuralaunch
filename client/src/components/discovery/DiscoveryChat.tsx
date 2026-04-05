@@ -2,7 +2,6 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
 import TextareaAutosize from 'react-textarea-autosize';
 import { SendHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -33,7 +32,6 @@ interface DiscoveryChatProps {
  * to useDiscoverySession; owns only local input state and rendering.
  */
 export function DiscoveryChat({ firstName, onComplete, resume }: DiscoveryChatProps) {
-  const router = useRouter();
   const [input,      setInput]      = useState('');
   const [hasStarted, setHasStarted] = useState(!!resume);
   const mainInputRef = useRef<HTMLTextAreaElement>(null);
@@ -50,6 +48,7 @@ export function DiscoveryChat({ firstName, onComplete, resume }: DiscoveryChatPr
     currentQuestion,
     questionIndex,
     sendMessage,
+    retryRecommendation,
   } = useDiscoverySession({ onComplete, resume });
 
   const isLoading = status === 'loading';
@@ -109,7 +108,7 @@ export function DiscoveryChat({ firstName, onComplete, resume }: DiscoveryChatPr
           isSynthesizing={isSynthesizing}
           synthesisError={synthesisError}
           synthesisStep={synthesisStep}
-          onRetry={() => router.push('/discovery')}
+          onRetry={retryRecommendation}
         />
       )}
 

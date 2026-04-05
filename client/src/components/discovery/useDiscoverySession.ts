@@ -29,17 +29,18 @@ async function readTextStream(
 }
 
 export interface DiscoverySessionState {
-  messages:          ChatMessage[];
-  status:            ChatStatus;
-  sessionReady:      boolean;
-  isSynthesizing:    boolean;
-  synthesisError:    boolean;
-  synthesisStep:     string | null;
-  stepperVisible:    boolean;
-  currentQuestion:   string;
-  questionIndex:     number;
-  sendMessage:       (content: string) => Promise<void>;
-  setStepperVisible: (v: boolean) => void;
+  messages:               ChatMessage[];
+  status:                 ChatStatus;
+  sessionReady:           boolean;
+  isSynthesizing:         boolean;
+  synthesisError:         boolean;
+  synthesisStep:          string | null;
+  stepperVisible:         boolean;
+  currentQuestion:        string;
+  questionIndex:          number;
+  sendMessage:            (content: string) => Promise<void>;
+  setStepperVisible:      (v: boolean) => void;
+  retryRecommendation:    () => void;
 }
 
 interface ResumeState {
@@ -219,6 +220,14 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
   const recommendation = recData && 'recommendation' in recData ? recData.recommendation : null;
   const synthesisStep  = recData && 'status' in recData ? recData.synthesisStep : null;
 
+  // Restart polling after a synthesis error — if the recommendation was already
+  // persisted (e.g. error was in a later pipeline step), the first poll finds it.
+  const retryRecommendation = useCallback(() => {
+    pollIntervalRef.current = 3000;
+    setSynthesisError(false);
+    setIsSynthesizing(true);
+  }, []);
+
   useEffect(() => {
     if (!recommendation || calledOnCompleteRef.current) return;
     calledOnCompleteRef.current = true;
@@ -237,5 +246,6 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
     currentQuestion,
     questionIndex,
     sendMessage,
+    retryRecommendation,
   };
 }

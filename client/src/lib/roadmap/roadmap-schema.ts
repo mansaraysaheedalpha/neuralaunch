@@ -15,11 +15,11 @@ export const RoadmapPhaseSchema = z.object({
   title:         z.string().describe('Name of this phase, e.g. "Foundation" or "First Customer"'),
   objective:     z.string().describe('One sentence: what this phase achieves and why it comes before the next'),
   durationWeeks: z.number().int().min(1).describe('Realistic duration in weeks given their available time'),
-  tasks:         z.array(RoadmapTaskSchema).min(1).max(5),
+  tasks:         z.array(RoadmapTaskSchema).describe('Between 1 and 5 tasks for this phase'),
 });
 
 export const RoadmapSchema = z.object({
-  phases:        z.array(RoadmapPhaseSchema).min(1).max(5),
+  phases:        z.array(RoadmapPhaseSchema).describe('Between 1 and 5 phases in order'),
   closingThought: z.string().describe('2-3 sentences addressed directly to this person: what completing this roadmap means for them specifically, and what the first action is right now'),
 });
 
