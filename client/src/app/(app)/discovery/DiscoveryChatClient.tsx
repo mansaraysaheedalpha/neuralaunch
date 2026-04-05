@@ -7,7 +7,8 @@ import { DiscoveryChat } from '@/components/discovery';
 import type { Recommendation } from '@/lib/discovery/client';
 
 interface DiscoveryChatClientProps {
-  firstName: string;
+  firstName:       string;
+  isFirstSession?: boolean;
 }
 
 /**
@@ -16,7 +17,7 @@ interface DiscoveryChatClientProps {
  * Thin client wrapper that connects DiscoveryChat to Next.js navigation.
  * Navigates to the recommendation page when synthesis completes.
  */
-export function DiscoveryChatClient({ firstName }: DiscoveryChatClientProps) {
+export function DiscoveryChatClient({ firstName, isFirstSession }: DiscoveryChatClientProps) {
   const router = useRouter();
 
   const handleComplete = useCallback((_recommendation: Recommendation, conversationId: string) => {
@@ -26,5 +27,5 @@ export function DiscoveryChatClient({ firstName }: DiscoveryChatClientProps) {
     router.push(dest);
   }, [router]);
 
-  return <DiscoveryChat firstName={firstName} onComplete={handleComplete} />;
+  return <DiscoveryChat firstName={firstName} onComplete={handleComplete} isFirstSession={isFirstSession} />;
 }

@@ -3,12 +3,13 @@
 
 import { useState, useRef, useCallback, useEffect, type FormEvent } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
-import { SendHorizontal } from 'lucide-react';
+import { BookOpen, SendHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { Recommendation } from '@/lib/discovery/client';
 import { MessageList } from './MessageList';
 import { WelcomeLayer } from './WelcomeLayer';
 import { QuestionStepper } from './QuestionStepper';
+import { InterviewGuide } from './InterviewGuide';
 import { useDiscoverySession } from './useDiscoverySession';
 
 import type { ChatMessage } from './MessageList';
@@ -20,9 +21,11 @@ interface ResumeState {
 }
 
 interface DiscoveryChatProps {
-  firstName:   string;
-  onComplete?: (recommendation: Recommendation, conversationId: string) => void;
-  resume?:     ResumeState;
+  firstName:       string;
+  onComplete?:     (recommendation: Recommendation, conversationId: string) => void;
+  resume?:         ResumeState;
+  /** True when the user has no prior completed sessions — shows guide pulse indicator */
+  isFirstSession?: boolean;
 }
 
 /**
@@ -31,9 +34,10 @@ interface DiscoveryChatProps {
  * Main conversational UI for Phase 1. Delegates all server interaction
  * to useDiscoverySession; owns only local input state and rendering.
  */
-export function DiscoveryChat({ firstName, onComplete, resume }: DiscoveryChatProps) {
+export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = false }: DiscoveryChatProps) {
   const [input,      setInput]      = useState('');
   const [hasStarted, setHasStarted] = useState(!!resume);
+  const [guideOpen,  setGuideOpen]  = useState(false);
   const mainInputRef = useRef<HTMLTextAreaElement>(null);
 
   const {
@@ -100,6 +104,24 @@ export function DiscoveryChat({ firstName, onComplete, resume }: DiscoveryChatPr
 
   return (
     <div className="flex flex-col h-full relative">
+
+      {/* Guide button — always accessible, pulse indicator for first-time users */}
+      <div className="flex items-center justify-end px-4 py-2 shrink-0">
+        <button
+          type="button"
+          onClick={() => setGuideOpen(true)}
+          className="relative flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1 px-2 rounded-md hover:bg-muted/50"
+          aria-label="Open interview guide"
+        >
+          <BookOpen className="size-3.5" />
+          <span>Guide</span>
+          {isFirstSession && !guideOpen && (
+            <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary animate-pulse" />
+          )}
+        </button>
+      </div>
+
+      <InterviewGuide open={guideOpen} onOpenChange={setGuideOpen} />
 
       {hasStarted && (
         <MessageList

@@ -24,21 +24,28 @@ export default async function DiscoveryPage() {
   // eslint-disable-next-line react-hooks/purity -- async server component, runs once per request
   const now       = Date.now();
 
-  const incomplete = await prisma.discoverySession.findFirst({
-    where: {
-      userId,
-      status:        'ACTIVE',
-      questionCount: { gt: 0 },
-      recommendation: null,
-      lastTurnAt: {
-        not: null,
-        lt:  new Date(now - INCOMPLETE_MIN_AGE_MS),
-        gt:  new Date(now - INCOMPLETE_MAX_AGE_MS),
+  const [incomplete, completedCount] = await Promise.all([
+    prisma.discoverySession.findFirst({
+      where: {
+        userId,
+        status:        'ACTIVE',
+        questionCount: { gt: 0 },
+        recommendation: null,
+        lastTurnAt: {
+          not: null,
+          lt:  new Date(now - INCOMPLETE_MIN_AGE_MS),
+          gt:  new Date(now - INCOMPLETE_MAX_AGE_MS),
+        },
       },
-    },
-    orderBy: { lastTurnAt: 'desc' },
-    select:  { id: true, questionCount: true, conversationId: true },
-  });
+      orderBy: { lastTurnAt: 'desc' },
+      select:  { id: true, questionCount: true, conversationId: true },
+    }),
+    prisma.discoverySession.count({
+      where: { userId, status: 'COMPLETE' },
+    }),
+  ]);
+
+  const isFirstSession = completedCount === 0;
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -49,7 +56,7 @@ export default async function DiscoveryPage() {
             firstName={firstName}
           />
         ) : (
-          <DiscoveryChatClient firstName={firstName} />
+          <DiscoveryChatClient firstName={firstName} isFirstSession={isFirstSession} />
         )}
       </Suspense>
     </div>

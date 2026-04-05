@@ -112,6 +112,22 @@ export function WelcomeLayer({ firstName, isVisible }: WelcomeLayerProps) {
               {question}
             </p>
           </div>
+
+          <div className="max-w-md w-full space-y-1.5">
+            <p className="text-[10px] font-medium text-muted-foreground/40 uppercase tracking-widest text-center mb-2">
+              For the best recommendation
+            </p>
+            {[
+              'Give specific numbers — time, budget, success metrics',
+              'Name failed attempts honestly, including why you stopped',
+              'Answer one question at a time — no compression',
+            ].map(tip => (
+              <div key={tip} className="flex gap-2 items-start justify-center text-xs text-muted-foreground/50">
+                <span className="shrink-0 mt-px select-none">·</span>
+                <span>{tip}</span>
+              </div>
+            ))}
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
