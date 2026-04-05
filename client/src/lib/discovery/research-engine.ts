@@ -19,11 +19,24 @@ export interface ResearchSummary {
 // Query builders — targeted per audience type and context
 // ---------------------------------------------------------------------------
 
+const TAVILY_MAX_QUERY_CHARS = 380; // Tavily hard limit is 400 — leave margin
+
+/** Truncate a string to max chars, cutting at the last word boundary. */
+function trunc(str: string, max: number): string {
+  if (str.length <= max) return str;
+  return str.slice(0, max).replace(/\s+\S*$/, '').trim();
+}
+
+/** Build a query string and hard-cap it to stay under Tavily's limit. */
+function q(...parts: string[]): string {
+  return trunc(parts.join(''), TAVILY_MAX_QUERY_CHARS);
+}
+
 // Extracts the chosen direction from eliminateAlternatives output.
 // The function always ends with: "The strongest fit is: [direction] because [reason]."
 function extractChosenDirection(analysis: string): string | null {
   const match = analysis.match(/The strongest fit is:\s*([^.]+)/i);
-  return match ? match[1].trim() : null;
+  return match ? trunc(match[1].trim(), 80) : null;
 }
 
 function buildQueries(
@@ -32,53 +45,53 @@ function buildQueries(
   summary?:     string,
   analysis?:    string,
 ): string[] {
-  const goal       = context.primaryGoal?.value    as string | undefined;
-  const situation  = context.situation?.value      as string | undefined;
-  const market     = context.geographicMarket?.value as string | undefined;
-  const technical  = context.technicalAbility?.value as string | undefined;
+  const goal      = trunc((context.primaryGoal?.value    as string | undefined) ?? '', 60);
+  const situation = trunc((context.situation?.value      as string | undefined) ?? '', 60);
+  const market    = trunc((context.geographicMarket?.value as string | undefined) ?? '', 40);
+  const technical = trunc((context.technicalAbility?.value as string | undefined) ?? '', 40);
 
-  const marketSuffix     = market ? ` in ${market}` : '';
-  const chosenDirection  = analysis ? extractChosenDirection(analysis) : null;
+  const marketSuffix    = market ? ` in ${market}` : '';
+  const chosenDirection = analysis ? extractChosenDirection(analysis) : null;
   const queries: string[] = [];
 
   // Query 1 — targeted at the specific recommended direction when available
   if (chosenDirection) {
-    queries.push(`What is working right now for people pursuing: ${chosenDirection}${marketSuffix}? Tactics, pricing, first steps, and real results 2024 2025`);
+    queries.push(q(`${chosenDirection}${marketSuffix} — what tactics, pricing, and first steps are working right now? 2024 2025`));
   } else if (summary) {
-    const hook = summary.split('.').slice(0, 2).join('.').trim();
-    queries.push(`${hook}. What specific tactics and paths are producing results for someone in this situation${marketSuffix} right now? 2024 2025`);
+    const hook = trunc(summary.split('.')[0] ?? summary, 80);
+    queries.push(q(`${hook}${marketSuffix} — what specific tactics are producing results right now? 2024 2025`));
   } else if (goal) {
-    queries.push(`What is working right now for people trying to ${goal}${marketSuffix}? Current tactics and results 2024 2025`);
+    queries.push(q(`What is working right now for people trying to ${goal}${marketSuffix}? Tactics and results 2024 2025`));
   } else if (situation) {
-    queries.push(`What startup paths are gaining traction for people who are ${situation}${marketSuffix} 2024 2025`);
+    queries.push(q(`Startup paths gaining traction for people who are ${situation}${marketSuffix} 2024 2025`));
   }
 
   // Query 2 — audience-specific landscape
   switch (audienceType) {
     case 'STUCK_FOUNDER':
-      queries.push(`Why do early-stage founders stall and what actually helps them get unstuck${marketSuffix}? Recent examples 2024 2025`);
+      queries.push(q(`Why do early-stage founders stall and what helps them get unstuck${marketSuffix}? 2024 2025`));
       break;
     case 'ESTABLISHED_OWNER':
-      queries.push(`Growth strategies working for established small business owners${marketSuffix} right now 2024 2025`);
+      queries.push(q(`Growth strategies working for established small business owners${marketSuffix} 2024 2025`));
       break;
     case 'MID_JOURNEY_PROFESSIONAL':
-      queries.push(`Side project and transition strategies for employed professionals${marketSuffix} gaining traction 2024 2025`);
+      queries.push(q(`Side project and transition strategies for employed professionals${marketSuffix} 2024 2025`));
       break;
     case 'LOST_GRADUATE':
-      queries.push(`Career and startup paths with low barrier to entry gaining momentum for recent graduates${marketSuffix} 2024 2025`);
+      queries.push(q(`Low-barrier startup and career paths gaining momentum for recent graduates${marketSuffix} 2024 2025`));
       break;
     case 'ASPIRING_BUILDER':
-      queries.push(`First-time founders${technical ? ` with ${technical} skills` : ''} finding their first paying customers${marketSuffix} — what approaches are working 2024 2025`);
+      queries.push(q(`First-time founders${technical ? ` with ${technical} skills` : ''} finding first paying customers${marketSuffix} 2024 2025`));
       break;
     default:
-      queries.push(`What startup approaches are producing results for first-time builders${marketSuffix} 2024 2025`);
+      queries.push(q(`Startup approaches producing results for first-time builders${marketSuffix} 2024 2025`));
   }
 
-  // Query 3 — pricing / monetisation benchmark if goal suggests it
+  // Query 3 — pricing or failure patterns depending on goal type
   if (goal && /consult|freelan|service|productiz|agency/i.test(goal)) {
-    queries.push(`Current pricing benchmarks for ${goal}${marketSuffix} — what are people actually charging and what converts 2024 2025`);
+    queries.push(q(`Pricing benchmarks for ${goal}${marketSuffix} — what are people charging and what converts 2024 2025`));
   } else if (goal) {
-    queries.push(`Common mistakes and failure patterns when trying to ${goal}${marketSuffix} — what to avoid 2024 2025`);
+    queries.push(q(`Common mistakes when trying to ${goal}${marketSuffix} — what to avoid 2024 2025`));
   }
 
   return queries.slice(0, 3); // Cap at 3 — cost and latency control
