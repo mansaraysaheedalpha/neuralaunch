@@ -106,14 +106,14 @@ export async function runResearch(
   const log = logger.child({ module: 'ResearchEngine', sessionId });
 
   if (!env.TAVILY_API_KEY) {
-    log.debug('TAVILY_API_KEY not set — skipping research');
+    log.warn('Research skipped — TAVILY_API_KEY is not set in this environment');
     return { findings: '', queriesRun: [] };
   }
 
   const client  = tavily({ apiKey: env.TAVILY_API_KEY });
   const queries = buildQueries(context, audienceType, summary, analysis);
 
-  log.debug('Running research queries', { queries });
+  log.info('Research starting', { sessionId, queryCount: queries.length, queries });
 
   const results = await Promise.allSettled(
     queries.map(q =>
@@ -130,7 +130,7 @@ export async function runResearch(
   for (let i = 0; i < results.length; i++) {
     const result = results[i];
     if (result.status === 'rejected') {
-      log.debug('Research query failed', { query: queries[i] });
+      log.warn('Research query failed', { query: queries[i], reason: result.reason instanceof Error ? result.reason.message : String(result.reason) });
       continue;
     }
     const { answer, results: hits } = result.value;
@@ -145,7 +145,12 @@ export async function runResearch(
   }
 
   const findings = sections.join('\n\n---\n\n');
-  log.debug('Research complete', { queriesRun: queries.length, findingsLength: findings.length });
+
+  if (!findings) {
+    log.warn('Research returned empty findings — all queries failed or returned no usable content', { queriesAttempted: queries.length });
+  } else {
+    log.info('Research complete', { queriesRun: sections.length, queriesAttempted: queries.length, findingsLength: findings.length });
+  }
 
   return { findings, queriesRun: queries };
 }

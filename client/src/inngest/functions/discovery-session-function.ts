@@ -65,13 +65,20 @@ export const discoverySessionFunction = inngest.createFunction(
     // The query for the primary path is built from the "strongest fit" conclusion in analysis.
     const researchResult = await step.run('run-research', async () => {
       try { await prisma.discoverySession.update({ where: { id: sessionId }, data: { synthesisStep: 'researching' }, select: { id: true } }); } catch { /* non-fatal */ }
-      return await runResearch(
+      const result = await runResearch(
         interviewState.context,
         interviewState.audienceType ?? null,
         sessionId,
         summary,
         analysis,
       );
+      // Return metadata alongside findings so Inngest dashboard shows research health
+      return {
+        ...result,
+        queriesAttempted: result.queriesRun.length,
+        findingsLength:   result.findings.length,
+        researchSkipped:  result.findings.length === 0,
+      };
     });
 
     // Step 5: Final synthesis — direction + evidence + audience framing
