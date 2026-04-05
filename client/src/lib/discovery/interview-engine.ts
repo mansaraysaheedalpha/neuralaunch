@@ -142,17 +142,19 @@ export function advance(state: InterviewState): {
     return { nextField: 'psych_probe', nextPhase: currentPhase, readyForSynthesis: false };
   }
 
-  // Phase ends when selectNextField finds no more fields worth asking about —
-  // i.e. all fields in this phase are above the confidence threshold.
-  // No per-phase hard cap: a verbose user exits early, a terse user stays longer.
-  const phaseFields = PHASE_FIELDS[currentPhase];
-  const nextField   = selectNextField(state.context, phaseFields, state.audienceType ?? undefined);
+  // Only schedule fields that haven't been asked yet — prevents the engine from
+  // rescheduling a field with low extraction confidence indefinitely. Each field is
+  // asked at most once; the consecutiveMisses mechanism handles re-asks for extraction
+  // misses. If all phase fields have been asked, fall through to phase transition.
+  const phaseFields   = PHASE_FIELDS[currentPhase];
+  const unaskedFields = phaseFields.filter(f => !state.askedFields.includes(f));
+  const nextField     = selectNextField(state.context, unaskedFields, state.audienceType ?? undefined);
 
   if (nextField !== null) {
     return { nextField, nextPhase: currentPhase, readyForSynthesis: false };
   }
 
-  // Current phase is done — advance to the next one
+  // Current phase is done (all fields asked OR all above confidence threshold) — advance
   const currentIndex = PHASE_ORDER.indexOf(currentPhase);
   const nextPhase    = PHASE_ORDER[currentIndex + 1] ?? INTERVIEW_PHASES.SYNTHESIS;
 
@@ -160,9 +162,10 @@ export function advance(state: InterviewState): {
     return { nextField: null, nextPhase, readyForSynthesis: true };
   }
 
-  const nextPhaseFields = PHASE_FIELDS[nextPhase];
-  const firstField      = selectNextField(
-    state.context, nextPhaseFields, state.audienceType ?? undefined,
+  const nextPhaseFields  = PHASE_FIELDS[nextPhase];
+  const unaskedNextPhase = nextPhaseFields.filter(f => !state.askedFields.includes(f));
+  const firstField       = selectNextField(
+    state.context, unaskedNextPhase, state.audienceType ?? undefined,
   );
 
   return { nextField: firstField, nextPhase, readyForSynthesis: false };
