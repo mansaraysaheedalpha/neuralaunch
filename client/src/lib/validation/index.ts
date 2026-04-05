@@ -21,6 +21,11 @@ export {
   FeatureCardSchema,
 } from './schemas';
 
+export { generateValidationPage, generateSlug, selectLayoutVariant } from './page-generator';
+export type { PageGenerationInput, PageGenerationResult }             from './page-generator';
+
+export { generateDistributionBrief } from './distribution-generator';
+
 export type {
   ValidationPageContent,
   DistributionBrief,
