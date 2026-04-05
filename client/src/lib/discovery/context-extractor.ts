@@ -13,7 +13,7 @@ import type { AudienceType } from './constants';
 
 export type ExtractionResult = {
   updates:     Partial<DiscoveryContext>;
-  inputType:   'answer' | 'offtopic' | 'frustrated';
+  inputType:   'answer' | 'offtopic' | 'frustrated' | 'clarification';
   contradicts: boolean;
 };
 
@@ -22,8 +22,8 @@ export type ExtractionResult = {
 // ---------------------------------------------------------------------------
 
 const ExtractionResultSchema = z.object({
-  inputType: z.enum(['answer', 'offtopic', 'frustrated']).describe(
-    'answer: user responded to the question (even vaguely). offtopic: user asked who you are, how this works, or any meta/unrelated question. frustrated: user expressed annoyance, resistance, or confusion ("stop", "I don\'t know", "why do you keep asking", "pointless", "whatever").',
+  inputType: z.enum(['answer', 'offtopic', 'frustrated', 'clarification']).describe(
+    'answer: user responded to the question (even vaguely — uncertainty about their own situation still counts as answer). offtopic: user asked who you are, how this works, or any meta/unrelated question. frustrated: user expressed annoyance, resistance, or dismissal ("stop", "I don\'t know", "why do you keep asking", "pointless", "whatever"). clarification: user is asking whether they understood the QUESTION correctly before answering it — e.g. "if I get you right, you\'re asking about X?", "what do you mean by Y?", "are you asking about Z?", "so you want to know...?". Only use clarification when the user has NOT provided any answer content — they are purely seeking confirmation of what was asked.',
   ),
   extracted:   z.boolean().describe('true if the user mentioned something relevant to the field being asked about'),
   value:       z.string().describe('The extracted value in the user\'s own words. For lists, separate items with " | ".'),
@@ -86,9 +86,10 @@ LATEST USER MESSAGE:
 "${userMessage}"
 
 First, classify the message:
-- "answer": the user responded to the interview question (vague counts)
+- "answer": the user responded to the interview question — even vaguely or uncertainly. If they gave any substantive content about their own situation, it is an answer.
 - "offtopic": the user asked a meta question (who are you, how does this work, what is NeuraLaunch, etc.)
 - "frustrated": the user expressed annoyance, resistance, or dismissal
+- "clarification": the user is asking whether they understood THE QUESTION correctly, with no answer content yet — e.g. "if I get you right, you're asking about X?", "what do you mean by Y?", "are you asking about Z?". Only use this when the message contains zero answer content and is purely a request to confirm what was asked.
 
 If inputType is "answer":
   - extracted: true if they mentioned anything relevant to "${activeField}"
@@ -101,6 +102,7 @@ If inputType is NOT "answer": set extracted: false, value: "", confidence: 0, co
   });
 
   if (object.inputType !== 'answer' || !object.extracted || !object.value) {
+    // clarification, offtopic, frustrated, or empty answer — no extraction, no state advance
     return { updates: {}, inputType: object.inputType, contradicts: false };
   }
 

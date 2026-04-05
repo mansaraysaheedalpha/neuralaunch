@@ -12,7 +12,7 @@ import {
   getSession, saveSession, extractContext, applyUpdate, generateQuestion, generateReflection,
   canSynthesise, teeDiscoveryStream, detectAudienceType, computeOverallCompleteness,
   generateMetaResponse, generateFrustrationResponse, generateClarificationResponse,
-  generatePricingFollowUp, detectsPricingChange,
+  generatePricingFollowUp, detectsPricingChange, generateClarificationConfirmation,
 } from '@/lib/discovery';
 
 const TurnRequestSchema = z.object({
@@ -90,6 +90,7 @@ export async function POST(
     const { updates, inputType, contradicts } = await extractContext(message, activeField, history, state.context[activeField]);
     if (inputType === 'offtopic') { await saveSession(sessionId, state); return buildStreamResponse(generateMetaResponse(message, state.phase, state.questionCount, history).textStream, conversationId, state.phase, state.questionCount); }
     if (inputType === 'frustrated') { await saveSession(sessionId, state); return buildStreamResponse(generateFrustrationResponse(message, activeField, history).textStream, conversationId, state.phase, state.questionCount); }
+    if (inputType === 'clarification') { const lq = history.split('\n').filter(l => l.startsWith('assistant:')).pop()?.replace(/^assistant:\s*/, '') ?? ''; await saveSession(sessionId, state); return buildStreamResponse(generateClarificationConfirmation(message, lq, activeField, history, state.audienceType ?? undefined).textStream, conversationId, state.phase, state.questionCount); }
     if (contradicts) { await saveSession(sessionId, state); return buildStreamResponse(generateClarificationResponse(message, activeField, state.context[activeField], history).textStream, conversationId, state.phase, state.questionCount); }
     // Genuine extraction miss — re-ask with clarification, or skip after 2 consecutive misses
     if (Object.keys(updates).length === 0) {
@@ -138,12 +139,8 @@ export async function POST(
       return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
     }
 
-    // Pricing-change interstitial — fires once, immediately, in the same turn the signal appears.
-    // Saves pricingProbed: true to Redis so it cannot repeat on a later turn.
-    if (detectsPricingChange(message) && !state.pricingProbed) {
-      await saveSession(sessionId, { ...nextState, pricingProbed: true });
-      return buildStreamResponse(generatePricingFollowUp(message, history, nextState.audienceType ?? undefined).textStream, conversationId, nextState.phase, nextState.questionCount);
-    }
+    // Pricing-change interstitial — fires once in the same turn the signal appears.
+    if (detectsPricingChange(message) && !state.pricingProbed) { await saveSession(sessionId, { ...nextState, pricingProbed: true }); return buildStreamResponse(generatePricingFollowUp(message, history, nextState.audienceType ?? undefined).textStream, conversationId, nextState.phase, nextState.questionCount); }
 
     const insufficientSignal = nextState.questionCount >= 6 && computeOverallCompleteness(nextState.context) < 0.35;
     return buildStreamResponse(generateQuestion(nextField, nextState.phase as never, nextState.context, { insufficientSignal }, nextState.audienceType ?? undefined, history, nextState.askedFields).textStream, conversationId, nextState.phase, nextState.questionCount);

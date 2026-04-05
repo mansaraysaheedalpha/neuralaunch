@@ -12,6 +12,44 @@ import { parseHistory, buildSystem, FIELD_LABELS } from './question-generator';
 type FieldBelief = { value: unknown; confidence: number };
 
 /**
+ * generateClarificationConfirmation
+ *
+ * Streams a 1-2 sentence response when the user is asking whether they
+ * understood the question correctly, rather than answering it.
+ * Confirms or corrects their interpretation, then re-asks in simpler terms.
+ * No state advance — the session stays on the same field.
+ */
+export function generateClarificationConfirmation(
+  userMessage:          string,
+  originalQuestion:     string,
+  field:                DiscoveryContextField,
+  conversationHistory?: string,
+  audienceType?:        AudienceType,
+) {
+  const system        = buildSystem(audienceType);
+  const priorMessages = conversationHistory ? parseHistory(conversationHistory) : [];
+  return streamText({
+    model:  aiSdkAnthropic(MODELS.INTERVIEW),
+    system,
+    messages: [
+      ...priorMessages,
+      {
+        role:    'user',
+        content: `The person is checking whether they understood your question correctly before answering.
+Their message: "${userMessage}"
+The question you asked was about: ${FIELD_LABELS[field]}
+The original question: "${originalQuestion}"
+
+Respond in 1-2 sentences:
+- If their interpretation is correct: confirm it warmly and briefly, then invite them to answer.
+- If their interpretation is off: gently correct it and restate the question in simpler, more direct language.
+Do not repeat the question word-for-word. Do not praise them for asking. Keep it natural and brief.`,
+      },
+    ],
+  });
+}
+
+/**
  * generateMetaResponse
  *
  * Streams a brief, warm answer to a meta/off-topic question the user asked

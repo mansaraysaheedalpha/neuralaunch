@@ -32,6 +32,7 @@ export {
   generateMetaResponse,
   generateFrustrationResponse,
   generateClarificationResponse,
+  generateClarificationConfirmation,
   generatePricingFollowUp,
 } from './response-generator';
 
