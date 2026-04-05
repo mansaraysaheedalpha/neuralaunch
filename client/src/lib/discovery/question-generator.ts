@@ -160,10 +160,10 @@ We need to learn about: ${FIELD_LABELS[field]}
 Context gathered so far:
 ${knownFacts || '  (nothing yet)'}
 
-${unclearPrefix}${thinSignalPrefix}ALREADY COVERED — do not ask about any of these again:
+${unclearPrefix}${thinSignalPrefix}INTERNAL ONLY — dimensions already covered (do not ask about these again):
 ${askedLabels || 'nothing yet'}
 
-These dimensions were either directly asked or established through the conversation. They are closed. Do not return to them even indirectly.
+This list is your internal state only. Never reference it, acknowledge it, or narrate why you are skipping any topic. Do not say things like "that's already covered", "you've already told me", "I have what I need on that", or any phrase that reveals you are tracking what has been asked. Simply ask the next question as if it is the natural next thing to explore — no preamble, no explanation of what you are skipping.
 
 Ask one clear, direct question to learn about ${FIELD_LABELS[field]}.
 Keep it natural given what we already know about this person.`,
