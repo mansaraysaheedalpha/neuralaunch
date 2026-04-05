@@ -118,16 +118,20 @@ export async function getSession(sessionId: string): Promise<InterviewState | nu
     const record = await prisma.discoverySession.findUnique({
       where:  { id: sessionId },
       select: {
-        id:               true,
-        userId:           true,
-        phase:            true,
-        questionCount:    true,
-        questionsInPhase: true,
-        activeField:      true,
-        beliefState:      true,
-        status:           true,
-        createdAt:        true,
-        updatedAt:        true,
+        id:                    true,
+        userId:                true,
+        phase:                 true,
+        questionCount:         true,
+        questionsInPhase:      true,
+        activeField:           true,
+        audienceType:          true,
+        beliefState:           true,
+        askedFields:           true,
+        pricingProbed:         true,
+        psychConstraintProbed: true,
+        status:                true,
+        createdAt:             true,
+        updatedAt:             true,
       },
     });
 
@@ -145,11 +149,13 @@ export async function getSession(sessionId: string): Promise<InterviewState | nu
       questionsInPhase:  record.questionsInPhase,
       isComplete:        record.status === 'COMPLETE',
       activeField:           (record.activeField ?? null) as DiscoveryContextField | 'psych_probe' | null,
-      audienceType:          null,
-      consecutiveMisses:     0, // transient — always 0 when reconstructing from Prisma
-      psychConstraintProbed: false,
-      pricingProbed:         false,
-      askedFields:           [], // transient — not persisted to Prisma
+      audienceType:          (record.audienceType ?? null) as import('./constants').AudienceType | null,
+      consecutiveMisses:     0,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      psychConstraintProbed: record.psychConstraintProbed ?? false,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      pricingProbed:         record.pricingProbed         ?? false,
+      askedFields:           (Array.isArray(record.askedFields) ? record.askedFields : []) as DiscoveryContextField[],
       createdAt:         record.createdAt.toISOString(),
       updatedAt:         record.updatedAt.toISOString(),
     };

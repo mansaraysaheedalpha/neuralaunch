@@ -12,9 +12,18 @@ import { WelcomeLayer } from './WelcomeLayer';
 import { QuestionStepper } from './QuestionStepper';
 import { useDiscoverySession } from './useDiscoverySession';
 
+import type { ChatMessage } from './MessageList';
+
+interface ResumeState {
+  sessionId:      string;
+  conversationId: string | null;
+  messages:       ChatMessage[];
+}
+
 interface DiscoveryChatProps {
   firstName:   string;
   onComplete?: (recommendation: Recommendation, conversationId: string) => void;
+  resume?:     ResumeState;
 }
 
 /**
@@ -23,10 +32,10 @@ interface DiscoveryChatProps {
  * Main conversational UI for Phase 1. Delegates all server interaction
  * to useDiscoverySession; owns only local input state and rendering.
  */
-export function DiscoveryChat({ firstName, onComplete }: DiscoveryChatProps) {
+export function DiscoveryChat({ firstName, onComplete, resume }: DiscoveryChatProps) {
   const router = useRouter();
   const [input,      setInput]      = useState('');
-  const [hasStarted, setHasStarted] = useState(false);
+  const [hasStarted, setHasStarted] = useState(!!resume);
   const mainInputRef = useRef<HTMLTextAreaElement>(null);
 
   const {
@@ -40,7 +49,7 @@ export function DiscoveryChat({ firstName, onComplete }: DiscoveryChatProps) {
     currentQuestion,
     questionIndex,
     sendMessage,
-  } = useDiscoverySession({ onComplete });
+  } = useDiscoverySession({ onComplete, resume });
 
   const isLoading = status === 'loading';
   const canSubmit = sessionReady && !isSynthesizing && input.trim().length > 0

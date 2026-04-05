@@ -2,24 +2,55 @@
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import prisma from '@/lib/prisma';
 import { DiscoveryChatClient } from './DiscoveryChatClient';
+import { SessionResumption } from './SessionResumption';
+
+const INCOMPLETE_MIN_AGE_MS  = 60  * 1000;        //  60 seconds — ignore very recent sessions
+const INCOMPLETE_MAX_AGE_MS  = 72  * 60 * 60 * 1000; // 72 hours  — discard abandoned sessions
 
 /**
  * DiscoveryPage
  *
- * Server Component — guards auth, derives firstName, delegates to client.
- * No header rendered here — the welcome layer handles the greeting.
+ * Server Component — guards auth, checks for an incomplete session,
+ * and renders either the resumption UI or the normal welcome/chat layer.
  */
 export default async function DiscoveryPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/signin');
 
+  const userId    = session.user.id;
   const firstName = session.user.name?.split(' ')[0] ?? '';
+  // eslint-disable-next-line react-hooks/purity -- async server component, runs once per request
+  const now       = Date.now();
+
+  const incomplete = await prisma.discoverySession.findFirst({
+    where: {
+      userId,
+      status:        'ACTIVE',
+      questionCount: { gt: 0 },
+      recommendation: null,
+      lastTurnAt: {
+        not: null,
+        lt:  new Date(now - INCOMPLETE_MIN_AGE_MS),
+        gt:  new Date(now - INCOMPLETE_MAX_AGE_MS),
+      },
+    },
+    orderBy: { lastTurnAt: 'desc' },
+    select:  { id: true, questionCount: true, conversationId: true },
+  });
 
   return (
     <div className="flex flex-col h-full bg-background">
       <Suspense fallback={<DiscoveryChatSkeleton />}>
-        <DiscoveryChatClient firstName={firstName} />
+        {incomplete ? (
+          <SessionResumption
+            session={{ id: incomplete.id, questionCount: incomplete.questionCount, conversationId: incomplete.conversationId }}
+            firstName={firstName}
+          />
+        ) : (
+          <DiscoveryChatClient firstName={firstName} />
+        )}
       </Suspense>
     </div>
   );

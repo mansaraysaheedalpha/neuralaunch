@@ -41,8 +41,15 @@ export interface DiscoverySessionState {
   setStepperVisible: (v: boolean) => void;
 }
 
+interface ResumeState {
+  sessionId:      string;
+  conversationId: string | null;
+  messages:       ChatMessage[];
+}
+
 interface Options {
   onComplete?: (recommendation: Recommendation, conversationId: string) => void;
+  resume?:     ResumeState;
 }
 
 /**
@@ -51,24 +58,27 @@ interface Options {
  * Manages all server interaction for the discovery interview:
  * session init, per-turn streaming, and recommendation polling.
  */
-export function useDiscoverySession({ onComplete }: Options): DiscoverySessionState {
-  const [messages,        setMessages]        = useState<ChatMessage[]>([]);
+export function useDiscoverySession({ onComplete, resume }: Options): DiscoverySessionState {
+  const [messages,        setMessages]        = useState<ChatMessage[]>(resume?.messages ?? []);
   const [status,          setStatus]          = useState<ChatStatus>('idle');
-  const [sessionId,       setSessionId]       = useState<string | null>(null);
+  const [sessionId,       setSessionId]       = useState<string | null>(resume?.sessionId ?? null);
   const [isSynthesizing,  setIsSynthesizing]  = useState(false);
   const [synthesisError,  setSynthesisError]  = useState(false);
   const [stepperVisible,  setStepperVisible]  = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState('');
   const [questionIndex,   setQuestionIndex]   = useState(0);
 
-  const sessionIdRef        = useRef<string | null>(null);
-  const conversationIdRef   = useRef<string | null>(null);
+  const sessionIdRef        = useRef<string | null>(resume?.sessionId ?? null);
+  const conversationIdRef   = useRef<string | null>(resume?.conversationId ?? null);
   const calledOnCompleteRef = useRef(false);
   const abortRef            = useRef<AbortController | null>(null);
   const pollIntervalRef     = useRef(3000);
   // Full bidirectional history — user answers + AI questions. Separate from
   // `messages` display state so the chat UI is not affected.
-  const historyRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
+  // Pre-populated from resumed messages so post-resume turns have full context.
+  const historyRef = useRef<Array<{ role: 'user' | 'assistant'; content: string }>>(
+    resume?.messages.map(m => ({ role: m.role, content: m.content })) ?? [],
+  );
 
   // Session is created lazily on the user's first message — not on mount.
   // This prevents a sidebar entry being created every time /discovery is loaded.

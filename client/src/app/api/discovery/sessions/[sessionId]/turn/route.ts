@@ -115,12 +115,16 @@ export async function POST(
       where: { id: sessionId },
       data: {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        beliefState:      JSON.parse(JSON.stringify(nextState.context)),
-        phase:            nextState.phase,
-        questionCount:    nextState.questionCount,
-        questionsInPhase: nextState.questionsInPhase,
-        activeField:      nextState.activeField ?? null,
-        audienceType:     nextState.audienceType ?? null,
+        beliefState:           JSON.parse(JSON.stringify(nextState.context)),
+        phase:                 nextState.phase,
+        questionCount:         nextState.questionCount,
+        questionsInPhase:      nextState.questionsInPhase,
+        activeField:           nextState.activeField ?? null,
+        audienceType:          nextState.audienceType ?? null,
+        askedFields:           nextState.askedFields,
+        pricingProbed:         nextState.pricingProbed,
+        psychConstraintProbed: nextState.psychConstraintProbed,
+        lastTurnAt:            new Date(),
       },
       select: { id: true },
     });

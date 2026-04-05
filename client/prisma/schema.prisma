@@ -824,16 +824,24 @@ model DiscoverySession {
   conversation     Conversation?          @relation(fields: [conversationId], references: [id], onDelete: SetNull)
 
   // Interview state
-  phase            String                 @default("ORIENTATION")
-  questionCount    Int                    @default(0)
-  questionsInPhase Int                    @default(0)
-  activeField      String?
-  audienceType     String?
+  phase                 String                 @default("ORIENTATION")
+  questionCount         Int                    @default(0)
+  questionsInPhase      Int                    @default(0)
+  activeField           String?
+  audienceType          String?
+
+  // Transient interview flags — persisted so sessions survive Redis eviction
+  askedFields           Json                   @default("[]")
+  pricingProbed         Boolean                @default(false)
+  psychConstraintProbed Boolean                @default(false)
+
+  // Timestamp of the last completed turn — used for incomplete session detection
+  lastTurnAt            DateTime?
 
   // The belief state is the DiscoveryContext — serialised as JSON.
   // Typed accessors in src/lib/discovery/context-schema.ts are the only
   // way to read/write this field. Never mutate it raw.
-  beliefState      Json
+  beliefState           Json
 
   recommendation   Recommendation?
 
