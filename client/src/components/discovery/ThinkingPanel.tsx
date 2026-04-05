@@ -17,7 +17,7 @@ const STEPS = [
 ] as const;
 
 type StepKey = typeof STEPS[number]['key'];
-const STEP_KEYS: readonly StepKey[] = STEPS.map(s => s.key) as StepKey[];
+const STEP_KEYS = STEPS.map(s => s.key);
 
 // Timer only runs when live step data hasn't arrived yet — caps at step 1
 // so it never gets ahead of what the backend is actually doing.
@@ -52,6 +52,7 @@ export function ThinkingPanel({ isVisible, synthesisError, synthesisStep, onRetr
 
     if (!isVisible || liveIdx >= 0) {
       // Live data arrived — stop fallback timer. Reset on hide.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (!isVisible) setFallbackStep(0);
       return;
     }

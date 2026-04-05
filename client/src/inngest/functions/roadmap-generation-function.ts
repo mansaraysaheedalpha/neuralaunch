@@ -77,10 +77,8 @@ export const roadmapGenerationFunction = inngest.createFunction(
         if (!rec) throw new Error(`Recommendation ${recommendationId} not found`);
         if (rec.userId !== userId) throw new Error('Recommendation ownership mismatch');
 
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         const parsed      = DiscoveryContextSchema.safeParse(rec.session.beliefState);
         const ctx         = parsed.success ? parsed.data : createEmptyContext();
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         const audType     = (rec.session.audienceType ?? null) as AudienceType | null;
 
         return {
