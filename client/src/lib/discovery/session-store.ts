@@ -151,9 +151,7 @@ export async function getSession(sessionId: string): Promise<InterviewState | nu
       activeField:           (record.activeField ?? null) as DiscoveryContextField | 'psych_probe' | null,
       audienceType:          (record.audienceType ?? null) as import('./constants').AudienceType | null,
       consecutiveMisses:     0,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       psychConstraintProbed: record.psychConstraintProbed ?? false,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       pricingProbed:         record.pricingProbed         ?? false,
       askedFields:           (Array.isArray(record.askedFields) ? record.askedFields : []) as DiscoveryContextField[],
       createdAt:         record.createdAt.toISOString(),
