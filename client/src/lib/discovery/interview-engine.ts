@@ -211,6 +211,7 @@ export function applyUpdate(
     context:               mergedContext,
     questionsInPhase:      state.questionsInPhase + 1,
     psychConstraintProbed,
+    askedFields, // updated list — must include the current field before advance() filters candidates
   });
 
   const phaseChanged       = nextPhase !== state.phase;
