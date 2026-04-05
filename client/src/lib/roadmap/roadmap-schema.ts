@@ -11,10 +11,10 @@ export const RoadmapTaskSchema = z.object({
 });
 
 export const RoadmapPhaseSchema = z.object({
-  phase:         z.number().int().describe('Phase number starting at 1'),
+  phase:         z.number().describe('Phase number starting at 1 — must be a whole number'),
   title:         z.string().describe('Name of this phase, e.g. "Foundation" or "First Customer"'),
   objective:     z.string().describe('One sentence: what this phase achieves and why it comes before the next'),
-  durationWeeks: z.number().int().describe('Realistic duration in weeks given their available time — minimum 1'),
+  durationWeeks: z.number().describe('Realistic duration in weeks given their available time — must be a whole number, minimum 1'),
   tasks:         z.array(RoadmapTaskSchema).describe('Between 1 and 5 tasks for this phase'),
 });
 
