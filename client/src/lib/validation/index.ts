@@ -24,7 +24,19 @@ export {
 export { generateValidationPage, generateSlug, selectLayoutVariant } from './page-generator';
 export type { PageGenerationInput, PageGenerationResult }             from './page-generator';
 
-export { generateDistributionBrief } from './distribution-generator';
+export { generateDistributionBrief }  from './distribution-generator';
+export { interpretValidationMetrics } from './interpreter';
+export type { InterpretInput }         from './interpreter';
+export {
+  canGenerateBuildBrief,
+  generateBuildBrief,
+} from './build-brief-generator';
+export type {
+  BuildBriefInput,
+  ThresholdGateResult,
+} from './build-brief-generator';
+export { collectMetricsForPage }       from './metrics-collector';
+export type { RawMetrics }             from './metrics-collector';
 
 export type {
   ValidationPageContent,

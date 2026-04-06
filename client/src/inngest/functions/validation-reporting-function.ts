@@ -2,7 +2,16 @@
 import { inngest }              from '../client';
 import prisma                    from '@/lib/prisma';
 import { logger }                from '@/lib/logger';
-import { collectMetricsForPage } from '@/lib/validation/metrics-collector';
+import { collectMetricsForPage }      from '@/lib/validation/metrics-collector';
+import { interpretValidationMetrics } from '@/lib/validation/interpreter';
+import {
+  canGenerateBuildBrief,
+  generateBuildBrief,
+} from '@/lib/validation/build-brief-generator';
+import type {
+  ValidationPageContent,
+  ValidationInterpretation,
+} from '@/lib/validation/schemas';
 import {
   VALIDATION_REPORTING_EVENT,
   VALIDATION_SYNTHESIS_THRESHOLDS,
@@ -59,7 +68,16 @@ export const validationReportingFunction = inngest.createFunction(
           status: 'LIVE',
           ...(requestedPageId ? { id: requestedPageId } : {}),
         },
-        select: { id: true, slug: true },
+        select: {
+          id:                true,
+          slug:              true,
+          content:           true,
+          publishedAt:       true,
+          distributionBrief: true,
+          channelsCompleted: true,
+          recommendation:    { select: { path: true, summary: true } },
+          report:            { select: { id: true } },
+        },
       });
 
       log.info('Reporting cycle starting', { pageCount: pages.length });
@@ -76,10 +94,38 @@ export const validationReportingFunction = inngest.createFunction(
     let processed = 0;
     for (const page of pageIds) {
       try {
-        await step.run(`snapshot-${page.id}`, async () => {
+        // --- Step 2a: snapshot + interpretation ---
+        const snapshotResult = await step.run(`snapshot-${page.id}`, async () => {
           const metrics = await collectMetricsForPage(page.slug);
+          const content = page.content as ValidationPageContent;
+          const brief   = (page.distributionBrief ?? []) as Array<{ channel: string }>;
 
-          await prisma.validationSnapshot.create({
+          // Skip interpretation entirely when there is no data at all.
+          const hasAnyData = metrics.visitorCount > 0
+            || metrics.featureClicks.length > 0
+            || metrics.surveyResponses.length > 0;
+
+          let interpretation: ValidationInterpretation | null = null;
+          if (hasAnyData) {
+            try {
+              interpretation = await interpretValidationMetrics({
+                slug:              page.slug,
+                pageId:            page.id,
+                metrics,
+                features:          content.features,
+                publishedAt:       page.publishedAt ?? new Date(),
+                briefChannels:     brief.length,
+                completedChannels: page.channelsCompleted.length,
+              });
+            } catch (err) {
+              log.error('Interpretation failed — writing snapshot without it', {
+                pageId: page.id,
+                error:  String(err),
+              });
+            }
+          }
+
+          const snapshot = await prisma.validationSnapshot.create({
             data: {
               validationPageId:   page.id,
               visitorCount:       metrics.visitorCount,
@@ -89,11 +135,78 @@ export const validationReportingFunction = inngest.createFunction(
               surveyResponses:    metrics.surveyResponses as object[],
               trafficSources:     metrics.trafficSources as object[],
               scrollDepthData:    metrics.scrollDepthData as object[],
+              interpretation,
             },
+            select: { id: true },
           });
 
-          log.debug('Snapshot written', { pageId: page.id, slug: page.slug });
+          log.debug('Snapshot written', {
+            pageId:      page.id,
+            snapshotId:  snapshot.id,
+            interpreted: interpretation !== null,
+          });
+
+          return { snapshotId: snapshot.id, metrics, interpretation };
         });
+
+        // --- Step 2b: gated build brief (Opus) ---
+        if (snapshotResult.interpretation && page.recommendation) {
+          const gate = canGenerateBuildBrief({ metrics: snapshotResult.metrics });
+
+          if (!gate.passes) {
+            log.info('Build brief gate rejected', {
+              pageId:  page.id,
+              reasons: gate.reasons,
+            });
+          } else {
+            await step.run(`build-brief-${page.id}`, async () => {
+              const content = page.content as ValidationPageContent;
+              const report  = await generateBuildBrief({
+                pageId:         page.id,
+                slug:           page.slug,
+                metrics:        snapshotResult.metrics,
+                interpretation: snapshotResult.interpretation!,
+                features:       content.features,
+                recommendation: page.recommendation!,
+              });
+
+              // Upsert — newest report replaces previous (history kept in snapshots)
+              if (page.report) {
+                await prisma.validationReport.update({
+                  where: { id: page.report.id },
+                  data:  {
+                    snapshotId:        snapshotResult.snapshotId,
+                    generatedAt:       new Date(),
+                    signalStrength:    report.signalStrength,
+                    confirmedFeatures: report.confirmedFeatures as object[],
+                    rejectedFeatures:  report.rejectedFeatures as object[],
+                    surveyInsights:    report.surveyInsights,
+                    buildBrief:        report.buildBrief,
+                    nextAction:        report.nextAction,
+                  },
+                });
+              } else {
+                await prisma.validationReport.create({
+                  data: {
+                    validationPageId:  page.id,
+                    snapshotId:        snapshotResult.snapshotId,
+                    signalStrength:    report.signalStrength,
+                    confirmedFeatures: report.confirmedFeatures as object[],
+                    rejectedFeatures:  report.rejectedFeatures as object[],
+                    surveyInsights:    report.surveyInsights,
+                    buildBrief:        report.buildBrief,
+                    nextAction:        report.nextAction,
+                  },
+                });
+              }
+
+              log.info('Build brief persisted', {
+                pageId:         page.id,
+                signalStrength: report.signalStrength,
+              });
+            });
+          }
+        }
         processed++;
       } catch (error) {
         log.error('Page reporting failed — continuing with next page', {
