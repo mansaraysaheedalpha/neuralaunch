@@ -1,6 +1,5 @@
 import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
-import ConnectGitHubButton from "@/components/ConnectGithubButton";
 import { redirect } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -147,12 +146,6 @@ export default async function ProfilePage() {
                 </Badge>
               )}
             </div>
-
-            {!githubAccount && (
-              <div className="pl-[52px]">
-                <ConnectGitHubButton />
-              </div>
-            )}
 
             {githubAccount && (
               <div className="pl-[52px] space-y-2">

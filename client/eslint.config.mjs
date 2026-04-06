@@ -58,7 +58,15 @@ const eslintConfig = [
 
       // --- NEXT.JS SPECIFIC TWEAKS (Optional, but often helpful) ---
       // Allow prop-types to be inferred in React components
-      "react/prop-types": "off", 
+      "react/prop-types": "off",
+
+      // Apostrophes in JSX text are fine — no need to escape in a codebase
+      // that does not render user-controlled text as raw HTML.
+      "react/no-unescaped-entities": "off",
+
+      // These caused false positives on Prisma-generated union types
+      "@typescript-eslint/no-unnecessary-type-assertion": "off",
+      "@typescript-eslint/no-base-to-string": "off",
     },
   },
   // ---------------------------------------------

@@ -22,7 +22,7 @@ interface ValidationPageControlsProps {
 export function ValidationPageControls({
   pageId,
   recommendationId,
-  slug,
+  slug: _slug,
   status: initialStatus,
   pageUrl,
 }: ValidationPageControlsProps) {

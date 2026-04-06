@@ -34,11 +34,54 @@ interface DiscoveryChatProps {
  * Main conversational UI for Phase 1. Delegates all server interaction
  * to useDiscoverySession; owns only local input state and rendering.
  */
+// localStorage key for the unsent input draft — survives page refresh so
+// a user who has typed a long message and accidentally reloads does not
+// lose what they wrote. Cleared on successful send.
+const DRAFT_STORAGE_KEY = 'neuralaunch:discovery-input-draft';
+
+/**
+ * Lazy initialiser for the input state — reads any persisted draft from
+ * localStorage on the first render. Implemented as a lazy useState
+ * initialiser (not a useEffect + setState) so React does not flag a
+ * cascading effect render. SSR-safe via the typeof check.
+ */
+function readPersistedDraft(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    return window.localStorage.getItem(DRAFT_STORAGE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
 export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = false }: DiscoveryChatProps) {
-  const [input,      setInput]      = useState('');
+  const [input,      setInput]      = useState<string>(readPersistedDraft);
   const [hasStarted, setHasStarted] = useState(!!resume);
   const [guideOpen,  setGuideOpen]  = useState(false);
   const mainInputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Persist every keystroke. Debouncing is unnecessary — localStorage writes
+  // are synchronous but fast, and text-input events are already throttled
+  // to the user's typing speed.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (input.length > 0) {
+        window.localStorage.setItem(DRAFT_STORAGE_KEY, input);
+      } else {
+        window.localStorage.removeItem(DRAFT_STORAGE_KEY);
+      }
+    } catch {
+      // private mode / quota — silently ignore
+    }
+  }, [input]);
+
+  const clearDraft = useCallback(() => {
+    setInput('');
+    if (typeof window !== 'undefined') {
+      try { window.localStorage.removeItem(DRAFT_STORAGE_KEY); } catch { /* ignore */ }
+    }
+  }, []);
 
   const {
     messages,
@@ -74,7 +117,7 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
     e.preventDefault();
     if (!canSubmit) return;
     const content = input;
-    setInput('');
+    clearDraft();
     setStepperVisible(false);
     handleSend(content);
   };
@@ -93,7 +136,7 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
           e.preventDefault();
           if (canSubmit) {
             const content = input;
-            setInput('');
+            clearDraft();
             setStepperVisible(false);
             handleSend(content);
           }
@@ -132,6 +175,14 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
           synthesisStep={synthesisStep}
           onRetry={retryRecommendation}
         />
+      )}
+
+      {/* Error banner — surfaces session creation or turn failures so the
+          UI never silently goes blank */}
+      {status === 'error' && !isSynthesizing && (
+        <div className="mx-4 mb-3 shrink-0 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+          Something went wrong sending your message. Please try again — if the problem persists, refresh the page.
+        </div>
       )}
 
       {/* Empty state — welcome + input grouped and vertically centered */}
