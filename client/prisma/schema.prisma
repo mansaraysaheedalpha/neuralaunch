@@ -112,6 +112,15 @@ model Message {
   createdAt      DateTime     @default(now())
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  /**
+   * Provider id of the model that produced this assistant message.
+   * Set by the question-stream-fallback orchestrator after the first
+   * chunk arrives. Null for user messages and for any assistant
+   * message written before fallback was introduced.
+   * Known values: 'anthropic-sonnet' | 'anthropic-haiku' | 'google-gemini-flash'
+   */
+  modelUsed      String?
 }
 
 model CofounderMessage {

@@ -20,10 +20,17 @@ import type { DiscoveryContextField } from './context-schema';
  * accumulated response as an assistant Message in the linked Conversation.
  * Returns a ReadableStream<Uint8Array> suitable for a NextResponse body.
  * The Message write is best-effort — failures are swallowed.
+ *
+ * When `modelUsed` is supplied (a Promise that resolves with the
+ * provider id chosen by the question-stream-fallback orchestrator),
+ * the resolved value is persisted on the Message row for observability.
+ * When the promise rejects (every provider failed) we still persist
+ * the partial content with modelUsed = null.
  */
 export function teeDiscoveryStream(
   textStream:     ReadableStream<string>,
   conversationId: string | null,
+  modelUsed?:     Promise<string>,
 ): ReadableStream<Uint8Array> {
   const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
   const writer  = writable.getWriter();
@@ -36,15 +43,53 @@ export function teeDiscoveryStream(
         chunks.push(chunk);
         void writer.write(encoder.encode(chunk));
       },
-      close() {
-        void writer.close().then(async () => {
-          const fullText = chunks.join('');
-          if (fullText && conversationId) {
-            await prisma.message.create({
-              data: { conversationId, role: 'assistant', content: fullText },
-            }).catch(() => { /* non-fatal */ });
+      async close() {
+        try {
+          await writer.close();
+        } catch { /* ignore double-close */ }
+        const fullText = chunks.join('');
+        if (!fullText || !conversationId) return;
+
+        // Resolve modelUsed if available — never block on it longer
+        // than the stream itself ran. The orchestrator resolves on
+        // first chunk, so by close() it should already be settled.
+        let resolvedModel: string | null = null;
+        if (modelUsed) {
+          try {
+            resolvedModel = await modelUsed;
+          } catch {
+            resolvedModel = null;
           }
-        });
+        }
+
+        await prisma.message.create({
+          data: {
+            conversationId,
+            role:      'assistant',
+            content:   fullText,
+            modelUsed: resolvedModel,
+          },
+        }).catch(() => { /* non-fatal */ });
+      },
+      async abort() {
+        // Stream errored before completion — persist whatever we got
+        // so the founder's view of the transcript reflects what they
+        // saw. The retry UI in Phase 2 of this fix uses this row to
+        // render the cut-stream indicator.
+        const fullText = chunks.join('');
+        if (!fullText || !conversationId) return;
+        let resolvedModel: string | null = null;
+        if (modelUsed) {
+          try { resolvedModel = await modelUsed; } catch { resolvedModel = null; }
+        }
+        await prisma.message.create({
+          data: {
+            conversationId,
+            role:      'assistant',
+            content:   fullText,
+            modelUsed: resolvedModel,
+          },
+        }).catch(() => { /* non-fatal */ });
       },
     }),
   );

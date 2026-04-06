@@ -47,7 +47,30 @@ export const MODELS = {
   INTERVIEW:  'claude-sonnet-4-6',
   /** Used for final synthesis only (depth + reasoning quality) */
   SYNTHESIS:  'claude-opus-4-6',
+  /**
+   * First fallback for question generation. Different infrastructure
+   * from Sonnet so unlikely to be overloaded simultaneously. Capable
+   * of producing interview questions at the quality required.
+   * NEVER used for synthesis — synthesis surfaces failure instead.
+   */
+  INTERVIEW_FALLBACK_1: 'claude-haiku-4-5-20251001',
+  /**
+   * Second fallback for question generation. Google Gemini 2.5 Flash
+   * via the @ai-sdk/google provider. Different vendor, so an Anthropic
+   * regional outage cannot affect both fallback tiers. Same Vercel AI
+   * SDK interface as Anthropic — no message-format translation needed.
+   */
+  INTERVIEW_FALLBACK_2: 'gemini-2.5-flash',
 } as const;
+
+/**
+ * Maximum output tokens for question-generation streaming calls. A
+ * single interview question never exceeds ~150 tokens; the cap exists
+ * to bound time-to-first-token under load and reduce timeout exposure
+ * when the API is degraded. Synthesis calls use their own ceilings
+ * (typically 1024+) and ignore this constant.
+ */
+export const QUESTION_MAX_TOKENS = 1000;
 
 // ---------------------------------------------------------------------------
 // Audience types — classified silently within the first 2 exchanges

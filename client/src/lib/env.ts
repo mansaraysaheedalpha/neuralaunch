@@ -27,6 +27,10 @@ const envSchema = z.object({
 
   // AI Services
   ANTHROPIC_API_KEY: z.string().min(1),
+  // Google AI — used as the second fallback for question generation
+  // when Anthropic is overloaded. Optional: when missing, the fallback
+  // chain stops at Haiku and a final failure is surfaced to the client.
+  GOOGLE_AI_API_KEY: z.string().optional(),
 
   // Search / Research
   TAVILY_API_KEY: z.string().optional(),
