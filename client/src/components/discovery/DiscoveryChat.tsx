@@ -34,11 +34,50 @@ interface DiscoveryChatProps {
  * Main conversational UI for Phase 1. Delegates all server interaction
  * to useDiscoverySession; owns only local input state and rendering.
  */
+// localStorage key for the unsent input draft — survives page refresh so
+// a user who has typed a long message and accidentally reloads does not
+// lose what they wrote. Cleared on successful send.
+const DRAFT_STORAGE_KEY = 'neuralaunch:discovery-input-draft';
+
 export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = false }: DiscoveryChatProps) {
   const [input,      setInput]      = useState('');
   const [hasStarted, setHasStarted] = useState(!!resume);
   const [guideOpen,  setGuideOpen]  = useState(false);
   const mainInputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Hydrate the draft from localStorage once on mount. Guarded for SSR.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const saved = window.localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (saved && saved.length > 0) setInput(saved);
+    } catch {
+      // localStorage can throw in private mode — silently ignore
+    }
+  }, []);
+
+  // Persist every keystroke. Debouncing is unnecessary — localStorage writes
+  // are synchronous but fast, and text-input events are already throttled
+  // to the user's typing speed.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (input.length > 0) {
+        window.localStorage.setItem(DRAFT_STORAGE_KEY, input);
+      } else {
+        window.localStorage.removeItem(DRAFT_STORAGE_KEY);
+      }
+    } catch {
+      // private mode / quota — silently ignore
+    }
+  }, [input]);
+
+  const clearDraft = useCallback(() => {
+    setInput('');
+    if (typeof window !== 'undefined') {
+      try { window.localStorage.removeItem(DRAFT_STORAGE_KEY); } catch { /* ignore */ }
+    }
+  }, []);
 
   const {
     messages,
@@ -74,7 +113,7 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
     e.preventDefault();
     if (!canSubmit) return;
     const content = input;
-    setInput('');
+    clearDraft();
     setStepperVisible(false);
     handleSend(content);
   };
@@ -93,7 +132,7 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
           e.preventDefault();
           if (canSubmit) {
             const content = input;
-            setInput('');
+            clearDraft();
             setStepperVisible(false);
             handleSend(content);
           }
