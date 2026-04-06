@@ -31,12 +31,12 @@ export const validationLifecycleFunction = inngest.createFunction(
     id:      'validation-page-lifecycle',
     name:    'Validation — Page Lifecycle Sweep',
     retries: 2,
+    triggers: [
+      // Run once a day at 03:00 UTC — off-peak for most timezones we serve
+      { cron: '0 3 * * *' },
+      { event: VALIDATION_LIFECYCLE_EVENT },
+    ],
   },
-  [
-    // Run once a day at 03:00 UTC — off-peak for most timezones we serve
-    { cron: '0 3 * * *' },
-    { event: VALIDATION_LIFECYCLE_EVENT },
-  ],
   async ({ event, step }) => {
     const log = logger.child({
       inngestFunction: 'validationLifecycle',
