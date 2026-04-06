@@ -96,7 +96,7 @@ export const validationReportingFunction = inngest.createFunction(
       try {
         // --- Step 2a: snapshot + interpretation ---
         const snapshotResult = await step.run(`snapshot-${page.id}`, async () => {
-          const metrics = await collectMetricsForPage(page.slug);
+          const metrics = await collectMetricsForPage(page.id);
           const content = page.content as ValidationPageContent;
           const brief   = (page.distributionBrief ?? []) as Array<{ channel: string }>;
 

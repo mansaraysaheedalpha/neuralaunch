@@ -1040,6 +1040,7 @@ model ValidationPage {
 
   snapshots        ValidationSnapshot[]
   report           ValidationReport?
+  events           ValidationEvent[]
 
   @@index([userId])
   @@index([slug])
@@ -1102,4 +1103,34 @@ model ValidationReport {
   usedForMvp        Boolean         @default(false)
 
   @@index([validationPageId])
+}
+
+/**
+ * ValidationEvent
+ *
+ * Raw analytics event captured from the public /lp/[slug] page.
+ * One row per event. Aggregated into ValidationSnapshot on each
+ * reporting cycle by the validation-reporting Inngest function.
+ *
+ * This replaces the PostHog integration — with expected traffic of
+ * 50–500 visitors per page lifecycle, persisting events directly to
+ * Postgres is cheaper, simpler, and removes an external dependency.
+ *
+ * The eventType column is a string (not enum) so we can add new event
+ * kinds without a migration. Known values:
+ *   page_view | scroll_depth | exit_intent | feature_click | cta_signup | survey_response
+ */
+model ValidationEvent {
+  id                String         @id @default(cuid())
+  validationPageId  String
+  validationPage    ValidationPage @relation(fields: [validationPageId], references: [id], onDelete: Cascade)
+
+  eventType         String         // see docstring
+  visitorId         String?        // hashed client identifier when available
+  properties        Json           // event-specific payload (taskId, depth, email, answer, etc.)
+
+  createdAt         DateTime       @default(now())
+
+  @@index([validationPageId, eventType])
+  @@index([validationPageId, createdAt])
 }

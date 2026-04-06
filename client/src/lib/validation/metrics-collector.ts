@@ -1,6 +1,6 @@
 // src/lib/validation/metrics-collector.ts
 import 'server-only';
-import { env }    from '@/lib/env';
+import prisma    from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import type {
   FeatureClickData,
@@ -24,54 +24,111 @@ export interface RawMetrics {
 /**
  * collectMetricsForPage
  *
- * Pulls analytics for a single validation page slug from PostHog.
- * Returns zeroed metrics if POSTHOG_API_KEY is not configured — this is the
- * expected state before the first PostHog project is wired. The reporting
- * function treats zero-metric snapshots as "no data yet" and skips interpretation.
+ * Aggregates all ValidationEvent rows for a page into a cycle snapshot.
+ * Pulls data directly from Postgres — no external analytics dependency.
  *
- * The PostHog API is queried via its `/api/projects/{id}/insights/trend/` and
- * event-query endpoints. Each page's events are tagged with `lp_slug: <slug>`
- * on ingest — that's how this function isolates per-page data.
- *
- * All I/O failures are caught and logged; the reporter continues with whatever
- * partial data is available rather than crashing the whole cycle.
+ * Expected traffic per page is 50–500 visitors over its lifetime, so the
+ * full event history comfortably fits in one query. If that assumption
+ * changes later we can add a takenAfter parameter and snapshot deltas.
  */
-export async function collectMetricsForPage(slug: string): Promise<RawMetrics> {
-  const log = logger.child({ module: 'metrics-collector', slug });
+export async function collectMetricsForPage(pageId: string): Promise<RawMetrics> {
+  const log = logger.child({ module: 'metrics-collector', pageId });
 
-  const empty: RawMetrics = {
-    visitorCount:       0,
-    uniqueVisitorCount: 0,
-    ctaConversionRate:  0,
-    featureClicks:      [],
-    surveyResponses:    [],
-    trafficSources:     [],
-    scrollDepthData:    [],
+  const events = await prisma.validationEvent.findMany({
+    where:  { validationPageId: pageId },
+    select: {
+      eventType:  true,
+      visitorId:  true,
+      properties: true,
+    },
+  });
+
+  if (events.length === 0) {
+    log.debug('No events yet for page');
+    return {
+      visitorCount:       0,
+      uniqueVisitorCount: 0,
+      ctaConversionRate:  0,
+      featureClicks:      [],
+      surveyResponses:    [],
+      trafficSources:     [],
+      scrollDepthData:    [],
+    };
+  }
+
+  // Visitor counts
+  const pageViews      = events.filter(e => e.eventType === 'page_view');
+  const visitorCount   = pageViews.length;
+  const uniqueVisitors = new Set(pageViews.map(e => e.visitorId).filter(Boolean)).size;
+  const uniqueVisitorCount = uniqueVisitors || visitorCount;
+
+  // CTA conversion
+  const signups          = events.filter(e => e.eventType === 'cta_signup').length;
+  const ctaConversionRate = visitorCount > 0 ? signups / visitorCount : 0;
+
+  // Feature clicks — aggregate by taskId
+  const featureClickMap = new Map<string, { taskId: string; title: string; clicks: number }>();
+  for (const e of events) {
+    if (e.eventType !== 'feature_click') continue;
+    const p = e.properties as { taskId?: string; title?: string };
+    if (!p.taskId || !p.title) continue;
+    const existing = featureClickMap.get(p.taskId);
+    if (existing) {
+      existing.clicks += 1;
+    } else {
+      featureClickMap.set(p.taskId, { taskId: p.taskId, title: p.title, clicks: 1 });
+    }
+  }
+  const featureClicks: FeatureClickData[] = Array.from(featureClickMap.values())
+    .sort((a, b) => b.clicks - a.clicks);
+
+  // Survey responses
+  const surveyResponses: SurveyResponse[] = events
+    .filter(e => e.eventType === 'survey_response')
+    .map(e => {
+      const p = e.properties as { question?: string; answer?: string };
+      return {
+        question: p.question ?? '',
+        answer:   p.answer   ?? '',
+        takenAt:  new Date().toISOString(),
+      };
+    })
+    .filter(s => s.answer.length > 0);
+
+  // Scroll depth — what % of visitors reached each milestone
+  const scrollByDepth = new Map<number, number>();
+  for (const e of events) {
+    if (e.eventType !== 'scroll_depth') continue;
+    const p = e.properties as { depth?: number };
+    if (typeof p.depth !== 'number') continue;
+    scrollByDepth.set(p.depth, (scrollByDepth.get(p.depth) ?? 0) + 1);
+  }
+  const scrollDepthData = Array.from(scrollByDepth.entries())
+    .map(([depth, count]) => ({
+      depth,
+      reachedPercentage: visitorCount > 0 ? Math.round((count / visitorCount) * 100) : 0,
+    }))
+    .sort((a, b) => a.depth - b.depth);
+
+  // Traffic sources — not yet collected on the client side; placeholder
+  const trafficSources: Array<{ source: string; count: number }> = [];
+
+  log.info('Metrics aggregated', {
+    pageId,
+    eventCount:        events.length,
+    visitorCount,
+    uniqueVisitorCount,
+    totalFeatureClicks: featureClicks.reduce((s, c) => s + c.clicks, 0),
+    surveyCount:       surveyResponses.length,
+  });
+
+  return {
+    visitorCount,
+    uniqueVisitorCount,
+    ctaConversionRate,
+    featureClicks,
+    surveyResponses,
+    trafficSources,
+    scrollDepthData,
   };
-
-  if (!env.POSTHOG_API_KEY) {
-    log.debug('POSTHOG_API_KEY not configured — returning empty metrics');
-    return empty;
-  }
-
-  try {
-    // TODO: Implement PostHog queries once a project is provisioned.
-    // Planned queries:
-    //   1. Event count where event = 'page_view' AND properties.lp_slug = slug
-    //   2. Distinct visitor count (use distinct_id)
-    //   3. cta_signup / page_view → ctaConversionRate
-    //   4. Aggregate feature_click events grouped by taskId
-    //   5. Aggregate survey_response events (surveyKey + answer)
-    //   6. Referrer breakdown for traffic sources
-    //   7. scroll_depth milestone counts normalised by visitor count
-    //
-    // For the first production slice we ship with the empty stub so the
-    // scheduled function loop is exercised end-to-end. Real metrics switch on
-    // the moment a PostHog key is set — no further code changes needed.
-    log.info('PostHog integration not yet implemented — returning empty metrics');
-    return empty;
-  } catch (error) {
-    log.error('Metrics collection failed', { error: String(error) });
-    return empty;
-  }
 }

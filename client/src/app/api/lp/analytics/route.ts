@@ -74,7 +74,7 @@ export async function POST(request: Request) {
   // Verify the slug refers to a live (or draft-preview) validation page
   const page = await prisma.validationPage.findUnique({
     where:  { slug: data.slug },
-    select: { id: true, status: true, posthogPropertyId: true },
+    select: { id: true, status: true },
   });
 
   if (!page || page.status === 'ARCHIVED') {
@@ -84,9 +84,43 @@ export async function POST(request: Request) {
 
   log.debug('Validation analytics event', { slug: data.slug, event: data.event });
 
-  // PostHog forwarding is handled by the Inngest reporting function which
-  // reads PostHog's API directly. This route is the thin intake layer only.
-  // Additional storage (e.g. snapshot pre-aggregation) is added in Step 10.
+  // Extract event-specific properties (everything except slug + event)
+  const { slug: _slug, event, ...properties } = data as Record<string, unknown> & { slug: string; event: string };
+  void _slug;
+
+  // Visitor identification: the request's x-forwarded-for or the slug itself.
+  // We don't set a cookie so distinct_count is a rough lower bound — good
+  // enough for the "moderate vs strong signal" distinction the interpreter cares about.
+  const ipHeader = request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? '';
+  const visitorId = ipHeader ? hashString(ipHeader) : null;
+
+  try {
+    await prisma.validationEvent.create({
+      data: {
+        validationPageId: page.id,
+        eventType:        event,
+        visitorId,
+        properties:       properties as object,
+      },
+    });
+  } catch (err) {
+    // Non-fatal — we never want a write failure to break the visitor's page
+    log.error('Failed to persist validation event', { error: String(err) });
+  }
 
   return NextResponse.json({ ok: true });
+}
+
+/**
+ * Tiny non-cryptographic hash for visitor identification.
+ * We're not protecting secrets — just grouping events from the same IP
+ * within a reporting window. A stable short string is all we need.
+ */
+function hashString(input: string): string {
+  let hash = 0;
+  for (let i = 0; i < input.length; i++) {
+    hash = ((hash << 5) - hash) + input.charCodeAt(i);
+    hash |= 0;
+  }
+  return `v_${Math.abs(hash).toString(36)}`;
 }
