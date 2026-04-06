@@ -1089,12 +1089,17 @@ model ValidationReport {
   snapshotId        String
 
   generatedAt       DateTime        @default(now())
-  signalStrength    String          // 'strong' | 'moderate' | 'weak'
+  signalStrength    String          // 'strong' | 'moderate' | 'weak' | 'negative'
   confirmedFeatures Json            // { taskId, title, clicks, percentage, evidence }[]
   rejectedFeatures  Json            // { taskId, title, clicks, reason }[]
   surveyInsights    String          @db.Text
   buildBrief        String          @db.Text
   nextAction        String          @db.Text
+
+  // Populated only when signalStrength === 'negative' — what the market
+  // contradicted and what adjacent paths the founder could try instead.
+  disconfirmedAssumptions Json      @default("[]") // string[]
+  pivotOptions            Json      @default("[]") // { title, rationale }[]
 
   // True when the user clicks "Mark validation complete" — feeds Phase 5
   usedForMvp        Boolean         @default(false)

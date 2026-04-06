@@ -18,6 +18,11 @@ import {
   type RejectedFeature,
 } from '@/lib/validation/schemas';
 
+const PivotOptionSchema = z.object({
+  title:     z.string(),
+  rationale: z.string(),
+});
+
 interface ValidationPreviewPageProps {
   params: Promise<{ pageId: string }>;
 }
@@ -40,14 +45,16 @@ export default async function ValidationPreviewPage({ params }: ValidationPrevie
       channelsCompleted: true,
       report: {
         select: {
-          signalStrength:    true,
-          confirmedFeatures: true,
-          rejectedFeatures:  true,
-          surveyInsights:    true,
-          buildBrief:        true,
-          nextAction:        true,
-          usedForMvp:        true,
-          generatedAt:       true,
+          signalStrength:          true,
+          confirmedFeatures:       true,
+          rejectedFeatures:        true,
+          surveyInsights:          true,
+          buildBrief:              true,
+          nextAction:              true,
+          usedForMvp:              true,
+          generatedAt:             true,
+          disconfirmedAssumptions: true,
+          pivotOptions:            true,
         },
       },
     },
@@ -62,11 +69,15 @@ export default async function ValidationPreviewPage({ params }: ValidationPrevie
   const briefParsed = DistributionBriefSchema.safeParse(page.distributionBrief);
   const brief: DistributionBrief | null = briefParsed.success ? briefParsed.data : null;
 
-  const confirmedParsed = z.array(ConfirmedFeatureSchema).safeParse(page.report?.confirmedFeatures ?? []);
-  const rejectedParsed  = z.array(RejectedFeatureSchema).safeParse(page.report?.rejectedFeatures ?? []);
+  const confirmedParsed     = z.array(ConfirmedFeatureSchema).safeParse(page.report?.confirmedFeatures ?? []);
+  const rejectedParsed      = z.array(RejectedFeatureSchema).safeParse(page.report?.rejectedFeatures ?? []);
+  const disconfirmedParsed  = z.array(z.string()).safeParse(page.report?.disconfirmedAssumptions ?? []);
+  const pivotParsed         = z.array(PivotOptionSchema).safeParse(page.report?.pivotOptions ?? []);
 
   const confirmedFeatures: ConfirmedFeature[] = confirmedParsed.success ? confirmedParsed.data : [];
   const rejectedFeatures:  RejectedFeature[]  = rejectedParsed.success  ? rejectedParsed.data  : [];
+  const disconfirmedAssumptions: string[]     = disconfirmedParsed.success ? disconfirmedParsed.data : [];
+  const pivotOptions = pivotParsed.success ? pivotParsed.data : [];
 
   return (
     <div className="flex h-full flex-col gap-0">
@@ -117,6 +128,8 @@ export default async function ValidationPreviewPage({ params }: ValidationPrevie
             nextAction={page.report.nextAction}
             usedForMvp={page.report.usedForMvp}
             generatedAt={page.report.generatedAt.toISOString()}
+            disconfirmedAssumptions={disconfirmedAssumptions}
+            pivotOptions={pivotOptions}
           />
         )}
       </PreviewFrame>

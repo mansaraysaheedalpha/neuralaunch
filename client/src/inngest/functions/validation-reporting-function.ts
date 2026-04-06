@@ -240,26 +240,34 @@ export const validationReportingFunction = inngest.createFunction(
           where: { id: page.report.id },
           data:  {
             snapshotId,
-            generatedAt:       new Date(),
-            signalStrength:    report.signalStrength,
-            confirmedFeatures: report.confirmedFeatures as object[],
-            rejectedFeatures:  report.rejectedFeatures as object[],
-            surveyInsights:    report.surveyInsights,
-            buildBrief:        report.buildBrief,
-            nextAction:        report.nextAction,
+            generatedAt:             new Date(),
+            signalStrength:          report.signalStrength,
+            confirmedFeatures:       report.confirmedFeatures as object[],
+            rejectedFeatures:        report.rejectedFeatures as object[],
+            surveyInsights:          report.surveyInsights,
+            buildBrief:              report.buildBrief,
+            nextAction:              report.nextAction,
+            disconfirmedAssumptions: report.disconfirmedAssumptions as object[],
+            pivotOptions:            report.pivotOptions as object[],
+            // A negative report overrides any prior MVP handoff flag — the
+            // founder cannot unintentionally carry a discredited brief into
+            // Phase 5 just because they marked an older positive version.
+            ...(report.signalStrength === 'negative' ? { usedForMvp: false } : {}),
           },
         });
       } else {
         await prisma.validationReport.create({
           data: {
-            validationPageId:  page.id,
+            validationPageId:        page.id,
             snapshotId,
-            signalStrength:    report.signalStrength,
-            confirmedFeatures: report.confirmedFeatures as object[],
-            rejectedFeatures:  report.rejectedFeatures as object[],
-            surveyInsights:    report.surveyInsights,
-            buildBrief:        report.buildBrief,
-            nextAction:        report.nextAction,
+            signalStrength:          report.signalStrength,
+            confirmedFeatures:       report.confirmedFeatures as object[],
+            rejectedFeatures:        report.rejectedFeatures as object[],
+            surveyInsights:          report.surveyInsights,
+            buildBrief:              report.buildBrief,
+            nextAction:              report.nextAction,
+            disconfirmedAssumptions: report.disconfirmedAssumptions as object[],
+            pivotOptions:            report.pivotOptions as object[],
           },
         });
       }

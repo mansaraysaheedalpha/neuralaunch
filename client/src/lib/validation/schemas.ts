@@ -147,7 +147,7 @@ export type SurveyResponse   = z.infer<typeof SurveyResponseSchema>;
 // ---------------------------------------------------------------------------
 
 export const ValidationInterpretationSchema = z.object({
-  signalStrength:       z.enum(['strong', 'moderate', 'weak', 'insufficient']),
+  signalStrength:       z.enum(['strong', 'moderate', 'weak', 'negative', 'insufficient']),
   signalReason:         SHORT_TEXT.describe('One sentence explaining the signal strength score with the number behind it'),
   featureRanking:       z.array(z.object({
     taskId:     z.string(),
@@ -183,13 +183,32 @@ export const RejectedFeatureSchema = z.object({
   reason: MEDIUM_TEXT,
 });
 
+/**
+ * The committed build brief. `buildBrief` is always populated:
+ *   - For 'strong' | 'moderate' | 'weak' → "Build X. Defer Y. Cut Z." style
+ *   - For 'negative' → honest "do not build this because..." paragraph
+ *
+ * When signalStrength === 'negative', the following fields MUST also be
+ * populated:
+ *   - disconfirmedAssumptions: which specific assumptions from the original
+ *     recommendation the market contradicted
+ *   - pivotOptions: 2–3 adjacent paths the founder could try with the same
+ *     belief state; empty array means "kill this direction, new discovery"
+ *
+ * For non-negative signals these fields are empty arrays.
+ */
 export const ValidationReportSchema = z.object({
-  signalStrength:    z.enum(['strong', 'moderate', 'weak']),
-  confirmedFeatures: z.array(ConfirmedFeatureSchema),
-  rejectedFeatures:  z.array(RejectedFeatureSchema),
-  surveyInsights:    LONG_TEXT,
-  buildBrief:        LONG_TEXT,
-  nextAction:        MEDIUM_TEXT,
+  signalStrength:          z.enum(['strong', 'moderate', 'weak', 'negative']),
+  confirmedFeatures:       z.array(ConfirmedFeatureSchema),
+  rejectedFeatures:        z.array(RejectedFeatureSchema),
+  surveyInsights:          LONG_TEXT,
+  buildBrief:              LONG_TEXT,
+  nextAction:              MEDIUM_TEXT,
+  disconfirmedAssumptions: z.array(MEDIUM_TEXT).max(5).default([]),
+  pivotOptions:            z.array(z.object({
+    title:    SHORT_TEXT,
+    rationale: MEDIUM_TEXT,
+  })).max(3).default([]),
 });
 
 export type ConfirmedFeature = z.infer<typeof ConfirmedFeatureSchema>;

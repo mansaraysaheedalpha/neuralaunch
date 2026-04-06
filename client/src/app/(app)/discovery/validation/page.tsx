@@ -85,9 +85,14 @@ export default async function ValidationDashboardPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <StatusBadge status={page.status} />
-                        {hasReport && (
+                        {hasReport && page.report?.signalStrength !== 'negative' && (
                           <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-primary">
                             Build brief ready
+                          </span>
+                        )}
+                        {hasReport && page.report?.signalStrength === 'negative' && (
+                          <span className="inline-flex items-center rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-red-600 dark:text-red-400">
+                            Market said no
                           </span>
                         )}
                       </div>

@@ -41,10 +41,16 @@ export async function POST(
 
     const page = await prisma.validationPage.findFirst({
       where:  { id: pageId, userId },
-      select: { report: { select: { id: true } } },
+      select: { report: { select: { id: true, signalStrength: true } } },
     });
 
     if (!page?.report) throw new HttpError(404, 'No report on this page yet');
+
+    // Safety: a negative brief cannot be used as an MVP spec. The founder
+    // must start a new discovery session instead.
+    if (parsed.data.usedForMvp && page.report.signalStrength === 'negative') {
+      throw new HttpError(409, 'A negative validation cannot be used as an MVP spec — start a new discovery session instead');
+    }
 
     const updated = await prisma.validationReport.update({
       where:  { id: page.report.id },
