@@ -64,6 +64,51 @@ export const AUDIENCE_TYPES = {
 export type AudienceType = typeof AUDIENCE_TYPES[keyof typeof AUDIENCE_TYPES];
 
 // ---------------------------------------------------------------------------
+// Recommendation types — what shape of action the recommendation prescribes
+// ---------------------------------------------------------------------------
+
+/**
+ * Captures WHAT the recommendation prescribes (action shape), independent
+ * of WHO the founder is (AudienceType). Together the two fields drive
+ * routing decisions like "should the validation page CTA show on this
+ * recommendation page?" and (in future) Phase 4/5 entry conditions.
+ *
+ * Set by the synthesis prompt as part of the structured Recommendation
+ * output. Stored on the Recommendation Prisma model. The LLM never needs
+ * to know about NeuraLaunch's tools — UI gating reads this field and
+ * decides whether to surface tool buttons.
+ */
+export const RECOMMENDATION_TYPES = {
+  /** Software product to build — the canonical Phase 3/4/5 path */
+  BUILD_SOFTWARE:    'build_software',
+  /** Productized service / consulting offer — may or may not include software */
+  BUILD_SERVICE:     'build_service',
+  /** Already has the product, the bottleneck is sales / outreach */
+  SALES_MOTION:      'sales_motion',
+  /** Behavioural or operational fix — no software, no new product */
+  PROCESS_CHANGE:    'process_change',
+  /** Bottleneck is capacity, not strategy — hire / outsource */
+  HIRE_OR_OUTSOURCE: 'hire_or_outsource',
+  /** Founder needs more data before any commitment can be made */
+  FURTHER_RESEARCH:  'further_research',
+  /** Anything that doesn't fit the above */
+  OTHER:             'other',
+} as const;
+
+export type RecommendationType = typeof RECOMMENDATION_TYPES[keyof typeof RECOMMENDATION_TYPES];
+
+/**
+ * The set of recommendation types for which the validation landing page
+ * mechanic is applicable. Used by UI gating in RecommendationReveal.
+ *
+ * Currently restricted to BUILD_SOFTWARE only. BUILD_SERVICE may be
+ * added later when we have a service-specific validation page variant.
+ */
+export const VALIDATION_PAGE_ELIGIBLE_TYPES: ReadonlySet<RecommendationType> = new Set([
+  RECOMMENDATION_TYPES.BUILD_SOFTWARE,
+]);
+
+// ---------------------------------------------------------------------------
 // Session
 // ---------------------------------------------------------------------------
 

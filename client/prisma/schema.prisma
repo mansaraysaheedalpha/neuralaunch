@@ -873,6 +873,13 @@ model Recommendation {
   sessionId             String           @unique
   session               DiscoverySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
+  // Action shape — drives UI gating for downstream tools (validation page,
+  // future Phase 4/5). Set by the synthesis prompt. See RECOMMENDATION_TYPES
+  // in src/lib/discovery/constants.ts. Nullable so existing rows from
+  // before this column was added remain queryable; UI treats null as
+  // "ineligible" by default.
+  recommendationType    String?
+
   // Core recommendation fields (mirroring RecommendationSchema)
   summary               String           @db.Text
   path                  String           @db.Text

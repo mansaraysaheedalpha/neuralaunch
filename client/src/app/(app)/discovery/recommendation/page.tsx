@@ -30,6 +30,7 @@ export default async function RecommendationPage({
     orderBy: { createdAt: 'desc' },
     select: {
       id:                     true,
+      recommendationType:     true,
       summary:                true,
       path:                   true,
       reasoning:              true,
@@ -41,12 +42,20 @@ export default async function RecommendationPage({
       alternativeRejected:    true,
       createdAt:              true,
       roadmap:                { select: { status: true } },
+      validationPage: {
+        select: {
+          id:     true,
+          report: { select: { signalStrength: true } },
+        },
+      },
     },
   });
 
   if (!recommendation) redirect('/discovery');
 
   const roadmapReady = recommendation.roadmap?.status === 'READY';
+  const validationPageId = recommendation.validationPage?.id ?? null;
+  const validationSignalStrength = recommendation.validationPage?.report?.signalStrength ?? null;
 
   return (
     <div className="flex flex-col h-full">
@@ -67,7 +76,12 @@ export default async function RecommendationPage({
         )}
       </div>
       <Suspense fallback={<div className="flex-1 flex items-center justify-center"><span className="text-muted-foreground text-sm">Loading…</span></div>}>
-        <RecommendationReveal recommendation={recommendation} roadmapReady={roadmapReady} />
+        <RecommendationReveal
+          recommendation={recommendation}
+          roadmapReady={roadmapReady}
+          validationPageId={validationPageId}
+          validationSignalStrength={validationSignalStrength}
+        />
       </Suspense>
     </div>
   );

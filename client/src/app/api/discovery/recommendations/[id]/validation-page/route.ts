@@ -12,7 +12,11 @@ import {
   RATE_LIMITS,
 } from '@/lib/validation/server-helpers';
 import type { DiscoveryContext } from '@/lib/discovery/context-schema';
-import type { AudienceType }     from '@/lib/discovery/constants';
+import {
+  VALIDATION_PAGE_ELIGIBLE_TYPES,
+  type AudienceType,
+  type RecommendationType,
+} from '@/lib/discovery/constants';
 import type { Roadmap }          from '@/lib/roadmap/roadmap-schema';
 
 /**
@@ -37,10 +41,18 @@ export async function POST(
     const recommendation = await prisma.recommendation.findFirst({
       where:  { id: recommendationId, userId },
       select: {
-        id:             true,
-        path:           true,
-        summary:        true,
-        validationPage: { select: { id: true, slug: true, status: true } },
+        id:                 true,
+        recommendationType: true,
+        path:               true,
+        summary:            true,
+        validationPage: {
+          select: {
+            id:     true,
+            slug:   true,
+            status: true,
+            report: { select: { signalStrength: true } },
+          },
+        },
         roadmap:        { select: { status: true, phases: true } },
         session:        { select: { audienceType: true, beliefState: true } },
       },
@@ -48,6 +60,19 @@ export async function POST(
 
     if (!recommendation) {
       throw new HttpError(404, 'Not found');
+    }
+
+    // Server-side defense in depth — even if a malicious client posts
+    // here directly, the validation page is only generated for action
+    // shapes the mechanic actually applies to. Mirrors the UI gating
+    // in RecommendationReveal.
+    const recType = recommendation.recommendationType as RecommendationType | null;
+    if (!recType || !VALIDATION_PAGE_ELIGIBLE_TYPES.has(recType)) {
+      throw new HttpError(409, 'A validation landing page is not applicable to this recommendation');
+    }
+
+    if (recommendation.validationPage?.report?.signalStrength === 'negative') {
+      throw new HttpError(409, 'A negative validation already exists for this recommendation — start a new discovery session instead');
     }
 
     if (recommendation.roadmap?.status !== 'READY') {

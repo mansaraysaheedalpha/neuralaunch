@@ -98,6 +98,7 @@ export const discoverySessionFunction = inngest.createFunction(
         data: {
           userId,
           sessionId,
+          recommendationType:     recommendation.recommendationType,
           summary:                recommendation.summary,
           path:                   recommendation.path,
           reasoning:              recommendation.reasoning,

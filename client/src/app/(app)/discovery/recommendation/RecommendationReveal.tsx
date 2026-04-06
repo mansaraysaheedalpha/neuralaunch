@@ -7,10 +7,15 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, ArrowRight, Loader2 } from 'lucide-react';
 import { AssumptionRow } from './AssumptionRow';
+import {
+  VALIDATION_PAGE_ELIGIBLE_TYPES,
+  type RecommendationType,
+} from '@/lib/discovery/constants';
 
 interface Props {
   recommendation: {
     id:                     string;
+    recommendationType:     string | null;
     summary:                string;
     path:                   string;
     reasoning:              string;
@@ -26,6 +31,13 @@ interface Props {
   roadmapReady?: boolean;
   /** Set when a validation page has been generated — pageId for navigation */
   validationPageId?: string | null;
+  /**
+   * Signal strength of any prior validation report. When 'negative', the
+   * "Build Validation Page" CTA must stay hidden — the market already
+   * answered this recommendation and we do not let the founder rebuild a
+   * landing page for a discredited direction.
+   */
+  validationSignalStrength?: string | null;
 }
 
 type RiskRow = { risk: string; mitigation: string };
@@ -68,7 +80,12 @@ function Section({ label, delay = 0, children }: { label: string; delay?: number
  * - All remaining sections individually collapsible (expanded by default)
  * - Inline assumption flag with live scoped response (see AssumptionRow)
  */
-export function RecommendationReveal({ recommendation: r, roadmapReady = false, validationPageId = null }: Props) {
+export function RecommendationReveal({
+  recommendation: r,
+  roadmapReady = false,
+  validationPageId = null,
+  validationSignalStrength = null,
+}: Props) {
   const router      = useRouter();
   const steps       = r.firstThreeSteps as string[];
   const risks       = r.risks as RiskRow[];
@@ -76,6 +93,17 @@ export function RecommendationReveal({ recommendation: r, roadmapReady = false, 
   const alt         = r.alternativeRejected as AltRow;
   const [generating,         setGenerating]         = useState(false);
   const [creatingValidation, setCreatingValidation] = useState(false);
+
+  // Validation page eligibility — gated on:
+  //   1. The recommendation's action shape is one we have a validation
+  //      page mechanic for (currently only build_software)
+  //   2. There is no prior validation report for this recommendation that
+  //      came back as a negative signal — once the market has said no, we
+  //      do not let the founder rebuild a landing page for that direction
+  const validationPageApplicable =
+    r.recommendationType !== null
+    && VALIDATION_PAGE_ELIGIBLE_TYPES.has(r.recommendationType as RecommendationType)
+    && validationSignalStrength !== 'negative';
 
   async function handleGenerateRoadmap() {
     setGenerating(true);
@@ -216,8 +244,13 @@ export function RecommendationReveal({ recommendation: r, roadmapReady = false, 
             )}
           </div>
 
-          {/* Validation page CTA — only shown when roadmap is ready */}
-          {roadmapReady && (
+          {/* Validation page CTA — only shown when:
+              - the recommendation is a build_software type (gated by recommendationType)
+              - the roadmap is READY
+              - no prior validation report has come back negative
+              For non-software recommendations the founder simply does not
+              see this section — the validation page mechanic does not apply. */}
+          {roadmapReady && validationPageApplicable && (
             <div className="pt-4 border-t border-border">
               {validationPageId ? (
                 <>

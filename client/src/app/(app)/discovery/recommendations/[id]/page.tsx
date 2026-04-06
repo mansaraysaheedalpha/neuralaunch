@@ -23,10 +23,11 @@ export default async function RecommendationDetailPage({
 
   const { id } = await params;
 
-  const recommendation = await prisma.recommendation.findUnique({
+  const recommendation = await prisma.recommendation.findFirst({
     where:  { id, userId },
     select: {
       id:                     true,
+      recommendationType:     true,
       summary:                true,
       path:                   true,
       reasoning:              true,
@@ -38,16 +39,22 @@ export default async function RecommendationDetailPage({
       alternativeRejected:    true,
       createdAt:              true,
       roadmap:                { select: { status: true } },
-      validationPage:         { select: { id: true } },
+      validationPage: {
+        select: {
+          id:     true,
+          report: { select: { signalStrength: true } },
+        },
+      },
       session:                { select: { conversationId: true } },
     },
   });
 
   if (!recommendation) notFound();
 
-  const conversationId    = recommendation.session?.conversationId ?? null;
-  const roadmapReady      = recommendation.roadmap?.status === 'READY';
-  const validationPageId  = recommendation.validationPage?.id ?? null;
+  const conversationId           = recommendation.session?.conversationId ?? null;
+  const roadmapReady             = recommendation.roadmap?.status === 'READY';
+  const validationPageId         = recommendation.validationPage?.id ?? null;
+  const validationSignalStrength = recommendation.validationPage?.report?.signalStrength ?? null;
 
   return (
     <div className="flex flex-col h-full">
@@ -76,6 +83,7 @@ export default async function RecommendationDetailPage({
           recommendation={recommendation}
           roadmapReady={roadmapReady}
           validationPageId={validationPageId}
+          validationSignalStrength={validationSignalStrength}
         />
       </Suspense>
     </div>
