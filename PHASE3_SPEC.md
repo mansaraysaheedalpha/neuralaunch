@@ -525,5 +525,87 @@ None. Every architectural decision raised during planning has been resolved and 
 
 ---
 
+## Appendix A — Post-Build Addenda (2026-04-06)
+
+These notes reflect decisions made during implementation that changed the
+original spec. Future reviewers should treat them as authoritative over
+the body of this document.
+
+### A.1 PostHog removed
+
+The spec called for per-page PostHog properties. During implementation this
+was dropped in favour of a dedicated `ValidationEvent` Postgres table. At
+the expected traffic volume (50–500 visitors per page), Postgres is cheaper,
+simpler, and removes an external dependency. The `posthogPropertyId` column
+has been dropped via migration. PostHog environment variables have been
+removed from `env.ts`. See commit `50e0e9c` and `bc8a9f7`.
+
+### A.2 Honest negative-signal path
+
+The original `signalStrength` enum was `strong | moderate | weak | insufficient`.
+A fourth tier `negative` has been added for the case where the market
+actively says no (low conversion + contradicting surveys + wrong-feature
+clicks). On negative signal:
+
+- `ValidationReport` populates `disconfirmedAssumptions` and `pivotOptions`
+- The UI replaces the MVP handoff button with "Start a new discovery session"
+- The `/report` API refuses to set `usedForMvp = true` on a negative report
+- A new negative report force-clears any prior `usedForMvp` flag
+
+See commit `80a809c`.
+
+### A.3 Market-aware thresholds (deferred)
+
+`MIN_VISITORS_FOR_BRIEF = 50` is a starting assumption, not a universal
+truth. The `ValidationSnapshot` table now stores a `market` column per
+snapshot so future calibration work can aggregate threshold dynamics by
+market segment without touching live `DiscoverySession` rows. Actual
+per-market thresholds are deferred until we have data from at least 20
+real pages across multiple markets.
+
+### A.4 Phase 4 contract — website builder
+
+The website builder (Phase 4) sits between Phase 3 and Phase 5 in the
+vision document. Its relationship with validation data is:
+
+**Preferred path (Option B):** when a `ValidationReport` exists for the
+recommendation AND its `signalStrength` is `'strong'` or `'moderate'`,
+Phase 4 reads `recommendation.validationPage.report` and generates the
+marketing site from VALIDATED copy — headlines, features, and proof
+points grounded in what actually resonated with visitors. No banner.
+
+**Fallback path (Option A):** when no report exists yet, Phase 4 builds
+from the recommendation alone and shows a banner:
+*"This site was built before validation — regenerate after your page
+collects visitor feedback for stronger copy."* Lets the founder keep
+momentum without blocking on the 6-hour reporting cycle.
+
+**Weak-signal path:** when a report exists but `signalStrength === 'weak'`,
+Phase 4 treats it as equivalent to no report — builds from the raw
+recommendation and shows a banner explaining that the validation data is
+too thin to use yet. Using weak-signal copy is worse than no copy because
+it would codify ambiguity.
+
+**Negative-signal path:** when `signalStrength === 'negative'`, Phase 4
+REFUSES to build or regenerate the site. The user is redirected to the
+validation page's "Start a new discovery session" CTA. We do not ship
+marketing sites for ideas the market has rejected.
+
+**Data contract:** Phase 4 reads from Prisma — no new API surface needed
+on Phase 3's side. The join is `recommendation → validationPage → report`.
+Phase 4's generator should branch on `report?.signalStrength` exactly as
+described above.
+
+### A.5 Exit intent — mobile parity
+
+The `PageViewTracker` now listens to `pagehide` and `visibilitychange` in
+addition to desktop `mouseleave`. `pagehide` fires the exit-intent beacon
+via `navigator.sendBeacon` (the only transport reliable during page
+unload). `visibilitychange` to `hidden` starts a 30-second grace timer
+that fires on expiry if the page is still hidden — catches mobile "swipe
+to Chrome tabs and come back" without false-positives on tab switches.
+
+---
+
 *NeuraLaunch Phase 3 Specification*
 *Built by Saheed Alpha Mansaray*

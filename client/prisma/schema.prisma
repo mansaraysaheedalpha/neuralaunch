@@ -1058,6 +1058,12 @@ model ValidationSnapshot {
   validationPageId    String
   validationPage      ValidationPage  @relation(fields: [validationPageId], references: [id], onDelete: Cascade)
 
+  // The founder's target market at the time of this snapshot. Stored per
+  // snapshot (not derived at query time) so we can aggregate how threshold
+  // dynamics differ across markets without touching live DiscoverySession
+  // rows. Used later to calibrate market-aware MIN_VISITORS_FOR_BRIEF etc.
+  market              String?
+
   takenAt             DateTime        @default(now())
   visitorCount        Int             @default(0)
   uniqueVisitorCount  Int             @default(0)

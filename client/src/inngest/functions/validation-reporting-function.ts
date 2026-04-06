@@ -101,8 +101,16 @@ export const validationReportingFunction = inngest.createFunction(
           publishedAt:       true,
           distributionBrief: true,
           channelsCompleted: true,
-          recommendation:    { select: { path: true, summary: true } },
-          report:            {
+          recommendation: {
+            select: {
+              path:    true,
+              summary: true,
+              session: {
+                select: { beliefState: true },
+              },
+            },
+          },
+          report: {
             select: {
               id:          true,
               generatedAt: true,
@@ -123,11 +131,24 @@ export const validationReportingFunction = inngest.createFunction(
         return null;
       }
 
-      return { page, content: parsed.data };
+      // Extract geographic market from the belief state — stored per
+      // snapshot so future calibration work can aggregate by market
+      // without touching the live DiscoverySession table.
+      const belief = (page.recommendation?.session?.beliefState ?? {}) as {
+        geographicMarket?: { value?: unknown };
+      };
+      const marketRaw = belief.geographicMarket?.value;
+      const market = typeof marketRaw === 'string'
+        ? marketRaw.slice(0, 200)
+        : Array.isArray(marketRaw)
+          ? marketRaw.filter((v): v is string => typeof v === 'string').join(', ').slice(0, 200)
+          : null;
+
+      return { page, content: parsed.data, market };
     });
 
     if (!pageData) return { skipped: true };
-    const { page, content } = pageData;
+    const { page, content, market } = pageData;
 
     // --- Step 2: collect metrics ---
     const metrics = await step.run('collect-metrics', async () => {
@@ -168,6 +189,7 @@ export const validationReportingFunction = inngest.createFunction(
       const snapshot = await prisma.validationSnapshot.create({
         data: {
           validationPageId:   page.id,
+          market,
           visitorCount:       metrics.visitorCount,
           uniqueVisitorCount: metrics.uniqueVisitorCount,
           ctaConversionRate:  metrics.ctaConversionRate,
@@ -232,7 +254,10 @@ export const validationReportingFunction = inngest.createFunction(
         metrics,
         interpretation: interpretation!,
         features:       content.features,
-        recommendation: page.recommendation!,
+        recommendation: {
+          path:    page.recommendation!.path,
+          summary: page.recommendation!.summary,
+        },
       });
 
       if (page.report) {
