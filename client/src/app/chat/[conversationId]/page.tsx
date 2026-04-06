@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import Link                    from 'next/link';
 import { auth }                from '@/auth';
 import prisma                  from '@/lib/prisma';
+import { safeParsePushbackHistory } from '@/lib/discovery/pushback-engine';
 
 /**
  * /chat/[conversationId] — read-only transcript view
@@ -45,7 +46,14 @@ export default async function ChatTranscriptPage({
         select: {
           id:     true,
           status: true,
-          recommendation: { select: { id: true } },
+          recommendation: {
+            select: {
+              id:              true,
+              path:            true,
+              pushbackHistory: true,
+              acceptedAt:      true,
+            },
+          },
         },
       },
     },
@@ -63,6 +71,14 @@ export default async function ChatTranscriptPage({
       createdAt: true,
     },
   });
+
+  // Pull the pushback transcript out of the linked recommendation (if any)
+  // so the founder can see the full Q&A in one place — interview turns AND
+  // pushback turns. Pushback is per-recommendation, interview is
+  // per-conversation, but the founder thinks of them as one conversation.
+  const pushbackTurns = conversation.discoverySession?.recommendation
+    ? safeParsePushbackHistory(conversation.discoverySession.recommendation.pushbackHistory)
+    : [];
 
   // Build the contextual action link
   const ds = conversation.discoverySession;
@@ -116,7 +132,7 @@ export default async function ChatTranscriptPage({
               <div
                 key={msg.id}
                 className={[
-                  'rounded-2xl px-4 py-3 text-sm leading-relaxed max-w-[85%] whitespace-pre-wrap',
+                  'rounded-2xl px-4 py-3 text-sm leading-relaxed max-w-[85%] whitespace-pre-wrap break-words',
                   msg.role === 'user'
                     ? 'self-end bg-primary text-primary-foreground'
                     : 'self-start bg-muted text-foreground',
@@ -125,6 +141,37 @@ export default async function ChatTranscriptPage({
                 {msg.content}
               </div>
             ))}
+
+            {/* Pushback transcript footer — only when the linked
+                recommendation has pushback turns. The interview and the
+                pushback are stored separately (different parents) but
+                the founder thinks of them as one conversation. */}
+            {pushbackTurns.length > 0 && (
+              <div className="mt-8 pt-6 border-t border-border flex flex-col gap-4">
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground/70">
+                    Pushback discussion
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                    The back-and-forth that followed your recommendation, before you committed to a path.
+                  </p>
+                </div>
+
+                {pushbackTurns.map((turn, i) => (
+                  <div
+                    key={`pushback-${i}-${turn.round}`}
+                    className={[
+                      'rounded-2xl px-4 py-3 text-sm leading-relaxed max-w-[85%] whitespace-pre-wrap break-words',
+                      turn.role === 'user'
+                        ? 'self-end bg-primary text-primary-foreground'
+                        : 'self-start bg-muted text-foreground',
+                    ].join(' ')}
+                  >
+                    {turn.content}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

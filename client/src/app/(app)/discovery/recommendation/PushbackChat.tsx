@@ -66,6 +66,11 @@ export function PushbackChat({
   const [pending, setPending] = useState(false);
   const [error,   setError]   = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Saved selection range from the most recent send attempt — restored
+  // on rollback so a long pushback message keeps the cursor where the
+  // founder left it. Cosmetic but important on long messages.
+  const savedSelectionRef = useRef<{ start: number; end: number } | null>(null);
 
   const userTurns = history.filter(t => t.role === 'user').length;
   const remaining = hardCapRound - userTurns;
@@ -77,9 +82,38 @@ export function PushbackChat({
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [history.length]);
 
+  /**
+   * Roll back an optimistic send when the request fails. Restores the
+   * input text AND the cursor position the founder had when they hit
+   * send. requestAnimationFrame is required because setInput triggers
+   * a render and the textarea's value isn't updated until after that.
+   */
+  function rollbackOptimisticSend(text: string) {
+    setHistory(prev => prev.slice(0, -1));
+    setInput(text);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      const sel = savedSelectionRef.current;
+      if (el && sel) {
+        el.focus();
+        try {
+          el.setSelectionRange(sel.start, sel.end);
+        } catch { /* Safari edge case — focus alone is fine */ }
+      }
+    });
+  }
+
   async function handleSend() {
     const text = input.trim();
     if (!text || pending || capReached) return;
+
+    // Capture selection before clearing the input — used by rollback
+    if (textareaRef.current) {
+      savedSelectionRef.current = {
+        start: textareaRef.current.selectionStart,
+        end:   textareaRef.current.selectionEnd,
+      };
+    }
 
     setPending(true);
     setError('');
@@ -103,9 +137,7 @@ export function PushbackChat({
 
       if (!res.ok) {
         const json = await res.json().catch(() => ({})) as { error?: string };
-        // Roll back the optimistic user bubble
-        setHistory(prev => prev.slice(0, -1));
-        setInput(text);
+        rollbackOptimisticSend(text);
         setError(json.error ?? 'Could not send your message. Please try again.');
         return;
       }
@@ -132,8 +164,7 @@ export function PushbackChat({
         router.refresh();
       }
     } catch {
-      setHistory(prev => prev.slice(0, -1));
-      setInput(text);
+      rollbackOptimisticSend(text);
       setError('Network error — please try again.');
     } finally {
       setPending(false);
@@ -217,6 +248,7 @@ export function PushbackChat({
       {!capReached && (
         <div className="flex gap-2 items-end rounded-lg border border-border bg-background px-3 py-2">
           <textarea
+            ref={textareaRef}
             value={input}
             onChange={e => setInput(e.target.value)}
             placeholder="Share your concern…"

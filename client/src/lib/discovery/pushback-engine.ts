@@ -10,7 +10,7 @@ import {
   PUSHBACK_MODES,
   PUSHBACK_CONFIG,
 } from './constants';
-import { renderUserContent, sanitizeForPrompt } from '@/lib/validation/server-helpers';
+import { renderUserContent } from '@/lib/validation/server-helpers';
 import { RecommendationSchema, type Recommendation } from './recommendation-schema';
 import type { DiscoveryContext } from './context-schema';
 
@@ -43,6 +43,45 @@ export interface PushbackTurnAgent {
 
 export type PushbackTurn = PushbackTurnUser | PushbackTurnAgent;
 
+/**
+ * Runtime schema for parsing pushbackHistory on read. JSONB columns
+ * have no compile-time guarantees — a hand-edited row, an older
+ * code-version write, or a future schema change can corrupt the
+ * shape. Every read path that hands the array to the prompt builder
+ * or to the client should run it through PushbackHistorySchema and
+ * fall back to an empty array on parse failure rather than crashing.
+ */
+const PushbackTurnUserSchema = z.object({
+  role:      z.literal('user'),
+  content:   z.string(),
+  round:     z.number().int().nonnegative(),
+  timestamp: z.string(),
+});
+const PushbackTurnAgentSchema = z.object({
+  role:      z.literal('agent'),
+  content:   z.string(),
+  round:     z.number().int().nonnegative(),
+  mode:      z.enum(['analytical', 'fear', 'lack_of_belief']),
+  action:    z.enum(['continue_dialogue', 'defend', 'refine', 'replace', 'closing']),
+  converging: z.boolean(),
+  timestamp: z.string(),
+});
+export const PushbackTurnSchema = z.discriminatedUnion('role', [
+  PushbackTurnUserSchema,
+  PushbackTurnAgentSchema,
+]);
+export const PushbackHistorySchema = z.array(PushbackTurnSchema);
+
+/**
+ * Safely parse a pushbackHistory JSONB value into PushbackTurn[].
+ * Returns [] on any failure. Use this everywhere a Recommendation
+ * row is loaded — never cast the JSONB column directly.
+ */
+export function safeParsePushbackHistory(value: unknown): PushbackTurn[] {
+  const parsed = PushbackHistorySchema.safeParse(value ?? []);
+  return parsed.success ? parsed.data : [];
+}
+
 // ---------------------------------------------------------------------------
 // Structured-output schema
 // ---------------------------------------------------------------------------
@@ -73,6 +112,16 @@ const RecommendationPatchSchema = z.object({
   }).optional(),
 });
 
+/**
+ * The structured response shape returned by the Opus pushback turn.
+ *
+ * NOTE on the action enum: this schema only lists the four model-driven
+ * actions. The fifth action label, 'closing', is constructed manually
+ * in the route handler on the HARD_CAP_ROUND turn — the model never
+ * sees or returns 'closing'. The closing message is templated by
+ * buildClosingMessage() and the alternative-synthesis is queued via
+ * Inngest. See pushback/route.ts for that branch.
+ */
 export const PushbackResponseSchema = z.object({
   mode: z.enum([
     PUSHBACK_MODES.ANALYTICAL,
@@ -96,9 +145,10 @@ export const PushbackResponseSchema = z.object({
     'are appearing without earlier ones being settled. The server uses this to decide ' +
     'whether to inject a soft re-frame on round 4.'
   ),
-  message: z.string().describe(
+  message: z.string().max(2000).describe(
     'The text the founder will read. This is the agent\'s response — written in the ' +
-    'founder\'s register, grounded in their belief state. Never generic encouragement.'
+    'founder\'s register, grounded in their belief state. Never generic encouragement. ' +
+    'Hard cap of 2000 characters to keep the chat readable and bound JSONB storage.'
   ),
   patch: RecommendationPatchSchema.optional().describe(
     'Required when action is refine or replace. Contains ONLY the fields of the ' +
@@ -162,18 +212,12 @@ export async function runPushbackTurn(input: RunPushbackInput): Promise<Pushback
 
   // Render the current state of the recommendation (after any prior
   // refinements). The model needs to see what it is defending RIGHT NOW,
-  // not the original.
-  const currentRecommendationBlock = sanitizeForPrompt(JSON.stringify({
-    summary:                recommendation.summary,
-    path:                   recommendation.path,
-    reasoning:              recommendation.reasoning,
-    firstThreeSteps:        recommendation.firstThreeSteps,
-    timeToFirstResult:      recommendation.timeToFirstResult,
-    risks:                  recommendation.risks,
-    assumptions:            recommendation.assumptions,
-    whatWouldMakeThisWrong: recommendation.whatWouldMakeThisWrong,
-    alternativeRejected:    recommendation.alternativeRejected,
-  }, null, 2), 4000);
+  // not the original. Every field is delimiter-wrapped so the model
+  // treats refined content (which may include founder-influenced text
+  // from a refine/replace turn) as opaque data, not as instructions.
+  // Defense-in-depth against indirect-injection from the founder via
+  // their own pushback feeding back into a later round's prompt.
+  const currentRecommendationBlock = renderRecommendationForPrompt(recommendation);
 
   log.info('[Pushback] Turn starting', {
     currentRound,
@@ -273,6 +317,26 @@ Produce your structured response now.`,
     hasPatch:   !!object.patch,
   });
 
+  // Server-side enforcement of the soft re-frame at SOFT_WARN_ROUND.
+  // The prompt asks the model to inject this language when stalled
+  // (converging:false). If the model honoured the rule, the message
+  // already contains the canonical phrase and we leave it alone. If
+  // not, we append the re-frame so the founder always gets the nudge
+  // at the right moment. Belt-and-braces: the prompt is the contract,
+  // this is the guarantee.
+  if (
+    currentRound >= PUSHBACK_CONFIG.SOFT_WARN_ROUND
+    && currentRound < PUSHBACK_CONFIG.HARD_CAP_ROUND
+    && object.converging === false
+    && object.action === PUSHBACK_ACTIONS.CONTINUE_DIALOGUE
+  ) {
+    const REFRAME_FRAGMENT = 'what would it take for you to feel confident';
+    if (!object.message.toLowerCase().includes(REFRAME_FRAGMENT)) {
+      log.info('[Pushback] Server-side soft re-frame appended', { round: currentRound });
+      object.message = `${object.message.trim()}\n\nWe have been going back and forth on this for a few rounds and I want to make sure I am actually helping you rather than just defending a position. What would it take for you to feel confident enough to move forward — either with this recommendation or a different one?`;
+    }
+  }
+
   return object;
 }
 
@@ -306,6 +370,46 @@ function renderBeliefStateForPrompt(context: DiscoveryContext): string {
     lines.push(`${label}: ${renderUserContent(text, 600)}`);
   }
   return lines.length > 0 ? lines.join('\n') : '(no belief state captured)';
+}
+
+/**
+ * Render a Recommendation as a labelled, delimiter-wrapped block for
+ * inclusion in the pushback prompt. Every text field is rendered
+ * through renderUserContent so the model treats it as opaque data,
+ * even though it nominally came from a prior Opus call. After a refine
+ * or replace turn the recommendation may contain content the agent
+ * generated while reasoning over founder pushback — that content is
+ * indirectly founder-influenced and must not be re-fed as trusted text.
+ */
+function renderRecommendationForPrompt(recommendation: Recommendation): string {
+  const lines: string[] = [];
+  lines.push(`Path:               ${renderUserContent(recommendation.path, 600)}`);
+  lines.push(`Summary:            ${renderUserContent(recommendation.summary, 1200)}`);
+  lines.push(`Reasoning:          ${renderUserContent(recommendation.reasoning, 1200)}`);
+  lines.push(`Time to first result: ${renderUserContent(recommendation.timeToFirstResult, 300)}`);
+  lines.push(`What would make this wrong: ${renderUserContent(recommendation.whatWouldMakeThisWrong, 800)}`);
+
+  lines.push('First three steps:');
+  recommendation.firstThreeSteps.forEach((step, i) => {
+    lines.push(`  ${i + 1}. ${renderUserContent(step, 500)}`);
+  });
+
+  lines.push('Risks:');
+  recommendation.risks.forEach((row, i) => {
+    lines.push(`  ${i + 1}. risk: ${renderUserContent(row.risk, 400)}`);
+    lines.push(`     mitigation: ${renderUserContent(row.mitigation, 400)}`);
+  });
+
+  lines.push('Assumptions:');
+  recommendation.assumptions.forEach((a, i) => {
+    lines.push(`  ${i + 1}. ${renderUserContent(a, 400)}`);
+  });
+
+  lines.push('Alternative considered & rejected:');
+  lines.push(`  alternative: ${renderUserContent(recommendation.alternativeRejected.alternative, 500)}`);
+  lines.push(`  why not for them: ${renderUserContent(recommendation.alternativeRejected.whyNotForThem, 600)}`);
+
+  return lines.join('\n');
 }
 
 // ---------------------------------------------------------------------------

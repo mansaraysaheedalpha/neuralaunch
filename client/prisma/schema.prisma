@@ -941,10 +941,15 @@ model Recommendation {
   pushbackHistory       Json            @default("[]")
 
   /**
-   * Snapshots of prior recommendation states. Each entry is a partial
-   * Recommendation containing only the fields that changed when the
-   * agent committed to a refine or replace action. Most-recent always
-   * wins for display; this column powers the "see how this evolved" view.
+   * Snapshots of prior recommendation states. Each entry is a FULL
+   * pre-update Recommendation snapshot (not a diff) wrapped with the
+   * round number, the agent action that triggered the refresh, and
+   * a timestamp:
+   *   { snapshot: Recommendation, round: number, action: 'refine'|'replace', timestamp: string }
+   * Most-recent live state always wins for display; this column powers
+   * the "see how this evolved" view. Diffing happens at render time
+   * when needed; storing diffs would couple the storage shape to the
+   * Recommendation schema and break on every schema change.
    */
   versions              Json            @default("[]")
 

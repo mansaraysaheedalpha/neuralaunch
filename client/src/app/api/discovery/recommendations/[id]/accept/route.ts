@@ -10,7 +10,7 @@ import {
   rateLimitByUser,
   RATE_LIMITS,
 } from '@/lib/validation/server-helpers';
-import type { PushbackTurn } from '@/lib/discovery/pushback-engine';
+import { safeParsePushbackHistory } from '@/lib/discovery/pushback-engine';
 
 /**
  * POST /api/discovery/recommendations/[id]/accept
@@ -43,7 +43,7 @@ export async function POST(
       return NextResponse.json({ ok: true, alreadyAccepted: true });
     }
 
-    const history = (rec.pushbackHistory ?? []) as unknown as PushbackTurn[];
+    const history = safeParsePushbackHistory(rec.pushbackHistory);
     const userTurns = history.filter(t => t.role === 'user').length;
 
     // Idempotent write: only set acceptedAt if it is still null. A

@@ -5,6 +5,7 @@ import { notFound, redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
 import { RecommendationReveal } from '@/app/(app)/discovery/recommendation/RecommendationReveal';
+import { safeParsePushbackHistory } from '@/lib/discovery/pushback-engine';
 
 /**
  * RecommendationDetailPage
@@ -65,7 +66,7 @@ export default async function RecommendationDetailPage({
   const recForClient = {
     ...recommendation,
     acceptedAt:      recommendation.acceptedAt ? recommendation.acceptedAt.toISOString() : null,
-    pushbackHistory: (recommendation.pushbackHistory ?? []) as unknown as Parameters<typeof RecommendationReveal>[0]['recommendation']['pushbackHistory'],
+    pushbackHistory: safeParsePushbackHistory(recommendation.pushbackHistory) as unknown as Parameters<typeof RecommendationReveal>[0]['recommendation']['pushbackHistory'],
   };
 
   return (

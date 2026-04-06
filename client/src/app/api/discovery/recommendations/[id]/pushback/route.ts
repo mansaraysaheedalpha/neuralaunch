@@ -28,7 +28,7 @@ import {
   runPushbackTurn,
   mergeRecommendationPatch,
   buildClosingMessage,
-  type PushbackTurn,
+  safeParsePushbackHistory,
   type PushbackTurnUser,
   type PushbackTurnAgent,
 } from '@/lib/discovery/pushback-engine';
@@ -105,7 +105,7 @@ export async function POST(
       throw new HttpError(409, 'Recommendation is missing its belief state');
     }
 
-    const history = (rec.pushbackHistory ?? []) as unknown as PushbackTurn[];
+    const history = safeParsePushbackHistory(rec.pushbackHistory);
     const priorUserTurns = history.filter(t => t.role === 'user').length;
     const currentRound   = priorUserTurns + 1;
     const prevVersion    = rec.pushbackVersion;
@@ -122,6 +122,17 @@ export async function POST(
     // accept it or start a new session.
     if (rec.alternativeRecommendationId) {
       throw new HttpError(409, 'An alternative has already been generated for this recommendation. Compare them and accept one, or start a new discovery session.');
+    }
+
+    // The closing move on round 7 queues an alternative-synthesis
+    // Inngest worker. If the founder has already accepted this
+    // recommendation, generating an alternative makes no sense — they
+    // committed already. Refuse the closing-move turn rather than let
+    // the worker fire and produce an alternative that links to an
+    // accepted parent. (M4 fix: cheaper and more honest than checking
+    // acceptedAt inside the worker.)
+    if (currentRound === PUSHBACK_CONFIG.HARD_CAP_ROUND && rec.acceptedAt) {
+      throw new HttpError(409, 'You have already accepted this recommendation. Reopen the discussion via "Reopen the discussion" first if you want to push back further.');
     }
 
     const userTurn: PushbackTurnUser = {
