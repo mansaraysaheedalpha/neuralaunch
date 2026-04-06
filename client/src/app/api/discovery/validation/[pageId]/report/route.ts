@@ -1,60 +1,59 @@
 // src/app/api/discovery/validation/[pageId]/report/route.ts
 import { NextResponse } from 'next/server';
 import { z }           from 'zod';
-import { auth }        from '@/auth';
 import prisma          from '@/lib/prisma';
-
-/**
- * POST /api/discovery/validation/[pageId]/report
- *
- * Updates the ValidationReport attached to the page. Currently the only
- * supported mutation is toggling usedForMvp — the handoff flag that marks
- * this build brief as the founder's committed MVP specification.
- *
- * Body: { usedForMvp: boolean }
- */
+import {
+  HttpError,
+  httpErrorToResponse,
+  requireUserId,
+  enforceSameOrigin,
+  rateLimitByUser,
+  RATE_LIMITS,
+} from '@/lib/validation/server-helpers';
 
 const BodySchema = z.object({
   usedForMvp: z.boolean(),
 });
 
+/**
+ * POST /api/discovery/validation/[pageId]/report
+ *
+ * Toggles usedForMvp — the MVP handoff flag.
+ */
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ pageId: string }> },
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
+  try {
+    enforceSameOrigin(request);
+    const userId = await requireUserId();
+    await rateLimitByUser(userId, 'validation-report', RATE_LIMITS.API_AUTHENTICATED);
+
+    const { pageId } = await params;
+
+    let body: unknown;
+    try { body = await request.json(); } catch {
+      throw new HttpError(400, 'Invalid JSON');
+    }
+
+    const parsed = BodySchema.safeParse(body);
+    if (!parsed.success) throw new HttpError(400, 'Invalid body');
+
+    const page = await prisma.validationPage.findFirst({
+      where:  { id: pageId, userId },
+      select: { report: { select: { id: true } } },
+    });
+
+    if (!page?.report) throw new HttpError(404, 'No report on this page yet');
+
+    const updated = await prisma.validationReport.update({
+      where:  { id: page.report.id },
+      data:   { usedForMvp: parsed.data.usedForMvp },
+      select: { usedForMvp: true },
+    });
+
+    return NextResponse.json({ usedForMvp: updated.usedForMvp });
+  } catch (err) {
+    return httpErrorToResponse(err);
   }
-  const userId = session.user.id;
-
-  const { pageId } = await params;
-
-  let body: unknown;
-  try { body = await request.json(); } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
-  }
-
-  const parsed = BodySchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
-  }
-
-  // Verify ownership via the page
-  const page = await prisma.validationPage.findUnique({
-    where:  { id: pageId, userId },
-    select: { report: { select: { id: true } } },
-  });
-
-  if (!page?.report) {
-    return NextResponse.json({ error: 'No report on this page yet' }, { status: 404 });
-  }
-
-  const updated = await prisma.validationReport.update({
-    where: { id: page.report.id },
-    data:  { usedForMvp: parsed.data.usedForMvp },
-    select: { usedForMvp: true },
-  });
-
-  return NextResponse.json({ usedForMvp: updated.usedForMvp });
 }

@@ -1,222 +1,272 @@
 // src/inngest/functions/validation-reporting-function.ts
-import { inngest }              from '../client';
-import prisma                    from '@/lib/prisma';
-import { logger }                from '@/lib/logger';
+import { inngest }                    from '../client';
+import prisma                         from '@/lib/prisma';
+import { logger }                     from '@/lib/logger';
 import { collectMetricsForPage }      from '@/lib/validation/metrics-collector';
 import { interpretValidationMetrics } from '@/lib/validation/interpreter';
 import {
   canGenerateBuildBrief,
   generateBuildBrief,
+  shouldRegenerateBrief,
 } from '@/lib/validation/build-brief-generator';
-import type {
-  ValidationPageContent,
-  ValidationInterpretation,
-} from '@/lib/validation/schemas';
+import { ValidationPageContentSchema, type ValidationInterpretation } from '@/lib/validation/schemas';
 import {
   VALIDATION_REPORTING_EVENT,
   VALIDATION_SYNTHESIS_THRESHOLDS,
 } from '@/lib/validation/constants';
 
+// ---------------------------------------------------------------------------
+// Fan-out scheduler — the cron job's only responsibility
+// ---------------------------------------------------------------------------
+
+/**
+ * validationReportingSchedulerFunction
+ *
+ * Cron-triggered every N hours. Fetches the list of LIVE pages and emits
+ * one validation/report.requested event per page. The per-page worker
+ * function does the actual analytics + LLM work, so a single bad page
+ * cannot starve the others.
+ */
+export const validationReportingSchedulerFunction = inngest.createFunction(
+  {
+    id:      'validation-reporting-scheduler',
+    name:    'Validation — Reporting Scheduler (fan-out)',
+    retries: 2,
+  },
+  [
+    { cron: `0 */${VALIDATION_SYNTHESIS_THRESHOLDS.THRESHOLD_CHECK_INTERVAL_HOURS} * * *` },
+  ],
+  async ({ event, step }) => {
+    const log = logger.child({ inngestFunction: 'validationReportingScheduler', runId: event.id });
+
+    const pages = await step.run('load-live-pages', async () => {
+      return prisma.validationPage.findMany({
+        where:  { status: 'LIVE' },
+        select: { id: true },
+      });
+    });
+
+    if (pages.length === 0) {
+      log.info('No live pages — scheduler exiting');
+      return { enqueued: 0 };
+    }
+
+    await step.sendEvent('enqueue-reports', pages.map(p => ({
+      name: VALIDATION_REPORTING_EVENT,
+      data: { pageId: p.id },
+    })));
+
+    log.info('Reporting events enqueued', { enqueued: pages.length });
+    return { enqueued: pages.length };
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Per-page worker — one Inngest run per page, isolated failure domain
+// ---------------------------------------------------------------------------
+
 /**
  * validationReportingFunction
  *
- * Scheduled Inngest function — the heartbeat of the Phase 3 validation loop.
+ * Processes a single validation page's reporting cycle:
+ *   1. Collect aggregated metrics from ValidationEvent
+ *   2. Interpret with Sonnet (Step 1) — if any data exists
+ *   3. Gate the build brief on thresholds AND material change
+ *   4. Run Opus build brief (Step 2) and upsert ValidationReport
  *
- * Trigger:  cron (every N hours, controlled by THRESHOLD_CHECK_INTERVAL_HOURS)
- *           + on-demand via the 'validation/report.requested' event.
- *
- * For each LIVE ValidationPage:
- *   1. Collect raw PostHog metrics for the page's slug
- *   2. Write a ValidationSnapshot with the aggregated numbers
- *   3. (Steps 11-13 will attach interpretation here)
- *
- * Idempotent — running twice in the same cycle just writes two snapshots
- * with the same data, which is acceptable. The interpretation layer dedupes
- * on takenAt.
- *
- * Designed to degrade gracefully: any single page failure is caught and
- * logged, the loop continues with the next page. A broken PostHog API
- * must never stop the entire validation layer.
+ * Triggered by the scheduler via fan-out, or directly for on-demand runs.
+ * Each run is one page — failures are isolated and retried independently.
  */
 export const validationReportingFunction = inngest.createFunction(
   {
     id:      'validation-page-reporting',
-    name:    'Validation — Periodic Page Reporting',
+    name:    'Validation — Per-Page Reporting',
     retries: 2,
+    concurrency: { limit: 5 },
   },
-  [
-    {
-      cron: `0 */${VALIDATION_SYNTHESIS_THRESHOLDS.THRESHOLD_CHECK_INTERVAL_HOURS} * * *`,
-    },
-    {
-      event: VALIDATION_REPORTING_EVENT,
-    },
-  ],
+  [{ event: VALIDATION_REPORTING_EVENT }],
   async ({ event, step }) => {
-    const log = logger.child({
-      inngestFunction: 'validationReporting',
-      runId:           event.id,
-    });
+    const { pageId } = event.data as { pageId: string };
+    const log = logger.child({ inngestFunction: 'validationReporting', pageId, runId: event.id });
 
-    // Step 1: Fetch every LIVE page. If a specific pageId was supplied on the
-    // event (on-demand trigger), scope the cycle to just that one page.
-    const pageIds = await step.run('load-live-pages', async () => {
-      const requestedPageId = (event.data as { pageId?: string } | undefined)?.pageId;
-
-      const pages = await prisma.validationPage.findMany({
-        where: {
-          status: 'LIVE',
-          ...(requestedPageId ? { id: requestedPageId } : {}),
-        },
+    // --- Step 1: load page + previous report + parse content ---
+    const pageData = await step.run('load-page', async () => {
+      const page = await prisma.validationPage.findUnique({
+        where:  { id: pageId },
         select: {
           id:                true,
           slug:              true,
+          status:            true,
           content:           true,
           publishedAt:       true,
           distributionBrief: true,
           channelsCompleted: true,
           recommendation:    { select: { path: true, summary: true } },
-          report:            { select: { id: true } },
+          report:            {
+            select: {
+              id:          true,
+              generatedAt: true,
+              snapshotId:  true,
+            },
+          },
         },
       });
 
-      log.info('Reporting cycle starting', { pageCount: pages.length });
-      return pages;
+      if (!page || page.status !== 'LIVE') {
+        log.info('Page not live — skipping');
+        return null;
+      }
+
+      const parsed = ValidationPageContentSchema.safeParse(page.content);
+      if (!parsed.success) {
+        log.warn('Page content failed to parse — skipping reporting', { pageId });
+        return null;
+      }
+
+      return { page, content: parsed.data };
     });
 
-    if (pageIds.length === 0) {
-      log.info('No live pages to report on — exiting');
-      return { processed: 0 };
+    if (!pageData) return { skipped: true };
+    const { page, content } = pageData;
+
+    // --- Step 2: collect metrics ---
+    const metrics = await step.run('collect-metrics', async () => {
+      return collectMetricsForPage(page.id);
+    });
+
+    const hasAnyData = metrics.visitorCount > 0
+      || metrics.featureClicks.length > 0
+      || metrics.surveyResponses.length > 0;
+
+    // --- Step 3: Sonnet interpretation ---
+    let interpretation: ValidationInterpretation | null = null;
+    if (hasAnyData) {
+      interpretation = await step.run('interpret', async () => {
+        try {
+          const brief = (page.distributionBrief ?? []) as Array<{ channel: string }>;
+          return await interpretValidationMetrics({
+            slug:              page.slug,
+            pageId:            page.id,
+            metrics,
+            features:          content.features,
+            publishedAt:       page.publishedAt ?? new Date(),
+            briefChannels:     brief.length,
+            completedChannels: page.channelsCompleted.length,
+          });
+        } catch (err) {
+          log.error(
+            'Interpretation failed',
+            err instanceof Error ? err : new Error(String(err)),
+          );
+          return null;
+        }
+      });
     }
 
-    // Step 2: Process each page in its own durable step so a single failure
-    // does not lose the work already completed for prior pages.
-    let processed = 0;
-    for (const page of pageIds) {
-      try {
-        // --- Step 2a: snapshot + interpretation ---
-        const snapshotResult = await step.run(`snapshot-${page.id}`, async () => {
-          const metrics = await collectMetricsForPage(page.id);
-          const content = page.content as ValidationPageContent;
-          const brief   = (page.distributionBrief ?? []) as Array<{ channel: string }>;
+    // --- Step 4: persist snapshot ---
+    const snapshotId = await step.run('save-snapshot', async () => {
+      const snapshot = await prisma.validationSnapshot.create({
+        data: {
+          validationPageId:   page.id,
+          visitorCount:       metrics.visitorCount,
+          uniqueVisitorCount: metrics.uniqueVisitorCount,
+          ctaConversionRate:  metrics.ctaConversionRate,
+          featureClicks:      metrics.featureClicks as object[],
+          surveyResponses:    metrics.surveyResponses as object[],
+          trafficSources:     metrics.trafficSources as object[],
+          scrollDepthData:    metrics.scrollDepthData as object[],
+          interpretation,
+        },
+        select: { id: true },
+      });
+      return snapshot.id;
+    });
 
-          // Skip interpretation entirely when there is no data at all.
-          const hasAnyData = metrics.visitorCount > 0
-            || metrics.featureClicks.length > 0
-            || metrics.surveyResponses.length > 0;
+    // --- Step 5: gated build brief (Opus) ---
+    if (!interpretation || !page.recommendation) {
+      return { snapshotId, interpreted: interpretation !== null, briefGenerated: false };
+    }
 
-          let interpretation: ValidationInterpretation | null = null;
-          if (hasAnyData) {
-            try {
-              interpretation = await interpretValidationMetrics({
-                slug:              page.slug,
-                pageId:            page.id,
-                metrics,
-                features:          content.features,
-                publishedAt:       page.publishedAt ?? new Date(),
-                briefChannels:     brief.length,
-                completedChannels: page.channelsCompleted.length,
-              });
-            } catch (err) {
-              log.error('Interpretation failed — writing snapshot without it', {
-                pageId: page.id,
-                error:  String(err),
-              });
-            }
-          }
+    const gate = canGenerateBuildBrief({ metrics });
+    if (!gate.passes) {
+      log.info('Build brief gate rejected', { reasons: gate.reasons });
+      return { snapshotId, interpreted: true, briefGenerated: false, gateReasons: gate.reasons };
+    }
 
-          const snapshot = await prisma.validationSnapshot.create({
-            data: {
-              validationPageId:   page.id,
-              visitorCount:       metrics.visitorCount,
-              uniqueVisitorCount: metrics.uniqueVisitorCount,
-              ctaConversionRate:  metrics.ctaConversionRate,
-              featureClicks:      metrics.featureClicks as object[],
-              surveyResponses:    metrics.surveyResponses as object[],
-              trafficSources:     metrics.trafficSources as object[],
-              scrollDepthData:    metrics.scrollDepthData as object[],
-              interpretation,
-            },
-            select: { id: true },
-          });
+    // Material-change gate — avoid regenerating on every cycle
+    if (page.report) {
+      const previousSnapshot = await prisma.validationSnapshot.findUnique({
+        where:  { id: page.report.snapshotId },
+        select: {
+          visitorCount:    true,
+          featureClicks:   true,
+          surveyResponses: true,
+        },
+      });
 
-          log.debug('Snapshot written', {
-            pageId:      page.id,
-            snapshotId:  snapshot.id,
-            interpreted: interpretation !== null,
-          });
+      if (previousSnapshot) {
+        const prevClicks = (previousSnapshot.featureClicks as Array<{ clicks?: number }>)
+          .reduce((s, c) => s + (c.clicks ?? 0), 0);
+        const prevSurveys = (previousSnapshot.surveyResponses as unknown[]).length;
+        const daysSince = Math.floor(
+          (Date.now() - page.report.generatedAt.getTime()) / (1000 * 60 * 60 * 24),
+        );
 
-          return { snapshotId: snapshot.id, metrics, interpretation };
-        });
-
-        // --- Step 2b: gated build brief (Opus) ---
-        if (snapshotResult.interpretation && page.recommendation) {
-          const gate = canGenerateBuildBrief({ metrics: snapshotResult.metrics });
-
-          if (!gate.passes) {
-            log.info('Build brief gate rejected', {
-              pageId:  page.id,
-              reasons: gate.reasons,
-            });
-          } else {
-            await step.run(`build-brief-${page.id}`, async () => {
-              const content = page.content as ValidationPageContent;
-              const report  = await generateBuildBrief({
-                pageId:         page.id,
-                slug:           page.slug,
-                metrics:        snapshotResult.metrics,
-                interpretation: snapshotResult.interpretation!,
-                features:       content.features,
-                recommendation: page.recommendation!,
-              });
-
-              // Upsert — newest report replaces previous (history kept in snapshots)
-              if (page.report) {
-                await prisma.validationReport.update({
-                  where: { id: page.report.id },
-                  data:  {
-                    snapshotId:        snapshotResult.snapshotId,
-                    generatedAt:       new Date(),
-                    signalStrength:    report.signalStrength,
-                    confirmedFeatures: report.confirmedFeatures as object[],
-                    rejectedFeatures:  report.rejectedFeatures as object[],
-                    surveyInsights:    report.surveyInsights,
-                    buildBrief:        report.buildBrief,
-                    nextAction:        report.nextAction,
-                  },
-                });
-              } else {
-                await prisma.validationReport.create({
-                  data: {
-                    validationPageId:  page.id,
-                    snapshotId:        snapshotResult.snapshotId,
-                    signalStrength:    report.signalStrength,
-                    confirmedFeatures: report.confirmedFeatures as object[],
-                    rejectedFeatures:  report.rejectedFeatures as object[],
-                    surveyInsights:    report.surveyInsights,
-                    buildBrief:        report.buildBrief,
-                    nextAction:        report.nextAction,
-                  },
-                });
-              }
-
-              log.info('Build brief persisted', {
-                pageId:         page.id,
-                signalStrength: report.signalStrength,
-              });
-            });
-          }
+        if (!shouldRegenerateBrief({
+          previousVisitorCount: previousSnapshot.visitorCount,
+          previousClickCount:   prevClicks,
+          previousSurveyCount:  prevSurveys,
+          currentMetrics:       metrics,
+          daysSinceLastBrief:   daysSince,
+        })) {
+          log.info('No material change — skipping brief regeneration');
+          return { snapshotId, interpreted: true, briefGenerated: false, reason: 'no-material-change' };
         }
-        processed++;
-      } catch (error) {
-        log.error('Page reporting failed — continuing with next page', {
-          pageId: page.id,
-          error:  String(error),
-        });
       }
     }
 
-    log.info('Reporting cycle complete', { processed, total: pageIds.length });
-    return { processed };
+    await step.run('generate-build-brief', async () => {
+      const report = await generateBuildBrief({
+        pageId:         page.id,
+        slug:           page.slug,
+        metrics,
+        interpretation: interpretation!,
+        features:       content.features,
+        recommendation: page.recommendation!,
+      });
+
+      if (page.report) {
+        await prisma.validationReport.update({
+          where: { id: page.report.id },
+          data:  {
+            snapshotId,
+            generatedAt:       new Date(),
+            signalStrength:    report.signalStrength,
+            confirmedFeatures: report.confirmedFeatures as object[],
+            rejectedFeatures:  report.rejectedFeatures as object[],
+            surveyInsights:    report.surveyInsights,
+            buildBrief:        report.buildBrief,
+            nextAction:        report.nextAction,
+          },
+        });
+      } else {
+        await prisma.validationReport.create({
+          data: {
+            validationPageId:  page.id,
+            snapshotId,
+            signalStrength:    report.signalStrength,
+            confirmedFeatures: report.confirmedFeatures as object[],
+            rejectedFeatures:  report.rejectedFeatures as object[],
+            surveyInsights:    report.surveyInsights,
+            buildBrief:        report.buildBrief,
+            nextAction:        report.nextAction,
+          },
+        });
+      }
+
+      log.info('Build brief persisted', { signalStrength: report.signalStrength });
+    });
+
+    return { snapshotId, interpreted: true, briefGenerated: true };
   },
 );

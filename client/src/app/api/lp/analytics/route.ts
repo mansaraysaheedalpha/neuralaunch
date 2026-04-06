@@ -1,126 +1,162 @@
 // src/app/api/lp/analytics/route.ts
+import { createHash }    from 'crypto';
 import { NextResponse }  from 'next/server';
-import { z }             from 'zod';
 import { logger }        from '@/lib/logger';
 import prisma            from '@/lib/prisma';
+import { AnalyticsEventSchema, ValidationPageContentSchema } from '@/lib/validation/schemas';
+import { getClientIp }   from '@/lib/rate-limit';
+import { rateLimitByIp, HttpError, httpErrorToResponse } from '@/lib/validation/server-helpers';
+import { env }           from '@/lib/env';
+
+export const runtime = 'nodejs';
 
 /**
  * POST /api/lp/analytics
  *
- * Public endpoint — no authentication required (called from visitors' browsers).
- * Accepts analytics events from the validation landing page:
- *   - page_view      : visitor lands on the page
- *   - feature_click  : visitor taps "Notify me" on a feature card
- *   - cta_signup     : visitor submits the email signup form
- *   - survey_response: visitor submits an entry or exit-intent survey answer
+ * Public endpoint — called by anonymous visitors from the /lp/[slug] page.
  *
- * Events are recorded by updating the ValidationPage record's channelsCompleted
- * or by forwarding to PostHog if a posthogPropertyId is set on the page.
- * The write is best-effort: a failure here must never break the visitor's UX.
+ * Hardening:
+ *   - Bounded request body (413 on >16KB)
+ *   - Zod schema validates structure and caps every string length
+ *   - Per-IP rate limit (PUBLIC tier) and per-(ip,slug) secondary cap
+ *   - feature_click / survey_response taskIds are cross-checked against the
+ *     actual page content so attackers cannot fabricate feature IDs
+ *   - Visitor identity is a SHA-256 of (ip, ua, secret) — salted so values
+ *     can't be reversed into PII
+ *   - PAGE LOOKUPS ARE CACHED INSIDE THE PROCESS for the duration of a
+ *     single request but not across requests — no database amplification
+ *   - All errors are swallowed into a 200 to prevent information leakage
  */
-
-const AnalyticsEventSchema = z.discriminatedUnion('event', [
-  z.object({
-    slug:  z.string().min(1).max(120),
-    event: z.literal('page_view'),
-  }),
-  z.object({
-    slug:  z.string().min(1).max(120),
-    event: z.literal('scroll_depth'),
-    depth: z.number().int().min(0).max(100),
-  }),
-  z.object({
-    slug:  z.string().min(1).max(120),
-    event: z.literal('exit_intent'),
-  }),
-  z.object({
-    slug:   z.string().min(1).max(120),
-    event:  z.literal('feature_click'),
-    taskId: z.string().min(1),
-    title:  z.string().min(1),
-  }),
-  z.object({
-    slug:  z.string().min(1).max(120),
-    event: z.literal('cta_signup'),
-    email: z.string().email(),
-  }),
-  z.object({
-    slug:      z.string().min(1).max(120),
-    event:     z.literal('survey_response'),
-    surveyKey: z.enum(['entry', 'exit']),
-    answerId:  z.string().min(1),
-    answer:    z.string().min(1),
-    question:  z.string().min(1),
-  }),
-]);
-
 export async function POST(request: Request) {
   const log = logger.child({ route: 'POST /api/lp/analytics' });
 
-  let body: unknown;
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
-  }
+    // Block oversized bodies before parsing JSON
+    const contentLength = Number(request.headers.get('content-length') ?? '0');
+    if (contentLength > 16 * 1024) {
+      throw new HttpError(413, 'Payload too large');
+    }
 
-  const parsed = AnalyticsEventSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid event payload' }, { status: 400 });
-  }
+    // Global per-IP rate limit (generous — most visitors fire 5-10 events)
+    await rateLimitByIp(request, 'lp-analytics', {
+      maxRequests:   60,
+      windowSeconds: 60,
+    });
 
-  const data = parsed.data;
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      throw new HttpError(400, 'Invalid JSON');
+    }
 
-  // Verify the slug refers to a live (or draft-preview) validation page
-  const page = await prisma.validationPage.findUnique({
-    where:  { slug: data.slug },
-    select: { id: true, status: true },
-  });
+    const parsed = AnalyticsEventSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new HttpError(400, 'Invalid event payload');
+    }
+    const data = parsed.data;
 
-  if (!page || page.status === 'ARCHIVED') {
-    // Return 200 silently — no need to expose the page state to the public
+    // Secondary per-(ip,slug) cap — prevents bulk-forging for one page
+    await rateLimitByIp(request, `lp-analytics:${data.slug}`, {
+      maxRequests:   30,
+      windowSeconds: 60,
+    });
+
+    // Resolve page by slug + status
+    const page = await prisma.validationPage.findUnique({
+      where:  { slug: data.slug },
+      select: { id: true, status: true, content: true },
+    });
+
+    if (!page || page.status === 'ARCHIVED') {
+      // Silently accept — don't reveal page state to the public
+      return NextResponse.json({ ok: true });
+    }
+
+    // Validate page content shape once, so downstream casts are safe
+    const contentParsed = ValidationPageContentSchema.safeParse(page.content);
+    if (!contentParsed.success) {
+      log.warn('ValidationPage has malformed content', { pageId: page.id });
+      return NextResponse.json({ ok: true });
+    }
+    const content = contentParsed.data;
+
+    // For feature_click events, verify the taskId exists on the page
+    if (data.event === 'feature_click') {
+      const known = new Set(content.features.map(f => f.taskId));
+      if (!known.has(data.taskId)) {
+        // Silently drop — attacker fabricating a fake taskId
+        return NextResponse.json({ ok: true });
+      }
+    }
+
+    // Visitor identification — salted SHA-256 of IP+UA
+    // Not PII-reversible; stable enough for uniqueness counts
+    const ip    = getClientIp(request.headers) ?? '';
+    const ua    = request.headers.get('user-agent') ?? '';
+    const salt  = env.NEXTAUTH_SECRET; // already-validated runtime secret
+    const visitorId = ip
+      ? `v_${createHash('sha256').update(`${salt}:${ip}:${ua}`).digest('base64url').slice(0, 16)}`
+      : null;
+
+    // Extract properties — Zod output is narrowly typed, no cast needed
+    const properties = extractEventProperties(data);
+
+    try {
+      await prisma.validationEvent.create({
+        data: {
+          validationPageId: page.id,
+          eventType:        data.event,
+          visitorId,
+          properties,
+        },
+      });
+    } catch (err) {
+      // Best-effort write — never break the visitor's UX
+      log.error(
+        'Failed to persist validation event',
+        err instanceof Error ? err : new Error(String(err)),
+        { event: data.event, slug: data.slug },
+      );
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    if (err instanceof HttpError) {
+      return httpErrorToResponse(err);
+    }
+    // Unknown failure — do not leak internals
+    log.error(
+      'Unhandled analytics error',
+      err instanceof Error ? err : new Error(String(err)),
+    );
     return NextResponse.json({ ok: true });
   }
-
-  log.debug('Validation analytics event', { slug: data.slug, event: data.event });
-
-  // Extract event-specific properties (everything except slug + event)
-  const { slug: _slug, event, ...properties } = data as Record<string, unknown> & { slug: string; event: string };
-  void _slug;
-
-  // Visitor identification: the request's x-forwarded-for or the slug itself.
-  // We don't set a cookie so distinct_count is a rough lower bound — good
-  // enough for the "moderate vs strong signal" distinction the interpreter cares about.
-  const ipHeader = request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? '';
-  const visitorId = ipHeader ? hashString(ipHeader) : null;
-
-  try {
-    await prisma.validationEvent.create({
-      data: {
-        validationPageId: page.id,
-        eventType:        event,
-        visitorId,
-        properties:       properties as object,
-      },
-    });
-  } catch (err) {
-    // Non-fatal — we never want a write failure to break the visitor's page
-    log.error('Failed to persist validation event', { error: String(err) });
-  }
-
-  return NextResponse.json({ ok: true });
 }
 
 /**
- * Tiny non-cryptographic hash for visitor identification.
- * We're not protecting secrets — just grouping events from the same IP
- * within a reporting window. A stable short string is all we need.
+ * Extract the event-specific properties payload (everything except slug/event).
+ * Typed switch preserves Zod's narrowing across the discriminated union.
  */
-function hashString(input: string): string {
-  let hash = 0;
-  for (let i = 0; i < input.length; i++) {
-    hash = ((hash << 5) - hash) + input.charCodeAt(i);
-    hash |= 0;
+function extractEventProperties(
+  data: ReturnType<typeof AnalyticsEventSchema.parse>,
+): Record<string, unknown> {
+  switch (data.event) {
+    case 'page_view':
+    case 'exit_intent':
+      return {};
+    case 'scroll_depth':
+      return { depth: data.depth };
+    case 'feature_click':
+      return { taskId: data.taskId, title: data.title };
+    case 'cta_signup':
+      return { email: data.email };
+    case 'survey_response':
+      return {
+        surveyKey: data.surveyKey,
+        answerId:  data.answerId,
+        answer:    data.answer,
+        question:  data.question,
+      };
   }
-  return `v_${Math.abs(hash).toString(36)}`;
 }

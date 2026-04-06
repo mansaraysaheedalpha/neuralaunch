@@ -5,6 +5,7 @@ import {
   discoverySessionFunction,
   roadmapGenerationFunction,
   validationReportingFunction,
+  validationReportingSchedulerFunction,
   validationLifecycleFunction,
 } from '@/inngest/functions';
 
@@ -13,8 +14,8 @@ export const { GET, POST, PUT } = serve({
   functions: [
     discoverySessionFunction,
     roadmapGenerationFunction,
+    validationReportingSchedulerFunction,
     validationReportingFunction,
     validationLifecycleFunction,
   ],
-  // signingKey is read automatically from INNGEST_SIGNING_KEY env var in v4
 });

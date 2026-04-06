@@ -87,7 +87,7 @@ export function DistributionTracker({
           const isPend   = pending === ch.channel;
           return (
             <div
-              key={`${ch.channel}-${i}`}
+              key={`channel-${i}`}
               className={[
                 'rounded-xl border p-4 flex flex-col gap-3 transition-colors',
                 isDone

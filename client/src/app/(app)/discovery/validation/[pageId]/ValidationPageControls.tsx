@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { usePreviewFrameReload } from './PreviewFrame';
 
 interface ValidationPageControlsProps {
   pageId:          string;
@@ -26,6 +27,7 @@ export function ValidationPageControls({
   pageUrl,
 }: ValidationPageControlsProps) {
   const router = useRouter();
+  const reloadPreview = usePreviewFrameReload();
   const [status,     setStatus]     = useState(initialStatus);
   const [regenerating, setRegenerating] = useState(false);
   const [publishing,   setPublishing]   = useState(false);
@@ -44,8 +46,9 @@ export function ValidationPageControls({
         setError(json.error ?? 'Regeneration failed — try again.');
         return;
       }
-      // Refresh to load new content in the iframe
+      // Refresh server data AND force iframe remount with new content
       router.refresh();
+      reloadPreview();
     } catch {
       setError('Network error — please try again.');
     } finally {

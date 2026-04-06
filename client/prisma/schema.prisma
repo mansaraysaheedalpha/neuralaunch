@@ -1030,9 +1030,6 @@ model ValidationPage {
   // Which distribution channels the user has ticked off
   channelsCompleted String[]        @default([])
 
-  // PostHog property ID for this page's isolated analytics
-  posthogPropertyId String?
-
   publishedAt      DateTime?
   archivedAt       DateTime?
   createdAt        DateTime         @default(now())

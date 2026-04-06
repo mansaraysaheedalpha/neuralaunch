@@ -24,6 +24,7 @@ export default async function ValidationDashboardPage() {
   const pages = await prisma.validationPage.findMany({
     where:   { userId },
     orderBy: { updatedAt: 'desc' },
+    take:    50,
     select: {
       id:                true,
       slug:              true,

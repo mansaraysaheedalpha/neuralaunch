@@ -4,20 +4,26 @@ import type { Metadata }      from 'next';
 import { auth }               from '@/auth';
 import prisma                 from '@/lib/prisma';
 import { env }                from '@/lib/env';
+import { logger }             from '@/lib/logger';
 import { LAYOUT_VARIANTS }    from '@/lib/validation/constants';
-import type { ValidationPageContent } from '@/lib/validation/schemas';
+import { ValidationPageContentSchema } from '@/lib/validation/schemas';
 import {
   ValidationPageProduct,
   ValidationPageService,
   ValidationPageMarketplace,
 } from '@/components/validation/public';
 
+// Force dynamic rendering — draft auth and analytics must evaluate on
+// every request, not be cached at the edge.
+export const dynamic = 'force-dynamic';
+
 interface PublicValidationPageProps {
   params: Promise<{ slug: string }>;
 }
 
 // ---------------------------------------------------------------------------
-// Metadata
+// Metadata — DRAFT pages return generic "Not found" metadata so slug
+// enumeration cannot reveal titles/descriptions of unpublished ideas.
 // ---------------------------------------------------------------------------
 
 export async function generateMetadata({ params }: PublicValidationPageProps): Promise<Metadata> {
@@ -28,11 +34,16 @@ export async function generateMetadata({ params }: PublicValidationPageProps): P
     select: { content: true, status: true },
   });
 
-  if (!page || page.status === 'ARCHIVED') {
-    return { title: 'Page Not Found | NeuraLaunch' };
+  if (!page || page.status !== 'LIVE') {
+    return { title: 'Page Not Found | NeuraLaunch', robots: { index: false, follow: false } };
   }
 
-  const content  = page.content as ValidationPageContent;
+  const parsed = ValidationPageContentSchema.safeParse(page.content);
+  if (!parsed.success) {
+    return { title: 'NeuraLaunch', robots: { index: false, follow: false } };
+  }
+
+  const content  = parsed.data;
   const siteUrl  = env.NEXT_PUBLIC_APP_URL ?? env.NEXT_PUBLIC_SITE_URL ?? 'https://neuralaunch.app';
 
   return {
@@ -50,9 +61,7 @@ export async function generateMetadata({ params }: PublicValidationPageProps): P
       title:       content.metaTitle,
       description: content.metaDescription,
     },
-    robots: page.status === 'LIVE'
-      ? { index: true,  follow: true  }
-      : { index: false, follow: false },
+    robots: { index: true, follow: true },
   };
 }
 
@@ -83,34 +92,22 @@ export default async function PublicValidationPage({ params }: PublicValidationP
     }
   }
 
-  const content = page.content as ValidationPageContent;
+  const parsed = ValidationPageContentSchema.safeParse(page.content);
+  if (!parsed.success) {
+    logger.error(
+      'Malformed ValidationPage content',
+      new Error('ValidationPageContentSchema failed to parse'),
+      { slug },
+    );
+    notFound();
+  }
+  const content = parsed.data;
 
   if (page.layoutVariant === LAYOUT_VARIANTS.SERVICE) {
-    return <ValidationPageService  content={content} pageSlug={slug} />;
+    return <ValidationPageService content={content} pageSlug={slug} />;
   }
-
   if (page.layoutVariant === LAYOUT_VARIANTS.MARKETPLACE) {
     return <ValidationPageMarketplace content={content} pageSlug={slug} />;
   }
-
   return <ValidationPageProduct content={content} pageSlug={slug} />;
 }
-
-// ---------------------------------------------------------------------------
-// Static params — only LIVE pages pre-rendered
-// ---------------------------------------------------------------------------
-
-export async function generateStaticParams() {
-  try {
-    const pages = await prisma.validationPage.findMany({
-      where:  { status: 'LIVE' },
-      select: { slug: true },
-      take:   200,
-    });
-    return pages.map(p => ({ slug: p.slug }));
-  } catch {
-    return [];
-  }
-}
-
-export const revalidate = 60;

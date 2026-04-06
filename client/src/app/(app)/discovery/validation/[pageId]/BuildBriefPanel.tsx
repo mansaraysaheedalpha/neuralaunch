@@ -3,21 +3,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-
-interface ConfirmedFeature {
-  taskId:     string;
-  title:      string;
-  clicks:     number;
-  percentage: number;
-  evidence:   string;
-}
-
-interface RejectedFeature {
-  taskId: string;
-  title:  string;
-  clicks: number;
-  reason: string;
-}
+import type { ConfirmedFeature, RejectedFeature } from '@/lib/validation/schemas';
 
 interface BuildBriefPanelProps {
   pageId:            string;

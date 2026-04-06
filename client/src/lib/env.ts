@@ -41,14 +41,6 @@ const envSchema = z.object({
   INNGEST_EVENT_KEY:   z.string().min(1),
   INNGEST_SIGNING_KEY: z.string().min(1),
 
-  // Analytics — PostHog (Phase 3)
-  // POSTHOG_API_KEY: server-side key for reading analytics via PostHog API
-  // NEXT_PUBLIC_POSTHOG_KEY: client-side key for event ingestion on public pages
-  // NEXT_PUBLIC_POSTHOG_HOST: PostHog host (default: https://app.posthog.com)
-  POSTHOG_API_KEY:            z.string().optional(),
-  NEXT_PUBLIC_POSTHOG_KEY:    z.string().optional(),
-  NEXT_PUBLIC_POSTHOG_HOST:   z.string().url().optional().default('https://app.posthog.com'),
-
   // Public app URL
   NEXT_PUBLIC_APP_URL:  z.string().url().optional(),
   NEXT_PUBLIC_SITE_URL: z.string().url().optional(),

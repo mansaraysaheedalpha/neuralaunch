@@ -85,6 +85,25 @@ export const validationLifecycleFunction = inngest.createFunction(
       return result.count;
     });
 
-    return { draftsArchived, liveArchived };
+    // --- Purge raw events for pages archived more than 90 days ago ---
+    // Archived pages remain viewable, but their raw event streams are no
+    // longer needed for reporting. Keeping them forever would bloat
+    // ValidationEvent unboundedly.
+    const eventPurgeCutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+    const eventsPurged = await step.run('purge-old-archived-events', async () => {
+      const result = await prisma.validationEvent.deleteMany({
+        where: {
+          validationPage: {
+            status:     'ARCHIVED',
+            archivedAt: { lt: eventPurgeCutoff },
+          },
+        },
+      });
+      log.info('Old archived events purged', { count: result.count });
+      return result.count;
+    });
+
+    return { draftsArchived, liveArchived, eventsPurged };
   },
 );
