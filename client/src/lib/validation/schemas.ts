@@ -27,21 +27,38 @@ export const SurveyOptionSchema = z.object({
   label: SHORT_TEXT.describe('Short option label shown to the user'),
 });
 
+// Anthropic structured-output JSON Schema only supports array minItems
+// of 0 or 1 — it rejects any other lower bound at the API level. We
+// therefore drop .min(>=2) and .length(N) constraints from the schemas
+// the LLM sees and re-enforce them via .superRefine() at validation time.
+// This means the model is told "an array of X" without a lower bound,
+// and we reject the response after the call if it doesn't meet the real
+// minimum. Upper bounds (.max) are supported and stay in place.
 export const ValidationPageContentSchema = z.object({
   headline:         SHORT_TEXT.describe('Main headline — one punchy sentence, problem-first, no jargon'),
   subheadline:      MEDIUM_TEXT.describe('Supporting sentence expanding the headline — specific to their market'),
   problemStatement: LONG_TEXT.describe('2–3 sentences: the exact pain this solves, in the target user\'s own language'),
   solutionStatement: LONG_TEXT.describe('2–3 sentences: how this product solves it — specific, not generic'),
-  features:         z.array(FeatureCardSchema).min(2).max(6),
+  features:         z.array(FeatureCardSchema).max(6).describe('Between 2 and 6 feature cards — fewer than 2 is an error'),
   ctaHeadline:      SHORT_TEXT.describe('Call-to-action headline above the signup form'),
   ctaButtonLabel:   z.string().min(1).max(40).describe('Button label — 2–4 words, action-oriented'),
   ctaPlaceholder:   z.string().min(1).max(80).describe('Email input placeholder text'),
   entrySurveyQuestion: SHORT_TEXT,
-  entrySurveyOptions:  z.array(SurveyOptionSchema).min(2).max(4),
+  entrySurveyOptions:  z.array(SurveyOptionSchema).max(4).describe('Between 2 and 4 entry survey options'),
   exitSurveyQuestion:  SHORT_TEXT,
-  exitSurveyOptions:   z.array(SurveyOptionSchema).min(2).max(4),
+  exitSurveyOptions:   z.array(SurveyOptionSchema).max(4).describe('Between 2 and 4 exit survey options'),
   metaTitle:        z.string().min(1).max(60).describe('Page title for SEO/sharing — under 60 characters'),
   metaDescription:  z.string().min(1).max(160).describe('Page description for sharing cards — under 160 characters'),
+}).superRefine((data, ctx) => {
+  if (data.features.length < 2) {
+    ctx.addIssue({ code: 'custom', path: ['features'], message: 'features must have at least 2 entries' });
+  }
+  if (data.entrySurveyOptions.length < 2) {
+    ctx.addIssue({ code: 'custom', path: ['entrySurveyOptions'], message: 'entrySurveyOptions must have at least 2 entries' });
+  }
+  if (data.exitSurveyOptions.length < 2) {
+    ctx.addIssue({ code: 'custom', path: ['exitSurveyOptions'], message: 'exitSurveyOptions must have at least 2 entries' });
+  }
 });
 
 export type FeatureCard           = z.infer<typeof FeatureCardSchema>;
@@ -61,13 +78,23 @@ export const DistributionChannelSchema = z.object({
 /**
  * Distribution brief: exactly three channels, channel names must be unique
  * so per-channel completion toggling is unambiguous in the UI.
+ *
+ * The exact-3 cardinality is enforced via .superRefine() rather than
+ * .length(3) so the JSON Schema we hand to Anthropic does not include
+ * an unsupported `minItems: 3`. The model is instructed to return three
+ * via `max(3)` plus the prompt copy; we reject the response if it does
+ * not.
  */
 export const DistributionBriefSchema = z.array(DistributionChannelSchema)
-  .length(3)
-  .refine(
-    channels => new Set(channels.map(c => c.channel.trim().toLowerCase())).size === channels.length,
-    { message: 'Channel names must be unique' },
-  );
+  .max(3)
+  .superRefine((channels, ctx) => {
+    if (channels.length !== 3) {
+      ctx.addIssue({ code: 'custom', message: 'Distribution brief must contain exactly 3 channels' });
+    }
+    if (new Set(channels.map(c => c.channel.trim().toLowerCase())).size !== channels.length) {
+      ctx.addIssue({ code: 'custom', message: 'Channel names must be unique' });
+    }
+  });
 
 export type DistributionChannel = z.infer<typeof DistributionChannelSchema>;
 export type DistributionBrief   = z.infer<typeof DistributionBriefSchema>;
