@@ -31,6 +31,7 @@ model User {
   discoverySessions  DiscoverySession[]
   recommendations    Recommendation[]
   roadmaps           Roadmap[]
+  validationPages    ValidationPage[]
 }
 
 model UserPreferences {
@@ -884,6 +885,7 @@ model Recommendation {
   alternativeRejected   Json             // { alternative: string; whyNotForThem: string }
 
   roadmap               Roadmap?
+  validationPage        ValidationPage?
 
   createdAt             DateTime         @default(now())
 
@@ -989,4 +991,154 @@ model Deployment {
   @@index([environment])
   @@index([deployedAt])
   @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3 — Validation Engine
+// ---------------------------------------------------------------------------
+
+enum ValidationStatus {
+  DRAFT
+  LIVE
+  ARCHIVED
+}
+
+/**
+ * ValidationPage
+ *
+ * A public landing page generated from a Recommendation + Roadmap.
+ * Used to validate market interest before the MVP is built.
+ * One-to-one with Recommendation. Served at /lp/[slug].
+ */
+model ValidationPage {
+  id               String           @id @default(cuid())
+  userId           String
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recommendationId String           @unique
+  recommendation   Recommendation   @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+
+  slug             String           @unique  // readable URL segment, e.g. "ai-invoicing-tool-accra"
+  status           ValidationStatus @default(DRAFT)
+  layoutVariant    String           // 'product' | 'service' | 'marketplace'
+
+  // Claude-generated content — validated against ValidationPageContentSchema
+  content          Json
+
+  // Generated at publish time — 3 specific distribution channels
+  distributionBrief Json?
+
+  // Which distribution channels the user has ticked off
+  channelsCompleted String[]        @default([])
+
+  publishedAt      DateTime?
+  archivedAt       DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  snapshots        ValidationSnapshot[]
+  report           ValidationReport?
+  events           ValidationEvent[]
+
+  @@index([userId])
+  @@index([slug])
+  @@index([status])
+  @@index([recommendationId])
+}
+
+/**
+ * ValidationSnapshot
+ *
+ * One record per reporting cycle — raw PostHog analytics data for a page.
+ * Written by the Inngest validation-page-reporting function every 24h
+ * and on threshold triggers. The interpretation field holds the Sonnet
+ * Step 1 output (ValidationInterpretation).
+ */
+model ValidationSnapshot {
+  id                  String          @id @default(cuid())
+  validationPageId    String
+  validationPage      ValidationPage  @relation(fields: [validationPageId], references: [id], onDelete: Cascade)
+
+  // The founder's target market at the time of this snapshot. Stored per
+  // snapshot (not derived at query time) so we can aggregate how threshold
+  // dynamics differ across markets without touching live DiscoverySession
+  // rows. Used later to calibrate market-aware MIN_VISITORS_FOR_BRIEF etc.
+  market              String?
+
+  takenAt             DateTime        @default(now())
+  visitorCount        Int             @default(0)
+  uniqueVisitorCount  Int             @default(0)
+  ctaConversionRate   Float           @default(0) // 0.0–1.0
+  featureClicks       Json            // { taskId: string, title: string, clicks: number }[]
+  surveyResponses     Json            // { question: string, answer: string, takenAt: string }[]
+  trafficSources      Json            // { source: string, count: number }[]
+  scrollDepthData     Json            // { depth: number, reachedPercentage: number }[]
+
+  // Sonnet Step 1 output — stored so Step 2 can read without re-running
+  interpretation      Json?           // ValidationInterpretation
+
+  @@index([validationPageId])
+  @@index([takenAt])
+}
+
+/**
+ * ValidationReport
+ *
+ * The committed build brief produced by the Opus Step 2 interpretation agent.
+ * Gated behind minimum signal thresholds. One-to-one with ValidationPage
+ * (always the most recent report — older reports are preserved in snapshots).
+ * When usedForMvp is true, this report is the feature specification for Phase 5.
+ */
+model ValidationReport {
+  id                String          @id @default(cuid())
+  validationPageId  String          @unique
+  validationPage    ValidationPage  @relation(fields: [validationPageId], references: [id], onDelete: Cascade)
+  snapshotId        String
+
+  generatedAt       DateTime        @default(now())
+  signalStrength    String          // 'strong' | 'moderate' | 'weak' | 'negative'
+  confirmedFeatures Json            // { taskId, title, clicks, percentage, evidence }[]
+  rejectedFeatures  Json            // { taskId, title, clicks, reason }[]
+  surveyInsights    String          @db.Text
+  buildBrief        String          @db.Text
+  nextAction        String          @db.Text
+
+  // Populated only when signalStrength === 'negative' — what the market
+  // contradicted and what adjacent paths the founder could try instead.
+  disconfirmedAssumptions Json      @default("[]") // string[]
+  pivotOptions            Json      @default("[]") // { title, rationale }[]
+
+  // True when the user clicks "Mark validation complete" — feeds Phase 5
+  usedForMvp        Boolean         @default(false)
+
+  @@index([validationPageId])
+}
+
+/**
+ * ValidationEvent
+ *
+ * Raw analytics event captured from the public /lp/[slug] page.
+ * One row per event. Aggregated into ValidationSnapshot on each
+ * reporting cycle by the validation-reporting Inngest function.
+ *
+ * This replaces the PostHog integration — with expected traffic of
+ * 50–500 visitors per page lifecycle, persisting events directly to
+ * Postgres is cheaper, simpler, and removes an external dependency.
+ *
+ * The eventType column is a string (not enum) so we can add new event
+ * kinds without a migration. Known values:
+ *   page_view | scroll_depth | exit_intent | feature_click | cta_signup | survey_response
+ */
+model ValidationEvent {
+  id                String         @id @default(cuid())
+  validationPageId  String
+  validationPage    ValidationPage @relation(fields: [validationPageId], references: [id], onDelete: Cascade)
+
+  eventType         String         // see docstring
+  visitorId         String?        // hashed client identifier when available
+  properties        Json           // event-specific payload (taskId, depth, email, answer, etc.)
+
+  createdAt         DateTime       @default(now())
+
+  @@index([validationPageId, eventType])
+  @@index([validationPageId, createdAt])
 }
