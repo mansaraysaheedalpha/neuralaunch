@@ -6,6 +6,7 @@ import prisma                 from '@/lib/prisma';
 import { env }                from '@/lib/env';
 import { ValidationPageControls } from './ValidationPageControls';
 import { DistributionTracker }    from './DistributionTracker';
+import { BuildBriefPanel }        from './BuildBriefPanel';
 import type { DistributionBrief } from '@/lib/validation/schemas';
 
 interface ValidationPreviewPageProps {
@@ -38,6 +39,18 @@ export default async function ValidationPreviewPage({ params }: ValidationPrevie
       recommendationId:  true,
       distributionBrief: true,
       channelsCompleted: true,
+      report: {
+        select: {
+          signalStrength:    true,
+          confirmedFeatures: true,
+          rejectedFeatures:  true,
+          surveyInsights:    true,
+          buildBrief:        true,
+          nextAction:        true,
+          usedForMvp:        true,
+          generatedAt:       true,
+        },
+      },
     },
   });
 
@@ -96,6 +109,20 @@ export default async function ValidationPreviewPage({ params }: ValidationPrevie
                 channelsCompleted={page.channelsCompleted}
               />
             </div>
+          )}
+
+          {page.report && (
+            <BuildBriefPanel
+              pageId={page.id}
+              signalStrength={page.report.signalStrength}
+              confirmedFeatures={page.report.confirmedFeatures as Parameters<typeof BuildBriefPanel>[0]['confirmedFeatures']}
+              rejectedFeatures={page.report.rejectedFeatures as Parameters<typeof BuildBriefPanel>[0]['rejectedFeatures']}
+              surveyInsights={page.report.surveyInsights}
+              buildBrief={page.report.buildBrief}
+              nextAction={page.report.nextAction}
+              usedForMvp={page.report.usedForMvp}
+              generatedAt={page.report.generatedAt.toISOString()}
+            />
           )}
         </div>
       </div>
