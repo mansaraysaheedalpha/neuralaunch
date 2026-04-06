@@ -173,6 +173,14 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
         />
       )}
 
+      {/* Error banner — surfaces session creation or turn failures so the
+          UI never silently goes blank */}
+      {status === 'error' && !isSynthesizing && (
+        <div className="mx-4 mb-3 shrink-0 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+          Something went wrong sending your message. Please try again — if the problem persists, refresh the page.
+        </div>
+      )}
+
       {/* Empty state — welcome + input grouped and vertically centered */}
       {!hasStarted && !stepperVisible && !isSynthesizing && (
         <div className="flex-1 flex flex-col items-center justify-center gap-5 px-4 pb-6">
