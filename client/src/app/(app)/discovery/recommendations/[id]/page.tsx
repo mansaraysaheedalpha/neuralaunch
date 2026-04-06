@@ -38,14 +38,16 @@ export default async function RecommendationDetailPage({
       alternativeRejected:    true,
       createdAt:              true,
       roadmap:                { select: { status: true } },
+      validationPage:         { select: { id: true } },
       session:                { select: { conversationId: true } },
     },
   });
 
   if (!recommendation) notFound();
 
-  const conversationId = recommendation.session?.conversationId ?? null;
-  const roadmapReady   = recommendation.roadmap?.status === 'READY';
+  const conversationId    = recommendation.session?.conversationId ?? null;
+  const roadmapReady      = recommendation.roadmap?.status === 'READY';
+  const validationPageId  = recommendation.validationPage?.id ?? null;
 
   return (
     <div className="flex flex-col h-full">
@@ -70,7 +72,11 @@ export default async function RecommendationDetailPage({
           <span className="text-muted-foreground text-sm">Loading…</span>
         </div>
       }>
-        <RecommendationReveal recommendation={recommendation} roadmapReady={roadmapReady} />
+        <RecommendationReveal
+          recommendation={recommendation}
+          roadmapReady={roadmapReady}
+          validationPageId={validationPageId}
+        />
       </Suspense>
     </div>
   );

@@ -225,6 +225,28 @@ export default function Sidebar({
         </Link>
 
         <Link
+          href="/discovery/validation"
+          onClick={() => setMobileMenuOpen(false)}
+          className={`group relative flex items-center px-3 py-2 rounded-xl transition-all duration-200 ml-8 ${
+            pathname === "/discovery/validation" || pathname?.startsWith("/discovery/validation/")
+              ? "bg-primary/10"
+              : "hover:bg-muted"
+          }`}
+        >
+          <div className="flex-1 min-w-0">
+            <p
+              className={`text-sm truncate ${
+                pathname === "/discovery/validation" || pathname?.startsWith("/discovery/validation/")
+                  ? "text-primary font-semibold"
+                  : "text-muted-foreground group-hover:text-foreground"
+              }`}
+            >
+              Validation pages
+            </p>
+          </div>
+        </Link>
+
+        <Link
           href="/trends"
           onClick={() => setMobileMenuOpen(false)}
           className={`group relative flex items-center px-3 py-3 rounded-xl transition-all duration-200 ${

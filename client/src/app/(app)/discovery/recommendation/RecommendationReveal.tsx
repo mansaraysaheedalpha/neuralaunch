@@ -24,6 +24,8 @@ interface Props {
   };
   /** True when a READY roadmap already exists for this recommendation */
   roadmapReady?: boolean;
+  /** Set when a validation page has been generated — pageId for navigation */
+  validationPageId?: string | null;
 }
 
 type RiskRow = { risk: string; mitigation: string };
@@ -66,13 +68,14 @@ function Section({ label, delay = 0, children }: { label: string; delay?: number
  * - All remaining sections individually collapsible (expanded by default)
  * - Inline assumption flag with live scoped response (see AssumptionRow)
  */
-export function RecommendationReveal({ recommendation: r, roadmapReady = false }: Props) {
+export function RecommendationReveal({ recommendation: r, roadmapReady = false, validationPageId = null }: Props) {
   const router      = useRouter();
   const steps       = r.firstThreeSteps as string[];
   const risks       = r.risks as RiskRow[];
   const assumptions = r.assumptions as string[];
   const alt         = r.alternativeRejected as AltRow;
-  const [generating, setGenerating] = useState(false);
+  const [generating,         setGenerating]         = useState(false);
+  const [creatingValidation, setCreatingValidation] = useState(false);
 
   async function handleGenerateRoadmap() {
     setGenerating(true);
@@ -83,6 +86,19 @@ export function RecommendationReveal({ recommendation: r, roadmapReady = false }
       }
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function handleCreateValidationPage() {
+    setCreatingValidation(true);
+    try {
+      const res = await fetch(`/api/discovery/recommendations/${r.id}/validation-page`, { method: 'POST' });
+      if (res.ok) {
+        const json = await res.json() as { pageId: string };
+        router.push(`/discovery/validation/${json.pageId}`);
+      }
+    } finally {
+      setCreatingValidation(false);
     }
   }
 
@@ -162,39 +178,80 @@ export function RecommendationReveal({ recommendation: r, roadmapReady = false }
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.0 }}
-          className="pt-4 border-t border-border"
+          className="pt-4 border-t border-border flex flex-col gap-6"
         >
-          {roadmapReady ? (
-            <>
-              <p className="text-xs text-muted-foreground mb-3">
-                Your execution roadmap is ready.
-              </p>
-              <Link
-                href={`/discovery/roadmap/${r.id}`}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-              >
-                <ArrowRight className="size-4" />
-                View My Execution Roadmap
-              </Link>
-            </>
-          ) : (
-            <>
-              <p className="text-xs text-muted-foreground mb-3">
-                Ready to turn this recommendation into a step-by-step execution plan?
-              </p>
-              <button
-                onClick={() => { void handleGenerateRoadmap(); }}
-                disabled={generating}
-                className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
-              >
-                {generating ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
+          {/* Roadmap CTA */}
+          <div>
+            {roadmapReady ? (
+              <>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Your execution roadmap is ready.
+                </p>
+                <Link
+                  href={`/discovery/roadmap/${r.id}`}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                >
                   <ArrowRight className="size-4" />
-                )}
-                {generating ? 'Starting…' : 'Generate My Execution Roadmap'}
-              </button>
-            </>
+                  View My Execution Roadmap
+                </Link>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Ready to turn this recommendation into a step-by-step execution plan?
+                </p>
+                <button
+                  onClick={() => { void handleGenerateRoadmap(); }}
+                  disabled={generating}
+                  className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
+                >
+                  {generating ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <ArrowRight className="size-4" />
+                  )}
+                  {generating ? 'Starting…' : 'Generate My Execution Roadmap'}
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Validation page CTA — only shown when roadmap is ready */}
+          {roadmapReady && (
+            <div className="pt-4 border-t border-border">
+              {validationPageId ? (
+                <>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Your validation landing page is ready to preview.
+                  </p>
+                  <Link
+                    href={`/discovery/validation/${validationPageId}`}
+                    className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm font-medium text-primary transition-opacity hover:opacity-80"
+                  >
+                    <ArrowRight className="size-4" />
+                    View Validation Page
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Build a landing page to test your idea with real users and collect interest signals.
+                  </p>
+                  <button
+                    onClick={() => { void handleCreateValidationPage(); }}
+                    disabled={creatingValidation}
+                    className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm font-medium text-primary transition-opacity hover:opacity-80 disabled:opacity-50"
+                  >
+                    {creatingValidation ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <ArrowRight className="size-4" />
+                    )}
+                    {creatingValidation ? 'Building…' : 'Build Validation Page'}
+                  </button>
+                </>
+              )}
+            </div>
           )}
         </motion.div>
 
