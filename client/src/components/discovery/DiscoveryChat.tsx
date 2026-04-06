@@ -94,9 +94,22 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
     setStepperVisible,
     currentQuestion,
     questionIndex,
+    turnError,
     sendMessage,
+    retryLastTurn,
     retryRecommendation,
   } = useDiscoverySession({ onComplete, resume });
+
+  // The stepper stays visible during a stepper-surface failure so the
+  // founder can see the cut content and the retry icon. Without this
+  // override the stepper would collapse the moment status hit 'error'.
+  const stepperShouldShow =
+    (stepperVisible && !isSynthesizing)
+    || (turnError?.surface === 'stepper' && !isSynthesizing);
+
+  const stepperFailure = turnError?.surface === 'stepper'
+    ? { kind: turnError.kind, partial: turnError.partial }
+    : null;
 
   const isLoading = status === 'loading';
   const canSubmit = sessionReady && !isSynthesizing && input.trim().length > 0
@@ -174,15 +187,9 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
           synthesisError={synthesisError}
           synthesisStep={synthesisStep}
           onRetry={retryRecommendation}
+          turnError={turnError}
+          onRetryTurn={() => { void retryLastTurn(); }}
         />
-      )}
-
-      {/* Error banner — surfaces session creation or turn failures so the
-          UI never silently goes blank */}
-      {status === 'error' && !isSynthesizing && (
-        <div className="mx-4 mb-3 shrink-0 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-400">
-          Something went wrong sending your message. Please try again — if the problem persists, refresh the page.
-        </div>
       )}
 
       {/* Empty state — welcome + input grouped and vertically centered */}
@@ -207,7 +214,9 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
       <QuestionStepper
         currentQuestion={currentQuestion}
         currentIndex={questionIndex}
-        isVisible={stepperVisible && !isSynthesizing}
+        isVisible={stepperShouldShow}
+        failure={stepperFailure}
+        onRetry={() => { void retryLastTurn(); }}
         onAnswer={answer => {
           setStepperVisible(false);
           handleSend(answer);
