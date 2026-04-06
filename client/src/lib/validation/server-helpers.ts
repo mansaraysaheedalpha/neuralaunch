@@ -97,13 +97,35 @@ export async function requireRecommendationOwner<TSelect extends Record<string, 
 // ---------------------------------------------------------------------------
 
 /**
- * Reject cross-origin POSTs by comparing the Origin header against the app's
- * own public URL. Same-origin requests (and server-to-server fetches with no
- * Origin header at all) are allowed through.
+ * Reject cross-origin state-changing requests using two complementary signals:
+ *
+ *   1. Sec-Fetch-Site (preferred). Sent by all modern browsers, unforgeable
+ *      from JavaScript. We require 'same-origin' or 'none' (none = direct
+ *      navigation, fine for state changes from typed URLs but not for fetch
+ *      from another tab — accepted because the user is the originator).
+ *
+ *   2. Origin header (fallback). Older browsers or non-browser clients that
+ *      do not set Sec-Fetch-Site fall through to the host-name check
+ *      against the configured app URL.
+ *
+ * Server-to-server requests (e.g. health checks, internal cron) without
+ * either header are allowed through; they cannot be initiated by a
+ * malicious page in a victim's browser.
  */
 export function enforceSameOrigin(request: Request): void {
+  // Preferred: Sec-Fetch-Site is unforgeable from JS and sent by every
+  // modern browser on every fetch including DELETE.
+  const fetchSite = request.headers.get('sec-fetch-site');
+  if (fetchSite) {
+    if (fetchSite === 'same-origin' || fetchSite === 'none') return;
+    // Anything else (cross-site, same-site) is rejected. same-site
+    // includes subdomains we don't intend to authorise here.
+    throw new HttpError(403, 'Cross-origin request rejected');
+  }
+
+  // Fallback: legacy Origin header check.
   const origin = request.headers.get('origin');
-  if (!origin) return; // no header => not a browser cross-site POST
+  if (!origin) return; // no headers at all => non-browser request, allowed
 
   const expected = env.NEXT_PUBLIC_APP_URL ?? env.NEXT_PUBLIC_SITE_URL ?? '';
   if (!expected) return; // no configured origin => cannot enforce (dev fallback)

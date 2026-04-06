@@ -56,7 +56,11 @@ export default async function RecommendationPage({
 
   if (!recommendation) redirect('/discovery');
 
-  const roadmapReady = recommendation.roadmap?.status === 'READY';
+  // STALE counts as "ready" for navigation purposes — the founder
+  // should still be able to view the roadmap, the STALE banner inside
+  // RoadmapView prompts them to regenerate.
+  const roadmapReady = recommendation.roadmap?.status === 'READY'
+                    || recommendation.roadmap?.status === 'STALE';
   const validationPageId = recommendation.validationPage?.id ?? null;
   const validationSignalStrength = recommendation.validationPage?.report?.signalStrength ?? null;
 

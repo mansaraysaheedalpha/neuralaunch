@@ -46,13 +46,27 @@ export async function POST(
     const history = (rec.pushbackHistory ?? []) as unknown as PushbackTurn[];
     const userTurns = history.filter(t => t.role === 'user').length;
 
-    await prisma.recommendation.update({
-      where: { id: recommendationId },
+    // Idempotent write: only set acceptedAt if it is still null. A
+    // double-click that fires two POSTs in parallel will see the
+    // first acceptedAt = null and update; the second will see
+    // acceptedAt = null in its read but updateMany will affect 0 rows
+    // because the first request already set the column. Both clients
+    // get a success response — the second falls into the
+    // alreadyAccepted branch on the next read.
+    const updateResult = await prisma.recommendation.updateMany({
+      where: { id: recommendationId, acceptedAt: null },
       data:  {
         acceptedAt:      new Date(),
         acceptedAtRound: userTurns,
       },
     });
+
+    if (updateResult.count === 0) {
+      // Concurrent request beat us to it — that's fine, the
+      // recommendation is still accepted as the founder intended.
+      log.info('Recommendation accept raced — already accepted by concurrent request');
+      return NextResponse.json({ ok: true, alreadyAccepted: true });
+    }
 
     log.info('Recommendation accepted', { acceptedAtRound: userTurns });
     return NextResponse.json({ ok: true, acceptedAtRound: userTurns });

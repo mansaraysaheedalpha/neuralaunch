@@ -114,6 +114,7 @@ export function RecommendationReveal({
   const [creatingValidation, setCreatingValidation] = useState(false);
   const [accepting,          setAccepting]          = useState(false);
   const [unaccepting,        setUnaccepting]        = useState(false);
+  const [acceptError,        setAcceptError]        = useState<string | null>(null);
 
   const isAccepted       = !!r.acceptedAt;
   const alternativeReady = !!r.alternativeRecommendationId;
@@ -131,21 +132,36 @@ export function RecommendationReveal({
 
   async function handleAcceptAndGenerateRoadmap() {
     setAccepting(true);
+    setAcceptError(null);
     try {
-      // Step 1 — explicit acceptance
+      // Step 1 — explicit acceptance. Server-side updateMany makes this
+      // idempotent, so a retry after a partial failure is safe.
       const acceptRes = await fetch(`/api/discovery/recommendations/${r.id}/accept`, {
         method: 'POST',
       });
-      if (!acceptRes.ok) return;
+      if (!acceptRes.ok) {
+        const json = await acceptRes.json().catch(() => ({})) as { error?: string };
+        setAcceptError(json.error ?? 'Could not record your acceptance. Please try again.');
+        return;
+      }
 
-      // Step 2 — generate the roadmap (only after acceptance)
+      // Step 2 — fire roadmap generation. We navigate to the roadmap
+      // viewer immediately on the POST returning OK; the viewer
+      // already polls GENERATING → READY so the founder lands on the
+      // right page even if Inngest is slow. If the POST fails, the
+      // accept already succeeded — they can retry from the same button.
       setGenerating(true);
       const roadmapRes = await fetch(`/api/discovery/recommendations/${r.id}/roadmap`, {
         method: 'POST',
       });
-      if (roadmapRes.ok) {
-        router.push(`/discovery/roadmap/${r.id}`);
+      if (!roadmapRes.ok) {
+        const json = await roadmapRes.json().catch(() => ({})) as { error?: string };
+        setAcceptError(json.error ?? 'Roadmap generation could not start. Click the button again to retry.');
+        return;
       }
+      router.push(`/discovery/roadmap/${r.id}`);
+    } catch {
+      setAcceptError('Network error. Please check your connection and try again.');
     } finally {
       setAccepting(false);
       setGenerating(false);
@@ -302,6 +318,11 @@ export function RecommendationReveal({
                       ? 'Building your roadmap…'
                       : 'This is my path — build my roadmap'}
                 </button>
+                {acceptError && (
+                  <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-700 dark:text-red-400">
+                    {acceptError}
+                  </div>
+                )}
                 {isAccepted && (
                   <button
                     type="button"

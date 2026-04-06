@@ -906,6 +906,18 @@ model Recommendation {
   unacceptCount         Int             @default(0)
 
   /**
+   * Optimistic concurrency lock for pushback. Incremented on every
+   * write to pushbackHistory. The pushback API performs:
+   *   updateMany({ where: { id, pushbackVersion: previousVersion }, ... })
+   * If the row was modified by another concurrent request between the
+   * read and the write, count === 0 and we return 409. Prevents two
+   * parallel pushback POSTs from corrupting the history or burning
+   * duplicate Opus calls. Same column also serves as the accept
+   * endpoint's idempotency lock.
+   */
+  pushbackVersion       Int             @default(0)
+
+  /**
    * Full pushback conversation log. Append-only array of turn objects:
    *   {
    *     role:      'user' | 'agent',
@@ -963,6 +975,14 @@ enum RoadmapStatus {
   GENERATING
   READY
   FAILED
+  /**
+   * Roadmap was successfully generated, but the parent Recommendation
+   * has since been refined or replaced via the pushback flow. The
+   * roadmap content reflects an older recommendation state and should
+   * be regenerated. The roadmap viewer renders a banner offering
+   * regeneration; the founder can still view the existing content.
+   */
+  STALE
 }
 
 /**

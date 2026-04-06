@@ -55,7 +55,10 @@ export default async function RecommendationDetailPage({
   if (!recommendation) notFound();
 
   const conversationId           = recommendation.session?.conversationId ?? null;
-  const roadmapReady             = recommendation.roadmap?.status === 'READY';
+  // STALE counts as "ready" for navigation purposes — see comment in
+  // /discovery/recommendation/page.tsx for context.
+  const roadmapReady             = recommendation.roadmap?.status === 'READY'
+                                || recommendation.roadmap?.status === 'STALE';
   const validationPageId         = recommendation.validationPage?.id ?? null;
   const validationSignalStrength = recommendation.validationPage?.report?.signalStrength ?? null;
 

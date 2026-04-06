@@ -3,12 +3,12 @@
 
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Clock, Target } from 'lucide-react';
+import { Clock, Target, Loader2 } from 'lucide-react';
 import type { RoadmapPhase, RoadmapTask } from '@/lib/roadmap';
 
 interface RoadmapData {
   id:             string;
-  status:         'GENERATING' | 'READY' | 'FAILED';
+  status:         'GENERATING' | 'READY' | 'FAILED' | 'STALE';
   phases:         RoadmapPhase[];
   closingThought: string | null;
   weeklyHours:    number | null;
@@ -92,6 +92,7 @@ export function RoadmapView({ recommendationId }: { recommendationId: string }) 
   const [data, setData]     = useState<RoadmapData | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed]  = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
     let pollTimeout:    ReturnType<typeof setTimeout>;
@@ -110,7 +111,10 @@ export function RoadmapView({ recommendationId }: { recommendationId: string }) 
 
         if (json.status === 'not_started' || json.status === 'GENERATING') {
           pollTimeout = setTimeout(() => { void poll(); }, 3000);
-        } else if (json.status === 'READY') {
+        } else if (json.status === 'READY' || json.status === 'STALE') {
+          // STALE roadmaps are still rendered — the founder can read
+          // them — but the banner offers regeneration. The data is
+          // structurally identical to READY.
           setData(json);
           setLoading(false);
         } else {
@@ -127,6 +131,53 @@ export function RoadmapView({ recommendationId }: { recommendationId: string }) 
     void poll();
     return () => { cancelled = true; clearTimeout(pollTimeout); };
   }, [recommendationId]);
+
+  async function handleRegenerate() {
+    setRegenerating(true);
+    try {
+      const res = await fetch(`/api/discovery/recommendations/${recommendationId}/roadmap`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        setRegenerating(false);
+        return;
+      }
+      // Reset to loading state and re-poll. The POST upserts status
+      // back to GENERATING, so the next poll cycle will pick that up.
+      setData(null);
+      setLoading(true);
+      setRegenerating(false);
+      // Force a fresh effect run by toggling the deps via a small
+      // re-mount trick: update a counter. Simpler: just call poll
+      // directly via a microtask. We use the existing useEffect by
+      // bumping a dep — but since we don't have one here, just kick
+      // off a one-shot fetch loop.
+      const reloadDeadline = Date.now() + 3 * 60 * 1000;
+      const reloadPoll = async () => {
+        if (Date.now() >= reloadDeadline) { setFailed(true); setLoading(false); return; }
+        try {
+          const r = await fetch(`/api/discovery/recommendations/${recommendationId}/roadmap`);
+          if (!r.ok) { setFailed(true); setLoading(false); return; }
+          const j = await r.json() as PollResponse;
+          if (j.status === 'not_started' || j.status === 'GENERATING') {
+            setTimeout(() => { void reloadPoll(); }, 3000);
+          } else if (j.status === 'READY' || j.status === 'STALE') {
+            setData(j);
+            setLoading(false);
+          } else {
+            setFailed(true);
+            setLoading(false);
+          }
+        } catch {
+          setFailed(true);
+          setLoading(false);
+        }
+      };
+      void reloadPoll();
+    } finally {
+      // setRegenerating(false) handled in branches above
+    }
+  }
 
   if (loading) {
     return (
@@ -158,6 +209,34 @@ export function RoadmapView({ recommendationId }: { recommendationId: string }) 
           </p>
         )}
       </motion.div>
+
+      {data.status === 'STALE' && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 flex flex-col gap-3"
+        >
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-1">
+              Out of date
+            </p>
+            <p className="text-xs text-foreground leading-relaxed">
+              Your recommendation was updated through pushback after this roadmap was generated.
+              The steps below reflect the older version. Regenerate to get a roadmap that matches
+              your current recommendation.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => { void handleRegenerate(); }}
+            disabled={regenerating}
+            className="self-start flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 transition-opacity hover:opacity-80 disabled:opacity-50"
+          >
+            {regenerating ? <Loader2 className="size-3.5 animate-spin" /> : null}
+            {regenerating ? 'Regenerating…' : 'Regenerate roadmap'}
+          </button>
+        </motion.div>
+      )}
 
       <div className="flex flex-col gap-10">
         {data.phases.map((phase, i) => (

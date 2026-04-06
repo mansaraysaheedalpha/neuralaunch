@@ -139,16 +139,22 @@ export async function runPushbackTurn(input: RunPushbackInput): Promise<Pushback
 
   const { recommendation, context, history, userMessage, currentRound } = input;
 
-  // Render the conversation as labelled blocks. Every founder message
-  // is delimiter-wrapped so the model treats it as opaque data, not
-  // instructions. Agent turns are summarised inline.
+  // Render the conversation as labelled blocks. BOTH founder and agent
+  // historical turns are delimiter-wrapped — agent turns from earlier
+  // rounds came from output that may have been influenced by founder
+  // pushback, so we never re-feed them as trusted text. The model is
+  // told to treat anything inside [[[ ]]] as opaque data, never as
+  // instructions, even when the role label says "YOU".
+  //
+  // Defense-in-depth against the chain: founder injection → model echoes
+  // → echo gets re-fed as trusted instruction on the next round.
   const historyBlock = history.length === 0
     ? '(this is the first founder pushback)'
     : history.map(turn => {
         if (turn.role === 'user') {
           return `[ROUND ${turn.round}] FOUNDER: ${renderUserContent(turn.content, 1500)}`;
         }
-        return `[ROUND ${turn.round}] YOU (${turn.action}): ${sanitizeForPrompt(turn.content, 1500)}`;
+        return `[ROUND ${turn.round}] YOU (action=${turn.action}, mode=${turn.mode}): ${renderUserContent(turn.content, 1500)}`;
       }).join('\n\n');
 
   // Belief-state digest — the canonical reference the agent quotes back

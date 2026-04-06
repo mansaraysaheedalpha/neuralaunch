@@ -5,6 +5,12 @@ import { Prisma }       from '@prisma/client';
 import prisma           from '@/lib/prisma';
 import { logger }       from '@/lib/logger';
 import { inngest }      from '@/inngest/client';
+
+// Vercel: allow up to 60 seconds for the Opus call. Pro plan supports
+// up to 300s; 60 is the comfortable margin for the structured output
+// call (typically 8-25s) without leaving the founder waiting forever
+// on a stuck request.
+export const maxDuration = 60;
 import {
   HttpError,
   httpErrorToResponse,
@@ -52,7 +58,11 @@ export async function POST(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
-    await rateLimitByUser(userId, 'rec-pushback', RATE_LIMITS.API_AUTHENTICATED);
+    // AI_GENERATION tier (5 req/min) — pushback turns are paid Opus
+    // calls. The per-recommendation 7-round cap protects a single
+    // recommendation; this protects the user's AI spend across
+    // multiple recommendations from a single attacker session.
+    await rateLimitByUser(userId, 'rec-pushback', RATE_LIMITS.AI_GENERATION);
 
     const { id: recommendationId } = await params;
     const log = logger.child({ route: 'POST recommendations/pushback', recommendationId, userId });
@@ -66,6 +76,7 @@ export async function POST(
 
     // Load the recommendation in its CURRENT (possibly already-refined) state.
     // pushback rounds are computed from the user-turn count in pushbackHistory.
+    // pushbackVersion is captured for the optimistic concurrency check on write.
     const rec = await prisma.recommendation.findFirst({
       where:  { id: recommendationId, userId },
       select: {
@@ -82,8 +93,10 @@ export async function POST(
         alternativeRejected:    true,
         acceptedAt:             true,
         pushbackHistory:        true,
+        pushbackVersion:        true,
         versions:               true,
         alternativeRecommendationId: true,
+        roadmap:                { select: { id: true, status: true } },
         session: { select: { beliefState: true } },
       },
     });
@@ -95,6 +108,7 @@ export async function POST(
     const history = (rec.pushbackHistory ?? []) as unknown as PushbackTurn[];
     const priorUserTurns = history.filter(t => t.role === 'user').length;
     const currentRound   = priorUserTurns + 1;
+    const prevVersion    = rec.pushbackVersion;
 
     // Hard cap. The HARD_CAP_ROUND turn IS the closing move — the cap is
     // not "no more turns after 7", it's "the 7th is the last and it
@@ -135,10 +149,14 @@ export async function POST(
 
       const newHistory = [...history, userTurn, agentTurn];
 
-      await prisma.recommendation.update({
-        where: { id: recommendationId },
+      // Optimistic concurrency: only succeed if pushbackVersion has not
+      // moved since we read. updateMany returns count=0 if another
+      // request raced us; we 409 and let the client refetch.
+      const updateResult = await prisma.recommendation.updateMany({
+        where: { id: recommendationId, pushbackVersion: prevVersion },
         data:  {
           pushbackHistory: newHistory as unknown as Prisma.InputJsonValue,
+          pushbackVersion: { increment: 1 },
           // Pushing back auto-un-accepts
           ...(rec.acceptedAt ? {
             acceptedAt:      null,
@@ -148,9 +166,17 @@ export async function POST(
         },
       });
 
+      if (updateResult.count === 0) {
+        log.warn('[Pushback] Closing-move write lost optimistic-concurrency race');
+        throw new HttpError(409, 'Another request modified this recommendation. Please refresh and try again.');
+      }
+
       // Queue the alternative synthesis. The Inngest worker reads the
       // pushback history and produces a constrained recommendation
-      // built from the founder's stated alternative direction.
+      // built from the founder's stated alternative direction. We send
+      // AFTER the DB write succeeds — if the send fails, the closing
+      // turn is still persisted and a manual retry / cron sweep can
+      // reissue it. (See follow-up: M6 in the review.)
       await inngest.send({
         name: PUSHBACK_ALTERNATIVE_EVENT,
         data: { recommendationId, userId },
@@ -230,10 +256,16 @@ export async function POST(
       },
     ] : existingVersions;
 
-    await prisma.recommendation.update({
-      where: { id: recommendationId },
+    // Optimistic concurrency check on the same column. If another
+    // pushback POST raced us between read and write, the update
+    // affects 0 rows; we throw 409 and the client refetches.
+    // The Opus call we just paid for is logged in `response` for
+    // observability — see the warn below.
+    const writeResult = await prisma.recommendation.updateMany({
+      where: { id: recommendationId, pushbackVersion: prevVersion },
       data:  {
         pushbackHistory: newHistory as unknown as Prisma.InputJsonValue,
+        pushbackVersion: { increment: 1 },
         ...(updatedRec ? {
           recommendationType:     updatedRec.recommendationType,
           summary:                updatedRec.summary,
@@ -255,6 +287,37 @@ export async function POST(
         } : {}),
       },
     });
+
+    if (writeResult.count === 0) {
+      log.warn('[Pushback] Turn write lost optimistic-concurrency race', {
+        prevVersion,
+        round:    currentRound,
+        action:   response.action,
+      });
+      throw new HttpError(409, 'Another request modified this recommendation. Please refresh and try again.');
+    }
+
+    // Mark any existing roadmap as STALE when the recommendation was
+    // structurally updated. The roadmap content was generated against
+    // the old recommendation; the founder needs to know. We do this
+    // AFTER the optimistic write succeeds so a stale flag never lands
+    // on a recommendation whose update we lost.
+    if (updatedRec && rec.roadmap && rec.roadmap.status === 'READY') {
+      try {
+        await prisma.roadmap.update({
+          where: { id: rec.roadmap.id },
+          data:  { status: 'STALE' },
+        });
+        log.info('[Pushback] Roadmap marked stale due to recommendation update', {
+          roadmapId: rec.roadmap.id,
+        });
+      } catch (err) {
+        log.error(
+          '[Pushback] Failed to mark roadmap stale — recommendation update still committed',
+          err instanceof Error ? err : new Error(String(err)),
+        );
+      }
+    }
 
     log.info('[Pushback] Turn persisted', {
       round:        currentRound,
