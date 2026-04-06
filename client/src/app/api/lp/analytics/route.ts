@@ -108,7 +108,7 @@ export async function POST(request: Request) {
           validationPageId: page.id,
           eventType:        data.event,
           visitorId,
-          properties,
+          properties: properties as object,
         },
       });
     } catch (err) {
