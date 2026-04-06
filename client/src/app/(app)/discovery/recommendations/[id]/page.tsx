@@ -26,26 +26,29 @@ export default async function RecommendationDetailPage({
   const recommendation = await prisma.recommendation.findFirst({
     where:  { id, userId },
     select: {
-      id:                     true,
-      recommendationType:     true,
-      summary:                true,
-      path:                   true,
-      reasoning:              true,
-      firstThreeSteps:        true,
-      timeToFirstResult:      true,
-      risks:                  true,
-      assumptions:            true,
-      whatWouldMakeThisWrong: true,
-      alternativeRejected:    true,
-      createdAt:              true,
-      roadmap:                { select: { status: true } },
+      id:                          true,
+      recommendationType:          true,
+      summary:                     true,
+      path:                        true,
+      reasoning:                   true,
+      firstThreeSteps:             true,
+      timeToFirstResult:           true,
+      risks:                       true,
+      assumptions:                 true,
+      whatWouldMakeThisWrong:      true,
+      alternativeRejected:         true,
+      createdAt:                   true,
+      acceptedAt:                  true,
+      pushbackHistory:             true,
+      alternativeRecommendationId: true,
+      roadmap:                     { select: { status: true } },
       validationPage: {
         select: {
           id:     true,
           report: { select: { signalStrength: true } },
         },
       },
-      session:                { select: { conversationId: true } },
+      session:                     { select: { conversationId: true } },
     },
   });
 
@@ -55,6 +58,12 @@ export default async function RecommendationDetailPage({
   const roadmapReady             = recommendation.roadmap?.status === 'READY';
   const validationPageId         = recommendation.validationPage?.id ?? null;
   const validationSignalStrength = recommendation.validationPage?.report?.signalStrength ?? null;
+
+  const recForClient = {
+    ...recommendation,
+    acceptedAt:      recommendation.acceptedAt ? recommendation.acceptedAt.toISOString() : null,
+    pushbackHistory: (recommendation.pushbackHistory ?? []) as unknown as Parameters<typeof RecommendationReveal>[0]['recommendation']['pushbackHistory'],
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -80,7 +89,7 @@ export default async function RecommendationDetailPage({
         </div>
       }>
         <RecommendationReveal
-          recommendation={recommendation}
+          recommendation={recForClient}
           roadmapReady={roadmapReady}
           validationPageId={validationPageId}
           validationSignalStrength={validationSignalStrength}

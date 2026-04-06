@@ -880,6 +880,65 @@ model Recommendation {
   // "ineligible" by default.
   recommendationType    String?
 
+  // ----- Pushback / acceptance (Concerns 1 + 2) -----
+
+  /**
+   * Set when the founder explicitly clicks "This is my path — build my
+   * roadmap". The act of acceptance is separate from generating the
+   * roadmap and from any prior refinements the agent made — only the
+   * founder's affirmative click counts.
+   */
+  acceptedAt            DateTime?
+
+  /**
+   * Number of pushback rounds (user turns) at the moment of acceptance.
+   * 0 means the founder accepted on first read with no pushback.
+   * Becomes a key signal for measuring how convincing recommendations are.
+   */
+  acceptedAtRound       Int?
+
+  /**
+   * Number of times the founder has un-accepted this recommendation.
+   * Each un-accept either came from explicitly clicking "reopen
+   * discussion" or implicitly from posting a new pushback message
+   * after a previous acceptance.
+   */
+  unacceptCount         Int             @default(0)
+
+  /**
+   * Full pushback conversation log. Append-only array of turn objects:
+   *   {
+   *     role:      'user' | 'agent',
+   *     content:   string,
+   *     round:     number,                              // self-describing
+   *     mode?:     'analytical' | 'fear' | 'lack_of_belief', // agent only
+   *     action?:   'continue_dialogue' | 'defend' | 'refine' | 'replace' | 'closing', // agent only
+   *     converging?: boolean,                           // agent only
+   *     timestamp: string                               // ISO
+   *   }
+   */
+  pushbackHistory       Json            @default("[]")
+
+  /**
+   * Snapshots of prior recommendation states. Each entry is a partial
+   * Recommendation containing only the fields that changed when the
+   * agent committed to a refine or replace action. Most-recent always
+   * wins for display; this column powers the "see how this evolved" view.
+   */
+  versions              Json            @default("[]")
+
+  // ----- Round-7 alternative recommendation (Concern 1, closing move) -----
+
+  /**
+   * The alternative recommendation generated at round 7 when the
+   * founder's pushback indicated a fundamentally different direction.
+   * Self-relation enables a single query to fetch both for the
+   * comparison view.
+   */
+  alternativeRecommendationId String?    @unique
+  alternativeRecommendation   Recommendation?  @relation("RecommendationAlternative", fields: [alternativeRecommendationId], references: [id])
+  primaryRecommendation       Recommendation?  @relation("RecommendationAlternative")
+
   // Core recommendation fields (mirroring RecommendationSchema)
   summary               String           @db.Text
   path                  String           @db.Text

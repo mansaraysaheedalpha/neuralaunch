@@ -109,6 +109,52 @@ export const VALIDATION_PAGE_ELIGIBLE_TYPES: ReadonlySet<RecommendationType> = n
 ]);
 
 // ---------------------------------------------------------------------------
+// Pushback / acceptance tuning (Concerns 1 + 2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Tier-aware config so the round caps can be lifted at payment integration
+ * with a single config change rather than a code refactor.
+ *
+ * The agent fires the soft re-frame at SOFT_WARN_ROUND when the dialogue
+ * has stalled (model self-reports `converging: false`). The hard cap at
+ * HARD_CAP_ROUND triggers the closing move + alternative-synthesis on
+ * the same turn — there is no eighth attempt.
+ */
+export const PUSHBACK_CONFIG = {
+  /** Round at which the agent should consider injecting a re-frame, IF stalled. */
+  SOFT_WARN_ROUND: 4,
+  /** Final user round. The agent's response on this round is the closing move. */
+  HARD_CAP_ROUND:  7,
+} as const;
+
+/** Action labels emitted by the pushback agent in its structured response. */
+export const PUSHBACK_ACTIONS = {
+  CONTINUE_DIALOGUE: 'continue_dialogue',
+  DEFEND:            'defend',
+  REFINE:            'refine',
+  REPLACE:           'replace',
+  CLOSING:           'closing',
+} as const;
+export type PushbackAction = typeof PUSHBACK_ACTIONS[keyof typeof PUSHBACK_ACTIONS];
+
+/** Mode the agent identifies in the founder's pushback before responding. */
+export const PUSHBACK_MODES = {
+  ANALYTICAL:     'analytical',
+  FEAR:           'fear',
+  LACK_OF_BELIEF: 'lack_of_belief',
+} as const;
+export type PushbackMode = typeof PUSHBACK_MODES[keyof typeof PUSHBACK_MODES];
+
+/**
+ * Inngest event name for the round-7 alternative-synthesis trigger.
+ * Fires on the closing turn; the worker generates a constrained
+ * recommendation built from the founder's stated alternative direction
+ * and links it to the original via alternativeRecommendationId.
+ */
+export const PUSHBACK_ALTERNATIVE_EVENT = 'discovery/pushback.alternative.requested';
+
+// ---------------------------------------------------------------------------
 // Session
 // ---------------------------------------------------------------------------
 

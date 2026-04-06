@@ -7,6 +7,7 @@ import {
   validationReportingFunction,
   validationReportingSchedulerFunction,
   validationLifecycleFunction,
+  pushbackAlternativeFunction,
 } from '@/inngest/functions';
 
 export const { GET, POST, PUT } = serve({
@@ -17,5 +18,6 @@ export const { GET, POST, PUT } = serve({
     validationReportingSchedulerFunction,
     validationReportingFunction,
     validationLifecycleFunction,
+    pushbackAlternativeFunction,
   ],
 });
