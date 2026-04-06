@@ -14,7 +14,9 @@ import {
 } from '@/lib/discovery';
 
 const CreateSessionSchema = z.object({
-  firstMessage: z.string().max(500).optional(),
+  // Matches the per-turn cap in /sessions/[sessionId]/turn/route.ts so a
+  // founder's long opening message does not silently fail session creation.
+  firstMessage: z.string().max(4000).optional(),
 });
 
 /**
@@ -49,7 +51,15 @@ export async function POST(req: NextRequest) {
   const body: unknown = req.headers.get('content-type')?.includes('application/json')
     ? await req.json().catch(() => ({}))
     : {};
-  const { firstMessage } = CreateSessionSchema.parse(body);
+  const parsed = CreateSessionSchema.safeParse(body);
+  if (!parsed.success) {
+    log.warn('Invalid create-session body', { issues: parsed.error.issues });
+    return NextResponse.json(
+      { error: 'Invalid request body' },
+      { status: 400 },
+    );
+  }
+  const { firstMessage } = parsed.data;
   const title = firstMessage?.trim().slice(0, 80) || 'Discovery Interview';
 
   try {
