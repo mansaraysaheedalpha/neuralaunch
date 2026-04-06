@@ -1,4 +1,5 @@
 // src/inngest/functions/validation-reporting-function.ts
+import { Prisma }                     from '@prisma/client';
 import { inngest }                    from '../client';
 import prisma                         from '@/lib/prisma';
 import { logger }                     from '@/lib/logger';
@@ -32,10 +33,10 @@ export const validationReportingSchedulerFunction = inngest.createFunction(
     id:      'validation-reporting-scheduler',
     name:    'Validation — Reporting Scheduler (fan-out)',
     retries: 2,
+    triggers: [
+      { cron: `0 */${VALIDATION_SYNTHESIS_THRESHOLDS.THRESHOLD_CHECK_INTERVAL_HOURS} * * *` },
+    ],
   },
-  [
-    { cron: `0 */${VALIDATION_SYNTHESIS_THRESHOLDS.THRESHOLD_CHECK_INTERVAL_HOURS} * * *` },
-  ],
   async ({ event, step }) => {
     const log = logger.child({ inngestFunction: 'validationReportingScheduler', runId: event.id });
 
@@ -83,8 +84,8 @@ export const validationReportingFunction = inngest.createFunction(
     name:    'Validation — Per-Page Reporting',
     retries: 2,
     concurrency: { limit: 5 },
+    triggers: [{ event: VALIDATION_REPORTING_EVENT }],
   },
-  [{ event: VALIDATION_REPORTING_EVENT }],
   async ({ event, step }) => {
     const { pageId } = event.data as { pageId: string };
     const log = logger.child({ inngestFunction: 'validationReporting', pageId, runId: event.id });
@@ -170,7 +171,7 @@ export const validationReportingFunction = inngest.createFunction(
             pageId:            page.id,
             metrics,
             features:          content.features,
-            publishedAt:       page.publishedAt ?? new Date(),
+            publishedAt:       page.publishedAt ? new Date(page.publishedAt) : new Date(),
             briefChannels:     brief.length,
             completedChannels: page.channelsCompleted.length,
           });
@@ -197,7 +198,7 @@ export const validationReportingFunction = inngest.createFunction(
           surveyResponses:    metrics.surveyResponses as object[],
           trafficSources:     metrics.trafficSources as object[],
           scrollDepthData:    metrics.scrollDepthData as object[],
-          interpretation,
+          interpretation:     interpretation ?? Prisma.DbNull,
         },
         select: { id: true },
       });
@@ -231,7 +232,7 @@ export const validationReportingFunction = inngest.createFunction(
           .reduce((s, c) => s + (c.clicks ?? 0), 0);
         const prevSurveys = (previousSnapshot.surveyResponses as unknown[]).length;
         const daysSince = Math.floor(
-          (Date.now() - page.report.generatedAt.getTime()) / (1000 * 60 * 60 * 24),
+          (Date.now() - new Date(page.report.generatedAt).getTime()) / (1000 * 60 * 60 * 24),
         );
 
         if (!shouldRegenerateBrief({
@@ -272,8 +273,8 @@ export const validationReportingFunction = inngest.createFunction(
             surveyInsights:          report.surveyInsights,
             buildBrief:              report.buildBrief,
             nextAction:              report.nextAction,
-            disconfirmedAssumptions: report.disconfirmedAssumptions as object[],
-            pivotOptions:            report.pivotOptions as object[],
+            disconfirmedAssumptions: report.disconfirmedAssumptions as unknown as Prisma.InputJsonValue,
+            pivotOptions:            report.pivotOptions as unknown as Prisma.InputJsonValue,
             // A negative report overrides any prior MVP handoff flag — the
             // founder cannot unintentionally carry a discredited brief into
             // Phase 5 just because they marked an older positive version.
@@ -291,8 +292,8 @@ export const validationReportingFunction = inngest.createFunction(
             surveyInsights:          report.surveyInsights,
             buildBrief:              report.buildBrief,
             nextAction:              report.nextAction,
-            disconfirmedAssumptions: report.disconfirmedAssumptions as object[],
-            pivotOptions:            report.pivotOptions as object[],
+            disconfirmedAssumptions: report.disconfirmedAssumptions as unknown as Prisma.InputJsonValue,
+            pivotOptions:            report.pivotOptions as unknown as Prisma.InputJsonValue,
           },
         });
       }

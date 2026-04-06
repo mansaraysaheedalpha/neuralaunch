@@ -176,7 +176,6 @@ export function sanitizeForPrompt(input: unknown, maxLen = 600): string {
   if (input == null) return '';
   const raw = typeof input === 'string' ? input : String(input);
   return raw
-    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001F\u007F]/g, ' ') // control chars
     .replace(/[\u200B-\u200F\u2028-\u202F\uFEFF]/g, '') // zero-width / bidi
     .replace(/```/g, '``\u200C`')   // break markdown fences
