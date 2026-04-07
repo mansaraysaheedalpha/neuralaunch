@@ -1,533 +1,130 @@
 // src/inngest/client.ts
+//
+// Inngest client + the canonical event payload type map for NeuraLaunch.
+//
+// Every event the system fires is declared here with its full payload
+// shape. The map is the SINGLE source of truth for what an Inngest
+// event looks like at runtime — adding a new event is a two-step
+// change: declare it here, then send it from the call site.
+//
+// Each event ALSO has a string constant declared next to its consumer
+// (validation events live in `lib/validation/constants.ts`, the
+// roadmap event lives in `lib/roadmap/constants.ts`, etc.). The
+// constants are the source of truth for the literal strings that
+// appear in `inngest.send({ name: ... })` calls; this file is the
+// source of truth for the typed payload shapes.
 
-import { Inngest } from "inngest";
+import { Inngest } from 'inngest';
 
-// Define the events and their expected data payloads
-export type AgentEvents = {
-  // Event sent FROM the API route TO Inngest to trigger execution
-  "agent/execute.step.requested": {
+/**
+ * NeuraLaunch's event payload type map.
+ *
+ * Inngest accepts arbitrary event names at runtime, but typing the
+ * map gives us autocomplete and lets the compiler catch payload-shape
+ * drift between the call site and the function handler.
+ */
+export type NeuraLaunchEvents = {
+  /**
+   * Fired when the discovery interview engine determines the belief
+   * state is ready for synthesis (either the user explicitly asks for
+   * a recommendation OR enough fields have been captured for
+   * canSynthesise() to return true).
+   *
+   * Consumer: `discoverySessionFunction` in
+   * `src/inngest/functions/discovery-session-function.ts`
+   *
+   * Pipeline: load belief state → summarise context → eliminate
+   * alternatives → run targeted research → final synthesis → persist
+   * Recommendation → warm up roadmap generation.
+   */
+  'discovery/synthesis.requested': {
     data: {
-      projectId: string;
-      userId: string;
-      stepIndex: number;
-      taskDescription: string;
-      taskId?: string;
-      // Pass context needed by the execution function
-      blueprintSummary: string; // Keep it concise
-      userResponses: Record<string, string> | null;
-      // Pass sensitive tokens directly in the event data
-      // Inngest encrypts event data at rest and in transit
-      githubToken: string | null; // Null if not connected or not needed
-      githubRepoUrl: string | null; // Null if no repo linked
-      // Include current history length for context prompt generation (optional)
-      currentHistoryLength: number;
-      // Include full plan if needed (or fetch in function) - consider payload size
-      // agentPlan?: PlanStep[] | null;
-    };
-    // Optional: Add user context for Inngest dashboard visibility
-    user?: {
-      id: string;
+      sessionId: string;
+      userId:    string;
     };
   };
 
-  "agent/orchestrator.run": {
+  /**
+   * Fired when a founder accepts a recommendation and the system
+   * needs to generate the phased execution roadmap. Also fired
+   * automatically by the discovery synthesis function as a warm-up
+   * step so the roadmap is often ready by the time the founder clicks
+   * "build my roadmap".
+   *
+   * Consumer: `roadmapGenerationFunction` in
+   * `src/inngest/functions/roadmap-generation-function.ts`
+   *
+   * The literal name is exported as `ROADMAP_EVENT` from
+   * `src/lib/roadmap/constants.ts` so call sites and the function
+   * declaration share one constant.
+   */
+  'discovery/roadmap.requested': {
     data: {
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      blueprint: string;
-    };
-    user?: {
-      id: string;
-    };
-  };
-  "agent/orchestrator.resume": {
-    data: {
-      projectId: string;
-      userId: string;
-      conversationId: string;
-    };
-    user?: {
-      id: string;
-    };
-  };
-  
-  // Vision-based orchestration (from Agentic Interface)
-  "agent/orchestrator.vision": {
-    data: {
-      projectId: string;
-      userId: string;
-      sourceType: "vision";
-      visionText: string;
-      projectName: string;
-      techPreferences?: {
-        frontend?: string;
-        backend?: string;
-        database?: string;
-        deployment?: string;
-      };
-    };
-    user?: {
-      id: string;
-    };
-  };
-  
-  // Blueprint-based orchestration (from SprintDashboard)
-  "agent/orchestrator.blueprint": {
-    data: {
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      sourceType: "blueprint";
-      blueprint: string;
-      sprintData?: {
-        completedTasks?: Array<{ title?: string; id: string; status: string }>;
-        analytics?: { completionRate?: number };
-        validationResults?: { features?: string[] };
-      };
-    };
-    user?: {
-      id: string;
+      recommendationId: string;
+      userId:           string;
     };
   };
 
-   // ==========================================
-  // EXECUTION AGENT EVENTS
-  // ==========================================
-
-  // Unified execution agent for frontend, backend, and infrastructure tasks
-  // This consolidates 3 separate agents into 1 for simpler orchestration
-  "agent/execution.unified": {
+  /**
+   * Fired on the founder's HARD_CAP_ROUND pushback turn — the closing
+   * move. The route persists the closing message and queues this
+   * event; the worker generates a constrained alternative
+   * recommendation built from the pushback transcript.
+   *
+   * Consumer: `pushbackAlternativeFunction` in
+   * `src/inngest/functions/pushback-alternative-function.ts`
+   *
+   * The literal name is exported as `PUSHBACK_ALTERNATIVE_EVENT`
+   * from `src/lib/discovery/constants.ts`.
+   */
+  'discovery/pushback.alternative.requested': {
     data: {
-      taskId: string;
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      taskInput: unknown;
-      priority: number;
-      waveNumber?: number;
-      agentType: "frontend" | "backend" | "infrastructure"; // Which type of task
-      agentName: string; // Original agent name for logging
-    };
-    user?: {
-      id: string;
+      recommendationId: string;
+      userId:           string;
     };
   };
 
-  // Database agent remains separate (external API provisioning)
-  "agent/execution.database": {
+  /**
+   * Fired by the validation reporting scheduler (cron) to enqueue
+   * one report run per LIVE validation page, OR by an on-demand
+   * trigger to force a report cycle for a specific page.
+   *
+   * Consumer: `validationReportingFunction` in
+   * `src/inngest/functions/validation-reporting-function.ts`
+   *
+   * The literal name is exported as `VALIDATION_REPORTING_EVENT`
+   * from `src/lib/validation/constants.ts`.
+   */
+  'validation/report.requested': {
     data: {
-      taskId: string;
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      taskInput: unknown;
-      priority: number;
-      waveNumber?: number;
-    };
-    user?: {
-      id: string;
+      pageId?: string; // undefined => process every LIVE page
     };
   };
 
-  // Legacy events - kept for backwards compatibility but route to unified
-  "agent/execution.backend": {
-    data: {
-      taskId: string;
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      taskInput: unknown;
-      priority: number;
-      waveNumber?: number;
-    };
-    user?: {
-      id: string;
-    };
-  };
-
-  "agent/execution.frontend": {
-    data: {
-      taskId: string;
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      taskInput: unknown;
-      priority: number;
-      waveNumber?: number;
-    };
-    user?: {
-      id: string;
-    };
-  };
-
-  "agent/execution.infrastructure": {
-    data: {
-      taskId: string;
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      taskInput: unknown;
-      priority: number;
-      waveNumber?: number;
-    };
-    user?: {
-      id: string;
-    };
-  };
-
-  // ==========================================
-  // QUALITY AGENT EVENTS
-  // ==========================================
-
-  "agent/quality.start": {
-    data: {
-      projectId: string;
-    };
-  };
-
-  "agent/quality.integration": {
-    data: {
-      taskId: string;
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      taskInput: unknown;
-      priority: number;
-    };
-  };
-
-  "agent/quality.testing": {
-    data: {
-      taskId: string;
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      taskInput: unknown;
-      priority?: number;
-    };
-  };
-
-  "agent/quality.critic": {
-    data: {
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      taskId?: string;
-      taskInput?: unknown;
-    };
-  };
-
-  // ==========================================
-  // DEPLOYMENT AGENT EVENTS
-  // ==========================================
-
-  "agent/deployment.start": {
-    data: {
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      environment: 'staging' | 'production';
-    };
-  };
-
-  "agent/documentation.generate": {
-    data: {
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      taskId?: string;
-      taskInput?: unknown;
-    };
-  };
-
-  // ==========================================
-  // WAVE MANAGEMENT EVENTS
-  // ==========================================
-
-  "agent/wave.start": {
-    data: {
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      waveNumber: number;
-    };
-    user?: {
-      id: string;
-    };
-  };
-
-  "agent/wave.complete": {
-    data: {
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      waveNumber: number;
-    };
-    user?: {
-      id: string;
-    };
-  };
-
-  // ==========================================
-  // COMPLETION EVENTS
-  // ==========================================
-
-  // ✅ NEW: Task completion event for sequential execution
-  "agent/task.complete": {
-    data: {
-      taskId: string;
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      waveNumber?: number;
-      agentName: string;
-      success: boolean;
-      error?: string;
-    };
-  };
-
-  "agent/execution.backend.complete": {
-    data: {
-      taskId: string;
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      success: boolean;
-      output?: unknown;
-      error?: string;
-    };
-  };
-
-  "agent/execution.frontend.complete": {
-    data: {
-      taskId: string;
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      success: boolean;
-      output?: unknown;
-      error?: string;
-    };
-  };
-
-  "agent/execution.infrastructure.complete": {
-    data: {
-      taskId: string;
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      success: boolean;
-      output?: unknown;
-      error?: string;
-    };
-  };
-
-  "agent/execution.generic": {
-    data: {
-      taskId: string;
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      taskInput: unknown;
-      priority: number;
-    };
-  };
-
-  "agent/execution.generic.complete": {
-    data: {
-      taskId: string;
-      projectId: string;
-      success: boolean;
-      output?: unknown;
-      error?: string;
-    };
-  };
-
-  "agent/quality.testing.complete": {
-    data: {
-      taskId: string;
-      projectId: string;
-      success: boolean;
-      testResults?: unknown;
-      error?: string;
-    };
-  };
-
-  "agent/quality.critic.complete": {
-    data: {
-      taskId: string;
-      projectId: string;
-      success: boolean;
-      approved?: boolean;
-      score?: number;
-      issues?: unknown[];
-      error?: string;
-    };
-  };
-
-  "agent/quality.integration.complete": {
-    data: {
-      taskId: string;
-      projectId: string;
-      success: boolean;
-      output?: unknown;
-      error?: string;
-    };
-  };
-
-  "agent/quality.fix-issues": {
-    data: {
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      waveNumber: number;
-      issues: unknown[];
-      attempt: number;
-      criticResult?: unknown;
-      maxRetries?: number;
-    };
-  };
-
-  "agent/quality.fix-issues.complete": {
-    data: {
-      projectId: string;
-      waveNumber: number;
-      success: boolean;
-      fixedIssues?: unknown[];
-      remainingIssues?: unknown[];
-      error?: string;
-    };
-  };
-
-  "agent/deployment.deploy": {
-    data: {
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      environment: 'staging' | 'production' | 'preview';
-      waveNumber?: number;
-      taskId?: string;
-      taskInput?: unknown;
-    };
-  };
-
-  "agent/deployment.deploy.complete": {
-    data: {
-      projectId: string;
-      success: boolean;
-      deploymentUrl?: string;
-      error?: string;
-    };
-  };
-
-  "agent/documentation.generate.complete": {
-    data: {
-      projectId: string;
-      success: boolean;
-      output?: unknown;
-      error?: string;
-    };
-  };
-
-  "agent/infrastructure.setup": {
-    data: {
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      taskId?: string;
-      taskInput?: unknown;
-    };
-  };
-
-  "agent/infrastructure.setup.complete": {
-    data: {
-      projectId: string;
-      success: boolean;
-      output?: unknown;
-      error?: string;
-    };
-  };
-
-  "agent/monitoring.start": {
-    data: {
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      taskId?: string;
-      taskInput?: unknown;
-    };
-  };
-
-  "agent/monitoring.complete": {
-    data: {
-      projectId: string;
-      success: boolean;
-      metrics?: unknown;
-      error?: string;
-    };
-  };
-
-  "agent/optimization.start": {
-    data: {
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      taskId?: string;
-      taskInput?: unknown;
-    };
-  };
-
-  "agent/optimization.complete": {
-    data: {
-      projectId: string;
-      success: boolean;
-      optimizations?: unknown;
-      error?: string;
-    };
-  };
-
-  // ==========================================
-  // DATABASE MIGRATION EVENTS
-  // ==========================================
-
-  "agent/database.migrate": {
-    data: {
-      taskId: string;
-      projectId: string;
-      userId: string;
-      conversationId: string;
-      taskInput: unknown;
-    };
-  };
-
-  "agent/database.migrate.complete": {
-    data: {
-      taskId: string;
-      projectId: string;
-      success: boolean;
-      error?: string;
-    };
-  };
-
-  // ==========================================
-  // NOTIFICATION EVENTS
-  // ==========================================
-
-  "notification/user.notify": {
-    data: {
-      userId: string;
-      type: string;
-      title: string;
-      message: string;
-      metadata?: Record<string, unknown>;
-    };
+  /**
+   * Manual trigger for the validation lifecycle sweep (archive
+   * stale drafts, archive expired live pages, purge old archived
+   * events). The function ALSO runs on a daily cron — this event
+   * is only used for ad-hoc admin runs.
+   *
+   * Consumer: `validationLifecycleFunction` in
+   * `src/inngest/functions/validation-lifecycle-function.ts`
+   *
+   * The literal name is exported as `VALIDATION_LIFECYCLE_EVENT`
+   * from `src/lib/validation/constants.ts`.
+   */
+  'validation/lifecycle.check': {
+    data: Record<string, never>;
   };
 };
 
-// Create the Inngest client.
-// Reads INNGEST_EVENT_KEY and INNGEST_SIGNING_KEY automatically from process.env.
-// AgentEvents above serves as the authoritative event payload reference for this project.
+/**
+ * The Inngest client.
+ *
+ * Reads INNGEST_EVENT_KEY and INNGEST_SIGNING_KEY from the environment
+ * automatically. The schema generic gives every `inngest.send()` call
+ * site type-checking against the NeuraLaunchEvents map above.
+ */
 export const inngest = new Inngest({
-  id: "neuralaunch-agent",
+  id: 'neuralaunch-agent',
 });
