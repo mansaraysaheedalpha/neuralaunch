@@ -66,7 +66,17 @@ export async function PATCH(
 
     const roadmap = await prisma.roadmap.findFirst({
       where:  { id: roadmapId, userId },
-      select: { id: true, phases: true },
+      select: {
+        id:               true,
+        phases:           true,
+        recommendationId: true,
+        // Concern 5 trigger #1 — does this recommendation already
+        // have an outcome attestation? If yes the trigger is a
+        // no-op (the founder has already given their answer); if
+        // no, and this status change pushes us to 100% complete,
+        // we surface outcomePromptDue=true.
+        recommendation: { select: { outcome: { select: { id: true } } } },
+      },
     });
     if (!roadmap) throw new HttpError(404, 'Not found');
 
@@ -121,10 +131,21 @@ export async function PATCH(
     // canonical post-update shape (with check-in defaults filled in).
     const updated = readTask(next, taskId);
 
-    log.info('Task status updated', { newStatus, summary });
+    // Concern 5 trigger #1 — outcome prompt due?
+    // The check is "outcome row exists" not "is this the final task"
+    // so a roadmap that's been refined after a previous completion
+    // does not re-fire the prompt the founder already saw.
+    const outcomePromptDue =
+      summary.completedTasks === summary.totalTasks
+      && summary.totalTasks > 0
+      && !roadmap.recommendation?.outcome;
+
+    log.info('Task status updated', { newStatus, summary, outcomePromptDue });
     return NextResponse.json({
-      task:     updated?.task ?? null,
-      progress: summary,
+      task:             updated?.task ?? null,
+      progress:         summary,
+      outcomePromptDue,
+      recommendationId: roadmap.recommendationId,
     });
   } catch (err) {
     if (err instanceof HttpError) return httpErrorToResponse(err);

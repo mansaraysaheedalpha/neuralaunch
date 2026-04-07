@@ -32,6 +32,27 @@ model User {
   recommendations    Recommendation[]
   roadmaps           Roadmap[]
   validationPages    ValidationPage[]
+
+  // ----- Concern 5: outcome capture + training-data consent -----
+  //
+  // Per the deliberation: opt-in must be active and deliberate, not
+  // passive. Default is false. The toggle lives in Settings → Privacy
+  // and is also surfaced inline the first time the founder is asked
+  // for an outcome.
+  //
+  // Two important properties of this column:
+  //   1. Per-row consent on RecommendationOutcome is captured at
+  //      submission time, not by reading this field at query time.
+  //      Flipping this off does NOT retroactively remove training
+  //      records — that requires the explicit deletion sweep
+  //      triggered by the toggle handler. The handler deletes every
+  //      anonymised record the user has previously written.
+  //   2. The consent string also records the moment the founder
+  //      first opted in, used by the consent copy version pinning
+  //      so we can re-prompt if the consent text materially changes.
+  trainingConsent       Boolean   @default(false)
+  trainingConsentAt     DateTime?
+  outcomes              RecommendationOutcome[]
 }
 
 model UserPreferences {
@@ -1006,6 +1027,11 @@ model Recommendation {
   roadmap               Roadmap?
   validationPage        ValidationPage?
 
+  // Concern 5 — outcome attestation. Lazy one-to-one. Created when
+  // the founder explicitly submits an outcome via one of the three
+  // trigger paths.
+  outcome               RecommendationOutcome?
+
   createdAt             DateTime         @default(now())
 
   @@index([userId])
@@ -1121,11 +1147,120 @@ model RoadmapProgress {
   nudgePending    Boolean   @default(false)
   nudgeLastSentAt DateTime?
 
+  // ----- Concern 5: outcome-prompt trigger state -----
+
+  /**
+   * Set to true by the daily nudge sweep when:
+   *   - 50% or more of tasks are complete
+   *   - lastActivityAt is more than 30 days ago
+   *   - The parent recommendation does not yet have an outcome row
+   *   - outcomePromptSkippedAt is null
+   * The client reads this on roadmap page load and surfaces the
+   * outcome form once. Cleared whenever the founder either submits
+   * an outcome or explicitly skips.
+   */
+  outcomePromptPending  Boolean   @default(false)
+
+  /**
+   * Set when the founder explicitly clicks "skip for now" on the
+   * outcome form. Once set, no trigger fires the form again for
+   * this roadmap. Respecting the founder's choice not to engage is
+   * more important than capturing the data.
+   */
+  outcomePromptSkippedAt DateTime?
+
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   @@index([nudgePending])
   @@index([lastActivityAt])
+  @@index([outcomePromptPending])
+}
+
+/**
+ * RecommendationOutcome
+ *
+ * Concern 5: founder-attested outcome of acting on a recommendation.
+ *
+ * Two parallel records of the outcome live in this row:
+ *   1) The full record (outcomeType, freeText, weakPhases, the
+ *      identifying recommendationId) — always written, owned by the
+ *      founder, used for their own history view, never used for
+ *      training.
+ *   2) The anonymisedRecord JSON column — written ONLY when
+ *      consentedToTraining === true at submission time. Stripped of
+ *      names, emails, phone numbers, and bucketed to country level.
+ *      Lexical anonymisation only — see consent copy for the disclosure.
+ *
+ * Hard invariant enforced at write time:
+ *   consentedToTraining = false  ⇒  anonymisedRecord = null
+ * Never bypass.
+ *
+ * The 24-month TTL on anonymisedRecord is enforced by a daily
+ * lifecycle sweep that nulls out anonymisedRecord on rows older
+ * than the horizon. The full record stays for the founder's
+ * personal history.
+ *
+ * Retroactive deletion: when a founder flips trainingConsent off,
+ * a parallel sweep nulls out anonymisedRecord on every row of
+ * theirs that previously consented. The fact that they once
+ * consented is preserved (consentedToTraining stays true on the
+ * historical row) but the training payload is gone.
+ */
+model RecommendationOutcome {
+  id                 String          @id @default(cuid())
+  recommendationId   String          @unique
+  recommendation     Recommendation  @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /**
+   * Founder-selected outcome bucket. Mirrors the four types in the
+   * spec exactly. Stored as a string so adding a fifth bucket later
+   * does not require a migration; the read paths use the typed
+   * OUTCOME_TYPES enum from outcome-types.ts as the source of truth.
+   *   full_success
+   *   partial_success
+   *   direction_correct_execution_different
+   *   did_not_work
+   */
+  outcomeType        String
+
+  /**
+   * Optional free-text context. The submission form prompt copy
+   * varies by outcomeType — for did_not_work the prompt asks
+   * "what would have made this recommendation more accurate" so
+   * the answer is diagnostic, not just a failure report.
+   */
+  freeText           String?         @db.Text
+
+  /**
+   * Phase titles the founder identified as needing the most
+   * adjustment. Only populated for partial_success and
+   * direction_correct_execution_different outcomes.
+   */
+  weakPhases         String[]        @default([])
+
+  /**
+   * Captured from User.trainingConsent at submission time.
+   * Read-only after write — flipping the user setting later does
+   * not retroactively change this value, but it DOES trigger the
+   * deletion sweep on anonymisedRecord (see above).
+   */
+  consentedToTraining Boolean
+
+  /**
+   * Anonymised payload for prompt refinement / future fine-tuning.
+   * NULL when consentedToTraining is false. Subject to the 24-month
+   * TTL via the lifecycle sweep.
+   */
+  anonymisedRecord   Json?
+
+  submittedAt        DateTime        @default(now())
+
+  @@index([userId])
+  @@index([outcomeType])
+  @@index([submittedAt])
 }
 
 model Deployment {

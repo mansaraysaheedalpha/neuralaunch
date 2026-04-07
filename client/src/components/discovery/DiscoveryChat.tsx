@@ -10,6 +10,7 @@ import { MessageList } from './MessageList';
 import { WelcomeLayer } from './WelcomeLayer';
 import { QuestionStepper } from './QuestionStepper';
 import { InterviewGuide } from './InterviewGuide';
+import { OutcomeForm } from '@/components/outcome/OutcomeForm';
 import { useDiscoverySession } from './useDiscoverySession';
 
 import type { ChatMessage } from './MessageList';
@@ -98,6 +99,8 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
     sendMessage,
     retryLastTurn,
     retryRecommendation,
+    pendingOutcomeRecommendationId,
+    dismissPendingOutcomeAndRetry,
   } = useDiscoverySession({ onComplete, resume });
 
   // The stepper stays visible during a stepper-surface failure so the
@@ -238,6 +241,25 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
             <SendHorizontal className="size-4" />
           </Button>
         </form>
+      )}
+
+      {/* Concern 5 trigger #3 — pending outcome modal. Renders in
+          front of the chat when the founder tried to start a new
+          session while a prior partial roadmap has no attestation.
+          The modal is dismissable via either submit OR skip; both
+          paths fall through to dismissPendingOutcomeAndRetry which
+          actually creates the new session. */}
+      {pendingOutcomeRecommendationId && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center px-4 py-8">
+          <div className="w-full max-w-xl max-h-full overflow-y-auto">
+            <OutcomeForm
+              recommendationId={pendingOutcomeRecommendationId}
+              phaseTitles={[]}
+              surface="session-block"
+              onDone={() => { void dismissPendingOutcomeAndRetry(); }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

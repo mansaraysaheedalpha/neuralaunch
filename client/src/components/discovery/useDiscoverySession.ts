@@ -76,6 +76,15 @@ export interface DiscoverySessionState {
   retryLastTurn:          () => Promise<void>;
   setStepperVisible:      (v: boolean) => void;
   retryRecommendation:    () => void;
+  /**
+   * Concern 5 trigger #3 — set when the founder tries to start a
+   * new discovery session while a prior partially-complete roadmap
+   * has no outcome attestation. The chat UI renders the outcome
+   * modal targeting this recommendation, then calls
+   * dismissPendingOutcomeAndRetry to actually create the new session.
+   */
+  pendingOutcomeRecommendationId: string | null;
+  dismissPendingOutcomeAndRetry:  () => Promise<void>;
 }
 
 interface ResumeState {
@@ -105,6 +114,11 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
   const [currentQuestion, setCurrentQuestion] = useState('');
   const [questionIndex,   setQuestionIndex]   = useState(0);
   const [turnError,       setTurnError]       = useState<TurnError | null>(null);
+  // Concern 5 trigger #3 — set when the session POST returns 200 with
+  // pendingOutcomeRecommendationId. The chat UI renders the outcome
+  // modal in front of the founder before the new session can be
+  // created. Cleared by dismissPendingOutcomeAndRetry.
+  const [pendingOutcomeRecommendationId, setPendingOutcomeRecommendationId] = useState<string | null>(null);
 
   const sessionIdRef        = useRef<string | null>(resume?.sessionId ?? null);
   const conversationIdRef   = useRef<string | null>(resume?.conversationId ?? null);
@@ -114,6 +128,14 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
   // The last user message we attempted to send. retryLastTurn re-fires
   // exactly this content with the same session and history state.
   const lastUserMessageRef  = useRef<string | null>(null);
+  // Concern 5 trigger #3 — stash the original first message so
+  // dismissPendingOutcomeAndRetry can re-fire it after the founder
+  // dismisses the outcome modal.
+  const pendingFirstMessageRef = useRef<string | null>(null);
+  // Mutable ref to the latest sendMessage closure so the
+  // dismissPendingOutcomeAndRetry callback (defined before
+  // sendMessage) can call it without a stale-closure warning.
+  const sendMessageInternalRef = useRef<((content: string, isRetry?: boolean, ackPendingOutcome?: boolean) => Promise<void>) | null>(null);
   // Full bidirectional history — user answers + AI questions. Separate from
   // `messages` display state so the chat UI is not affected.
   // Pre-populated from resumed messages so post-resume turns have full context.
@@ -123,17 +145,41 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
 
   // Session is created lazily on the user's first message — not on mount.
   // This prevents a sidebar entry being created every time /discovery is loaded.
-  async function initSession(firstMessage: string): Promise<string | null> {
+  //
+  // Concern 5 trigger #3: the server may return a 200 with
+  // pendingOutcomeRecommendationId instead of creating the session,
+  // when the founder has a prior partially-complete roadmap with no
+  // outcome attestation yet. The hook surfaces that state via
+  // pendingOutcomeRecommendationId; the UI renders the outcome modal
+  // and re-calls initSession(message, true) once the modal is dismissed.
+  async function initSession(
+    firstMessage: string,
+    acknowledgePendingOutcome = false,
+  ): Promise<string | null> {
     try {
       const res = await fetch('/api/discovery/sessions', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ firstMessage }),
+        body:    JSON.stringify({ firstMessage, acknowledgePendingOutcome }),
       });
       if (!res.ok) throw new Error(`Session create failed: ${res.status}`);
+
+      // Concern 5 trigger #3 — server returned 200 without creating
+      // the session. Surface the pending recommendation ID and let
+      // the UI render the outcome modal.
       const sid = res.headers.get('X-Session-Id');
+      if (!sid) {
+        const json = await res.json().catch(() => ({})) as { pendingOutcomeRecommendationId?: string };
+        if (json.pendingOutcomeRecommendationId) {
+          setPendingOutcomeRecommendationId(json.pendingOutcomeRecommendationId);
+          // Stash the message so the UI can re-fire after the modal closes.
+          pendingFirstMessageRef.current = firstMessage;
+          return null;
+        }
+        throw new Error('Missing X-Session-Id');
+      }
+
       const cid = res.headers.get('X-Conversation-Id');
-      if (!sid) throw new Error('Missing X-Session-Id');
       sessionIdRef.current      = sid;
       conversationIdRef.current = cid;
       setSessionId(sid);
@@ -144,7 +190,28 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
     }
   }
 
-  const sendMessage = useCallback(async (userContent: string, isRetry = false) => {
+  /**
+   * Concern 5 trigger #3 — re-attempt session creation after the
+   * founder has either submitted or skipped the outcome modal.
+   * Sends acknowledgePendingOutcome=true to bypass the server check.
+   */
+  const dismissPendingOutcomeAndRetry = useCallback(async () => {
+    const msg = pendingFirstMessageRef.current;
+    if (!msg) {
+      setPendingOutcomeRecommendationId(null);
+      return;
+    }
+    setPendingOutcomeRecommendationId(null);
+    pendingFirstMessageRef.current = null;
+    // Retry with the acknowledge flag set
+    await sendMessageInternalRef.current?.(msg, false, true);
+  }, []);
+
+  const sendMessage = useCallback(async (
+    userContent: string,
+    isRetry = false,
+    ackPendingOutcome = false,
+  ) => {
     if (!userContent.trim()) return;
 
     setTurnError(null);
@@ -153,12 +220,14 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
 
     let sid = sessionIdRef.current;
     if (!sid) {
-      sid = await initSession(userContent);
+      sid = await initSession(userContent, ackPendingOutcome);
       if (!sid) {
-        setStatus('error');
-        // pre_stream failure on session init — retry will reattempt
-        // session creation as well
-        setTurnError({ kind: 'pre_stream', surface: 'message' });
+        // initSession may have set pendingOutcomeRecommendationId
+        // (Concern 5 trigger #3) — that's a normal control-flow
+        // case, not an error. The chat UI is responsible for
+        // rendering the modal and calling dismissPendingOutcomeAndRetry.
+        // We do NOT surface a turn error in that case.
+        setStatus('idle');
         return;
       }
     }
@@ -376,6 +445,13 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
     [sendMessage],
   );
 
+  // Keep the internal ref pointed at the latest sendMessage closure
+  // so dismissPendingOutcomeAndRetry can call it without a stale
+  // reference. useEffect runs after every render with the new value.
+  useEffect(() => {
+    sendMessageInternalRef.current = sendMessage;
+  }, [sendMessage]);
+
   return {
     messages,
     status,
@@ -391,5 +467,7 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
     sendMessage:   publicSendMessage,
     retryLastTurn,
     retryRecommendation,
+    pendingOutcomeRecommendationId,
+    dismissPendingOutcomeAndRetry,
   };
 }

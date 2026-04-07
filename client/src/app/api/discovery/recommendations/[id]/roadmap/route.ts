@@ -103,6 +103,7 @@ export async function GET(
           blockedTasks:   true,
           lastActivityAt: true,
           nudgePending:   true,
+          outcomePromptPending: true,
         },
       },
     },

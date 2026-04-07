@@ -127,8 +127,66 @@ export const roadmapNudgeFunction = inngest.createFunction(
       }
     }
 
-    log.info('[RoadmapNudge] Sweep complete', { swept: candidates.length, flagged });
-    return { swept: candidates.length, flagged };
+    log.info('[RoadmapNudge] Nudge sweep complete', { swept: candidates.length, flagged });
+
+    // -----------------------------------------------------------------
+    // Concern 5 — Trigger #2: outcome prompt for stale partial completions
+    //
+    // Eligibility:
+    //   - completedTasks / totalTasks >= 50%
+    //   - lastActivityAt is more than 30 days ago
+    //   - The parent recommendation has no outcome row yet
+    //   - The founder has never explicitly skipped the prompt for
+    //     this roadmap
+    //
+    // Sets RoadmapProgress.outcomePromptPending = true. The client
+    // reads this flag on roadmap page load and surfaces the outcome
+    // form once. The form's submit / skip handlers clear the flag.
+    // -----------------------------------------------------------------
+    const outcomeFlagged = await step.run('flag-outcome-prompts', async () => {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const eligible = await prisma.roadmapProgress.findMany({
+        where: {
+          outcomePromptPending:   false,
+          outcomePromptSkippedAt: null,
+          lastActivityAt:         { lt: thirtyDaysAgo },
+          roadmap: {
+            recommendation: {
+              outcome: null,
+            },
+          },
+        },
+        select: {
+          id:             true,
+          roadmapId:      true,
+          totalTasks:     true,
+          completedTasks: true,
+        },
+      });
+
+      let count = 0;
+      for (const row of eligible) {
+        // 50% threshold — only flag if the founder actually engaged
+        // meaningfully with this roadmap. Below 50% they likely
+        // never really started and the outcome prompt would feel
+        // accusatory rather than honouring.
+        if (row.totalTasks === 0) continue;
+        if (row.completedTasks / row.totalTasks < 0.5) continue;
+        // Skip already-completed (those will be picked up by
+        // trigger #1 inside the status PATCH route, not here).
+        if (row.completedTasks >= row.totalTasks) continue;
+
+        await prisma.roadmapProgress.update({
+          where: { id: row.id },
+          data:  { outcomePromptPending: true },
+        });
+        count++;
+        log.info('[RoadmapNudge] Outcome prompt flagged', { roadmapId: row.roadmapId });
+      }
+      return count;
+    });
+
+    return { swept: candidates.length, flagged, outcomeFlagged };
   },
 );
 

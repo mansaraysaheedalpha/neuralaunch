@@ -12,6 +12,7 @@ import {
   type CheckInEntry,
   type TaskStatus,
 } from '@/lib/roadmap/checkin-types';
+import { OutcomeForm } from '@/components/outcome/OutcomeForm';
 
 interface RoadmapProgressData {
   totalTasks:     number;
@@ -19,6 +20,8 @@ interface RoadmapProgressData {
   blockedTasks:   number;
   lastActivityAt: string;
   nudgePending:   boolean;
+  /** Concern 5 trigger #2 — set by the daily nudge sweep. */
+  outcomePromptPending?: boolean;
 }
 
 interface RoadmapData {
@@ -57,6 +60,14 @@ interface InteractiveTaskCardProps {
   founderGoal:      string | null;
   /** Total + completed counts so the completion moment can show progress. */
   progress:         { totalTasks: number; completedTasks: number } | null;
+  /**
+   * Concern 5 trigger #1: when a status PATCH transitions the
+   * roadmap to fully complete and no outcome row exists, the
+   * server returns outcomePromptDue=true. The card lifts that
+   * signal up to RoadmapView so the form renders at the roadmap
+   * level rather than inside the task card.
+   */
+  onOutcomePromptDue?: () => void;
 }
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
@@ -97,6 +108,7 @@ function InteractiveTaskCard({
   recommendationId,
   founderGoal,
   progress,
+  onOutcomePromptDue,
 }: InteractiveTaskCardProps) {
   const taskId = buildTaskId(phaseNumber, index);
 
@@ -133,9 +145,13 @@ function InteractiveTaskCard({
         setError('Could not update status. Please try again.');
         return;
       }
-      const json = await res.json() as { task: StoredRoadmapTask | null };
+      const json = await res.json() as {
+        task: StoredRoadmapTask | null;
+        outcomePromptDue?: boolean;
+      };
       setStatus(newStatus);
       if (json.task) setTask(json.task);
+      if (json.outcomePromptDue) onOutcomePromptDue?.();
 
       // The blocked state is the highest-urgency moment in the
       // post-roadmap experience. Open the check-in form immediately
@@ -479,6 +495,7 @@ interface PhaseBlockProps {
   recommendationId: string;
   founderGoal:      string | null;
   progress:         { totalTasks: number; completedTasks: number } | null;
+  onOutcomePromptDue?: () => void;
 }
 
 function PhaseBlock({
@@ -488,6 +505,7 @@ function PhaseBlock({
   recommendationId,
   founderGoal,
   progress,
+  onOutcomePromptDue,
 }: PhaseBlockProps) {
   return (
     <motion.div
@@ -519,6 +537,7 @@ function PhaseBlock({
             recommendationId={recommendationId}
             founderGoal={founderGoal}
             progress={progress}
+            onOutcomePromptDue={onOutcomePromptDue}
           />
         ))}
       </div>
@@ -550,6 +569,14 @@ export function RoadmapView({
   const [loading, setLoading] = useState(true);
   const [failed, setFailed]  = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  // Concern 5 — outcome form visibility. Lifted to RoadmapView so
+  // the form renders as a card after the closing thought rather
+  // than nested inside a task card. Triggered by either:
+  //   - a status PATCH that sets outcomePromptDue (trigger #1)
+  //   - data.progress.nudgePending being mirrored from a Concern 5
+  //     server-side flag (trigger #2 — see useEffect below)
+  // Skipped or submitted clears it via the OutcomeForm onDone callback.
+  const [outcomePromptVisible, setOutcomePromptVisible] = useState(false);
 
   useEffect(() => {
     let pollTimeout:    ReturnType<typeof setTimeout>;
@@ -588,6 +615,15 @@ export function RoadmapView({
     void poll();
     return () => { cancelled = true; clearTimeout(pollTimeout); };
   }, [recommendationId]);
+
+  // Concern 5 trigger #2 — mirror the server-side outcomePromptPending
+  // flag into local state on data load. The form is then visible
+  // until the founder either submits or skips.
+  useEffect(() => {
+    if (data?.progress?.outcomePromptPending) {
+      setOutcomePromptVisible(true);
+    }
+  }, [data?.progress?.outcomePromptPending]);
 
   async function handleRegenerate() {
     setRegenerating(true);
@@ -737,6 +773,7 @@ export function RoadmapView({
             progress={data.progress
               ? { totalTasks: data.progress.totalTasks, completedTasks: data.progress.completedTasks }
               : null}
+            onOutcomePromptDue={() => setOutcomePromptVisible(true)}
           />
         ))}
       </div>
@@ -751,6 +788,20 @@ export function RoadmapView({
           <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-2">Your Next Move</p>
           <p className="text-sm text-foreground leading-relaxed">{data.closingThought}</p>
         </motion.div>
+      )}
+
+      {/* Concern 5 — outcome capture form. Surfaced at the bottom of
+          the roadmap when either trigger #1 (final task complete via
+          server signal) or trigger #2 (server flagged
+          outcomePromptPending) fires. The form contains the inline
+          consent card on first use. */}
+      {outcomePromptVisible && (
+        <OutcomeForm
+          recommendationId={recommendationId}
+          phaseTitles={data.phases.map(p => p.title)}
+          surface={data.progress?.outcomePromptPending ? 'nudge' : 'completion'}
+          onDone={() => setOutcomePromptVisible(false)}
+        />
       )}
 
     </div>

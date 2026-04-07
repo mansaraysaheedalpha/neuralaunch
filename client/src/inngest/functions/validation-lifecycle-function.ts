@@ -1,4 +1,5 @@
 // src/inngest/functions/validation-lifecycle-function.ts
+import { Prisma }     from '@prisma/client';
 import { inngest }    from '../client';
 import prisma         from '@/lib/prisma';
 import { logger }     from '@/lib/logger';
@@ -104,6 +105,27 @@ export const validationLifecycleFunction = inngest.createFunction(
       return result.count;
     });
 
-    return { draftsArchived, liveArchived, eventsPurged };
+    // --- Concern 5: 24-month TTL on outcome anonymised payloads ---
+    // Hard horizon for the training corpus. NeuraLaunch's standard
+    // is meaningfully higher than the lab industry-norm of "forever
+    // until you ask for deletion." 24 months caps the worst-case
+    // exposure window even if the company is ever acquired. The
+    // historical full record stays for the founder's personal view;
+    // only the anonymisedRecord JSON column is nulled here.
+    const trainingTtlCutoff = new Date(now.getTime() - 24 * 30 * 24 * 60 * 60 * 1000);
+
+    const trainingPurged = await step.run('purge-expired-training-records', async () => {
+      const result = await prisma.recommendationOutcome.updateMany({
+        where: {
+          submittedAt: { lt: trainingTtlCutoff },
+          NOT: { anonymisedRecord: { equals: Prisma.JsonNull } },
+        },
+        data: { anonymisedRecord: Prisma.JsonNull },
+      });
+      log.info('Expired training records purged', { count: result.count });
+      return result.count;
+    });
+
+    return { draftsArchived, liveArchived, eventsPurged, trainingPurged };
   },
 );
