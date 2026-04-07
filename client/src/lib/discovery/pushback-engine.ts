@@ -68,32 +68,6 @@ export function safeParsePushbackHistory(value: unknown): PushbackTurn[] {
 // ---------------------------------------------------------------------------
 
 /**
- * The patch shape for refine/replace actions. The model returns ONLY
- * the fields that change — the merge into the live recommendation
- * happens in the API route. Anthropic structured output rejects
- * recursive nullable optional fields with constraints, so the patch
- * is a simple partial-style schema where every field is optional.
- */
-const RecommendationPatchSchema = z.object({
-  recommendationType:    z.string().optional(),
-  summary:               z.string().optional(),
-  path:                  z.string().optional(),
-  reasoning:             z.string().optional(),
-  firstThreeSteps:       z.array(z.string()).optional(),
-  timeToFirstResult:     z.string().optional(),
-  risks: z.array(z.object({
-    risk:        z.string(),
-    mitigation:  z.string(),
-  })).optional(),
-  assumptions:           z.array(z.string()).optional(),
-  whatWouldMakeThisWrong: z.string().optional(),
-  alternativeRejected:   z.object({
-    alternative:    z.string(),
-    whyNotForThem:  z.string(),
-  }).optional(),
-});
-
-/**
  * The structured response shape returned by the Opus pushback turn.
  *
  * NOTE on the action enum: this schema only lists the four model-driven
@@ -103,6 +77,15 @@ const RecommendationPatchSchema = z.object({
  * buildClosingMessage() and the alternative-synthesis is queued via
  * Inngest. See pushback/route.ts for that branch.
  */
+// First-call schema: the conversational decision only. Every field is
+// required so Anthropic's grammar compiler builds a single linear
+// path with no branching. The historic version had a deeply nested
+// `patch: RecommendationPatchSchema.optional()` field; that combination
+// (9 optional fields, 2 of them arrays of nested objects) consistently
+// blew Opus's grammar compilation budget under load. The synthesis
+// engine never had this problem because RecommendationSchema is fully
+// required. The new architecture mirrors that — see runPushbackTurn
+// for the two-call shape.
 export const PushbackResponseSchema = z.object({
   mode: z.enum([
     PUSHBACK_MODES.ANALYTICAL,
@@ -130,11 +113,6 @@ export const PushbackResponseSchema = z.object({
     'The text the founder will read. This is the agent\'s response — written in the ' +
     'founder\'s register, grounded in their belief state. Never generic encouragement. ' +
     'Hard cap of 2000 characters to keep the chat readable and bound JSONB storage.'
-  ),
-  patch: RecommendationPatchSchema.optional().describe(
-    'Required when action is refine or replace. Contains ONLY the fields of the ' +
-    'recommendation that change. For refine: typically a few fields. For replace: ' +
-    'usually most fields. Omit entirely when action is continue_dialogue or defend.'
   ),
 });
 
@@ -165,7 +143,9 @@ export interface RunPushbackInput {
  * The agent is told the current round number so it can naturally
  * incorporate the soft-warn reframe at round 4 when stalled.
  */
-export async function runPushbackTurn(input: RunPushbackInput): Promise<PushbackResponse> {
+export async function runPushbackTurn(
+  input: RunPushbackInput,
+): Promise<PushbackResponse & { patch?: Recommendation }> {
   const log = logger.child({ module: 'PushbackEngine', recommendationId: input.recommendationId });
 
   const { recommendation, context, history, userMessage, currentRound } = input;
@@ -282,49 +262,88 @@ ${currentRound >= PUSHBACK_CONFIG.SOFT_WARN_ROUND
 
 THE COMMIT MOMENT:
 
-When you decide to refine or replace, signal it explicitly in your message: "I think I understand what was not landing in the original. Let me show you what changes." Then explain what is changing and why — and include the patch object. Only commit when you have actually done the work of understanding. Until then, stay in continue_dialogue.
+When you decide to refine or replace, signal it explicitly in your message: "I think I understand what was not landing in the original. Let me show you what changes." Then explain what is changing and why. Only commit when you have actually done the work of understanding. Until then, stay in continue_dialogue. (You do NOT need to write out the new recommendation here — the system will ask you for it as a separate step once you have committed to refine or replace.)
 
 Produce your structured response now.`,
   }];
 
-  // Anthropic's structured-output endpoint occasionally fails with
-  // "Grammar compilation timed out" under load — observed on the
-  // first end-to-end pushback test in production. The failure is
-  // transient: a single retry after a short delay almost always
-  // succeeds because the second call hits the warmed grammar cache.
-  // We scope the retry narrowly to that exact error so genuine
-  // schema bugs still surface immediately.
-  async function callOpus(): Promise<PushbackResponse> {
-    const { object } = await generateObject({
-      model:    aiSdkAnthropic(MODELS.SYNTHESIS), // Opus
-      schema:   PushbackResponseSchema,
-      messages: promptMessages,
-    });
-    return object;
-  }
+  // First call: the conversational decision only. PushbackResponseSchema
+  // is now flat — every field required, no nested optional patch — so
+  // Opus's grammar compiler builds a single linear path with no
+  // branching. This eliminates the "Grammar compilation timed out"
+  // failure mode that the earlier all-in-one schema kept hitting:
+  // RecommendationPatchSchema had 9 optional fields (2 of them arrays
+  // of nested objects), and the optional × nested combination blew
+  // Opus's grammar budget under load. The synthesis engine never had
+  // this problem because RecommendationSchema is fully required — we
+  // now mirror that property.
+  const { object: decision } = await generateObject({
+    model:    aiSdkAnthropic(MODELS.SYNTHESIS), // Opus
+    schema:   PushbackResponseSchema,
+    messages: promptMessages,
+  });
 
-  let object: PushbackResponse;
-  try {
-    object = await callOpus();
-  } catch (err) {
-    const isGrammarTimeout =
-      err instanceof Error
-      && err.name === 'AI_APICallError'
-      && /grammar compilation timed out/i.test(err.message);
-    if (!isGrammarTimeout) throw err;
-    log.warn('[Pushback] Grammar compilation timeout — retrying once', {
-      currentRound,
+  // Second call: only when the model committed to refine or replace.
+  // We ask Opus for a FULL Recommendation (the same RecommendationSchema
+  // synthesis already uses successfully), telling it explicitly to
+  // produce the updated version that addresses the pushback. This
+  // costs one extra call on the ~20% of turns that commit, in
+  // exchange for never tripping the grammar compiler.
+  let patch: Recommendation | undefined;
+  const isCommit =
+    decision.action === PUSHBACK_ACTIONS.REFINE
+    || decision.action === PUSHBACK_ACTIONS.REPLACE;
+  if (isCommit) {
+    log.info('[Pushback] Commit decision — fetching updated recommendation', {
+      action: decision.action,
     });
-    await new Promise(r => setTimeout(r, 1500));
-    object = await callOpus();
+    const { object: updated } = await generateObject({
+      model:    aiSdkAnthropic(MODELS.SYNTHESIS),
+      schema:   RecommendationSchema,
+      messages: [{
+        role:    'user' as const,
+        content: `You are producing the UPDATED recommendation after a back-and-forth pushback exchange with a founder.
+
+THE FOUNDER'S BELIEF STATE FROM THE INTERVIEW:
+${beliefBlock}
+
+THE ORIGINAL RECOMMENDATION:
+${currentRecommendationBlock}
+
+THE PUSHBACK CONVERSATION:
+${historyBlock}
+
+THE FOUNDER'S NEW MESSAGE (round ${currentRound}):
+${renderUserContent(userMessage, 2000)}
+
+YOUR DECISION FROM THE PRIOR STEP: ${decision.action === PUSHBACK_ACTIONS.REFINE ? 'refine — keep the path, adjust the framing/steps/risks where the founder surfaced something real' : 'replace — the original was structurally wrong, produce a new recommendation built around the pushback'}
+
+YOUR JOB: produce the updated full recommendation. ${decision.action === PUSHBACK_ACTIONS.REFINE
+  ? 'Keep the same path. Adjust only the fields where the pushback exposed a real flaw — typically reasoning, firstThreeSteps, risks, or assumptions. Fields that did not need to change should stay the same as the original.'
+  : 'Build a new recommendation that addresses what the founder argued. The recommendationType may change. The path is allowed to change. The whole thing is on the table — but it must still be one definitive path, not two, not a hedge.'}
+
+The same hard rules from the synthesis engine apply: ONE path, no hedging, every claim grounded in the founder's specific context, honest risks and assumptions, recommendationType set to the right action shape. Produce the updated recommendation now.`,
+      }],
+    });
+    patch = updated;
   }
 
   log.info('[Pushback] Turn complete', {
-    mode:       object.mode,
-    action:     object.action,
-    converging: object.converging,
-    hasPatch:   !!object.patch,
+    mode:       decision.mode,
+    action:     decision.action,
+    converging: decision.converging,
+    hasPatch:   !!patch,
   });
+
+  // Carry the patch through the response shape the route already
+  // consumes. The route's mergeRecommendationPatch handles a full
+  // Recommendation as a partial just fine — every field is present,
+  // every field gets replaced, which is exactly the desired semantics
+  // for both refine and replace.
+  const object: PushbackResponse & { patch?: Recommendation } = {
+    ...decision,
+    ...(patch !== undefined && { patch }),
+  };
 
   // Server-side enforcement of the soft re-frame at SOFT_WARN_ROUND.
   // The prompt asks the model to inject this language when stalled
@@ -426,13 +445,18 @@ function renderRecommendationForPrompt(recommendation: Recommendation): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Merge a partial recommendation patch over the existing recommendation,
- * preserving any fields the agent did not change. Used by the API route
- * when persisting refine/replace actions.
+ * Merge a recommendation patch over the existing recommendation. After
+ * the two-call refactor the patch is always a full Recommendation
+ * (returned by the second LLM call), so every field is present and
+ * every field gets replaced. The defensive per-field spread is kept
+ * so the helper still works if a future change re-introduces partial
+ * patches, and so the unit-test surface stays consistent.
+ *
+ * Used by the API route when persisting refine/replace actions.
  */
 export function mergeRecommendationPatch(
   current: Recommendation,
-  patch:   PushbackResponse['patch'],
+  patch:   Recommendation | undefined,
 ): Recommendation {
   if (!patch) return current;
   const merged: Recommendation = {
