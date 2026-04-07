@@ -24,15 +24,24 @@ export function middleware(_request: NextRequest) {
     "font-src 'self' data: https://fonts.gstatic.com",
     "connect-src 'self' https://vercel.live https://vitals.vercel-insights.com https://www.google-analytics.com https://www.googletagmanager.com https://*.hotjar.com https://*.contentsquare.net",
     "worker-src 'self' blob:",
-    "frame-ancestors 'none'",
+    // 'self' (not 'none') because the validation page preview at
+    // /discovery/validation/[pageId] embeds /lp/[slug] inside an
+    // iframe on the same origin. External sites are still blocked
+    // from framing us — this is clickjacking protection, not a
+    // same-origin lockdown.
+    "frame-ancestors 'self'",
     "base-uri 'self'",
     "form-action 'self'",
   ].join("; ");
 
   response.headers.set("Content-Security-Policy", cspHeader);
 
-  // Prevent clickjacking
-  response.headers.set("X-Frame-Options", "DENY");
+  // Prevent clickjacking. SAMEORIGIN (not DENY) to match the
+  // frame-ancestors 'self' CSP directive above — the validation page
+  // preview iframes /lp/[slug] from the same origin, which DENY
+  // would block. SAMEORIGIN still blocks external sites from
+  // framing us.
+  response.headers.set("X-Frame-Options", "SAMEORIGIN");
 
   // Prevent MIME type sniffing
   response.headers.set("X-Content-Type-Options", "nosniff");

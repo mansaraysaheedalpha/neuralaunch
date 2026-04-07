@@ -397,11 +397,18 @@ export function RecommendationReveal({
 
           {/* Validation page CTA — only shown when:
               - the recommendation is a build_software type (gated by recommendationType)
-              - the roadmap is READY
+              - the founder has explicitly accepted the recommendation
+                (NOT just roadmapReady — see the same lesson the pushback
+                widget gate teaches in this file. The roadmap warm-up
+                fires speculatively and the post-pushback STALE state
+                also flows through roadmapReady, so a roadmapReady-only
+                gate would surface the CTA before the founder has
+                committed to the new recommendation, leading to a 409
+                from the validation-page route when the roadmap is STALE.)
               - no prior validation report has come back negative
               For non-software recommendations the founder simply does not
               see this section — the validation page mechanic does not apply. */}
-          {roadmapReady && validationPageApplicable && (
+          {isAccepted && roadmapReady && validationPageApplicable && (
             <div className="pt-4 border-t border-border">
               {validationPageId ? (
                 <>

@@ -79,8 +79,28 @@ export async function POST(
       throw new HttpError(409, 'A negative validation already exists for this recommendation — start a new discovery session instead');
     }
 
-    if (recommendation.roadmap?.status !== 'READY') {
-      throw new HttpError(409, 'Roadmap is not ready yet — generate the roadmap first');
+    // Roadmap state gate. The UI is supposed to prevent the founder
+    // from ever reaching this branch (the validation page CTA is
+    // only rendered when isAccepted AND roadmap.status === 'READY').
+    // The server-side check below is defence-in-depth for direct API
+    // calls and for any future regression in the UI gate. Each branch
+    // returns a specific actionable message instead of the original
+    // generic "not ready" string.
+    if (!recommendation.roadmap) {
+      throw new HttpError(409, 'Roadmap has not been generated yet — accept the recommendation first.');
+    }
+    if (recommendation.roadmap.status === 'STALE') {
+      throw new HttpError(
+        409,
+        'Your recommendation was updated since the roadmap was generated. Accept the new recommendation to regenerate the roadmap, then retry.',
+      );
+    }
+    if (recommendation.roadmap.status !== 'READY') {
+      // GENERATING or FAILED
+      throw new HttpError(
+        409,
+        'Roadmap is still being generated. Try again in a moment.',
+      );
     }
 
     if (recommendation.validationPage?.status === 'LIVE') {
