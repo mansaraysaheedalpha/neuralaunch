@@ -18,30 +18,11 @@ import type { DiscoveryContext } from './context-schema';
 // Types
 // ---------------------------------------------------------------------------
 
-/**
- * One turn in the pushback conversation. Stored as a row in
- * Recommendation.pushbackHistory (a JSONB array). The shape is
- * append-only and self-describing — every turn carries its round
- * number so the history does not have to be parsed positionally.
- */
-export interface PushbackTurnUser {
-  role:      'user';
-  content:   string;
-  round:     number;
-  timestamp: string;
-}
-
-export interface PushbackTurnAgent {
-  role:      'agent';
-  content:   string;
-  round:     number;
-  mode:      'analytical' | 'fear' | 'lack_of_belief';
-  action:    'continue_dialogue' | 'defend' | 'refine' | 'replace' | 'closing';
-  converging: boolean;
-  timestamp: string;
-}
-
-export type PushbackTurn = PushbackTurnUser | PushbackTurnAgent;
+// Type definitions for pushback turns live in pushback-types.ts
+// (no server-only import) so client components can reference them.
+// We re-export them here for convenience.
+import type { PushbackTurnUser, PushbackTurnAgent, PushbackTurn } from './pushback-types';
+export type { PushbackTurnUser, PushbackTurnAgent, PushbackTurn };
 
 /**
  * Runtime schema for parsing pushbackHistory on read. JSONB columns

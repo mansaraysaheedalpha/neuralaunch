@@ -13,17 +13,7 @@ import {
   type RecommendationType,
 } from '@/lib/discovery/constants';
 import { PushbackChat } from './PushbackChat';
-
-// Match the JSON shape persisted in Recommendation.pushbackHistory
-interface PushbackTurnLite {
-  role:      'user' | 'agent';
-  content:   string;
-  round:     number;
-  mode?:     string;
-  action?:   string;
-  converging?: boolean;
-  timestamp: string;
-}
+import type { PushbackTurn } from '@/lib/discovery/pushback-types';
 
 interface Props {
   recommendation: {
@@ -42,7 +32,7 @@ interface Props {
     /** ISO string of acceptance time, or null when not accepted */
     acceptedAt:             string | null;
     /** The pushback transcript so far — empty array when no rounds yet */
-    pushbackHistory:        PushbackTurnLite[];
+    pushbackHistory:        PushbackTurn[];
     /** When set, the round-7 alternative recommendation has been generated */
     alternativeRecommendationId: string | null;
   };

@@ -69,7 +69,7 @@ export default async function RecommendationPage({
   const recForClient = {
     ...recommendation,
     acceptedAt:      recommendation.acceptedAt ? recommendation.acceptedAt.toISOString() : null,
-    pushbackHistory: safeParsePushbackHistory(recommendation.pushbackHistory) as unknown as Parameters<typeof RecommendationReveal>[0]['recommendation']['pushbackHistory'],
+    pushbackHistory: safeParsePushbackHistory(recommendation.pushbackHistory),
   };
 
   return (

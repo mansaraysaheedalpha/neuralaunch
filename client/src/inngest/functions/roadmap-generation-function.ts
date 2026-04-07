@@ -6,7 +6,7 @@ import { logger } from '@/lib/logger';
 import { generateRoadmap, ROADMAP_EVENT } from '@/lib/roadmap';
 import { DiscoveryContextSchema, createEmptyContext } from '@/lib/discovery';
 import type { AudienceType } from '@/lib/discovery';
-import type { Recommendation } from '@/lib/discovery/recommendation-schema';
+import { RecommendationSchema } from '@/lib/discovery/recommendation-schema';
 import { buildPhaseContext, PHASES } from '@/lib/phase-context';
 
 /**
@@ -58,6 +58,7 @@ export const roadmapGenerationFunction = inngest.createFunction(
             id:                    true,
             userId:                true,
             sessionId:             true,
+            recommendationType:    true,
             summary:               true,
             path:                  true,
             reasoning:             true,
@@ -83,8 +84,26 @@ export const roadmapGenerationFunction = inngest.createFunction(
         const ctx         = parsed.success ? parsed.data : createEmptyContext();
         const audType     = (rec.session.audienceType ?? null) as AudienceType | null;
 
+        // Validate the recommendation row through the canonical schema
+        // before handing it to the synthesis pipeline. The Prisma row
+        // has unknown[] for the JSONB columns; the Zod parse coerces
+        // them into typed Recommendation arrays AND surfaces any drift
+        // (corrupt row, schema change) as a failure of this step.
+        const recommendation = RecommendationSchema.parse({
+          recommendationType:     rec.recommendationType ?? 'other',
+          summary:                rec.summary,
+          path:                   rec.path,
+          reasoning:              rec.reasoning,
+          firstThreeSteps:        rec.firstThreeSteps,
+          timeToFirstResult:      rec.timeToFirstResult,
+          risks:                  rec.risks,
+          assumptions:            rec.assumptions,
+          whatWouldMakeThisWrong: rec.whatWouldMakeThisWrong,
+          alternativeRejected:    rec.alternativeRejected,
+        });
+
         return {
-          recommendation: rec as unknown as Recommendation,
+          recommendation,
           context:        ctx,
           audienceType:   audType,
           sessionId:      rec.sessionId,

@@ -5,24 +5,11 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, SendHorizontal } from 'lucide-react';
 import TextareaAutosize from 'react-textarea-autosize';
-
-// Match the JSON shape persisted in Recommendation.pushbackHistory
-interface PushbackTurnUser {
-  role:      'user';
-  content:   string;
-  round:     number;
-  timestamp: string;
-}
-interface PushbackTurnAgent {
-  role:      'agent';
-  content:   string;
-  round:     number;
-  mode?:     string;
-  action?:   string;
-  converging?: boolean;
-  timestamp: string;
-}
-type PushbackTurn = PushbackTurnUser | PushbackTurnAgent;
+import type {
+  PushbackTurn,
+  PushbackTurnUser,
+  PushbackTurnAgent,
+} from '@/lib/discovery/pushback-types';
 
 interface PushbackChatProps {
   recommendationId: string;
