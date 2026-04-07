@@ -276,27 +276,26 @@ export function RecommendationReveal({
           transition={{ delay: 1.0 }}
           className="pt-4 border-t border-border flex flex-col gap-6"
         >
-          {/* Roadmap CTA — accept-and-generate combined into a single
-              ceremonial moment. Clicking this button is the explicit
-              act of acceptance AND it triggers roadmap generation. The
-              two-step server-side flow (POST /accept then POST /roadmap)
-              keeps the data model honest: the founder always commits
-              before the roadmap is built. */}
+          {/* Roadmap CTA — three states. The gate is acceptance, NOT
+              roadmap readiness. Roadmap generation runs as a speculative
+              warm-up the moment synthesis completes (see
+              inngest/client.ts → discovery/roadmap.requested), so a
+              roadmapReady check would let the founder skip the
+              ceremonial accept step entirely.
+
+              State A — !isAccepted: show the explicit accept-and-build
+                       button. Clicking it commits acceptedAt and
+                       navigates to the roadmap viewer. The warm-up
+                       roadmap, if it has finished, is picked up by the
+                       viewer transparently.
+              State B — isAccepted && roadmapReady: show the View link.
+                       Only reachable on a page refresh after acceptance.
+              State C — isAccepted && !roadmapReady: warm-up has not
+                       finished AND the explicit POST has not been
+                       fired yet (e.g. acceptance happened on a
+                       different device). Show a building placeholder. */}
           <div>
-            {roadmapReady ? (
-              <>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Your execution roadmap is ready.
-                </p>
-                <Link
-                  href={`/discovery/roadmap/${r.id}`}
-                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-                >
-                  <ArrowRight className="size-4" />
-                  View My Execution Roadmap
-                </Link>
-              </>
-            ) : (
+            {!isAccepted ? (
               <>
                 <p className="text-xs text-muted-foreground mb-3">
                   When you are ready to commit to this path, click below. This is the moment of
@@ -323,16 +322,42 @@ export function RecommendationReveal({
                     {acceptError}
                   </div>
                 )}
-                {isAccepted && (
-                  <button
-                    type="button"
-                    onClick={() => { void handleUnaccept(); }}
-                    disabled={unaccepting}
-                    className="mt-2 text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 disabled:opacity-50"
-                  >
-                    {unaccepting ? 'Reopening…' : 'Reopen the discussion (un-accept)'}
-                  </button>
-                )}
+              </>
+            ) : roadmapReady ? (
+              <>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Your execution roadmap is ready.
+                </p>
+                <Link
+                  href={`/discovery/roadmap/${r.id}`}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                >
+                  <ArrowRight className="size-4" />
+                  View My Execution Roadmap
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => { void handleUnaccept(); }}
+                  disabled={unaccepting}
+                  className="mt-3 block text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 disabled:opacity-50"
+                >
+                  {unaccepting ? 'Reopening…' : 'Reopen the discussion (un-accept)'}
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground mb-3 flex items-center gap-2">
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Building your roadmap…
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { void handleUnaccept(); }}
+                  disabled={unaccepting}
+                  className="mt-1 text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 disabled:opacity-50"
+                >
+                  {unaccepting ? 'Reopening…' : 'Reopen the discussion (un-accept)'}
+                </button>
               </>
             )}
           </div>
