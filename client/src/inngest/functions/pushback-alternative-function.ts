@@ -1,7 +1,9 @@
 // src/inngest/functions/pushback-alternative-function.ts
+import { Prisma }                 from '@prisma/client';
 import { inngest }                from '../client';
 import prisma                     from '@/lib/prisma';
 import { logger }                 from '@/lib/logger';
+import { buildPhaseContext, PHASES } from '@/lib/phase-context';
 import {
   PUSHBACK_ALTERNATIVE_EVENT,
 } from '@/lib/discovery/constants';
@@ -141,6 +143,15 @@ export const pushbackAlternativeFunction = inngest.createFunction(
             assumptions:            altRecommendation.assumptions,
             whatWouldMakeThisWrong: altRecommendation.whatWouldMakeThisWrong,
             alternativeRejected:    altRecommendation.alternativeRejected,
+            // Concern 3 — preparatory metadata. The alternative is
+            // still a phase-1 output (Discovery + synthesis fused),
+            // even though it was triggered by a phase-3 closing move.
+            // Upstream tracks both the original session AND the
+            // recommendation it replaces.
+            phaseContext: buildPhaseContext(PHASES.RECOMMENDATION, {
+              discoverySessionId: sessionId,
+              recommendationId,
+            }) as unknown as Prisma.InputJsonValue,
           },
           select: { id: true },
         });

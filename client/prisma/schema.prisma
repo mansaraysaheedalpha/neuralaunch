@@ -882,6 +882,33 @@ model Recommendation {
   sessionId             String           @unique
   session               DiscoverySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
+  // ----- Phase awareness (Concern 3 — preparatory data only) -----
+
+  /**
+   * Self-describing phase metadata. Pure data, no behaviour.
+   * Shape: { phaseNumber, totalPhases, upstream: { discoverySessionId? } }
+   * The future orchestration layer reads this to make routing decisions
+   * without needing to retrofit storage. Today nothing reads it.
+   * See AGENT_ARCHITECTURE_REVIEW.md Concern 3 for the full design.
+   */
+  phaseContext          Json?
+
+  /**
+   * The most recent validation signal observed for this recommendation.
+   * Mirrors the ValidationReport.signalStrength enum exactly:
+   *   null      — not yet validated (no published page or no report yet)
+   *   'strong'  — strong market signal
+   *   'moderate'— moderate market signal
+   *   'weak'    — weak signal, ambiguous
+   *   'negative'— market actively said no
+   *
+   * Set by the validation reporting Inngest function when it persists
+   * a ValidationReport. Today no downstream behaviour reads this — it
+   * is the storage substrate for the future cross-phase coordination
+   * layer to read from.
+   */
+  validationOutcome     String?
+
   // Action shape — drives UI gating for downstream tools (validation page,
   // future Phase 4/5). Set by the synthesis prompt. See RECOMMENDATION_TYPES
   // in src/lib/discovery/constants.ts. Nullable so existing rows from
@@ -1013,6 +1040,11 @@ model Roadmap {
   recommendationId String           @unique
   recommendation   Recommendation   @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
 
+  // Phase 3 coordination preparatory data — see Concern 3 in
+  // AGENT_ARCHITECTURE_REVIEW.md. Pure metadata, no behaviour today.
+  // Shape: { phaseNumber, totalPhases, upstream: { recommendationId, discoverySessionId? } }
+  phaseContext     Json?
+
   status           RoadmapStatus    @default(GENERATING)
 
   // The full phased plan — validated against RoadmapSchema before write
@@ -1117,6 +1149,11 @@ model ValidationPage {
   recommendationId String           @unique
   recommendation   Recommendation   @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
 
+  // Phase 3 coordination preparatory data — see Concern 3 in
+  // AGENT_ARCHITECTURE_REVIEW.md. Pure metadata, no behaviour today.
+  // Shape: { phaseNumber, totalPhases, upstream: { recommendationId, roadmapId?, discoverySessionId? } }
+  phaseContext     Json?
+
   slug             String           @unique  // readable URL segment, e.g. "ai-invoicing-tool-accra"
   status           ValidationStatus @default(DRAFT)
   layoutVariant    String           // 'product' | 'service' | 'marketplace'
@@ -1193,6 +1230,11 @@ model ValidationReport {
   validationPageId  String          @unique
   validationPage    ValidationPage  @relation(fields: [validationPageId], references: [id], onDelete: Cascade)
   snapshotId        String
+
+  // Phase 3 coordination preparatory data — see Concern 3 in
+  // AGENT_ARCHITECTURE_REVIEW.md. Pure metadata, no behaviour today.
+  // Shape: { phaseNumber, totalPhases, upstream: { validationPageId, recommendationId, roadmapId?, discoverySessionId? } }
+  phaseContext      Json?
 
   generatedAt       DateTime        @default(now())
   signalStrength    String          // 'strong' | 'moderate' | 'weak' | 'negative'
