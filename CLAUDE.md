@@ -254,8 +254,49 @@ A task is complete when:
 4. All new Prisma models have been migrated (`pnpm prisma migrate dev`)
 5. No `console.log`, `TODO`, or `FIXME` comments remain in the changed files
 6. The code has been reviewed against all five engineering principles above
+7. Behaviour with non-trivial logic — security boundaries, concurrency,
+   data invariants, prompt sanitisation, fallback chains, anonymisation —
+   has unit test coverage written against the canonical examples and
+   the known edge cases.
+
+## Testing
+
+**Tests are not optional.** The codebase prioritises tests for things
+that would silently break the product if they regressed. The
+priority hierarchy:
+
+1. **Hard data invariants** — e.g. "no row with `consentedToTraining=false`
+   ever has a non-null `anonymisedRecord`." A failing test on this
+   class of invariant indicates a serious bug.
+2. **Security boundaries** — CSRF, rate limit, ownership filters,
+   auth gating, prompt-injection delimiters, HMAC signatures.
+3. **Concurrency and idempotency** — pushback optimistic locks,
+   accept idempotency, atomic JSON+progress writes.
+4. **Pure helpers and parsers** — Zod schemas, anonymisation
+   regexes, taskId derivation, date/time parsing in cron sweeps.
+5. **Fallback and resilience paths** — provider chain, backoff,
+   stream-cut detection, retry semantics.
+
+**Lower priority for tests:**
+- Happy-path React component rendering
+- Snapshot tests of LLM prompts (the prompts evolve; freezing them
+  produces brittle tests that get auto-skipped)
+- Trivial getters and one-liners
+
+**Test stack (when added):** Vitest is already a project devDependency.
+Tests live alongside the source file as `foo.test.ts`. Server-only
+test files use `import 'server-only'` guards via vitest's mocking.
+LLM calls in tests use Vercel AI SDK's `MockLanguageModelV2` so
+no real API calls are made.
+
+The test suite is intentionally added LAST in the codebase cleanup
+and bulletproofing sequence. The order is: dead code purge → schema
+cleanup → pattern standardisation → type safety → documentation →
+**tests last.** This is because tests written against the wrong
+patterns are wasted work; we standardise first so the test surface
+is the right shape.
 
 ---
 
 *NeuraLaunch — Built with precision by Saheed Alpha Mansaray*
-*Engineering standards last updated: 2026-04-02*
+*Engineering standards last updated: 2026-04-07*
