@@ -13,25 +13,18 @@ datasource db {
 
 // --- AUTH & USER MODELS (UNCHANGED) ---
 model User {
-  id                 String           @id @default(cuid())
-  name               String?
-  email              String?          @unique
-  emailVerified      DateTime?
-  image              String?
-  accounts           Account[]
-  sessions           Session[]
-  conversations      Conversation[]
-  projectContexts    ProjectContext[]
-  landingPages       LandingPage[]
-  achievements       Achievement[]
-  memories           AiMemory[]
-  vercelTeamId       String?
-  thoughtPreferences Json?
-  preferences        UserPreferences?
-  discoverySessions  DiscoverySession[]
-  recommendations    Recommendation[]
-  roadmaps           Roadmap[]
-  validationPages    ValidationPage[]
+  id                String             @id @default(cuid())
+  name              String?
+  email             String?            @unique
+  emailVerified     DateTime?
+  image             String?
+  accounts          Account[]
+  sessions          Session[]
+  conversations     Conversation[]
+  discoverySessions DiscoverySession[]
+  recommendations   Recommendation[]
+  roadmaps          Roadmap[]
+  validationPages   ValidationPage[]
 
   // ----- Concern 5: outcome capture + training-data consent -----
   //
@@ -50,21 +43,9 @@ model User {
   //   2. The consent string also records the moment the founder
   //      first opted in, used by the consent copy version pinning
   //      so we can re-prompt if the consent text materially changes.
-  trainingConsent       Boolean   @default(false)
-  trainingConsentAt     DateTime?
-  outcomes              RecommendationOutcome[]
-}
-
-model UserPreferences {
-  id            String   @id @default(cuid())
-  userId        String   @unique
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  mcpServers    Json? // Array of connected MCP server URLs
-  notifications Json? // Notification preferences
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  @@index([userId])
+  trainingConsent   Boolean                 @default(false)
+  trainingConsentAt DateTime?
+  outcomes          RecommendationOutcome[]
 }
 
 model Account {
@@ -103,25 +84,14 @@ model VerificationToken {
 
 // --- CORE APP MODELS ---
 model Conversation {
-  id                String             @id @default(cuid())
-  title             String
-  userId            String
-  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages          Message[]
-  projectContexts   ProjectContext[]
-  cofounderMessages CofounderMessage[]
-  landingPage       LandingPage?
-  tasks             Task[]
-  validationHub     ValidationHub?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-
-  // ===================== THIS IS THE CHANGE =====================
-  // The 'tags' field now points to the new join table.
-  tags             TagsOnConversations[]
-  memories         AiMemory[]
+  id               String            @id @default(cuid())
+  title            String
+  userId           String
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages         Message[]
   discoverySession DiscoverySession?
-  // ==============================================================
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
   @@index([createdAt])
 }
@@ -141,690 +111,8 @@ model Message {
    * message written before fallback was introduced.
    * Known values: 'anthropic-sonnet' | 'anthropic-haiku' | 'google-gemini-flash'
    */
-  modelUsed      String?
+  modelUsed String?
 }
-
-model CofounderMessage {
-  id             String       @id @default(cuid())
-  content        String       @db.Text
-  role           String // "user" or "cofounder"
-  createdAt      DateTime     @default(now())
-  conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-
-  @@index([conversationId])
-  @@index([createdAt])
-}
-
-// ===================== THIS IS THE CHANGE =====================
-// The old 'IdeaTag' model is replaced with these two new models.
-
-// This is the central library of all unique tags.
-model Tag {
-  id   String @id @default(cuid())
-  name String @unique // Each tag name like "SaaS" or "AI" exists only once.
-
-  // This defines the connection to the join table.
-  conversations TagsOnConversations[]
-}
-
-// This is the new "join table" that connects Conversations and Tags.
-model TagsOnConversations {
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  conversationId String
-  tag            Tag          @relation(fields: [tagId], references: [id], onDelete: Cascade)
-  tagId          String
-  assignedAt     DateTime     @default(now())
-
-  // This creates a unique link for each conversation-tag pair.
-  @@id([conversationId, tagId])
-}
-
-// ==============================================================
-
-// --- ALL OTHER MODELS BELOW ARE UNCHANGED ---
-
-// --- LANDING PAGE MODELS (Phase 1) ---
-model LandingPage {
-  id                String                @id @default(cuid())
-  userId            String
-  conversationId    String                @unique
-  slug              String                @unique
-  title             String
-  headline          String
-  subheadline       String
-  problemStatement  String?
-  solutionStatement String?
-  features          Json
-  ctaText           String                @default("Join Waitlist")
-  designVariant     String
-  colorScheme       Json
-  metaTitle         String?
-  metaDescription   String?
-  ogImage           String?
-  isPublished       Boolean               @default(false)
-  publishedAt       DateTime?
-  surveyQuestion1   String?               @db.Text
-  surveyQuestion2   String?               @db.Text
-  calendlyUrl       String?               @db.Text
-  pricingTiers      Json?
-  abTestVariants    Json? // Stores A/B test definitions, e.g., {"headline": ["v1", "v2"]}
-  preorderLink      String?
-  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  conversation      Conversation          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  emailSignups      EmailSignup[]
-  pageViews         PageView[]
-  feedback          LandingPageFeedback[]
-  smokeTests        FeatureSmokeTest[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  sandboxContainerId    String?   @unique
-  sandboxInternalIp     String?
-  sandboxHostPort       String?
-  sandboxLastAccessedAt DateTime?
-
-  projectPlatform           String? // "web", "mobile", "backend", "desktop", "multi"
-  projectPrimaryLanguage    String?
-  agentAnalyzedStack        Json?
-  agentArchitectPreferences Json?
-  agentArchitecturePlan     Json?
-
-  agentPlan                   Json?
-  agentClarificationQuestions Json?
-  agentUserResponses          Json?
-  agentCurrentStep            Int?
-  agentStatus                 String?
-  agentExecutionHistory       Json?
-  githubRepoUrl               String?
-  githubRepoName              String?
-
-  vercelProjectId     String?
-  vercelProjectUrl    String?
-  vercelDeploymentUrl String?
-
-  encryptedEnvVars     String? @db.Text // Store as an encrypted JSON string or blob
-  agentRequiredEnvKeys Json?
-
-  @@index([userId])
-  @@index([isPublished])
-  @@index([createdAt])
-  @@index([userId, agentStatus]) // *** NEW: For filtering by status ***
-  @@index([sandboxContainerId]) // *** NEW: For sandbox lookups ***
-  @@index([sandboxLastAccessedAt]) // *** NEW: For cleanup job queries ***
-}
-
-model EmailSignup {
-  id              String      @id @default(cuid())
-  landingPageId   String
-  email           String
-  sessionId       String?
-  name            String?
-  source          String?
-  userAgent       String?
-  ipAddress       String?
-  landingPage     LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
-  surveyResponse1 String?     @db.Text // Example field for question 1
-  surveyResponse2 String?     @db.Text
-  referredBy      String?
-  createdAt       DateTime    @default(now())
-
-  @@index([landingPageId])
-  @@index([email])
-  @@index([createdAt])
-}
-
-model PageView {
-  id            String      @id @default(cuid())
-  landingPageId String
-  sessionId     String
-  userAgent     String?
-  ipAddress     String?
-  referrer      String?
-  utmSource     String?
-  utmMedium     String?
-  utmCampaign   String?
-  timeOnPage    Int?
-  scrollDepth   Int?
-  ctaClicked    Boolean     @default(false)
-  landingPage   LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
-  createdAt     DateTime    @default(now())
-
-  @@index([landingPageId])
-  @@index([sessionId])
-  @@index([createdAt])
-  @@index([utmSource])
-}
-
-// --- NEW MODELS FOR PHASE 2 (Core Task System) ---
-model Task {
-  id              String         @id @default(cuid())
-  conversationId  String
-  title           String
-  description     String         @db.Text
-  timeEstimate    String
-  orderIndex      Int
-  status          TaskStatus     @default(NOT_STARTED)
-  aiAssistantType AssistantType?
-  completedAt     DateTime?
-  conversation    Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  outputs         TaskOutput[]
-  reminders       TaskReminder[]
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-
-  @@index([conversationId])
-}
-
-model TaskOutput {
-  id        String   @id @default(cuid())
-  taskId    String
-  content   Json // Stores the AI-generated content
-  version   Int      @default(1)
-  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-
-  @@index([taskId])
-}
-
-model ValidationHub {
-  id             String       @id @default(cuid())
-  conversationId String       @unique // Enforces one-to-one with Conversation
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-
-  // --- 1. USER INPUTS ---
-  // The user will manually provide this data
-  customerInterviewCount Int     @default(0)
-  interviewNotes         String? @db.Text // User pastes their raw notes here
-
-  // --- 2. AI-DERIVED SCORE ---
-  // We will run an AI on 'interviewNotes' to get this
-  feedbackSentimentScore Float? // A score, e.g., 0.0 to 1.0
-
-  // --- 3. CALCULATED SUB-SCORES ---
-  // Storing these makes the UI dashboard much easier to build
-  marketDemandScore      Float? // Calculated from (Signups / Views)
-  problemValidationScore Float? // Calculated from (Interview Count + Sentiment)
-  executionScore         Float? // Calculated from (Sprint Completion %)
-
-  // --- 4. THE FINAL SCORE ---
-  totalValidationScore Float? // The final 0-100 score
-
-  // --- 5. NEW AI INSIGHT ---
-  aiInsight String? @db.Text // <-- ADD THIS LINE
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt // Tracks the last time the score was calculated
-}
-
-enum TaskStatus {
-  NOT_STARTED
-  IN_PROGRESS
-  COMPLETE
-}
-
-enum AssistantType {
-  CUSTOMER_PROFILE
-  OUTREACH_EMAIL
-  LINKEDIN_MESSAGE
-  INTERVIEW_QUESTIONS
-  COMPETITIVE_ANALYSIS
-  PRICING_STRATEGY
-  GENERAL
-}
-
-model Achievement {
-  id              String   @id @default(cuid())
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  achievementType String // e.g., "FIRST_TASK_COMPLETE", "SPRINT_CHAMPION"
-  unlockedAt      DateTime @default(now())
-  metadata        Json? // e.g., { taskTitle: "Create Landing Page" }
-
-  conversationId String?
-
-  @@index([userId])
-  @@index([conversationId])
-}
-
-model Sprint {
-  id             String    @id @default(cuid())
-  conversationId String    @unique
-  userId         String
-  startedAt      DateTime  @default(now())
-  targetEndAt    DateTime // 72 hours from start
-  completedAt    DateTime?
-  totalTasks     Int       @default(0)
-  completedTasks Int       @default(0)
-  aiAssistsUsed  Int       @default(0) // We'll use this in a future step
-  timeSpent      Int       @default(0) // We'll use this in a future step
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-
-  @@index([userId])
-}
-
-model TaskReminder {
-  id           String    @id @default(cuid())
-  taskId       String
-  userId       String // To easily find all reminders for a user
-  scheduledFor DateTime // The time this reminder should be sent
-  sent         Boolean   @default(false)
-  sentAt       DateTime?
-  reminderType String // e.g., "SPRINT_PROGRESS_CHECK"
-  task         Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  createdAt    DateTime  @default(now())
-
-  @@index([userId])
-  @@index([scheduledFor])
-  @@index([sent])
-}
-
-model AiMemory {
-  id        String                       @id @default(cuid())
-  content   String // The raw text we want to remember (e.g., "User's goal is...")
-  embedding Unsupported("vector(1536)")? // The vector (numeric) representation of the content
-  // We use 1536 because that's the size for OpenAI's 'text-embedding-3-small' model, a great default.
-
-  // Link to the conversation, so each cofounder has its own memory
-  conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-
-  // Link to the user
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-
-  @@index([conversationId])
-  @@index([userId])
-}
-
-model LandingPageFeedback {
-  id            String   @id @default(cuid())
-  landingPageId String
-  sessionId     String? // Optional: Link to PageView session if available
-  feedbackType  String // e.g., 'problem_rating', 'solution_rating', 'feature_vote'
-  value         String // Can store rating, vote, choice, etc.
-  createdAt     DateTime @default(now())
-
-  landingPage LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
-
-  @@index([landingPageId, feedbackType])
-}
-
-// --- ADD THIS NEW MODEL ---
-model FeatureSmokeTest {
-  id            String   @id @default(cuid())
-  landingPageId String
-  featureName   String // e.g., "Dashboard Analytics", "Team Collaboration"
-  sessionId     String? // To link to a unique visitor
-  clickCount    Int      @default(1)
-  createdAt     DateTime @default(now())
-
-  landingPage LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
-
-  @@unique([landingPageId, featureName, sessionId]) // Track clicks per feature per session
-  @@index([landingPageId])
-}
-
-// ==========================================
-// AGENT SYSTEM TABLES
-// ==========================================
-
-model ProjectContext {
-  id             String @id @default(cuid())
-  projectId      String @unique
-  userId         String
-  conversationId String
-  currentPhase   String @default("analysis")
-  executionWaves   ExecutionWave[]
-  blueprint      Json?
-  techStack      Json?
-  architecture   Json?
-  tasks          Json?
-  executionPlan  Json?
-  codebase       Json? // This now includes: lastReview, escalation, deployments
-
-  planApprovalStatus String? @default("pending")
-  planFeedback       Json?
-  planRevisionCount  Int     @default(0)
-  originalPlan       Json? // Store original plan before any modifications
-
-  documentationGenerated   Boolean?  @default(false)
-  documentationGeneratedAt DateTime?
-
-  // ✅ NEW: Quality tracking fields
-  lastReviewScore     Int? // Most recent critic score
-  totalEscalations    Int       @default(0) // Total times escalated to human
-  lastEscalationAt    DateTime? // When was last escalation
-  humanReviewRequired Boolean   @default(false) // Does this project need human attention?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  version   Int      @default(1)
-
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-
-  @@index([projectId])
-  @@index([userId])
-  @@index([conversationId])
-  @@index([currentPhase])
-  @@index([humanReviewRequired]) // NEW: For filtering projects needing review
-}
-
-model AgentTask {
-  id        String @id @default(cuid())
-  projectId String
-  agentName String
-  status    String @default("pending")
-
-  priority       Int     @default(5)
-  prNumber       Int?
-  reviewStatus   String?
-  branchName     String?
-  waveNumber     Int?
-  complexity     String?
-  estimatedLines Int?
-  prUrl          String?
-
-  reviewScore    Int?
-  reviewApproved Boolean?
-  criticalIssues Int?
-  securityScore  Int?
-
-  // ✅ NEW: Auto-fix tracking per task
-  fixAttempts     Int       @default(0) // How many times this task was fixed
-  lastFixedAt     DateTime? // When was the last fix
-  fixHistory      Json? // Array of { attempt, issues, result, timestamp }
-  originalIssues  Json? // Original issues found by critic
-  remainingIssues Json? // Issues still not fixed
-
-  input  Json
-  output Json?
-  error  String? @db.Text
-
-  startedAt   DateTime?
-  completedAt DateTime?
-  durationMs  Int?
-  retryCount  Int       @default(0)
-  createdAt   DateTime  @default(now())
-
-  @@index([projectId])
-  @@index([status])
-  @@index([agentName])
-  @@index([priority])
-  @@index([projectId, status])
-  @@index([projectId, waveNumber])
-  @@index([reviewStatus])
-  @@index([fixAttempts]) // NEW: For tracking fix attempts
-}
-
-model AgentExecution {
-  id        String @id @default(cuid())
-  projectId String
-  agentName String
-  phase     String
-
-  input      Json
-  output     Json?
-  tokensUsed Int?
-  durationMs Int?
-
-  success Boolean
-  error   String? @db.Text
-
-  createdAt DateTime @default(now())
-
-  @@index([projectId])
-  @@index([agentName])
-  @@index([phase])
-  @@index([createdAt])
-}
-
-model ExecutionWave {
-  id         String @id @default(cuid())
-  projectId  String
-  projectContext   ProjectContext @relation(fields: [projectId], references: [projectId], onDelete: Cascade)
-  waveNumber Int
-  status     String @default("in_progress") // in_progress, completed, failed
-
-  taskCount      Int // Total tasks in this wave
-  completedCount Int @default(0)
-  failedCount    Int @default(0)
-
-  fixAttempts      Int       @default(0) // How many fix attempts were made
-  lastFixAttempt   DateTime? // When was the last fix attempt
-  escalatedToHuman Boolean   @default(false) // Was this escalated to human?
-  escalationReason String?   @db.Text // Why was it escalated?
-
-  // ✅ NEW: Quality metrics
-  finalReviewScore    Int? // Final critic score
-  criticalIssuesCount Int  @default(0) // Number of critical issues found
-  mediumIssuesCount   Int  @default(0) // Number of medium issues found
-
-  // ✅ NEW: Preview deployment tracking
-  previewUrl        String? // Preview URL for UAT
-  previewDeployedAt DateTime? // When preview was deployed
-
-  startedAt   DateTime  @default(now())
-  completedAt DateTime?
-
-  @@unique([projectId, waveNumber])
-  @@index([projectId])
-  @@index([status])
-  @@index([escalatedToHuman]) // NEW: For filtering escalated waves
-}
-
-model CriticalFailure {
-  id        String @id @default(cuid())
-  projectId String
-  userId    String
-
-  // Failure context
-  taskId     String? // If related to a specific task
-  waveNumber Int? // If related to a specific wave
-  phase      String // "execution", "testing", "deployment", etc.
-  component  String? // Which part failed (e.g., "frontend", "backend", "database")
-
-  // Issue details
-  title           String // Short description of the failure
-  description     String  @db.Text // Detailed description
-  errorMessage    String  @db.Text // The actual error that occurred
-  rootCause       String? @db.Text // AI-analyzed root cause
-  severity        String // "critical", "high", "medium"
-  issuesFound     Json // Array of specific issues found
-  issuesRemaining Json // Array of issues that couldn't be fixed
-
-  // Recovery attempts
-  totalAttempts  Int       @default(0) // How many times auto-fix was attempted
-  lastAttemptAt  DateTime? // When was the last fix attempt
-  attemptHistory Json // Array of { attempt, timestamp, strategy, issues, result }
-
-  // Status tracking
-  status             String    @default("open") // "open", "in_review", "resolved", "dismissed"
-  escalatedToHuman   Boolean   @default(false) // Was this escalated?
-  escalatedAt        DateTime? // When was it escalated
-  notificationSent   Boolean   @default(false) // Was notification sent to user?
-  notificationSentAt DateTime? // When was notification sent
-
-  // Resolution tracking
-  resolvedAt      DateTime? // When was it resolved
-  resolutionNotes String?   @db.Text // How was it resolved
-  resolvedBy      String? // "user", "auto-fix", "manual-intervention"
-
-  // Metadata
-  stackTrace String? @db.Text // Full stack trace if available
-  context    Json? // Additional context (files, dependencies, etc.)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([projectId])
-  @@index([userId])
-  @@index([status])
-  @@index([severity])
-  @@index([escalatedToHuman])
-  @@index([projectId, status])
-  @@index([projectId, waveNumber])
-  @@index([createdAt])
-}
-
-model AgentMemory {
-  id String @id @default(cuid())
-
-  // Agent identification
-  agentName String // "FrontendAgent", "BackendAgent", etc.
-  taskType  String // "execution", "quality", "deployment"
-
-  // Task details
-  taskTitle       String
-  taskDescription String @db.Text
-  techStack       Json // Array of technologies used
-  complexity      String // "simple", "medium", "complex"
-  estimatedLines  Int?
-
-  // Execution results
-  success    Boolean
-  iterations Int
-  durationMs Int
-  error      String? @db.Text
-
-  // Code artifacts
-  filesCreated Json? // Array of file paths created
-  codeSnippets Json? // Array of { file, content } for reference
-  commandsRun  Json? // Array of commands executed
-
-  // Learning & insights
-  learnings     Json // Array of strings with key learnings
-  errorsSolved  Json? // Array of errors that were fixed
-  bestPractices Json? // Array of best practices discovered
-
-  // Vector embedding for semantic search
-  // Using 3072 dimensions for text-embedding-3-large
-  embedding Unsupported("vector(3072)")?
-
-  // Metadata
-  projectId String? // Optional: link to specific project
-  userId    String? // Optional: link to user
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([agentName])
-  @@index([taskType])
-  @@index([success])
-  @@index([agentName, taskType])
-  @@index([createdAt])
-}
-
-model MonitoringSnapshot {
-  id              String   @id @default(cuid())
-  projectId       String
-  healthStatus    String
-  uptime          Float
-  avgResponseTime Float
-  errorRate       Float
-  timestamp       DateTime @default(now())
-
-  @@index([projectId, timestamp])
-}
-
-// ==========================================
-// NEW: IssueFixAttempt Model (Optional - for detailed tracking)
-// ==========================================
-
-model IssueFixAttempt {
-  id         String @id @default(cuid())
-  projectId  String
-  waveNumber Int
-  taskId     String // Which task was being fixed
-  attempt    Int // Which attempt (1-5)
-
-  issuesFound Json // Array of issues that were found
-  fixStrategy String @db.Text // What strategy was used to fix
-
-  agentUsed String // Which agent did the fixing
-  success   Boolean // Was this attempt successful
-
-  // Metrics
-  durationMs Int?
-  tokensUsed Int?
-
-  // Results
-  issuesResolved   Int @default(0)
-  issuesRemaining  Int @default(0)
-  newIssuesCreated Int @default(0) // Sometimes fixes create new issues!
-
-  error String? @db.Text
-
-  createdAt DateTime @default(now())
-
-  @@index([projectId, waveNumber])
-  @@index([taskId])
-  @@index([attempt])
-  @@index([success])
-}
-
-// ==========================================
-// NEW: HumanReviewRequest Model
-// ==========================================
-
-model HumanReviewRequest {
-  id         String @id @default(cuid())
-  projectId  String
-  waveNumber Int
-
-  // Request details
-  reason      String // "critical_issues_unfixed", "integration_failed", etc.
-  description String @db.Text
-  priority    String @default("high") // "critical", "high", "medium"
-
-  // Issues requiring review
-  criticalIssues Json // Array of critical issues
-  attempts       Int // How many auto-fix attempts were made
-
-  // Status
-  status     String  @default("pending") // "pending", "in_review", "resolved", "cancelled"
-  assignedTo String? // User ID of who's reviewing
-
-  // Resolution
-  resolvedAt    DateTime?
-  resolution    String?   @db.Text // How was it resolved
-  resolverNotes String?   @db.Text
-
-  // Notifications
-  notificationSent   Boolean   @default(false)
-  notificationSentAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([projectId, waveNumber]) // One review request per wave
-  @@index([projectId])
-  @@index([status])
-  @@index([priority])
-  @@index([createdAt])
-}
-
-model AgentThought {
-  id        String   @id @default(cuid())
-  projectId String
-  agentName String
-  type      String
-  message   String   @db.Text
-  metadata  Json?
-  timestamp DateTime @default(now())
-
-  @@index([projectId, timestamp])
-  @@index([projectId, agentName])
-}
-
-// ==========================================
-// DEPLOYMENT TRACKING
-// ==========================================
 
 // ==========================================
 // PHASE 1 — DISCOVERY ENGINE
@@ -838,51 +126,50 @@ enum DiscoverySessionStatus {
 
 /**
  * DiscoverySession
- *
  * Represents one adaptive interview run for a user.
  * The beliefState JSON column is the typed DiscoveryContext from
  * src/lib/discovery/context-schema.ts — each field carries a value,
  * confidence score, and timestamp.
  */
 model DiscoverySession {
-  id               String                 @id @default(cuid())
-  userId           String
-  user             User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status           DiscoverySessionStatus @default(ACTIVE)
+  id     String                 @id @default(cuid())
+  userId String
+  user   User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status DiscoverySessionStatus @default(ACTIVE)
 
   // Linked conversation — messages are persisted here for sidebar history
-  conversationId   String?                @unique
-  conversation     Conversation?          @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  conversationId String?       @unique
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
 
   // Interview state
-  phase                 String                 @default("ORIENTATION")
-  questionCount         Int                    @default(0)
-  questionsInPhase      Int                    @default(0)
-  activeField           String?
-  audienceType          String?
+  phase            String  @default("ORIENTATION")
+  questionCount    Int     @default(0)
+  questionsInPhase Int     @default(0)
+  activeField      String?
+  audienceType     String?
 
   // Transient interview flags — persisted so sessions survive Redis eviction
-  askedFields           Json                   @default("[]")
-  pricingProbed         Boolean                @default(false)
-  psychConstraintProbed Boolean                @default(false)
+  askedFields           Json    @default("[]")
+  pricingProbed         Boolean @default(false)
+  psychConstraintProbed Boolean @default(false)
 
   // Timestamp of the last completed turn — used for incomplete session detection
-  lastTurnAt            DateTime?
+  lastTurnAt DateTime?
 
   // Current step of the synthesis pipeline — written by the Inngest function so
   // the client can show real progress rather than a time-based animation.
-  synthesisStep         String?
+  synthesisStep String?
 
   // The belief state is the DiscoveryContext — serialised as JSON.
   // Typed accessors in src/lib/discovery/context-schema.ts are the only
   // way to read/write this field. Never mutate it raw.
-  beliefState           Json
+  beliefState Json
 
-  recommendation   Recommendation?
+  recommendation Recommendation?
 
-  createdAt        DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
-  completedAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
 
   @@index([userId])
   @@index([userId, status])
@@ -891,17 +178,16 @@ model DiscoverySession {
 
 /**
  * Recommendation
- *
  * The single structured output produced by the synthesis engine.
  * Shape is validated against RecommendationSchema (Zod) before write.
  * One-to-one with DiscoverySession.
  */
 model Recommendation {
-  id                    String           @id @default(cuid())
-  userId                String
-  user                  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sessionId             String           @unique
-  session               DiscoverySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId String           @unique
+  session   DiscoverySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   // ----- Phase awareness (Concern 3 — preparatory data only) -----
 
@@ -912,30 +198,29 @@ model Recommendation {
    * without needing to retrofit storage. Today nothing reads it.
    * See AGENT_ARCHITECTURE_REVIEW.md Concern 3 for the full design.
    */
-  phaseContext          Json?
+  phaseContext Json?
 
   /**
    * The most recent validation signal observed for this recommendation.
    * Mirrors the ValidationReport.signalStrength enum exactly:
-   *   null      — not yet validated (no published page or no report yet)
-   *   'strong'  — strong market signal
-   *   'moderate'— moderate market signal
-   *   'weak'    — weak signal, ambiguous
-   *   'negative'— market actively said no
-   *
+   * null      — not yet validated (no published page or no report yet)
+   * 'strong'  — strong market signal
+   * 'moderate'— moderate market signal
+   * 'weak'    — weak signal, ambiguous
+   * 'negative'— market actively said no
    * Set by the validation reporting Inngest function when it persists
    * a ValidationReport. Today no downstream behaviour reads this — it
    * is the storage substrate for the future cross-phase coordination
    * layer to read from.
    */
-  validationOutcome     String?
+  validationOutcome String?
 
   // Action shape — drives UI gating for downstream tools (validation page,
   // future Phase 4/5). Set by the synthesis prompt. See RECOMMENDATION_TYPES
   // in src/lib/discovery/constants.ts. Nullable so existing rows from
   // before this column was added remain queryable; UI treats null as
   // "ineligible" by default.
-  recommendationType    String?
+  recommendationType String?
 
   // ----- Pushback / acceptance (Concerns 1 + 2) -----
 
@@ -945,14 +230,14 @@ model Recommendation {
    * roadmap and from any prior refinements the agent made — only the
    * founder's affirmative click counts.
    */
-  acceptedAt            DateTime?
+  acceptedAt DateTime?
 
   /**
    * Number of pushback rounds (user turns) at the moment of acceptance.
    * 0 means the founder accepted on first read with no pushback.
    * Becomes a key signal for measuring how convincing recommendations are.
    */
-  acceptedAtRound       Int?
+  acceptedAtRound Int?
 
   /**
    * Number of times the founder has un-accepted this recommendation.
@@ -960,46 +245,46 @@ model Recommendation {
    * discussion" or implicitly from posting a new pushback message
    * after a previous acceptance.
    */
-  unacceptCount         Int             @default(0)
+  unacceptCount Int @default(0)
 
   /**
    * Optimistic concurrency lock for pushback. Incremented on every
    * write to pushbackHistory. The pushback API performs:
-   *   updateMany({ where: { id, pushbackVersion: previousVersion }, ... })
+   * updateMany({ where: { id, pushbackVersion: previousVersion }, ... })
    * If the row was modified by another concurrent request between the
    * read and the write, count === 0 and we return 409. Prevents two
    * parallel pushback POSTs from corrupting the history or burning
    * duplicate Opus calls. Same column also serves as the accept
    * endpoint's idempotency lock.
    */
-  pushbackVersion       Int             @default(0)
+  pushbackVersion Int @default(0)
 
   /**
    * Full pushback conversation log. Append-only array of turn objects:
-   *   {
-   *     role:      'user' | 'agent',
-   *     content:   string,
-   *     round:     number,                              // self-describing
-   *     mode?:     'analytical' | 'fear' | 'lack_of_belief', // agent only
-   *     action?:   'continue_dialogue' | 'defend' | 'refine' | 'replace' | 'closing', // agent only
-   *     converging?: boolean,                           // agent only
-   *     timestamp: string                               // ISO
-   *   }
+   * {
+   * role:      'user' | 'agent',
+   * content:   string,
+   * round:     number,                              // self-describing
+   * mode?:     'analytical' | 'fear' | 'lack_of_belief', // agent only
+   * action?:   'continue_dialogue' | 'defend' | 'refine' | 'replace' | 'closing', // agent only
+   * converging?: boolean,                           // agent only
+   * timestamp: string                               // ISO
+   * }
    */
-  pushbackHistory       Json            @default("[]")
+  pushbackHistory Json @default("[]")
 
   /**
    * Snapshots of prior recommendation states. Each entry is a FULL
    * pre-update Recommendation snapshot (not a diff) wrapped with the
    * round number, the agent action that triggered the refresh, and
    * a timestamp:
-   *   { snapshot: Recommendation, round: number, action: 'refine'|'replace', timestamp: string }
+   * { snapshot: Recommendation, round: number, action: 'refine'|'replace', timestamp: string }
    * Most-recent live state always wins for display; this column powers
    * the "see how this evolved" view. Diffing happens at render time
    * when needed; storing diffs would couple the storage shape to the
    * Recommendation schema and break on every schema change.
    */
-  versions              Json            @default("[]")
+  versions Json @default("[]")
 
   // ----- Round-7 alternative recommendation (Concern 1, closing move) -----
 
@@ -1009,30 +294,30 @@ model Recommendation {
    * Self-relation enables a single query to fetch both for the
    * comparison view.
    */
-  alternativeRecommendationId String?    @unique
-  alternativeRecommendation   Recommendation?  @relation("RecommendationAlternative", fields: [alternativeRecommendationId], references: [id])
-  primaryRecommendation       Recommendation?  @relation("RecommendationAlternative")
+  alternativeRecommendationId String?         @unique
+  alternativeRecommendation   Recommendation? @relation("RecommendationAlternative", fields: [alternativeRecommendationId], references: [id])
+  primaryRecommendation       Recommendation? @relation("RecommendationAlternative")
 
   // Core recommendation fields (mirroring RecommendationSchema)
-  summary               String           @db.Text
-  path                  String           @db.Text
-  reasoning             String           @db.Text
-  firstThreeSteps       Json             // String[]
-  timeToFirstResult     String
-  risks                 Json             // { risk: string; mitigation: string }[]
-  assumptions           Json             // String[]
-  whatWouldMakeThisWrong String          @db.Text
-  alternativeRejected   Json             // { alternative: string; whyNotForThem: string }
+  summary                String @db.Text
+  path                   String @db.Text
+  reasoning              String @db.Text
+  firstThreeSteps        Json // String[]
+  timeToFirstResult      String
+  risks                  Json // { risk: string; mitigation: string }[]
+  assumptions            Json // String[]
+  whatWouldMakeThisWrong String @db.Text
+  alternativeRejected    Json // { alternative: string; whyNotForThem: string }
 
-  roadmap               Roadmap?
-  validationPage        ValidationPage?
+  roadmap        Roadmap?
+  validationPage ValidationPage?
 
   // Concern 5 — outcome attestation. Lazy one-to-one. Created when
   // the founder explicitly submits an outcome via one of the three
   // trigger paths.
-  outcome               RecommendationOutcome?
+  outcome RecommendationOutcome?
 
-  createdAt             DateTime         @default(now())
+  createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([sessionId])
@@ -1054,35 +339,34 @@ enum RoadmapStatus {
 
 /**
  * Roadmap
- *
  * The structured execution plan produced from a Recommendation + DiscoveryContext.
  * Generated by the Phase 2 roadmap engine. One-to-one with Recommendation.
  * The phases JSON column holds RoadmapPhase[] — validated against RoadmapSchema.
  */
 model Roadmap {
-  id               String           @id @default(cuid())
+  id               String         @id @default(cuid())
   userId           String
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  recommendationId String           @unique
-  recommendation   Recommendation   @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recommendationId String         @unique
+  recommendation   Recommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
 
   // Phase 3 coordination preparatory data — see Concern 3 in
   // AGENT_ARCHITECTURE_REVIEW.md. Pure metadata, no behaviour today.
   // Shape: { phaseNumber, totalPhases, upstream: { recommendationId, discoverySessionId? } }
-  phaseContext     Json?
+  phaseContext Json?
 
-  status           RoadmapStatus    @default(GENERATING)
+  status RoadmapStatus @default(GENERATING)
 
   // The full phased plan — validated against RoadmapSchema before write
-  phases           Json             // RoadmapPhase[]
-  closingThought   String?          @db.Text
+  phases         Json // RoadmapPhase[]
+  closingThought String? @db.Text
 
   // Derived from beliefState at generation time — stored for display
-  weeklyHours      Int?             // hours/week the user has available
-  totalWeeks       Int?             // estimated total duration
+  weeklyHours Int? // hours/week the user has available
+  totalWeeks  Int? // estimated total duration
 
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // ----- Concern 4: roadmap check-in / progress tracking -----
   //
@@ -1097,7 +381,7 @@ model Roadmap {
   // and are persisted on the next status change. The summary record
   // below is the queryable analytics surface; never iterate the JSON
   // for aggregate counts.
-  progress         RoadmapProgress?
+  progress RoadmapProgress?
 
   @@index([userId])
   @@index([recommendationId])
@@ -1105,39 +389,37 @@ model Roadmap {
 
 /**
  * RoadmapProgress
- *
  * Per-roadmap analytics summary updated whenever a task status
  * changes via the check-in API. Stored separately from the roadmap
  * JSON so we never have to parse the full phases array to answer
  * queries like "how many roadmaps have at least one blocked task"
  * or "which roadmaps need a proactive nudge."
- *
  * Created on the first PATCH /status call for a roadmap that does
  * not yet have a row. Maintained atomically alongside the JSON
  * mutation in the same Prisma transaction.
  */
 model RoadmapProgress {
-  id              String    @id @default(cuid())
-  roadmapId       String    @unique
-  roadmap         Roadmap   @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+  id        String  @id @default(cuid())
+  roadmapId String  @unique
+  roadmap   Roadmap @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
 
-  totalTasks      Int
-  completedTasks  Int       @default(0)
-  blockedTasks    Int       @default(0)
+  totalTasks     Int
+  completedTasks Int @default(0)
+  blockedTasks   Int @default(0)
 
   /**
    * The most recent moment the founder interacted with this roadmap
    * (status change, check-in submission, or proactive-nudge response).
    * Drives the proactive-nudge cron query and the "X days ago" UI.
    */
-  lastActivityAt  DateTime  @default(now())
+  lastActivityAt DateTime @default(now())
 
   /**
    * The phase number (within the roadmap, NOT the global PHASES enum)
    * the founder is currently working through. Derived from the index
    * of the most recent task that received any check-in.
    */
-  currentPhase    Int       @default(1)
+  currentPhase Int @default(1)
 
   /**
    * Set to true by the proactive-nudge Inngest function when an
@@ -1151,15 +433,15 @@ model RoadmapProgress {
 
   /**
    * Set to true by the daily nudge sweep when:
-   *   - 50% or more of tasks are complete
-   *   - lastActivityAt is more than 30 days ago
-   *   - The parent recommendation does not yet have an outcome row
-   *   - outcomePromptSkippedAt is null
+   * - 50% or more of tasks are complete
+   * - lastActivityAt is more than 30 days ago
+   * - The parent recommendation does not yet have an outcome row
+   * - outcomePromptSkippedAt is null
    * The client reads this on roadmap page load and surfaces the
    * outcome form once. Cleared whenever the founder either submits
    * an outcome or explicitly skips.
    */
-  outcomePromptPending  Boolean   @default(false)
+  outcomePromptPending Boolean @default(false)
 
   /**
    * Set when the founder explicitly clicks "skip for now" on the
@@ -1169,8 +451,8 @@ model RoadmapProgress {
    */
   outcomePromptSkippedAt DateTime?
 
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([nudgePending])
   @@index([lastActivityAt])
@@ -1179,28 +461,23 @@ model RoadmapProgress {
 
 /**
  * RecommendationOutcome
- *
  * Concern 5: founder-attested outcome of acting on a recommendation.
- *
  * Two parallel records of the outcome live in this row:
- *   1) The full record (outcomeType, freeText, weakPhases, the
- *      identifying recommendationId) — always written, owned by the
- *      founder, used for their own history view, never used for
- *      training.
- *   2) The anonymisedRecord JSON column — written ONLY when
- *      consentedToTraining === true at submission time. Stripped of
- *      names, emails, phone numbers, and bucketed to country level.
- *      Lexical anonymisation only — see consent copy for the disclosure.
- *
+ * 1) The full record (outcomeType, freeText, weakPhases, the
+ * identifying recommendationId) — always written, owned by the
+ * founder, used for their own history view, never used for
+ * training.
+ * 2) The anonymisedRecord JSON column — written ONLY when
+ * consentedToTraining === true at submission time. Stripped of
+ * names, emails, phone numbers, and bucketed to country level.
+ * Lexical anonymisation only — see consent copy for the disclosure.
  * Hard invariant enforced at write time:
- *   consentedToTraining = false  ⇒  anonymisedRecord = null
+ * consentedToTraining = false  ⇒  anonymisedRecord = null
  * Never bypass.
- *
  * The 24-month TTL on anonymisedRecord is enforced by a daily
  * lifecycle sweep that nulls out anonymisedRecord on rows older
  * than the horizon. The full record stays for the founder's
  * personal history.
- *
  * Retroactive deletion: when a founder flips trainingConsent off,
  * a parallel sweep nulls out anonymisedRecord on every row of
  * theirs that previously consented. The fact that they once
@@ -1208,23 +485,23 @@ model RoadmapProgress {
  * historical row) but the training payload is gone.
  */
 model RecommendationOutcome {
-  id                 String          @id @default(cuid())
-  recommendationId   String          @unique
-  recommendation     Recommendation  @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
-  userId             String
-  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String         @id @default(cuid())
+  recommendationId String         @unique
+  recommendation   Recommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   /**
    * Founder-selected outcome bucket. Mirrors the four types in the
    * spec exactly. Stored as a string so adding a fifth bucket later
    * does not require a migration; the read paths use the typed
    * OUTCOME_TYPES enum from outcome-types.ts as the source of truth.
-   *   full_success
-   *   partial_success
-   *   direction_correct_execution_different
-   *   did_not_work
+   * full_success
+   * partial_success
+   * direction_correct_execution_different
+   * did_not_work
    */
-  outcomeType        String
+  outcomeType String
 
   /**
    * Optional free-text context. The submission form prompt copy
@@ -1232,14 +509,14 @@ model RecommendationOutcome {
    * "what would have made this recommendation more accurate" so
    * the answer is diagnostic, not just a failure report.
    */
-  freeText           String?         @db.Text
+  freeText String? @db.Text
 
   /**
    * Phase titles the founder identified as needing the most
    * adjustment. Only populated for partial_success and
    * direction_correct_execution_different outcomes.
    */
-  weakPhases         String[]        @default([])
+  weakPhases String[] @default([])
 
   /**
    * Captured from User.trainingConsent at submission time.
@@ -1254,76 +531,13 @@ model RecommendationOutcome {
    * NULL when consentedToTraining is false. Subject to the 24-month
    * TTL via the lifecycle sweep.
    */
-  anonymisedRecord   Json?
+  anonymisedRecord Json?
 
-  submittedAt        DateTime        @default(now())
+  submittedAt DateTime @default(now())
 
   @@index([userId])
   @@index([outcomeType])
   @@index([submittedAt])
-}
-
-model Deployment {
-  id        String @id @default(cuid())
-  projectId String
-
-  // Deployment metadata
-  environment String // "preview", "staging", "production"
-  platform    String // "vercel", "netlify", "railway", "render", "fly", etc.
-
-  // Deployment URLs
-  deploymentUrl String? // Public URL of deployment
-  adminUrl      String? // Admin/dashboard URL (if applicable)
-
-  // Status tracking
-  status      String    @default("pending") // "pending", "building", "deployed", "failed", "cancelled"
-  buildStatus String? // "queued", "building", "success", "failed"
-  deployedAt  DateTime?
-  failedAt    DateTime?
-  cancelledAt DateTime?
-
-  // Build & deployment details
-  commitSha     String? // Git commit hash
-  branch        String? // Git branch name
-  buildDuration Int? // Duration in milliseconds
-  buildLogs     String? @db.Text // Build output/logs
-  errorMessage  String? @db.Text // Error details if failed
-
-  // Wave association (optional - for wave-based deployments)
-  waveNumber Int?
-
-  // Platform-specific IDs
-  platformDeploymentId String? // Vercel deployment ID, Netlify deploy ID, etc.
-  platformProjectId    String? // Vercel project ID, etc.
-
-  // Configuration
-  envVars      Json? // Environment variables used (encrypted/hashed)
-  buildCommand String? // Build command used
-  startCommand String? // Start/serve command
-
-  // Metrics (optional)
-  buildSize     Int? // Build size in bytes
-  functionCount Int? // Number of serverless functions
-  requestCount  Int? // Number of requests served
-
-  // User tracking
-  triggeredBy    String? // User ID who triggered deployment
-  deploymentType String  @default("automated") // "automated", "manual", "rollback"
-
-  // Rollback support
-  previousDeploymentId String? // For rollback tracking
-  isRollback           Boolean @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([projectId])
-  @@index([projectId, environment])
-  @@index([projectId, waveNumber])
-  @@index([status])
-  @@index([environment])
-  @@index([deployedAt])
-  @@index([createdAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -1338,44 +552,43 @@ enum ValidationStatus {
 
 /**
  * ValidationPage
- *
  * A public landing page generated from a Recommendation + Roadmap.
  * Used to validate market interest before the MVP is built.
  * One-to-one with Recommendation. Served at /lp/[slug].
  */
 model ValidationPage {
-  id               String           @id @default(cuid())
+  id               String         @id @default(cuid())
   userId           String
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  recommendationId String           @unique
-  recommendation   Recommendation   @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recommendationId String         @unique
+  recommendation   Recommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
 
   // Phase 3 coordination preparatory data — see Concern 3 in
   // AGENT_ARCHITECTURE_REVIEW.md. Pure metadata, no behaviour today.
   // Shape: { phaseNumber, totalPhases, upstream: { recommendationId, roadmapId?, discoverySessionId? } }
-  phaseContext     Json?
+  phaseContext Json?
 
-  slug             String           @unique  // readable URL segment, e.g. "ai-invoicing-tool-accra"
-  status           ValidationStatus @default(DRAFT)
-  layoutVariant    String           // 'product' | 'service' | 'marketplace'
+  slug          String           @unique // readable URL segment, e.g. "ai-invoicing-tool-accra"
+  status        ValidationStatus @default(DRAFT)
+  layoutVariant String // 'product' | 'service' | 'marketplace'
 
   // Claude-generated content — validated against ValidationPageContentSchema
-  content          Json
+  content Json
 
   // Generated at publish time — 3 specific distribution channels
   distributionBrief Json?
 
   // Which distribution channels the user has ticked off
-  channelsCompleted String[]        @default([])
+  channelsCompleted String[] @default([])
 
-  publishedAt      DateTime?
-  archivedAt       DateTime?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  publishedAt DateTime?
+  archivedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  snapshots        ValidationSnapshot[]
-  report           ValidationReport?
-  events           ValidationEvent[]
+  snapshots ValidationSnapshot[]
+  report    ValidationReport?
+  events    ValidationEvent[]
 
   @@index([userId])
   @@index([slug])
@@ -1385,34 +598,33 @@ model ValidationPage {
 
 /**
  * ValidationSnapshot
- *
  * One record per reporting cycle — raw PostHog analytics data for a page.
  * Written by the Inngest validation-page-reporting function every 24h
  * and on threshold triggers. The interpretation field holds the Sonnet
  * Step 1 output (ValidationInterpretation).
  */
 model ValidationSnapshot {
-  id                  String          @id @default(cuid())
-  validationPageId    String
-  validationPage      ValidationPage  @relation(fields: [validationPageId], references: [id], onDelete: Cascade)
+  id               String         @id @default(cuid())
+  validationPageId String
+  validationPage   ValidationPage @relation(fields: [validationPageId], references: [id], onDelete: Cascade)
 
   // The founder's target market at the time of this snapshot. Stored per
   // snapshot (not derived at query time) so we can aggregate how threshold
   // dynamics differ across markets without touching live DiscoverySession
   // rows. Used later to calibrate market-aware MIN_VISITORS_FOR_BRIEF etc.
-  market              String?
+  market String?
 
-  takenAt             DateTime        @default(now())
-  visitorCount        Int             @default(0)
-  uniqueVisitorCount  Int             @default(0)
-  ctaConversionRate   Float           @default(0) // 0.0–1.0
-  featureClicks       Json            // { taskId: string, title: string, clicks: number }[]
-  surveyResponses     Json            // { question: string, answer: string, takenAt: string }[]
-  trafficSources      Json            // { source: string, count: number }[]
-  scrollDepthData     Json            // { depth: number, reachedPercentage: number }[]
+  takenAt            DateTime @default(now())
+  visitorCount       Int      @default(0)
+  uniqueVisitorCount Int      @default(0)
+  ctaConversionRate  Float    @default(0) // 0.0–1.0
+  featureClicks      Json // { taskId: string, title: string, clicks: number }[]
+  surveyResponses    Json // { question: string, answer: string, takenAt: string }[]
+  trafficSources     Json // { source: string, count: number }[]
+  scrollDepthData    Json // { depth: number, reachedPercentage: number }[]
 
   // Sonnet Step 1 output — stored so Step 2 can read without re-running
-  interpretation      Json?           // ValidationInterpretation
+  interpretation Json? // ValidationInterpretation
 
   @@index([validationPageId])
   @@index([takenAt])
@@ -1420,67 +632,63 @@ model ValidationSnapshot {
 
 /**
  * ValidationReport
- *
  * The committed build brief produced by the Opus Step 2 interpretation agent.
  * Gated behind minimum signal thresholds. One-to-one with ValidationPage
  * (always the most recent report — older reports are preserved in snapshots).
  * When usedForMvp is true, this report is the feature specification for Phase 5.
  */
 model ValidationReport {
-  id                String          @id @default(cuid())
-  validationPageId  String          @unique
-  validationPage    ValidationPage  @relation(fields: [validationPageId], references: [id], onDelete: Cascade)
-  snapshotId        String
+  id               String         @id @default(cuid())
+  validationPageId String         @unique
+  validationPage   ValidationPage @relation(fields: [validationPageId], references: [id], onDelete: Cascade)
+  snapshotId       String
 
   // Phase 3 coordination preparatory data — see Concern 3 in
   // AGENT_ARCHITECTURE_REVIEW.md. Pure metadata, no behaviour today.
   // Shape: { phaseNumber, totalPhases, upstream: { validationPageId, recommendationId, roadmapId?, discoverySessionId? } }
-  phaseContext      Json?
+  phaseContext Json?
 
-  generatedAt       DateTime        @default(now())
-  signalStrength    String          // 'strong' | 'moderate' | 'weak' | 'negative'
-  confirmedFeatures Json            // { taskId, title, clicks, percentage, evidence }[]
-  rejectedFeatures  Json            // { taskId, title, clicks, reason }[]
-  surveyInsights    String          @db.Text
-  buildBrief        String          @db.Text
-  nextAction        String          @db.Text
+  generatedAt       DateTime @default(now())
+  signalStrength    String // 'strong' | 'moderate' | 'weak' | 'negative'
+  confirmedFeatures Json // { taskId, title, clicks, percentage, evidence }[]
+  rejectedFeatures  Json // { taskId, title, clicks, reason }[]
+  surveyInsights    String   @db.Text
+  buildBrief        String   @db.Text
+  nextAction        String   @db.Text
 
   // Populated only when signalStrength === 'negative' — what the market
   // contradicted and what adjacent paths the founder could try instead.
-  disconfirmedAssumptions Json      @default("[]") // string[]
-  pivotOptions            Json      @default("[]") // { title, rationale }[]
+  disconfirmedAssumptions Json @default("[]") // string[]
+  pivotOptions            Json @default("[]") // { title, rationale }[]
 
   // True when the user clicks "Mark validation complete" — feeds Phase 5
-  usedForMvp        Boolean         @default(false)
+  usedForMvp Boolean @default(false)
 
   @@index([validationPageId])
 }
 
 /**
  * ValidationEvent
- *
  * Raw analytics event captured from the public /lp/[slug] page.
  * One row per event. Aggregated into ValidationSnapshot on each
  * reporting cycle by the validation-reporting Inngest function.
- *
  * This replaces the PostHog integration — with expected traffic of
  * 50–500 visitors per page lifecycle, persisting events directly to
  * Postgres is cheaper, simpler, and removes an external dependency.
- *
  * The eventType column is a string (not enum) so we can add new event
  * kinds without a migration. Known values:
- *   page_view | scroll_depth | exit_intent | feature_click | cta_signup | survey_response
+ * page_view | scroll_depth | exit_intent | feature_click | cta_signup | survey_response
  */
 model ValidationEvent {
-  id                String         @id @default(cuid())
-  validationPageId  String
-  validationPage    ValidationPage @relation(fields: [validationPageId], references: [id], onDelete: Cascade)
+  id               String         @id @default(cuid())
+  validationPageId String
+  validationPage   ValidationPage @relation(fields: [validationPageId], references: [id], onDelete: Cascade)
 
-  eventType         String         // see docstring
-  visitorId         String?        // hashed client identifier when available
-  properties        Json           // event-specific payload (taskId, depth, email, answer, etc.)
+  eventType  String // see docstring
+  visitorId  String? // hashed client identifier when available
+  properties Json // event-specific payload (taskId, depth, email, answer, etc.)
 
-  createdAt         DateTime       @default(now())
+  createdAt DateTime @default(now())
 
   @@index([validationPageId, eventType])
   @@index([validationPageId, createdAt])
