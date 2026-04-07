@@ -337,10 +337,17 @@ export function RecommendationReveal({
             )}
           </div>
 
-          {/* Pushback chat — always available unless the roadmap has
-              already been generated (at which point the discussion is
-              effectively closed because acceptance is locked in). */}
-          {!roadmapReady && (
+          {/* Pushback chat — available until the founder has explicitly
+              accepted the recommendation. Note: we deliberately do NOT
+              gate on roadmapReady, because the synthesis function fires
+              a speculative roadmap warm-up the moment it completes
+              (see inngest/client.ts → discovery/roadmap.requested). The
+              warm-up flips roadmapReady to true within seconds, long
+              before the founder has read the recommendation. Gating
+              pushback on roadmapReady would silently kill the feature
+              for almost every user. Acceptance is the only real
+              "discussion is closed" signal. */}
+          {!isAccepted && (
             <div>
               <PushbackChat
                 recommendationId={r.id}
