@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import toast from "react-hot-toast";
 import { useConversationStore } from "@/lib/stores/conversationStore";
-import { Award, Rocket, Compass } from "lucide-react";
+import { User, Compass } from "lucide-react";
 import { useChatStore } from "@/lib/stores/chatStore";
 
 // Define the Conversation type to match what the API returns
@@ -252,41 +252,12 @@ export default function Sidebar({
           </div>
         </Link>
 
-        <Link
-          href="/trends"
-          onClick={() => setMobileMenuOpen(false)}
-          className={`group relative flex items-center px-3 py-3 rounded-xl transition-all duration-200 ${
-            pathname === "/trends" ? "bg-primary/10" : "hover:bg-muted"
-          }`}
-        >
-          {pathname === "/trends" && (
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full"></div>
-          )}
-          <div
-            className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center mr-3 transition-all duration-200 ${
-              pathname === "/trends"
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
-            }`}
-          >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p
-              className={`text-base font-medium truncate ${
-                pathname === "/trends"
-                  ? "text-primary font-semibold"
-                  : "text-foreground"
-              }`}
-            >
-              Spark Index
-            </p>
-          </div>
-        </Link>
-
-        {/* --- ADD MY AWARDS LINK --- */}
+        {/* My Profile — was previously labelled "My Awards" pointing
+            at /profile, which made the link unfindable for users
+            looking for their account settings. The "Spark Index"
+            (/trends) and "My Projects" (/projects) sidebar items
+            were also removed: the underlying routes were deleted in
+            the cleanup and the dead links produced 404s on click. */}
         <Link
           href="/profile"
           onClick={() => setMobileMenuOpen(false)}
@@ -304,7 +275,7 @@ export default function Sidebar({
                 : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
             }`}
           >
-            <Award className="w-4 h-4" /> {/* Award Icon */}
+            <User className="w-4 h-4" />
           </div>
           <div className="flex-1 min-w-0">
             <p
@@ -314,42 +285,7 @@ export default function Sidebar({
                   : "text-foreground"
               }`}
             >
-              My Awards
-            </p>
-          </div>
-        </Link>
-
-        {/* --- ADD MY PROJECTS LINK --- */}
-        <Link
-          href="/projects"
-          onClick={() => setMobileMenuOpen(false)}
-          className={`group relative flex items-center px-3 py-3 rounded-xl transition-all duration-200 ${
-            pathname === "/projects" || pathname?.startsWith("/projects/")
-              ? "bg-primary/10"
-              : "hover:bg-muted"
-          }`}
-        >
-          {(pathname === "/projects" || pathname?.startsWith("/projects/")) && (
-            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-r-full"></div>
-          )}
-          <div
-            className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center mr-3 transition-all duration-200 ${
-              pathname === "/projects" || pathname?.startsWith("/projects/")
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
-            }`}
-          >
-            <Rocket className="w-4 h-4" /> {/* Projects Icon */}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p
-              className={`text-sm font-medium truncate ${
-                pathname === "/projects" || pathname?.startsWith("/projects/")
-                  ? "text-primary font-semibold"
-                  : "text-foreground"
-              }`}
-            >
-              My Projects
+              My Profile
             </p>
           </div>
         </Link>
@@ -525,16 +461,15 @@ export default function Sidebar({
         <Compass className="w-5 h-5" />
       </Link>
       <Link
-        href="/trends"
+        href="/profile"
         className={`group relative flex items-center justify-center w-10 h-10 rounded-lg transition-colors ${
-          pathname === "/trends"
+          pathname === "/profile"
             ? "bg-primary/10 text-primary"
             : "hover:bg-muted text-muted-foreground"
         }`}
+        title="My Profile"
       >
-        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-          <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-        </svg>
+        <User className="w-5 h-5" />
       </Link>
     </div>
   );
