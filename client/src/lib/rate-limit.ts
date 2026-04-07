@@ -252,21 +252,60 @@ export function getRequestIdentifier(
 }
 
 /**
- * Get client IP address from request headers
+ * Resolve the client IP from request headers, defending against spoofing.
+ *
+ * The previous implementation blindly took the first hop in
+ * x-forwarded-for, which is forgeable: any visitor can set their own
+ * X-Forwarded-For header and the route would happily believe it. That
+ * defeats both per-IP rate limiting (set a fresh fake IP per request)
+ * AND the salted visitor-ID hash in /api/lp/analytics (fabricate as
+ * many "unique visitors" as you want by rotating the spoofed IP).
+ *
+ * Trust order on Vercel:
+ *   1. x-vercel-forwarded-for — set ONLY by Vercel's edge, never by
+ *      the client. Most trustworthy signal.
+ *   2. x-forwarded-for — only trusted when it contains exactly ONE IP
+ *      (Vercel's edge always sets a single hop). If there are multiple
+ *      IPs, the client appended their own — cannot trust the "first"
+ *      one because we do not know how many client-supplied entries
+ *      precede the real edge entry.
+ *   3. x-real-ip — set by some proxies, not Vercel. Fall back if
+ *      x-forwarded-for is missing entirely.
+ *
+ * If none of the above can be trusted, returns null. Callers should
+ * treat null as "unknown IP" and either degrade rate-limiting to an
+ * anonymous bucket OR refuse the request, depending on the route's
+ * threat model.
  */
 export function getClientIp(headers: Headers): string | null {
-  // Check various headers used by proxies/load balancers
-  const forwardedFor = headers.get("x-forwarded-for");
-  if (forwardedFor) {
-    // x-forwarded-for may contain multiple IPs, take the first one
-    return forwardedFor.split(",")[0].trim();
+  // Tier 1: Vercel edge-only header. Cannot be set by the client
+  // because Vercel's edge strips any incoming x-vercel-* headers
+  // before forwarding. If this is present, trust it.
+  const vercelForwarded = headers.get("x-vercel-forwarded-for");
+  if (vercelForwarded) {
+    return vercelForwarded.split(",")[0].trim();
   }
 
+  // Tier 2: standard x-forwarded-for, but only when there is exactly
+  // one IP. Multiple IPs means the chain has been tampered with by
+  // the client and we cannot identify the trusted hop without
+  // hard-coded knowledge of the proxy chain length.
+  const forwardedFor = headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    const ips = forwardedFor.split(",").map(s => s.trim()).filter(Boolean);
+    if (ips.length === 1) {
+      return ips[0];
+    }
+    // Tampered chain — refuse to guess
+    return null;
+  }
+
+  // Tier 3: x-real-ip from non-Vercel proxies. Only relevant in
+  // local dev or self-hosted deployments behind nginx/etc.
   const realIp = headers.get("x-real-ip");
   if (realIp) {
     return realIp;
   }
 
-  // Fallback (may not be available in all environments)
-  return headers.get("x-client-ip");
+  return null;
 }

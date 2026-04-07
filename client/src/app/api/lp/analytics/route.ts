@@ -68,8 +68,17 @@ export async function POST(request: Request) {
       select: { id: true, status: true, content: true },
     });
 
-    if (!page || page.status === 'ARCHIVED') {
-      // Silently accept — don't reveal page state to the public
+    // Only LIVE pages accept analytics events. DRAFT pages are
+    // visible inside the founder's preview iframe in
+    // /discovery/validation/[pageId], and the previous version of
+    // this route accepted events from that iframe — which meant the
+    // founder's own preview clicks polluted the eventual report.
+    // ARCHIVED pages are silently accepted (the page might be
+    // archived between the visitor's last scroll and their next
+    // beacon — refusing the event would surface page state to the
+    // public). DRAFT pages are also silently accepted to avoid
+    // leaking state, but their events are dropped — see below.
+    if (!page || page.status !== 'LIVE') {
       return NextResponse.json({ ok: true });
     }
 
