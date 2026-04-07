@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, SendHorizontal } from 'lucide-react';
+import TextareaAutosize from 'react-textarea-autosize';
 
 // Match the JSON shape persisted in Recommendation.pushbackHistory
 interface PushbackTurnUser {
@@ -247,14 +248,15 @@ export function PushbackChat({
       {/* Input */}
       {!capReached && (
         <div className="flex gap-2 items-end rounded-lg border border-border bg-background px-3 py-2">
-          <textarea
+          <TextareaAutosize
             ref={textareaRef}
             value={input}
             onChange={e => setInput(e.target.value)}
-            placeholder="Share your concern…"
+            placeholder="Share your concern… (Shift+Enter for a new line)"
             disabled={pending}
-            rows={2}
-            className="flex-1 resize-none bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none"
+            minRows={3}
+            maxRows={10}
+            className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none py-1 leading-relaxed"
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();

@@ -6,11 +6,13 @@ import prisma, { toJsonValue }           from '@/lib/prisma';
 import { logger }       from '@/lib/logger';
 import { inngest }      from '@/inngest/client';
 
-// Vercel: allow up to 60 seconds for the Opus call. Pro plan supports
-// up to 300s; 60 is the comfortable margin for the structured output
-// call (typically 8-25s) without leaving the founder waiting forever
-// on a stuck request.
-export const maxDuration = 60;
+// Vercel function timeout. Pro plan caps at 300s. Pushback calls
+// Opus with extended thinking on a structured output, which can run
+// 30-90 seconds in the worst case (long context, deep reasoning,
+// patch generation). Production hit a 60s timeout on the very first
+// pushback turn, so we lift the cap to 180 to give Opus enough
+// headroom without leaving the founder waiting indefinitely.
+export const maxDuration = 180;
 import {
   HttpError,
   httpErrorToResponse,
