@@ -22,11 +22,17 @@ neuralaunch/
 ```
 
 **Active branch strategy:**
-- `main` — production-ready, protected. No direct commits.
-- `dev` — integration branch. All features merge here first via PR.
-- `feature/phase-N-*` — one branch per product phase. Branched from `dev`.
+- `main` — production. Vercel auto-deploys.
+- `dev` — integration. Vercel auto-deploys to a preview URL.
+- `feature/...` or `chore/...` — one branch per piece of work. Branched
+  from `dev`. Merged into `dev` first, then `dev` is fast-forwarded
+  into `main` once the change is verified.
 
-**Current phase:** `feature/phase-1-discovery-engine`
+**Current state:** Phases 1, 2, and 3 are shipped to production. The
+codebase is in the cleanup → bulletproofing sequence on
+`chore/codebase-cleanup-and-bulletproofing`. Stage 5 (documentation)
+introduced `ARCHITECTURE.md` and `RUNBOOK.md` at the repository root —
+read them when you need to understand the system or fix production.
 
 ---
 
