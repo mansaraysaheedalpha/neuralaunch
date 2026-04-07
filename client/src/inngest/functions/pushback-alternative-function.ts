@@ -12,7 +12,7 @@ import {
   runFinalSynthesis,
 } from '@/lib/discovery';
 import { renderUserContent } from '@/lib/validation/server-helpers';
-import type { DiscoveryContext } from '@/lib/discovery/context-schema';
+import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import type { AudienceType }     from '@/lib/discovery/constants';
 import { safeParsePushbackHistory, type PushbackTurn } from '@/lib/discovery/pushback-engine';
 
@@ -92,7 +92,7 @@ export const pushbackAlternativeFunction = inngest.createFunction(
 
     if (!loaded) return { skipped: true };
 
-    const context      = loaded.session!.beliefState as unknown as DiscoveryContext;
+    const context      = safeParseDiscoveryContext(loaded.session!.beliefState);
     const audienceType = (loaded.session!.audienceType ?? null) as AudienceType | null;
     const history      = safeParsePushbackHistory(loaded.pushbackHistory);
     const sessionId    = loaded.session!.id;

@@ -23,7 +23,7 @@ import {
   type StoredRoadmapPhase,
 } from '@/lib/roadmap/checkin-types';
 import { runCheckIn } from '@/lib/roadmap/checkin-agent';
-import type { DiscoveryContext } from '@/lib/discovery/context-schema';
+import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 
 // Pro plan: 60s is comfortable for the Sonnet check-in call.
 export const maxDuration = 60;
@@ -106,7 +106,7 @@ export async function POST(
     }
 
     const phaseRow = phases[found.phaseIndex];
-    const context  = roadmap.recommendation.session.beliefState as unknown as DiscoveryContext;
+    const context  = safeParseDiscoveryContext(roadmap.recommendation.session.beliefState);
 
     const response = await runCheckIn({
       recommendation: {

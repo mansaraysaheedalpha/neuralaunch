@@ -71,6 +71,23 @@ const emptyBelief = <T extends z.ZodTypeAny>(_schema: T) => ({
   extractedAt: null,
 });
 
+/**
+ * Safely parse a beliefState JSONB column into a DiscoveryContext.
+ *
+ * Mirrors the safeParsePushbackHistory pattern in pushback-engine.ts —
+ * use this everywhere a Recommendation or DiscoverySession row's
+ * beliefState is read. Never cast the JSONB column directly.
+ *
+ * On parse failure (corrupt row, schema drift, null) returns an empty
+ * context so the caller can proceed without a runtime crash. Callers
+ * that need the failure to be visible should call DiscoveryContextSchema
+ * .safeParse directly.
+ */
+export function safeParseDiscoveryContext(value: unknown): DiscoveryContext {
+  const parsed = DiscoveryContextSchema.safeParse(value ?? createEmptyContext());
+  return parsed.success ? parsed.data : createEmptyContext();
+}
+
 export function createEmptyContext(): DiscoveryContext {
   return {
     situation:            emptyBelief(z.string()),

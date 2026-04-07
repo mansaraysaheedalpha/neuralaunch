@@ -32,7 +32,7 @@ import {
   type PushbackTurnUser,
   type PushbackTurnAgent,
 } from '@/lib/discovery/pushback-engine';
-import type { DiscoveryContext } from '@/lib/discovery/context-schema';
+import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import { RecommendationSchema, type Recommendation } from '@/lib/discovery/recommendation-schema';
 
 const BodySchema = z.object({
@@ -204,7 +204,7 @@ export async function POST(
     // -----------------------------------------------------------------
     // Normal turn — call Opus, persist, optionally merge a patch
     // -----------------------------------------------------------------
-    const context = rec.session.beliefState as unknown as DiscoveryContext;
+    const context = safeParseDiscoveryContext(rec.session.beliefState);
     const currentRec: Recommendation = RecommendationSchema.parse({
       recommendationType:     rec.recommendationType ?? 'other',
       summary:                rec.summary,

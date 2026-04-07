@@ -3,7 +3,7 @@
 // Nothing outside this directory should import from internal files directly.
 
 export type { DiscoveryContext, DiscoveryContextField } from './context-schema';
-export { DiscoveryContextSchema, createEmptyContext } from './context-schema';
+export { DiscoveryContextSchema, createEmptyContext, safeParseDiscoveryContext } from './context-schema';
 
 export type { Recommendation } from './recommendation-schema';
 export { RecommendationSchema } from './recommendation-schema';

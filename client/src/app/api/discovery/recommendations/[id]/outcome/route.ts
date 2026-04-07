@@ -14,7 +14,7 @@ import {
 import { OutcomeSubmissionSchema, OUTCOME_COPY } from '@/lib/outcome/outcome-types';
 import type { OutcomeType } from '@/lib/outcome/outcome-types';
 import { buildAnonymisedOutcomeRecord } from '@/lib/outcome/anonymise';
-import type { DiscoveryContext } from '@/lib/discovery/context-schema';
+import { safeParseDiscoveryContext } from '@/lib/discovery';
 
 export const maxDuration = 30;
 
@@ -116,7 +116,7 @@ export async function POST(
     // anonymisedRecord on this row.
     let anonymisedRecord: Prisma.InputJsonValue | typeof Prisma.JsonNull;
     if (consented) {
-      const beliefState = (recommendation.session?.beliefState ?? {}) as unknown as DiscoveryContext;
+      const beliefState = safeParseDiscoveryContext(recommendation.session?.beliefState);
       anonymisedRecord = buildAnonymisedOutcomeRecord({
         beliefState,
         recommendation: {
