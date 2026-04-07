@@ -315,6 +315,22 @@ export const validationReportingFunction = inngest.createFunction(
       // Recommendation. Mirrors the signalStrength enum exactly.
       // Today no downstream behaviour reads this; it is the storage
       // substrate the future cross-phase coordination layer will read.
+      //
+      // DEFERRED: Cross-Phase Orchestration Layer
+      // validationOutcome written here is the trigger signal for the
+      // future orchestration layer that automatically resolves
+      // contradictions between Phase 3 build briefs and Phase 2
+      // roadmaps. The trigger to build it: 20+ completed validation
+      // reports across real founder sessions. At that point, query
+      // ValidationReport rows joined to their parent Recommendation
+      // and Roadmap, look at the contradiction rate (Phase 3 says
+      // "build X first" while Phase 2's roadmap had "build Y first"),
+      // and decide priority. If contradictions appear in 30%+ of
+      // cases the orchestration layer is high-priority. If rare, the
+      // current manual path (founder reads the build brief and
+      // chooses to push back on the recommendation) is sufficient.
+      // Both phaseContext columns and validationOutcome are the data
+      // foundation the orchestration layer reads when built.
       await prisma.recommendation.update({
         where: { id: page.recommendation!.id },
         data:  { validationOutcome: report.signalStrength },

@@ -127,6 +127,19 @@ export async function POST(
     });
 
     // Append the new entry. Future agent turns read this history.
+    //
+    // DEFERRED: Roadmap Adjustment Layer
+    // proposedChanges is currently surfaced as readable text only —
+    // the founder reads the suggestion in the task transcript and
+    // applies it manually by editing the relevant tasks. The
+    // accept/reject mechanism (where a click on "accept" mutates
+    // the roadmap JSON automatically) is intentionally not built
+    // yet. The trigger to build it: 15+ adjusted_next_step entries
+    // logged in production. At that point, query CheckInEntry rows
+    // where agentAction='adjusted_next_step', review the actual
+    // proposedChanges payloads, and determine the structure (likely
+    // resequence / rewrite / remove) the accept UI needs to handle.
+    // Building the editor against assumptions risks the wrong shape.
     const newEntry: CheckInEntry = {
       id:            `ci_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       timestamp:     new Date().toISOString(),
