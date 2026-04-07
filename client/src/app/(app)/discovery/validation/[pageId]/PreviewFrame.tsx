@@ -43,7 +43,11 @@ export function PreviewFrame({ slug, children }: PreviewFrameProps) {
 
   return (
     <PreviewFrameContext.Provider value={{ reload }}>
-      <div className="flex flex-1 overflow-hidden">
+      {/* Fixed-height preview row: iframe + slim sidebar with the
+          publish/status controls. Anything that needs room to breathe
+          (distribution brief, build brief panel, report) lives BELOW
+          this row in the natural document flow — see page.tsx. */}
+      <div className="flex h-[600px] shrink-0 overflow-hidden border-b border-border">
         <div className="flex-1 overflow-hidden border-r border-border">
           <iframe
             key={reloadKey}

@@ -80,7 +80,7 @@ export default async function ValidationPreviewPage({ params }: ValidationPrevie
   const pivotOptions = pivotParsed.success ? pivotParsed.data : [];
 
   return (
-    <div className="flex h-full flex-col gap-0">
+    <div className="flex h-full flex-col gap-0 overflow-y-auto">
       <div className="flex items-center justify-between border-b border-border px-6 py-3 shrink-0">
         <Link
           href={`/discovery/recommendations/${page.recommendationId}`}
@@ -91,6 +91,11 @@ export default async function ValidationPreviewPage({ params }: ValidationPrevie
         <span className="text-xs text-muted-foreground">Validation Page Preview</span>
       </div>
 
+      {/* Top section: fixed-height preview iframe + slim sidebar with
+          the status / URL / publish controls. The distribution brief
+          and the build brief panel deliberately do NOT live here —
+          they need full width to be readable, and on mobile the
+          288px sidebar collapses everything to unreadable noodles. */}
       <PreviewFrame slug={page.slug}>
         <div>
           <h2 className="text-sm font-semibold text-foreground mb-1">Your validation page</h2>
@@ -106,56 +111,65 @@ export default async function ValidationPreviewPage({ params }: ValidationPrevie
           status={page.status as 'DRAFT' | 'LIVE' | 'ARCHIVED'}
           pageUrl={pageUrl}
         />
+      </PreviewFrame>
 
-        {page.status === 'LIVE' && brief && brief.length > 0 && (
-          <div className="pt-6 border-t border-border">
+      {/* Below-the-preview content sections. Each section is full-width
+          (constrained to a readable max width) and stacks naturally on
+          mobile. Distribution brief is the most actionable post-publish
+          content the founder needs to engage with — give it room. */}
+      {page.status === 'LIVE' && brief && brief.length > 0 && (
+        <section className="border-b border-border px-6 py-8">
+          <div className="max-w-3xl mx-auto">
             <DistributionTracker
               pageId={page.id}
               brief={brief}
               channelsCompleted={page.channelsCompleted}
             />
           </div>
-        )}
+        </section>
+      )}
 
-        {/* Fallback when the page is LIVE but the distribution brief
-            either failed to generate, returned empty, or failed
-            safeParse on read. Without this the founder sees no
-            distribution affordance at all and has no way to know
-            anything went wrong — same silent-hide failure class that
-            bit us with the route-level error logging earlier today. */}
-        {page.status === 'LIVE' && (!brief || brief.length === 0) && (
-          <div className="pt-6 border-t border-border">
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
-              <p className="text-[10px] uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-2">
-                Distribution brief unavailable
-              </p>
-              <p className="text-xs text-foreground/80 leading-relaxed mb-1">
-                The personalised distribution brief is missing for this page.
-                The page itself is live and accepting visitors — you can
-                still share the URL above directly. We are working on a
-                regenerate-brief action; for now, archive and republish
-                if you need the brief regenerated.
-              </p>
-            </div>
+      {/* Fallback when the page is LIVE but the distribution brief
+          either failed to generate, returned empty, or failed
+          safeParse on read. Without this the founder sees no
+          distribution affordance at all and has no way to know
+          anything went wrong. */}
+      {page.status === 'LIVE' && (!brief || brief.length === 0) && (
+        <section className="border-b border-border px-6 py-8">
+          <div className="max-w-3xl mx-auto rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+            <p className="text-[10px] uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-2">
+              Distribution brief unavailable
+            </p>
+            <p className="text-xs text-foreground/80 leading-relaxed">
+              The personalised distribution brief is missing for this page.
+              The page itself is live and accepting visitors — you can
+              still share the URL above directly. We are working on a
+              regenerate-brief action; for now, archive and republish
+              if you need the brief regenerated.
+            </p>
           </div>
-        )}
+        </section>
+      )}
 
-        {page.report && (
-          <BuildBriefPanel
-            pageId={page.id}
-            signalStrength={page.report.signalStrength}
-            confirmedFeatures={confirmedFeatures}
-            rejectedFeatures={rejectedFeatures}
-            surveyInsights={page.report.surveyInsights}
-            buildBrief={page.report.buildBrief}
-            nextAction={page.report.nextAction}
-            usedForMvp={page.report.usedForMvp}
-            generatedAt={page.report.generatedAt.toISOString()}
-            disconfirmedAssumptions={disconfirmedAssumptions}
-            pivotOptions={pivotOptions}
-          />
-        )}
-      </PreviewFrame>
+      {page.report && (
+        <section className="px-6 py-8">
+          <div className="max-w-3xl mx-auto">
+            <BuildBriefPanel
+              pageId={page.id}
+              signalStrength={page.report.signalStrength}
+              confirmedFeatures={confirmedFeatures}
+              rejectedFeatures={rejectedFeatures}
+              surveyInsights={page.report.surveyInsights}
+              buildBrief={page.report.buildBrief}
+              nextAction={page.report.nextAction}
+              usedForMvp={page.report.usedForMvp}
+              generatedAt={page.report.generatedAt.toISOString()}
+              disconfirmedAssumptions={disconfirmedAssumptions}
+              pivotOptions={pivotOptions}
+            />
+          </div>
+        </section>
+      )}
     </div>
   );
 }
