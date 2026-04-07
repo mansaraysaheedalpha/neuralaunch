@@ -109,12 +109,21 @@ export const PushbackResponseSchema = z.object({
     'are appearing without earlier ones being settled. The server uses this to decide ' +
     'whether to inject a soft re-frame on round 4.'
   ),
-  message: z.string().max(2000).describe(
+  message: z.string().describe(
     'The text the founder will read. This is the agent\'s response — written in the ' +
     'founder\'s register, grounded in their belief state. Never generic encouragement. ' +
-    'Hard cap of 2000 characters to keep the chat readable and bound JSONB storage.'
+    'Aim for 600-1500 characters to keep the chat readable. The server hard-truncates ' +
+    'at 6000 characters before persisting; do not rely on that as a budget.'
   ),
 });
+
+// Server-side hard cap on the persisted pushback agent message. The
+// schema dropped its z.max(2000) constraint because Anthropic does
+// not always enforce string-length constraints during structured
+// output generation, which caused first-call schema validation to
+// fail when Opus produced a longer rebuttal. We still need a finite
+// upper bound on the JSONB column, so we truncate post-validation.
+const MAX_AGENT_MESSAGE_CHARS = 6000;
 
 export type PushbackResponse = z.infer<typeof PushbackResponseSchema>;
 
@@ -271,17 +280,39 @@ Produce your structured response now.`,
   // is now flat — every field required, no nested optional patch — so
   // Opus's grammar compiler builds a single linear path with no
   // branching. This eliminates the "Grammar compilation timed out"
-  // failure mode that the earlier all-in-one schema kept hitting:
-  // RecommendationPatchSchema had 9 optional fields (2 of them arrays
-  // of nested objects), and the optional × nested combination blew
-  // Opus's grammar budget under load. The synthesis engine never had
-  // this problem because RecommendationSchema is fully required — we
-  // now mirror that property.
-  const { object: decision } = await generateObject({
-    model:    aiSdkAnthropic(MODELS.SYNTHESIS), // Opus
-    schema:   PushbackResponseSchema,
-    messages: promptMessages,
-  });
+  // failure mode that the earlier all-in-one schema kept hitting.
+  let decision: PushbackResponse;
+  try {
+    const result = await generateObject({
+      model:    aiSdkAnthropic(MODELS.SYNTHESIS), // Opus
+      schema:   PushbackResponseSchema,
+      messages: promptMessages,
+    });
+    decision = result.object;
+  } catch (err) {
+    // Same cause-extraction shape as the second call. AI SDK wraps the
+    // underlying Zod failure on err.cause; logging it lets us see
+    // exactly which field validation failed instead of guessing.
+    const cause = err instanceof Error && 'cause' in err ? err.cause : undefined;
+    const causeMessage = cause instanceof Error ? cause.message : String(cause ?? '');
+    log.error(
+      '[Pushback] First call (PushbackResponseSchema) failed',
+      err instanceof Error ? err : new Error(String(err)),
+      { cause: causeMessage, currentRound },
+    );
+    throw err;
+  }
+
+  // Belt-and-braces: enforce the agent-message length cap server-side
+  // since the schema no longer carries z.max(). Truncate cleanly at a
+  // word boundary so the persisted message reads naturally.
+  if (decision.message.length > MAX_AGENT_MESSAGE_CHARS) {
+    const cut = decision.message.lastIndexOf(' ', MAX_AGENT_MESSAGE_CHARS - 1);
+    decision.message = decision.message.slice(0, cut > 0 ? cut : MAX_AGENT_MESSAGE_CHARS) + '…';
+    log.warn('[Pushback] Agent message truncated to MAX_AGENT_MESSAGE_CHARS', {
+      originalLength: decision.message.length,
+    });
+  }
 
   // Second call: only when the model committed to refine or replace.
   // We ask Opus for a FULL Recommendation using the SAME schema and
