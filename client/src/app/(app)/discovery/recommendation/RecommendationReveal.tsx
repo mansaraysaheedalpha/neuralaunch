@@ -135,11 +135,7 @@ export function RecommendationReveal({
         return;
       }
 
-      // Step 2 — fire roadmap generation. We navigate to the roadmap
-      // viewer immediately on the POST returning OK; the viewer
-      // already polls GENERATING → READY so the founder lands on the
-      // right page even if Inngest is slow. If the POST fails, the
-      // accept already succeeded — they can retry from the same button.
+      // Step 2 — fire roadmap generation.
       setGenerating(true);
       const roadmapRes = await fetch(`/api/discovery/recommendations/${r.id}/roadmap`, {
         method: 'POST',
@@ -149,7 +145,18 @@ export function RecommendationReveal({
         setAcceptError(json.error ?? 'Roadmap generation could not start. Click the button again to retry.');
         return;
       }
-      router.push(`/discovery/roadmap/${r.id}`);
+
+      // Refresh the page in place rather than navigating away. The
+      // recommendation page is the HUB for everything downstream of
+      // acceptance — execution roadmap, validation page (when the
+      // recommendation is build_software), un-accept, etc. A redirect
+      // here would whisk the founder away to the roadmap viewer and
+      // make the validation page CTA undiscoverable. Instead, the
+      // post-accept render shows BOTH "View My Execution Roadmap"
+      // and "Build Validation Page" side-by-side so the founder can
+      // pick which downstream action to take next — or do both, in
+      // either order.
+      router.refresh();
     } catch {
       setAcceptError('Network error. Please check your connection and try again.');
     } finally {
@@ -180,8 +187,13 @@ export function RecommendationReveal({
     try {
       const res = await fetch(`/api/discovery/recommendations/${r.id}/validation-page`, { method: 'POST' });
       if (res.ok) {
-        const json = await res.json() as { pageId: string };
-        router.push(`/discovery/validation/${json.pageId}`);
+        // Same hub principle as handleAcceptAndGenerateRoadmap — do
+        // not redirect, refresh in place. After this call succeeds
+        // the page rerenders with a "View Validation Page" link
+        // alongside "View My Execution Roadmap", so the founder can
+        // navigate to either downstream destination from the same
+        // recommendation hub.
+        router.refresh();
       }
     } finally {
       setCreatingValidation(false);
@@ -316,20 +328,59 @@ export function RecommendationReveal({
             ) : roadmapReady ? (
               <>
                 <p className="text-xs text-muted-foreground mb-3">
-                  Your execution roadmap is ready.
+                  You committed to this path. Your downstream tools are ready below.
                 </p>
-                <Link
-                  href={`/discovery/roadmap/${r.id}`}
-                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-                >
-                  <ArrowRight className="size-4" />
-                  View My Execution Roadmap
-                </Link>
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground/70 mb-1.5">
+                      Execution
+                    </p>
+                    <Link
+                      href={`/discovery/roadmap/${r.id}`}
+                      className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                    >
+                      <ArrowRight className="size-4" />
+                      View My Execution Roadmap
+                    </Link>
+                  </div>
+                  {validationPageApplicable && (
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-muted-foreground/70 mb-1.5">
+                        Validation
+                      </p>
+                      {validationPageId ? (
+                        <Link
+                          href={`/discovery/validation/${validationPageId}`}
+                          className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm font-medium text-primary transition-opacity hover:opacity-80"
+                        >
+                          <ArrowRight className="size-4" />
+                          View Validation Page
+                        </Link>
+                      ) : (
+                        <button
+                          onClick={() => { void handleCreateValidationPage(); }}
+                          disabled={creatingValidation}
+                          className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm font-medium text-primary transition-opacity hover:opacity-80 disabled:opacity-50"
+                        >
+                          {creatingValidation ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : (
+                            <ArrowRight className="size-4" />
+                          )}
+                          {creatingValidation ? 'Building…' : 'Build Validation Page to test demand'}
+                        </button>
+                      )}
+                      <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
+                        Test if real users want this before you spend on the build.
+                      </p>
+                    </div>
+                  )}
+                </div>
                 <button
                   type="button"
                   onClick={() => { void handleUnaccept(); }}
                   disabled={unaccepting}
-                  className="mt-3 block text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 disabled:opacity-50"
+                  className="mt-4 block text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 disabled:opacity-50"
                 >
                   {unaccepting ? 'Reopening…' : 'Reopen the discussion (un-accept)'}
                 </button>
@@ -395,55 +446,6 @@ export function RecommendationReveal({
             </div>
           )}
 
-          {/* Validation page CTA — only shown when:
-              - the recommendation is a build_software type (gated by recommendationType)
-              - the founder has explicitly accepted the recommendation
-                (NOT just roadmapReady — see the same lesson the pushback
-                widget gate teaches in this file. The roadmap warm-up
-                fires speculatively and the post-pushback STALE state
-                also flows through roadmapReady, so a roadmapReady-only
-                gate would surface the CTA before the founder has
-                committed to the new recommendation, leading to a 409
-                from the validation-page route when the roadmap is STALE.)
-              - no prior validation report has come back negative
-              For non-software recommendations the founder simply does not
-              see this section — the validation page mechanic does not apply. */}
-          {isAccepted && roadmapReady && validationPageApplicable && (
-            <div className="pt-4 border-t border-border">
-              {validationPageId ? (
-                <>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Your validation landing page is ready to preview.
-                  </p>
-                  <Link
-                    href={`/discovery/validation/${validationPageId}`}
-                    className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm font-medium text-primary transition-opacity hover:opacity-80"
-                  >
-                    <ArrowRight className="size-4" />
-                    View Validation Page
-                  </Link>
-                </>
-              ) : (
-                <>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Build a landing page to test your idea with real users and collect interest signals.
-                  </p>
-                  <button
-                    onClick={() => { void handleCreateValidationPage(); }}
-                    disabled={creatingValidation}
-                    className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm font-medium text-primary transition-opacity hover:opacity-80 disabled:opacity-50"
-                  >
-                    {creatingValidation ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <ArrowRight className="size-4" />
-                    )}
-                    {creatingValidation ? 'Building…' : 'Build Validation Page'}
-                  </button>
-                </>
-              )}
-            </div>
-          )}
         </motion.div>
 
       </div>
