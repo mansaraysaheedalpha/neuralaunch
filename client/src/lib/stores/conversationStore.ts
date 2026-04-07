@@ -7,6 +7,13 @@ export type Conversation = {
   title: string;
   createdAt?: string;
   updatedAt?: string;
+  /**
+   * Status of the linked DiscoverySession when this conversation
+   * belongs to one. Used by the sidebar to route in-progress
+   * sessions to the live interview surface rather than the
+   * read-only transcript.
+   */
+  discoveryStatus?: 'ACTIVE' | 'COMPLETE' | 'EXPIRED' | null;
 };
 
 interface ConversationState {

@@ -20,10 +20,28 @@ export async function GET() {
         title: true,
         createdAt: true,
         updatedAt: true,
+        // Surface the linked discovery session status so the sidebar
+        // can route in-progress sessions to /discovery (live interview)
+        // instead of /chat/[id] (read-only transcript). Without this
+        // the sidebar dropped founders into a transcript with no
+        // input box and no way to continue.
+        discoverySession: {
+          select: { status: true },
+        },
       },
     });
 
-    return successResponse(conversations);
+    // Flatten the relation for the client — the sidebar component
+    // does not need a nested object.
+    const shaped = conversations.map(c => ({
+      id:                c.id,
+      title:             c.title,
+      createdAt:         c.createdAt,
+      updatedAt:         c.updatedAt,
+      discoveryStatus:   c.discoverySession?.status ?? null,
+    }));
+
+    return successResponse(shaped);
   } catch (error) {
     return handleApiError(error, "GET /api/conversations");
   }

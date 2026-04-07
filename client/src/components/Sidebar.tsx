@@ -14,7 +14,13 @@ interface Conversation {
   id: string;
   title: string;
   updatedAt: string;
-  // Add other fields if needed
+  /**
+   * Status of the linked DiscoverySession, when present. Drives the
+   * sidebar route: ACTIVE sessions go to /discovery so the founder
+   * lands inside the live interview with the resume hand-off, not
+   * the read-only transcript at /chat/[id].
+   */
+  discoveryStatus?: 'ACTIVE' | 'COMPLETE' | 'EXPIRED' | null;
 }
 
 interface SidebarProps {
@@ -368,11 +374,22 @@ export default function Sidebar({
         ) : (
           <div className="space-y-1">
             {conversations.map((conversation) => {
-              const isActive = pathname === `/chat/${conversation.id}`;
+              // In-progress sessions route to the live interview at
+              // /discovery so the founder lands inside DiscoveryChat
+              // (with sidebar + input box) rather than the read-only
+              // transcript at /chat/[id]. The discovery page's server
+              // component picks up the incomplete session and renders
+              // SessionResumption automatically.
+              const isInProgress = conversation.discoveryStatus === 'ACTIVE';
+              const href = isInProgress
+                ? '/discovery'
+                : `/chat/${conversation.id}`;
+              const isActive = pathname === href
+                || pathname === `/chat/${conversation.id}`;
               return (
                 <Link
                   key={conversation.id}
-                  href={`/chat/${conversation.id}`}
+                  href={href}
                   onClick={() => setMobileMenuOpen(false)}
                   className={`group relative flex items-center px-3 py-2.5 rounded-xl transition-all duration-200 ${
                     isActive ? "bg-primary/10" : "hover:bg-muted"
@@ -392,10 +409,17 @@ export default function Sidebar({
                     >
                       {conversation.title}
                     </p>
-                    {/* ========================================= */}
-                    <p className="text-xs text-muted-foreground">
-                      {formatDate(conversation.updatedAt)}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(conversation.updatedAt)}
+                      </p>
+                      {isInProgress && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                          <span className="size-1 rounded-full bg-amber-500 animate-pulse" />
+                          In progress
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <button
                     onClick={(e) => {

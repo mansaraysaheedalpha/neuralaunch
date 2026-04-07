@@ -36,7 +36,10 @@
 |---|---|---|
 | 1.1 | `/discovery` → start a new session as Folake (the canonical Phase 3 trigger persona) | Welcome layer renders with the Discovery guide button visible |
 | 1.2 | Type the opening message and send | Message bubble appears, then the question stepper opens with the first agent question streaming in |
-| 1.3 | Refresh the page mid-typing | Your typed-but-unsent draft is restored from localStorage |
+| 1.3a | **Draft persistence**: type a long opening message into the welcome layer input — but DO NOT click send. Refresh the page. | Your typed-but-unsent draft is restored from localStorage. Cursor is back in the input box. The first stepper question has NOT yet appeared (because nothing was sent). |
+| 1.3b | **Session resumption**: send the first message, let the question stepper render the agent's first question, then refresh the page. | The discovery page detects the in-progress session and renders the resumption prompt: "Your session was paused" with two buttons. |
+| 1.3c | Click "Continue where you left off". | DiscoveryChat re-mounts inline (no navigation, no transcript view). The sidebar stays. The bottom input box stays. Your prior messages are visible above and you can keep typing answers. |
+| 1.3d | Open the sidebar while an in-progress session exists. | The conversation entry shows an amber "In progress" pulse badge next to its timestamp. Clicking it lands on `/discovery` (live interview), NOT on `/chat/[id]` (read-only transcript). |
 | 1.4 | Answer the first question and continue through ~6-8 turns | Each turn streams in, the question counter advances, no blank screens |
 | 1.5 | Force a fallback test (optional, only if you want to verify resilience): temporarily set `ANTHROPIC_API_KEY` to an invalid value in Vercel → trigger one turn → restore | The turn still completes via Haiku or Gemini Flash. Logs show `[Fallback] First chunk received — committed to provider` with `google-gemini-flash` |
 | 1.6 | Continue the interview to natural completion | Reflection streams in, then "synthesizing" state appears, then the recommendation page opens |
