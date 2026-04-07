@@ -28,10 +28,9 @@ export async function GET(
   const log = logger.child({ route: 'GET /api/discovery/sessions/[id]/resume', userId, sessionId });
 
   try {
-    const record = await prisma.discoverySession.findUnique({
-      where:  { id: sessionId },
+    const record = await prisma.discoverySession.findFirst({
+      where:  { id: sessionId, userId },
       select: {
-        userId:        true,
         status:        true,
         questionCount: true,
         activeField:   true,
@@ -48,7 +47,6 @@ export async function GET(
     });
 
     if (!record) return NextResponse.json({ error: 'Session not found' }, { status: 404 });
-    if (record.userId !== userId) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
     if (record.status !== 'ACTIVE') return NextResponse.json({ error: 'Session not resumable' }, { status: 409 });
 
     // Ensure InterviewState is warm in Redis so the next turn is fast

@@ -90,9 +90,11 @@ export async function POST(
     return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
   }
 
-  // Fetch conversationId for message persistence (best-effort — non-blocking)
-  const dbSession = await prisma.discoverySession.findUnique({
-    where: { id: sessionId },
+  // Fetch conversationId for message persistence (best-effort — non-blocking).
+  // Redis state already verified userId above; the userId in the where clause
+  // is defence-in-depth in case the Redis check is ever loosened.
+  const dbSession = await prisma.discoverySession.findFirst({
+    where:  { id: sessionId, userId },
     select: { conversationId: true },
   });
   const conversationId: string | null = dbSession?.conversationId ?? null;

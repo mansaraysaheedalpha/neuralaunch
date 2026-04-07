@@ -32,17 +32,14 @@ export async function POST(
   const { id: recommendationId } = parsed.data;
   const userId = session.user.id;
 
-  // Verify ownership
-  const recommendation = await prisma.recommendation.findUnique({
-    where:  { id: recommendationId },
-    select: { userId: true, roadmap: { select: { status: true } } },
+  // Single query for ownership + roadmap status — no existence-leak.
+  const recommendation = await prisma.recommendation.findFirst({
+    where:  { id: recommendationId, userId },
+    select: { roadmap: { select: { status: true } } },
   });
 
   if (!recommendation) {
     return NextResponse.json({ error: 'Recommendation not found' }, { status: 404 });
-  }
-  if (recommendation.userId !== userId) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   if (recommendation.roadmap?.status === 'READY') {
     return NextResponse.json({ status: 'ready' }, { status: 200 });
@@ -83,8 +80,11 @@ export async function GET(
     return NextResponse.json({ error: 'Invalid recommendation ID' }, { status: 400 });
   }
 
-  const roadmap = await prisma.roadmap.findUnique({
-    where:  { recommendationId: parsed.data.id },
+  // Scope by userId so a leaked recommendation cuid cannot be used to
+  // read another user's roadmap. findFirst because (recommendationId, userId)
+  // is not a Prisma unique key.
+  const roadmap = await prisma.roadmap.findFirst({
+    where:  { recommendationId: parsed.data.id, userId: session.user.id },
     select: {
       id:             true,
       status:         true,

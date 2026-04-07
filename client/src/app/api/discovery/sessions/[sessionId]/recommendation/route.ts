@@ -25,17 +25,15 @@ export async function GET(
   const log = logger.child({ route: 'GET /api/discovery/sessions/[id]/recommendation', userId, sessionId });
 
   try {
-    // Verify the session belongs to this user
-    const session = await prisma.discoverySession.findUnique({
-      where:  { id: sessionId },
-      select: { userId: true, status: true, synthesisStep: true },
+    // Verify the session belongs to this user (single query, no
+    // existence-leak via separate 404 vs 401 responses).
+    const session = await prisma.discoverySession.findFirst({
+      where:  { id: sessionId, userId },
+      select: { status: true, synthesisStep: true },
     });
 
     if (!session) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
-    }
-    if (session.userId !== userId) {
-      return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
     }
 
     const recommendation = await prisma.recommendation.findUnique({

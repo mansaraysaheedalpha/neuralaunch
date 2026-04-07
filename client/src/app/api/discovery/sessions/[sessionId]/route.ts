@@ -26,13 +26,12 @@ export async function DELETE(
   const log = logger.child({ route: 'DELETE /api/discovery/sessions/[id]', userId, sessionId });
 
   try {
-    const record = await prisma.discoverySession.findUnique({
-      where:  { id: sessionId },
-      select: { userId: true, status: true },
+    const record = await prisma.discoverySession.findFirst({
+      where:  { id: sessionId, userId },
+      select: { status: true },
     });
 
     if (!record) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    if (record.userId !== userId) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
     if (record.status !== 'ACTIVE') return NextResponse.json({ ok: true }); // already done
 
     await Promise.all([
