@@ -1,7 +1,7 @@
 // src/inngest/functions/discovery-session-function.ts
 import { Prisma } from '@prisma/client';
 import { inngest } from '../client';
-import prisma from '@/lib/prisma';
+import prisma, { toJsonValue } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { buildPhaseContext, PHASES } from '@/lib/phase-context';
 import {
@@ -111,9 +111,9 @@ export const discoverySessionFunction = inngest.createFunction(
           whatWouldMakeThisWrong: recommendation.whatWouldMakeThisWrong,
           alternativeRejected:    recommendation.alternativeRejected,
           // Concern 3 — preparatory metadata. No behaviour today.
-          phaseContext: buildPhaseContext(PHASES.RECOMMENDATION, {
+          phaseContext: toJsonValue(buildPhaseContext(PHASES.RECOMMENDATION, {
             discoverySessionId: sessionId,
-          }) as unknown as Prisma.InputJsonValue,
+          })),
         },
         select: { id: true },
       });

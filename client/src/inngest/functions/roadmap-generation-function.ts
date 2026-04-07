@@ -1,7 +1,7 @@
 // src/inngest/functions/roadmap-generation-function.ts
 import { Prisma } from '@prisma/client';
 import { inngest } from '../client';
-import prisma from '@/lib/prisma';
+import prisma, { toJsonValue } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { generateRoadmap, ROADMAP_EVENT } from '@/lib/roadmap';
 import { DiscoveryContextSchema, createEmptyContext } from '@/lib/discovery';
@@ -123,10 +123,10 @@ export const roadmapGenerationFunction = inngest.createFunction(
           weeklyHours,
           totalWeeks,
           // Concern 3 — preparatory metadata. No behaviour today.
-          phaseContext: buildPhaseContext(PHASES.ROADMAP, {
+          phaseContext: toJsonValue(buildPhaseContext(PHASES.ROADMAP, {
             recommendationId,
             discoverySessionId: sessionId,
-          }) as unknown as Prisma.InputJsonValue,
+          })),
         },
       });
       log.debug('Roadmap persisted', { recommendationId, totalWeeks });

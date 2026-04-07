@@ -1,7 +1,7 @@
 // src/app/api/discovery/recommendations/[id]/outcome/route.ts
 import { NextResponse } from 'next/server';
 import { Prisma }       from '@prisma/client';
-import prisma           from '@/lib/prisma';
+import prisma, { toJsonValue } from '@/lib/prisma';
 import { logger }       from '@/lib/logger';
 import {
   HttpError,
@@ -117,7 +117,7 @@ export async function POST(
     let anonymisedRecord: Prisma.InputJsonValue | typeof Prisma.JsonNull;
     if (consented) {
       const beliefState = safeParseDiscoveryContext(recommendation.session?.beliefState);
-      anonymisedRecord = buildAnonymisedOutcomeRecord({
+      anonymisedRecord = toJsonValue(buildAnonymisedOutcomeRecord({
         beliefState,
         recommendation: {
           recommendationType: recommendation.recommendationType,
@@ -130,7 +130,7 @@ export async function POST(
           freeText:    submission.freeText ?? null,
           weakPhases:  submission.weakPhases,
         },
-      }) as unknown as Prisma.InputJsonValue;
+      }));
     } else {
       anonymisedRecord = Prisma.JsonNull;
     }

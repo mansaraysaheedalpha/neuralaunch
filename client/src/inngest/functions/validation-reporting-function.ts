@@ -1,7 +1,7 @@
 // src/inngest/functions/validation-reporting-function.ts
 import { Prisma }                     from '@prisma/client';
 import { inngest }                    from '../client';
-import prisma                         from '@/lib/prisma';
+import prisma, { toJsonValue }                         from '@/lib/prisma';
 import { logger }                     from '@/lib/logger';
 import { collectMetricsForPage }      from '@/lib/validation/metrics-collector';
 import { interpretValidationMetrics } from '@/lib/validation/interpreter';
@@ -265,12 +265,12 @@ export const validationReportingFunction = inngest.createFunction(
       });
 
       // Concern 3 — preparatory metadata for the report row
-      const reportPhaseContext = buildPhaseContext(PHASES.VALIDATION, {
+      const reportPhaseContext = toJsonValue(buildPhaseContext(PHASES.VALIDATION, {
         validationPageId:   page.id,
         recommendationId:   page.recommendation!.id,
         roadmapId:          page.recommendation!.roadmap?.id,
         discoverySessionId: page.recommendation!.session?.id,
-      }) as unknown as Prisma.InputJsonValue;
+      }));
 
       if (page.report) {
         await prisma.validationReport.update({
@@ -284,8 +284,8 @@ export const validationReportingFunction = inngest.createFunction(
             surveyInsights:          report.surveyInsights,
             buildBrief:              report.buildBrief,
             nextAction:              report.nextAction,
-            disconfirmedAssumptions: report.disconfirmedAssumptions as unknown as Prisma.InputJsonValue,
-            pivotOptions:            report.pivotOptions as unknown as Prisma.InputJsonValue,
+            disconfirmedAssumptions: toJsonValue(report.disconfirmedAssumptions),
+            pivotOptions:            toJsonValue(report.pivotOptions),
             phaseContext:            reportPhaseContext,
             // A negative report overrides any prior MVP handoff flag — the
             // founder cannot unintentionally carry a discredited brief into
@@ -304,8 +304,8 @@ export const validationReportingFunction = inngest.createFunction(
             surveyInsights:          report.surveyInsights,
             buildBrief:              report.buildBrief,
             nextAction:              report.nextAction,
-            disconfirmedAssumptions: report.disconfirmedAssumptions as unknown as Prisma.InputJsonValue,
-            pivotOptions:            report.pivotOptions as unknown as Prisma.InputJsonValue,
+            disconfirmedAssumptions: toJsonValue(report.disconfirmedAssumptions),
+            pivotOptions:            toJsonValue(report.pivotOptions),
             phaseContext:            reportPhaseContext,
           },
         });

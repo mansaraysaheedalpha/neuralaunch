@@ -1,6 +1,6 @@
 // src/app/api/discovery/recommendations/[id]/validation-page/route.ts
 import { NextResponse } from 'next/server';
-import prisma            from '@/lib/prisma';
+import prisma, { toJsonValue } from '@/lib/prisma';
 import { logger }        from '@/lib/logger';
 import { generateValidationPage } from '@/lib/validation/page-generator';
 import {
@@ -107,11 +107,11 @@ export async function POST(
 
     // Concern 3 — preparatory metadata. Built once and used by both
     // create and update branches so the upstream graph always lands.
-    const phaseContext = buildPhaseContext(PHASES.VALIDATION, {
+    const phaseContext = toJsonValue(buildPhaseContext(PHASES.VALIDATION, {
       recommendationId,
       roadmapId:          recommendation.roadmap?.id,
       discoverySessionId: recommendation.session?.id,
-    }) as unknown as Prisma.InputJsonValue;
+    }));
 
     const page = recommendation.validationPage
       ? await prisma.validationPage.update({

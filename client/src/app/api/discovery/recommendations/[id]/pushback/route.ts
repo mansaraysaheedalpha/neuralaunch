@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { z }            from 'zod';
 import { Prisma }       from '@prisma/client';
-import prisma           from '@/lib/prisma';
+import prisma, { toJsonValue }           from '@/lib/prisma';
 import { logger }       from '@/lib/logger';
 import { inngest }      from '@/inngest/client';
 
@@ -166,7 +166,7 @@ export async function POST(
       const updateResult = await prisma.recommendation.updateMany({
         where: { id: recommendationId, pushbackVersion: prevVersion },
         data:  {
-          pushbackHistory: newHistory as unknown as Prisma.InputJsonValue,
+          pushbackHistory: toJsonValue(newHistory),
           pushbackVersion: { increment: 1 },
           // Pushing back auto-un-accepts
           ...(rec.acceptedAt ? {
@@ -275,20 +275,20 @@ export async function POST(
     const writeResult = await prisma.recommendation.updateMany({
       where: { id: recommendationId, pushbackVersion: prevVersion },
       data:  {
-        pushbackHistory: newHistory as unknown as Prisma.InputJsonValue,
+        pushbackHistory: toJsonValue(newHistory),
         pushbackVersion: { increment: 1 },
         ...(updatedRec ? {
           recommendationType:     updatedRec.recommendationType,
           summary:                updatedRec.summary,
           path:                   updatedRec.path,
           reasoning:              updatedRec.reasoning,
-          firstThreeSteps:        updatedRec.firstThreeSteps as unknown as Prisma.InputJsonValue,
+          firstThreeSteps:        toJsonValue(updatedRec.firstThreeSteps),
           timeToFirstResult:      updatedRec.timeToFirstResult,
-          risks:                  updatedRec.risks                as unknown as Prisma.InputJsonValue,
-          assumptions:            updatedRec.assumptions          as unknown as Prisma.InputJsonValue,
+          risks:                  toJsonValue(updatedRec.risks),
+          assumptions:            toJsonValue(updatedRec.assumptions),
           whatWouldMakeThisWrong: updatedRec.whatWouldMakeThisWrong,
-          alternativeRejected:    updatedRec.alternativeRejected  as unknown as Prisma.InputJsonValue,
-          versions:               newVersions as unknown as Prisma.InputJsonValue,
+          alternativeRejected:    toJsonValue(updatedRec.alternativeRejected),
+          versions:               toJsonValue(newVersions),
         } : {}),
         // Pushing back auto-un-accepts
         ...(rec.acceptedAt ? {

@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import { z }            from 'zod';
 import { Prisma }       from '@prisma/client';
-import prisma           from '@/lib/prisma';
+import prisma, { toJsonValue }           from '@/lib/prisma';
 import { logger }       from '@/lib/logger';
 import {
   HttpError,
@@ -105,7 +105,7 @@ export async function PATCH(
     await prisma.$transaction(async (tx) => {
       await tx.roadmap.update({
         where: { id: roadmapId },
-        data:  { phases: next as unknown as Prisma.InputJsonValue },
+        data:  { phases: toJsonValue(next) },
       });
       await tx.roadmapProgress.upsert({
         where:  { roadmapId },
