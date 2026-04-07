@@ -27,19 +27,7 @@
  * higher = fewer unnecessary DB reads.
  */
 export const VALIDATION_SYNTHESIS_THRESHOLDS = {
-  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  // !!  TEMPORARY — REVERT TO 50 BEFORE REAL TRAFFIC HITS THE   !!
-  // !!  PRODUCT. Currently lowered to 5 ONLY to verify the      !!
-  // !!  validation reporting Inngest function + BuildBriefPanel !!
-  // !!  render path against the test data captured during the   !!
-  // !!  first end-to-end Phase 3 production test on 2026-04-07. !!
-  // !!                                                          !!
-  // !!  Production value MUST be 50 — below that, the build     !!
-  // !!  brief is statistical malpractice and would feed founders !!
-  // !!  high-confidence recommendations off ~10 visitors.       !!
-  // !!  See follow-up commit for the revert.                    !!
-  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  MIN_VISITORS_FOR_BRIEF:             5,
+  MIN_VISITORS_FOR_BRIEF:             50,
   MIN_FEATURE_CLICKS_FOR_BRIEF:        5,
   MIN_SURVEY_RESPONSES_FOR_SYNTHESIS:  3,
   DAYS_BEFORE_LOW_TRAFFIC_WARNING:     4,
