@@ -76,6 +76,15 @@ export function PageViewTracker({ pageSlug, onExitIntent }: PageViewTrackerProps
     fire({ event: 'page_view' });
 
     // --- Scroll depth tracking ---
+    // Hitting the 100% milestone ALSO triggers the exit-intent overlay
+    // for visitors who are still on the page. The original exit-intent
+    // detection covered the "leaving" cases (mouseleave-top, pagehide,
+    // long visibility=hidden) but not the "engaged reader who reached
+    // the bottom of the page and didn't sign up" case — and that is
+    // the most valuable cohort to ask the post-decline survey question.
+    // Confirmed in production testing: visitors on multiple devices
+    // scrolled to the bottom and never saw the survey because the
+    // existing exit-intent triggers never fired for them.
     const MILESTONES = [25, 50, 75, 100];
     function handleScroll() {
       const scrollTop  = window.scrollY;
@@ -86,6 +95,14 @@ export function PageViewTracker({ pageSlug, onExitIntent }: PageViewTrackerProps
         if (percentage >= m && !depthsReached.current.has(m)) {
           depthsReached.current.add(m);
           fire({ event: 'scroll_depth', depth: m });
+          if (m === 100) {
+            // Engaged-reader exit signal — fire the in-page overlay
+            // (NOT viaBeacon, the page is still here). The overlay
+            // host gates on signedUp, so post-signup readers do not
+            // get the modal — only the "scrolled the whole thing
+            // and stayed silent" cohort.
+            fireExitOnce(false);
+          }
         }
       }
     }
