@@ -347,6 +347,7 @@ export async function POST(
       updatedRecommendation: updatedRec,
     });
   } catch (err) {
+    // httpErrorToResponse logs unexpected (non-HttpError) errors centrally.
     return httpErrorToResponse(err);
   }
 }

@@ -141,7 +141,7 @@ export async function POST(
     // resequence / rewrite / remove) the accept UI needs to handle.
     // Building the editor against assumptions risks the wrong shape.
     const newEntry: CheckInEntry = {
-      id:            `ci_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      id:            `ci_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
       timestamp:     new Date().toISOString(),
       category,
       freeText,

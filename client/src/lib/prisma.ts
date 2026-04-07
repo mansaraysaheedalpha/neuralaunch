@@ -41,15 +41,15 @@ if (!isProd) {
   global.prisma = prisma;
 }
 
-// Handle connection errors gracefully
+// Handle connection errors gracefully. We deliberately do not import
+// the app logger here — prisma.ts is the lowest-level module and
+// importing logger.ts would create a circular dependency through env.
+// stderr is the right channel for module-init diagnostics anyway.
 prisma.$connect()
-  .then(() => {
-    if (!isProd) {
-      console.log("✅ Database connected successfully");
-    }
-  })
-  .catch((error) => {
-    console.error("❌ Database connection failed:", error);
+  .catch((error: unknown) => {
+    process.stderr.write(
+      `[prisma] Database connection failed: ${error instanceof Error ? error.message : String(error)}\n`,
+    );
     // Don't crash the app, let it handle errors per-request
   });
 

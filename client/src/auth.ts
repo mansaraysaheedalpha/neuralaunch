@@ -7,7 +7,6 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import prisma from "@/lib/prisma";
 import type { Adapter } from "next-auth/adapters";
 import { logger } from "./lib/logger";
-import { trackEvent } from "@/lib/analytics";
 import { env } from "@/lib/env";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -48,7 +47,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   events: {
     createUser: ({ user }) => {
       logger.info(`New user created: ${user.id}, Email: ${user.email}`);
-      trackEvent("sign_up", { userId: user.id });
+      // Note: client-side GA tracking of sign_up should be fired
+      // from the redirect handler after the browser regains control,
+      // not from this server callback. window.gtag is not available
+      // here.
     },
     signIn: ({ user, account, isNewUser }) => {
       logger.info(

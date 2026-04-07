@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { auth }          from '@/auth';
 import prisma            from '@/lib/prisma';
 import { env }           from '@/lib/env';
+import { logger }        from '@/lib/logger';
 import {
   checkRateLimit,
   getClientIp,
@@ -27,7 +28,14 @@ export function httpErrorToResponse(err: unknown): NextResponse {
   if (err instanceof HttpError) {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
-  // Never leak internal error messages to the client (CLAUDE.md security rule).
+  // Unexpected error → 500. Always log the full Error so we are not
+  // debugging blind in production. CLAUDE.md security rule still
+  // applies: the response body remains a generic message — only the
+  // server-side log carries the stack trace.
+  logger.error(
+    'Unhandled route error → 500',
+    err instanceof Error ? err : new Error(String(err)),
+  );
   return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
 }
 
