@@ -40,7 +40,10 @@ export function getRedisClient(): Redis | null {
     logger.info("Redis client initialized successfully");
     return redis;
   } catch (error) {
-    logger.error("Failed to initialize Redis client", error as Error);
+    logger.error(
+      "Failed to initialize Redis client",
+      error instanceof Error ? error : new Error(String(error)),
+    );
     return null;
   }
 }

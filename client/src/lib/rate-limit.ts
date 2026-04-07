@@ -115,7 +115,10 @@ async function checkRateLimitRedis(
       resetAt,
     };
   } catch (error) {
-    logger.error("Redis rate limit check failed, falling back to in-memory", error as Error);
+    logger.error(
+      "Redis rate limit check failed, falling back to in-memory",
+      error instanceof Error ? error : new Error(String(error)),
+    );
     return checkRateLimitMemory(config);
   }
 }
