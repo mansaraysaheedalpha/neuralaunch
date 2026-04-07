@@ -20,17 +20,38 @@ export default async function RoadmapPage({
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect('/signin');
+  const userId = session.user.id;
 
   const { id: recommendationId } = await params;
 
-  const recommendation = await prisma.recommendation.findUnique({
-    where:  { id: recommendationId },
-    select: { userId: true },
+  // findFirst with composite ownership check (the established pattern).
+  // Pulls the founder's primary goal from the linked discovery session
+  // so the completion-acknowledgment moment in the task card can quote
+  // the founder's own stated goal back to them.
+  const recommendation = await prisma.recommendation.findFirst({
+    where:  { id: recommendationId, userId },
+    select: {
+      id: true,
+      session: {
+        select: { beliefState: true },
+      },
+    },
   });
 
-  if (!recommendation || recommendation.userId !== session.user.id) {
+  if (!recommendation) {
     redirect('/discovery');
   }
+
+  // Best-effort extraction of the founder's primary goal for the
+  // completion moment. Falls back to undefined; the task card has
+  // a generic fallback when this is missing.
+  const belief = (recommendation.session?.beliefState ?? {}) as {
+    primaryGoal?: { value?: unknown };
+  };
+  const goalValue = belief.primaryGoal?.value;
+  const founderGoal = typeof goalValue === 'string' && goalValue.trim().length > 0
+    ? goalValue.trim().slice(0, 300)
+    : null;
 
   return (
     <div className="flex flex-col h-full">
@@ -48,7 +69,7 @@ export default async function RoadmapPage({
             <span className="text-sm text-muted-foreground">Loading…</span>
           </div>
         }>
-          <RoadmapView recommendationId={recommendationId} />
+          <RoadmapView recommendationId={recommendationId} founderGoal={founderGoal} />
         </Suspense>
       </div>
     </div>

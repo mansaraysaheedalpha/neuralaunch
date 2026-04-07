@@ -1058,8 +1058,74 @@ model Roadmap {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
+  // ----- Concern 4: roadmap check-in / progress tracking -----
+  //
+  // Each task object inside the `phases` JSON column gains three
+  // additional fields managed by the check-in API:
+  //   status:          'not_started' | 'in_progress' | 'completed' | 'blocked'
+  //   completedAt:     ISO datetime string | null
+  //   checkInHistory:  CheckInEntry[]
+  //
+  // The roadmap generator does NOT populate these fields. They default
+  // to 'not_started' / null / [] when first read by the check-in API
+  // and are persisted on the next status change. The summary record
+  // below is the queryable analytics surface; never iterate the JSON
+  // for aggregate counts.
+  progress         RoadmapProgress?
+
   @@index([userId])
   @@index([recommendationId])
+}
+
+/**
+ * RoadmapProgress
+ *
+ * Per-roadmap analytics summary updated whenever a task status
+ * changes via the check-in API. Stored separately from the roadmap
+ * JSON so we never have to parse the full phases array to answer
+ * queries like "how many roadmaps have at least one blocked task"
+ * or "which roadmaps need a proactive nudge."
+ *
+ * Created on the first PATCH /status call for a roadmap that does
+ * not yet have a row. Maintained atomically alongside the JSON
+ * mutation in the same Prisma transaction.
+ */
+model RoadmapProgress {
+  id              String    @id @default(cuid())
+  roadmapId       String    @unique
+  roadmap         Roadmap   @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+
+  totalTasks      Int
+  completedTasks  Int       @default(0)
+  blockedTasks    Int       @default(0)
+
+  /**
+   * The most recent moment the founder interacted with this roadmap
+   * (status change, check-in submission, or proactive-nudge response).
+   * Drives the proactive-nudge cron query and the "X days ago" UI.
+   */
+  lastActivityAt  DateTime  @default(now())
+
+  /**
+   * The phase number (within the roadmap, NOT the global PHASES enum)
+   * the founder is currently working through. Derived from the index
+   * of the most recent task that received any check-in.
+   */
+  currentPhase    Int       @default(1)
+
+  /**
+   * Set to true by the proactive-nudge Inngest function when an
+   * in-progress task has exceeded its estimated duration since the
+   * last activity. The client clears it on the next check-in submission.
+   */
+  nudgePending    Boolean   @default(false)
+  nudgeLastSentAt DateTime?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([nudgePending])
+  @@index([lastActivityAt])
 }
 
 model Deployment {
