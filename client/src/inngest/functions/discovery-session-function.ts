@@ -1,7 +1,9 @@
 // src/inngest/functions/discovery-session-function.ts
+import { Prisma } from '@prisma/client';
 import { inngest } from '../client';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { buildPhaseContext, PHASES } from '@/lib/phase-context';
 import {
   getSession,
   deleteSession,
@@ -98,6 +100,7 @@ export const discoverySessionFunction = inngest.createFunction(
         data: {
           userId,
           sessionId,
+          recommendationType:     recommendation.recommendationType,
           summary:                recommendation.summary,
           path:                   recommendation.path,
           reasoning:              recommendation.reasoning,
@@ -107,6 +110,10 @@ export const discoverySessionFunction = inngest.createFunction(
           assumptions:            recommendation.assumptions,
           whatWouldMakeThisWrong: recommendation.whatWouldMakeThisWrong,
           alternativeRejected:    recommendation.alternativeRejected,
+          // Concern 3 — preparatory metadata. No behaviour today.
+          phaseContext: buildPhaseContext(PHASES.RECOMMENDATION, {
+            discoverySessionId: sessionId,
+          }) as unknown as Prisma.InputJsonValue,
         },
         select: { id: true },
       });

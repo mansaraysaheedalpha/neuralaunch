@@ -32,6 +32,27 @@ model User {
   recommendations    Recommendation[]
   roadmaps           Roadmap[]
   validationPages    ValidationPage[]
+
+  // ----- Concern 5: outcome capture + training-data consent -----
+  //
+  // Per the deliberation: opt-in must be active and deliberate, not
+  // passive. Default is false. The toggle lives in Settings → Privacy
+  // and is also surfaced inline the first time the founder is asked
+  // for an outcome.
+  //
+  // Two important properties of this column:
+  //   1. Per-row consent on RecommendationOutcome is captured at
+  //      submission time, not by reading this field at query time.
+  //      Flipping this off does NOT retroactively remove training
+  //      records — that requires the explicit deletion sweep
+  //      triggered by the toggle handler. The handler deletes every
+  //      anonymised record the user has previously written.
+  //   2. The consent string also records the moment the founder
+  //      first opted in, used by the consent copy version pinning
+  //      so we can re-prompt if the consent text materially changes.
+  trainingConsent       Boolean   @default(false)
+  trainingConsentAt     DateTime?
+  outcomes              RecommendationOutcome[]
 }
 
 model UserPreferences {
@@ -112,6 +133,15 @@ model Message {
   createdAt      DateTime     @default(now())
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  /**
+   * Provider id of the model that produced this assistant message.
+   * Set by the question-stream-fallback orchestrator after the first
+   * chunk arrives. Null for user messages and for any assistant
+   * message written before fallback was introduced.
+   * Known values: 'anthropic-sonnet' | 'anthropic-haiku' | 'google-gemini-flash'
+   */
+  modelUsed      String?
 }
 
 model CofounderMessage {
@@ -873,6 +903,116 @@ model Recommendation {
   sessionId             String           @unique
   session               DiscoverySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
+  // ----- Phase awareness (Concern 3 — preparatory data only) -----
+
+  /**
+   * Self-describing phase metadata. Pure data, no behaviour.
+   * Shape: { phaseNumber, totalPhases, upstream: { discoverySessionId? } }
+   * The future orchestration layer reads this to make routing decisions
+   * without needing to retrofit storage. Today nothing reads it.
+   * See AGENT_ARCHITECTURE_REVIEW.md Concern 3 for the full design.
+   */
+  phaseContext          Json?
+
+  /**
+   * The most recent validation signal observed for this recommendation.
+   * Mirrors the ValidationReport.signalStrength enum exactly:
+   *   null      — not yet validated (no published page or no report yet)
+   *   'strong'  — strong market signal
+   *   'moderate'— moderate market signal
+   *   'weak'    — weak signal, ambiguous
+   *   'negative'— market actively said no
+   *
+   * Set by the validation reporting Inngest function when it persists
+   * a ValidationReport. Today no downstream behaviour reads this — it
+   * is the storage substrate for the future cross-phase coordination
+   * layer to read from.
+   */
+  validationOutcome     String?
+
+  // Action shape — drives UI gating for downstream tools (validation page,
+  // future Phase 4/5). Set by the synthesis prompt. See RECOMMENDATION_TYPES
+  // in src/lib/discovery/constants.ts. Nullable so existing rows from
+  // before this column was added remain queryable; UI treats null as
+  // "ineligible" by default.
+  recommendationType    String?
+
+  // ----- Pushback / acceptance (Concerns 1 + 2) -----
+
+  /**
+   * Set when the founder explicitly clicks "This is my path — build my
+   * roadmap". The act of acceptance is separate from generating the
+   * roadmap and from any prior refinements the agent made — only the
+   * founder's affirmative click counts.
+   */
+  acceptedAt            DateTime?
+
+  /**
+   * Number of pushback rounds (user turns) at the moment of acceptance.
+   * 0 means the founder accepted on first read with no pushback.
+   * Becomes a key signal for measuring how convincing recommendations are.
+   */
+  acceptedAtRound       Int?
+
+  /**
+   * Number of times the founder has un-accepted this recommendation.
+   * Each un-accept either came from explicitly clicking "reopen
+   * discussion" or implicitly from posting a new pushback message
+   * after a previous acceptance.
+   */
+  unacceptCount         Int             @default(0)
+
+  /**
+   * Optimistic concurrency lock for pushback. Incremented on every
+   * write to pushbackHistory. The pushback API performs:
+   *   updateMany({ where: { id, pushbackVersion: previousVersion }, ... })
+   * If the row was modified by another concurrent request between the
+   * read and the write, count === 0 and we return 409. Prevents two
+   * parallel pushback POSTs from corrupting the history or burning
+   * duplicate Opus calls. Same column also serves as the accept
+   * endpoint's idempotency lock.
+   */
+  pushbackVersion       Int             @default(0)
+
+  /**
+   * Full pushback conversation log. Append-only array of turn objects:
+   *   {
+   *     role:      'user' | 'agent',
+   *     content:   string,
+   *     round:     number,                              // self-describing
+   *     mode?:     'analytical' | 'fear' | 'lack_of_belief', // agent only
+   *     action?:   'continue_dialogue' | 'defend' | 'refine' | 'replace' | 'closing', // agent only
+   *     converging?: boolean,                           // agent only
+   *     timestamp: string                               // ISO
+   *   }
+   */
+  pushbackHistory       Json            @default("[]")
+
+  /**
+   * Snapshots of prior recommendation states. Each entry is a FULL
+   * pre-update Recommendation snapshot (not a diff) wrapped with the
+   * round number, the agent action that triggered the refresh, and
+   * a timestamp:
+   *   { snapshot: Recommendation, round: number, action: 'refine'|'replace', timestamp: string }
+   * Most-recent live state always wins for display; this column powers
+   * the "see how this evolved" view. Diffing happens at render time
+   * when needed; storing diffs would couple the storage shape to the
+   * Recommendation schema and break on every schema change.
+   */
+  versions              Json            @default("[]")
+
+  // ----- Round-7 alternative recommendation (Concern 1, closing move) -----
+
+  /**
+   * The alternative recommendation generated at round 7 when the
+   * founder's pushback indicated a fundamentally different direction.
+   * Self-relation enables a single query to fetch both for the
+   * comparison view.
+   */
+  alternativeRecommendationId String?    @unique
+  alternativeRecommendation   Recommendation?  @relation("RecommendationAlternative", fields: [alternativeRecommendationId], references: [id])
+  primaryRecommendation       Recommendation?  @relation("RecommendationAlternative")
+
   // Core recommendation fields (mirroring RecommendationSchema)
   summary               String           @db.Text
   path                  String           @db.Text
@@ -887,6 +1027,11 @@ model Recommendation {
   roadmap               Roadmap?
   validationPage        ValidationPage?
 
+  // Concern 5 — outcome attestation. Lazy one-to-one. Created when
+  // the founder explicitly submits an outcome via one of the three
+  // trigger paths.
+  outcome               RecommendationOutcome?
+
   createdAt             DateTime         @default(now())
 
   @@index([userId])
@@ -897,6 +1042,14 @@ enum RoadmapStatus {
   GENERATING
   READY
   FAILED
+  /**
+   * Roadmap was successfully generated, but the parent Recommendation
+   * has since been refined or replaced via the pushback flow. The
+   * roadmap content reflects an older recommendation state and should
+   * be regenerated. The roadmap viewer renders a banner offering
+   * regeneration; the founder can still view the existing content.
+   */
+  STALE
 }
 
 /**
@@ -913,6 +1066,11 @@ model Roadmap {
   recommendationId String           @unique
   recommendation   Recommendation   @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
 
+  // Phase 3 coordination preparatory data — see Concern 3 in
+  // AGENT_ARCHITECTURE_REVIEW.md. Pure metadata, no behaviour today.
+  // Shape: { phaseNumber, totalPhases, upstream: { recommendationId, discoverySessionId? } }
+  phaseContext     Json?
+
   status           RoadmapStatus    @default(GENERATING)
 
   // The full phased plan — validated against RoadmapSchema before write
@@ -926,8 +1084,183 @@ model Roadmap {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
+  // ----- Concern 4: roadmap check-in / progress tracking -----
+  //
+  // Each task object inside the `phases` JSON column gains three
+  // additional fields managed by the check-in API:
+  //   status:          'not_started' | 'in_progress' | 'completed' | 'blocked'
+  //   completedAt:     ISO datetime string | null
+  //   checkInHistory:  CheckInEntry[]
+  //
+  // The roadmap generator does NOT populate these fields. They default
+  // to 'not_started' / null / [] when first read by the check-in API
+  // and are persisted on the next status change. The summary record
+  // below is the queryable analytics surface; never iterate the JSON
+  // for aggregate counts.
+  progress         RoadmapProgress?
+
   @@index([userId])
   @@index([recommendationId])
+}
+
+/**
+ * RoadmapProgress
+ *
+ * Per-roadmap analytics summary updated whenever a task status
+ * changes via the check-in API. Stored separately from the roadmap
+ * JSON so we never have to parse the full phases array to answer
+ * queries like "how many roadmaps have at least one blocked task"
+ * or "which roadmaps need a proactive nudge."
+ *
+ * Created on the first PATCH /status call for a roadmap that does
+ * not yet have a row. Maintained atomically alongside the JSON
+ * mutation in the same Prisma transaction.
+ */
+model RoadmapProgress {
+  id              String    @id @default(cuid())
+  roadmapId       String    @unique
+  roadmap         Roadmap   @relation(fields: [roadmapId], references: [id], onDelete: Cascade)
+
+  totalTasks      Int
+  completedTasks  Int       @default(0)
+  blockedTasks    Int       @default(0)
+
+  /**
+   * The most recent moment the founder interacted with this roadmap
+   * (status change, check-in submission, or proactive-nudge response).
+   * Drives the proactive-nudge cron query and the "X days ago" UI.
+   */
+  lastActivityAt  DateTime  @default(now())
+
+  /**
+   * The phase number (within the roadmap, NOT the global PHASES enum)
+   * the founder is currently working through. Derived from the index
+   * of the most recent task that received any check-in.
+   */
+  currentPhase    Int       @default(1)
+
+  /**
+   * Set to true by the proactive-nudge Inngest function when an
+   * in-progress task has exceeded its estimated duration since the
+   * last activity. The client clears it on the next check-in submission.
+   */
+  nudgePending    Boolean   @default(false)
+  nudgeLastSentAt DateTime?
+
+  // ----- Concern 5: outcome-prompt trigger state -----
+
+  /**
+   * Set to true by the daily nudge sweep when:
+   *   - 50% or more of tasks are complete
+   *   - lastActivityAt is more than 30 days ago
+   *   - The parent recommendation does not yet have an outcome row
+   *   - outcomePromptSkippedAt is null
+   * The client reads this on roadmap page load and surfaces the
+   * outcome form once. Cleared whenever the founder either submits
+   * an outcome or explicitly skips.
+   */
+  outcomePromptPending  Boolean   @default(false)
+
+  /**
+   * Set when the founder explicitly clicks "skip for now" on the
+   * outcome form. Once set, no trigger fires the form again for
+   * this roadmap. Respecting the founder's choice not to engage is
+   * more important than capturing the data.
+   */
+  outcomePromptSkippedAt DateTime?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([nudgePending])
+  @@index([lastActivityAt])
+  @@index([outcomePromptPending])
+}
+
+/**
+ * RecommendationOutcome
+ *
+ * Concern 5: founder-attested outcome of acting on a recommendation.
+ *
+ * Two parallel records of the outcome live in this row:
+ *   1) The full record (outcomeType, freeText, weakPhases, the
+ *      identifying recommendationId) — always written, owned by the
+ *      founder, used for their own history view, never used for
+ *      training.
+ *   2) The anonymisedRecord JSON column — written ONLY when
+ *      consentedToTraining === true at submission time. Stripped of
+ *      names, emails, phone numbers, and bucketed to country level.
+ *      Lexical anonymisation only — see consent copy for the disclosure.
+ *
+ * Hard invariant enforced at write time:
+ *   consentedToTraining = false  ⇒  anonymisedRecord = null
+ * Never bypass.
+ *
+ * The 24-month TTL on anonymisedRecord is enforced by a daily
+ * lifecycle sweep that nulls out anonymisedRecord on rows older
+ * than the horizon. The full record stays for the founder's
+ * personal history.
+ *
+ * Retroactive deletion: when a founder flips trainingConsent off,
+ * a parallel sweep nulls out anonymisedRecord on every row of
+ * theirs that previously consented. The fact that they once
+ * consented is preserved (consentedToTraining stays true on the
+ * historical row) but the training payload is gone.
+ */
+model RecommendationOutcome {
+  id                 String          @id @default(cuid())
+  recommendationId   String          @unique
+  recommendation     Recommendation  @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /**
+   * Founder-selected outcome bucket. Mirrors the four types in the
+   * spec exactly. Stored as a string so adding a fifth bucket later
+   * does not require a migration; the read paths use the typed
+   * OUTCOME_TYPES enum from outcome-types.ts as the source of truth.
+   *   full_success
+   *   partial_success
+   *   direction_correct_execution_different
+   *   did_not_work
+   */
+  outcomeType        String
+
+  /**
+   * Optional free-text context. The submission form prompt copy
+   * varies by outcomeType — for did_not_work the prompt asks
+   * "what would have made this recommendation more accurate" so
+   * the answer is diagnostic, not just a failure report.
+   */
+  freeText           String?         @db.Text
+
+  /**
+   * Phase titles the founder identified as needing the most
+   * adjustment. Only populated for partial_success and
+   * direction_correct_execution_different outcomes.
+   */
+  weakPhases         String[]        @default([])
+
+  /**
+   * Captured from User.trainingConsent at submission time.
+   * Read-only after write — flipping the user setting later does
+   * not retroactively change this value, but it DOES trigger the
+   * deletion sweep on anonymisedRecord (see above).
+   */
+  consentedToTraining Boolean
+
+  /**
+   * Anonymised payload for prompt refinement / future fine-tuning.
+   * NULL when consentedToTraining is false. Subject to the 24-month
+   * TTL via the lifecycle sweep.
+   */
+  anonymisedRecord   Json?
+
+  submittedAt        DateTime        @default(now())
+
+  @@index([userId])
+  @@index([outcomeType])
+  @@index([submittedAt])
 }
 
 model Deployment {
@@ -1017,6 +1350,11 @@ model ValidationPage {
   recommendationId String           @unique
   recommendation   Recommendation   @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
 
+  // Phase 3 coordination preparatory data — see Concern 3 in
+  // AGENT_ARCHITECTURE_REVIEW.md. Pure metadata, no behaviour today.
+  // Shape: { phaseNumber, totalPhases, upstream: { recommendationId, roadmapId?, discoverySessionId? } }
+  phaseContext     Json?
+
   slug             String           @unique  // readable URL segment, e.g. "ai-invoicing-tool-accra"
   status           ValidationStatus @default(DRAFT)
   layoutVariant    String           // 'product' | 'service' | 'marketplace'
@@ -1093,6 +1431,11 @@ model ValidationReport {
   validationPageId  String          @unique
   validationPage    ValidationPage  @relation(fields: [validationPageId], references: [id], onDelete: Cascade)
   snapshotId        String
+
+  // Phase 3 coordination preparatory data — see Concern 3 in
+  // AGENT_ARCHITECTURE_REVIEW.md. Pure metadata, no behaviour today.
+  // Shape: { phaseNumber, totalPhases, upstream: { validationPageId, recommendationId, roadmapId?, discoverySessionId? } }
+  phaseContext      Json?
 
   generatedAt       DateTime        @default(now())
   signalStrength    String          // 'strong' | 'moderate' | 'weak' | 'negative'

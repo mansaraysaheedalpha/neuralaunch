@@ -27,21 +27,37 @@ export const SurveyOptionSchema = z.object({
   label: SHORT_TEXT.describe('Short option label shown to the user'),
 });
 
+// Anthropic structured-output JSON Schema rejects BOTH array minItems > 1
+// AND any maxItems on array types. We therefore strip every length
+// constraint from the schemas the LLM sees and re-enforce ranges via
+// .superRefine() after the call returns. The model is told the required
+// range in the .describe() copy and the synthesis prompt rules; we
+// validate (and clamp where appropriate) on receipt.
 export const ValidationPageContentSchema = z.object({
   headline:         SHORT_TEXT.describe('Main headline — one punchy sentence, problem-first, no jargon'),
   subheadline:      MEDIUM_TEXT.describe('Supporting sentence expanding the headline — specific to their market'),
   problemStatement: LONG_TEXT.describe('2–3 sentences: the exact pain this solves, in the target user\'s own language'),
   solutionStatement: LONG_TEXT.describe('2–3 sentences: how this product solves it — specific, not generic'),
-  features:         z.array(FeatureCardSchema).min(2).max(6),
+  features:         z.array(FeatureCardSchema).describe('Between 2 and 6 feature cards. Never fewer than 2, never more than 6.'),
   ctaHeadline:      SHORT_TEXT.describe('Call-to-action headline above the signup form'),
   ctaButtonLabel:   z.string().min(1).max(40).describe('Button label — 2–4 words, action-oriented'),
   ctaPlaceholder:   z.string().min(1).max(80).describe('Email input placeholder text'),
   entrySurveyQuestion: SHORT_TEXT,
-  entrySurveyOptions:  z.array(SurveyOptionSchema).min(2).max(4),
+  entrySurveyOptions:  z.array(SurveyOptionSchema).describe('Between 2 and 4 entry survey options'),
   exitSurveyQuestion:  SHORT_TEXT,
-  exitSurveyOptions:   z.array(SurveyOptionSchema).min(2).max(4),
+  exitSurveyOptions:   z.array(SurveyOptionSchema).describe('Between 2 and 4 exit survey options'),
   metaTitle:        z.string().min(1).max(60).describe('Page title for SEO/sharing — under 60 characters'),
   metaDescription:  z.string().min(1).max(160).describe('Page description for sharing cards — under 160 characters'),
+}).superRefine((data, ctx) => {
+  if (data.features.length < 2 || data.features.length > 6) {
+    ctx.addIssue({ code: 'custom', path: ['features'], message: 'features must have between 2 and 6 entries' });
+  }
+  if (data.entrySurveyOptions.length < 2 || data.entrySurveyOptions.length > 4) {
+    ctx.addIssue({ code: 'custom', path: ['entrySurveyOptions'], message: 'entrySurveyOptions must have between 2 and 4 entries' });
+  }
+  if (data.exitSurveyOptions.length < 2 || data.exitSurveyOptions.length > 4) {
+    ctx.addIssue({ code: 'custom', path: ['exitSurveyOptions'], message: 'exitSurveyOptions must have between 2 and 4 entries' });
+  }
 });
 
 export type FeatureCard           = z.infer<typeof FeatureCardSchema>;
@@ -61,13 +77,21 @@ export const DistributionChannelSchema = z.object({
 /**
  * Distribution brief: exactly three channels, channel names must be unique
  * so per-channel completion toggling is unambiguous in the UI.
+ *
+ * Anthropic's structured output rejects both array minItems and maxItems
+ * constraints, so the schema is unconstrained at the type level. The
+ * cardinality and uniqueness rules are enforced via .superRefine() and
+ * the synthesis prompt instructs the model to produce exactly three.
  */
 export const DistributionBriefSchema = z.array(DistributionChannelSchema)
-  .length(3)
-  .refine(
-    channels => new Set(channels.map(c => c.channel.trim().toLowerCase())).size === channels.length,
-    { message: 'Channel names must be unique' },
-  );
+  .superRefine((channels, ctx) => {
+    if (channels.length !== 3) {
+      ctx.addIssue({ code: 'custom', message: 'Distribution brief must contain exactly 3 channels' });
+    }
+    if (new Set(channels.map(c => c.channel.trim().toLowerCase())).size !== channels.length) {
+      ctx.addIssue({ code: 'custom', message: 'Channel names must be unique' });
+    }
+  });
 
 export type DistributionChannel = z.infer<typeof DistributionChannelSchema>;
 export type DistributionBrief   = z.infer<typeof DistributionBriefSchema>;
@@ -157,10 +181,16 @@ export const ValidationInterpretationSchema = z.object({
     assessment: z.string(),
   })),
   conversionAssessment: SHORT_TEXT,
-  surveyThemes:         z.array(z.string().max(300)).max(8),
+  // No .max() — Anthropic structured output rejects array maxItems.
+  // The prompt instructs the model to return at most 8 themes; we
+  // post-clamp the array on receipt to enforce that ceiling.
+  surveyThemes:         z.array(z.string().max(300)).describe('Up to 8 themes — never more.'),
   trafficAssessment:    SHORT_TEXT,
   nextAction:           MEDIUM_TEXT,
-});
+}).transform(data => ({
+  ...data,
+  surveyThemes: data.surveyThemes.slice(0, 8),
+}));
 
 export type ValidationInterpretation = z.infer<typeof ValidationInterpretationSchema>;
 
@@ -197,6 +227,12 @@ export const RejectedFeatureSchema = z.object({
  *
  * For non-negative signals these fields are empty arrays.
  */
+// No .max() on disconfirmedAssumptions or pivotOptions — Anthropic
+// rejects array maxItems. The prompt instructs the model to return
+// at most 5 / 3 entries; we post-clamp to enforce on receipt.
+// .default([]) is also dropped because superRefine and transform run
+// before defaults at parse time and the model is required to return
+// the field anyway.
 export const ValidationReportSchema = z.object({
   signalStrength:          z.enum(['strong', 'moderate', 'weak', 'negative']),
   confirmedFeatures:       z.array(ConfirmedFeatureSchema),
@@ -204,12 +240,16 @@ export const ValidationReportSchema = z.object({
   surveyInsights:          LONG_TEXT,
   buildBrief:              LONG_TEXT,
   nextAction:              MEDIUM_TEXT,
-  disconfirmedAssumptions: z.array(MEDIUM_TEXT).max(5).default([]),
+  disconfirmedAssumptions: z.array(MEDIUM_TEXT).describe('Up to 5 disconfirmed assumptions when signalStrength is negative; empty array otherwise'),
   pivotOptions:            z.array(z.object({
     title:    SHORT_TEXT,
     rationale: MEDIUM_TEXT,
-  })).max(3).default([]),
-});
+  })).describe('Up to 3 pivot options when signalStrength is negative; empty array otherwise'),
+}).transform(data => ({
+  ...data,
+  disconfirmedAssumptions: data.disconfirmedAssumptions.slice(0, 5),
+  pivotOptions:            data.pivotOptions.slice(0, 3),
+}));
 
 export type ConfirmedFeature = z.infer<typeof ConfirmedFeatureSchema>;
 export type RejectedFeature  = z.infer<typeof RejectedFeatureSchema>;

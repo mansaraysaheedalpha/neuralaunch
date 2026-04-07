@@ -93,6 +93,19 @@ export async function GET(
       weeklyHours:    true,
       totalWeeks:     true,
       createdAt:      true,
+      // Concern 4 — surface the per-roadmap progress / nudge state
+      // so the client can render the proactive nudge banner and the
+      // progress counters without a second round-trip.
+      progress: {
+        select: {
+          totalTasks:     true,
+          completedTasks: true,
+          blockedTasks:   true,
+          lastActivityAt: true,
+          nudgePending:   true,
+          outcomePromptPending: true,
+        },
+      },
     },
   });
 

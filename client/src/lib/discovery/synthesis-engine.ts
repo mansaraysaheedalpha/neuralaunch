@@ -128,6 +128,15 @@ RULES — you must follow these precisely:
 5. whatWouldMakeThisWrong must genuinely challenge your recommendation.
 6. summary must be 2-3 plain sentences: what the recommendation is, why it fits this person specifically, and what the first move is. It is the complete conclusion — a reader who reads only this must leave knowing exactly what to do.
 7. If landscape intelligence is provided, use it to make the tactics in firstThreeSteps more specific and current. Do not present research findings as alternatives — use them to sharpen the ONE path you have already chosen.
+8. recommendationType MUST be set to the action shape that best matches the recommendation:
+   - 'build_software' ONLY when the founder needs to build a NEW software product they have not yet built. This is a strict criterion — do not pick this for sales motions on existing products, for service offerings, or for process improvements.
+   - 'build_service' for productized service / consulting offers
+   - 'sales_motion' when the founder already has a product and the bottleneck is selling it
+   - 'process_change' for behavioural / operational fixes that do not involve new product creation
+   - 'hire_or_outsource' when the bottleneck is capacity not strategy
+   - 'further_research' when the founder needs more data before any commitment is responsible
+   - 'other' when nothing above fits
+   Be honest about this classification — it drives downstream tooling and a wrong classification will surface tools the founder does not need.
 
 Produce the recommendation now.`,
     }],

@@ -7,10 +7,28 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, ArrowRight, Loader2 } from 'lucide-react';
 import { AssumptionRow } from './AssumptionRow';
+import {
+  VALIDATION_PAGE_ELIGIBLE_TYPES,
+  PUSHBACK_CONFIG,
+  type RecommendationType,
+} from '@/lib/discovery/constants';
+import { PushbackChat } from './PushbackChat';
+
+// Match the JSON shape persisted in Recommendation.pushbackHistory
+interface PushbackTurnLite {
+  role:      'user' | 'agent';
+  content:   string;
+  round:     number;
+  mode?:     string;
+  action?:   string;
+  converging?: boolean;
+  timestamp: string;
+}
 
 interface Props {
   recommendation: {
     id:                     string;
+    recommendationType:     string | null;
     summary:                string;
     path:                   string;
     reasoning:              string;
@@ -21,11 +39,24 @@ interface Props {
     whatWouldMakeThisWrong: string;
     alternativeRejected:    unknown;
     createdAt:              Date;
+    /** ISO string of acceptance time, or null when not accepted */
+    acceptedAt:             string | null;
+    /** The pushback transcript so far — empty array when no rounds yet */
+    pushbackHistory:        PushbackTurnLite[];
+    /** When set, the round-7 alternative recommendation has been generated */
+    alternativeRecommendationId: string | null;
   };
   /** True when a READY roadmap already exists for this recommendation */
   roadmapReady?: boolean;
   /** Set when a validation page has been generated — pageId for navigation */
   validationPageId?: string | null;
+  /**
+   * Signal strength of any prior validation report. When 'negative', the
+   * "Build Validation Page" CTA must stay hidden — the market already
+   * answered this recommendation and we do not let the founder rebuild a
+   * landing page for a discredited direction.
+   */
+  validationSignalStrength?: string | null;
 }
 
 type RiskRow = { risk: string; mitigation: string };
@@ -68,7 +99,12 @@ function Section({ label, delay = 0, children }: { label: string; delay?: number
  * - All remaining sections individually collapsible (expanded by default)
  * - Inline assumption flag with live scoped response (see AssumptionRow)
  */
-export function RecommendationReveal({ recommendation: r, roadmapReady = false, validationPageId = null }: Props) {
+export function RecommendationReveal({
+  recommendation: r,
+  roadmapReady = false,
+  validationPageId = null,
+  validationSignalStrength = null,
+}: Props) {
   const router      = useRouter();
   const steps       = r.firstThreeSteps as string[];
   const risks       = r.risks as RiskRow[];
@@ -76,17 +112,77 @@ export function RecommendationReveal({ recommendation: r, roadmapReady = false, 
   const alt         = r.alternativeRejected as AltRow;
   const [generating,         setGenerating]         = useState(false);
   const [creatingValidation, setCreatingValidation] = useState(false);
+  const [accepting,          setAccepting]          = useState(false);
+  const [unaccepting,        setUnaccepting]        = useState(false);
+  const [acceptError,        setAcceptError]        = useState<string | null>(null);
 
-  async function handleGenerateRoadmap() {
-    setGenerating(true);
+  const isAccepted       = !!r.acceptedAt;
+  const alternativeReady = !!r.alternativeRecommendationId;
+
+  // Validation page eligibility — gated on:
+  //   1. The recommendation's action shape is one we have a validation
+  //      page mechanic for (currently only build_software)
+  //   2. There is no prior validation report for this recommendation that
+  //      came back as a negative signal — once the market has said no, we
+  //      do not let the founder rebuild a landing page for that direction
+  const validationPageApplicable =
+    r.recommendationType !== null
+    && VALIDATION_PAGE_ELIGIBLE_TYPES.has(r.recommendationType as RecommendationType)
+    && validationSignalStrength !== 'negative';
+
+  async function handleAcceptAndGenerateRoadmap() {
+    setAccepting(true);
+    setAcceptError(null);
     try {
-      const res = await fetch(`/api/discovery/recommendations/${r.id}/roadmap`, { method: 'POST' });
-      if (res.ok) {
-        router.push(`/discovery/roadmap/${r.id}`);
+      // Step 1 — explicit acceptance. Server-side updateMany makes this
+      // idempotent, so a retry after a partial failure is safe.
+      const acceptRes = await fetch(`/api/discovery/recommendations/${r.id}/accept`, {
+        method: 'POST',
+      });
+      if (!acceptRes.ok) {
+        const json = await acceptRes.json().catch(() => ({})) as { error?: string };
+        setAcceptError(json.error ?? 'Could not record your acceptance. Please try again.');
+        return;
       }
+
+      // Step 2 — fire roadmap generation. We navigate to the roadmap
+      // viewer immediately on the POST returning OK; the viewer
+      // already polls GENERATING → READY so the founder lands on the
+      // right page even if Inngest is slow. If the POST fails, the
+      // accept already succeeded — they can retry from the same button.
+      setGenerating(true);
+      const roadmapRes = await fetch(`/api/discovery/recommendations/${r.id}/roadmap`, {
+        method: 'POST',
+      });
+      if (!roadmapRes.ok) {
+        const json = await roadmapRes.json().catch(() => ({})) as { error?: string };
+        setAcceptError(json.error ?? 'Roadmap generation could not start. Click the button again to retry.');
+        return;
+      }
+      router.push(`/discovery/roadmap/${r.id}`);
+    } catch {
+      setAcceptError('Network error. Please check your connection and try again.');
     } finally {
+      setAccepting(false);
       setGenerating(false);
     }
+  }
+
+  async function handleUnaccept() {
+    setUnaccepting(true);
+    try {
+      const res = await fetch(`/api/discovery/recommendations/${r.id}/accept`, {
+        method: 'DELETE',
+      });
+      if (res.ok) router.refresh();
+    } finally {
+      setUnaccepting(false);
+    }
+  }
+
+  // Refresh hook called by the pushback chat after a refine/replace commit
+  function handlePushbackCommit() {
+    router.refresh();
   }
 
   async function handleCreateValidationPage() {
@@ -180,7 +276,12 @@ export function RecommendationReveal({ recommendation: r, roadmapReady = false, 
           transition={{ delay: 1.0 }}
           className="pt-4 border-t border-border flex flex-col gap-6"
         >
-          {/* Roadmap CTA */}
+          {/* Roadmap CTA — accept-and-generate combined into a single
+              ceremonial moment. Clicking this button is the explicit
+              act of acceptance AND it triggers roadmap generation. The
+              two-step server-side flow (POST /accept then POST /roadmap)
+              keeps the data model honest: the founder always commits
+              before the roadmap is built. */}
           <div>
             {roadmapReady ? (
               <>
@@ -198,26 +299,87 @@ export function RecommendationReveal({ recommendation: r, roadmapReady = false, 
             ) : (
               <>
                 <p className="text-xs text-muted-foreground mb-3">
-                  Ready to turn this recommendation into a step-by-step execution plan?
+                  When you are ready to commit to this path, click below. This is the moment of
+                  acceptance — your roadmap will be generated immediately.
                 </p>
                 <button
-                  onClick={() => { void handleGenerateRoadmap(); }}
-                  disabled={generating}
+                  onClick={() => { void handleAcceptAndGenerateRoadmap(); }}
+                  disabled={accepting || generating}
                   className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
                 >
-                  {generating ? (
+                  {(accepting || generating) ? (
                     <Loader2 className="size-4 animate-spin" />
                   ) : (
                     <ArrowRight className="size-4" />
                   )}
-                  {generating ? 'Starting…' : 'Generate My Execution Roadmap'}
+                  {accepting
+                    ? 'Committing…'
+                    : generating
+                      ? 'Building your roadmap…'
+                      : 'This is my path — build my roadmap'}
                 </button>
+                {acceptError && (
+                  <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-700 dark:text-red-400">
+                    {acceptError}
+                  </div>
+                )}
+                {isAccepted && (
+                  <button
+                    type="button"
+                    onClick={() => { void handleUnaccept(); }}
+                    disabled={unaccepting}
+                    className="mt-2 text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 disabled:opacity-50"
+                  >
+                    {unaccepting ? 'Reopening…' : 'Reopen the discussion (un-accept)'}
+                  </button>
+                )}
               </>
             )}
           </div>
 
-          {/* Validation page CTA — only shown when roadmap is ready */}
-          {roadmapReady && (
+          {/* Pushback chat — always available unless the roadmap has
+              already been generated (at which point the discussion is
+              effectively closed because acceptance is locked in). */}
+          {!roadmapReady && (
+            <div>
+              <PushbackChat
+                recommendationId={r.id}
+                initialHistory={r.pushbackHistory}
+                hardCapRound={PUSHBACK_CONFIG.HARD_CAP_ROUND}
+                alternativeReady={alternativeReady}
+                accepted={isAccepted}
+                onCommit={handlePushbackCommit}
+              />
+            </div>
+          )}
+
+          {/* Alternative recommendation surfacing — when the round-7
+              alternative is ready, point the founder at it. */}
+          {alternativeReady && r.alternativeRecommendationId && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+              <p className="text-[10px] uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-2">
+                Alternative ready
+              </p>
+              <p className="text-xs text-foreground leading-relaxed mb-3">
+                I generated the alternative path you argued for so you can compare both side-by-side.
+              </p>
+              <Link
+                href={`/discovery/recommendations/${r.alternativeRecommendationId}`}
+                className="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-xs font-medium text-amber-700 dark:text-amber-300 transition-opacity hover:opacity-80"
+              >
+                <ArrowRight className="size-3.5" />
+                View the alternative recommendation
+              </Link>
+            </div>
+          )}
+
+          {/* Validation page CTA — only shown when:
+              - the recommendation is a build_software type (gated by recommendationType)
+              - the roadmap is READY
+              - no prior validation report has come back negative
+              For non-software recommendations the founder simply does not
+              see this section — the validation page mechanic does not apply. */}
+          {roadmapReady && validationPageApplicable && (
             <div className="pt-4 border-t border-border">
               {validationPageId ? (
                 <>

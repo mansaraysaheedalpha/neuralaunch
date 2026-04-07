@@ -1,5 +1,6 @@
 // src/lib/discovery/recommendation-schema.ts
 import { z } from 'zod';
+import { RECOMMENDATION_TYPES } from './constants';
 
 /**
  * RecommendationSchema
@@ -16,6 +17,31 @@ export const RecommendationSchema = z.object({
    */
   summary: z.string().describe(
     '2-3 plain sentences: what the recommendation is, why it fits this specific person, and what their first move is. Full conclusion upfront — no hedging, no teaser. Someone who reads only this must leave knowing exactly what to do.'
+  ),
+
+  /**
+   * Action shape of the recommendation. Used by the UI to decide which
+   * downstream tools (validation page, MVP builder, etc.) to surface.
+   * Set independently of who the founder is — see RECOMMENDATION_TYPES.
+   */
+  recommendationType: z.enum([
+    RECOMMENDATION_TYPES.BUILD_SOFTWARE,
+    RECOMMENDATION_TYPES.BUILD_SERVICE,
+    RECOMMENDATION_TYPES.SALES_MOTION,
+    RECOMMENDATION_TYPES.PROCESS_CHANGE,
+    RECOMMENDATION_TYPES.HIRE_OR_OUTSOURCE,
+    RECOMMENDATION_TYPES.FURTHER_RESEARCH,
+    RECOMMENDATION_TYPES.OTHER,
+  ]).describe(
+    'Classify the action shape of this recommendation:\n' +
+    '- build_software: founder needs to build a software product (the canonical Phase 3/4/5 path)\n' +
+    '- build_service: productized service or consulting offer, may not include software\n' +
+    '- sales_motion: founder already has a product, the bottleneck is sales/outreach\n' +
+    '- process_change: behavioural or operational fix, no software, no new product\n' +
+    '- hire_or_outsource: bottleneck is capacity not strategy\n' +
+    '- further_research: founder needs more data before any commitment\n' +
+    '- other: anything that does not fit the above\n' +
+    'Pick the single best fit. Do not pick build_software unless the recommendation actually involves building a new software product the founder has not yet built.'
   ),
 
   /** The one recommended path — a short, declarative statement */

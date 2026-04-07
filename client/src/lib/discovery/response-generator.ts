@@ -2,10 +2,8 @@
 // Streams conversational responses for edge-case user inputs:
 // off-topic questions, frustration, contradictions, and pricing-change follow-ups.
 import 'server-only';
-import { streamText } from 'ai';
-import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
+import { streamQuestionWithFallback, type FallbackStreamResult } from '@/lib/ai/question-stream-fallback';
 import { DiscoveryContextField } from './context-schema';
-import { MODELS } from './constants';
 import type { AudienceType } from './constants';
 import { parseHistory, buildSystem, FIELD_LABELS } from './question-generator';
 
@@ -25,11 +23,11 @@ export function generateClarificationConfirmation(
   field:                DiscoveryContextField,
   conversationHistory?: string,
   audienceType?:        AudienceType,
-) {
+): FallbackStreamResult {
   const system        = buildSystem(audienceType);
   const priorMessages = conversationHistory ? parseHistory(conversationHistory) : [];
-  return streamText({
-    model:  aiSdkAnthropic(MODELS.INTERVIEW),
+  return streamQuestionWithFallback({
+    callsite: 'generateClarificationConfirmation',
     system,
     messages: [
       ...priorMessages,
@@ -60,10 +58,10 @@ export function generateMetaResponse(
   phase:                string,
   questionCount:        number,
   conversationHistory?: string,
-) {
+): FallbackStreamResult {
   const priorMessages = conversationHistory ? parseHistory(conversationHistory) : [];
-  return streamText({
-    model:  aiSdkAnthropic(MODELS.INTERVIEW),
+  return streamQuestionWithFallback({
+    callsite: 'generateMetaResponse',
     system: `You are the NeuraLaunch discovery assistant conducting a startup discovery interview. You are currently in the ${phase} phase, question ${questionCount} of this session. The user has asked a meta-question. Answer it briefly and warmly in 1-2 sentences, then re-invite them to continue — referencing where you left off. Do NOT introduce yourself or start fresh. You are mid-interview.`,
     messages: [
       ...priorMessages,
@@ -83,10 +81,10 @@ export function generateFrustrationResponse(
   userMessage:          string,
   field:                DiscoveryContextField,
   conversationHistory?: string,
-) {
+): FallbackStreamResult {
   const priorMessages = conversationHistory ? parseHistory(conversationHistory) : [];
-  return streamText({
-    model:  aiSdkAnthropic(MODELS.INTERVIEW),
+  return streamQuestionWithFallback({
+    callsite: 'generateFrustrationResponse',
     system: `You are the NeuraLaunch discovery assistant. The user seems frustrated or resistant. Acknowledge their feeling warmly and humanly — no platitudes or hollow phrases. In one sentence, explain why understanding ${FIELD_LABELS[field]} helps you give them a genuinely useful recommendation. Then ask the question again in a softer, more open way. Max 3 sentences total.`,
     messages: [
       ...priorMessages,
@@ -106,11 +104,11 @@ export function generateClarificationResponse(
   field:                DiscoveryContextField,
   currentBelief:        FieldBelief,
   conversationHistory?: string,
-) {
+): FallbackStreamResult {
   const existing      = currentBelief.value != null ? JSON.stringify(currentBelief.value) : 'something';
   const priorMessages = conversationHistory ? parseHistory(conversationHistory) : [];
-  return streamText({
-    model:  aiSdkAnthropic(MODELS.INTERVIEW),
+  return streamQuestionWithFallback({
+    callsite: 'generateClarificationResponse',
     system: `You are the NeuraLaunch discovery assistant. The user's latest answer about ${FIELD_LABELS[field]} seems to contradict what they said earlier (${existing}). Surface this gently: "Earlier you mentioned ${existing}, but now it sounds like [new thing] — just want to make sure I understand correctly. Which reflects your situation better?" Keep it to 2 sentences.`,
     messages: [
       ...priorMessages,
@@ -131,11 +129,11 @@ export function generatePricingFollowUp(
   userMessage:          string,
   conversationHistory?: string,
   audienceType?:        AudienceType,
-) {
+): FallbackStreamResult {
   const system        = buildSystem(audienceType);
   const priorMessages = conversationHistory ? parseHistory(conversationHistory) : [];
-  return streamText({
-    model:  aiSdkAnthropic(MODELS.INTERVIEW),
+  return streamQuestionWithFallback({
+    callsite: 'generatePricingFollowUp',
     system,
     messages: [
       ...priorMessages,

@@ -17,6 +17,14 @@ const CreateSessionSchema = z.object({
   // Matches the per-turn cap in /sessions/[sessionId]/turn/route.ts so a
   // founder's long opening message does not silently fail session creation.
   firstMessage: z.string().max(4000).optional(),
+  /**
+   * Concern 5 trigger #3: when set to true, bypass the
+   * pending-outcome check and create the session unconditionally.
+   * The client sends this on the second POST after the founder has
+   * either submitted or explicitly skipped the outcome modal that
+   * the first POST returned. Default false.
+   */
+  acknowledgePendingOutcome: z.boolean().optional().default(false),
 });
 
 /**
@@ -59,8 +67,48 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
-  const { firstMessage } = parsed.data;
+  const { firstMessage, acknowledgePendingOutcome } = parsed.data;
   const title = firstMessage?.trim().slice(0, 80) || 'Discovery Interview';
+
+  // Concern 5 trigger #3 — pending outcome check.
+  // If the founder has any prior recommendation with a roadmap that
+  // is partially complete (>0 tasks done, < total) AND has not yet
+  // received an outcome attestation, return a 200 with the
+  // pendingOutcomeRecommendationId instead of creating the new
+  // session. The client renders the outcome modal, the founder
+  // either submits or skips, and re-POSTs with
+  // acknowledgePendingOutcome=true to actually create the session.
+  if (!acknowledgePendingOutcome) {
+    const partialRoadmap = await prisma.roadmap.findFirst({
+      where: {
+        userId,
+        recommendation: { outcome: null },
+        progress: {
+          completedTasks: { gt: 0 },
+          // The "skipped or submitted" cases are caught by clearing
+          // outcomePromptSkippedAt and the outcome relation above
+          outcomePromptSkippedAt: null,
+        },
+      },
+      select: {
+        recommendationId: true,
+        progress: { select: { completedTasks: true, totalTasks: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+    if (
+      partialRoadmap
+      && partialRoadmap.progress
+      && partialRoadmap.progress.completedTasks < partialRoadmap.progress.totalTasks
+    ) {
+      log.info('Pending outcome — blocking session creation', {
+        recommendationId: partialRoadmap.recommendationId,
+      });
+      return NextResponse.json({
+        pendingOutcomeRecommendationId: partialRoadmap.recommendationId,
+      }, { status: 200 });
+    }
+  }
 
   try {
     const emptyContext = createEmptyContext();

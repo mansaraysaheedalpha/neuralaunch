@@ -1,10 +1,9 @@
 // src/lib/discovery/question-generator.ts
 import 'server-only';
-import { streamText } from 'ai';
-import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
+import { streamQuestionWithFallback, type FallbackStreamResult } from '@/lib/ai/question-stream-fallback';
 import { DiscoveryContext, DiscoveryContextField } from './context-schema';
 import type { AudienceType } from './constants';
-import { InterviewPhase, MODELS } from './constants';
+import { InterviewPhase } from './constants';
 
 type HistoryMessage = { role: 'user' | 'assistant'; content: string };
 
@@ -98,7 +97,7 @@ export function generateQuestion(
   audienceType?: AudienceType,
   conversationHistory?: string,
   askedFields?:  DiscoveryContextField[],
-) {
+): FallbackStreamResult {
   const system        = buildSystem(audienceType);
   const priorMessages = conversationHistory ? parseHistory(conversationHistory) : [];
 
@@ -110,8 +109,8 @@ export function generateQuestion(
       .map(f => (Array.isArray(f.value) ? f.value.join(', ') : String(f.value)))
       .join('. ');
 
-    return streamText({
-      model:  aiSdkAnthropic(MODELS.INTERVIEW),
+    return streamQuestionWithFallback({
+      callsite: 'generateQuestion:psych_probe',
       system,
       messages: [
         ...priorMessages,
@@ -147,8 +146,8 @@ Do not use generic examples. Derive the question from what they actually said.`,
   // engine's own field selection. askedFields and selectNextField are the single source of truth.
   const askedLabels = (askedFields ?? []).map(k => FIELD_LABELS[k]).join(', ');
 
-  return streamText({
-    model:  aiSdkAnthropic(MODELS.INTERVIEW),
+  return streamQuestionWithFallback({
+    callsite: `generateQuestion:${field}`,
     system,
     messages: [
       ...priorMessages,
@@ -184,7 +183,7 @@ export function generateReflection(
   context:              DiscoveryContext,
   audienceType:         AudienceType | null,
   conversationHistory?: string,
-) {
+): FallbackStreamResult {
   const knownFacts = Object.entries(context)
     .filter(([, f]) => f.value !== null && f.confidence > 0.5)
     .map(([k, f]) => `  ${k}: ${JSON.stringify(f.value)}`)
@@ -193,8 +192,8 @@ export function generateReflection(
   const priorMessages  = conversationHistory ? parseHistory(conversationHistory) : [];
   const audienceNote   = audienceType ? `\nAudience type: ${audienceType}\n` : '';
 
-  return streamText({
-    model:  aiSdkAnthropic(MODELS.INTERVIEW),
+  return streamQuestionWithFallback({
+    callsite: 'generateReflection',
     system: `You are closing a discovery interview. Write a short reflection — 3 to 5 sentences — that will be shown to the user before their recommendation. This reflection must make them feel genuinely heard. Use their specific words. Write in prose, not bullets.`,
     messages: [
       ...priorMessages,

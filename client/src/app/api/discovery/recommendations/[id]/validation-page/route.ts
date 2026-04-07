@@ -12,8 +12,14 @@ import {
   RATE_LIMITS,
 } from '@/lib/validation/server-helpers';
 import type { DiscoveryContext } from '@/lib/discovery/context-schema';
-import type { AudienceType }     from '@/lib/discovery/constants';
+import {
+  VALIDATION_PAGE_ELIGIBLE_TYPES,
+  type AudienceType,
+  type RecommendationType,
+} from '@/lib/discovery/constants';
 import type { Roadmap }          from '@/lib/roadmap/roadmap-schema';
+import { buildPhaseContext, PHASES } from '@/lib/phase-context';
+import { Prisma }                 from '@prisma/client';
 
 /**
  * POST /api/discovery/recommendations/[id]/validation-page
@@ -37,17 +43,40 @@ export async function POST(
     const recommendation = await prisma.recommendation.findFirst({
       where:  { id: recommendationId, userId },
       select: {
-        id:             true,
-        path:           true,
-        summary:        true,
-        validationPage: { select: { id: true, slug: true, status: true } },
-        roadmap:        { select: { status: true, phases: true } },
-        session:        { select: { audienceType: true, beliefState: true } },
+        id:                 true,
+        recommendationType: true,
+        path:               true,
+        summary:            true,
+        validationPage: {
+          select: {
+            id:     true,
+            slug:   true,
+            status: true,
+            report: { select: { signalStrength: true } },
+          },
+        },
+        // id added for phaseContext upstream tracking (Concern 3)
+        roadmap:        { select: { id: true, status: true, phases: true } },
+        // id added for phaseContext upstream tracking (Concern 3)
+        session:        { select: { id: true, audienceType: true, beliefState: true } },
       },
     });
 
     if (!recommendation) {
       throw new HttpError(404, 'Not found');
+    }
+
+    // Server-side defense in depth — even if a malicious client posts
+    // here directly, the validation page is only generated for action
+    // shapes the mechanic actually applies to. Mirrors the UI gating
+    // in RecommendationReveal.
+    const recType = recommendation.recommendationType as RecommendationType | null;
+    if (!recType || !VALIDATION_PAGE_ELIGIBLE_TYPES.has(recType)) {
+      throw new HttpError(409, 'A validation landing page is not applicable to this recommendation');
+    }
+
+    if (recommendation.validationPage?.report?.signalStrength === 'negative') {
+      throw new HttpError(409, 'A negative validation already exists for this recommendation — start a new discovery session instead');
     }
 
     if (recommendation.roadmap?.status !== 'READY') {
@@ -76,6 +105,14 @@ export async function POST(
       recommendationId,
     );
 
+    // Concern 3 — preparatory metadata. Built once and used by both
+    // create and update branches so the upstream graph always lands.
+    const phaseContext = buildPhaseContext(PHASES.VALIDATION, {
+      recommendationId,
+      roadmapId:          recommendation.roadmap?.id,
+      discoverySessionId: recommendation.session?.id,
+    }) as unknown as Prisma.InputJsonValue;
+
     const page = recommendation.validationPage
       ? await prisma.validationPage.update({
           where: { id: recommendation.validationPage.id },
@@ -84,6 +121,7 @@ export async function POST(
             layoutVariant,
             slug,
             status:        'DRAFT',
+            phaseContext,
           },
           select: { id: true, slug: true },
         })
@@ -95,6 +133,7 @@ export async function POST(
             layoutVariant,
             content: content as object,
             status:  'DRAFT',
+            phaseContext,
           },
           select: { id: true, slug: true },
         });

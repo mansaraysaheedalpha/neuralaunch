@@ -5,98 +5,26 @@
 > users navigate between phases, and how progress is tracked. We deliberate
 > on each item before any code changes.
 >
-> **Status:** Open for discussion. Nothing here is decided yet.
+> **Status:** 3 concerns resolved, 5 open for deliberation.
 > **Owner:** Saheed Alpha Mansaray
 > **Captured:** 2026-04-06
+> **Last updated:** 2026-04-06
 
 ---
 
-## Concern 1 — Stale `/chat/[id]` route causing 404
+## Resolved Concerns
 
-**What was observed:** Clicking somewhere in the recommendation flow navigated
-to `startupvalidator.app/chat/cmnnadff70001l804jx484tvz` and showed Next.js's
-default 404 page.
-
-**Root cause:** The `/chat/[id]` route was deleted during the pre-Phase-3 dead
-code cleanup. Some link in the recommendation page (or sidebar, or somewhere
-else in the discovery flow) still points to the old conversation URL.
-
-**Severity:** High — visible broken link in production.
-
-**Open questions:**
-- Where is the link rendered? Sidebar? Recommendation reveal? A "back to
-  conversation" link somewhere?
-- Should we redirect `/chat/[id]` → `/discovery/recommendations/[id]` for
-  any orphaned bookmarks, or just remove the dead links?
+| # | Title | Resolution | Commits |
+|---|---|---|---|
+| **R1** | Stale `/chat/[id]` route causing 404 | Replaced with a read-only transcript view that renders the actual interview Q&A. Linked from the sidebar conversation list and recommendation pages. Header surfaces a context-aware action (View recommendation / Resume interview). Owner-only. | `ff2d770`, `025ada4` |
+| **R2** | "Build Validation Page" CTA showing on every recommendation | Added a structured `recommendationType` enum field on `Recommendation` (build_software, build_service, sales_motion, process_change, hire_or_outsource, further_research, other) classified by Opus during synthesis. UI hides the CTA when type is not in `VALIDATION_PAGE_ELIGIBLE_TYPES` (currently just `build_software`) OR when a prior validation report is `negative`. Server-side defense in depth on the API route. | `a8730f2` |
+| **R3** | Tool-aware but unbiased agent | Solved structurally by R2: the synthesis prompt never mentions NeuraLaunch's validation tool, only the seven generic action shapes. The UI maps action-shape → tool surfacing. The LLM cannot be biased toward a tool it does not know exists; the UI does not reason about the founder's situation. Adding new tools later means adding a new constant set, not editing prompts. | `a8730f2` |
 
 ---
 
-## Concern 2 — "Build Validation Page" button shows on every recommendation
+## Open Concerns
 
-**What was observed:** The CTA appears on Aminata's recommendation (where
-the answer was "co-design a daily capture protocol with one client" — not
-software at all) and on Kwame's recommendation (where the answer was "go
-demo what you already built" — also not software-to-be-built). Either
-founder could click it even though Phase 3's validation page mechanic does
-not apply to their situation, producing nonsense pages and wasted Sonnet/Opus
-calls.
-
-**Root cause:** The button is rendered unconditionally on the recommendation
-reveal page. There is no check on whether (a) the recommendation involves
-building a software product, and (b) validation is the right next step for
-this specific user.
-
-**Severity:** High — this is the central UX flaw the rest of this document
-revolves around. It also wastes paid LLM calls on irrelevant pages and
-gives the user a wrong mental model of when validation is appropriate.
-
-**Open questions:**
-- How do we detect "this recommendation is buildable software"? Options:
-  (a) a structured field on `Recommendation` that the synthesis prompt is
-  asked to fill (`recommendationType: 'build_software' | 'build_service' |
-  'sales_motion' | 'process_change' | ...`), or (b) a small classifier call
-  that runs once after synthesis and tags the recommendation, or (c) just
-  ask Opus to set a boolean `validationPageApplicable: true|false` in the
-  schema.
-- Should the button be hidden entirely when not applicable, or shown but
-  greyed out with an explanation tooltip?
-- When `signalStrength === 'negative'` from a *prior* page on the same
-  recommendation, the button should also be hidden. Already partially
-  handled in the report flow but worth verifying end-to-end.
-
----
-
-## Concern 3 — The agent should know our validation tool exists, but only suggest it when needed
-
-**What was raised:** "Make the AI know that our system has a landing
-validation tool but should only recommend it when necessary, not because
-it's ours and for it to be used."
-
-**Translation:** The agent should be tool-aware (it knows Phase 3 exists
-as a possible next move) but tool-honest (it does not push the user toward
-the tool just because we built it). This is a self-promotion bias problem.
-
-**Severity:** Medium — currently invisible because the button is unconditional,
-but as soon as we fix concern 2 we have to make the decision about when the
-*recommendation prompt itself* mentions validation.
-
-**Open questions:**
-- Should the synthesis prompt list NeuraLaunch's tools as part of "what
-  this person could do next", or should the tool surface itself only via
-  the UI button (driven by the structured field from concern 2)?
-- If we tell the LLM about the tool, how do we prevent it from over-recommending?
-  An explicit instruction like "only suggest this when the founder genuinely
-  has multiple feature candidates and no way to test them" would help, but
-  prompt drift is a real risk.
-- Alternative: keep the LLM completely unaware of the validation tool, and
-  let UI logic decide when to surface the button based on the structured
-  recommendation type. This is cleaner but means the recommendation copy
-  itself never mentions "build a validation page" as a next step — the user
-  discovers the button independently.
-
----
-
-## Concern 4 — Recommendations are currently immutable; users have no way to push back
+## Concern 1 — Recommendations are currently immutable; users have no way to push back
 
 **What was raised:** "Now the system is providing a recommendation that
 cannot be altered. The user could maybe say something related to it like
@@ -128,14 +56,14 @@ ownership over the recommendation will not commit to executing it.
 
 ---
 
-## Concern 5 — "Generate Roadmap" should be gated behind explicit acceptance
+## Concern 2 — "Generate Roadmap" should be gated behind explicit acceptance
 
 **What was raised:** "Only after marking the recommendation good to go with
 should the generate roadmap button get active."
 
 **Translation:** A new state on `Recommendation`: `accepted`/`acknowledged`.
 The roadmap button is hidden or disabled until the user explicitly accepts.
-Pairs naturally with concern 4 — pushback rounds end when the user clicks
+Pairs naturally with Concern 1 — pushback rounds end when the user clicks
 "this is good for me" which transitions the recommendation to accepted.
 
 **Severity:** Medium — currently the user can generate a roadmap they
@@ -150,7 +78,7 @@ will execute.
 
 ---
 
-## Concern 6 — Phases should know about each other and coordinate
+## Concern 3 — Phases should know about each other and coordinate
 
 **What was raised:** "How about making the AI know about each other, the
 phases knows each other like phase 1 knows there are 4 phases ahead, phase
@@ -200,7 +128,7 @@ runs scripts" and "NeuraLaunch is an actual coordinated growth engine."
 
 ---
 
-## Concern 7 — Two-track support: software founders vs non-software founders
+## Concern 4 — Two-track support: software founders vs non-software founders
 
 **What was raised:** "Particularly for those with software businesses
 that will go through the 5 phases one way or the other, and for those
@@ -253,7 +181,7 @@ roadmap" and "we walked you through it."
 
 ---
 
-## Concern 8 — Capture successful outcomes as training data
+## Concern 5 — Capture successful outcomes as training data
 
 **What was raised:** "At the end, for every roadmap that successfully
 helps the user navigate through, really the user can then honestly decide
@@ -285,56 +213,44 @@ NeuraLaunch becoming better at recommendations over time.
 
 ---
 
-## My Initial Take (Brief)
+## My Take on the Remaining Five
 
-If I had to rank these by what would most change the *character* of
-NeuraLaunch:
+If I had to rank what would most change the *character* of NeuraLaunch:
 
-1. **Concern 4 (immutable recommendations)** + **Concern 5 (gated roadmap)**
-   are the same idea and should be solved together. They unblock genuine
-   user agency. Probably the highest user-experience leverage.
+1. **Concerns 1 + 2 (mutable recommendations + gated roadmap)** are
+   the same idea and should be solved together. They unblock genuine
+   user agency. Probably the highest user-experience leverage of what's
+   left, and the smallest scope.
 
-2. **Concern 7 (two-track ongoing support)** is the biggest product
+2. **Concern 4 (two-track ongoing support)** is the biggest product
    differentiator. Right now we're a "generate stuff" tool. After this
    we'd be a "walk you through it" tool. That's a different category of
    product entirely.
 
-3. **Concern 2 (validation button gating)** is the most urgent fix because
-   it's actively misleading users today and burning paid LLM calls.
+3. **Concern 3 (phase coordination)** is the most architecturally
+   important but also the hardest. I would not start here — I would
+   start with the simplest concrete case (Phase 3 negative → Phase 1
+   re-run with disconfirmed assumptions) and build the coordination
+   primitives from that one example outward.
 
-4. **Concern 6 (phase coordination)** is the most architecturally important
-   but also the hardest. I would not start here — I would start with the
-   simplest concrete case (Phase 3 negative → Phase 1 re-run with
-   disconfirmed assumptions) and build the coordination primitives from
-   that one example outward.
-
-5. **Concern 8 (outcome capture)** is foundational but can come last,
-   because it depends on Concern 7 being in place — you can't capture
+4. **Concern 5 (outcome capture)** is foundational but can come last,
+   because it depends on Concern 4 being in place — you can't capture
    "this helped" if there's no check-in mechanism to mark progress.
-
-6. **Concern 3 (tool-aware but unbiased agent)** is solved naturally by
-   Concern 2 — if the structured field on the recommendation determines
-   when the button shows, the LLM doesn't need to know about the tool
-   at all.
-
-7. **Concern 1 (404)** is a 30-minute fix that should happen today
-   regardless of the strategic discussion.
 
 ---
 
 ## Suggested Order of Deliberation
 
-1. Concern 1 (the 404) — fix it before anything else, it's bleeding trust today
-2. Concern 2 (validation button gating) — the central UX fix
-3. Concern 4 + 5 together (mutable recommendations, gated roadmap)
-4. Concern 7 (two-track ongoing support — the big one)
-5. Concern 6 (phase coordination — start with the smallest concrete case)
-6. Concern 8 (outcome capture)
-7. Concern 3 (resolved by Concern 2)
+1. **Concerns 1 + 2 together** — mutable recommendations, gated roadmap.
+   Smaller scope, immediate UX leverage.
+2. **Concern 4** — two-track ongoing support. The big product differentiator.
+3. **Concern 3** — phase coordination. Start with the smallest concrete case.
+4. **Concern 5** — outcome capture. Last because it depends on 4.
 
-But this is just a suggestion — your call on what to deliberate first.
+This is just a suggestion — your call on what to deliberate first.
 
 ---
 
-*Document opened for deliberation. Each concern will be discussed and
-resolved (or explicitly deferred) before any code changes.*
+*Each concern is discussed and resolved (or explicitly deferred) before
+any code changes. Resolved concerns move to the table at the top of this
+document.*

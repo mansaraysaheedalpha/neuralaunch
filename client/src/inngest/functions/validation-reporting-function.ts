@@ -11,6 +11,7 @@ import {
   shouldRegenerateBrief,
 } from '@/lib/validation/build-brief-generator';
 import { ValidationPageContentSchema, type ValidationInterpretation } from '@/lib/validation/schemas';
+import { buildPhaseContext, PHASES } from '@/lib/phase-context';
 import {
   VALIDATION_REPORTING_EVENT,
   VALIDATION_SYNTHESIS_THRESHOLDS,
@@ -104,10 +105,12 @@ export const validationReportingFunction = inngest.createFunction(
           channelsCompleted: true,
           recommendation: {
             select: {
+              id:      true,
               path:    true,
               summary: true,
+              roadmap: { select: { id: true } },
               session: {
-                select: { beliefState: true },
+                select: { id: true, beliefState: true },
               },
             },
           },
@@ -261,6 +264,14 @@ export const validationReportingFunction = inngest.createFunction(
         },
       });
 
+      // Concern 3 — preparatory metadata for the report row
+      const reportPhaseContext = buildPhaseContext(PHASES.VALIDATION, {
+        validationPageId:   page.id,
+        recommendationId:   page.recommendation!.id,
+        roadmapId:          page.recommendation!.roadmap?.id,
+        discoverySessionId: page.recommendation!.session?.id,
+      }) as unknown as Prisma.InputJsonValue;
+
       if (page.report) {
         await prisma.validationReport.update({
           where: { id: page.report.id },
@@ -275,6 +286,7 @@ export const validationReportingFunction = inngest.createFunction(
             nextAction:              report.nextAction,
             disconfirmedAssumptions: report.disconfirmedAssumptions as unknown as Prisma.InputJsonValue,
             pivotOptions:            report.pivotOptions as unknown as Prisma.InputJsonValue,
+            phaseContext:            reportPhaseContext,
             // A negative report overrides any prior MVP handoff flag — the
             // founder cannot unintentionally carry a discredited brief into
             // Phase 5 just because they marked an older positive version.
@@ -294,9 +306,35 @@ export const validationReportingFunction = inngest.createFunction(
             nextAction:              report.nextAction,
             disconfirmedAssumptions: report.disconfirmedAssumptions as unknown as Prisma.InputJsonValue,
             pivotOptions:            report.pivotOptions as unknown as Prisma.InputJsonValue,
+            phaseContext:            reportPhaseContext,
           },
         });
       }
+
+      // Concern 3 — write the validation outcome back to the parent
+      // Recommendation. Mirrors the signalStrength enum exactly.
+      // Today no downstream behaviour reads this; it is the storage
+      // substrate the future cross-phase coordination layer will read.
+      //
+      // DEFERRED: Cross-Phase Orchestration Layer
+      // validationOutcome written here is the trigger signal for the
+      // future orchestration layer that automatically resolves
+      // contradictions between Phase 3 build briefs and Phase 2
+      // roadmaps. The trigger to build it: 20+ completed validation
+      // reports across real founder sessions. At that point, query
+      // ValidationReport rows joined to their parent Recommendation
+      // and Roadmap, look at the contradiction rate (Phase 3 says
+      // "build X first" while Phase 2's roadmap had "build Y first"),
+      // and decide priority. If contradictions appear in 30%+ of
+      // cases the orchestration layer is high-priority. If rare, the
+      // current manual path (founder reads the build brief and
+      // chooses to push back on the recommendation) is sufficient.
+      // Both phaseContext columns and validationOutcome are the data
+      // foundation the orchestration layer reads when built.
+      await prisma.recommendation.update({
+        where: { id: page.recommendation!.id },
+        data:  { validationOutcome: report.signalStrength },
+      });
 
       log.info('Build brief persisted', { signalStrength: report.signalStrength });
     });

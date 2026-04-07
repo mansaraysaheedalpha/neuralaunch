@@ -10,6 +10,7 @@ import { MessageList } from './MessageList';
 import { WelcomeLayer } from './WelcomeLayer';
 import { QuestionStepper } from './QuestionStepper';
 import { InterviewGuide } from './InterviewGuide';
+import { OutcomeForm } from '@/components/outcome/OutcomeForm';
 import { useDiscoverySession } from './useDiscoverySession';
 
 import type { ChatMessage } from './MessageList';
@@ -94,9 +95,24 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
     setStepperVisible,
     currentQuestion,
     questionIndex,
+    turnError,
     sendMessage,
+    retryLastTurn,
     retryRecommendation,
+    pendingOutcomeRecommendationId,
+    dismissPendingOutcomeAndRetry,
   } = useDiscoverySession({ onComplete, resume });
+
+  // The stepper stays visible during a stepper-surface failure so the
+  // founder can see the cut content and the retry icon. Without this
+  // override the stepper would collapse the moment status hit 'error'.
+  const stepperShouldShow =
+    (stepperVisible && !isSynthesizing)
+    || (turnError?.surface === 'stepper' && !isSynthesizing);
+
+  const stepperFailure = turnError?.surface === 'stepper'
+    ? { kind: turnError.kind, partial: turnError.partial }
+    : null;
 
   const isLoading = status === 'loading';
   const canSubmit = sessionReady && !isSynthesizing && input.trim().length > 0
@@ -174,15 +190,9 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
           synthesisError={synthesisError}
           synthesisStep={synthesisStep}
           onRetry={retryRecommendation}
+          turnError={turnError}
+          onRetryTurn={() => { void retryLastTurn(); }}
         />
-      )}
-
-      {/* Error banner — surfaces session creation or turn failures so the
-          UI never silently goes blank */}
-      {status === 'error' && !isSynthesizing && (
-        <div className="mx-4 mb-3 shrink-0 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-400">
-          Something went wrong sending your message. Please try again — if the problem persists, refresh the page.
-        </div>
       )}
 
       {/* Empty state — welcome + input grouped and vertically centered */}
@@ -207,7 +217,9 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
       <QuestionStepper
         currentQuestion={currentQuestion}
         currentIndex={questionIndex}
-        isVisible={stepperVisible && !isSynthesizing}
+        isVisible={stepperShouldShow}
+        failure={stepperFailure}
+        onRetry={() => { void retryLastTurn(); }}
         onAnswer={answer => {
           setStepperVisible(false);
           handleSend(answer);
@@ -229,6 +241,25 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
             <SendHorizontal className="size-4" />
           </Button>
         </form>
+      )}
+
+      {/* Concern 5 trigger #3 — pending outcome modal. Renders in
+          front of the chat when the founder tried to start a new
+          session while a prior partial roadmap has no attestation.
+          The modal is dismissable via either submit OR skip; both
+          paths fall through to dismissPendingOutcomeAndRetry which
+          actually creates the new session. */}
+      {pendingOutcomeRecommendationId && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center px-4 py-8">
+          <div className="w-full max-w-xl max-h-full overflow-y-auto">
+            <OutcomeForm
+              recommendationId={pendingOutcomeRecommendationId}
+              phaseTitles={[]}
+              surface="session-block"
+              onDone={() => { void dismissPendingOutcomeAndRetry(); }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
