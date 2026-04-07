@@ -117,6 +117,29 @@ export default async function ValidationPreviewPage({ params }: ValidationPrevie
           </div>
         )}
 
+        {/* Fallback when the page is LIVE but the distribution brief
+            either failed to generate, returned empty, or failed
+            safeParse on read. Without this the founder sees no
+            distribution affordance at all and has no way to know
+            anything went wrong — same silent-hide failure class that
+            bit us with the route-level error logging earlier today. */}
+        {page.status === 'LIVE' && (!brief || brief.length === 0) && (
+          <div className="pt-6 border-t border-border">
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+              <p className="text-[10px] uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-2">
+                Distribution brief unavailable
+              </p>
+              <p className="text-xs text-foreground/80 leading-relaxed mb-1">
+                The personalised distribution brief is missing for this page.
+                The page itself is live and accepting visitors — you can
+                still share the URL above directly. We are working on a
+                regenerate-brief action; for now, archive and republish
+                if you need the brief regenerated.
+              </p>
+            </div>
+          </div>
+        )}
+
         {page.report && (
           <BuildBriefPanel
             pageId={page.id}
