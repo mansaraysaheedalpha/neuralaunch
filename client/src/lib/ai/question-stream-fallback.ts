@@ -62,12 +62,30 @@ function buildProviderChain(): ProviderEntry[] {
 // ---------------------------------------------------------------------------
 
 /**
- * Backoff between RETRIES on the same provider. The first attempt has
- * no delay; the second waits 2s, the third waits 8s, the fourth (which
- * triggers fallback to the next provider) waits 30s. Schedule per the
- * resilience spec.
+ * Backoff between RETRIES on the same provider. Two attempts per
+ * provider: the first immediately, the second after a 2-second pause.
+ * Then we fall through to the next provider in the chain.
+ *
+ * The previous schedule [0, 2s, 8s, 30s] burned up to 40 seconds per
+ * provider in the worst case, which exceeded the 90-second turn route
+ * function budget when stacked with the AI SDK's own internal retries.
+ * Production hit exactly that on 2026-04-08: AI SDK exhausted its
+ * internal 3 attempts on Sonnet ('Overloaded'), our outer loop began
+ * its second attempt, the function ran out of time before Haiku could
+ * even try, and the founder saw the AI_RetryError bubble all the way
+ * to the route.
+ *
+ * The new shape relies on the chain (Sonnet → Haiku → Gemini Flash)
+ * to provide the resilience, NOT long waits on a single provider.
+ * Sustained Anthropic overload is best handled by jumping to a
+ * different vendor on different infrastructure, not by re-asking
+ * the same overloaded shard 4 times.
+ *
+ * Total worst case: 3 providers × 2 attempts × ~10s real call time
+ * + 2 backoffs × 2s = ~64s, still inside the 90s route budget with
+ * meaningful headroom.
  */
-const RETRY_DELAYS_MS = [0, 2_000, 8_000, 30_000] as const;
+const RETRY_DELAYS_MS = [0, 2_000] as const;
 
 /**
  * Decide whether an error from a streaming call is worth retrying. We
@@ -185,11 +203,21 @@ export function streamQuestionWithFallback(
               attempt,
             });
 
+            // maxRetries: 0 disables the AI SDK's internal retry. Our
+            // outer loop owns retry semantics — without this, every
+            // failed attempt costs us ~3 internal retries first, which
+            // multiplies the time budget by 3x and was the direct cause
+            // of the 2026-04-08 turn route timeout under Anthropic
+            // sustained overload. The AI SDK's internal retry is a
+            // single-provider resilience mechanism; our chain is a
+            // multi-provider resilience mechanism. They double-count
+            // retry intent and undermine the budget if both are on.
             const result = streamText({
               model:           provider.model,
               system:          req.system,
               messages:        req.messages,
               maxOutputTokens: QUESTION_MAX_TOKENS,
+              maxRetries:      0,
             });
 
             // Pump chunks. The first successful read confirms the
