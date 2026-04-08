@@ -170,9 +170,41 @@ export type SurveyResponse   = z.infer<typeof SurveyResponseSchema>;
 // Interpretation — Step 1 Sonnet output
 // ---------------------------------------------------------------------------
 
+// IMPORTANT: every text field on this schema is bare `z.string()`
+// with NO .max() constraint. Anthropic's structured-output endpoint
+// does NOT consistently enforce string-length limits during
+// generation — the model produces a longer string than the cap, the
+// response is structurally valid JSON, and then the AI SDK's post-hoc
+// Zod parse rejects the whole thing as AI_NoObjectGeneratedError.
+//
+// Production hit this on 2026-04-08 18:01 UTC: the Gap 1
+// low-traffic-pivot interpreter prompt asks for a multi-sentence
+// operational nextAction (typically 400-700 characters) but the
+// schema capped MEDIUM_TEXT at 500. The interpreter just bypassed
+// the cap and the entire validation reporting Inngest function
+// 500'd at the parse step, leaving the founder with no report.
+//
+// Same fix shape we used on the pushback schema yesterday: drop the
+// schema-level .max(), keep length intent in the prompt + describe()
+// copy, enforce bounds via the .transform() post-clamp helpers
+// below. The persisted JSONB column is still bounded; the model is
+// just not punished for going slightly over the soft target.
+const clampString = (max: number) => (s: string) =>
+  s.length > max
+    ? `${s.slice(0, Math.max(0, max - 1))}…`
+    : s;
+
+const clampInterpretation = {
+  signalReason:         clampString(400),  // soft "one sentence" — 400 char cap
+  conversionAssessment: clampString(400),
+  trafficAssessment:    clampString(400),
+  nextAction:           clampString(2_000), // multi-sentence operational guidance
+  surveyTheme:          clampString(400),
+};
+
 export const ValidationInterpretationSchema = z.object({
   signalStrength:       z.enum(['strong', 'moderate', 'weak', 'negative', 'insufficient']),
-  signalReason:         SHORT_TEXT.describe('One sentence explaining the signal strength score with the number behind it'),
+  signalReason:         z.string().describe('One sentence explaining the signal strength score with the number behind it. Aim for under 200 characters; the server hard-truncates at 400.'),
   featureRanking:       z.array(z.object({
     taskId:     z.string(),
     title:      z.string(),
@@ -180,16 +212,22 @@ export const ValidationInterpretationSchema = z.object({
     percentage: z.number(),
     assessment: z.string(),
   })),
-  conversionAssessment: SHORT_TEXT,
+  conversionAssessment: z.string().describe('One sentence on conversion. Aim for under 200 characters; the server hard-truncates at 400.'),
   // No .max() — Anthropic structured output rejects array maxItems.
   // The prompt instructs the model to return at most 8 themes; we
   // post-clamp the array on receipt to enforce that ceiling.
-  surveyThemes:         z.array(z.string().max(300)).describe('Up to 8 themes — never more.'),
-  trafficAssessment:    SHORT_TEXT,
-  nextAction:           MEDIUM_TEXT,
+  surveyThemes:         z.array(z.string()).describe('Up to 8 themes — never more. Aim for under 200 characters per theme; server hard-truncates at 400.'),
+  trafficAssessment:    z.string().describe('One sentence on traffic. Aim for under 200 characters; the server hard-truncates at 400.'),
+  nextAction:           z.string().describe('Operational instruction. For low-traffic and distribution-stalled cases this is multi-sentence guidance. Aim for under 1000 characters; the server hard-truncates at 2000.'),
 }).transform(data => ({
   ...data,
-  surveyThemes: data.surveyThemes.slice(0, 8),
+  signalReason:         clampInterpretation.signalReason(data.signalReason),
+  conversionAssessment: clampInterpretation.conversionAssessment(data.conversionAssessment),
+  trafficAssessment:    clampInterpretation.trafficAssessment(data.trafficAssessment),
+  nextAction:           clampInterpretation.nextAction(data.nextAction),
+  surveyThemes:         data.surveyThemes
+    .slice(0, 8)
+    .map(clampInterpretation.surveyTheme),
 }));
 
 export type ValidationInterpretation = z.infer<typeof ValidationInterpretationSchema>;
@@ -198,19 +236,23 @@ export type ValidationInterpretation = z.infer<typeof ValidationInterpretationSc
 // Report — Step 2 Opus output (gated behind thresholds)
 // ---------------------------------------------------------------------------
 
+// Bare z.string() for the same reason as the interpretation schema
+// above — Anthropic does not enforce string length during structured
+// output generation. The .transform() on ValidationReportSchema below
+// post-clamps every text field on these subschemas.
 export const ConfirmedFeatureSchema = z.object({
   taskId:     z.string(),
   title:      z.string(),
   clicks:     z.number(),
   percentage: z.number(),
-  evidence:   MEDIUM_TEXT,
+  evidence:   z.string(),
 });
 
 export const RejectedFeatureSchema = z.object({
   taskId: z.string(),
   title:  z.string(),
   clicks: z.number(),
-  reason: MEDIUM_TEXT,
+  reason: z.string(),
 });
 
 /**
@@ -233,22 +275,49 @@ export const RejectedFeatureSchema = z.object({
 // .default([]) is also dropped because superRefine and transform run
 // before defaults at parse time and the model is required to return
 // the field anyway.
+const clampReport = {
+  evidence:        clampString(2_000),  // build brief evidence per feature
+  reason:          clampString(2_000),  // build brief rejection reason per feature
+  surveyInsights:  clampString(4_000),  // multi-paragraph qualitative summary
+  buildBrief:      clampString(4_000),  // multi-paragraph "build X / cut Y" call
+  nextAction:      clampString(2_000),  // operational prescription
+  disconfirmedAssumption: clampString(1_000),
+  pivotTitle:      clampString(400),
+  pivotRationale:  clampString(2_000),
+};
+
 export const ValidationReportSchema = z.object({
   signalStrength:          z.enum(['strong', 'moderate', 'weak', 'negative']),
   confirmedFeatures:       z.array(ConfirmedFeatureSchema),
   rejectedFeatures:        z.array(RejectedFeatureSchema),
-  surveyInsights:          LONG_TEXT,
-  buildBrief:              LONG_TEXT,
-  nextAction:              MEDIUM_TEXT,
-  disconfirmedAssumptions: z.array(MEDIUM_TEXT).describe('Up to 5 disconfirmed assumptions when signalStrength is negative; empty array otherwise'),
+  surveyInsights:          z.string().describe('Multi-paragraph qualitative summary. Aim for under 2000 chars; server hard-truncates at 4000.'),
+  buildBrief:              z.string().describe('Multi-paragraph build / cut / defer call. Aim for under 2000 chars; server hard-truncates at 4000.'),
+  nextAction:              z.string().describe('Operational instruction. Aim for under 1000 chars; server hard-truncates at 2000.'),
+  disconfirmedAssumptions: z.array(z.string()).describe('Up to 5 disconfirmed assumptions when signalStrength is negative; empty array otherwise. Aim for under 500 chars per item; server hard-truncates at 1000.'),
   pivotOptions:            z.array(z.object({
-    title:    SHORT_TEXT,
-    rationale: MEDIUM_TEXT,
-  })).describe('Up to 3 pivot options when signalStrength is negative; empty array otherwise'),
+    title:    z.string(),
+    rationale: z.string(),
+  })).describe('Up to 3 pivot options when signalStrength is negative; empty array otherwise.'),
 }).transform(data => ({
   ...data,
-  disconfirmedAssumptions: data.disconfirmedAssumptions.slice(0, 5),
-  pivotOptions:            data.pivotOptions.slice(0, 3),
+  surveyInsights:          clampReport.surveyInsights(data.surveyInsights),
+  buildBrief:              clampReport.buildBrief(data.buildBrief),
+  nextAction:              clampReport.nextAction(data.nextAction),
+  confirmedFeatures:       data.confirmedFeatures.map(f => ({
+    ...f,
+    evidence: clampReport.evidence(f.evidence),
+  })),
+  rejectedFeatures:        data.rejectedFeatures.map(f => ({
+    ...f,
+    reason: clampReport.reason(f.reason),
+  })),
+  disconfirmedAssumptions: data.disconfirmedAssumptions
+    .slice(0, 5)
+    .map(clampReport.disconfirmedAssumption),
+  pivotOptions:            data.pivotOptions.slice(0, 3).map(p => ({
+    title:     clampReport.pivotTitle(p.title),
+    rationale: clampReport.pivotRationale(p.rationale),
+  })),
 }));
 
 export type ConfirmedFeature = z.infer<typeof ConfirmedFeatureSchema>;

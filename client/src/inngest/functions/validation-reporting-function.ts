@@ -194,9 +194,15 @@ export const validationReportingFunction = inngest.createFunction(
             completedChannels: page.channelsCompleted.length,
           });
         } catch (err) {
+          // Extract err.cause — the AI SDK wraps the underlying Zod
+          // failure here on AI_NoObjectGeneratedError. Without this,
+          // we are debugging schema-rejection blind in production.
+          const cause = err instanceof Error && 'cause' in err ? err.cause : undefined;
+          const causeMessage = cause instanceof Error ? cause.message : String(cause ?? '');
           log.error(
             'Interpretation failed',
             err instanceof Error ? err : new Error(String(err)),
+            { cause: causeMessage, pageId: page.id },
           );
           return null;
         }
