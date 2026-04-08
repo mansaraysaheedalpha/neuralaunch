@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { enforceSameOrigin, HttpError, httpErrorToResponse } from '@/lib/validation/server-helpers';
 
 /**
  * GET /api/discovery/sessions/[sessionId]/recommendation
@@ -15,6 +16,13 @@ export async function GET(
   req:     NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
+  try {
+    enforceSameOrigin(req);
+  } catch (err) {
+    if (err instanceof HttpError) return httpErrorToResponse(err);
+    throw err;
+  }
+
   const authSession = await auth();
   if (!authSession?.user?.id) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });

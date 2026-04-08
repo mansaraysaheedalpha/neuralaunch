@@ -4,6 +4,7 @@ import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
 import { inngest } from '@/inngest/client';
 import { ROADMAP_EVENT } from '@/lib/roadmap';
+import { enforceSameOrigin, HttpError, httpErrorToResponse } from '@/lib/validation/server-helpers';
 import { z } from 'zod';
 
 const ParamsSchema = z.object({ id: z.string().min(1) });
@@ -16,9 +17,16 @@ const ParamsSchema = z.object({ id: z.string().min(1) });
  * Returns 409 if a READY roadmap already exists.
  */
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  try {
+    enforceSameOrigin(req);
+  } catch (err) {
+    if (err instanceof HttpError) return httpErrorToResponse(err);
+    throw err;
+  }
+
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -67,9 +75,16 @@ export async function POST(
  * Returns the current roadmap status and data for polling from the UI.
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  try {
+    enforceSameOrigin(req);
+  } catch (err) {
+    if (err instanceof HttpError) return httpErrorToResponse(err);
+    throw err;
+  }
+
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

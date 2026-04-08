@@ -8,6 +8,7 @@ import { logger } from '@/lib/logger';
 import {
   checkRateLimit, RATE_LIMITS, getRequestIdentifier, getClientIp,
 } from '@/lib/rate-limit';
+import { enforceSameOrigin, HttpError, httpErrorToResponse } from '@/lib/validation/server-helpers';
 import {
   getSession, saveSession, extractContext, applyUpdate, generateQuestion, generateReflection,
   canSynthesise, teeDiscoveryStream, detectAudienceType, computeOverallCompleteness,
@@ -51,6 +52,13 @@ export async function POST(
   req:     NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
+  try {
+    enforceSameOrigin(req);
+  } catch (err) {
+    if (err instanceof HttpError) return httpErrorToResponse(err);
+    throw err;
+  }
+
   const authSession = await auth();
   if (!authSession?.user?.id) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });

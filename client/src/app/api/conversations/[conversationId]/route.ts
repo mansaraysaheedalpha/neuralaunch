@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { handleApiError, ErrorResponses, NotFoundError } from "@/lib/api-error";
 import { noContentResponse } from "@/lib/api-response";
+import { enforceSameOrigin, HttpError, httpErrorToResponse } from "@/lib/validation/server-helpers";
 import { z } from "zod";
 
 const conversationIdSchema = z.object({
@@ -26,6 +27,7 @@ export async function DELETE(
   context: { params: Promise<{ conversationId: string }> }
 ) {
   try {
+    enforceSameOrigin(req);
     const session = await auth();
     if (!session?.user?.id) {
       return ErrorResponses.unauthorized();
@@ -54,6 +56,7 @@ export async function DELETE(
 
     return noContentResponse();
   } catch (error) {
+    if (error instanceof HttpError) return httpErrorToResponse(error);
     return handleApiError(error, "DELETE /api/conversations/[conversationId]");
   }
 }

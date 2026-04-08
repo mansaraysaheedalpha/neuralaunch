@@ -4,6 +4,7 @@ import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { deleteSession } from '@/lib/discovery';
+import { enforceSameOrigin, HttpError, httpErrorToResponse } from '@/lib/validation/server-helpers';
 
 /**
  * DELETE /api/discovery/sessions/[sessionId]
@@ -13,9 +14,16 @@ import { deleteSession } from '@/lib/discovery';
  * Only the owning user can delete their own session.
  */
 export async function DELETE(
-  _req:     NextRequest,
+  req:      NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
+  try {
+    enforceSameOrigin(req);
+  } catch (err) {
+    if (err instanceof HttpError) return httpErrorToResponse(err);
+    throw err;
+  }
+
   const authSession = await auth();
   if (!authSession?.user?.id) {
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });

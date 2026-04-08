@@ -3,9 +3,11 @@ import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { handleApiError, ErrorResponses } from "@/lib/api-error";
 import { successResponse } from "@/lib/api-response";
+import { enforceSameOrigin, HttpError, httpErrorToResponse } from "@/lib/validation/server-helpers";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    enforceSameOrigin(request);
     const session = await auth();
     if (!session?.user?.id) {
       return ErrorResponses.unauthorized();
@@ -43,6 +45,7 @@ export async function GET() {
 
     return successResponse(shaped);
   } catch (error) {
+    if (error instanceof HttpError) return httpErrorToResponse(error);
     return handleApiError(error, "GET /api/conversations");
   }
 }
