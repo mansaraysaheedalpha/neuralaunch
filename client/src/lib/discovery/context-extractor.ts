@@ -7,56 +7,7 @@ import { DiscoveryContext, DiscoveryContextField } from './context-schema';
 import { MODELS } from './constants';
 import type { AudienceType } from './constants';
 import { renderUserContent } from '@/lib/validation/server-helpers';
-import { logger } from '@/lib/logger';
-
-/**
- * Shared helper: detect transient Anthropic overload errors that
- * justify a fallback to Haiku. Surfaced as either AI_RetryError
- * (3 attempts exhausted) or AI_APICallError (single failure with
- * 'overloaded' in the message). Both produced by the AI SDK.
- *
- * Stage 7.1 emergency fix: production hit AI_RetryError with
- * "Failed after 3 attempts. Last error: Overloaded" on a real
- * discovery turn. context-extractor + detectAudienceType were
- * the only generateObject sites in the discovery turn flow that
- * had no fallback model — when Sonnet was overloaded the entire
- * turn 500'd and the founder lost their input. The streaming
- * question/response sites already had a fallback chain via
- * question-stream-fallback.ts.
- */
-function isAnthropicOverload(err: unknown): boolean {
-  if (!(err instanceof Error)) return false;
-  if (err.name !== 'AI_RetryError' && err.name !== 'AI_APICallError') return false;
-  return /overload/i.test(err.message);
-}
-
-/**
- * Run a generateObject-shaped call against Sonnet, then transparently
- * fall back to Haiku on Anthropic overload. Caller passes the raw
- * generateObject promise factory so we can re-issue the exact same
- * call against a different model on the second attempt.
- *
- * NB: this is the inline fix for the discovery turn path. The broader
- * Stage 7.5 reliability work will lift this into a shared
- * src/lib/ai/with-model-fallback.ts helper used by every
- * generateObject site (synthesis, pushback, validation generators,
- * roadmap, etc.). Today we patch the urgent failure surface only.
- */
-async function withModelFallback<T>(
-  callsite: string,
-  run: (modelId: string) => Promise<T>,
-): Promise<T> {
-  const log = logger.child({ module: 'ContextExtractor', callsite });
-  try {
-    return await run(MODELS.INTERVIEW);
-  } catch (err) {
-    if (!isAnthropicOverload(err)) throw err;
-    log.warn(
-      `[${callsite}] Anthropic Sonnet overloaded — falling back to Haiku`,
-    );
-    return await run(MODELS.INTERVIEW_FALLBACK_1);
-  }
-}
+import { withModelFallback } from '@/lib/ai/with-model-fallback';
 
 // ---------------------------------------------------------------------------
 // Public result type returned to the turn route
@@ -120,7 +71,10 @@ export async function extractContext(
       ? `Existing value (confidence ${currentFieldValue.confidence.toFixed(2)}): ${renderUserContent(JSON.stringify(currentFieldValue.value), 1000)}`
       : 'No existing value yet.';
 
-  const object = await withModelFallback('extractContext', async (modelId) => {
+  const object = await withModelFallback(
+    'extractContext',
+    { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
+    async (modelId) => {
     const { object } = await generateObject({
       model:  aiSdkAnthropic(modelId),
       schema: ExtractionResultSchema,
@@ -212,7 +166,10 @@ export async function detectAudienceType(
     .map(([k, f]) => `${k}: ${renderUserContent(JSON.stringify(f.value), 500)}`)
     .join('\n');
 
-  const object = await withModelFallback('detectAudienceType', async (modelId) => {
+  const object = await withModelFallback(
+    'detectAudienceType',
+    { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
+    async (modelId) => {
     const { object } = await generateObject({
       model:  aiSdkAnthropic(modelId),
       schema: AudienceClassificationSchema,
