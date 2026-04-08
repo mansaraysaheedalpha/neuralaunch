@@ -4,7 +4,13 @@ import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { handleApiError, ErrorResponses, NotFoundError } from "@/lib/api-error";
 import { noContentResponse } from "@/lib/api-response";
-import { enforceSameOrigin, HttpError, httpErrorToResponse } from "@/lib/validation/server-helpers";
+import {
+  enforceSameOrigin,
+  HttpError,
+  httpErrorToResponse,
+  rateLimitByUser,
+  RATE_LIMITS,
+} from "@/lib/validation/server-helpers";
 import { z } from "zod";
 
 const conversationIdSchema = z.object({
@@ -32,6 +38,8 @@ export async function DELETE(
     if (!session?.user?.id) {
       return ErrorResponses.unauthorized();
     }
+
+    await rateLimitByUser(session.user.id, "conversation-delete", RATE_LIMITS.API_AUTHENTICATED);
 
     const params = await context.params;
     const validation = conversationIdSchema.safeParse(params);

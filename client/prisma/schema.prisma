@@ -93,6 +93,10 @@ model Conversation {
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
 
+  // Sidebar query is `where: { userId }, orderBy: createdAt desc, take: 100`.
+  // The composite index covers both predicates so the planner can use
+  // an index-only scan. Stage 7.2 scalability fix.
+  @@index([userId, createdAt])
   @@index([createdAt])
 }
 
@@ -112,6 +116,11 @@ model Message {
    * Known values: 'anthropic-sonnet' | 'anthropic-haiku' | 'google-gemini-flash'
    */
   modelUsed String?
+
+  // The transcript loader queries `where: { conversationId }, orderBy: createdAt asc`.
+  // Without this index every conversation transcript would do a full
+  // table scan filtered by conversationId. Stage 7.2 scalability fix.
+  @@index([conversationId, createdAt])
 }
 
 // ==========================================

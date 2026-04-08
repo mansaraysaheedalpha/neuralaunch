@@ -3,7 +3,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
-import { enforceSameOrigin, HttpError, httpErrorToResponse } from '@/lib/validation/server-helpers';
+import {
+  enforceSameOrigin,
+  HttpError,
+  httpErrorToResponse,
+  rateLimitByUser,
+  RATE_LIMITS,
+} from '@/lib/validation/server-helpers';
 
 /**
  * GET /api/discovery/sessions/[sessionId]/recommendation
@@ -28,6 +34,13 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
   const userId = authSession.user.id;
+
+  try {
+    await rateLimitByUser(userId, 'session-recommendation-poll', RATE_LIMITS.API_READ);
+  } catch (err) {
+    if (err instanceof HttpError) return httpErrorToResponse(err);
+    throw err;
+  }
 
   const { sessionId } = await params;
   const log = logger.child({ route: 'GET /api/discovery/sessions/[id]/recommendation', userId, sessionId });

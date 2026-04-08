@@ -4,7 +4,13 @@ import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { deleteSession } from '@/lib/discovery';
-import { enforceSameOrigin, HttpError, httpErrorToResponse } from '@/lib/validation/server-helpers';
+import {
+  enforceSameOrigin,
+  HttpError,
+  httpErrorToResponse,
+  rateLimitByUser,
+  RATE_LIMITS,
+} from '@/lib/validation/server-helpers';
 
 /**
  * DELETE /api/discovery/sessions/[sessionId]
@@ -29,6 +35,14 @@ export async function DELETE(
     return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
   }
   const userId = authSession.user.id;
+
+  try {
+    await rateLimitByUser(userId, 'session-delete', RATE_LIMITS.API_AUTHENTICATED);
+  } catch (err) {
+    if (err instanceof HttpError) return httpErrorToResponse(err);
+    throw err;
+  }
+
   const { sessionId } = await params;
 
   const log = logger.child({ route: 'DELETE /api/discovery/sessions/[id]', userId, sessionId });

@@ -3,7 +3,13 @@ import { auth } from "@/auth";
 import prisma from "@/lib/prisma";
 import { handleApiError, ErrorResponses } from "@/lib/api-error";
 import { successResponse } from "@/lib/api-response";
-import { enforceSameOrigin, HttpError, httpErrorToResponse } from "@/lib/validation/server-helpers";
+import {
+  enforceSameOrigin,
+  HttpError,
+  httpErrorToResponse,
+  rateLimitByUser,
+  RATE_LIMITS,
+} from "@/lib/validation/server-helpers";
 
 export async function GET(request: Request) {
   try {
@@ -13,6 +19,7 @@ export async function GET(request: Request) {
       return ErrorResponses.unauthorized();
     }
     const userId = session.user.id;
+    await rateLimitByUser(userId, "conversations-list", RATE_LIMITS.API_READ);
 
     // Pagination cap: the sidebar shows recent conversations, not the
     // founder's entire history. 100 is well above the visual fold

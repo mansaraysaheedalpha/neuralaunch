@@ -4,7 +4,13 @@ import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
 import { inngest } from '@/inngest/client';
 import { ROADMAP_EVENT } from '@/lib/roadmap';
-import { enforceSameOrigin, HttpError, httpErrorToResponse } from '@/lib/validation/server-helpers';
+import {
+  enforceSameOrigin,
+  HttpError,
+  httpErrorToResponse,
+  rateLimitByUser,
+  RATE_LIMITS,
+} from '@/lib/validation/server-helpers';
 import { z } from 'zod';
 
 const ParamsSchema = z.object({ id: z.string().min(1) });
@@ -39,6 +45,13 @@ export async function POST(
 
   const { id: recommendationId } = parsed.data;
   const userId = session.user.id;
+
+  try {
+    await rateLimitByUser(userId, 'roadmap-trigger', RATE_LIMITS.AI_GENERATION);
+  } catch (err) {
+    if (err instanceof HttpError) return httpErrorToResponse(err);
+    throw err;
+  }
 
   // Single query for ownership + roadmap status — no existence-leak.
   const recommendation = await prisma.recommendation.findFirst({
@@ -88,6 +101,13 @@ export async function GET(
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    await rateLimitByUser(session.user.id, 'roadmap-poll', RATE_LIMITS.API_READ);
+  } catch (err) {
+    if (err instanceof HttpError) return httpErrorToResponse(err);
+    throw err;
   }
 
   const parsed = ParamsSchema.safeParse(await params);
