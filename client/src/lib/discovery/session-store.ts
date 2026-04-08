@@ -132,77 +132,99 @@ function sessionKey(sessionId: string): string {
 /**
  * getSession
  *
- * Retrieves the interview state for the given session ID from Redis.
- * Falls back to Prisma if Redis is unavailable — reconstructs InterviewState
- * from the beliefState JSON column that is synced on every turn.
- * Returns null if the session does not exist or has expired.
- * Resets the sliding TTL on every successful Redis read.
+ * Retrieves the interview state for the given session ID. Reads from
+ * Redis first (the hot cache) and falls back to Postgres on EITHER a
+ * Redis exception OR a Redis miss. The Postgres fallback also re-warms
+ * Redis so subsequent reads in the same session hit the cache again.
+ *
+ * Contract: Redis is a cache, Postgres is the source of truth. A
+ * session that exists in Postgres but has fallen out of Redis (TTL
+ * expired during 15+ minutes of inactivity) MUST be rehydratable —
+ * the founder cannot lose their interview state because of a cache
+ * miss. Production hit exactly that on 2026-04-08: a founder paused
+ * for >15 minutes, came back to type their next answer, and the turn
+ * route 404'd because the original code path returned null on Redis
+ * miss without checking Postgres.
+ *
+ * Returns null only when the session is genuinely not in Postgres.
  */
 export async function getSession(sessionId: string): Promise<InterviewState | null> {
+  // Step 1: try Redis first (the hot path).
+  let cacheRaw: InterviewState | null = null;
   try {
     const redis = getRedis();
     const key   = sessionKey(sessionId);
-    const raw   = await redis.get<InterviewState>(key);
-
-    if (!raw) return null;
-
-    // Slide the TTL — the session stays alive as long as the user is active
-    await redis.expire(key, SESSION_TTL_SECONDS);
-
-    // Guard against sessions written before new fields were added
-    return {
-      ...raw,
-      consecutiveMisses:     raw.consecutiveMisses     ?? 0,
-      audienceType:          raw.audienceType          ?? null,
-      psychConstraintProbed: raw.psychConstraintProbed ?? false,
-      pricingProbed:         raw.pricingProbed         ?? false,
-      askedFields:           raw.askedFields           ?? [],
-    };
+    cacheRaw = await redis.get<InterviewState>(key);
+    if (cacheRaw) {
+      // Slide the TTL — the session stays alive as long as the user is active
+      await redis.expire(key, SESSION_TTL_SECONDS);
+      // Guard against sessions written before new fields were added
+      return {
+        ...cacheRaw,
+        consecutiveMisses:     cacheRaw.consecutiveMisses     ?? 0,
+        audienceType:          cacheRaw.audienceType          ?? null,
+        psychConstraintProbed: cacheRaw.psychConstraintProbed ?? false,
+        pricingProbed:         cacheRaw.pricingProbed         ?? false,
+        askedFields:           cacheRaw.askedFields           ?? [],
+      };
+    }
+    // Cache miss — fall through to Postgres rehydration below.
   } catch {
-    // Redis unavailable — reconstruct state from Prisma as fallback
-    const record = await prisma.discoverySession.findUnique({
-      where:  { id: sessionId },
-      select: {
-        id:                    true,
-        userId:                true,
-        phase:                 true,
-        questionCount:         true,
-        questionsInPhase:      true,
-        activeField:           true,
-        audienceType:          true,
-        beliefState:           true,
-        askedFields:           true,
-        pricingProbed:         true,
-        psychConstraintProbed: true,
-        status:                true,
-        createdAt:             true,
-        updatedAt:             true,
-      },
-    });
-
-    if (!record) return null;
-
-    const parsed  = DiscoveryContextSchema.safeParse(record.beliefState);
-    const context = parsed.success ? parsed.data : createEmptyContext();
-
-    return {
-      sessionId:         record.id,
-      userId:            record.userId,
-      phase:             record.phase as InterviewPhase,
-      context,
-      questionCount:     record.questionCount,
-      questionsInPhase:  record.questionsInPhase,
-      isComplete:        record.status === 'COMPLETE',
-      activeField:           (record.activeField ?? null) as DiscoveryContextField | 'psych_probe' | null,
-      audienceType:          (record.audienceType ?? null) as import('./constants').AudienceType | null,
-      consecutiveMisses:     0,
-      psychConstraintProbed: record.psychConstraintProbed ?? false,
-      pricingProbed:         record.pricingProbed         ?? false,
-      askedFields:           (Array.isArray(record.askedFields) ? record.askedFields : []) as DiscoveryContextField[],
-      createdAt:         record.createdAt.toISOString(),
-      updatedAt:         record.updatedAt.toISOString(),
-    };
+    // Redis exception — fall through to Postgres rehydration below.
   }
+
+  // Step 2: rehydrate from Postgres. Reached on cache miss OR exception.
+  const record = await prisma.discoverySession.findUnique({
+    where:  { id: sessionId },
+    select: {
+      id:                    true,
+      userId:                true,
+      phase:                 true,
+      questionCount:         true,
+      questionsInPhase:      true,
+      activeField:           true,
+      audienceType:          true,
+      beliefState:           true,
+      askedFields:           true,
+      pricingProbed:         true,
+      psychConstraintProbed: true,
+      status:                true,
+      createdAt:             true,
+      updatedAt:             true,
+    },
+  });
+
+  if (!record) return null;
+
+  const parsed  = DiscoveryContextSchema.safeParse(record.beliefState);
+  const context = parsed.success ? parsed.data : createEmptyContext();
+
+  const rehydrated: InterviewState = {
+    sessionId:         record.id,
+    userId:            record.userId,
+    phase:             record.phase as InterviewPhase,
+    context,
+    questionCount:     record.questionCount,
+    questionsInPhase:  record.questionsInPhase,
+    isComplete:        record.status === 'COMPLETE',
+    activeField:           (record.activeField ?? null) as DiscoveryContextField | 'psych_probe' | null,
+    audienceType:          (record.audienceType ?? null) as import('./constants').AudienceType | null,
+    consecutiveMisses:     0,
+    psychConstraintProbed: record.psychConstraintProbed ?? false,
+    pricingProbed:         record.pricingProbed         ?? false,
+    askedFields:           (Array.isArray(record.askedFields) ? record.askedFields : []) as DiscoveryContextField[],
+    createdAt:         record.createdAt.toISOString(),
+    updatedAt:         record.updatedAt.toISOString(),
+  };
+
+  // Re-warm Redis so the next turn hits the cache. Best-effort —
+  // never block the founder on a cache write failure.
+  try {
+    const redis = getRedis();
+    await redis.set(sessionKey(sessionId), rehydrated, { ex: SESSION_TTL_SECONDS });
+  } catch { /* non-fatal */ }
+
+  return rehydrated;
 }
 
 /**
