@@ -45,8 +45,18 @@ export async function interpretValidationMetrics(
     Math.floor((Date.now() - publishedAt.getTime()) / (1000 * 60 * 60 * 24)),
   );
 
-  const belowMinVisitors = metrics.visitorCount < VALIDATION_SYNTHESIS_THRESHOLDS.MIN_VISITORS_FOR_BRIEF;
-  const lowTraffic       = belowMinVisitors && daysLive >= VALIDATION_SYNTHESIS_THRESHOLDS.DAYS_BEFORE_LOW_TRAFFIC_WARNING;
+  const belowMinVisitors  = metrics.visitorCount < VALIDATION_SYNTHESIS_THRESHOLDS.MIN_VISITORS_FOR_BRIEF;
+  const lowTraffic        = belowMinVisitors && daysLive >= VALIDATION_SYNTHESIS_THRESHOLDS.DAYS_BEFORE_LOW_TRAFFIC_WARNING;
+
+  // Distribution-stalled detection: when the page has been live long
+  // enough to expect traffic AND the founder has shared zero or
+  // almost-no channels, the bottleneck is distribution, not the
+  // idea. The interpreter should call this out specifically rather
+  // than reporting "still gathering data" indefinitely. This is the
+  // Phase 3 Gap 1 fix from the 2026-04-07 known-gaps memory — the
+  // DAYS_BEFORE_LOW_TRAFFIC_WARNING constant existed but its
+  // intended behavior was never wired into the prompt.
+  const distributionStalled = lowTraffic && completedChannels < Math.max(1, Math.ceil(briefChannels / 2));
 
   const featureList = features
     .map(f => `- ${sanitizeForPrompt(f.taskId, 100)}: ${sanitizeForPrompt(f.title, 200)} — ${sanitizeForPrompt(f.description, 400)}`)
@@ -90,7 +100,8 @@ RAW METRICS:
 - Unique visitors:      ${metrics.uniqueVisitorCount}
 - CTA conversion rate:  ${(metrics.ctaConversionRate * 100).toFixed(1)}%
 - Below threshold (<${VALIDATION_SYNTHESIS_THRESHOLDS.MIN_VISITORS_FOR_BRIEF} visitors): ${belowMinVisitors}
-- Low-traffic warning:  ${lowTraffic}
+- Low-traffic warning:  ${lowTraffic} (page has been live ${daysLive} days, threshold is ${VALIDATION_SYNTHESIS_THRESHOLDS.DAYS_BEFORE_LOW_TRAFFIC_WARNING} days)
+- Distribution stalled: ${distributionStalled} (true when low-traffic AND fewer than half the brief channels are shared)
 
 PAGE FEATURES (one card per task):
 ${featureList}
@@ -120,6 +131,8 @@ RULES:
 7. surveyThemes must quote visitors' actual language verbatim — do NOT paraphrase.
 8. nextAction must be a single specific instruction tied to the current state. Never generic advice.
    - For negative signal, nextAction MUST NOT say "keep trying" or "distribute more". It must say what the founder should do instead — pivot, pause, or start a new discovery session.
+   - **DISTRIBUTION-STALLED CASE**: when the "Distribution stalled" flag above is true, the bottleneck is NOT the idea — it is that the page has been live for ${daysLive} days and only ${completedChannels}/${briefChannels} of the personalised distribution channels have been shared. signalStrength must still be "insufficient" (you have no real signal yet), but trafficAssessment AND nextAction must explicitly call this out. The founder needs to be told, in their own situation: "Your page has been live for ${daysLive} days but only ${completedChannels} of ${briefChannels} channels have been shared — the gap right now is distribution, not the idea. Open the distribution brief on your validation page, pick the channel with the highest expected yield, and share it today." Do NOT default to "wait for more data" — that is the failure mode this rule prevents. Be specific about which channel to share next based on the channel count alone.
+   - **LOW-TRAFFIC, ALL CHANNELS SHARED CASE**: when low-traffic warning is true AND the founder has shared all channels (or close to all), the distribution effort happened but yielded little. Recommend a SECOND channel pass with adjusted framing or a new channel they have not tried — but acknowledge that two failed distribution waves with this kind of signal start to look like a positioning problem, not a distribution problem.
 9. conversionAssessment and trafficAssessment must each be ONE sentence.
 10. signalReason must cite the actual number behind the score.
 
