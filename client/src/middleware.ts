@@ -15,14 +15,33 @@ export function middleware(_request: NextRequest) {
   // Security Headers
 
   // Content Security Policy (CSP)
-  // Adjust as needed for your specific third-party integrations
+  //
+  // Known trade-off: script-src includes 'unsafe-inline' and
+  // 'unsafe-eval'. Both are normally CSP weaknesses, but they are
+  // currently required because:
+  //   1. Next.js 15 inlines bootstrap scripts that need 'unsafe-inline'
+  //   2. The Google Analytics + Hotjar bootstrap scripts in
+  //      app/layout.tsx use dangerouslySetInnerHTML (inline)
+  //   3. Some third-party tracking scripts evaluate dynamic code
+  //
+  // The right long-term fix is nonce-based CSP (generate a per-request
+  // nonce in the middleware, attach it to NextResponse, then pass it
+  // to the <Script> components). That is a meaningful refactor and
+  // is captured in the maintainability pass scope. Until then, the
+  // remaining XSS defence is the user-input sanitisation pass we
+  // just shipped (renderUserContent + SECURITY NOTE blocks on every
+  // LLM call) plus the prompt-injection rejection at every hop.
+  //
+  // Removed `t.contentsquare.net` from both script-src and connect-src
+  // — it was in the allow-list but never used in the codebase. Dead
+  // allow-list entries widen the attack surface for zero benefit.
   const cspHeader = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://va.vercel-scripts.com https://www.googletagmanager.com https://static.hotjar.com https://t.contentsquare.net",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://va.vercel-scripts.com https://www.googletagmanager.com https://static.hotjar.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' blob: data: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "connect-src 'self' https://vercel.live https://vitals.vercel-insights.com https://www.google-analytics.com https://www.googletagmanager.com https://*.hotjar.com https://*.contentsquare.net",
+    "connect-src 'self' https://vercel.live https://vitals.vercel-insights.com https://www.google-analytics.com https://www.googletagmanager.com https://*.hotjar.com",
     "worker-src 'self' blob:",
     // 'self' (not 'none') because the validation page preview at
     // /discovery/validation/[pageId] embeds /lp/[slug] inside an
@@ -46,8 +65,12 @@ export function middleware(_request: NextRequest) {
   // Prevent MIME type sniffing
   response.headers.set("X-Content-Type-Options", "nosniff");
 
-  // Enable XSS filtering in older browsers
-  response.headers.set("X-XSS-Protection", "1; mode=block");
+  // X-XSS-Protection is deliberately NOT set. The header was
+  // deprecated by all major browsers and the OWASP Secure Headers
+  // project recommends against using it — historical implementations
+  // had bugs that could be exploited to INJECT XSS into otherwise
+  // safe pages. Modern XSS defence comes from the CSP above and
+  // input sanitisation, not from this header.
 
   // Referrer Policy - don't leak referrer information
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
