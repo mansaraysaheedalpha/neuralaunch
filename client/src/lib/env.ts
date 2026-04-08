@@ -35,11 +35,11 @@ const envSchema = z.object({
   // Search / Research
   TAVILY_API_KEY: z.string().optional(),
 
-  // Email (Resend)
-  RESEND_API_KEY:    z.string().min(1),
-  RESEND_DOMAIN:     z.string().min(1),
-  RESEND_FROM_EMAIL: z.string().email().default('noreply@neuralaunch.app'),
-  RESEND_REPLY_TO:   z.string().email().optional(),
+  // Note: RESEND_* variables were removed in Stage 7.1 because the
+  // email service (src/lib/email-service.ts) was deleted in Stage 3
+  // commit 4 along with its only call site. Leaving the env vars
+  // required would have prevented the app from starting in any
+  // environment that did not set them.
 
   // Background jobs
   INNGEST_EVENT_KEY:   z.string().min(1),
