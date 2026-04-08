@@ -41,11 +41,26 @@ export const validationReportingSchedulerFunction = inngest.createFunction(
   async ({ event, step }) => {
     const log = logger.child({ inngestFunction: 'validationReportingScheduler', runId: event.id });
 
+    // Pagination cap: this scheduler enqueues one reporting event per
+    // LIVE validation page. Capped at 500 per run to bound execution
+    // time and Inngest event-fan-out cost as the user count grows.
+    // The cron runs daily so unprocessed pages roll over to tomorrow.
+    // When we hit the cap consistently, switch to cursor-based
+    // pagination — the warning log surfaces the moment we cross.
+    // Stage 7.2 scalability bound.
+    const SCHEDULER_PAGE_CAP = 500;
     const pages = await step.run('load-live-pages', async () => {
-      return prisma.validationPage.findMany({
+      const rows = await prisma.validationPage.findMany({
         where:  { status: 'LIVE' },
         select: { id: true },
+        take:   SCHEDULER_PAGE_CAP,
       });
+      if (rows.length === SCHEDULER_PAGE_CAP) {
+        log.warn('[ValidationReportingScheduler] Hit page cap — some pages skipped this run', {
+          cap: SCHEDULER_PAGE_CAP,
+        });
+      }
+      return rows;
     });
 
     if (pages.length === 0) {

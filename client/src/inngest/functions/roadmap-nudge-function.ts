@@ -48,9 +48,17 @@ export const roadmapNudgeFunction = inngest.createFunction(
   async ({ event, step }) => {
     const log = logger.child({ inngestFunction: 'roadmapNudge', runId: event.id });
 
+    // Pagination cap: this cron iterates RoadmapProgress rows for the
+    // entire founder base. Capped at 500 candidates per run to bound
+    // memory and execution time as the user count grows. The cron
+    // runs daily so unprocessed candidates roll over to tomorrow.
+    // When we hit the cap consistently, switch to cursor-based
+    // pagination — the warning log surfaces the moment we cross.
+    // Stage 7.2 scalability bound.
+    const NUDGE_CANDIDATE_CAP = 500;
     const candidates = await step.run('load-active-progress-rows', async () => {
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      return prisma.roadmapProgress.findMany({
+      const rows = await prisma.roadmapProgress.findMany({
         where: {
           nudgePending: false,
           OR: [
@@ -68,7 +76,14 @@ export const roadmapNudgeFunction = inngest.createFunction(
           completedTasks:  true,
           lastActivityAt:  true,
         },
+        take: NUDGE_CANDIDATE_CAP,
       });
+      if (rows.length === NUDGE_CANDIDATE_CAP) {
+        log.warn('[RoadmapNudge] Hit candidate cap — some rows skipped this run', {
+          cap: NUDGE_CANDIDATE_CAP,
+        });
+      }
+      return rows;
     });
 
     if (candidates.length === 0) {
@@ -143,6 +158,7 @@ export const roadmapNudgeFunction = inngest.createFunction(
     // reads this flag on roadmap page load and surfaces the outcome
     // form once. The form's submit / skip handlers clear the flag.
     // -----------------------------------------------------------------
+    const OUTCOME_CANDIDATE_CAP = 500;
     const outcomeFlagged = await step.run('flag-outcome-prompts', async () => {
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       const eligible = await prisma.roadmapProgress.findMany({
@@ -162,7 +178,16 @@ export const roadmapNudgeFunction = inngest.createFunction(
           totalTasks:     true,
           completedTasks: true,
         },
+        // Stage 7.2 scalability bound. Same reasoning as the nudge
+        // candidate cap above — bounded sweep, daily roll-over,
+        // warn when we hit the cap so we know to add cursor pagination.
+        take: OUTCOME_CANDIDATE_CAP,
       });
+      if (eligible.length === OUTCOME_CANDIDATE_CAP) {
+        log.warn('[RoadmapNudge] Hit outcome candidate cap — some rows skipped this run', {
+          cap: OUTCOME_CANDIDATE_CAP,
+        });
+      }
 
       let count = 0;
       for (const row of eligible) {

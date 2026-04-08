@@ -14,9 +14,14 @@ export async function GET(request: Request) {
     }
     const userId = session.user.id;
 
+    // Pagination cap: the sidebar shows recent conversations, not the
+    // founder's entire history. 100 is well above the visual fold
+    // and prevents an unbounded payload from a power user with
+    // hundreds of past sessions. Stage 7.2 scalability bound.
     const conversations = await prisma.conversation.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
+      take: 100,
       select: {
         id: true,
         title: true,

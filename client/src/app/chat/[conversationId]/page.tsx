@@ -61,9 +61,17 @@ export default async function ChatTranscriptPage({
 
   if (!conversation) notFound();
 
+  // Pagination cap: the read-only chat transcript shows the most
+  // recent slice of a conversation. 200 messages is enough to cover
+  // even the longest discovery interview (typical = 12-25 turns)
+  // while preventing an unbounded payload on conversations that
+  // grow over time. Negative `take` returns the LAST N rows when
+  // ordered ascending — so the founder still reads oldest-to-newest
+  // but capped at the most recent 200. Stage 7.2 scalability bound.
   const messages = await prisma.message.findMany({
     where:   { conversationId: conversation.id },
     orderBy: { createdAt: 'asc' },
+    take:    -200,
     select:  {
       id:        true,
       role:      true,

@@ -94,30 +94,40 @@ export const discoverySessionFunction = inngest.createFunction(
       );
     });
 
-    // Step 6: Persist the recommendation to the database
+    // Step 6: Persist the recommendation to the database. Use upsert
+    // keyed on sessionId (which is @unique on the Recommendation
+    // model) so the step is idempotent — Inngest retries this step
+    // on transient failure, and a plain create() would produce a
+    // duplicate Recommendation row on retry. The upsert update
+    // branch overwrites with the same shape we would have created,
+    // which is the correct semantic for an idempotent retry.
+    // Stage 7.2 idempotency fix.
     const { recommendationId } = await step.run('persist-recommendation', async () => {
-      const rec = await prisma.recommendation.create({
-        data: {
-          userId,
-          sessionId,
-          recommendationType:     recommendation.recommendationType,
-          summary:                recommendation.summary,
-          path:                   recommendation.path,
-          reasoning:              recommendation.reasoning,
-          firstThreeSteps:        recommendation.firstThreeSteps,
-          timeToFirstResult:      recommendation.timeToFirstResult,
-          risks:                  recommendation.risks,
-          assumptions:            recommendation.assumptions,
-          whatWouldMakeThisWrong: recommendation.whatWouldMakeThisWrong,
-          alternativeRejected:    recommendation.alternativeRejected,
-          // Concern 3 — preparatory metadata. No behaviour today.
-          phaseContext: toJsonValue(buildPhaseContext(PHASES.RECOMMENDATION, {
-            discoverySessionId: sessionId,
-          })),
-        },
+      const data = {
+        userId,
+        sessionId,
+        recommendationType:     recommendation.recommendationType,
+        summary:                recommendation.summary,
+        path:                   recommendation.path,
+        reasoning:              recommendation.reasoning,
+        firstThreeSteps:        recommendation.firstThreeSteps,
+        timeToFirstResult:      recommendation.timeToFirstResult,
+        risks:                  recommendation.risks,
+        assumptions:            recommendation.assumptions,
+        whatWouldMakeThisWrong: recommendation.whatWouldMakeThisWrong,
+        alternativeRejected:    recommendation.alternativeRejected,
+        // Concern 3 — preparatory metadata. No behaviour today.
+        phaseContext: toJsonValue(buildPhaseContext(PHASES.RECOMMENDATION, {
+          discoverySessionId: sessionId,
+        })),
+      };
+      const rec = await prisma.recommendation.upsert({
+        where:  { sessionId },
+        create: data,
+        update: data,
         select: { id: true },
       });
-      log.debug('Recommendation persisted', { sessionId });
+      log.debug('Recommendation persisted', { sessionId, recommendationId: rec.id });
       return { recommendationId: rec.id };
     });
 

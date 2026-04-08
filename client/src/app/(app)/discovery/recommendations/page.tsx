@@ -15,9 +15,14 @@ export default async function RecommendationsPage() {
   if (!session?.user?.id) redirect('/signin');
   const userId = session.user.id;
 
+  // Pagination cap: a founder running many discovery sessions could
+  // accumulate hundreds of recommendations over time. Cap at 50 most
+  // recent — older recommendations are accessible via deep links from
+  // their original chat URL. Stage 7.2 scalability bound.
   const recommendations = await prisma.recommendation.findMany({
     where:   { userId },
     orderBy: { createdAt: 'desc' },
+    take:    50,
     select: {
       id:        true,
       path:      true,
