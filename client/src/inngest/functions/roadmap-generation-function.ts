@@ -1,5 +1,4 @@
 // src/inngest/functions/roadmap-generation-function.ts
-import { Prisma } from '@prisma/client';
 import { inngest } from '../client';
 import prisma, { toJsonValue } from '@/lib/prisma';
 import { logger } from '@/lib/logger';

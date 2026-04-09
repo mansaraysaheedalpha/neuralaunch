@@ -1,7 +1,6 @@
 // src/app/api/discovery/recommendations/[id]/pushback/route.ts
 import { NextResponse } from 'next/server';
 import { z }            from 'zod';
-import { Prisma }       from '@prisma/client';
 import prisma, { toJsonValue }           from '@/lib/prisma';
 import { logger }       from '@/lib/logger';
 import { inngest }      from '@/inngest/client';

@@ -1,7 +1,7 @@
 'use client';
 // src/app/(app)/discovery/roadmap/[id]/RoadmapView.tsx
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Loader2 } from 'lucide-react';
 import type { RoadmapPhase } from '@/lib/roadmap';
@@ -52,23 +52,17 @@ export function RoadmapView({
 }) {
   const { data, loading, failed, regenerating, regenerate } = useRoadmapPolling(recommendationId);
 
-  // Concern 5 — outcome form visibility. Lifted to RoadmapView so
-  // the form renders as a card after the closing thought rather
-  // than nested inside a task card. Triggered by either:
-  //   - a status PATCH that sets outcomePromptDue (trigger #1)
-  //   - data.progress.nudgePending being mirrored from a Concern 5
-  //     server-side flag (trigger #2 — see useEffect below)
-  // Skipped or submitted clears it via the OutcomeForm onDone callback.
-  const [outcomePromptVisible, setOutcomePromptVisible] = useState(false);
-
-  // Concern 5 trigger #2 — mirror the server-side outcomePromptPending
-  // flag into local state on data load. The form is then visible
-  // until the founder either submits or skips.
-  useEffect(() => {
-    if (data?.progress?.outcomePromptPending) {
-      setOutcomePromptVisible(true);
-    }
-  }, [data?.progress?.outcomePromptPending]);
+  // Concern 5 — outcome form visibility. Two independent triggers:
+  //   1. A status PATCH returns outcomePromptDue → sets manualTrigger
+  //   2. data.progress.outcomePromptPending is true on poll
+  // The form is shown when EITHER source fires AND the founder has
+  // not yet dismissed it via onDone. Derived state — no useEffect
+  // needed, which satisfies the React 19 set-state-in-effect lint rule.
+  const [manualOutcomeTrigger, setManualOutcomeTrigger] = useState(false);
+  const [outcomeDismissed, setOutcomeDismissed]         = useState(false);
+  const outcomePromptVisible =
+    !outcomeDismissed
+    && (manualOutcomeTrigger || !!data?.progress?.outcomePromptPending);
 
   if (loading) {
     return (
@@ -173,7 +167,7 @@ export function RoadmapView({
             recommendationId={recommendationId}
             founderGoal={founderGoal}
             progress={phaseProgress}
-            onOutcomePromptDue={() => setOutcomePromptVisible(true)}
+            onOutcomePromptDue={() => setManualOutcomeTrigger(true)}
           />
         ))}
       </div>
@@ -200,7 +194,7 @@ export function RoadmapView({
           recommendationId={recommendationId}
           phaseTitles={data.phases.map(p => p.title)}
           surface={data.progress?.outcomePromptPending ? 'nudge' : 'completion'}
-          onDone={() => setOutcomePromptVisible(false)}
+          onDone={() => setOutcomeDismissed(true)}
         />
       )}
 

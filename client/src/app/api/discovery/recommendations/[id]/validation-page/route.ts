@@ -19,7 +19,6 @@ import {
 } from '@/lib/discovery/constants';
 import type { Roadmap }          from '@/lib/roadmap/roadmap-schema';
 import { buildPhaseContext, PHASES } from '@/lib/phase-context';
-import { Prisma }                 from '@prisma/client';
 
 /**
  * POST /api/discovery/recommendations/[id]/validation-page

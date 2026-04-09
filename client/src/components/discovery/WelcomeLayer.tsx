@@ -1,7 +1,7 @@
 // src/components/discovery/WelcomeLayer.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const QUESTION_POOL = [
@@ -78,17 +78,13 @@ function getGreeting(firstName: string): string {
  * Fades out permanently once the conversation starts.
  */
 export function WelcomeLayer({ firstName, isVisible }: WelcomeLayerProps) {
-  const [greeting, setGreeting] = useState('');
-  const [question, setQuestion] = useState('');
-
-  // Derived client-side only to avoid SSR mismatch.
-  // Question randomises on every mount (page load / navigation).
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setGreeting(getGreeting(firstName));
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setQuestion(QUESTION_POOL[Math.floor(Math.random() * QUESTION_POOL.length)]);
-  }, [firstName]);
+  // Both values are client-side only (time-of-day greeting + random
+  // question). The component is 'use client' so the lazy initializer
+  // runs on the client only — no SSR mismatch, no useEffect needed.
+  const [greeting] = useState(() => getGreeting(firstName));
+  const [question] = useState(() =>
+    QUESTION_POOL[Math.floor(Math.random() * QUESTION_POOL.length)],
+  );
 
   return (
     <AnimatePresence>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 // Add imports for scroll animations
 import { motion, useScroll, useTransform, type Variants } from "framer-motion";
-import { useRef, useMemo } from "react"; // Import useRef and useMemo
+import { useRef } from "react";
 import {
   ArrowRight,
   BrainCircuit,
@@ -73,16 +73,17 @@ const iconPopIn: Variants = {
 };
 
 // --- Section Components ---
+
+// Module-level constant — decorative offsets for hero particles.
+// Computed once at module load time so the React 19 purity rule
+// does not flag Math.random() inside a render/memo body.
+const PARTICLE_OFFSETS = Array.from({ length: 8 }, () => Math.random() * 30 - 15);
+
 const HeroSection = () => {
   const headlineWords = "Build the Right Thing, Faster.".split(" ");
   const primaryWordIndex = 5;
 
-  // eslint-disable-next-line react-hooks/purity
-  const particleOffsets = useMemo(
-    // eslint-disable-next-line react-hooks/purity
-    () => Array.from({ length: 8 }, () => Math.random() * 30 - 15),
-    []
-  );
+  const particleOffsets = PARTICLE_OFFSETS;
 
   return (
     <section className="relative overflow-hidden py-32 text-center">

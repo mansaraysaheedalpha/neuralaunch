@@ -53,10 +53,11 @@ export interface UseConversationsListResult {
  * status is not 'authenticated' to skip the request entirely.
  */
 export function useConversationsList(enabled: boolean): UseConversationsListResult {
-  const { data, error, isLoading, mutate } = useSWR<SidebarConversation[]>(
+  const { data, error: rawError, isLoading, mutate } = useSWR<SidebarConversation[], Error>(
     enabled ? '/api/conversations' : null,
     fetcher,
   );
+  const error = rawError instanceof Error ? rawError : null;
 
   const removeFromCache = (id: string) => {
     void mutate(
@@ -68,7 +69,7 @@ export function useConversationsList(enabled: boolean): UseConversationsListResu
   return {
     conversations: data ?? [],
     isLoading:     isLoading && enabled,
-    error:         error instanceof Error ? error : null,
+    error,
     removeFromCache,
   };
 }
