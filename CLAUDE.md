@@ -12,13 +12,19 @@
 **Repository layout:**
 ```
 neuralaunch/
-├── client/          # Next.js 15 application (primary codebase)
-│   ├── src/app/     # App Router pages and API routes
-│   ├── src/lib/     # Core business logic, agents, services
-│   ├── src/components/
-│   ├── src/inngest/ # Durable background functions
-│   └── prisma/      # Database schema and migrations
-└── mcp-servers/     # MCP integration servers
+├── client/              # Next.js 15 application (the product)
+│   ├── src/app/         # App Router pages and API routes
+│   ├── src/lib/         # Core business logic, engines, services
+│   │   ├── ai/          # Provider fallback chain + shared AI helpers
+│   │   ├── discovery/   # Phase 1 — interview, synthesis, pushback
+│   │   ├── roadmap/     # Phase 2 — execution plan, check-ins, nudges
+│   │   └── validation/  # Phase 3 — landing page, reporting, lifecycle
+│   ├── src/components/  # React components (grouped by feature)
+│   ├── src/inngest/     # Durable background functions + event type map
+│   └── prisma/          # Database schema and migrations
+├── ARCHITECTURE.md      # How the system actually flows
+├── RUNBOOK.md           # On-call playbook for production incidents
+└── CLAUDE.md            # This file — engineering standards (mandatory)
 ```
 
 **Active branch strategy:**
@@ -28,11 +34,14 @@ neuralaunch/
   from `dev`. Merged into `dev` first, then `dev` is fast-forwarded
   into `main` once the change is verified.
 
-**Current state:** Phases 1, 2, and 3 are shipped to production. The
-codebase is in the cleanup → bulletproofing sequence on
-`chore/codebase-cleanup-and-bulletproofing`. Stage 5 (documentation)
-introduced `ARCHITECTURE.md` and `RUNBOOK.md` at the repository root —
-read them when you need to understand the system or fix production.
+**Current state:** Phases 1 (Discovery), 2 (Roadmap), and 3 (Validation)
+are shipped to production and verified end-to-end. The codebase has
+completed a full seven-stage cleanup and bulletproofing sequence:
+dead code purge, schema migration, pattern standardisation, type safety,
+documentation, maintainability (component splits), and five-pass
+bulletproofing (security, scalability, performance, maintainability,
+reliability). Read `ARCHITECTURE.md` when you need to understand how
+the system flows, `RUNBOOK.md` when production is broken.
 
 ---
 
@@ -47,30 +56,37 @@ The system must behave correctly under failure. Users trust NeuraLaunch with the
 - Every external I/O operation (AI calls, DB writes, Redis, third-party APIs) must handle failures explicitly. No silent catches.
 - Inngest functions are the primary mechanism for durable execution. Any operation that cannot tolerate a serverless timeout must run inside an Inngest step.
 - All AI-generated structured data must be validated through a Zod v4 schema before it touches the database or the client. Never trust raw LLM output.
+- **Zod schemas for LLM output must NOT use `.max()` on string fields.** Anthropic's structured-output endpoint does not consistently enforce string-length constraints during generation — the model produces a longer string, the response is structurally valid JSON, and the AI SDK's post-hoc Zod parse rejects it as `AI_NoObjectGeneratedError`. Put length intent in the `.describe()` copy and enforce bounds via a `.transform()` post-clamp. See `ValidationInterpretationSchema` for the canonical shape.
 - Use Prisma transactions for any operation that involves more than one write. Partial writes are data corruption.
-- Upstash Redis is ephemeral. Never rely on it as the only store for state that must survive beyond the session TTL.
+- Upstash Redis is ephemeral. Never rely on it as the only store for state that must survive beyond the session TTL. Session reads (`getSession`) MUST fall back to Postgres on Redis miss — a 15-minute pause cannot lose the founder's interview state. See `src/lib/discovery/session-store.ts`.
+- **Every `generateObject` call site must use `withModelFallback()`** from `src/lib/ai/with-model-fallback.ts`. This wraps the call with a single-retry fallback to a smaller model on Anthropic overload (`AI_RetryError`, `AI_APICallError`, or status 529). Never add a bare `generateObject` call without the fallback wrapper.
+- **Every `streamText` call site must use `streamQuestionWithFallback()`** from `src/lib/ai/question-stream-fallback.ts` and pass `maxRetries: 0` to disable the AI SDK's internal retry (our chain owns retry semantics).
 
 ### 2. Security
 
 NeuraLaunch handles personal information — people's frustrations, business ideas, financial situations, and goals. This data is sensitive. Treat it accordingly.
 
 - Never log user message content, belief state data, or AI outputs at INFO level. Use DEBUG, and ensure DEBUG is off in production.
-- All API routes must authenticate via NextAuth before executing any business logic. No unauthenticated route should touch the database.
+- All API routes must authenticate via NextAuth before executing any business logic. The only exception is `/api/lp/analytics` (public visitor beacon, hardened with IP rate limiting + body size cap + taskId cross-check).
+- **Every state-changing API route must call `enforceSameOrigin(request)` as the first line of the handler.** This is the CSRF defence. See `src/lib/validation/server-helpers.ts`.
+- **Every authenticated API route must call `rateLimitByUser()` or `rateLimitByIp()`.** Three tiers: `AI_GENERATION` (5/min) for routes that fire LLM calls, `API_AUTHENTICATED` (60/min) for state-changing writes, `API_READ` (120/min) for polling reads. See `RATE_LIMITS` in server-helpers.
 - Validate and sanitize all user input at the API boundary using Zod before it reaches any service or agent. SQL injection, prompt injection, and XSS are not acceptable failure modes.
+- **Prompt injection defence:** every LLM call that embeds user-typed content must wrap that content via `renderUserContent()` from `src/lib/validation/server-helpers.ts` (triple-bracket delimiters) and include the canonical SECURITY NOTE in the system/user prompt. Never interpolate raw user strings into prompt templates.
 - Environment variables must be validated at startup via `src/lib/env.ts`. The application must refuse to start if required secrets are missing.
-- AI tool calls that execute system commands (sandbox agent, command tool) must run inside Docker containers with strict resource limits. Never execute user-influenced strings as shell commands outside a sandbox.
-- Never expose internal error messages, stack traces, or Prisma error codes to the client. Log them server-side; return a generic, safe message to the client.
+- **Never expose internal error messages to the client.** All route catch blocks must use `httpErrorToResponse(err)` from `src/lib/validation/server-helpers.ts`. This function logs non-HttpError instances with the full stack trace (for debugging) and returns a generic 500 to the client (for security). Never write a custom 500 response — use the central helper so every route gets automatic observability.
 - Secrets (API keys, tokens) must never appear in logs, error messages, or response bodies.
+- **Ownership scoping:** every database read that returns user data must use `prisma.X.findFirst({ where: { id, userId } })` — not `findUnique({ id })` followed by a manual `userId !==` check. The single-query pattern prevents existence-leak between 404 and 401 responses.
 
 ### 3. Scalability
 
 The system must degrade gracefully under increased load, not collapse.
 
-- All Inngest functions must be idempotent. Running the same function twice with the same input must produce the same outcome with no side effects.
-- Rate limiting is mandatory on all AI-calling API routes. Use `src/lib/rate-limit.ts`. Every LLM call has a cost; unbounded requests will bankrupt the project.
+- All Inngest functions must be idempotent. Running the same function twice with the same input must produce the same outcome with no side effects. Use `upsert` keyed on the natural unique constraint (e.g., `sessionId` for Recommendation) rather than `create` so retries do not produce duplicate rows.
+- Rate limiting is mandatory on **every** API route — see the Security section above for the three-tier system. Every LLM call has a cost; unbounded requests will bankrupt the project.
 - Use streaming responses (Vercel AI SDK v5 `streamText`) for all real-time AI output. Never buffer a full AI response in memory before sending it.
 - Database queries must use explicit `select` clauses. Never fetch entire records when only a subset of fields is needed.
-- Add appropriate database indexes when introducing new query patterns. Check `prisma/schema.prisma` `@@index` directives.
+- **All list endpoints must be bounded** with `take` or `cursor`. Never return an unbounded `findMany` that could grow without limit. Cap conversation lists at 100, recommendation lists at 50, validation page lists at 50.
+- Add appropriate database indexes when introducing new query patterns. Check `prisma/schema.prisma` `@@index` directives. Every hot query predicate (sidebar, transcript, polling) must have a composite index.
 - Session state in Redis uses a sliding 15-minute TTL. This is not a configuration — it is the contract.
 
 ### 4. Maintainability
@@ -113,14 +129,20 @@ Users are waiting. Every unnecessary millisecond is friction between a person an
 | ORM | Prisma | 6.6.x | JSON fields for belief state. Middleware lints for agent queries. |
 | Session Store | Upstash Redis | latest | `@upstash/redis` for Edge. Sliding 15-min TTL. |
 | Auth | NextAuth | v5 beta | Server-side session only. |
-| Real-time | Pusher | current | To be evaluated for Ably migration (Phase 2+). |
 | Database | PostgreSQL (Neon) | — | pgvector extension for vector search. |
 
 **Deprecated — do not use:**
 - `framer-motion` (replaced by `motion/react`)
 - `budget_tokens` in Anthropic calls (replaced by Adaptive Thinking `effort` parameter)
-- `useEffect` for data fetching (replaced by Server Components + `use()`)
-- Manual SSE transport for MCP (replaced by Upstash Pub/Sub pattern)
+- `useEffect` for data fetching (replaced by Server Components + `use()` for server, SWR for client)
+- `Pusher` / `pusher-js` (removed — was the old Phase 2 real-time layer)
+- `puppeteer` / `puppeteer-core` (removed — was the old sandbox agent)
+- `openai` SDK (removed — all AI calls go through Anthropic or Google via Vercel AI SDK)
+- `Math.random()` for IDs (use `crypto.randomUUID()`)
+- `console.log` / `console.error` (use `src/lib/logger.ts`)
+- `.max()` on Zod string fields in LLM output schemas (Anthropic doesn't enforce it — use `.transform()` post-clamp)
+- `as unknown as` casts on JSON columns (use `safeParseX()` helpers for reads, `toJsonValue()` for writes)
+- `findUnique({ id })` + manual `userId !==` check (use `findFirst({ id, userId })` — single-query ownership scope)
 
 ---
 
@@ -165,13 +187,81 @@ type DiscoveryContext = z.infer<typeof DiscoveryContextSchema>;
 
 ---
 
-## Agent System Standards
+## AI Engine Standards
 
-- Every agent extends `BaseAgent`. No standalone functions that replicate agent behavior.
-- Agent tools are registered in the tool registry. New tools require a `base-tool.ts` interface implementation.
-- Agents do not make direct database calls. They return structured results; the orchestrating function persists them.
-- The belief state is a Prisma JSON field. Agents read from and write to it through typed accessor functions — never raw JSON mutation.
-- An agent that fails must throw a typed error. The Inngest function catches it, logs it, and decides retry vs escalation. Agents do not swallow errors.
+The old multi-agent BaseAgent system was removed in the cleanup. The
+current architecture uses **engine functions** — standalone async
+functions that take typed input, call `generateObject` or `streamText`
+via the Vercel AI SDK, validate the output through a Zod schema, and
+return a typed result. The orchestrating Inngest function or API route
+persists the result; the engine never touches the database directly.
+
+### Route handler shape (mandatory for every API route)
+
+```typescript
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    enforceSameOrigin(request);
+    const userId = await requireUserId();
+    await rateLimitByUser(userId, 'route-key', RATE_LIMITS.AI_GENERATION);
+    const { id } = await params;
+
+    let body: unknown;
+    try { body = await request.json(); } catch { throw new HttpError(400, 'Invalid JSON'); }
+    const parsed = BodySchema.safeParse(body);
+    if (!parsed.success) throw new HttpError(400, 'Invalid body');
+
+    const row = await prisma.thing.findFirst({
+      where: { id, userId },
+      select: { /* … */ },
+    });
+    if (!row) throw new HttpError(404, 'Not found');
+
+    // … work …
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return httpErrorToResponse(err);
+  }
+}
+```
+
+### JSON column patterns
+
+```typescript
+// READING a JSON column — use a safeParse helper:
+const context = safeParseDiscoveryContext(row.beliefState);
+// NEVER: const context = row.beliefState as unknown as DiscoveryContext;
+
+// WRITING a typed value to a JSON column — use toJsonValue:
+data: { phases: toJsonValue(roadmap.phases) }
+// NEVER: data: { phases: roadmap.phases as unknown as Prisma.InputJsonValue }
+```
+
+### AI call resilience
+
+```typescript
+// CORRECT: every generateObject call uses withModelFallback
+const result = await withModelFallback(
+  'module:function',
+  { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
+  async (modelId) => {
+    const { object } = await generateObject({
+      model: aiSdkAnthropic(modelId),
+      schema: MySchema,
+      messages: [...],
+    });
+    return object;
+  },
+);
+
+// WRONG: bare generateObject with no fallback
+const { object } = await generateObject({ model: ..., schema: ..., messages: [...] });
+```
+
+- Engines do not make direct database calls. They return structured results; the orchestrating function persists them.
+- The belief state is a Prisma JSON field. Read it through `safeParseDiscoveryContext()` — never raw cast.
+- An engine that fails must throw. The Inngest function catches it, logs it, and decides retry vs escalation. Engines do not swallow errors.
 
 ---
 
@@ -305,4 +395,4 @@ is the right shape.
 ---
 
 *NeuraLaunch — Built with precision by Saheed Alpha Mansaray*
-*Engineering standards last updated: 2026-04-07*
+*Engineering standards last updated: 2026-04-09*
