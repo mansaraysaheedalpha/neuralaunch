@@ -483,7 +483,7 @@ dependency graph backwards.
 
 ## 8. Concerns 1–5 status
 
-See `AGENT_ARCHITECTURE_REVIEW.md` for the full text of each
+See `docs/AGENT_ARCHITECTURE_REVIEW.md` for the full text of each
 concern.
 
 | # | Concern | Status |

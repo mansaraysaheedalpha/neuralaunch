@@ -265,7 +265,8 @@ If env vars were the cause, fix them in Vercel and redeploy.
 - Missing env var → set it in Vercel and redeploy.
 - Missing table → restore from the most recent Neon snapshot. **Never delete these three tables.** They are required by `@auth/prisma-adapter` even though there is no direct `prisma.session.*` reference anywhere in the codebase. The adapter accesses them via raw SQL.
 
-This is documented in `CLEANUP_CONTEXT.md` under "What NOT to delete".
+This is documented in `docs/CLEANUP_CONTEXT.md` under "What NOT to delete"
+and in `ARCHITECTURE.md` section 9 (Hard data invariants).
 
 ---
 

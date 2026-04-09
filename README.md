@@ -17,6 +17,7 @@ neuralaunch/
 │   ├── src/lib/           # Discovery, roadmap, validation engines
 │   ├── src/inngest/       # Durable background functions
 │   └── prisma/            # Schema + migrations
+├── docs/                  # Historical research, vision, architecture review
 ├── ARCHITECTURE.md        # How the system actually flows
 ├── RUNBOOK.md             # On-call playbook for production incidents
 └── CLAUDE.md              # Engineering standards (mandatory)
