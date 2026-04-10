@@ -198,13 +198,36 @@ export function applyUpdate(
 
   const psychConstraintProbed = wasPsychProbe ? true : state.psychConstraintProbed;
 
-  // Record every real field the engine has asked about — deterministic, never inferred.
+  // Record every field that now has meaningful data as "covered."
+  //
+  // ARCHITECTURE FIX: The original code only added the activeField to
+  // askedFields. With multi-field extraction, the user may have mentioned
+  // 3-4 fields in a single answer. ALL of those fields must be marked
+  // as covered so the question selector doesn't re-ask for them.
+  //
+  // We mark a field as covered when:
+  //   1. It was the activeField (the engine asked about it), OR
+  //   2. It was extracted from the user's message with confidence above
+  //      the minimum threshold (the user volunteered it unprompted)
+  //
   // psych_probe is excluded: it doesn't correspond to a DiscoveryContextField.
-  const askedFields: DiscoveryContextField[] = wasPsychProbe
-    ? state.askedFields
-    : state.activeField && !state.askedFields.includes(state.activeField as DiscoveryContextField)
-      ? [...state.askedFields, state.activeField as DiscoveryContextField]
-      : state.askedFields;
+  const coveredFromExtraction = Object.keys(updates)
+    .filter((k): k is DiscoveryContextField => {
+      const field = k as DiscoveryContextField;
+      const incoming = updates[field];
+      return incoming !== undefined && incoming.confidence >= 0.5;
+    });
+
+  let askedFields = [...state.askedFields];
+  // Add the active field (if real and not already tracked)
+  if (!wasPsychProbe && state.activeField) {
+    const af = state.activeField as DiscoveryContextField;
+    if (!askedFields.includes(af)) askedFields.push(af);
+  }
+  // Add all fields that were extracted from this message
+  for (const field of coveredFromExtraction) {
+    if (!askedFields.includes(field)) askedFields.push(field);
+  }
 
   const { nextField, nextPhase, readyForSynthesis } = advance({
     ...state,
