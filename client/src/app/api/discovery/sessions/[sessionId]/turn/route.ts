@@ -163,8 +163,8 @@ export async function POST(
   try {
     const t0          = Date.now();
     const rawField    = state.activeField ?? 'situation';
-    const activeField = rawField === 'psych_probe' ? 'biggestConcern' : rawField;
-    const { updates, inputType, contradicts } = await extractContext(message, activeField, history, state.context[activeField]);
+    const activeField = (rawField === 'psych_probe' || rawField === 'follow_up') ? 'biggestConcern' : rawField;
+    const { updates, inputType, contradicts, followUp } = await extractContext(message, activeField, history, state.context[activeField]);
     if (inputType === 'offtopic') { await saveSession(sessionId, state); return buildStreamResponse(generateMetaResponse(message, state.phase, state.questionCount, history), conversationId, state.phase, state.questionCount); }
     if (inputType === 'frustrated') { await saveSession(sessionId, state); return buildStreamResponse(generateFrustrationResponse(message, activeField, history), conversationId, state.phase, state.questionCount); }
     if (inputType === 'clarification') { const lq = history.split('\n').filter(l => l.startsWith('assistant:')).pop()?.replace(/^assistant:\s*/, '') ?? ''; await saveSession(sessionId, state); return buildStreamResponse(generateClarificationConfirmation(message, lq, activeField, history, state.audienceType ?? undefined), conversationId, state.phase, state.questionCount); }
@@ -184,6 +184,11 @@ export async function POST(
     }
 
     let nextState = { ...applyUpdate(state, updates), consecutiveMisses: 0 };
+    // Set pendingFollowUp from the extraction result so advance() can
+    // inject a follow-up slot before the next scored field.
+    if (followUp.detected) {
+      nextState = { ...nextState, pendingFollowUp: { topic: followUp.topic } };
+    }
     if (!nextState.audienceType && nextState.questionCount >= 2) { const { audienceType } = await detectAudienceType(nextState.context, history); nextState = { ...nextState, audienceType }; }
 
     await saveSession(sessionId, nextState);
@@ -214,6 +219,16 @@ export async function POST(
     const nextField = nextState.activeField;
     if (!nextField) return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
     if (detectsPricingChange(message) && !state.pricingProbed) { await saveSession(sessionId, { ...nextState, pricingProbed: true }); return buildStreamResponse(generatePricingFollowUp(message, history, nextState.audienceType ?? undefined), conversationId, nextState.phase, nextState.questionCount); }
+
+    // If the next field is a follow-up slot, pass the topic and clear
+    // the pending so it doesn't fire again next turn.
+    if (nextField === 'follow_up' && nextState.pendingFollowUp) {
+      const topic = nextState.pendingFollowUp.topic;
+      await saveSession(sessionId, { ...nextState, pendingFollowUp: null });
+      log.debug('Turn follow-up', { sessionId, topic });
+      return buildStreamResponse(generateQuestion('follow_up', nextState.phase as never, nextState.context, { followUpTopic: topic }, nextState.audienceType ?? undefined, history, nextState.askedFields), conversationId, nextState.phase, nextState.questionCount);
+    }
+
     const insufficientSignal = nextState.questionCount >= 6 && computeOverallCompleteness(nextState.context) < 0.35;
     const phaseChanged = nextState.phase !== state.phase;
     log.debug('Turn stream start', { sessionId, totalToStreamMs: Date.now() - t0, inputType, phase: nextState.phase, phaseChanged });

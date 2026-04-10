@@ -13,10 +13,13 @@ import { withModelFallback } from '@/lib/ai/with-model-fallback';
 // Public result type returned to the turn route
 // ---------------------------------------------------------------------------
 
+export type FollowUpSignal = { detected: true; topic: string } | { detected: false };
+
 export type ExtractionResult = {
   updates:     Partial<DiscoveryContext>;
   inputType:   'answer' | 'offtopic' | 'frustrated' | 'clarification' | 'synthesis_request';
   contradicts: boolean;
+  followUp:    FollowUpSignal;
 };
 
 // ---------------------------------------------------------------------------
@@ -47,6 +50,12 @@ const FieldExtractionSchema = z.object({
   confidence: z.number().describe('0.9-1.0 explicit statement, 0.6-0.8 inferred from context, 0.3-0.5 weakly implied'),
 });
 
+/** Detected user-initiated thread that deserves a follow-up question. */
+const FollowUpSignalSchema = z.object({
+  detected: z.boolean().describe('true if the user mentioned a competitor, specific tool, market condition, or strategic insight that was NOT the question being asked and deserves a dedicated follow-up question.'),
+  topic:    z.string().describe('The specific topic to follow up on — e.g., "mentioned Kippa and said clients rejected it" or "competitor launched a similar product last month". Empty string if detected is false.'),
+}).describe('Detect high-value topics the user raised unprompted that the engine should probe deeper on before moving to the next scheduled field.');
+
 const ExtractionResultSchema = z.object({
   inputType: z.enum(['answer', 'offtopic', 'frustrated', 'clarification', 'synthesis_request']).describe(
     'answer: user responded to the question (even vaguely — uncertainty about their own situation still counts as answer). offtopic: user asked who you are, how this works, or any meta/unrelated question. frustrated: user expressed annoyance, resistance, or dismissal ("stop", "I don\'t know", "why do you keep asking", "pointless", "whatever") — but they are NOT asking for the recommendation, just venting or resisting. clarification: user is asking whether they understood THE QUESTION correctly before answering it — e.g. "if I get you right, you\'re asking about X?", "what do you mean by Y?", "are you asking about Z?". Only use clarification when the user has NOT provided any answer content and is purely seeking confirmation of what was asked. synthesis_request: the user has decided they want the interview to END and the recommendation DELIVERED — they are done participating regardless of how many questions remain. Use this whenever the intent is to stop the interview and receive output, whether stated directly or indirectly. Direct: "generate the recommendation", "give me the result", "just give me the plan", "I won\'t answer any more". Indirect: "I think you have enough to work with", "you have what you need", "can we wrap this up", "let\'s skip to the end", "just tell me what you think", "use what you have". Mixed (frustrated + synthesis): "I\'ve answered this already — please just give me the recommendation", "stop asking and tell me what to do", "move on or generate the result". Tiebreak: if the message contains ANY signal of wanting the output delivered, choose synthesis_request over frustrated.',
@@ -69,6 +78,10 @@ const ExtractionResultSchema = z.object({
     'true ONLY when: the user mentioned the ACTIVE FIELD AND an existing value with confidence > 0.7 ' +
     'already exists for that field AND the new value is meaningfully different from the existing one.',
   ),
+
+  // User-initiated thread detection — fires a follow-up slot that
+  // runs BEFORE the next scored field in the interview engine.
+  followUp: FollowUpSignalSchema,
 });
 
 // ---------------------------------------------------------------------------
@@ -195,20 +208,35 @@ Rules for each extraction:
 
 For contradicts: true ONLY when the user's answer about the ACTIVE FIELD contradicts an existing high-confidence value for that field. Cross-field contradictions are not flagged here.
 
-If inputType is NOT "answer": set extractions to an empty array and contradicts to false.`,
+STEP 3: Detect follow-up-worthy threads.
+If the user mentioned ANY of these unprompted (not in response to a direct question about them):
+  - A competitor or alternative product by name (e.g., "I tried Kippa", "Wave didn't work for my clients")
+  - A specific market condition or event (e.g., "a new regulation just passed", "my competitor raised funding")
+  - A tool or platform they tried and what happened (e.g., "I built it on Webflow but it was too slow")
+  - Strategic intelligence from their own experience (e.g., "the hotel GM is about to sign another vendor")
+...then set followUp.detected=true and describe the topic specifically. This signal triggers a dedicated follow-up question BEFORE the engine moves to the next scheduled field.
+
+Do NOT flag routine mentions of tools (e.g., "I use Excel") or general context (e.g., "I'm in Lagos"). Only flag topics that contain actionable intelligence the engine should probe deeper on.
+
+If inputType is NOT "answer": set extractions to an empty array, contradicts to false, and followUp.detected to false.`,
       }],
     });
     return object;
   });
 
+  // Build the followUp signal from the extraction result
+  const followUp: FollowUpSignal = object.followUp.detected && object.followUp.topic
+    ? { detected: true, topic: object.followUp.topic }
+    : { detected: false };
+
   // Non-answer messages: no extraction, no state advance
   if (object.inputType !== 'answer' || object.extractions.length === 0) {
-    return { updates: {}, inputType: object.inputType, contradicts: false };
+    return { updates: {}, inputType: object.inputType, contradicts: false, followUp };
   }
 
   // Contradiction on the active field blocks the turn (same behavior as before)
   if (object.contradicts) {
-    return { updates: {}, inputType: 'answer', contradicts: true };
+    return { updates: {}, inputType: 'answer', contradicts: true, followUp };
   }
 
   // Build updates from ALL extracted dimensions — not just the active field.
@@ -243,6 +271,7 @@ If inputType is NOT "answer": set extractions to an empty array and contradicts 
     updates,
     inputType: 'answer',
     contradicts: false,
+    followUp,
   };
 }
 

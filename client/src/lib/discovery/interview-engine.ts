@@ -25,8 +25,10 @@ export interface InterviewState {
   questionCount:         number;
   questionsInPhase:      number;
   isComplete:            boolean;
-  /** The field the engine is currently asking about — null between turns */
-  activeField:           DiscoveryContextField | 'psych_probe' | null;
+  /** The field the engine is currently asking about — null between turns.
+   *  Special values: 'psych_probe' (motivational probe), 'follow_up'
+   *  (user-initiated thread escalation). */
+  activeField:           DiscoveryContextField | 'psych_probe' | 'follow_up' | null;
   /** Audience type, classified silently after 2nd exchange */
   audienceType:          AudienceType | null;
   /** Number of consecutive extraction misses on the current field. Resets to 0 on any successful extraction. */
@@ -37,6 +39,13 @@ export interface InterviewState {
   pricingProbed:         boolean;
   /** Every field the engine has generated a question for — deterministic repeat-prevention */
   askedFields:           DiscoveryContextField[];
+  /**
+   * A user-initiated thread detected by the extractor that should be
+   * probed as a follow-up BEFORE the next scored field. Set when the
+   * user mentions a competitor, market condition, or strategic insight
+   * unprompted. Consumed once by advance() then cleared.
+   */
+  pendingFollowUp:       { topic: string } | null;
   createdAt:             string;
   updatedAt:             string;
 }
@@ -101,6 +110,7 @@ export function createInterviewState(sessionId: string, userId: string): Intervi
     psychConstraintProbed: false,
     pricingProbed:         false,
     askedFields:           [],
+    pendingFollowUp:       null,
     createdAt:             now,
     updatedAt:             now,
   };
@@ -117,7 +127,7 @@ export function createInterviewState(sessionId: string, userId: string): Intervi
  * - Mark the session as ready for synthesis
  */
 export function advance(state: InterviewState): {
-  nextField:         DiscoveryContextField | 'psych_probe' | null;
+  nextField:         DiscoveryContextField | 'psych_probe' | 'follow_up' | null;
   nextPhase:         InterviewPhase;
   readyForSynthesis: boolean;
 } {
@@ -135,6 +145,16 @@ export function advance(state: InterviewState): {
 
   if (currentPhase === INTERVIEW_PHASES.SYNTHESIS) {
     return { nextField: null, nextPhase: INTERVIEW_PHASES.SYNTHESIS, readyForSynthesis: true };
+  }
+
+  // User-initiated thread follow-up — fires BEFORE the next scored
+  // field. This is the structural mechanism (not just a prompt hint)
+  // that ensures user-raised topics like competitor mentions, market
+  // conditions, or strategic insights get a dedicated question slot
+  // instead of being buried by the next highest-scoring field.
+  // Same pattern as psych_probe: a one-time injection consumed once.
+  if (state.pendingFollowUp) {
+    return { nextField: 'follow_up', nextPhase: currentPhase, readyForSynthesis: false };
   }
 
   // Inject psychological probe once if a motivational blocker is detected

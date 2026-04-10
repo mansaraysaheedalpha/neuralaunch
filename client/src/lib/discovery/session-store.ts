@@ -166,6 +166,7 @@ export async function getSession(sessionId: string): Promise<InterviewState | nu
         psychConstraintProbed: cacheRaw.psychConstraintProbed ?? false,
         pricingProbed:         cacheRaw.pricingProbed         ?? false,
         askedFields:           cacheRaw.askedFields           ?? [],
+        pendingFollowUp:       cacheRaw.pendingFollowUp       ?? null,
       };
     }
     // Cache miss — fall through to Postgres rehydration below.
@@ -207,12 +208,13 @@ export async function getSession(sessionId: string): Promise<InterviewState | nu
     questionCount:     record.questionCount,
     questionsInPhase:  record.questionsInPhase,
     isComplete:        record.status === 'COMPLETE',
-    activeField:           (record.activeField ?? null) as DiscoveryContextField | 'psych_probe' | null,
+    activeField:           (record.activeField ?? null) as DiscoveryContextField | 'psych_probe' | 'follow_up' | null,
     audienceType:          (record.audienceType ?? null) as import('./constants').AudienceType | null,
     consecutiveMisses:     0,
     psychConstraintProbed: record.psychConstraintProbed ?? false,
     pricingProbed:         record.pricingProbed         ?? false,
     askedFields:           (Array.isArray(record.askedFields) ? record.askedFields : []) as DiscoveryContextField[],
+    pendingFollowUp:       null, // Transient — consumed within one turn, safe to reset on rehydration
     createdAt:         record.createdAt.toISOString(),
     updatedAt:         record.updatedAt.toISOString(),
   };
