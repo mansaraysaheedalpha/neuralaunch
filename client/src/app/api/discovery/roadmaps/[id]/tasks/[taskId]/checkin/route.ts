@@ -152,6 +152,19 @@ export async function POST(
       ...(response.proposedChanges && response.proposedChanges.length > 0
         ? { proposedChanges: response.proposedChanges }
         : {}),
+      // Phase 2 — mid-roadmap execution support. Each of these fields
+      // is optional on the agent's response. Persist them only when
+      // present so old entries (and entries where the agent did not
+      // surface any of them) stay structurally identical.
+      ...(response.subSteps && response.subSteps.length > 0
+        ? { subSteps: response.subSteps }
+        : {}),
+      ...(response.recommendedTools && response.recommendedTools.length > 0
+        ? { recommendedTools: response.recommendedTools }
+        : {}),
+      ...(response.recalibrationOffer
+        ? { recalibrationOffer: response.recalibrationOffer }
+        : {}),
     };
 
     const next = patchTask(phases, taskId, t => ({

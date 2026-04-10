@@ -48,6 +48,41 @@ const ParkingLotCaptureSchema = z.object({
   ),
 });
 
+/**
+ * Tool recommendation surfaced inline in the check-in response.
+ * Internal tools live inside NeuraLaunch (the validation page, the
+ * pushback engine, the parking lot itself). External tools are
+ * regular SaaS products the founder would adopt themselves. The
+ * `isInternal` flag drives the UI affordance (internal tools render
+ * as a deep link into the relevant NeuraLaunch surface; external
+ * tools render as a plain chip with the name + purpose).
+ */
+const RecommendedToolSchema = z.object({
+  name:       z.string().describe('The tool name as the founder would search for it.'),
+  purpose:    z.string().describe('One short phrase: why THIS tool for THIS task. Specific to the founder\'s context.'),
+  isInternal: z.boolean().describe('true when the tool is a NeuraLaunch surface (validation page, pushback, parking lot). false for any external SaaS or service.'),
+});
+
+/**
+ * Proactive mid-roadmap recalibration offer. The agent fires this
+ * when accumulated check-in evidence suggests the roadmap is
+ * structurally off-direction — multiple blocked tasks in a row, the
+ * same blocker recurring across tasks, repeated negative sentiment,
+ * or evidence that one of the recommendation's assumptions was
+ * wrong. The UI renders this as a soft prompt: "this might be the
+ * wrong direction, want to reconsider?" The founder is not required
+ * to accept.
+ *
+ * Distinct from `flagged_fundamental`, which is the hard escape
+ * hatch fired on a single blocking signal. The recalibration offer
+ * is the soft pattern-detection signal — the agent thinks the
+ * trajectory is off but is not certain.
+ */
+const RecalibrationOfferSchema = z.object({
+  reason:  z.string().describe('One sentence: what about the founder\'s execution evidence suggests the roadmap may be off-direction. Reference specifics — task titles, recurring patterns, founder quotes.'),
+  framing: z.string().describe('One short paragraph: how to frame the recalibration to the founder. Honest about uncertainty, never alarming, always specific.'),
+});
+
 export const CheckInResponseSchema = z.object({
   action: z.enum(CHECKIN_AGENT_ACTIONS).describe(
     'acknowledged: normal friction or successful completion — no roadmap change. ' +
@@ -65,8 +100,19 @@ export const CheckInResponseSchema = z.object({
   parkingLotItem: ParkingLotCaptureSchema.optional().describe(
     'OPTIONAL — only set when the founder\'s free text mentions an adjacent idea, opportunity, or follow-on direction that does not belong on the active roadmap. Captured verbatim and surfaced in the continuation brief later. Be conservative: do not emit on every check-in. Do not invent adjacent ideas — only echo what the founder actually said.'
   ),
+  subSteps: z.array(z.string()).optional().describe(
+    'OPTIONAL — when the founder seems unclear how to actually start or execute the task (e.g. "I don\'t know where to begin", "this feels overwhelming", asks how to do it), break the task into 3-6 concrete sub-steps. Each sub-step is one imperative phrase: an action they could take in 30-60 minutes. Use only when there is genuine HOW confusion, never as a default.'
+  ),
+  recommendedTools: z.array(RecommendedToolSchema).optional().describe(
+    'OPTIONAL — when the founder asks what to use or appears unsure how to execute (and tooling is the gap), recommend 1-4 specific tools. ALWAYS honour the founder\'s budget — do not recommend paid tools if runway is tight. Internal NeuraLaunch tools (validation page, pushback engine, parking lot) count and should be surfaced first when relevant. Skip this field entirely when the founder did not ask about tooling and the agent has no specific recommendation.'
+  ),
+  recalibrationOffer: RecalibrationOfferSchema.optional().describe(
+    'OPTIONAL — fire ONLY when accumulated check-in evidence suggests the roadmap is structurally off-direction (multiple blocked tasks across the roadmap, repeated negative sentiment, a recurring blocker pattern, or evidence one of the recommendation\'s assumptions was wrong). This is the SOFT recalibration signal, distinct from flagged_fundamental. Use sparingly — only when the evidence is genuinely there. NEVER fire on a single check-in unless the single check-in itself is unambiguous evidence the direction is wrong.'
+  ),
 });
 export type CheckInResponse = z.infer<typeof CheckInResponseSchema>;
+export type RecommendedTool   = z.infer<typeof RecommendedToolSchema>;
+export type RecalibrationOffer = z.infer<typeof RecalibrationOfferSchema>;
 
 // ---------------------------------------------------------------------------
 // Public entry point
@@ -211,6 +257,36 @@ The founder may mention an adjacent idea, opportunity, or follow-on direction th
 - Founder says "this task is hard" → DO NOT set parkingLotItem (no adjacent idea, just normal friction)
 - Founder says "completed it" → DO NOT set parkingLotItem unless they explicitly mention something else
 Be conservative. Do not emit on every check-in. Skip the field entirely when there is no genuine adjacent idea in the founder's text. The parking lot is for the founder's strategic future, not for clutter.
+
+MID-ROADMAP EXECUTION SUPPORT:
+You have three OPTIONAL output channels to help the founder unblock without leaving the check-in surface. Use each one only when the situation calls for it — never as a default.
+
+1. SUB-STEP BREAKDOWN (subSteps field):
+Set this when the founder is genuinely confused about HOW to execute the task. Triggers: "I don't know where to begin", "this feels too big", "what does this mean exactly", or any free text that signals the task itself is opaque. Provide 3-6 concrete imperative sub-steps; each one should be doable in 30-60 minutes. Example for "Run 10 customer discovery conversations":
+  - Write a 3-sentence outreach script tailored to your market
+  - List 15 people you could plausibly contact this week
+  - Send 5 outreach messages today
+  - Log each response in a single tracking sheet
+  - Schedule the first 3 conversations
+  - Sit each one with the same 5 questions in the same order
+DO NOT set this field if the founder already understands the task and is just executing.
+
+2. TOOL RECOMMENDATIONS (recommendedTools field):
+Set this when the founder asks what to use, says they don't know what tool fits, or when tooling is the obvious gap. Recommend 1-4 specific tools, each with:
+  - name: the tool name they would search for
+  - purpose: one short phrase tying it to THIS task
+  - isInternal: true for NeuraLaunch surfaces (validation page, pushback engine, parking lot), false for external tools
+ALWAYS check the founder's budget from the belief state. Do NOT recommend paid tools when runway is tight — prefer free tiers, Google Forms, WhatsApp Business, plain spreadsheets. Surface internal NeuraLaunch tools FIRST when they are genuinely the right answer.
+DO NOT set this field as a generic list. If the founder did not ask about tools and has not signalled a tooling gap, leave it empty.
+
+3. RECALIBRATION OFFER (recalibrationOffer field):
+Fire this ONLY when accumulated evidence in the prior check-in history suggests the ROADMAP itself may be off-direction. Triggers:
+  - Multiple tasks blocked across different phases
+  - The same blocker recurring across tasks
+  - Repeated negative sentiment or "this doesn't feel right" signals
+  - Concrete evidence that a recommendation assumption was wrong (e.g. founder says "I assumed restaurants but my data shows catering")
+The recalibration offer is the SOFT signal — distinct from flagged_fundamental, which is the HARD escape hatch. Use recalibrationOffer when you are pattern-matching a trajectory; use flagged_fundamental when one specific blocker is unambiguous proof the recommendation is wrong.
+NEVER fire recalibrationOffer on a single isolated check-in unless that check-in itself is overwhelming evidence. The point is to detect drift over time, not to pull the cord on every blocker.
 
 Produce your structured response now.`,
         }],

@@ -268,7 +268,7 @@ export function InteractiveTaskCard({
         </motion.div>
       )}
 
-      <CheckInHistoryList history={history} />
+      <CheckInHistoryList history={history} recommendationId={recommendationId} />
 
       {flaggedFundamental && (
         <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 flex flex-col gap-2">

@@ -34,6 +34,26 @@ export const CHECKIN_AGENT_ACTIONS = [
 export type CheckInAgentAction = typeof CHECKIN_AGENT_ACTIONS[number];
 
 /**
+ * Mid-roadmap execution support — persisted shapes mirror the
+ * runtime schemas in checkin-agent.ts. Defined here (not imported
+ * from checkin-agent.ts) because checkin-agent.ts is server-only
+ * and these types must be readable from client components that
+ * render the per-entry transcript.
+ */
+const RecommendedToolEntrySchema = z.object({
+  name:       z.string(),
+  purpose:    z.string(),
+  isInternal: z.boolean(),
+});
+export type RecommendedToolEntry = z.infer<typeof RecommendedToolEntrySchema>;
+
+const RecalibrationOfferEntrySchema = z.object({
+  reason:  z.string(),
+  framing: z.string(),
+});
+export type RecalibrationOfferEntry = z.infer<typeof RecalibrationOfferEntrySchema>;
+
+/**
  * One round of the per-task check-in conversation. Append-only into
  * the task's checkInHistory array. Round numbers are 1-indexed and
  * count user turns; the cap is 5 per task.
@@ -60,6 +80,28 @@ export const CheckInEntrySchema = z.object({
     proposedSuccessCriteria: z.string().optional(),
     rationale:        z.string(),
   })).optional(),
+  /**
+   * Mid-roadmap execution support — sub-step breakdown the agent
+   * surfaced because the founder seemed unclear how to start. 3-6
+   * imperative phrases. Persisted so the founder can re-read them
+   * later from the task transcript.
+   */
+  subSteps: z.array(z.string()).optional(),
+  /**
+   * Mid-roadmap execution support — tool recommendations the agent
+   * surfaced when the founder asked what to use. Each entry has a
+   * name, a one-phrase purpose, and an isInternal flag that drives
+   * whether the UI renders the chip as a NeuraLaunch deep link.
+   */
+  recommendedTools: z.array(RecommendedToolEntrySchema).optional(),
+  /**
+   * Mid-roadmap execution support — soft recalibration offer fired
+   * when accumulated check-in evidence suggests the roadmap is
+   * structurally off-direction. The UI renders this as a "pause and
+   * reconsider" affordance that links into the recommendation
+   * pushback flow today and the continuation checkpoint in Phase 5.
+   */
+  recalibrationOffer: RecalibrationOfferEntrySchema.optional(),
 });
 export type CheckInEntry = z.infer<typeof CheckInEntrySchema>;
 
