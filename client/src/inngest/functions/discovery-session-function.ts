@@ -115,6 +115,10 @@ export const discoverySessionFunction = inngest.createFunction(
         assumptions:            recommendation.assumptions,
         whatWouldMakeThisWrong: recommendation.whatWouldMakeThisWrong,
         alternativeRejected:    recommendation.alternativeRejected,
+        // Research audit log — every query, answer, and source from the
+        // research step. Persisted for QA (audit what agents research)
+        // and training data (which queries produce useful results).
+        researchLog:            toJsonValue(researchResult.researchLog ?? []),
         // Concern 3 — preparatory metadata. No behaviour today.
         phaseContext: toJsonValue(buildPhaseContext(PHASES.RECOMMENDATION, {
           discoverySessionId: sessionId,

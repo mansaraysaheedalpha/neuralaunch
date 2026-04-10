@@ -48,6 +48,7 @@ export const FIELD_LABELS: Record<DiscoveryContextField, string> = {
   commitmentLevel:      'how committed they are to following through',
   biggestConcern:       'their biggest fear or concern',
   whyNow:               'why they are taking action at this specific moment',
+  motivationAnchor:     'what drives them to pursue this — their core purpose, not just the timing',
 };
 
 // ---------------------------------------------------------------------------

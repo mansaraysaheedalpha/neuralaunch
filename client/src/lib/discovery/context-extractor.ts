@@ -106,7 +106,7 @@ const ALL_DIMENSIONS: readonly DiscoveryContextField[] = [
   'primaryGoal', 'successDefinition', 'timeHorizon',
   'availableTimePerWeek', 'availableBudget', 'teamSize',
   'technicalAbility', 'geographicMarket',
-  'commitmentLevel', 'biggestConcern', 'whyNow',
+  'commitmentLevel', 'biggestConcern', 'whyNow', 'motivationAnchor',
 ] as const;
 
 const DIMENSION_DESCRIPTIONS: Record<DiscoveryContextField, string> = {
@@ -123,7 +123,8 @@ const DIMENSION_DESCRIPTIONS: Record<DiscoveryContextField, string> = {
   geographicMarket:     'Primary market or location context',
   commitmentLevel:      'How committed they are — must be exactly: exploring | committed | all_in',
   biggestConcern:       'What they are most afraid of or worried about',
-  whyNow:               'Why they are doing this at this specific moment',
+  whyNow:               'Why they are doing this at this specific moment — the timing trigger',
+  motivationAnchor:     'The founder\'s core emotional driver — what makes them want to pursue this at all, the purpose they would return to when things get hard. Distinct from whyNow (timing). Example: "I watched my sister struggle with antenatal care" or "I want to prove I can build something real"',
 };
 
 /**

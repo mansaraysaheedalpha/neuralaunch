@@ -55,7 +55,24 @@ export const DiscoveryContextSchema = z.object({
     z.enum(['exploring', 'committed', 'all_in'])
   ).describe('How committed they are to following through'),
   biggestConcern:  beliefField(z.string()).describe('What they are most afraid of or worried about'),
-  whyNow:          beliefField(z.string()).describe('Why they are doing this at this specific moment'),
+  whyNow:          beliefField(z.string()).describe('Why they are doing this at this specific moment — the timing trigger, not the purpose'),
+  /**
+   * The founder's core emotional driver — why they are pursuing this
+   * at all, not just why now. Distinct from whyNow (which captures
+   * timing: "why now, not six months ago"). The motivation anchor
+   * captures purpose: "what drives you to do this."
+   *
+   * Used downstream by:
+   *   - The check-in nudge system: when engagement drops, the nudge
+   *     references the motivation anchor to re-engage ("You told me
+   *     you started this because [motivation]. That hasn't changed.")
+   *   - The continuation diagnostic: distinguishes "I lost motivation"
+   *     (where re-anchoring helps) from "the roadmap doesn't fit"
+   *     (where re-anchoring is irrelevant and the agent should pivot)
+   */
+  motivationAnchor: beliefField(z.string())
+    .default({ value: null, confidence: 0, extractedAt: null })
+    .describe('The founder\'s core emotional driver — what makes them want to pursue this, not just why now. This is the purpose they would return to when things get hard.'),
 });
 
 export type DiscoveryContext = z.infer<typeof DiscoveryContextSchema>;
@@ -104,5 +121,6 @@ export function createEmptyContext(): DiscoveryContext {
     commitmentLevel:      emptyBelief(z.enum(['exploring', 'committed', 'all_in'])),
     biggestConcern:       emptyBelief(z.string()),
     whyNow:               emptyBelief(z.string()),
+    motivationAnchor:     emptyBelief(z.string()),
   };
 }

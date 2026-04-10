@@ -76,6 +76,7 @@ const PHASE_FIELDS: Record<Exclude<InterviewPhase, 'SYNTHESIS'>, DiscoveryContex
     'commitmentLevel',
     'biggestConcern',
     'whyNow',
+    'motivationAnchor',
   ],
 };
 

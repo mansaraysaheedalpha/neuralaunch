@@ -11,9 +11,20 @@ import type { DiscoveryContext } from './context-schema';
 // Types
 // ---------------------------------------------------------------------------
 
+/** A single entry in the research log — persisted to Recommendation.researchLog */
+export interface ResearchLogEntry {
+  query:     string;
+  agent:     string;    // Which agent triggered this query (e.g., 'synthesis', 'continuation')
+  timestamp: string;    // ISO date
+  answer:    string;    // Tavily's synthesised answer
+  sources:   { title: string; url: string; snippet: string }[];
+  success:   boolean;
+}
+
 export interface ResearchSummary {
-  findings:    string;   // Synthesised landscape intelligence for the synthesis prompt
-  queriesRun:  string[]; // For observability
+  findings:    string;             // Synthesised landscape intelligence for the synthesis prompt
+  queriesRun:  string[];           // For observability
+  researchLog: ResearchLogEntry[]; // For persistence + audit
 }
 
 // ---------------------------------------------------------------------------
@@ -265,7 +276,7 @@ export async function runResearch(
 
   if (!env.TAVILY_API_KEY) {
     log.warn('Research skipped — TAVILY_API_KEY is not set in this environment');
-    return { findings: '', queriesRun: [] };
+    return { findings: '', queriesRun: [], researchLog: [] };
   }
 
   const client  = tavily({ apiKey: env.TAVILY_API_KEY });
@@ -281,7 +292,7 @@ export async function runResearch(
 
   if (queries.length === 0) {
     log.warn('[Research] No queries built — context too thin');
-    return { findings: '', queriesRun: [] };
+    return { findings: '', queriesRun: [], researchLog: [] };
   }
 
   const results = await Promise.allSettled(
@@ -289,10 +300,12 @@ export async function runResearch(
   );
 
   const sections: string[] = [];
+  const researchLog: ResearchLogEntry[] = [];
   const seenUrls  = new Set<string>();
   let successCount = 0;
   let failureCount = 0;
   let totalHitsUsed = 0;
+  const now = new Date().toISOString();
 
   for (let i = 0; i < results.length; i++) {
     const result = results[i];
@@ -302,6 +315,14 @@ export async function runResearch(
       failureCount++;
       const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
       log.warn('[Research] Query permanently failed', { queryIdx: i, query, reason });
+      researchLog.push({
+        query,
+        agent:     'synthesis',
+        timestamp: now,
+        answer:    '',
+        sources:   [],
+        success:   false,
+      });
       continue;
     }
 
@@ -335,6 +356,20 @@ export async function runResearch(
     sections.push(
       `QUERY: ${safeQuery}\nSUMMARY: ${safeAnswer}\nSOURCES:\n${topSources || '(no fresh sources after dedupe)'}`,
     );
+
+    // Persist to researchLog for audit + training data extraction
+    researchLog.push({
+      query,
+      agent:     'synthesis',
+      timestamp: now,
+      answer:    answer ?? '',
+      sources:   freshHits.map(h => ({
+        title:   h.title ?? '',
+        url:     h.url ?? '',
+        snippet: h.content ?? '',
+      })),
+      success:   true,
+    });
 
     log.info('[Research] Query success', {
       queryIdx:     i,
@@ -372,5 +407,5 @@ export async function runResearch(
     });
   }
 
-  return { findings, queriesRun: queries };
+  return { findings, queriesRun: queries, researchLog };
 }

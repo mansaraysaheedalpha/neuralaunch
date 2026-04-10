@@ -131,9 +131,11 @@ enum DiscoverySessionStatus {
   ACTIVE
   COMPLETE
   EXPIRED
-  /** Safety gate triggered — session permanently and irreversibly closed.
-   *  No further messages accepted. Set by the safetyGate when criminal
-   *  or harmful intent is detected on ANY message in the session. */
+  /**
+   * Safety gate triggered — session permanently and irreversibly closed.
+   * No further messages accepted. Set by the safetyGate when criminal
+   * or harmful intent is detected on ANY message in the session.
+   */
   TERMINATED
 }
 
@@ -298,6 +300,21 @@ model Recommendation {
    * Recommendation schema and break on every schema change.
    */
   versions Json @default("[]")
+
+  /**
+   * Research queries and results persisted for auditability and
+   * training data extraction. Shape:
+   * [{ query: string, agent: string, timestamp: ISO, answer: string,
+   * sources: { title, url, snippet }[], success: boolean }]
+   * Populated by the synthesis pipeline's research step (Step 4).
+   * Every query Tavily processes is logged with its answer and
+   * source list. Future agents (continuation, pushback) can append
+   * their own research entries to the same array.
+   * This is the QA layer: audit what agents are researching, which
+   * queries produce useful results, and the training data source for
+   * improving query construction over time.
+   */
+  researchLog Json @default("[]")
 
   // ----- Round-7 alternative recommendation (Concern 1, closing move) -----
 

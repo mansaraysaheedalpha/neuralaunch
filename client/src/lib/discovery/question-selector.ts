@@ -29,6 +29,7 @@ export const FIELD_WEIGHTS: Record<DiscoveryContextField, number> = {
   commitmentLevel:      0.9, // changes what we recommend entirely
   biggestConcern:       0.7,
   whyNow:               0.6,
+  motivationAnchor:     0.7, // critical for check-in nudges + continuation diagnostic
 };
 
 // Per-audience-type field importance multipliers.
