@@ -160,6 +160,7 @@ RULES — you must follow these precisely:
    - 'further_research' when the founder needs more data before any commitment is responsible
    - 'other' when nothing above fits
    Be honest about this classification — it drives downstream tooling and a wrong classification will surface tools the founder does not need.
+9. alternativeRejected MUST contain at least 2 entries. The STRATEGIC ANALYSIS above already identified the top 3 directions and explained why 2 of them do not fit. Those 2 rejected directions should map directly into your alternativeRejected array — do NOT invent new alternatives when the analysis already did the work. Each entry needs the specific alternative path AND why it does not fit THIS person (not a generic reason). If the analysis identified 3 clear directions and rejected 2, use both rejections. Do NOT always produce exactly 1.
 
 Produce the recommendation now.`,
         }],
