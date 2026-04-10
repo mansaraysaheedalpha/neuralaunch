@@ -134,7 +134,53 @@ function buildQueries(
     queries.push(q(`Common mistakes when trying to ${goal}${marketSuffix} — what to avoid ${yh}`));
   }
 
-  return queries.slice(0, 3);
+  // Query 4 — competitor-specific (EVALUATION FINDING)
+  //
+  // The interview often surfaces competitor names and specific tools
+  // the founder has tried (e.g., "I tried Kippa but my clients hated
+  // it", "QuickBooks was too expensive"). These names appear in:
+  //   - whatTriedBefore (belief state field — array of attempts)
+  //   - summary (Step 2 output — may quote competitor names)
+  //   - analysis (Step 3 output — may reference alternatives)
+  //
+  // The original query builder ignored all of this and constructed
+  // purely generic queries from goal/situation/market. A founder who
+  // named 3 competitors during the interview would get research
+  // that never mentioned any of them.
+  //
+  // Fix: scan available text for capitalized product/company names
+  // and build a targeted competitor query. This is heuristic (not
+  // NER) but catches the common case of "I tried [ProperNoun]."
+  const competitorSources: string[] = [];
+  const tried = context.whatTriedBefore?.value;
+  if (Array.isArray(tried)) {
+    competitorSources.push(...tried.map(t => String(t)));
+  }
+  if (summary)  competitorSources.push(summary);
+  if (analysis) competitorSources.push(analysis);
+
+  // Extract capitalized multi-word names that look like products/companies
+  // (e.g., "Kippa", "QuickBooks", "Wave", "Google Sheets", "Prospa")
+  const namePattern = /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b/g;
+  const commonWords = new Set(['The', 'This', 'That', 'What', 'When', 'Where', 'How', 'Why', 'Who', 'If', 'But', 'And', 'For', 'Not', 'All', 'Can', 'Her', 'Was', 'One', 'Our', 'Out', 'Day', 'Had', 'Has', 'His', 'New', 'Now', 'Old', 'See', 'Way', 'May', 'Say', 'She', 'Two', 'Use', 'Boy', 'Did', 'Its', 'Let', 'Put', 'Top', 'Too', 'Any', 'First', 'Also', 'After', 'Before', 'Because', 'During', 'Between', 'Through', 'About', 'Could', 'Would', 'Should', 'Which', 'Their', 'These', 'Those', 'Other', 'Some', 'Every', 'Phase', 'Query', 'Summary', 'Sierra', 'Leone', 'Nigeria', 'Ghana', 'Lagos', 'Accra', 'Freetown']);
+  const detectedNames = new Set<string>();
+  for (const source of competitorSources) {
+    let match: RegExpExecArray | null;
+    while ((match = namePattern.exec(source)) !== null) {
+      const name = match[1];
+      if (name.length >= 3 && !commonWords.has(name)) {
+        detectedNames.add(name);
+      }
+    }
+  }
+
+  if (detectedNames.size > 0) {
+    const names = [...detectedNames].slice(0, 4).join(', ');
+    queries.push(q(`${names}${marketSuffix} — pricing, traction, customer reviews, and how they compare ${yh}`));
+    log.info('[Research] Competitor-specific query built', { names });
+  }
+
+  return queries.slice(0, 4); // Up from 3 → 4 when competitor names detected
 }
 
 // ---------------------------------------------------------------------------
