@@ -94,7 +94,7 @@ export function generateQuestion(
   field:        DiscoveryContextField | 'psych_probe',
   phase:        InterviewPhase,
   context:      DiscoveryContext,
-  options:      { unclear?: boolean; insufficientSignal?: boolean } = {},
+  options:      { unclear?: boolean; insufficientSignal?: boolean; phaseChanged?: boolean } = {},
   audienceType?: AudienceType,
   conversationHistory?: string,
   askedFields?:  DiscoveryContextField[],
@@ -145,6 +145,10 @@ Do not use generic examples. Derive the question from what they actually said.`,
     ? `Note: answers have been very brief so far. Ask a more focused, concrete version of this question — give them a specific angle to respond to rather than a broad open-ended one.\n\n`
     : '';
 
+  const phaseTransitionPrefix = options.phaseChanged
+    ? `Note: the conversation is naturally moving to a new area of inquiry. Do NOT announce the phase change, do NOT say "now let's talk about X" or "moving on to Y." Instead, bridge naturally from what the person just told you into the next question. Reference something they said in their last answer as a lead-in so the shift feels like a natural continuation, not a topic change.\n\n`
+    : '';
+
   // Deterministic closed-field list — only fields the engine has explicitly asked about.
   // Intentionally excludes the belief state confidence overlay: fields below MIN_FIELD_CONFIDENCE
   // will be re-scheduled by selectNextField, so listing them as closed would contradict the
@@ -166,7 +170,7 @@ We need to learn about: ${FIELD_LABELS[field]}
 Context gathered so far:
 ${knownFacts || '  (nothing yet)'}
 
-${unclearPrefix}${thinSignalPrefix}INTERNAL ONLY — dimensions already covered (do not ask about these again):
+${unclearPrefix}${thinSignalPrefix}${phaseTransitionPrefix}INTERNAL ONLY — dimensions already covered (do not ask about these again):
 ${askedLabels || 'nothing yet'}
 
 This list is your internal state only. Never reference it, acknowledge it, or narrate why you are skipping any topic. Do not say things like "that's already covered", "you've already told me", "I have what I need on that", or any phrase that reveals you are tracking what has been asked. Simply ask the next question as if it is the natural next thing to explore — no preamble, no explanation of what you are skipping.

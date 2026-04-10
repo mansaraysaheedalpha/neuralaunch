@@ -7,7 +7,7 @@ import { AudienceType, MIN_FIELD_CONFIDENCE } from './constants';
 // Higher = more important to know before synthesis is reliable
 // ---------------------------------------------------------------------------
 
-const FIELD_WEIGHTS: Record<DiscoveryContextField, number> = {
+export const FIELD_WEIGHTS: Record<DiscoveryContextField, number> = {
   // ORIENTATION
   situation:            1.0, // foundational — everything else interprets through this
   background:           0.7,

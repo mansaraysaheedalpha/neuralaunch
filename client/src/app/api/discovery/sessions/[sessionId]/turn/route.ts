@@ -215,8 +215,9 @@ export async function POST(
     if (!nextField) return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
     if (detectsPricingChange(message) && !state.pricingProbed) { await saveSession(sessionId, { ...nextState, pricingProbed: true }); return buildStreamResponse(generatePricingFollowUp(message, history, nextState.audienceType ?? undefined), conversationId, nextState.phase, nextState.questionCount); }
     const insufficientSignal = nextState.questionCount >= 6 && computeOverallCompleteness(nextState.context) < 0.35;
-    log.debug('Turn stream start', { sessionId, totalToStreamMs: Date.now() - t0, inputType, phase: nextState.phase });
-    return buildStreamResponse(generateQuestion(nextField, nextState.phase as never, nextState.context, { insufficientSignal }, nextState.audienceType ?? undefined, history, nextState.askedFields), conversationId, nextState.phase, nextState.questionCount);
+    const phaseChanged = nextState.phase !== state.phase;
+    log.debug('Turn stream start', { sessionId, totalToStreamMs: Date.now() - t0, inputType, phase: nextState.phase, phaseChanged });
+    return buildStreamResponse(generateQuestion(nextField, nextState.phase as never, nextState.context, { insufficientSignal, phaseChanged }, nextState.audienceType ?? undefined, history, nextState.askedFields), conversationId, nextState.phase, nextState.questionCount);
   } catch (error) {
     log.error('Turn processing failed', error instanceof Error ? error : undefined);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

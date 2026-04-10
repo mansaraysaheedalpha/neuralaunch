@@ -501,8 +501,7 @@ Types:
 
 | Constant | Value | Purpose |
 |---|---|---|
-| `MAX_TOTAL_QUESTIONS` | 20 | Hard ceiling — never ask more |
-| `MAX_QUESTIONS_PER_PHASE` | 6 | Per-phase ceiling |
+| `MAX_TOTAL_QUESTIONS` | 15 | Hard ceiling — never ask more |
 | `MIN_FIELD_CONFIDENCE` | 0.5 | Below this, the field is "unknown" |
 | `SYNTHESIS_READINESS_RATIO` | 0.65 | Overall completeness needed for synthesis |
 | `SESSION_TTL_SECONDS` | 900 | 15-minute Redis TTL |
