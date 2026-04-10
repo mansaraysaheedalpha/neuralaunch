@@ -29,6 +29,25 @@ const TaskAdjustmentSchema = z.object({
   rationale:               z.string().describe('One sentence: why this adjustment, grounded in the founder\'s check-in.'),
 });
 
+/**
+ * Parking-lot capture vector. The check-in agent attaches one of these
+ * to its response when the founder's free text reveals an adjacent
+ * opportunity, idea, or follow-on direction that does NOT belong on
+ * the active roadmap. The route appends the captured item to the
+ * parent Roadmap.parkingLot column so it surfaces in the continuation
+ * brief at "What's Next?" time.
+ *
+ * The agent should be conservative — only emit a parking-lot item
+ * when the founder explicitly mentioned an idea/opportunity, not on
+ * every check-in. Adjacent ideas the agent invents itself are not
+ * parking-lot material.
+ */
+const ParkingLotCaptureSchema = z.object({
+  idea: z.string().min(1).describe(
+    'A short phrase capturing the adjacent idea verbatim from the founder. Maximum 280 characters. Must be the founder\'s own idea, not yours.'
+  ),
+});
+
 export const CheckInResponseSchema = z.object({
   action: z.enum(CHECKIN_AGENT_ACTIONS).describe(
     'acknowledged: normal friction or successful completion — no roadmap change. ' +
@@ -42,6 +61,9 @@ export const CheckInResponseSchema = z.object({
   ),
   proposedChanges: z.array(TaskAdjustmentSchema).optional().describe(
     'Required when action is adjusted_next_step. Each entry references a downstream task by its title and proposes specific edits.'
+  ),
+  parkingLotItem: ParkingLotCaptureSchema.optional().describe(
+    'OPTIONAL — only set when the founder\'s free text mentions an adjacent idea, opportunity, or follow-on direction that does not belong on the active roadmap. Captured verbatim and surfaced in the continuation brief later. Be conservative: do not emit on every check-in. Do not invent adjacent ideas — only echo what the founder actually said.'
   ),
 });
 export type CheckInResponse = z.infer<typeof CheckInResponseSchema>;
@@ -181,6 +203,14 @@ CRITICAL RULES:
 4. NEVER repeat the same response on a second check-in about the same blocker — escalate. Either surface a more concrete fact from the belief state, or move from acknowledged to adjusted_next_step.
 5. Quote the founder's own context back to them whenever relevant.
 6. The agent's job is to be a trusted advisor with skin in the game, not a cheerleader.
+
+PARKING LOT DETECTION:
+The founder may mention an adjacent idea, opportunity, or follow-on direction that does NOT belong on the active roadmap. When (and only when) they do this, set parkingLotItem.idea to a short phrase capturing what they said — verbatim from their own words, never your own invention. Examples:
+- Founder says "I noticed while interviewing customers that there's a totally different need around catering" → parkingLotItem.idea: "different need around catering, surfaced from customer interviews"
+- Founder says "I want to also try TikTok later" → parkingLotItem.idea: "TikTok marketing channel, parked for later"
+- Founder says "this task is hard" → DO NOT set parkingLotItem (no adjacent idea, just normal friction)
+- Founder says "completed it" → DO NOT set parkingLotItem unless they explicitly mention something else
+Be conservative. Do not emit on every check-in. Skip the field entirely when there is no genuine adjacent idea in the founder's text. The parking lot is for the founder's strategic future, not for clutter.
 
 Produce your structured response now.`,
         }],

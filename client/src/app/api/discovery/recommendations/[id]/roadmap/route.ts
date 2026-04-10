@@ -121,13 +121,19 @@ export async function GET(
   const roadmap = await prisma.roadmap.findFirst({
     where:  { recommendationId: parsed.data.id, userId: session.user.id },
     select: {
-      id:             true,
-      status:         true,
-      phases:         true,
-      closingThought: true,
-      weeklyHours:    true,
-      totalWeeks:     true,
-      createdAt:      true,
+      id:                 true,
+      status:             true,
+      phases:             true,
+      closingThought:     true,
+      weeklyHours:        true,
+      totalWeeks:         true,
+      createdAt:          true,
+      // Roadmap continuation — surface the parking lot and the
+      // continuation lifecycle status so the client can render the
+      // "What's Next?" button, the parked-idea sidebar, and the
+      // brief reveal page without a second round-trip.
+      parkingLot:         true,
+      continuationStatus: true,
       // Concern 4 — surface the per-roadmap progress / nudge state
       // so the client can render the proactive nudge banner and the
       // progress counters without a second round-trip.

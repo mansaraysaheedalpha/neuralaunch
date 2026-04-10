@@ -23,6 +23,7 @@ import {
 } from '@/lib/roadmap/checkin-types';
 import { runCheckIn } from '@/lib/roadmap/checkin-agent';
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
+import { captureParkingLotFromCheckin } from '@/lib/continuation';
 
 // Pro plan: 60s is comfortable for the Sonnet check-in call.
 export const maxDuration = 60;
@@ -70,8 +71,9 @@ export async function POST(
     const roadmap = await prisma.roadmap.findFirst({
       where:  { id: roadmapId, userId },
       select: {
-        id:     true,
-        phases: true,
+        id:         true,
+        phases:     true,
+        parkingLot: true,
         recommendation: {
           select: {
             id:        true,
@@ -160,10 +162,27 @@ export async function POST(
 
     const summary = computeProgressSummary(next);
 
+    // Parking-lot auto-capture: when the agent detected an adjacent
+    // idea in the founder's free text, append it to the roadmap's
+    // parking lot column. Duplicates and cap-overflows are silently
+    // dropped — the agent does not need to know about them, and a
+    // failed parking-lot append must NEVER fail the check-in itself.
+    // The append happens inside the same transaction as the phases
+    // write so the JSON column never observes a partial state.
+    const { previous: currentParkingLot, next: nextParkingLot } =
+      captureParkingLotFromCheckin({
+        rawParkingLot: roadmap.parkingLot,
+        capturedIdea:  response.parkingLotItem?.idea,
+        taskTitle:     found.task.title,
+      });
+
     await prisma.$transaction(async (tx) => {
       await tx.roadmap.update({
         where: { id: roadmapId },
-        data:  { phases: toJsonValue(next) },
+        data:  {
+          phases: toJsonValue(next),
+          ...(nextParkingLot ? { parkingLot: toJsonValue(nextParkingLot) } : {}),
+        },
       });
       await tx.roadmapProgress.upsert({
         where:  { roadmapId },
@@ -186,8 +205,9 @@ export async function POST(
 
     log.info('Check-in persisted', {
       taskId,
-      action:    response.action,
-      round:     currentRound,
+      action:        response.action,
+      round:         currentRound,
+      parkedIdea:    !!nextParkingLot,
     });
 
     return NextResponse.json({
@@ -198,6 +218,11 @@ export async function POST(
       // flagged a fundamental problem.
       flaggedFundamental: response.action === 'flagged_fundamental',
       recommendationId:   roadmap.recommendation.id,
+      // The full parking lot post-update — the client renders a
+      // small "we parked this for you" affordance when the array
+      // grew. Returning the entire array (rather than just a delta)
+      // is cheap because the cap is 50 items.
+      parkingLot:         nextParkingLot ?? currentParkingLot,
     });
   } catch (err) {
     if (err instanceof HttpError) return httpErrorToResponse(err);
