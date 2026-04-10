@@ -53,4 +53,7 @@ server/.pytest_cache/
 server/htmlcov/
 
 # Ignore secret environment variables for the backend
-server/.env
+server/.env*.json
+*.docx
+*.csv
+dataset_analysis.txt
