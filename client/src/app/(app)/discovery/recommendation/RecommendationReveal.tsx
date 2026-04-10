@@ -14,6 +14,7 @@ import {
 } from '@/lib/discovery/constants';
 import { PushbackChat } from './PushbackChat';
 import type { PushbackTurn } from '@/lib/discovery/pushback-types';
+import { safeParseAlternatives } from '@/lib/discovery/recommendation-schema';
 
 interface Props {
   recommendation: {
@@ -50,7 +51,6 @@ interface Props {
 }
 
 type RiskRow = { risk: string; mitigation: string };
-type AltRow  = { alternative: string; whyNotForThem: string };
 
 function Section({ label, delay = 0, children }: { label: string; delay?: number; children: React.ReactNode }) {
   const [open, setOpen] = useState(true);
@@ -99,7 +99,7 @@ export function RecommendationReveal({
   const steps       = r.firstThreeSteps as string[];
   const risks       = r.risks as RiskRow[];
   const assumptions = r.assumptions as string[];
-  const alt         = r.alternativeRejected as AltRow;
+  const alts = safeParseAlternatives(r.alternativeRejected);
   const [generating,         setGenerating]         = useState(false);
   const [creatingValidation, setCreatingValidation] = useState(false);
   const [accepting,          setAccepting]          = useState(false);
@@ -265,10 +265,14 @@ export function RecommendationReveal({
           </ul>
         </Section>
 
-        <Section label="Alternative Considered & Rejected" delay={0.9}>
-          <div className="rounded-lg border border-border p-3 text-sm">
-            <p className="font-medium text-foreground mb-1">{alt.alternative}</p>
-            <p className="text-muted-foreground text-xs leading-relaxed">{alt.whyNotForThem}</p>
+        <Section label={alts.length > 1 ? 'Alternatives Considered & Rejected' : 'Alternative Considered & Rejected'} delay={0.9}>
+          <div className="flex flex-col gap-3">
+            {alts.map((alt, i) => (
+              <div key={i} className="rounded-lg border border-border p-3 text-sm">
+                <p className="font-medium text-foreground mb-1">{alt.alternative}</p>
+                <p className="text-muted-foreground text-xs leading-relaxed">{alt.whyNotForThem}</p>
+              </div>
+            ))}
           </div>
         </Section>
 

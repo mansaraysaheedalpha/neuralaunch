@@ -16,19 +16,49 @@ import { withModelFallback } from '@/lib/ai/with-model-fallback';
 // Context builders
 // ---------------------------------------------------------------------------
 
+/**
+ * Resolve the founder's available weekly hours from the belief state.
+ *
+ * The evaluation data analysis found this was hardcoded at 10 for
+ * every roadmap — the WEEKLY_HOURS_MAP only matched 5 very specific
+ * strings, and the founder's own words (e.g., "12 to 15 hours a
+ * week", "maybe 6 to 8 hours", "about 30 hours") never matched.
+ * The numeric fallback only grabbed the FIRST number, so "12 to 15"
+ * returned 12 when the midpoint (13-14) would be more accurate.
+ *
+ * Fix: try keyword map first (legacy), then look for numeric ranges
+ * ("X to Y hours"), then single numbers, then default. The default
+ * itself is now 10 only as a last resort — the prompt descriptions
+ * and the multi-field extraction should ensure this field is almost
+ * always populated with an explicit number.
+ */
 function resolveWeeklyHours(context: DiscoveryContext): number {
   const availableTimeValue = context.availableTimePerWeek?.value as string | null | undefined;
   const raw = availableTimeValue ?? undefined;
-  if (!raw) return 10; // default: 1-2 hours/day
+  if (!raw) return 10; // genuine unknown — default conservatively
 
   const lower = raw.toLowerCase();
+
+  // 1. Exact keyword match (legacy patterns from the enum-style extraction)
   for (const [key, hours] of Object.entries(WEEKLY_HOURS_MAP)) {
     if (lower.includes(key)) return hours;
   }
 
-  // Parse numeric fallback: "20 hours a week"
-  const numericMatch = lower.match(/(\d+)\s*hours?/);
-  if (numericMatch) return parseInt(numericMatch[1], 10);
+  // 2. Range pattern: "12 to 15 hours", "8-10 hours", "maybe 6 to 8"
+  const rangeMatch = lower.match(/(\d+)\s*(?:to|–|-)\s*(\d+)\s*hours?/);
+  if (rangeMatch) {
+    const lo = parseInt(rangeMatch[1], 10);
+    const hi = parseInt(rangeMatch[2], 10);
+    return Math.round((lo + hi) / 2); // midpoint
+  }
+
+  // 3. Single number: "20 hours a week", "about 30 hours"
+  const singleMatch = lower.match(/(\d+)\s*hours?/);
+  if (singleMatch) return parseInt(singleMatch[1], 10);
+
+  // 4. Pure number without "hours" suffix: "maybe 15"
+  const pureNumber = lower.match(/\b(\d{1,2})\b/);
+  if (pureNumber) return parseInt(pureNumber[1], 10);
 
   return 10;
 }

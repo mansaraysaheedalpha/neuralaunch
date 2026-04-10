@@ -172,7 +172,9 @@ ${askedLabels || 'nothing yet'}
 This list is your internal state only. Never reference it, acknowledge it, or narrate why you are skipping any topic. Do not say things like "that's already covered", "you've already told me", "I have what I need on that", or any phrase that reveals you are tracking what has been asked. Simply ask the next question as if it is the natural next thing to explore — no preamble, no explanation of what you are skipping.
 
 Ask one clear, direct question to learn about ${FIELD_LABELS[field]}.
-Keep it natural given what we already know about this person.`,
+Keep it natural given what we already know about this person.
+
+THREAD ESCALATION: If the person's previous answer mentioned competitors by name, specific tools they have tried, market conditions, or other high-value topics that were NOT the question you asked — incorporate those into your next question rather than ignoring them. For example, if you asked about their budget and they mentioned "I tried Kippa but my clients hated it," your next question should probe WHY their clients hated Kippa, not ignore that competitive intelligence. User-initiated topics are more valuable than checklist topics because the founder is telling you what matters to them.`,
       },
     ],
   });

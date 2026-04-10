@@ -131,6 +131,10 @@ enum DiscoverySessionStatus {
   ACTIVE
   COMPLETE
   EXPIRED
+  /** Safety gate triggered — session permanently and irreversibly closed.
+   *  No further messages accepted. Set by the safetyGate when criminal
+   *  or harmful intent is detected on ANY message in the session. */
+  TERMINATED
 }
 
 /**

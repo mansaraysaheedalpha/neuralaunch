@@ -503,9 +503,14 @@ function renderRecommendationForPrompt(recommendation: Recommendation): string {
     lines.push(`  ${i + 1}. ${renderUserContent(a, 400)}`);
   });
 
-  lines.push('Alternative considered & rejected:');
-  lines.push(`  alternative: ${renderUserContent(recommendation.alternativeRejected.alternative, 500)}`);
-  lines.push(`  why not for them: ${renderUserContent(recommendation.alternativeRejected.whyNotForThem, 600)}`);
+  lines.push('Alternatives considered & rejected:');
+  const alts = Array.isArray(recommendation.alternativeRejected)
+    ? recommendation.alternativeRejected
+    : [recommendation.alternativeRejected];
+  alts.forEach((alt, i) => {
+    lines.push(`  ${i + 1}. ${renderUserContent(alt.alternative, 500)}`);
+    lines.push(`     why not: ${renderUserContent(alt.whyNotForThem, 600)}`);
+  });
 
   return lines.join('\n');
 }

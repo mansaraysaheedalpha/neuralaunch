@@ -56,9 +56,9 @@ export const RecommendationSchema = z.object({
     'Detailed explanation of why this path fits this person. Must reference specific details from their context. At least 2–3 sentences.'
   ),
 
-  /** The first 3 concrete, actionable steps — sequenced correctly */
+  /** The first concrete, actionable steps — sequenced correctly */
   firstThreeSteps: z.array(z.string()).describe(
-    'Exactly 3 steps. Each step must be specific and achievable within the user constraints.'
+    '2 to 4 steps. Simpler recommendations may need only 2. Complex ones may need 4. Each step must be specific and achievable within the user constraints. Do NOT pad to a fixed number — only include steps that are genuinely distinct and necessary.'
   ),
 
   /** Honest, realistic timeline to first tangible result */
@@ -72,13 +72,13 @@ export const RecommendationSchema = z.object({
       risk:        z.string().describe('The risk'),
       mitigation:  z.string().describe('How to reduce or manage it'),
     })
-  ).describe('1 to 4 risks with mitigations'),
+  ).describe('2 to 5 risks with mitigations. The number should reflect the actual complexity — a simple service recommendation might have 2 real risks, a build_software recommendation might have 5. Do NOT always produce exactly 4.'),
 
   /**
    * Explicit assumptions the recommendation rests on.
    * If any are wrong, the recommendation may not apply.
    */
-  assumptions: z.array(z.string()).describe('1 to 5 assumptions this recommendation depends on'),
+  assumptions: z.array(z.string()).describe('2 to 6 assumptions this recommendation depends on. Include only assumptions that are genuinely load-bearing — things that, if wrong, would change the recommendation. Do NOT pad to a fixed number.'),
 
   /**
    * What would make this recommendation wrong.
@@ -90,10 +90,42 @@ export const RecommendationSchema = z.object({
    * The main alternative considered and why it was rejected for this person.
    * Validates that the system thought through the space — not just pattern-matched.
    */
-  alternativeRejected: z.object({
-    alternative: z.string(),
-    whyNotForThem: z.string(),
-  }),
+  /**
+   * Alternatives considered and rejected for this specific person.
+   * Validates that the system explored the decision space, not just
+   * pattern-matched. Must include at least 1, ideally 2. Each
+   * alternative should be a genuinely plausible path that was
+   * eliminated for specific reasons tied to this founder's context.
+   */
+  alternativeRejected: z.array(
+    z.object({
+      alternative:   z.string().describe('The alternative path that was considered'),
+      whyNotForThem: z.string().describe('Why it does not fit this specific person'),
+    }),
+  ).describe('1 to 3 alternatives considered and rejected. At least 1 is required; 2 is preferred. Each must be a genuinely plausible direction that was eliminated for reasons specific to this founder.'),
 });
 
 export type Recommendation = z.infer<typeof RecommendationSchema>;
+
+/**
+ * Normalize the alternativeRejected field from JSONB. Before the
+ * schema change it was a single object; after, it's an array.
+ * Old rows in the database still have the single-object shape.
+ * This helper safely handles both and always returns an array.
+ */
+export type AlternativeRejected = { alternative: string; whyNotForThem: string };
+
+export function safeParseAlternatives(value: unknown): AlternativeRejected[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.filter(
+      (v): v is AlternativeRejected =>
+        typeof v === 'object' && v !== null && 'alternative' in v && 'whyNotForThem' in v,
+    );
+  }
+  // Old single-object shape
+  if (typeof value === 'object' && 'alternative' in value && 'whyNotForThem' in value) {
+    return [value as AlternativeRejected];
+  }
+  return [];
+}

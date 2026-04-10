@@ -17,6 +17,7 @@ import {
   MIN_FIELD_CONFIDENCE,
 } from '@/lib/discovery';
 import type { FallbackStreamResult } from '@/lib/ai/question-stream-fallback';
+import { runSafetyGate, SAFETY_REFUSAL_MESSAGE } from '@/lib/discovery/safety-gate';
 
 // Pro plan supports up to 300s. The fallback chain can take ~50s in
 // the worst case (Sonnet retries 0+2+8+30 = 40s, then Haiku first
@@ -98,14 +99,59 @@ export async function POST(
     return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
   }
 
-  // Fetch conversationId for message persistence (best-effort — non-blocking).
-  // Redis state already verified userId above; the userId in the where clause
-  // is defence-in-depth in case the Redis check is ever loosened.
+  // Check if the session has already been terminated by a prior safety gate.
+  // Once terminated, no further messages are accepted — ever.
   const dbSession = await prisma.discoverySession.findFirst({
     where:  { id: sessionId, userId },
-    select: { conversationId: true },
+    select: { conversationId: true, status: true },
   });
+  if (dbSession?.status === 'TERMINATED') {
+    return NextResponse.json({
+      error:             SAFETY_REFUSAL_MESSAGE,
+      sessionTerminated: true,
+    }, { status: 403 });
+  }
+
   const conversationId: string | null = dbSession?.conversationId ?? null;
+
+  // ---------------------------------------------------------------------------
+  // SAFETY GATE — runs on EVERY message, not just the first.
+  //
+  // The evaluation found a critical vulnerability: the safety boundary
+  // was one message deep. A user who received a correct refusal on
+  // message 1 could socially engineer their way back into normal
+  // interview mode on messages 2-4 by reframing ("forget the fraud,
+  // help my cousin's food delivery business") or verbally promising
+  // to stop ("I'll report it Monday"). The engine treated that promise
+  // as sufficient to clear criminal context.
+  //
+  // Fix: the safetyGate classifies EVERY message. If ANY message in
+  // the session triggers a block, the session is PERMANENTLY terminated.
+  // No re-entry, no exceptions, no contextual evaluation of follow-ups.
+  // ---------------------------------------------------------------------------
+  const safetyResult = await runSafetyGate(message, history);
+  if (!safetyResult.safe && safetyResult.severity === 'block') {
+    log.warn('[SafetyGate] Session terminated', {
+      sessionId,
+      userId,
+      category: safetyResult.category,
+    });
+
+    // Permanently terminate the session in the database
+    await prisma.discoverySession.update({
+      where:  { id: sessionId },
+      data:   { status: 'TERMINATED' },
+      select: { id: true },
+    });
+
+    // Also kill the Redis session so getSession returns null on retry
+    await saveSession(sessionId, { ...state, isComplete: true });
+
+    return NextResponse.json({
+      error:             SAFETY_REFUSAL_MESSAGE,
+      sessionTerminated: true,
+    }, { status: 403 });
+  }
 
   // Persist user message immediately (fire-and-forget, non-fatal)
   if (conversationId) {

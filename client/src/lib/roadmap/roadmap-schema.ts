@@ -19,7 +19,7 @@ export const RoadmapPhaseSchema = z.object({
 });
 
 export const RoadmapSchema = z.object({
-  phases:        z.array(RoadmapPhaseSchema).describe('Between 1 and 5 phases in order'),
+  phases:        z.array(RoadmapPhaseSchema).describe('Between 2 and 6 phases in order. A simple sales_motion recommendation might need only 3 phases. A complex build_software recommendation might need 5-6. Do NOT always produce exactly 5 — let the complexity of the recommendation determine the phase count.'),
   closingThought: z.string().describe('2-3 sentences addressed directly to this person: what completing this roadmap means for them specifically, and what the first action is right now'),
 });
 
