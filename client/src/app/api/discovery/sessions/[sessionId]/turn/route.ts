@@ -189,7 +189,22 @@ export async function POST(
     if (followUp.detected) {
       nextState = { ...nextState, pendingFollowUp: { topic: followUp.topic } };
     }
-    if (!nextState.audienceType && nextState.questionCount >= 2) { const { audienceType } = await detectAudienceType(nextState.context, history); nextState = { ...nextState, audienceType }; }
+    // Audience detection — delayed to exchange 4 (enough context for
+    // accurate classification). Allows reclassification at exchange 7
+    // if the initial confidence was low (< 0.7). The cost of a wrong
+    // audience type cascading through field weights for 10+ questions
+    // is higher than waiting 1-2 more exchanges for better signal.
+    const shouldClassify =
+      (!nextState.audienceType && nextState.questionCount >= 4)  // first classification
+      || (nextState.audienceType && nextState.questionCount === 7); // reclassification window
+    if (shouldClassify) {
+      const detection = await detectAudienceType(nextState.context, history);
+      // Only reclassify if the new detection is higher confidence than
+      // what we had, OR if this is the first classification.
+      if (!nextState.audienceType || detection.confidence >= 0.7) {
+        nextState = { ...nextState, audienceType: detection.audienceType };
+      }
+    }
 
     await saveSession(sessionId, nextState);
     await prisma.discoverySession.update({
