@@ -9,6 +9,7 @@ import {
   validationLifecycleFunction,
   pushbackAlternativeFunction,
   roadmapNudgeFunction,
+  continuationBriefFunction,
 } from '@/inngest/functions';
 
 export const { GET, POST, PUT } = serve({
@@ -21,5 +22,6 @@ export const { GET, POST, PUT } = serve({
     validationLifecycleFunction,
     pushbackAlternativeFunction,
     roadmapNudgeFunction,
+    continuationBriefFunction,
   ],
 });

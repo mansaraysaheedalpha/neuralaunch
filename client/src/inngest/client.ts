@@ -116,6 +116,26 @@ export type NeuraLaunchEvents = {
   'validation/lifecycle.check': {
     data: Record<string, never>;
   };
+
+  /**
+   * Fired when the founder hits "What's Next?" on a roadmap that
+   * either matches Scenario C or D directly OR has been released
+   * from the diagnostic chat (Scenarios A/B). The worker reads the
+   * full execution evidence base, runs speed calibration, and
+   * generates the five-section continuation brief via Opus.
+   *
+   * Consumer: `continuationBriefFunction` in
+   * `src/inngest/functions/continuation-brief-function.ts`
+   *
+   * The literal name is exported as `CONTINUATION_BRIEF_EVENT`
+   * from `src/lib/continuation/constants.ts`.
+   */
+  'discovery/continuation.requested': {
+    data: {
+      roadmapId: string;
+      userId:    string;
+    };
+  };
 };
 
 /**

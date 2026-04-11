@@ -29,3 +29,43 @@ export {
   appendParkingLotItem,
   captureParkingLotFromCheckin,
 } from './parking-lot-schema';
+
+export type {
+  ContinuationBrief,
+  ContinuationFork,
+  ParkingLotBriefEntry,
+} from './brief-schema';
+export {
+  ContinuationBriefSchema,
+  ContinuationForkSchema,
+  safeParseContinuationBrief,
+} from './brief-schema';
+
+export type {
+  DiagnosticVerdict,
+  DiagnosticTurn,
+  DiagnosticHistory,
+  DiagnosticHistoryEntry,
+} from './diagnostic-schema';
+export {
+  DIAGNOSTIC_VERDICTS,
+  DiagnosticTurnSchema,
+  DiagnosticHistoryEntrySchema,
+  DiagnosticHistoryArraySchema,
+  safeParseDiagnosticHistory,
+} from './diagnostic-schema';
+
+export type { CheckpointScenario, ScenarioEvaluation } from './scenario-evaluator';
+export { evaluateScenario } from './scenario-evaluator';
+
+export type { ExecutionMetrics } from './speed-calibration';
+export { computeExecutionMetrics } from './speed-calibration';
+
+export type { RunDiagnosticTurnInput } from './diagnostic-engine';
+export { runDiagnosticTurn } from './diagnostic-engine';
+
+export type { GenerateBriefInput } from './brief-generator';
+export { generateContinuationBrief } from './brief-generator';
+
+export type { ContinuationEvidence, LoadEvidenceResult } from './evidence-loader';
+export { loadContinuationEvidence } from './evidence-loader';
