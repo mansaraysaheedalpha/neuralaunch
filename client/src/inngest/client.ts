@@ -51,6 +51,13 @@ export type NeuraLaunchEvents = {
    * step so the roadmap is often ready by the time the founder clicks
    * "build my roadmap".
    *
+   * Optional `parentRoadmapId` is set when the new roadmap is the
+   * downstream cycle of a continuation fork pick. The roadmap
+   * generation function reads the parent's executionMetrics and
+   * passes the speed calibration into the engine prompt so the
+   * calibrated next roadmap honours the founder's actual pace,
+   * not their stated pace.
+   *
    * Consumer: `roadmapGenerationFunction` in
    * `src/inngest/functions/roadmap-generation-function.ts`
    *
@@ -62,6 +69,7 @@ export type NeuraLaunchEvents = {
     data: {
       recommendationId: string;
       userId:           string;
+      parentRoadmapId?: string;
     };
   };
 

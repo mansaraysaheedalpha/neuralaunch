@@ -1,8 +1,9 @@
 // src/app/api/discovery/roadmaps/[id]/continuation/fork/route.ts
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import prisma from '@/lib/prisma';
+import prisma, { toJsonValue } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { inngest } from '@/inngest/client';
 import {
   HttpError,
   httpErrorToResponse,
@@ -14,7 +15,10 @@ import {
 import {
   CONTINUATION_STATUSES,
   safeParseContinuationBrief,
+  buildForkRecommendationPayload,
 } from '@/lib/continuation';
+import { ROADMAP_EVENT } from '@/lib/roadmap';
+import { buildPhaseContext, PHASES } from '@/lib/phase-context';
 
 export const maxDuration = 30;
 
@@ -25,17 +29,13 @@ const BodySchema = z.object({
 /**
  * POST /api/discovery/roadmaps/[id]/continuation/fork
  *
- * Phase 4 implementation: persists the founder's pick by flipping
- * the parent roadmap's continuationStatus to FORK_SELECTED. Phase 6
- * extends this route to also fire the next-cycle roadmap generation
- * event with the chosen fork as the seed for the new recommendation.
- *
- * Validates:
- *   - The roadmap exists and is owned by the caller
- *   - The continuation brief exists and is in BRIEF_READY status
- *   - The forkId matches one of the brief's forks
- *
- * Returns the picked fork object so the client can render confirmation.
+ * Closes the continuation cycle. Builds a fork-derived Recommendation
+ * via buildForkRecommendationPayload, persists it (auto-accepted,
+ * inheriting the parent session + recommendationType, phaseContext
+ * pointing back), flips the parent roadmap to FORK_SELECTED, and
+ * fires the roadmap-generation event with parentRoadmapId so the
+ * generator picks up the speed calibration. Returns the new
+ * recommendationId for client navigation.
  */
 export async function POST(
   request: Request,
@@ -44,7 +44,7 @@ export async function POST(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
-    await rateLimitByUser(userId, 'roadmap-continuation-fork', RATE_LIMITS.API_AUTHENTICATED);
+    await rateLimitByUser(userId, 'roadmap-continuation-fork', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId } = await params;
     const log = logger.child({ route: 'POST continuation-fork', roadmapId, userId });
@@ -62,9 +62,16 @@ export async function POST(
         id:                 true,
         continuationStatus: true,
         continuationBrief:  true,
+        recommendation: {
+          select: {
+            id:                 true,
+            sessionId:          true,
+            recommendationType: true,
+          },
+        },
       },
     });
-    if (!row) throw new HttpError(404, 'Not found');
+    if (!row || !row.recommendation) throw new HttpError(404, 'Not found');
     if (row.continuationStatus !== CONTINUATION_STATUSES.BRIEF_READY) {
       throw new HttpError(409, 'No continuation brief is ready for this roadmap');
     }
@@ -79,23 +86,62 @@ export async function POST(
       throw new HttpError(400, 'Fork id does not match this brief');
     }
 
-    await prisma.roadmap.update({
-      where: { id: roadmapId },
-      data:  { continuationStatus: CONTINUATION_STATUSES.FORK_SELECTED },
+    // Build the fork-derived Recommendation payload via the pure helper.
+    // The synthesis is intentionally deterministic — no extra LLM call.
+    const payload = buildForkRecommendationPayload({ fork, brief });
+
+    const newRecommendationId = await prisma.$transaction(async (tx) => {
+      const newRec = await tx.recommendation.create({
+        data: {
+          userId,
+          sessionId:              row.recommendation!.sessionId,
+          recommendationType:     row.recommendation!.recommendationType,
+          summary:                payload.summary,
+          path:                   payload.path,
+          reasoning:              payload.reasoning,
+          firstThreeSteps:        toJsonValue(payload.firstThreeSteps),
+          timeToFirstResult:      payload.timeToFirstResult,
+          risks:                  toJsonValue(payload.risks),
+          assumptions:            toJsonValue(payload.assumptions),
+          whatWouldMakeThisWrong: payload.whatWouldMakeThisWrong,
+          alternativeRejected:    toJsonValue(payload.alternativeRejected),
+          // Auto-accept — the founder explicitly picked this fork.
+          acceptedAt:             new Date(),
+          acceptedAtRound:        0,
+          phaseContext: toJsonValue(buildPhaseContext(PHASES.RECOMMENDATION, {
+            discoverySessionId: row.recommendation!.sessionId,
+            recommendationId:   row.recommendation!.id,
+          })),
+        },
+        select: { id: true },
+      });
+
+      await tx.roadmap.update({
+        where: { id: roadmapId },
+        data:  { continuationStatus: CONTINUATION_STATUSES.FORK_SELECTED },
+      });
+
+      return newRec.id;
     });
 
-    log.info('[ContinuationFork] Fork selected', {
-      forkId:    fork.id,
-      forkTitle: fork.title,
+    // Fire the existing roadmap generation event with the new
+    // recommendationId AND the parent roadmap id so the generator
+    // picks up the speed calibration from the parent's executionMetrics.
+    await inngest.send({
+      name: ROADMAP_EVENT,
+      data: { recommendationId: newRecommendationId, userId, parentRoadmapId: roadmapId },
     });
 
-    // Phase 6 will fire the next-cycle roadmap generation event here
-    // with the chosen fork as the seed for the new recommendation.
-    // Today the route just persists the pick.
+    log.info('[ContinuationFork] Cycle closed', {
+      forkId:               fork.id,
+      forkTitle:            fork.title,
+      newRecommendationId,
+    });
 
     return NextResponse.json({
-      forkSelected: fork,
-      status:       CONTINUATION_STATUSES.FORK_SELECTED,
+      forkSelected:        fork,
+      status:              CONTINUATION_STATUSES.FORK_SELECTED,
+      newRecommendationId,
     });
   } catch (err) {
     return httpErrorToResponse(err);

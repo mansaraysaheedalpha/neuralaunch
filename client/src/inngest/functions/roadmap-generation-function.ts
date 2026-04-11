@@ -35,16 +35,18 @@ export const roadmapGenerationFunction = inngest.createFunction(
     },
   },
   async ({ event, step }) => {
-    const { recommendationId, userId } = event.data as {
+    const { recommendationId, userId, parentRoadmapId } = event.data as {
       recommendationId: string;
       userId:           string;
+      parentRoadmapId?: string;
     };
 
     const log = logger.child({
       inngestFunction: 'roadmapGeneration',
       recommendationId,
       userId,
-      runId: event.id,
+      runId:           event.id,
+      parentRoadmapId,
     });
 
     // Step 1: Load recommendation + linked belief state
@@ -110,7 +112,9 @@ export const roadmapGenerationFunction = inngest.createFunction(
       },
     );
 
-    // Step 2: Create a GENERATING placeholder so the UI can show a loading state
+    // Step 2: Create a GENERATING placeholder so the UI can show a loading state.
+    // The parentRoadmapId is set here on first creation so the cycle linkage is
+    // correct from the start; updates to the placeholder do NOT touch it.
     await step.run('create-roadmap-placeholder', async () => {
       await prisma.roadmap.upsert({
         where:  { recommendationId },
@@ -119,15 +123,40 @@ export const roadmapGenerationFunction = inngest.createFunction(
           recommendationId,
           status: 'GENERATING',
           phases: [],
+          ...(parentRoadmapId ? { parentRoadmapId } : {}),
         },
         update: { status: 'GENERATING', phases: [] },
       });
     });
 
+    // Step 2b: Load the parent's execution metrics if this is a
+    // second-cycle roadmap. The parent's executionMetrics column was
+    // populated by the continuation brief function — we read it here
+    // and pass the pre-rendered paceCalibrationNote into the roadmap
+    // engine so the second roadmap is built around the founder's
+    // ACTUAL pace, not their stated pace.
+    const calibration = await step.run('load-parent-calibration', async () => {
+      if (!parentRoadmapId) return null;
+      const parent = await prisma.roadmap.findFirst({
+        where:  { id: parentRoadmapId, userId },
+        select: { executionMetrics: true },
+      });
+      const metrics = parent?.executionMetrics as
+        | { paceNote?: string; derivedWeeklyHours?: number | null }
+        | null;
+      if (!metrics?.paceNote) return null;
+      return {
+        paceCalibrationNote: metrics.paceNote,
+        overrideWeeklyHours: typeof metrics.derivedWeeklyHours === 'number'
+          ? metrics.derivedWeeklyHours
+          : null,
+      };
+    });
+
     // Step 3: Generate the roadmap
     const { roadmap, weeklyHours, totalWeeks } = await step.run(
       'generate-roadmap',
-      async () => generateRoadmap(recommendation, context, audienceType, sessionId),
+      async () => generateRoadmap(recommendation, context, audienceType, sessionId, calibration),
     );
 
     // Step 4: Persist the completed roadmap

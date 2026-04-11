@@ -100,14 +100,23 @@ export function ContinuationView({ roadmapId }: { roadmapId: string }) {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ forkId: fork.id }),
       });
-      const json = await res.json() as { error?: string };
+      const json = await res.json() as {
+        newRecommendationId?: string;
+        error?:               string;
+      };
       if (!res.ok) {
         setPickError(json.error ?? 'Could not select that fork.');
         return;
       }
-      // Phase 6 will navigate to the next-cycle roadmap automatically.
-      // Today the route just persists the pick, so refetch and let the
-      // brief view show the FORK_SELECTED state.
+      // Cycle close — the fork-pick route created a fork-derived
+      // Recommendation and queued the next-cycle roadmap generation.
+      // Navigate the founder to the new roadmap immediately; the
+      // generation function fires asynchronously and the existing
+      // RoadmapView polling shows the GENERATING state until READY.
+      if (json.newRecommendationId) {
+        router.push(`/discovery/roadmap/${json.newRecommendationId}`);
+        return;
+      }
       await refetch();
       router.refresh();
     } catch {

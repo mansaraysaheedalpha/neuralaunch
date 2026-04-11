@@ -74,3 +74,6 @@ export {
   buildDiagnosticTurnPair,
   nextStatusForVerdict,
 } from './diagnostic-orchestration';
+
+export type { ForkRecommendationPayload } from './fork-to-recommendation';
+export { buildForkRecommendationPayload } from './fork-to-recommendation';

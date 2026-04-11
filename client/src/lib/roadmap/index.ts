@@ -4,6 +4,7 @@
 export type { Roadmap, RoadmapPhase, RoadmapTask } from './roadmap-schema';
 export { RoadmapSchema, RoadmapPhaseSchema, RoadmapTaskSchema } from './roadmap-schema';
 
+export type { RoadmapCalibrationInputs } from './roadmap-engine';
 export { generateRoadmap } from './roadmap-engine';
 
 export {
