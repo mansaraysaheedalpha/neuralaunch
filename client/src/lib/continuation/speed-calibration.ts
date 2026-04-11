@@ -111,14 +111,42 @@ export function computeExecutionMetrics(input: {
   let tasksTotal     = 0;
   let totalCompletedMs = 0;
 
+  // Per-task duration aggregation for the precise pace calculation.
+  // We sum BOTH the estimated hours and the actual wall-clock days
+  // for tasks that have a parseable time estimate AND both startedAt
+  // and completedAt timestamps. The aggregate ratio gives a weighted
+  // average implied weekly hours that is robust to outliers (one
+  // long task naturally counts more than one short task).
+  let perTaskEstimatedHours = 0;
+  let perTaskActualDays     = 0;
+  let perTaskSampleCount    = 0;
+
   for (const phase of input.phases) {
     for (const task of phase.tasks) {
       tasksTotal++;
       const status = task.status ?? 'not_started';
       if (status === 'completed') {
         tasksCompleted++;
-        const ms = parseTimeEstimateToMs(task.timeEstimate);
-        if (ms != null) totalCompletedMs += ms;
+        const estimateMs = parseTimeEstimateToMs(task.timeEstimate);
+        if (estimateMs != null) totalCompletedMs += estimateMs;
+
+        // Per-task precise duration: only when both timestamps exist
+        // (legacy tasks predating the startedAt field skip this branch
+        // and contribute only to the roadmap-level fallback below).
+        if (estimateMs != null && task.startedAt && task.completedAt) {
+          const startedMs   = new Date(task.startedAt).getTime();
+          const completedMs = new Date(task.completedAt).getTime();
+          const actualMs    = completedMs - startedMs;
+          // Sanity bound: a task completed in less than 1 hour of
+          // wall-clock either had its startedAt set retroactively or
+          // was a very fast task we cannot calibrate from. Skip those
+          // — they would distort the implied rate sharply upward.
+          if (actualMs >= HOURS_IN_MS) {
+            perTaskEstimatedHours += estimateMs / HOURS_IN_MS;
+            perTaskActualDays     += actualMs   / DAYS_IN_MS;
+            perTaskSampleCount    += 1;
+          }
+        }
       } else if (status === 'blocked') {
         tasksBlocked++;
       }
@@ -127,10 +155,28 @@ export function computeExecutionMetrics(input: {
 
   const totalEstimatedHoursCompleted = totalCompletedMs / HOURS_IN_MS;
 
-  // Derive weekly pace from estimated hours done over elapsed weeks.
-  // Need at least 1 day elapsed and 1 hour completed for any honest signal.
+  // Derive weekly pace. Two sources, in priority order:
+  //
+  //   1. Per-task aggregate (PRECISE). For each completed task with
+  //      both startedAt and completedAt, sum estimated hours and
+  //      actual wall-clock days. The implied rate is
+  //      (estimated hours / actual days) × 7 = implied hours/week.
+  //      Treats one long task as more signal than one short task.
+  //
+  //   2. Roadmap-level approximation (FALLBACK). For roadmaps
+  //      generated before the startedAt field was added, no task
+  //      has the timestamp pair. Fall back to the prior derivation:
+  //      total estimated hours completed / weeks since roadmap
+  //      created. Coarser but always available.
+  //
+  // The brief prompt cannot tell which source produced the number;
+  // both are reported as `derivedWeeklyHours` and the pace label
+  // logic stays unchanged.
   let derivedWeeklyHours: number | null = null;
-  if (daysSinceCreation >= 1 && totalEstimatedHoursCompleted >= 1) {
+  if (perTaskSampleCount > 0 && perTaskActualDays > 0) {
+    const impliedHoursPerWeek = (perTaskEstimatedHours / perTaskActualDays) * 7;
+    derivedWeeklyHours = Number(impliedHoursPerWeek.toFixed(1));
+  } else if (daysSinceCreation >= 1 && totalEstimatedHoursCompleted >= 1) {
     const weeks = Math.max(daysSinceCreation / 7, 1 / 7);
     derivedWeeklyHours = Number((totalEstimatedHoursCompleted / weeks).toFixed(1));
   }

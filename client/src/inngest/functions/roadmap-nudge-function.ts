@@ -221,11 +221,27 @@ export const roadmapNudgeFunction = inngest.createFunction(
 
 /**
  * Walk the roadmap looking for the first in-progress task whose
- * estimated duration has been exceeded since the founder's last
- * activity. The duration is parsed loosely from task.timeEstimate
- * which is a free-text string like "3 hours across 2 evenings" or
- * "1 week" — we extract the largest unit we recognise and convert
- * to milliseconds.
+ * estimated duration has been exceeded since the founder set it
+ * to in_progress.
+ *
+ * Per-task anchor: `task.startedAt` is the canonical signal — it's
+ * written by the status PATCH route on the transition into
+ * in_progress. This is the right anchor because a task that has
+ * been sitting at in_progress for longer than its own estimate
+ * should fire a nudge regardless of whether the founder is active
+ * on OTHER tasks (the prior implementation used the roadmap-level
+ * lastActivityAt and silently failed to flag stale tasks whenever
+ * the founder was making progress elsewhere — a real correctness bug).
+ *
+ * Fallback: tasks that predate the startedAt field (written before
+ * the schema was extended) have `startedAt: null` after readTask
+ * defaults are applied. For those legacy rows we fall back to the
+ * roadmap-level lastActivityAt anchor so existing data does not
+ * suddenly stop nudging.
+ *
+ * The duration is parsed loosely from task.timeEstimate which is a
+ * free-text string like "3 hours across 2 evenings" or "1 week" —
+ * we extract the largest unit we recognise and convert to ms.
  *
  * Returns null when no stale in-progress task exists.
  */
@@ -234,14 +250,19 @@ function findStaleInProgressTask(
   lastActivityAt: Date,
 ): { taskTitle: string } | null {
   const now = Date.now();
-  const idleMs = now - lastActivityAt.getTime();
 
   for (const phase of phases) {
     for (const task of phase.tasks) {
       if (task.status !== 'in_progress') continue;
       const estimateMs = parseTimeEstimateToMs(task.timeEstimate);
       if (estimateMs == null) continue;
-      if (idleMs > estimateMs) {
+
+      const startAnchor = task.startedAt
+        ? new Date(task.startedAt).getTime()
+        : lastActivityAt.getTime();
+      const elapsedMs = now - startAnchor;
+
+      if (elapsedMs > estimateMs) {
         return { taskTitle: task.title };
       }
     }

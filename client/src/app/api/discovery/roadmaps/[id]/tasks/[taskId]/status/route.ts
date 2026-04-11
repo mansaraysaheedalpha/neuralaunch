@@ -89,6 +89,18 @@ export async function PATCH(
     const next = patchTask(phases, taskId, t => ({
       ...t,
       status:      newStatus,
+      // Lock in the startedAt timestamp on the transition into
+      // 'in_progress' (from any prior status — not_started, blocked,
+      // or even completed in the rare "I marked it complete by
+      // mistake" reopen case). The `?? existing` guard mirrors the
+      // completedAt pattern below: re-entering in_progress from
+      // blocked does NOT overwrite the original start time. This
+      // anchor powers the per-task stale-nudge calculation in
+      // roadmapNudgeFunction and the per-task duration arithmetic
+      // in the continuation speed-calibration helper.
+      startedAt:   newStatus === 'in_progress'
+        ? (t.startedAt ?? new Date().toISOString())
+        : t.startedAt,
       // Lock in the completedAt timestamp on the transition into
       // 'completed'. Re-completing an already-completed task does
       // not bump the timestamp.

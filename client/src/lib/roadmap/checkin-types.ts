@@ -13,6 +13,20 @@ import { RoadmapTaskSchema, RoadmapPhaseSchema } from './roadmap-schema';
  *
  * NEVER mutate the roadmap JSON in a way that drops these fields.
  * Always merge in place.
+ *
+ * Two task-level timestamps are written by the status PATCH route:
+ *   - startedAt   set on the transition into 'in_progress' (and
+ *                 preserved on subsequent in_progress re-entries via
+ *                 the same `?? existingValue` guard pattern as
+ *                 completedAt). Powers the per-task stale-nudge
+ *                 calculation in roadmapNudgeFunction and the
+ *                 per-task duration arithmetic in the continuation
+ *                 speed-calibration helper.
+ *   - completedAt set on the transition into 'completed', preserved
+ *                 thereafter.
+ *
+ * Old tasks predating either field default to null on read; every
+ * downstream consumer must handle the null gracefully.
  */
 
 export const TASK_STATUSES = ['not_started', 'in_progress', 'completed', 'blocked'] as const;
@@ -107,11 +121,12 @@ export type CheckInEntry = z.infer<typeof CheckInEntrySchema>;
 
 /**
  * Stored task shape — generator output PLUS the check-in extensions.
- * Every field on the base RoadmapTaskSchema is preserved, three new
+ * Every field on the base RoadmapTaskSchema is preserved, four new
  * fields are optional and default to sensible empty values.
  */
 export const StoredRoadmapTaskSchema = RoadmapTaskSchema.extend({
   status:         z.enum(TASK_STATUSES).optional(),
+  startedAt:      z.string().nullable().optional(),
   completedAt:    z.string().nullable().optional(),
   checkInHistory: z.array(CheckInEntrySchema).optional(),
 });
@@ -167,6 +182,7 @@ export function readTask(
     task: {
       ...task,
       status:         task.status         ?? 'not_started',
+      startedAt:      task.startedAt      ?? null,
       completedAt:    task.completedAt    ?? null,
       checkInHistory: task.checkInHistory ?? [],
     },
@@ -195,6 +211,7 @@ export function patchTask(
         return updater({
           ...task,
           status:         task.status         ?? 'not_started',
+          startedAt:      task.startedAt      ?? null,
           completedAt:    task.completedAt    ?? null,
           checkInHistory: task.checkInHistory ?? [],
         });
