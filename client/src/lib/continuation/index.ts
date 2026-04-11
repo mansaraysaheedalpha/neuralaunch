@@ -69,3 +69,8 @@ export { generateContinuationBrief } from './brief-generator';
 
 export type { ContinuationEvidence, LoadEvidenceResult } from './evidence-loader';
 export { loadContinuationEvidence } from './evidence-loader';
+
+export {
+  buildDiagnosticTurnPair,
+  nextStatusForVerdict,
+} from './diagnostic-orchestration';
