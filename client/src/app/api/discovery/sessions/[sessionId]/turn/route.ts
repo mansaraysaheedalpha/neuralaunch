@@ -18,6 +18,11 @@ import {
 } from '@/lib/discovery';
 import type { FallbackStreamResult } from '@/lib/ai/question-stream-fallback';
 import { runSafetyGate, SAFETY_REFUSAL_MESSAGE } from '@/lib/discovery/safety-gate';
+import {
+  runConditionalResearch,
+  appendResearchLog,
+  safeParseResearchLog,
+} from '@/lib/research';
 
 // Pro plan supports up to 300s. The fallback chain can take ~50s in
 // the worst case (Sonnet retries 0+2+8+30 = 40s, then Haiku first
@@ -206,6 +211,31 @@ export async function POST(
       }
     }
 
+    // Phase 5 of the research-tool spec — silent interview research.
+    // The trigger detector pre-filter rejects most messages at near-
+    // zero cost. Only messages that name a competitor / regulation /
+    // tool / market claim pay the Haiku extractor + parallel Tavily
+    // queries. Research fires for the main question-generation path
+    // only — clarification, follow-up, pricing, and synthesis paths
+    // don't benefit and skip the call. The findings flow into the
+    // next question's prompt so the agent can probe what was found
+    // SILENTLY (the spec is explicit: never lecture the founder).
+    const willReachMainQuestion =
+      !canSynthesise(nextState.context)
+      && !nextState.isComplete
+      && nextState.activeField !== null
+      && nextState.activeField !== 'follow_up'
+      && !(detectsPricingChange(message) && !state.pricingProbed);
+
+    const research = willReachMainQuestion
+      ? await runConditionalResearch({
+          agent:            'interview',
+          founderMessage:   message,
+          geographicMarket: (nextState.context.geographicMarket?.value as string | undefined) ?? null,
+          contextId:        sessionId,
+        })
+      : { findings: '', queriesRun: [], researchLog: [] };
+
     await saveSession(sessionId, nextState);
     await prisma.discoverySession.update({
       where: { id: sessionId },
@@ -221,6 +251,26 @@ export async function POST(
         pricingProbed:         nextState.pricingProbed,
         psychConstraintProbed: nextState.psychConstraintProbed,
         lastTurnAt:            new Date(),
+        // Append the research audit log when the trigger detector
+        // actually fired. appendResearchLog bounds the column at
+        // MAX_RESEARCH_LOG_ENTRIES so multi-turn sessions stay
+        // within JSONB size budgets.
+        ...(research.researchLog.length > 0
+          ? {
+              researchLog: appendResearchLog(
+                safeParseResearchLog(
+                  // The route does not pre-load researchLog, so a
+                  // tiny extra read happens here only on triggered
+                  // turns. Most turns skip this block entirely.
+                  (await prisma.discoverySession.findUnique({
+                    where:  { id: sessionId },
+                    select: { researchLog: true },
+                  }))?.researchLog ?? [],
+                ),
+                research.researchLog,
+              ) as object,
+            }
+          : {}),
       },
       select: { id: true },
     });
@@ -246,8 +296,8 @@ export async function POST(
 
     const insufficientSignal = nextState.questionCount >= 6 && computeOverallCompleteness(nextState.context) < 0.35;
     const phaseChanged = nextState.phase !== state.phase;
-    log.debug('Turn stream start', { sessionId, totalToStreamMs: Date.now() - t0, inputType, phase: nextState.phase, phaseChanged });
-    return buildStreamResponse(generateQuestion(nextField, nextState.phase as never, nextState.context, { insufficientSignal, phaseChanged }, nextState.audienceType ?? undefined, history, nextState.askedFields), conversationId, nextState.phase, nextState.questionCount);
+    log.debug('Turn stream start', { sessionId, totalToStreamMs: Date.now() - t0, inputType, phase: nextState.phase, phaseChanged, researchQueries: research.queriesRun.length });
+    return buildStreamResponse(generateQuestion(nextField, nextState.phase as never, nextState.context, { insufficientSignal, phaseChanged, researchFindings: research.findings || undefined }, nextState.audienceType ?? undefined, history, nextState.askedFields), conversationId, nextState.phase, nextState.questionCount);
   } catch (error) {
     log.error('Turn processing failed', error instanceof Error ? error : undefined);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
