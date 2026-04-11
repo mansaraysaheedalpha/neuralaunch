@@ -36,6 +36,23 @@ export const MAX_ANSWER_CHARS = 700;
 /** Per-source title length in the rendered prompt block. */
 export const SOURCES_PER_HIT_TITLE_CHARS = 180;
 
+/**
+ * Per-BATCH wall clock cap for runResearchQueries. Each individual
+ * query has its own RESEARCH_QUERY_TIMEOUT_MS (30s), but a batch of
+ * 3 queries hitting their per-query timeout would consume 30s of
+ * the calling route's maxDuration even though they ran in parallel
+ * (the slowest query holds the whole batch). The batch cap races
+ * the in-flight queries against this wall clock so a single slow
+ * query can't pin the whole batch at the per-query ceiling.
+ *
+ * Set well below any caller's maxDuration to leave room for the
+ * downstream LLM call. The current callers all have maxDuration
+ * >= 60s and need ~30-40s for the downstream agent call, so 25s
+ * gives the research batch a generous half of the budget without
+ * pinching the rest of the request.
+ */
+export const RESEARCH_BATCH_TIMEOUT_MS = 25_000;
+
 // ---------------------------------------------------------------------------
 // Per-agent call budgets
 //

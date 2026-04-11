@@ -24,13 +24,14 @@
 
 import 'server-only';
 import { logger } from '@/lib/logger';
-import { isResearchConfigured, searchOnce } from './tavily-client';
+import { isResearchConfigured, searchOnce, type TavilySearchResult } from './tavily-client';
 import {
   dedupHits,
   joinAndCapFindings,
   renderQueryBlock,
   toResearchSource,
 } from './prompt-rendering';
+import { RESEARCH_BATCH_TIMEOUT_MS } from './constants';
 import type { DetectedQuery, ResearchAgent, ResearchFindings, ResearchLogEntry } from './types';
 
 export interface RunResearchInput {
@@ -73,11 +74,39 @@ export async function runResearchQueries(input: RunResearchInput): Promise<Resea
     queries:    queries.map(q => q.query),
   });
 
-  // Fire all queries in parallel. Promise.allSettled so a single
-  // failure does not poison the batch.
-  const results = await Promise.allSettled(
-    queries.map(({ query }) => searchOnce(query, log)),
+  // Fire all queries in parallel, but race the entire batch against
+  // RESEARCH_BATCH_TIMEOUT_MS so a single slow query can't pin the
+  // calling route at its per-query ceiling. Each query still has its
+  // own searchOnce timeout; this is the ceiling for the SLOWEST one.
+  // A query that loses the batch race is recorded as a failure row
+  // (same shape as a per-query timeout) so the prompt and the audit
+  // log are consistent regardless of which timer fired first.
+  const queryPromises = queries.map(({ query }) =>
+    searchOnce(query, log).catch((err: unknown) => {
+      throw err instanceof Error ? err : new Error(String(err));
+    }),
   );
+
+  let batchTimedOut = false;
+  const batchDeadline = new Promise<never>((_, reject) =>
+    setTimeout(() => {
+      batchTimedOut = true;
+      reject(new Error(`Research batch exceeded ${RESEARCH_BATCH_TIMEOUT_MS}ms cap`));
+    }, RESEARCH_BATCH_TIMEOUT_MS).unref?.(),
+  );
+
+  // For each query, race it against the batch deadline. allSettled
+  // collects the per-query outcomes (resolved hits, individual
+  // timeout, batch timeout) into a single uniform shape downstream.
+  const results = await Promise.allSettled(
+    queryPromises.map(p => Promise.race<TavilySearchResult>([p, batchDeadline])),
+  );
+
+  if (batchTimedOut) {
+    log.warn('[Research] Batch timeout reached — partial results recorded', {
+      cap: RESEARCH_BATCH_TIMEOUT_MS,
+    });
+  }
 
   const sections:    string[]            = [];
   const researchLog: ResearchLogEntry[]  = [];

@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { auth } from '@/auth';
-import prisma from '@/lib/prisma';
+import prisma, { toJsonValue } from '@/lib/prisma';
 import { inngest } from '@/inngest/client';
 import { logger } from '@/lib/logger';
 import {
@@ -254,21 +254,33 @@ export async function POST(
         // Append the research audit log when the trigger detector
         // actually fired. appendResearchLog bounds the column at
         // MAX_RESEARCH_LOG_ENTRIES so multi-turn sessions stay
-        // within JSONB size budgets.
+        // within JSONB size budgets. The toJsonValue cast is the
+        // canonical helper from lib/prisma — we must NEVER use
+        // ad-hoc `as object` / `as unknown as` casts on JSONB
+        // writes (CLAUDE.md is explicit on this).
+        //
+        // Concurrency note: the discovery turn route uses the
+        // standard read-then-update pattern (not a transaction)
+        // because turns from a single sessionId are serialised
+        // by the DISCOVERY_TURN rate limit and the founder's
+        // streaming UI naturally prevents parallel turns. A
+        // race window technically exists but is not reachable
+        // from the founder client — different to the inngest
+        // brief function where check-in writes can land between
+        // the read and the write.
         ...(research.researchLog.length > 0
           ? {
-              researchLog: appendResearchLog(
-                safeParseResearchLog(
-                  // The route does not pre-load researchLog, so a
-                  // tiny extra read happens here only on triggered
-                  // turns. Most turns skip this block entirely.
-                  (await prisma.discoverySession.findUnique({
-                    where:  { id: sessionId },
-                    select: { researchLog: true },
-                  }))?.researchLog ?? [],
+              researchLog: toJsonValue(
+                appendResearchLog(
+                  safeParseResearchLog(
+                    (await prisma.discoverySession.findUnique({
+                      where:  { id: sessionId },
+                      select: { researchLog: true },
+                    }))?.researchLog ?? [],
+                  ),
+                  research.researchLog,
                 ),
-                research.researchLog,
-              ) as object,
+              ),
             }
           : {}),
       },

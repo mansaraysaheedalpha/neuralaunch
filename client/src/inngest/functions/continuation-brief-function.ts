@@ -150,34 +150,38 @@ export const continuationBriefFunction = inngest.createFunction(
     });
 
     // Step 5 — Persist the brief, metrics, and the research log
-    // append. updateMany guarded on the current GENERATING_BRIEF
-    // status so a racing run cannot overwrite an already-persisted
-    // brief. The research log append is bounded by appendResearchLog
-    // so the column never grows past MAX_RESEARCH_LOG_ENTRIES.
+    // append inside a single Prisma transaction. The status guard
+    // (continuationStatus = GENERATING_BRIEF) protects continuationBrief
+    // from concurrent worker runs; the SERIALIZABLE isolation level
+    // protects the researchLog column from a check-in or pushback
+    // write landing between our read and our write. Without the
+    // transaction, a check-in route appending its own research entry
+    // between findUnique and updateMany would silently lose its row
+    // — same class of bug as the continuation phase 6 fork race.
     const persisted = await step.run('persist-brief', async () => {
-      // Re-read just the researchLog column under the same row guard
-      // so we don't clobber concurrent writes from check-in research.
-      const current = await prisma.roadmap.findUnique({
-        where:  { id: roadmapId },
-        select: { researchLog: true },
-      });
-      const nextResearchLog = research.researchLog.length > 0
-        ? appendResearchLog(safeParseResearchLog(current?.researchLog), research.researchLog)
-        : null;
+      return await prisma.$transaction(async (tx) => {
+        const current = await tx.roadmap.findUnique({
+          where:  { id: roadmapId },
+          select: { researchLog: true },
+        });
+        const nextResearchLog = research.researchLog.length > 0
+          ? appendResearchLog(safeParseResearchLog(current?.researchLog), research.researchLog)
+          : null;
 
-      const result = await prisma.roadmap.updateMany({
-        where: {
-          id:                 roadmapId,
-          continuationStatus: CONTINUATION_STATUSES.GENERATING_BRIEF,
-        },
-        data:  {
-          continuationBrief:  toJsonValue(brief),
-          executionMetrics:   toJsonValue(metrics),
-          continuationStatus: CONTINUATION_STATUSES.BRIEF_READY,
-          ...(nextResearchLog ? { researchLog: toJsonValue(nextResearchLog) } : {}),
-        },
-      });
-      return { count: result.count };
+        const result = await tx.roadmap.updateMany({
+          where: {
+            id:                 roadmapId,
+            continuationStatus: CONTINUATION_STATUSES.GENERATING_BRIEF,
+          },
+          data:  {
+            continuationBrief:  toJsonValue(brief),
+            executionMetrics:   toJsonValue(metrics),
+            continuationStatus: CONTINUATION_STATUSES.BRIEF_READY,
+            ...(nextResearchLog ? { researchLog: toJsonValue(nextResearchLog) } : {}),
+          },
+        });
+        return { count: result.count };
+      }, { isolationLevel: 'Serializable' });
     });
 
     if (persisted.count === 0) {

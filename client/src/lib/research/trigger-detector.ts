@@ -215,7 +215,7 @@ DECISION RULES:
 - When in doubt, set shouldResearch=false. Research is an enhancement, not a default.
 
 QUERY CONSTRUCTION RULES:
-- Return at most ${Math.min(3, cap)} queries (per-agent budget).
+- Return at most ${cap} ${cap === 1 ? 'query' : 'queries'} (per-agent budget).
 - Each query must be SPECIFIC. "AI tools" is too generic; "Paystack alternatives for Nigerian SMEs" is right.
 - Quote the founder's exact terms when relevant. If they named a company, use its name.
 - Cap each query at ${TAVILY_MAX_QUERY_CHARS} characters.
