@@ -17,6 +17,13 @@ import { logger } from '@/lib/logger';
 import { MODELS } from '@/lib/discovery/constants';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
 import { renderUserContent, sanitizeForPrompt } from '@/lib/validation/server-helpers';
+import {
+  q,
+  yearHint,
+  extractCapitalisedNames,
+  RESEARCH_BUDGETS,
+  type DetectedQuery,
+} from '@/lib/research';
 import type { DiscoveryContext } from '@/lib/discovery/context-schema';
 import type { Recommendation } from '@/lib/discovery/recommendation-schema';
 import type { StoredRoadmapPhase, StoredRoadmapTask } from '@/lib/roadmap/checkin-types';
@@ -41,6 +48,18 @@ export interface GenerateBriefInput {
    * Evidence Says" sections.
    */
   diagnosticHistory: DiagnosticHistory;
+  /**
+   * Optional research findings produced by the continuation research
+   * builder before this call. Phase 4 of the research-tool spec wires
+   * this in: the Inngest worker calls runResearchQueries with the
+   * agent='continuation' query set, then passes the rendered findings
+   * here. Injected into the prompt under a RESEARCH FINDINGS block
+   * the brief generator uses to ground its forks in current market
+   * reality (market changes since the recommendation was generated,
+   * external context for parking-lot items). Skipped entirely when
+   * empty.
+   */
+  researchFindings?: string;
   roadmapId:         string;
 }
 
@@ -67,12 +86,16 @@ export async function generateContinuationBrief(input: GenerateBriefInput): Prom
   const motivationLine  = input.motivationAnchor
     ? `MOTIVATION ANCHOR (the founder's own answer to "why pursue this at all"): ${renderUserContent(input.motivationAnchor, 600)}`
     : 'MOTIVATION ANCHOR: not captured during the interview.';
+  const researchBlock   = input.researchFindings
+    ? `\nRESEARCH FINDINGS (current market intelligence retrieved by the continuation research builder for THIS roadmap. Use these to ground each fork in current market reality — competitive shifts since the recommendation, parking-lot items with external context, viability signals for the directions you are about to recommend. Quote specifics; do NOT cite the findings as your own knowledge):\n${input.researchFindings}\n`
+    : '';
 
   log.info('[BriefGenerator] Starting Opus call', {
-    tasksCompleted: input.metrics.tasksCompleted,
-    tasksTotal:     input.metrics.tasksTotal,
-    parkingLotLen:  input.parkingLot.length,
-    paceLabel:      input.metrics.paceLabel,
+    tasksCompleted:   input.metrics.tasksCompleted,
+    tasksTotal:       input.metrics.tasksTotal,
+    parkingLotLen:    input.parkingLot.length,
+    paceLabel:        input.metrics.paceLabel,
+    researchProvided: !!input.researchFindings,
   });
 
   const brief = await withModelFallback(
@@ -114,7 +137,7 @@ EXECUTION METRICS (use the calibration note in your forks):
 
 PARKING LOT (adjacent ideas captured during execution):
 ${parkingLotBlock}
-
+${researchBlock}
 ${diagnosticBlock}
 
 PRODUCE THE BRIEF — five sections, each grounded in the evidence above:
@@ -218,4 +241,58 @@ function renderDiagnosticHistory(history: DiagnosticHistory): string {
     lines.push(`[${label}] ${renderUserContent(entry.message, 1500)}`);
   }
   return lines.join('\n') + '\n';
+}
+
+// ---------------------------------------------------------------------------
+// Continuation research query builder
+// ---------------------------------------------------------------------------
+
+/**
+ * Build the unconditional continuation research query set per
+ * docs/RESEARCH_TOOL_SPEC.md "Agent 5". Three axes: market changes
+ * since the roadmap was created (with days-since-creation as a
+ * freshness anchor), current traction signals on the recommended
+ * path, and external annotations for parking-lot items containing
+ * capitalised names. Capped at RESEARCH_BUDGETS.continuation.perInvocation.
+ */
+export function buildContinuationQueries(input: {
+  recommendation: Pick<Recommendation, 'path' | 'summary'>;
+  context:        DiscoveryContext;
+  parkingLot:     ParkingLot;
+  daysSinceCreation: number;
+}): DetectedQuery[] {
+  const market    = (input.context.geographicMarket?.value as string | undefined) ?? '';
+  const marketSuffix = market ? ` in ${market}` : '';
+  const yh         = yearHint();
+  const monthsSince = Math.max(1, Math.round(input.daysSinceCreation / 30));
+  const sinceHint   = `in the last ${monthsSince} month${monthsSince === 1 ? '' : 's'}`;
+
+  const queries: DetectedQuery[] = [];
+
+  // Q1 — what has changed in this market over the founder's execution window
+  queries.push({
+    query:     q(`${input.recommendation.path}${marketSuffix} — what has changed ${sinceHint}? New competitors, regulatory shifts, funding rounds, market signals ${yh}`),
+    reasoning: 'continuation: market changes since recommendation',
+  });
+
+  // Q2 — current traction signals for the recommended path
+  queries.push({
+    query:     q(`${input.recommendation.path}${marketSuffix} — what is gaining traction right now? Customer reviews, growth signals, pricing trends ${yh}`),
+    reasoning: 'continuation: current traction signals',
+  });
+
+  // Q3-Q6 — one query per parking-lot item that contains a
+  // capitalised name (external entity worth annotating)
+  for (const item of input.parkingLot) {
+    if (queries.length >= RESEARCH_BUDGETS.continuation.perInvocation) break;
+    const names = extractCapitalisedNames(item.idea);
+    if (names.size === 0) continue;
+    const namesStr = [...names].slice(0, 3).join(', ');
+    queries.push({
+      query:     q(`${namesStr}${marketSuffix} — what is this and how does it relate to ${input.recommendation.path}? ${yh}`),
+      reasoning: `continuation: parking-lot annotation for ${namesStr}`,
+    });
+  }
+
+  return queries.slice(0, RESEARCH_BUDGETS.continuation.perInvocation);
 }
