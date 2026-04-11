@@ -7,8 +7,14 @@ import {
   CONTINUATION_STATUSES,
   computeExecutionMetrics,
   generateContinuationBrief,
+  buildContinuationQueries,
   loadContinuationEvidence,
 } from '@/lib/continuation';
+import {
+  runResearchQueries,
+  appendResearchLog,
+  safeParseResearchLog,
+} from '@/lib/research';
 
 /**
  * continuationBriefFunction
@@ -108,7 +114,27 @@ export const continuationBriefFunction = inngest.createFunction(
       }));
     });
 
-    // Step 3 — Generate the brief via Opus (with Sonnet fallback).
+    // Step 3 — Run unconditional continuation research. The brief
+    // is the highest-stakes single LLM call in the system; spending
+    // ~3-6 Tavily queries (one durable Inngest step) to ground the
+    // forks in current market reality is the spec's explicit
+    // recommendation. The step is fail-open: if research returns
+    // empty findings, the brief generator proceeds without them.
+    const research = await step.run('run-continuation-research', async () => {
+      const queries = buildContinuationQueries({
+        recommendation:    loaded.recommendation,
+        context:           loaded.context,
+        parkingLot:        loaded.parkingLot,
+        daysSinceCreation: metrics.daysSinceCreation,
+      });
+      return await runResearchQueries({
+        agent:     'continuation',
+        queries,
+        contextId: roadmapId,
+      });
+    });
+
+    // Step 4 — Generate the brief via Opus (with Sonnet fallback).
     const brief = await step.run('generate-brief', async () => {
       return await generateContinuationBrief({
         recommendation:    loaded.recommendation,
@@ -118,26 +144,44 @@ export const continuationBriefFunction = inngest.createFunction(
         metrics,
         motivationAnchor:  loaded.motivationAnchor,
         diagnosticHistory: loaded.diagnosticHistory,
+        researchFindings:  research.findings || undefined,
         roadmapId,
       });
     });
 
-    // Step 4 — Persist the brief and metrics, flip status to BRIEF_READY.
-    // updateMany guarded on the current GENERATING_BRIEF status so a
-    // racing run cannot overwrite an already-persisted brief.
+    // Step 5 — Persist the brief, metrics, and the research log
+    // append inside a single Prisma transaction. The status guard
+    // (continuationStatus = GENERATING_BRIEF) protects continuationBrief
+    // from concurrent worker runs; the SERIALIZABLE isolation level
+    // protects the researchLog column from a check-in or pushback
+    // write landing between our read and our write. Without the
+    // transaction, a check-in route appending its own research entry
+    // between findUnique and updateMany would silently lose its row
+    // — same class of bug as the continuation phase 6 fork race.
     const persisted = await step.run('persist-brief', async () => {
-      const result = await prisma.roadmap.updateMany({
-        where: {
-          id:                 roadmapId,
-          continuationStatus: CONTINUATION_STATUSES.GENERATING_BRIEF,
-        },
-        data:  {
-          continuationBrief:  toJsonValue(brief),
-          executionMetrics:   toJsonValue(metrics),
-          continuationStatus: CONTINUATION_STATUSES.BRIEF_READY,
-        },
-      });
-      return { count: result.count };
+      return await prisma.$transaction(async (tx) => {
+        const current = await tx.roadmap.findUnique({
+          where:  { id: roadmapId },
+          select: { researchLog: true },
+        });
+        const nextResearchLog = research.researchLog.length > 0
+          ? appendResearchLog(safeParseResearchLog(current?.researchLog), research.researchLog)
+          : null;
+
+        const result = await tx.roadmap.updateMany({
+          where: {
+            id:                 roadmapId,
+            continuationStatus: CONTINUATION_STATUSES.GENERATING_BRIEF,
+          },
+          data:  {
+            continuationBrief:  toJsonValue(brief),
+            executionMetrics:   toJsonValue(metrics),
+            continuationStatus: CONTINUATION_STATUSES.BRIEF_READY,
+            ...(nextResearchLog ? { researchLog: toJsonValue(nextResearchLog) } : {}),
+          },
+        });
+        return { count: result.count };
+      }, { isolationLevel: 'Serializable' });
     });
 
     if (persisted.count === 0) {
@@ -148,6 +192,7 @@ export const continuationBriefFunction = inngest.createFunction(
     log.info('[ContinuationBrief] Brief persisted', {
       forks:           brief.forks.length,
       parkingLotItems: brief.parkingLotItems.length,
+      researchQueries: research.queriesRun.length,
     });
 
     return { roadmapId, status: 'complete' };

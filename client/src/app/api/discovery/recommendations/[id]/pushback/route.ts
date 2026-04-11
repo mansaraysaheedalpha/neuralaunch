@@ -35,6 +35,11 @@ import {
 } from '@/lib/discovery/pushback-engine';
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import { RecommendationSchema, type Recommendation } from '@/lib/discovery/recommendation-schema';
+import {
+  runConditionalResearch,
+  appendResearchLog,
+  safeParseResearchLog,
+} from '@/lib/research';
 
 const BodySchema = z.object({
   message: z.string().min(1).max(4000),
@@ -96,6 +101,7 @@ export async function POST(
         pushbackHistory:        true,
         pushbackVersion:        true,
         versions:               true,
+        researchLog:            true,
         alternativeRecommendationId: true,
         roadmap:                { select: { id: true, status: true } },
         session: { select: { beliefState: true } },
@@ -219,13 +225,27 @@ export async function POST(
       alternativeRejected:    rec.alternativeRejected,
     });
 
+    // Phase 6 of the research-tool spec — pushback agent research.
+    // The trigger detector pre-filters the founder's pushback message;
+    // hits run a small Haiku extractor that builds 1-3 specific
+    // queries (founder-named alternatives, market challenges, proposed
+    // approaches). The pushback agent uses the findings to make its
+    // defend / refine / replace decision more credible.
+    const research = await runConditionalResearch({
+      agent:            'pushback',
+      founderMessage:   parsed.data.message,
+      geographicMarket: (context.geographicMarket?.value as string | undefined) ?? null,
+      contextId:        recommendationId,
+    });
+
     const response = await runPushbackTurn({
       recommendationId,
-      recommendation: currentRec,
+      recommendation:  currentRec,
       context,
       history,
-      userMessage: parsed.data.message,
+      userMessage:     parsed.data.message,
       currentRound,
+      researchFindings: research.findings || undefined,
     });
 
     const agentTurn: PushbackTurnAgent = {
@@ -268,6 +288,15 @@ export async function POST(
       },
     ] : existingVersions;
 
+    // Append the pushback research audit log to the existing
+    // researchLog column. The append happens inside the optimistic-
+    // concurrency updateMany below so a racing pushback POST cannot
+    // clobber our research entries (the version guard rejects the
+    // write entirely on a race).
+    const nextResearchLog = research.researchLog.length > 0
+      ? appendResearchLog(safeParseResearchLog(rec.researchLog), research.researchLog)
+      : null;
+
     // Optimistic concurrency check on the same column. If another
     // pushback POST raced us between read and write, the update
     // affects 0 rows; we throw 409 and the client refetches.
@@ -291,6 +320,7 @@ export async function POST(
           alternativeRejected:    toJsonValue(updatedRec.alternativeRejected),
           versions:               toJsonValue(newVersions),
         } : {}),
+        ...(nextResearchLog ? { researchLog: toJsonValue(nextResearchLog) } : {}),
         // Pushing back auto-un-accepts
         ...(rec.acceptedAt ? {
           acceptedAt:      null,
