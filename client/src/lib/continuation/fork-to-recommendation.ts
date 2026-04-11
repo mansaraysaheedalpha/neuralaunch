@@ -9,6 +9,10 @@
 // Used by the continuation/fork POST route to close the cycle by
 // creating a new Recommendation row from the founder's pick.
 
+import 'server-only';
+import prisma, { toJsonValue } from '@/lib/prisma';
+import { buildPhaseContext, PHASES } from '@/lib/phase-context';
+import { CONTINUATION_STATUSES } from './constants';
 import type { ContinuationBrief, ContinuationFork } from './brief-schema';
 
 /**
@@ -77,4 +81,68 @@ export function buildForkRecommendationPayload(input: {
     whatWouldMakeThisWrong: `This recommendation is wrong if: NOT (${fork.rightIfCondition}).`,
     alternativeRejected,
   };
+}
+
+/**
+ * Persist the fork-derived Recommendation and atomically link it
+ * back to the parent roadmap (continuationStatus → FORK_SELECTED,
+ * forkRecommendationId → new rec id). Single Prisma transaction so
+ * the linkage and the status flip commit together. The unique
+ * constraint on Roadmap.forkRecommendationId guards against
+ * concurrent double-creates at the database level — a racing
+ * second call surfaces as a Prisma unique-constraint error which
+ * the route's outer try/catch maps to a 5xx and the founder's
+ * client retry hits the idempotent re-fire path on the next call.
+ *
+ * Extracted from the route handler so the route stays under the
+ * 150-line cap and the persistence shape is unit-testable in
+ * isolation from the HTTP plumbing.
+ */
+export async function persistForkRecommendation(input: {
+  parentRoadmapId:    string;
+  parentRecommendationId: string;
+  parentSessionId:        string;
+  parentRecommendationType: string | null;
+  userId:             string;
+  payload:            ForkRecommendationPayload;
+}): Promise<{ newRecommendationId: string }> {
+  const newRecommendationId = await prisma.$transaction(async (tx) => {
+    const newRec = await tx.recommendation.create({
+      data: {
+        userId:                 input.userId,
+        sessionId:              input.parentSessionId,
+        recommendationType:     input.parentRecommendationType,
+        summary:                input.payload.summary,
+        path:                   input.payload.path,
+        reasoning:              input.payload.reasoning,
+        firstThreeSteps:        toJsonValue(input.payload.firstThreeSteps),
+        timeToFirstResult:      input.payload.timeToFirstResult,
+        risks:                  toJsonValue(input.payload.risks),
+        assumptions:            toJsonValue(input.payload.assumptions),
+        whatWouldMakeThisWrong: input.payload.whatWouldMakeThisWrong,
+        alternativeRejected:    toJsonValue(input.payload.alternativeRejected),
+        // Auto-accept — the founder explicitly picked this fork.
+        // The acceptance round is 0 because there was no pushback.
+        acceptedAt:             new Date(),
+        acceptedAtRound:        0,
+        phaseContext: toJsonValue(buildPhaseContext(PHASES.RECOMMENDATION, {
+          discoverySessionId: input.parentSessionId,
+          recommendationId:   input.parentRecommendationId,
+        })),
+      },
+      select: { id: true },
+    });
+
+    await tx.roadmap.update({
+      where: { id: input.parentRoadmapId },
+      data:  {
+        continuationStatus:   CONTINUATION_STATUSES.FORK_SELECTED,
+        forkRecommendationId: newRec.id,
+      },
+    });
+
+    return newRec.id;
+  });
+
+  return { newRecommendationId };
 }

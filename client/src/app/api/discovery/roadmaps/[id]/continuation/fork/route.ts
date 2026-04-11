@@ -1,7 +1,7 @@
 // src/app/api/discovery/roadmaps/[id]/continuation/fork/route.ts
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import prisma, { toJsonValue } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { inngest } from '@/inngest/client';
 import {
@@ -16,9 +16,9 @@ import {
   CONTINUATION_STATUSES,
   safeParseContinuationBrief,
   buildForkRecommendationPayload,
+  persistForkRecommendation,
 } from '@/lib/continuation';
 import { ROADMAP_EVENT } from '@/lib/roadmap';
-import { buildPhaseContext, PHASES } from '@/lib/phase-context';
 
 export const maxDuration = 30;
 
@@ -29,13 +29,21 @@ const BodySchema = z.object({
 /**
  * POST /api/discovery/roadmaps/[id]/continuation/fork
  *
- * Closes the continuation cycle. Builds a fork-derived Recommendation
- * via buildForkRecommendationPayload, persists it (auto-accepted,
- * inheriting the parent session + recommendationType, phaseContext
- * pointing back), flips the parent roadmap to FORK_SELECTED, and
- * fires the roadmap-generation event with parentRoadmapId so the
- * generator picks up the speed calibration. Returns the new
- * recommendationId for client navigation.
+ * Closes the continuation cycle. Idempotent: a retry of the same
+ * fork pick (e.g. after a transient inngest.send failure) reads
+ * Roadmap.forkRecommendationId, looks up the existing fork-derived
+ * Recommendation, re-fires the roadmap-generation event, and returns
+ * the existing id rather than creating a duplicate.
+ *
+ * Happy path:
+ *   1. Build the payload from the picked fork via the pure helper.
+ *   2. In one transaction: create the new Recommendation AND set
+ *      Roadmap.forkRecommendationId + flip status to FORK_SELECTED.
+ *      The unique constraint on forkRecommendationId guards against
+ *      concurrent double-creates at the database level.
+ *   3. Send the inngest event. If it fails, the row is in a stable
+ *      state (FORK_SELECTED with the linkage column set) and the
+ *      next retry will follow the idempotent re-fire path.
  */
 export async function POST(
   request: Request,
@@ -59,9 +67,10 @@ export async function POST(
     const row = await prisma.roadmap.findFirst({
       where:  { id: roadmapId, userId },
       select: {
-        id:                 true,
-        continuationStatus: true,
-        continuationBrief:  true,
+        id:                   true,
+        continuationStatus:   true,
+        continuationBrief:    true,
+        forkRecommendationId: true,
         recommendation: {
           select: {
             id:                 true,
@@ -72,6 +81,30 @@ export async function POST(
       },
     });
     if (!row || !row.recommendation) throw new HttpError(404, 'Not found');
+
+    // Idempotent re-fire path. If the row already has a linked
+    // fork-derived Recommendation, the previous call succeeded at
+    // the database level — only the inngest send may have failed.
+    // Re-fire the event (it is itself idempotent) and return the
+    // existing id so the founder lands on the same downstream
+    // roadmap regardless of how many times they retry.
+    if (row.forkRecommendationId) {
+      await inngest.send({
+        name: ROADMAP_EVENT,
+        data: {
+          recommendationId: row.forkRecommendationId,
+          userId,
+          parentRoadmapId:  roadmapId,
+        },
+      });
+      log.info('[ContinuationFork] Idempotent re-fire', { newRecommendationId: row.forkRecommendationId });
+      return NextResponse.json({
+        status:              CONTINUATION_STATUSES.FORK_SELECTED,
+        newRecommendationId: row.forkRecommendationId,
+        replayed:            true,
+      });
+    }
+
     if (row.continuationStatus !== CONTINUATION_STATUSES.BRIEF_READY) {
       throw new HttpError(409, 'No continuation brief is ready for this roadmap');
     }
@@ -86,55 +119,27 @@ export async function POST(
       throw new HttpError(400, 'Fork id does not match this brief');
     }
 
-    // Build the fork-derived Recommendation payload via the pure helper.
-    // The synthesis is intentionally deterministic — no extra LLM call.
     const payload = buildForkRecommendationPayload({ fork, brief });
-
-    const newRecommendationId = await prisma.$transaction(async (tx) => {
-      const newRec = await tx.recommendation.create({
-        data: {
-          userId,
-          sessionId:              row.recommendation!.sessionId,
-          recommendationType:     row.recommendation!.recommendationType,
-          summary:                payload.summary,
-          path:                   payload.path,
-          reasoning:              payload.reasoning,
-          firstThreeSteps:        toJsonValue(payload.firstThreeSteps),
-          timeToFirstResult:      payload.timeToFirstResult,
-          risks:                  toJsonValue(payload.risks),
-          assumptions:            toJsonValue(payload.assumptions),
-          whatWouldMakeThisWrong: payload.whatWouldMakeThisWrong,
-          alternativeRejected:    toJsonValue(payload.alternativeRejected),
-          // Auto-accept — the founder explicitly picked this fork.
-          acceptedAt:             new Date(),
-          acceptedAtRound:        0,
-          phaseContext: toJsonValue(buildPhaseContext(PHASES.RECOMMENDATION, {
-            discoverySessionId: row.recommendation!.sessionId,
-            recommendationId:   row.recommendation!.id,
-          })),
-        },
-        select: { id: true },
-      });
-
-      await tx.roadmap.update({
-        where: { id: roadmapId },
-        data:  { continuationStatus: CONTINUATION_STATUSES.FORK_SELECTED },
-      });
-
-      return newRec.id;
+    const { newRecommendationId } = await persistForkRecommendation({
+      parentRoadmapId:          roadmapId,
+      parentRecommendationId:   row.recommendation.id,
+      parentSessionId:          row.recommendation.sessionId,
+      parentRecommendationType: row.recommendation.recommendationType,
+      userId,
+      payload,
     });
 
-    // Fire the existing roadmap generation event with the new
-    // recommendationId AND the parent roadmap id so the generator
-    // picks up the speed calibration from the parent's executionMetrics.
+    // Send the inngest event after the transaction commits. If this
+    // fails (transient network), the row is in a stable state with
+    // forkRecommendationId set — a client retry hits the idempotent
+    // re-fire path above and recovers without creating duplicates.
     await inngest.send({
       name: ROADMAP_EVENT,
       data: { recommendationId: newRecommendationId, userId, parentRoadmapId: roadmapId },
     });
 
     log.info('[ContinuationFork] Cycle closed', {
-      forkId:               fork.id,
-      forkTitle:            fork.title,
+      forkId:              fork.id,
       newRecommendationId,
     });
 

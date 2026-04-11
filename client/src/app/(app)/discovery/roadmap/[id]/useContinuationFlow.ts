@@ -1,7 +1,7 @@
 'use client';
 // src/app/(app)/discovery/roadmap/[id]/useContinuationFlow.ts
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type {
   ContinuationBrief,
   DiagnosticHistory,
@@ -81,11 +81,6 @@ export function useContinuationFlow(roadmapId: string): ContinuationFlowResult {
     submitting:        false,
   });
 
-  // Polling cancellation. The deadline epoch is bumped every time we
-  // start polling so any in-flight loop sees the new identity and
-  // exits cleanly without aborting via state.
-  const pollEpochRef = useRef(0);
-
   const refetch = useCallback(async () => {
     try {
       const res = await fetch(`/api/discovery/roadmaps/${roadmapId}/continuation`);
@@ -114,36 +109,38 @@ export function useContinuationFlow(roadmapId: string): ContinuationFlowResult {
   }, [roadmapId]);
 
   // Polling effect — runs whenever phase enters brief_polling.
+  // Uses a cancelled flag (closure-scoped) for clean teardown. The
+  // refetch call updates state via setState; when the resulting state
+  // change flips phase out of 'brief_polling', the effect re-runs,
+  // the cleanup sets cancelled = true, and the in-flight tick exits
+  // before scheduling the next iteration. No setState side effects,
+  // no epoch ref — strict-mode safe.
   useEffect(() => {
     if (state.phase !== 'brief_polling') return;
-    pollEpochRef.current += 1;
-    const myEpoch = pollEpochRef.current;
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const deadline = Date.now() + POLL_DEADLINE_MS;
-    let timer: ReturnType<typeof setTimeout>;
 
     const tick = async () => {
-      if (myEpoch !== pollEpochRef.current) return;
+      if (cancelled) return;
       if (Date.now() >= deadline) {
-        setState(prev => ({ ...prev, phase: 'error', error: 'Brief generation timed out. Please try again.' }));
+        setState(prev =>
+          prev.phase === 'brief_polling'
+            ? { ...prev, phase: 'error', error: 'Brief generation timed out. Please try again.' }
+            : prev,
+        );
         return;
       }
       await refetch();
-      // Schedule the next tick AFTER refetch so we never stack timers.
-      // The state read happens via the next render — we use a setState
-      // callback to peek at the freshest phase and decide whether to
-      // continue polling.
-      setState(prev => {
-        if (prev.phase === 'brief_polling') {
-          timer = setTimeout(() => { void tick(); }, POLL_INTERVAL_MS);
-        }
-        return prev;
-      });
+      if (cancelled) return;
+      timer = setTimeout(() => { void tick(); }, POLL_INTERVAL_MS);
     };
 
     void tick();
     return () => {
-      pollEpochRef.current += 1;
-      clearTimeout(timer);
+      cancelled = true;
+      if (timer) clearTimeout(timer);
     };
   }, [state.phase, refetch]);
 
@@ -225,7 +222,6 @@ export function useContinuationFlow(roadmapId: string): ContinuationFlowResult {
   }, [roadmapId]);
 
   const reset = useCallback(() => {
-    pollEpochRef.current += 1;
     setState({
       phase:             'idle',
       scenario:          null,

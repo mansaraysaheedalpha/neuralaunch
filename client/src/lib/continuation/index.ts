@@ -67,8 +67,13 @@ export { runDiagnosticTurn } from './diagnostic-engine';
 export type { GenerateBriefInput } from './brief-generator';
 export { generateContinuationBrief } from './brief-generator';
 
-export type { ContinuationEvidence, LoadEvidenceResult } from './evidence-loader';
-export { loadContinuationEvidence } from './evidence-loader';
+export type {
+  ContinuationEvidence,
+  LoadEvidenceResult,
+  CheckpointStatus,
+  LoadCheckpointResult,
+} from './evidence-loader';
+export { loadContinuationEvidence, loadCheckpointStatus } from './evidence-loader';
 
 export {
   buildDiagnosticTurnPair,
@@ -76,4 +81,7 @@ export {
 } from './diagnostic-orchestration';
 
 export type { ForkRecommendationPayload } from './fork-to-recommendation';
-export { buildForkRecommendationPayload } from './fork-to-recommendation';
+export {
+  buildForkRecommendationPayload,
+  persistForkRecommendation,
+} from './fork-to-recommendation';

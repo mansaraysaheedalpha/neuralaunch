@@ -55,12 +55,18 @@ export function ContinuationView({ roadmapId }: { roadmapId: string }) {
     }
   }, [roadmapId]);
 
-  // Polling loop. Stops once we have BRIEF_READY, FORK_SELECTED, or
-  // we hit the deadline.
+  // Polling loop — runs while `polling` is true. Stops as soon as
+  // the freshest snapshot has the brief or a terminal status. Two
+  // separate effects keep concerns clean: this one schedules ticks
+  // and writes to `data` via refetch; the second one watches `data`
+  // for the stop condition and flips `polling` off. No setState
+  // callbacks with side effects, no impurity in render — strict-mode
+  // safe.
   useEffect(() => {
+    if (!polling) return;
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const deadline = Date.now() + POLL_DEADLINE_MS;
-    let timer: ReturnType<typeof setTimeout>;
 
     const tick = async () => {
       if (cancelled) return;
@@ -70,26 +76,27 @@ export function ContinuationView({ roadmapId }: { roadmapId: string }) {
         return;
       }
       await refetch();
-      // Decide whether to keep polling based on the freshest snapshot.
-      // Use a setState callback so we always read the latest value.
-      setData(curr => {
-        if (cancelled) return curr;
-        const status = curr?.continuationStatus;
-        if (status === 'BRIEF_READY' || status === 'FORK_SELECTED' || curr?.brief) {
-          setPolling(false);
-          return curr;
-        }
-        timer = setTimeout(() => { void tick(); }, POLL_INTERVAL_MS);
-        return curr;
-      });
+      if (cancelled) return;
+      timer = setTimeout(() => { void tick(); }, POLL_INTERVAL_MS);
     };
 
     void tick();
     return () => {
       cancelled = true;
-      clearTimeout(timer);
+      if (timer) clearTimeout(timer);
     };
-  }, [refetch]);
+  }, [polling, refetch]);
+
+  // Stop polling once the data has reached a terminal state. Pure
+  // derivation — no schedule, no fetch, just a one-shot transition
+  // from polling=true to polling=false.
+  useEffect(() => {
+    if (!polling) return;
+    const status = data?.continuationStatus;
+    if (status === 'BRIEF_READY' || status === 'FORK_SELECTED' || data?.brief) {
+      setPolling(false);
+    }
+  }, [data, polling]);
 
   const handlePickFork = useCallback(async (fork: ContinuationFork) => {
     setPicking(fork.id);

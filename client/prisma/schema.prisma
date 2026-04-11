@@ -481,6 +481,22 @@ model Roadmap {
   parentRoadmap   Roadmap?  @relation("RoadmapContinuation", fields: [parentRoadmapId], references: [id], onDelete: SetNull)
   childRoadmaps   Roadmap[] @relation("RoadmapContinuation")
 
+  /**
+   * The id of the fork-derived Recommendation produced by the
+   * continuation/fork POST route. Set inside the same transaction
+   * as the FORK_SELECTED status flip so the linkage and the status
+   * commit atomically. Powers the route's idempotency: a retry of
+   * the same fork pick (e.g. after a transient inngest.send
+   * failure) reads this column, looks up the existing Recommendation,
+   * re-fires the event, and returns the existing id rather than
+   * creating a duplicate.
+   *
+   * @unique because exactly one fork can be picked per parent
+   * roadmap (the picked-fork state is terminal), so the column
+   * doubles as a row-level guard against double-creates.
+   */
+  forkRecommendationId String? @unique
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

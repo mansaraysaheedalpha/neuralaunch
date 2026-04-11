@@ -20,6 +20,77 @@ import { safeParseParkingLot, type ParkingLot } from './parking-lot-schema';
 import { safeParseDiagnosticHistory, type DiagnosticHistory } from './diagnostic-schema';
 
 /**
+ * Lightweight read for the checkpoint POST. The checkpoint endpoint
+ * is the highest-traffic surface of the continuation feature — every
+ * founder hits it before the diagnostic chat or the brief. It only
+ * needs the row's continuationStatus and the live RoadmapProgress
+ * counters to classify the scenario, so loading the entire evidence
+ * base (Recommendation, beliefState, phases, parking lot, diagnostic
+ * history) was wasteful.
+ *
+ * This loader returns ONLY what evaluateScenario + the gating
+ * checks need. The brief Inngest function still does the full evidence
+ * load when it actually has work to do.
+ */
+export interface CheckpointStatus {
+  roadmapId:          string;
+  continuationStatus: string | null;
+  briefAlreadyExists: boolean;
+  progress: {
+    totalTasks:     number;
+    completedTasks: number;
+  };
+}
+
+export type LoadCheckpointResult =
+  | { ok: true;  status: CheckpointStatus }
+  | { ok: false; reason: 'not_found' };
+
+export async function loadCheckpointStatus(input: {
+  roadmapId: string;
+  userId:    string;
+}): Promise<LoadCheckpointResult> {
+  const row = await prisma.roadmap.findFirst({
+    where:  { id: input.roadmapId, userId: input.userId },
+    select: {
+      id:                 true,
+      continuationStatus: true,
+      // We deliberately do not select continuationBrief itself —
+      // existence is enough for the gating check, and the brief can
+      // be 10KB+ of JSONB. Use a boolean derivation downstream
+      // (see the briefAlreadyExists field below).
+      progress: {
+        select: {
+          totalTasks:     true,
+          completedTasks: true,
+        },
+      },
+    },
+  });
+  if (!row) return { ok: false, reason: 'not_found' };
+
+  // Without selecting continuationBrief itself, we cannot derive
+  // briefAlreadyExists from the column. Use the status enum instead:
+  // BRIEF_READY and FORK_SELECTED both imply a persisted brief.
+  const briefAlreadyExists =
+    row.continuationStatus === 'BRIEF_READY' ||
+    row.continuationStatus === 'FORK_SELECTED';
+
+  return {
+    ok: true,
+    status: {
+      roadmapId:          row.id,
+      continuationStatus: row.continuationStatus,
+      briefAlreadyExists,
+      progress: {
+        totalTasks:     row.progress?.totalTasks     ?? 0,
+        completedTasks: row.progress?.completedTasks ?? 0,
+      },
+    },
+  };
+}
+
+/**
  * The full evidence base for a single roadmap, parsed and validated.
  * Returned by `loadContinuationEvidence` to every continuation
  * consumer.
