@@ -180,6 +180,20 @@ model DiscoverySession {
   // way to read/write this field. Never mutate it raw.
   beliefState Json
 
+  /**
+   * Research-tool audit log — append-only array of ResearchLogEntry
+   * objects. Populated by the Interview Agent when the founder
+   * mentions something the trigger detector picks up (a competitor
+   * name, a regulation, a market claim, a tool reference). Read by
+   * the admin debug surface and used as training data for refining
+   * the trigger detector and the per-agent query builders.
+   *
+   * Shape validated by ResearchLogArraySchema in
+   * src/lib/research/types.ts. Capped at MAX_RESEARCH_LOG_ENTRIES
+   * by the appendResearchLog helper to bound JSONB size.
+   */
+  researchLog Json @default("[]")
+
   recommendation Recommendation?
 
   createdAt   DateTime  @default(now())
@@ -453,6 +467,19 @@ model Roadmap {
    * generator does not have to re-derive it.
    */
   executionMetrics Json?
+
+  /**
+   * Research-tool audit log — append-only array of ResearchLogEntry
+   * objects. Populated by the Check-in Agent (when the founder is
+   * stuck and needs research help mid-task) and by the Continuation
+   * Agent (when the brief generator runs unconditional research
+   * before producing forks). Same shape as DiscoverySession.researchLog
+   * and Recommendation.researchLog — one safeParse helper covers all.
+   *
+   * Capped at MAX_RESEARCH_LOG_ENTRIES by the appendResearchLog
+   * helper to bound JSONB size on long-running multi-cycle roadmaps.
+   */
+  researchLog Json @default("[]")
 
   /**
    * Continuation lifecycle status. NULL when "What's Next?" has never
