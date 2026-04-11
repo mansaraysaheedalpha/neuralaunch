@@ -53,6 +53,9 @@ export type {
 } from './trigger-detector';
 export { detectResearchTriggers, preFilterTriggers } from './trigger-detector';
 
+export type { RunConditionalResearchInput } from './conditional-research';
+export { runConditionalResearch } from './conditional-research';
+
 export {
   MAX_RESEARCH_LOG_ENTRIES,
   safeParseResearchLog,
