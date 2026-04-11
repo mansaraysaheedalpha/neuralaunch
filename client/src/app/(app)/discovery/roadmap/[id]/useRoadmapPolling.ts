@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { RoadmapPhase } from '@/lib/roadmap';
+import type { ParkingLotItem } from '@/lib/continuation';
 
 export interface RoadmapProgressData {
   totalTasks:     number;
@@ -22,6 +23,9 @@ export interface RoadmapData {
   weeklyHours:    number | null;
   totalWeeks:     number | null;
   progress:       RoadmapProgressData | null;
+  /** Roadmap continuation — see lib/continuation. */
+  parkingLot:         ParkingLotItem[];
+  continuationStatus: string | null;
 }
 
 type PollResponse = { status: 'not_started' } | RoadmapData;

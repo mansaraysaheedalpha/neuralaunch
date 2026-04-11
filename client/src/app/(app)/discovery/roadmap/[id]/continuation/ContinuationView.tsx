@@ -1,0 +1,165 @@
+'use client';
+// src/app/(app)/discovery/roadmap/[id]/continuation/ContinuationView.tsx
+
+import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { motion } from 'motion/react';
+import { Loader2 } from 'lucide-react';
+import type {
+  ContinuationBrief,
+  ContinuationFork,
+  DiagnosticHistory,
+  ParkingLot,
+} from '@/lib/continuation';
+import { BriefSections } from './BriefSections';
+import { ForkPicker } from './ForkPicker';
+
+interface ContinuationData {
+  continuationStatus: string | null;
+  brief:              ContinuationBrief | null;
+  diagnosticHistory:  DiagnosticHistory;
+  parkingLot:         ParkingLot;
+}
+
+const POLL_INTERVAL_MS = 3_000;
+const POLL_DEADLINE_MS = 4 * 60 * 1000;
+
+/**
+ * ContinuationView
+ *
+ * Polls the continuation endpoint until BRIEF_READY (or already
+ * FORK_SELECTED), then renders the five-section brief + fork
+ * picker. The actual rendering work is split into BriefSections
+ * (presentation) and ForkPicker (interactive selection) so this
+ * orchestrator stays under the 200-line component cap.
+ */
+export function ContinuationView({ roadmapId }: { roadmapId: string }) {
+  const router = useRouter();
+  const [data, setData]       = useState<ContinuationData | null>(null);
+  const [polling, setPolling] = useState(true);
+  const [failed, setFailed]   = useState(false);
+  const [picking, setPicking] = useState<string | null>(null);
+  const [pickError, setPickError] = useState<string | null>(null);
+
+  const refetch = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/discovery/roadmaps/${roadmapId}/continuation`);
+      if (!res.ok) {
+        setFailed(true);
+        return;
+      }
+      const json = await res.json() as ContinuationData;
+      setData(json);
+    } catch {
+      setFailed(true);
+    }
+  }, [roadmapId]);
+
+  // Polling loop. Stops once we have BRIEF_READY, FORK_SELECTED, or
+  // we hit the deadline.
+  useEffect(() => {
+    let cancelled = false;
+    const deadline = Date.now() + POLL_DEADLINE_MS;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const tick = async () => {
+      if (cancelled) return;
+      if (Date.now() >= deadline) {
+        setFailed(true);
+        setPolling(false);
+        return;
+      }
+      await refetch();
+      // Decide whether to keep polling based on the freshest snapshot.
+      // Use a setState callback so we always read the latest value.
+      setData(curr => {
+        if (cancelled) return curr;
+        const status = curr?.continuationStatus;
+        if (status === 'BRIEF_READY' || status === 'FORK_SELECTED' || curr?.brief) {
+          setPolling(false);
+          return curr;
+        }
+        timer = setTimeout(() => { void tick(); }, POLL_INTERVAL_MS);
+        return curr;
+      });
+    };
+
+    void tick();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [refetch]);
+
+  const handlePickFork = useCallback(async (fork: ContinuationFork) => {
+    setPicking(fork.id);
+    setPickError(null);
+    try {
+      const res = await fetch(`/api/discovery/roadmaps/${roadmapId}/continuation/fork`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ forkId: fork.id }),
+      });
+      const json = await res.json() as { error?: string };
+      if (!res.ok) {
+        setPickError(json.error ?? 'Could not select that fork.');
+        return;
+      }
+      // Phase 6 will navigate to the next-cycle roadmap automatically.
+      // Today the route just persists the pick, so refetch and let the
+      // brief view show the FORK_SELECTED state.
+      await refetch();
+      router.refresh();
+    } catch {
+      setPickError('Network error — please try again.');
+    } finally {
+      setPicking(null);
+    }
+  }, [roadmapId, refetch, router]);
+
+  if (polling && !data?.brief) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
+        <Loader2 className="size-6 text-primary animate-spin" />
+        <p className="text-sm text-muted-foreground">Reading your execution evidence…</p>
+        <p className="text-xs text-muted-foreground/60">This takes about 30 seconds.</p>
+      </div>
+    );
+  }
+
+  if (failed || !data?.brief) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-24 text-center">
+        <p className="text-sm text-muted-foreground">Could not load your continuation brief.</p>
+        <p className="text-xs text-muted-foreground/60">Please return to the roadmap and try again.</p>
+      </div>
+    );
+  }
+
+  const isPicked = data.continuationStatus === 'FORK_SELECTED';
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="flex flex-col gap-6 max-w-2xl mx-auto px-6 py-10"
+    >
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-bold text-foreground">What&apos;s next</h1>
+        <p className="text-sm text-muted-foreground">
+          Built from your check-ins, blockers, and parking lot.
+        </p>
+      </div>
+
+      <BriefSections brief={data.brief} />
+
+      <ForkPicker
+        forks={data.brief.forks}
+        onPick={(fork) => { void handlePickFork(fork); }}
+        picking={picking}
+        error={pickError}
+        isPicked={isPicked}
+      />
+    </motion.div>
+  );
+}

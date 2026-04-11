@@ -4,28 +4,12 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { Loader2 } from 'lucide-react';
-import type { RoadmapPhase } from '@/lib/roadmap';
-import type { StoredRoadmapTask } from '@/lib/roadmap/checkin-types';
 import { OutcomeForm } from '@/components/outcome/OutcomeForm';
 import { useRoadmapPolling } from './useRoadmapPolling';
 import { PhaseBlock } from './PhaseBlock';
-
-/**
- * Walk the phases in order and return the first task whose status is
- * 'in_progress'. Used by the proactive nudge banner to name what the
- * founder was working on. Tasks default to 'not_started' when the
- * status field is absent — meaning generated-but-not-yet-touched
- * tasks never trip this.
- */
-function findFirstInProgressTask(phases: RoadmapPhase[]): { title: string } | null {
-  for (const phase of phases) {
-    for (const task of phase.tasks) {
-      const status = (task as StoredRoadmapTask).status;
-      if (status === 'in_progress') return { title: task.title };
-    }
-  }
-  return null;
-}
+import { WhatsNextPanel } from './WhatsNextPanel';
+import { ParkingLotInline } from './ParkingLotInline';
+import { NudgeBanner } from './NudgeBanner';
 
 /**
  * RoadmapView
@@ -104,30 +88,7 @@ export function RoadmapView({
           this above any STALE banner because the urgency order is:
           (1) you have an open task that needs an update,
           (2) the recommendation changed underneath you. */}
-      {data.progress?.nudgePending && (() => {
-        const inProgressTask = findFirstInProgressTask(data.phases);
-        return (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 flex flex-col gap-2"
-          >
-            <p className="text-[10px] uppercase tracking-widest text-primary/70">
-              Quick check-in
-            </p>
-            <p className="text-xs text-foreground leading-relaxed">
-              {inProgressTask
-                ? `You were working on "${inProgressTask.title}". How did it go?`
-                : 'You have not updated your roadmap in a while. How is it going?'}
-            </p>
-            {inProgressTask && (
-              <p className="text-[11px] text-muted-foreground">
-                Tap any task below to share an update or report a blocker.
-              </p>
-            )}
-          </motion.div>
-        );
-      })()}
+      {data.progress?.nudgePending && <NudgeBanner phases={data.phases} />}
 
       {data.status === 'STALE' && (
         <motion.div
@@ -183,6 +144,15 @@ export function RoadmapView({
           <p className="text-sm text-foreground leading-relaxed">{data.closingThought}</p>
         </motion.div>
       )}
+
+      {/* Roadmap continuation — always visible. The "What's Next?"
+          panel evaluates progress and either opens the diagnostic
+          chat (Scenarios A/B) or fires the brief generation
+          (Scenarios C/D). The parking lot affordance lives next to
+          it so the founder can capture adjacent ideas at any moment.
+          See docs/ROADMAP_CONTINUATION.md. */}
+      <WhatsNextPanel roadmapId={data.id} />
+      <ParkingLotInline roadmapId={data.id} initialItems={data.parkingLot ?? []} />
 
       {/* Concern 5 — outcome capture form. Surfaced at the bottom of
           the roadmap when either trigger #1 (final task complete via
