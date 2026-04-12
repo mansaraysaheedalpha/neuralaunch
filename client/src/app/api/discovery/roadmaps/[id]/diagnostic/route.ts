@@ -64,6 +64,7 @@ export async function POST(
 
     const loaded = await loadContinuationEvidence({ roadmapId, userId });
     if (!loaded.ok) {
+      log.warn('[Diagnostic] Evidence load failed', { reason: loaded.reason });
       if (loaded.reason === 'not_found') throw new HttpError(404, 'Not found');
       if (loaded.reason === 'no_belief_state')
         throw new HttpError(409, 'Roadmap is missing its parent recommendation context');
@@ -71,8 +72,16 @@ export async function POST(
     }
     const evidence = loaded.evidence;
 
+    log.info('[Diagnostic] Gate check', {
+      continuationStatus: evidence.continuationStatus,
+      expectedStatus:     CONTINUATION_STATUSES.DIAGNOSING,
+      diagnosticHistoryLen: evidence.diagnosticHistory.length,
+      agentTurns:         evidence.diagnosticHistory.filter(t => t.role === 'agent').length,
+      cap:                DIAGNOSTIC_HARD_CAP_TURNS,
+    });
+
     if (evidence.continuationStatus !== CONTINUATION_STATUSES.DIAGNOSING) {
-      throw new HttpError(409, 'Diagnostic is not active for this roadmap. Hit "What\'s Next?" first.');
+      throw new HttpError(409, `Diagnostic is not active for this roadmap (status=${evidence.continuationStatus}). Hit "What's Next?" first.`);
     }
 
     // A1: at the turn cap, instead of throwing 409, run one final
@@ -82,6 +91,7 @@ export async function POST(
     // below via the `resolution` body field).
     const agentTurnCount = evidence.diagnosticHistory.filter(t => t.role === 'agent').length;
     if (agentTurnCount >= DIAGNOSTIC_HARD_CAP_TURNS) {
+      log.info('[Diagnostic] Hit turn cap — running inconclusive synthesis', { agentTurnCount });
       // Run the final synthesis call — the agent's best interpretation
       // of the blocker given everything the founder has said.
       const historyBlock = evidence.diagnosticHistory
@@ -141,7 +151,13 @@ export async function POST(
       totalTasks:     evidence.progress.totalTasks,
       completedTasks: evidence.progress.completedTasks,
     });
+    log.info('[Diagnostic] Re-evaluation', {
+      scenario:  evaluation.scenario,
+      totalTasks: evidence.progress.totalTasks,
+      completedTasks: evidence.progress.completedTasks,
+    });
     if (evaluation.scenario !== 'A' && evaluation.scenario !== 'B') {
+      log.info('[Diagnostic] Skipping to brief — scenario changed to C/D');
       await prisma.roadmap.update({
         where: { id: roadmapId },
         data:  { continuationStatus: CONTINUATION_STATUSES.GENERATING_BRIEF },
