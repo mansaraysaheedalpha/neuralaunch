@@ -13,7 +13,12 @@
 //   - recalibrationOffer  (continuation phase 2 — soft re-direction)
 
 import { z } from 'zod';
-import { CHECKIN_AGENT_ACTIONS } from './checkin-types';
+import {
+  CHECKIN_AGENT_ACTIONS,
+  TaskAdjustmentEntrySchema,
+  RecommendedToolEntrySchema,
+  RecalibrationOfferEntrySchema,
+} from './checkin-types';
 
 // CLAUDE.md mandate: "Zod schemas for LLM output must NOT use .max()
 // on string fields." Anthropic's structured-output endpoint does not
@@ -32,13 +37,15 @@ function clampString(max: number) {
   return (raw: string): string => raw.length <= max ? raw : raw.slice(0, max - 1) + '\u2026';
 }
 
-const TaskAdjustmentSchema = z.object({
-  taskTitle:               z.string().describe('The exact title of an existing downstream task being adjusted.'),
-  proposedTitle:           z.string().optional(),
-  proposedDescription:     z.string().optional(),
-  proposedSuccessCriteria: z.string().optional(),
-  rationale:               z.string().describe('One sentence: why this adjustment, grounded in the founder\'s check-in.'),
-});
+// The agent-side aliases below exist purely for naming clarity in
+// the CheckInResponseSchema field declarations — they refer to the
+// SAME canonical sub-schemas exported from checkin-types.ts. Importing
+// these here means a change to the persisted shape automatically
+// flows into the agent's structured-output contract; the two schemas
+// cannot drift apart.
+const TaskAdjustmentSchema   = TaskAdjustmentEntrySchema;
+const RecommendedToolSchema  = RecommendedToolEntrySchema;
+const RecalibrationOfferSchema = RecalibrationOfferEntrySchema;
 
 /**
  * Parking-lot capture vector. The check-in agent attaches one of these
@@ -47,35 +54,15 @@ const TaskAdjustmentSchema = z.object({
  * the active roadmap. The route appends the captured item to the
  * parent Roadmap.parkingLot column so it surfaces in the continuation
  * brief at "What's Next?" time.
+ *
+ * Lives only in this file (not in checkin-types.ts) because parking
+ * lot items are persisted to Roadmap.parkingLot, NOT to a CheckInEntry.
+ * The persisted shape lives in lib/continuation/parking-lot-schema.ts.
  */
 const ParkingLotCaptureSchema = z.object({
   idea: z.string().min(1).transform(clampString(MAX_PARKING_LOT_IDEA_CHARS)).describe(
     'A short phrase capturing the adjacent idea verbatim from the founder. Maximum 280 characters. Must be the founder\'s own idea, not yours.'
   ),
-});
-
-/**
- * Tool recommendation surfaced inline in the check-in response.
- * Internal tools live inside NeuraLaunch (validation page, pushback,
- * parking lot). External tools are regular SaaS products the founder
- * would adopt themselves. The `isInternal` flag drives the UI
- * affordance.
- */
-const RecommendedToolSchema = z.object({
-  name:       z.string().describe('The tool name as the founder would search for it.'),
-  purpose:    z.string().describe('One short phrase: why THIS tool for THIS task. Specific to the founder\'s context.'),
-  isInternal: z.boolean().describe('true when the tool is a NeuraLaunch surface (validation page, pushback, parking lot). false for any external SaaS or service.'),
-});
-
-/**
- * Proactive mid-roadmap recalibration offer. The agent fires this
- * when accumulated check-in evidence suggests the roadmap is
- * structurally off-direction. Distinct from `flagged_fundamental`,
- * which is the hard escape hatch fired on a single blocking signal.
- */
-const RecalibrationOfferSchema = z.object({
-  reason:  z.string().describe('One sentence: what about the founder\'s execution evidence suggests the roadmap may be off-direction. Reference specifics — task titles, recurring patterns, founder quotes.'),
-  framing: z.string().describe('One short paragraph: how to frame the recalibration to the founder. Honest about uncertainty, never alarming, always specific.'),
 });
 
 export const CheckInResponseSchema = z.object({

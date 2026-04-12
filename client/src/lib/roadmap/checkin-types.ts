@@ -48,22 +48,42 @@ export const CHECKIN_AGENT_ACTIONS = [
 export type CheckInAgentAction = typeof CHECKIN_AGENT_ACTIONS[number];
 
 /**
- * Mid-roadmap execution support — persisted shapes mirror the
- * runtime schemas in checkin-agent.ts. Defined here (not imported
- * from checkin-agent.ts) because checkin-agent.ts is server-only
- * and these types must be readable from client components that
- * render the per-entry transcript.
+ * Mid-roadmap execution support — canonical persisted shapes for the
+ * three optional sub-fields the check-in agent emits and the route
+ * persists onto each CheckInEntry. Defined here (not in
+ * checkin-agent-schema.ts) because:
+ *   1. The persisted shape is the contract — the agent schema in
+ *      checkin-agent-schema.ts now imports these so the field names
+ *      and types cannot drift between what the agent emits and what
+ *      the entry stores.
+ *   2. Client components (history list, task card) need to render
+ *      these and cannot import from checkin-agent-schema.ts because
+ *      it pulls server-only siblings indirectly via CHECKIN_AGENT_ACTIONS.
+ *
+ * The .describe() metadata stays with the canonical definition so
+ * the agent schema gets the LLM-facing prompt text by import, not
+ * by redefinition. Adding .describe() is metadata only and does not
+ * affect runtime parsing.
  */
-const RecommendedToolEntrySchema = z.object({
-  name:       z.string(),
-  purpose:    z.string(),
-  isInternal: z.boolean(),
+export const TaskAdjustmentEntrySchema = z.object({
+  taskTitle:               z.string().describe('The exact title of an existing downstream task being adjusted.'),
+  proposedTitle:           z.string().optional(),
+  proposedDescription:     z.string().optional(),
+  proposedSuccessCriteria: z.string().optional(),
+  rationale:               z.string().describe('One sentence: why this adjustment, grounded in the founder\'s check-in.'),
+});
+export type TaskAdjustmentEntry = z.infer<typeof TaskAdjustmentEntrySchema>;
+
+export const RecommendedToolEntrySchema = z.object({
+  name:       z.string().describe('The tool name as the founder would search for it.'),
+  purpose:    z.string().describe('One short phrase: why THIS tool for THIS task. Specific to the founder\'s context.'),
+  isInternal: z.boolean().describe('true when the tool is a NeuraLaunch surface (validation page, pushback, parking lot). false for any external SaaS or service.'),
 });
 export type RecommendedToolEntry = z.infer<typeof RecommendedToolEntrySchema>;
 
-const RecalibrationOfferEntrySchema = z.object({
-  reason:  z.string(),
-  framing: z.string(),
+export const RecalibrationOfferEntrySchema = z.object({
+  reason:  z.string().describe('One sentence: what about the founder\'s execution evidence suggests the roadmap may be off-direction. Reference specifics — task titles, recurring patterns, founder quotes.'),
+  framing: z.string().describe('One short paragraph: how to frame the recalibration to the founder. Honest about uncertainty, never alarming, always specific.'),
 });
 export type RecalibrationOfferEntry = z.infer<typeof RecalibrationOfferEntrySchema>;
 
@@ -87,13 +107,7 @@ export const CheckInEntrySchema = z.object({
    * reject mechanism that mutates the roadmap is intentionally
    * deferred until real check-in data exists. See the spec.
    */
-  proposedChanges: z.array(z.object({
-    taskTitle:        z.string(),
-    proposedTitle:    z.string().optional(),
-    proposedDescription: z.string().optional(),
-    proposedSuccessCriteria: z.string().optional(),
-    rationale:        z.string(),
-  })).optional(),
+  proposedChanges: z.array(TaskAdjustmentEntrySchema).optional(),
   /**
    * Mid-roadmap execution support — sub-step breakdown the agent
    * surfaced because the founder seemed unclear how to start. 3-6
