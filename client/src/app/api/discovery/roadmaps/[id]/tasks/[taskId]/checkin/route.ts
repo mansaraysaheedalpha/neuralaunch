@@ -23,6 +23,7 @@ import {
   type StoredRoadmapPhase,
 } from '@/lib/roadmap/checkin-types';
 import { runCheckIn } from '@/lib/roadmap/checkin-agent';
+import { summariseConversationArc } from '@/lib/roadmap/conversation-arc-summariser';
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import { captureParkingLotFromCheckin } from '@/lib/continuation';
 import {
@@ -270,6 +271,59 @@ export async function POST(
       parkedIdea:    !!nextParkingLot,
       researchCalls: researchAccumulator.length,
     });
+
+    // A7: conversation arc summarisation. Fires only at the terminal
+    // moments of a per-task check-in conversation:
+    //   - Round 5 (the cap) — there will be no more rounds.
+    //   - completed-with-2+-entries — the founder is closing this
+    //     task and we have a real arc to summarise.
+    // The historyAfter array is the in-memory shape we just patched
+    // into the phases JSON; using it directly avoids a round-trip
+    // through Prisma. Fail-open: any error from the helper returns
+    // null and we skip the second update.
+    const historyAfter = [...priorHistory, newEntry];
+    const isCapRound = currentRound === CHECKIN_HARD_CAP_ROUND;
+    const isCompletedWithHistory = category === 'completed' && historyAfter.length >= 2;
+    if (isCapRound || isCompletedWithHistory) {
+      const arc = await summariseConversationArc({
+        taskTitle: found.task.title,
+        history:   historyAfter,
+      });
+      if (arc != null) {
+        // Read-then-write the latest phases JSON so a concurrent
+        // check-in on a different task of the same roadmap does not
+        // get clobbered by this targeted arc-only update. The patch
+        // is best-effort: if the second write fails or the parse
+        // fails the conversationArc field stays null and the brief
+        // generator's fallback path takes over.
+        try {
+          const fresh = await prisma.roadmap.findUnique({
+            where:  { id: roadmapId },
+            select: { phases: true },
+          });
+          if (fresh) {
+            const freshParsed = StoredPhasesArraySchema.safeParse(fresh.phases);
+            if (freshParsed.success) {
+              const phasesWithArc = patchTask(freshParsed.data, taskId, t => ({
+                ...t,
+                conversationArc: arc,
+              }));
+              if (phasesWithArc) {
+                await prisma.roadmap.update({
+                  where: { id: roadmapId },
+                  data:  { phases: toJsonValue(phasesWithArc) },
+                });
+                log.info('[ConversationArc] Persisted', { taskId });
+              }
+            }
+          }
+        } catch (err) {
+          log.warn('[ConversationArc] Persist failed — leaving field null', {
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    }
 
     return NextResponse.json({
       entry:    newEntry,

@@ -25,12 +25,20 @@ import {
 } from '@/lib/research';
 import type { DiscoveryContext } from '@/lib/discovery/context-schema';
 import type { Recommendation } from '@/lib/discovery/recommendation-schema';
-import type { StoredRoadmapPhase, StoredRoadmapTask } from '@/lib/roadmap/checkin-types';
+import type { StoredRoadmapPhase } from '@/lib/roadmap/checkin-types';
 import type { ParkingLot } from './parking-lot-schema';
 import type { ExecutionMetrics } from './speed-calibration';
 import type { DiagnosticHistory } from './diagnostic-schema';
 import type { ContinuationBrief } from './brief-schema';
 import { ContinuationBriefSchema } from './brief-schema';
+import {
+  extractStructuredSignals,
+  renderStructuredSignals,
+  renderBeliefDigest,
+  renderPhasesWithEvidence,
+  renderParkingLot,
+  renderDiagnosticHistory,
+} from './brief-renderers';
 
 export interface GenerateBriefInput {
   recommendation:    Recommendation;
@@ -81,6 +89,12 @@ export async function generateContinuationBrief(input: GenerateBriefInput): Prom
   const phasesBlock     = renderPhasesWithEvidence(input.phases);
   const parkingLotBlock = renderParkingLot(input.parkingLot);
   const diagnosticBlock = renderDiagnosticHistory(input.diagnosticHistory);
+  // A8: aggregate every structured signal the check-in agent emitted
+  // across the roadmap so the brief generator sees them at the
+  // strategic level. Empty string when there is nothing to surface
+  // — the prompt builder drops it cleanly via concatenation.
+  const structuredSignals = extractStructuredSignals(input.phases);
+  const signalsBlock      = renderStructuredSignals(structuredSignals);
   const motivationLine  = input.motivationAnchor
     ? `MOTIVATION ANCHOR (the founder's own answer to "why pursue this at all"): ${renderUserContent(input.motivationAnchor, 600)}`
     : 'MOTIVATION ANCHOR: not captured during the interview.';
@@ -137,6 +151,7 @@ ${input.recommendation.assumptions.map((a, i) => `  ${i + 1}. ${sanitizeForPromp
 EXECUTION RECORD (per-task status and check-in evidence):
 ${phasesBlock}
 
+${signalsBlock}
 EXECUTION METRICS (use the calibration note in your forks):
 - Tasks completed: ${input.metrics.tasksCompleted} of ${input.metrics.tasksTotal}
 - Tasks blocked:   ${input.metrics.tasksBlocked}
@@ -191,68 +206,6 @@ When you are ready, emit the structured continuation brief as your final output.
   });
 
   return brief;
-}
-
-// ---------------------------------------------------------------------------
-// Renderers
-// ---------------------------------------------------------------------------
-
-function renderBeliefDigest(context: DiscoveryContext): string {
-  const fields: Array<[string, unknown]> = [
-    ['Primary goal',         context.primaryGoal?.value],
-    ['Situation',            context.situation?.value],
-    ['Background',           context.background?.value],
-    ['Geographic market',    context.geographicMarket?.value],
-    ['Available time/week',  context.availableTimePerWeek?.value],
-    ['Available budget',     context.availableBudget?.value],
-    ['Biggest concern',      context.biggestConcern?.value],
-    ['Why now',              context.whyNow?.value],
-  ];
-  const lines: string[] = [];
-  for (const [label, value] of fields) {
-    if (value == null) continue;
-    const text = Array.isArray(value)
-      ? (value as unknown[]).map(v => String(v)).join(', ')
-      : String(value);
-    if (text.trim().length === 0) continue;
-    lines.push(`${label}: ${sanitizeForPrompt(text, 500)}`);
-  }
-  return lines.length > 0 ? lines.join('\n') : '(no belief state captured)';
-}
-
-function renderPhasesWithEvidence(phases: StoredRoadmapPhase[]): string {
-  const lines: string[] = [];
-  for (const phase of phases) {
-    lines.push(`Phase ${phase.phase}: ${sanitizeForPrompt(phase.title, 200)} — ${sanitizeForPrompt(phase.objective, 400)}`);
-    phase.tasks.forEach((task: StoredRoadmapTask) => {
-      const status = task.status ?? 'not_started';
-      const checkInsCount = task.checkInHistory?.length ?? 0;
-      lines.push(`  • [${status}] ${sanitizeForPrompt(task.title, 200)} (${checkInsCount} check-in${checkInsCount === 1 ? '' : 's'})`);
-      if (task.checkInHistory && task.checkInHistory.length > 0) {
-        const last = task.checkInHistory[task.checkInHistory.length - 1];
-        lines.push(`      latest check-in: ${renderUserContent(last.freeText, 600)}`);
-      }
-    });
-  }
-  return lines.join('\n');
-}
-
-function renderParkingLot(parkingLot: ParkingLot): string {
-  if (parkingLot.length === 0) return '(no parking-lot items captured)';
-  return parkingLot.map(item => {
-    const ctx = item.taskContext ? ` (from task: ${sanitizeForPrompt(item.taskContext, 200)})` : '';
-    return `- ${renderUserContent(item.idea, 400)}${ctx} [${item.surfacedFrom}, ${item.surfacedAt}]`;
-  }).join('\n');
-}
-
-function renderDiagnosticHistory(history: DiagnosticHistory): string {
-  if (history.length === 0) return '';
-  const lines = ['DIAGNOSTIC CHAT (Scenario A/B exchange that led the founder to this brief):'];
-  for (const entry of history) {
-    const label = entry.role === 'founder' ? 'FOUNDER' : 'YOU';
-    lines.push(`[${label}] ${renderUserContent(entry.message, 1500)}`);
-  }
-  return lines.join('\n') + '\n';
 }
 
 // Note: the prior `buildContinuationQueries` query-builder helper was
