@@ -241,6 +241,10 @@ export async function POST(
           blockedTasks:   summary.blockedTasks,
           lastActivityAt: new Date(),
           nudgePending:   false,
+          // A11: clear the persisted stale-task title alongside
+          // nudgePending so the banner does not name a task that is
+          // no longer stale on the next render.
+          staleTaskTitle: null,
         },
       });
     });

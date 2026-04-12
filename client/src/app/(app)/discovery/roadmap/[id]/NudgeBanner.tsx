@@ -26,9 +26,21 @@ function findFirstInProgressTask(phases: RoadmapPhase[]): { title: string } | nu
  * NudgeBanner — extracted from RoadmapView to keep the orchestrator
  * under the 200-line cap. Renders the proactive nudge banner set by
  * the daily Inngest sweep when an in-progress task has gone stale.
+ *
+ * A11: prefers `staleTaskTitle` from RoadmapProgress when present
+ * (the cron sweep now persists the exact title of the task it
+ * flagged). Falls back to `findFirstInProgressTask` for legacy rows
+ * flagged before the staleTaskTitle column was added.
  */
-export function NudgeBanner({ phases }: { phases: RoadmapPhase[] }) {
-  const inProgressTask = findFirstInProgressTask(phases);
+export function NudgeBanner({
+  phases,
+  staleTaskTitle,
+}: {
+  phases:         RoadmapPhase[];
+  staleTaskTitle: string | null;
+}) {
+  const fallbackTask  = findFirstInProgressTask(phases);
+  const taskTitle     = staleTaskTitle ?? fallbackTask?.title ?? null;
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -39,11 +51,11 @@ export function NudgeBanner({ phases }: { phases: RoadmapPhase[] }) {
         Quick check-in
       </p>
       <p className="text-xs text-foreground leading-relaxed">
-        {inProgressTask
-          ? `You were working on "${inProgressTask.title}". How did it go?`
+        {taskTitle
+          ? `You were working on "${taskTitle}". How did it go?`
           : 'You have not updated your roadmap in a while. How is it going?'}
       </p>
-      {inProgressTask && (
+      {taskTitle && (
         <p className="text-[11px] text-muted-foreground">
           Tap any task below to share an update or report a blocker.
         </p>

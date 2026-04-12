@@ -124,6 +124,13 @@ export const roadmapNudgeFunction = inngest.createFunction(
             data:  {
               nudgePending:    true,
               nudgeLastSentAt: new Date(),
+              // A11: persist the exact title of the stale task so the
+              // NudgeBanner reads ground truth instead of re-deriving
+              // "the first in-progress task" by walking the phases —
+              // which could name a different task than the one this
+              // function actually flagged when a founder has multiple
+              // in-progress tasks at once.
+              staleTaskTitle:  stale.taskTitle,
             },
           });
 

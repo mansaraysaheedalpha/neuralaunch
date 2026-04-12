@@ -589,6 +589,22 @@ model RoadmapProgress {
   nudgePending    Boolean   @default(false)
   nudgeLastSentAt DateTime?
 
+  /**
+   * The title of the specific task the nudge sweep flagged. The cron
+   * function knows which task is stale (by checking startedAt against
+   * timeEstimate per in-progress task) but the NudgeBanner component
+   * historically re-derived "the first in-progress task" by walking
+   * the phases — which could name a different task than the one the
+   * cron actually flagged. Persisting the exact title here means the
+   * banner reads ground truth.
+   *
+   * Cleared by the check-in route alongside nudgePending whenever the
+   * founder submits any check-in. Falls back to null on legacy rows
+   * flagged before this column was added; the banner handles null by
+   * walking the phases for backward compatibility.
+   */
+  staleTaskTitle String?
+
   // ----- Concern 5: outcome-prompt trigger state -----
 
   /**
