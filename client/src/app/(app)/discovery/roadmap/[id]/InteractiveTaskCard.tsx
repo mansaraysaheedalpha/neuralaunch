@@ -12,6 +12,7 @@ import {
 } from '@/lib/roadmap/checkin-types';
 import { CheckInForm, type CheckInCategory } from './CheckInForm';
 import { CheckInHistoryList } from './CheckInHistoryList';
+import { TaskDiagnosticChat } from './TaskDiagnosticChat';
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   not_started: 'Not started',
@@ -99,6 +100,8 @@ export function InteractiveTaskCard({
   // picks "Tell us how it went" and the form opens; null is the
   // resting state for non-completed transitions.
   const [completionPath, setCompletionPath] = useState<'choice' | 'writing' | null>(null);
+  // A6: task-level diagnostic chat toggle
+  const [diagnosticOpen, setDiagnosticOpen] = useState(false);
 
   // A12: when the founder chose the writing path on a completed
   // task they have explicitly opted into telling us what happened —
@@ -384,15 +387,34 @@ export function InteractiveTaskCard({
         onCancel={handleCancelForm}
       />
 
-      {!formOpen && (
-        <button
-          type="button"
-          onClick={() => setFormOpen(true)}
-          className="self-start text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2"
-        >
-          Check in on this task →
-        </button>
+      {!formOpen && !diagnosticOpen && (
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setFormOpen(true)}
+            className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+          >
+            Check in on this task →
+          </button>
+          {/* A6: task-level diagnostic — always visible, always active.
+              Opens a focused diagnostic conversation about THIS specific
+              task. Separate turn budget from the check-in system. */}
+          <button
+            type="button"
+            onClick={() => setDiagnosticOpen(true)}
+            className="text-[11px] text-primary/80 hover:text-primary underline underline-offset-2"
+          >
+            Get help with this task
+          </button>
+        </div>
       )}
+
+      <TaskDiagnosticChat
+        roadmapId={roadmapId}
+        taskId={taskId}
+        open={diagnosticOpen}
+        onClose={() => setDiagnosticOpen(false)}
+      />
     </motion.div>
   );
 }

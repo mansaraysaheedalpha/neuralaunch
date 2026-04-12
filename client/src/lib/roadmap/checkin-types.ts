@@ -44,7 +44,16 @@ export type CheckInCategory = typeof CHECKIN_CATEGORIES[number];
  * legacy entries (every check-in written before A12) parse cleanly;
  * the brief generator and any analytics treat absent as 'founder'.
  */
-export const CHECKIN_ENTRY_SOURCES = ['founder', 'success_criteria_confirmed'] as const;
+export const CHECKIN_ENTRY_SOURCES = [
+  'founder',
+  'success_criteria_confirmed',
+  // A6: task-level diagnostic entries are stored in the same
+  // checkInHistory array as scheduled check-ins but tagged with
+  // this source so the check-in history list, the structured
+  // signals extractor, and the conversation arc summariser can
+  // distinguish the two conversation channels.
+  'task_diagnostic',
+] as const;
 export type CheckInEntrySource = typeof CHECKIN_ENTRY_SOURCES[number];
 
 /**
