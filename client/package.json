@@ -45,6 +45,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "dockerode": "^4.0.9",
+    "exa-js": "^2.11.0",
     "framer-motion": "^12.23.24",
     "geist": "^1.5.1",
     "inngest": "^4.1.1",

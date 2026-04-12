@@ -123,7 +123,7 @@ export interface ContinuationEvidence {
  */
 export type LoadEvidenceResult =
   | { ok: true;  evidence: ContinuationEvidence }
-  | { ok: false; reason: 'not_found' | 'no_belief_state' | 'phases_corrupt' };
+  | { ok: false; reason: 'not_found' | 'no_belief_state' | 'phases_corrupt' | 'recommendation_corrupt' };
 
 /**
  * Load and parse every JSON column the continuation flow needs from
@@ -190,7 +190,7 @@ export async function loadContinuationEvidence(input: {
     return { ok: false, reason: 'phases_corrupt' };
   }
 
-  const recommendation = RecommendationSchema.parse({
+  const recommendationParsed = RecommendationSchema.safeParse({
     recommendationType:     row.recommendation.recommendationType ?? 'other',
     summary:                row.recommendation.summary,
     path:                   row.recommendation.path,
@@ -202,6 +202,10 @@ export async function loadContinuationEvidence(input: {
     whatWouldMakeThisWrong: row.recommendation.whatWouldMakeThisWrong,
     alternativeRejected:    row.recommendation.alternativeRejected,
   });
+  if (!recommendationParsed.success) {
+    return { ok: false, reason: 'recommendation_corrupt' };
+  }
+  const recommendation = recommendationParsed.data;
 
   const context           = safeParseDiscoveryContext(row.recommendation.session.beliefState);
   const parkingLot        = safeParseParkingLot(row.parkingLot);

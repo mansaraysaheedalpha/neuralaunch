@@ -7,13 +7,12 @@ import {
   CONTINUATION_STATUSES,
   computeExecutionMetrics,
   generateContinuationBrief,
-  buildContinuationQueries,
   loadContinuationEvidence,
 } from '@/lib/continuation';
 import {
-  runResearchQueries,
   appendResearchLog,
   safeParseResearchLog,
+  type ResearchLogEntry,
 } from '@/lib/research';
 
 /**
@@ -114,42 +113,36 @@ export const continuationBriefFunction = inngest.createFunction(
       }));
     });
 
-    // Step 3 — Run unconditional continuation research. The brief
-    // is the highest-stakes single LLM call in the system; spending
-    // ~3-6 Tavily queries (one durable Inngest step) to ground the
-    // forks in current market reality is the spec's explicit
-    // recommendation. The step is fail-open: if research returns
-    // empty findings, the brief generator proceeds without them.
-    const research = await step.run('run-continuation-research', async () => {
-      const queries = buildContinuationQueries({
-        recommendation:    loaded.recommendation,
-        context:           loaded.context,
-        parkingLot:        loaded.parkingLot,
-        daysSinceCreation: metrics.daysSinceCreation,
-      });
-      return await runResearchQueries({
-        agent:     'continuation',
-        queries,
-        contextId: roadmapId,
-      });
-    });
-
-    // Step 4 — Generate the brief via Opus (with Sonnet fallback).
-    const brief = await step.run('generate-brief', async () => {
-      return await generateContinuationBrief({
-        recommendation:    loaded.recommendation,
-        context:           loaded.context,
-        phases:            loaded.phases,
-        parkingLot:        loaded.parkingLot,
+    // Step 3 — Generate the brief via Opus (with Sonnet fallback).
+    //
+    // The B1 architecture flipped continuation research from a
+    // separate pre-step (buildContinuationQueries → runResearchQueries)
+    // into an in-loop tool the agent chooses to call. The Opus call
+    // now exposes exa_search and tavily_search as two independent
+    // tools and decides per query which to use; the per-call
+    // accumulator captures every tool invocation for the audit log.
+    //
+    // The accumulator is captured as part of the step's return value
+    // (alongside the brief) so an Inngest replay reads it from the
+    // serialised step state rather than re-running the research.
+    const briefStep = await step.run('generate-brief', async () => {
+      const accumulator: ResearchLogEntry[] = [];
+      const brief = await generateContinuationBrief({
+        recommendation:      loaded.recommendation,
+        context:             loaded.context,
+        phases:              loaded.phases,
+        parkingLot:          loaded.parkingLot,
         metrics,
-        motivationAnchor:  loaded.motivationAnchor,
-        diagnosticHistory: loaded.diagnosticHistory,
-        researchFindings:  research.findings || undefined,
+        motivationAnchor:    loaded.motivationAnchor,
+        diagnosticHistory:   loaded.diagnosticHistory,
+        researchAccumulator: accumulator,
         roadmapId,
       });
+      return { brief, researchLog: accumulator };
     });
+    const brief = briefStep.brief;
 
-    // Step 5 — Persist the brief, metrics, and the research log
+    // Step 4 — Persist the brief, metrics, and the research log
     // append inside a single Prisma transaction. The status guard
     // (continuationStatus = GENERATING_BRIEF) protects continuationBrief
     // from concurrent worker runs; the SERIALIZABLE isolation level
@@ -164,8 +157,8 @@ export const continuationBriefFunction = inngest.createFunction(
           where:  { id: roadmapId },
           select: { researchLog: true },
         });
-        const nextResearchLog = research.researchLog.length > 0
-          ? appendResearchLog(safeParseResearchLog(current?.researchLog), research.researchLog)
+        const nextResearchLog = briefStep.researchLog.length > 0
+          ? appendResearchLog(safeParseResearchLog(current?.researchLog), briefStep.researchLog)
           : null;
 
         const result = await tx.roadmap.updateMany({
@@ -192,7 +185,7 @@ export const continuationBriefFunction = inngest.createFunction(
     log.info('[ContinuationBrief] Brief persisted', {
       forks:           brief.forks.length,
       parkingLotItems: brief.parkingLotItems.length,
-      researchQueries: research.queriesRun.length,
+      researchCalls:   briefStep.researchLog.length,
     });
 
     return { roadmapId, status: 'complete' };

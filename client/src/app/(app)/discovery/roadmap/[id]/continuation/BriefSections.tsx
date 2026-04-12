@@ -103,17 +103,27 @@ function ParkingLotSection({ brief }: { brief: ContinuationBrief }) {
         5. Parking lot — ideas you mentioned along the way
       </p>
       <ul className="flex flex-col gap-2">
-        {brief.parkingLotItems.map((item, i) => (
-          <li
-            key={i}
-            className="rounded-lg border border-border bg-background px-3 py-2 flex flex-col gap-1"
-          >
-            <p className="text-xs text-foreground leading-relaxed">{item.idea}</p>
-            <p className="text-[10px] text-muted-foreground">
-              {item.taskContext ? `from "${item.taskContext}"` : `surfaced via ${item.surfacedFrom}`}
-            </p>
-          </li>
-        ))}
+        {brief.parkingLotItems.map((item, i) => {
+          // Defensive: fall back through taskContext → surfacedFrom →
+          // null so a parking-lot item missing both fields never
+          // renders the literal string "surfaced via undefined".
+          const provenance = item.taskContext
+            ? `from "${item.taskContext}"`
+            : item.surfacedFrom
+              ? `surfaced via ${item.surfacedFrom}`
+              : null;
+          return (
+            <li
+              key={i}
+              className="rounded-lg border border-border bg-background px-3 py-2 flex flex-col gap-1"
+            >
+              <p className="text-xs text-foreground leading-relaxed">{item.idea}</p>
+              {provenance && (
+                <p className="text-[10px] text-muted-foreground">{provenance}</p>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </motion.section>
   );

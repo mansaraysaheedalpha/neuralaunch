@@ -48,8 +48,15 @@ export interface ContinuationFlowState {
 export interface ContinuationFlowResult extends ContinuationFlowState {
   /** Fired by the "What's Next?" button. */
   startCheckpoint:    () => Promise<void>;
-  /** Submit one diagnostic message. Only valid in diagnostic_open. */
-  submitDiagnostic:   (message: string) => Promise<void>;
+  /**
+   * Submit one diagnostic message. Only valid in diagnostic_open.
+   * Returns true on success (the founder turn was accepted by the
+   * server, regardless of whether an agent reply came back) and
+   * false on failure. Callers can use the boolean to decide whether
+   * to clear an input draft — clearing on false would lose the
+   * founder's text after a transient error.
+   */
+  submitDiagnostic:   (message: string) => Promise<boolean>;
   /** Reset the hook's local state — used when the founder closes the chat. */
   reset:              () => void;
   /** Refetch the continuation row from the server. */
@@ -177,7 +184,7 @@ export function useContinuationFlow(roadmapId: string): ContinuationFlowResult {
     }
   }, [roadmapId, refetch]);
 
-  const submitDiagnostic = useCallback(async (message: string) => {
+  const submitDiagnostic = useCallback(async (message: string): Promise<boolean> => {
     setState(prev => ({ ...prev, submitting: true, error: null }));
     try {
       const res = await fetch(`/api/discovery/roadmaps/${roadmapId}/diagnostic`, {
@@ -193,16 +200,19 @@ export function useContinuationFlow(roadmapId: string): ContinuationFlowResult {
       };
       if (!res.ok) {
         setState(prev => ({ ...prev, submitting: false, error: json.error ?? 'Diagnostic submit failed' }));
-        return;
+        return false;
       }
       if (json.skippedToBrief || json.releasedToBrief) {
         setState(prev => ({ ...prev, submitting: false, phase: 'brief_polling' }));
-        return;
+        return true;
       }
       // Append the founder + agent turn pair from the local optimistic
-      // shape. The agent turn comes back from the server; the founder
-      // turn we synthesise locally so the transcript renders without
-      // a refetch round-trip.
+      // shape. The founder turn we synthesise locally so the transcript
+      // renders without a refetch round-trip; the agent turn is
+      // appended only when the server actually returned one. Critically,
+      // the founder turn is appended UNCONDITIONALLY when the request
+      // succeeded — losing the founder's text from the transcript on
+      // a missing agent reply would silently break the UX.
       const founderTurn: DiagnosticHistoryEntry = {
         id:        `dx_local_${Date.now()}`,
         timestamp: new Date().toISOString(),
@@ -214,10 +224,12 @@ export function useContinuationFlow(roadmapId: string): ContinuationFlowResult {
         submitting:        false,
         diagnosticHistory: json.agent
           ? [...prev.diagnosticHistory, founderTurn, json.agent]
-          : prev.diagnosticHistory,
+          : [...prev.diagnosticHistory, founderTurn],
       }));
+      return true;
     } catch (err) {
       setState(prev => ({ ...prev, submitting: false, error: err instanceof Error ? err.message : 'Network error' }));
+      return false;
     }
   }, [roadmapId]);
 

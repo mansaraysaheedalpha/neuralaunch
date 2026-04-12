@@ -37,8 +37,10 @@ export function WhatsNextPanel({ roadmapId }: { roadmapId: string }) {
   const handleSubmit = async () => {
     const trimmed = draft.trim();
     if (trimmed.length === 0 || flow.submitting) return;
-    setDraft('');
-    await flow.submitDiagnostic(trimmed);
+    // Preserve the draft until the server has accepted the message —
+    // a transient network error must not vaporise the founder's text.
+    const ok = await flow.submitDiagnostic(trimmed);
+    if (ok) setDraft('');
   };
 
   return (
