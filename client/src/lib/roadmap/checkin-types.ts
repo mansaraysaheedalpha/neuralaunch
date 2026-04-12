@@ -124,7 +124,12 @@ export const CheckInEntrySchema = z.object({
   freeText:     z.string(),
   agentResponse: z.string(),
   agentAction:  z.enum(CHECKIN_AGENT_ACTIONS),
-  round:        z.number().int().min(1),
+  // min(0) rather than min(1): A6 task-diagnostic entries use
+  // round=0 to signal "this is a diagnostic turn, not a check-in
+  // round." Scheduled check-in rounds are 1-indexed and capped at
+  // CHECKIN_HARD_CAP_ROUND. Diagnostic entries are distinguished
+  // by source='task_diagnostic' + round=0.
+  round:        z.number().int().min(0),
   /**
    * For 'adjusted_next_step' actions, the agent's proposed structured
    * adjustment to one or more downstream tasks. Stored as opaque

@@ -48,8 +48,15 @@ export type DiagnosticVerdict = typeof DIAGNOSTIC_VERDICTS[number];
  * route persists this into Roadmap.diagnosticHistory alongside the
  * founder turn that prompted it.
  */
+// CLAUDE.md mandate: .max() on string fields in LLM output schemas
+// causes AI_NoObjectGeneratedError when the model exceeds the cap.
+// Use .transform() post-clamp instead.
+function clampString(max: number) {
+  return (raw: string): string => raw.length <= max ? raw : raw.slice(0, max - 1) + '\u2026';
+}
+
 export const DiagnosticTurnSchema = z.object({
-  message: z.string().max(2000).describe(
+  message: z.string().transform(clampString(2000)).describe(
     'The text the founder will read. Specific, never generic. Reference what the founder said and what their belief state shows. Hard cap of 2000 characters.'
   ),
   verdict: z.enum(DIAGNOSTIC_VERDICTS).describe(
@@ -59,7 +66,7 @@ export const DiagnosticTurnSchema = z.object({
     'recommend_breakdown: founder needs task-level help — the message includes the sub-steps inline. ' +
     'recommend_pivot: founder\'s situation has structurally shifted — the message tells them to push back on the recommendation directly.'
   ),
-  followUpQuestion: z.string().max(400).optional().describe(
+  followUpQuestion: z.string().transform(clampString(400)).optional().describe(
     'Required when verdict is still_diagnosing. One focused question to gather the missing context. NEVER more than one question. Skip this field for any other verdict.'
   ),
 });

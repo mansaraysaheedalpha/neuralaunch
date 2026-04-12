@@ -88,7 +88,7 @@ export const CheckInResponseSchema = z.object({
     'OPTIONAL — when the founder asks what to use or appears unsure how to execute (and tooling is the gap), recommend 1-4 specific tools. ALWAYS honour the founder\'s budget — do not recommend paid tools if runway is tight. Internal NeuraLaunch tools (validation page, pushback engine, parking lot) count and should be surfaced first when relevant. Skip this field entirely when the founder did not ask about tooling and the agent has no specific recommendation.'
   ),
   recalibrationOffer: RecalibrationOfferSchema.optional().describe(
-    'OPTIONAL — fire ONLY when accumulated check-in evidence suggests the roadmap is structurally off-direction (multiple blocked tasks across the roadmap, repeated negative sentiment, a recurring blocker pattern, or evidence one of the recommendation\'s assumptions was wrong). This is the SOFT recalibration signal, distinct from flagged_fundamental. Use sparingly — only when the evidence is genuinely there. NEVER fire on a single check-in unless the single check-in itself is unambiguous evidence the direction is wrong.'
+    'OPTIONAL — fire ONLY when accumulated check-in evidence suggests the roadmap is structurally off-direction (multiple blocked tasks across the roadmap, repeated negative sentiment, a recurring blocker pattern, or evidence one of the recommendation\'s assumptions was wrong). Use sparingly — only when the evidence is genuinely there. The system gates this with a 40% check-in coverage minimum, so focus on whether the evidence warrants it, not on whether it is too early.'
   ),
 });
 export type CheckInResponse    = z.infer<typeof CheckInResponseSchema>;

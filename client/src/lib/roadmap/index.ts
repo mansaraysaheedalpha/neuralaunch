@@ -14,3 +14,9 @@ export {
   MAX_TASKS_PER_PHASE,
   WEEKLY_HOURS_MAP,
 } from './constants';
+
+export type {
+  GateRecalibrationOfferInput,
+  PersistConversationArcInput,
+} from './checkin-helpers';
+export { gateRecalibrationOffer, persistConversationArc } from './checkin-helpers';

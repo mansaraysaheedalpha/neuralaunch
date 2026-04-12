@@ -26,8 +26,6 @@ import { MODELS } from '@/lib/discovery/constants';
 import { renderUserContent, sanitizeForPrompt } from '@/lib/validation/server-helpers';
 import type { CheckInEntry } from './checkin-types';
 
-const anthropicClient = new Anthropic();
-
 /**
  * The model used for the arc summarisation. Hard-coded to Haiku
  * because the spec is explicit: this is the lightweight summariser.
@@ -81,6 +79,7 @@ export async function summariseConversationArc(
     : historyBlock.slice(0, HISTORY_BLOCK_CAP) + '\n\n[truncated]';
 
   try {
+    const anthropicClient = new Anthropic();
     const response = await anthropicClient.messages.create({
       model:      ARC_SUMMARISER_MODEL,
       max_tokens: 200,

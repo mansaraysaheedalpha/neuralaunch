@@ -15,17 +15,15 @@ import {
   CHECKIN_CATEGORIES,
   CHECKIN_ENTRY_SOURCES,
   CHECKIN_HARD_CAP_ROUND,
-  RECALIBRATION_MIN_COVERAGE,
   StoredPhasesArraySchema,
   patchTask,
   readTask,
   computeProgressSummary,
-  countTasksWithCheckins,
   type CheckInEntry,
   type StoredRoadmapPhase,
 } from '@/lib/roadmap/checkin-types';
 import { runCheckIn } from '@/lib/roadmap/checkin-agent';
-import { summariseConversationArc } from '@/lib/roadmap/conversation-arc-summariser';
+import { gateRecalibrationOffer, persistConversationArc } from '@/lib/roadmap/checkin-helpers';
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import { captureParkingLotFromCheckin } from '@/lib/continuation';
 import {
@@ -160,6 +158,15 @@ export async function POST(
       researchAccumulator,
     });
 
+    // A2 Part 2: code-level gate computed once before building the
+    // entry. The coverage check uses the CURRENT phases (before
+    // patching in this entry) — the founder's state at the moment
+    // they file this check-in is the relevant denominator.
+    const gatedRecalibrationOffer = gateRecalibrationOffer({
+      recalibrationOffer: response.recalibrationOffer,
+      phases,
+    });
+
     // Append the new entry. Future agent turns read this history.
     //
     // DEFERRED: Roadmap Adjustment Layer
@@ -195,23 +202,7 @@ export async function POST(
       ...(response.recommendedTools && response.recommendedTools.length > 0
         ? { recommendedTools: response.recommendedTools }
         : {}),
-      // A2 Part 2: code-level gate. The agent may emit a
-      // recalibrationOffer based on prompt reasoning, but the route
-      // only persists it when at least 40% of tasks have at least
-      // one check-in entry. Below that threshold the agent's message
-      // still renders but the structured offer is suppressed —
-      // there is not enough execution evidence to justify
-      // questioning the recommendation. The coverage check uses the
-      // CURRENT phases (before patching in this entry) because the
-      // founder's coverage at the moment they file this check-in is
-      // the relevant denominator.
-      ...(() => {
-        if (!response.recalibrationOffer) return {};
-        const summary2 = computeProgressSummary(phases);
-        const coverage = countTasksWithCheckins(phases) / Math.max(summary2.totalTasks, 1);
-        if (coverage < RECALIBRATION_MIN_COVERAGE) return {};
-        return { recalibrationOffer: response.recalibrationOffer };
-      })(),
+      ...(gatedRecalibrationOffer ? { recalibrationOffer: gatedRecalibrationOffer } : {}),
       // A12: persist the provenance so the brief generator can weight
       // founder reflections higher than success-criteria confirmations
       // and so analytics can tell the two paths apart. Default to
@@ -290,58 +281,18 @@ export async function POST(
       researchCalls: researchAccumulator.length,
     });
 
-    // A7: conversation arc summarisation. Fires only at the terminal
-    // moments of a per-task check-in conversation:
-    //   - Round 5 (the cap) — there will be no more rounds.
-    //   - completed-with-2+-entries — the founder is closing this
-    //     task and we have a real arc to summarise.
-    // The historyAfter array is the in-memory shape we just patched
-    // into the phases JSON; using it directly avoids a round-trip
-    // through Prisma. Fail-open: any error from the helper returns
-    // null and we skip the second update.
-    const historyAfter = [...priorHistory, newEntry];
-    const isCapRound = currentRound === CHECKIN_HARD_CAP_ROUND;
-    const isCompletedWithHistory = category === 'completed' && historyAfter.length >= 2;
-    if (isCapRound || isCompletedWithHistory) {
-      const arc = await summariseConversationArc({
-        taskTitle: found.task.title,
-        history:   historyAfter,
-      });
-      if (arc != null) {
-        // Read-then-write the latest phases JSON so a concurrent
-        // check-in on a different task of the same roadmap does not
-        // get clobbered by this targeted arc-only update. The patch
-        // is best-effort: if the second write fails or the parse
-        // fails the conversationArc field stays null and the brief
-        // generator's fallback path takes over.
-        try {
-          const fresh = await prisma.roadmap.findUnique({
-            where:  { id: roadmapId },
-            select: { phases: true },
-          });
-          if (fresh) {
-            const freshParsed = StoredPhasesArraySchema.safeParse(fresh.phases);
-            if (freshParsed.success) {
-              const phasesWithArc = patchTask(freshParsed.data, taskId, t => ({
-                ...t,
-                conversationArc: arc,
-              }));
-              if (phasesWithArc) {
-                await prisma.roadmap.update({
-                  where: { id: roadmapId },
-                  data:  { phases: toJsonValue(phasesWithArc) },
-                });
-                log.info('[ConversationArc] Persisted', { taskId });
-              }
-            }
-          }
-        } catch (err) {
-          log.warn('[ConversationArc] Persist failed — leaving field null', {
-            message: err instanceof Error ? err.message : String(err),
-          });
-        }
-      }
-    }
+    // A7: conversation arc summarisation — fail-open, fire-and-forget.
+    // Triggers at round-cap or completed-with-history. Extracted to
+    // persistConversationArc in lib/roadmap/checkin-helpers.ts.
+    await persistConversationArc({
+      roadmapId,
+      taskId,
+      priorHistory,
+      newEntry,
+      currentRound,
+      category,
+      taskTitle: found.task.title,
+    });
 
     // A2 Part 4: progress-aware routing for the recalibration offer.
     // When the entry carries a recalibrationOffer (i.e. it passed the
@@ -369,11 +320,10 @@ export async function POST(
       parkingLot: nextParkingLot ?? currentParkingLot,
     });
   } catch (err) {
-    if (err instanceof HttpError) return httpErrorToResponse(err);
-    logger.error(
-      'Roadmap check-in POST failed',
-      err instanceof Error ? err : new Error(String(err)),
-    );
+    // httpErrorToResponse handles both HttpError and non-HttpError
+    // cases, including logging non-HttpError instances with the full
+    // stack trace. No custom logging needed here — the central helper
+    // provides automatic observability per CLAUDE.md.
     return httpErrorToResponse(err);
   }
 }

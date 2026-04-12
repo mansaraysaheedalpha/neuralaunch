@@ -38,16 +38,19 @@ const BriefPartialSchema = z.object({
 
 async function main() {
   // Prisma's JSON null filtering requires Prisma.DbNull, not bare null.
+  // Explicit select avoids fetching the entire Roadmap row (phases can
+  // be 50KB+ of JSONB per row).
   const rows = await prisma.roadmap.findMany({
     where: { continuationBrief: { not: Prisma.DbNull } },
-    include: {
+    select: {
+      continuationBrief:  true,
+      continuationStatus: true,
+      createdAt:          true,
       recommendation: {
         select: {
           recommendationType: true,
           assumptions:        true,
-          session: {
-            select: { id: true },
-          },
+          session: { select: { id: true } },
         },
       },
     },
@@ -60,17 +63,20 @@ async function main() {
     const briefParsed = BriefPartialSchema.safeParse(row.continuationBrief);
     if (!briefParsed.success) continue;
 
-    // Determine which fork was chosen (if any) from the status
-    const forkChosen = row.continuationStatus === 'FORK_SELECTED'
-      ? (briefParsed.data.forks?.[0]?.title ?? 'unknown')
-      : 'none';
+    // Which forks were available. The first fork is NOT necessarily
+    // the one chosen — the actual choice is tracked by the
+    // forkRecommendationId linkage, not by array order. Export all
+    // titles so the analyst can see the option set.
+    const forkTitles = (briefParsed.data.forks ?? []).map(f => f.title);
+    const forkSelected = row.continuationStatus === 'FORK_SELECTED';
 
     const entry = {
       sessionId:           row.recommendation.session?.id ?? 'unknown',
       recommendationType:  row.recommendation.recommendationType ?? 'other',
       originalAssumptions: row.recommendation.assumptions ?? [],
       whatIGotWrong:       briefParsed.data.whatIGotWrong,
-      forkChosen,
+      forkTitles,
+      forkSelected,
       timestamp:           row.createdAt.toISOString(),
     };
 
