@@ -14,7 +14,7 @@
 import 'server-only';
 import prisma from '@/lib/prisma';
 import { safeParseDiscoveryContext, type DiscoveryContext } from '@/lib/discovery/context-schema';
-import { RecommendationSchema, type Recommendation } from '@/lib/discovery/recommendation-schema';
+import { RecommendationSchema, safeParseAlternatives, type Recommendation } from '@/lib/discovery/recommendation-schema';
 import { StoredPhasesArraySchema, countTasksWithCheckins, type StoredRoadmapPhase } from '@/lib/roadmap/checkin-types';
 import { safeParseParkingLot, type ParkingLot } from './parking-lot-schema';
 import { safeParseDiagnosticHistory, type DiagnosticHistory } from './diagnostic-schema';
@@ -207,9 +207,23 @@ export async function loadContinuationEvidence(input: {
     risks:                  row.recommendation.risks,
     assumptions:            row.recommendation.assumptions,
     whatWouldMakeThisWrong: row.recommendation.whatWouldMakeThisWrong,
-    alternativeRejected:    row.recommendation.alternativeRejected,
+    // Old recommendation rows may have alternativeRejected as a single
+    // object instead of an array. safeParseAlternatives normalizes both
+    // shapes to an array so the strict RecommendationSchema validates.
+    alternativeRejected:    safeParseAlternatives(row.recommendation.alternativeRejected),
   });
   if (!recommendationParsed.success) {
+    // Log the Zod issues so we can diagnose which field failed
+    // without exposing internal details to the client.
+    const log = await import('@/lib/logger').then(m => m.logger);
+    log.warn('[EvidenceLoader] RecommendationSchema safeParse failed', {
+      roadmapId,
+      issues: recommendationParsed.error.issues.map(i => ({
+        path: i.path.join('.'),
+        code: i.code,
+        message: i.message,
+      })),
+    });
     return { ok: false, reason: 'recommendation_corrupt' };
   }
   const recommendation = recommendationParsed.data;
