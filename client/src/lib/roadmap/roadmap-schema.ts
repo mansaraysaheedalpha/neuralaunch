@@ -8,6 +8,16 @@ export const RoadmapTaskSchema = z.object({
   timeEstimate:    z.string().describe('Realistic time estimate tied to their available hours, e.g. "3 hours across 2 evenings"'),
   successCriteria: z.string().describe('One concrete, observable signal that this task is done — not "understand X" but "have X in hand"'),
   resources:       z.array(z.string()).optional().describe('Specific tools, platforms, or frameworks relevant to this task'),
+  /**
+   * Internal NeuraLaunch tools the roadmap generator suggests for
+   * this task. The task card renders a tool-specific button when the
+   * array contains a recognised tool identifier (e.g.
+   * 'conversation_coach'). Optional — most tasks don't need internal
+   * tooling. Only suggest when the tool is genuinely relevant.
+   */
+  suggestedTools:  z.array(z.string()).optional().describe(
+    'Internal NeuraLaunch tools that would help the founder execute this task. Only suggest when the tool is genuinely relevant, not as a default. Current tools: conversation_coach (for tasks involving pitching, negotiating, asking for something, confronting someone, delivering difficult news, or requesting a meeting).'
+  ),
 });
 
 export const RoadmapPhaseSchema = z.object({

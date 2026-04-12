@@ -13,6 +13,9 @@ import {
 import { CheckInForm, type CheckInCategory } from './CheckInForm';
 import { CheckInHistoryList } from './CheckInHistoryList';
 import { TaskDiagnosticChat } from './TaskDiagnosticChat';
+import { ConversationCoachButton } from './coach/ConversationCoachButton';
+import { CoachFlow } from './coach/CoachFlow';
+import { CoachSessionReview } from './coach/CoachSessionReview';
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   not_started: 'Not started',
@@ -100,6 +103,8 @@ export function InteractiveTaskCard({
   const [completionPath, setCompletionPath] = useState<'choice' | 'writing' | null>(null);
   // A6: task-level diagnostic chat toggle
   const [diagnosticOpen, setDiagnosticOpen] = useState(false);
+  // Conversation Coach flow toggle
+  const [coachOpen, setCoachOpen] = useState(false);
 
   // A12: when the founder chose the writing path on a completed
   // task they have explicitly opted into telling us what happened —
@@ -413,6 +418,21 @@ export function InteractiveTaskCard({
         open={diagnosticOpen}
         onClose={() => setDiagnosticOpen(false)}
       />
+
+      {/* Conversation Coach — button + flow + session review */}
+      <ConversationCoachButton
+        suggestedTools={(task as { suggestedTools?: string[] }).suggestedTools}
+        onOpen={() => setCoachOpen(true)}
+      />
+      <CoachFlow
+        roadmapId={roadmapId}
+        taskId={taskId}
+        open={coachOpen}
+        onClose={() => setCoachOpen(false)}
+      />
+      {task.coachSession && !coachOpen && (
+        <CoachSessionReview session={task.coachSession as Record<string, unknown>} />
+      )}
     </motion.div>
   );
 }
