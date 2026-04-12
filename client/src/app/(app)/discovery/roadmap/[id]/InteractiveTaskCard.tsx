@@ -2,7 +2,6 @@
 // src/app/(app)/discovery/roadmap/[id]/InteractiveTaskCard.tsx
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { motion } from 'motion/react';
 import { Clock, Target } from 'lucide-react';
 import {
@@ -13,6 +12,7 @@ import {
 } from '@/lib/roadmap/checkin-types';
 import { CheckInForm, type CheckInCategory } from './CheckInForm';
 import { CheckInHistoryList } from './CheckInHistoryList';
+import { TaskDiagnosticChat } from './TaskDiagnosticChat';
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   not_started: 'Not started',
@@ -57,7 +57,6 @@ export interface InteractiveTaskCardProps {
   index:            number;
   phaseNumber:      number;
   roadmapId:        string;
-  recommendationId: string;
   founderGoal:      string | null;
   /** Total + completed counts so the completion moment can show progress. */
   progress:         { totalTasks: number; completedTasks: number } | null;
@@ -69,7 +68,6 @@ export function InteractiveTaskCard({
   index,
   phaseNumber,
   roadmapId,
-  recommendationId,
   founderGoal,
   progress,
   onOutcomePromptDue,
@@ -88,11 +86,30 @@ export function InteractiveTaskCard({
   const [submitting,  setSubmitting]  = useState(false);
   const [error,       setError]       = useState<string | null>(null);
   const [showCompletionMoment, setShowCompletionMoment] = useState(false);
-  const [flaggedFundamental,  setFlaggedFundamental]  = useState(false);
+  // A12: two-option completion flow state. When the founder flips
+  // status to completed, the card shows two buttons inside the
+  // completion moment instead of auto-opening the check-in form:
+  //   - "Tell us how it went" → opens the writing path (form open,
+  //     category=completed, source='founder' on submit)
+  //   - "It went as planned" → fires the success-criteria-confirmed
+  //     submission directly (no form, freeText=successCriteria,
+  //     source='success_criteria_confirmed')
+  // 'choice' renders the buttons; 'writing' is set after the founder
+  // picks "Tell us how it went" and the form opens; null is the
+  // resting state for non-completed transitions.
+  const [completionPath, setCompletionPath] = useState<'choice' | 'writing' | null>(null);
+  // A6: task-level diagnostic chat toggle
+  const [diagnosticOpen, setDiagnosticOpen] = useState(false);
 
+  // A12: when the founder chose the writing path on a completed
+  // task they have explicitly opted into telling us what happened —
+  // an empty submission would defeat the entire two-option flow.
+  // The "completed without text" loophole only existed in the old
+  // optional-text era and is gone now. Other categories still
+  // require text as before.
   const canSubmit =
     category !== null
-    && (category === 'completed' || freeText.trim().length > 0)
+    && freeText.trim().length > 0
     && !submitting;
 
   async function handleStatusChange(newStatus: TaskStatus) {
@@ -124,28 +141,37 @@ export function InteractiveTaskCard({
         setCategory('blocked');
         setFormOpen(true);
       }
-      // Completion gets the acknowledgment moment AND auto-opens the
-      // check-in form with category preselected so the founder can
-      // share notes about how it went.
+      // Completion shows the acknowledgment moment plus the two-option
+      // outcome surface. The founder picks either "Tell us how it
+      // went" (opens the text input) or "It went as planned" (fires
+      // a success-criteria-confirmed submission directly). The form
+      // is NOT auto-opened until the founder picks the writing path
+      // — this is the A12 fix for the prior "completed tasks may
+      // have zero outcome data" gap.
       if (newStatus === 'completed') {
         setShowCompletionMoment(true);
-        setCategory('completed');
-        setFormOpen(true);
+        setCompletionPath('choice');
       }
     } finally {
       setPendingStatus(false);
     }
   }
 
-  async function handleSubmitCheckIn() {
-    if (!canSubmit || category === null) return;
+  // Shared low-level POST: lets both the regular form submit and the
+  // A12 "It went as planned" path go through one code path so the
+  // optimistic state updates and error handling stay consistent.
+  async function postCheckIn(payload: {
+    category: CheckInCategory;
+    freeText: string;
+    source?:  'founder' | 'success_criteria_confirmed';
+  }) {
     setSubmitting(true);
     setError(null);
     try {
       const res = await fetch(`/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/checkin`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ category, freeText: freeText.trim() || '(no notes)' }),
+        body:    JSON.stringify(payload),
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({})) as { error?: string };
@@ -153,8 +179,8 @@ export function InteractiveTaskCard({
         return;
       }
       const json = await res.json() as {
-        entry:              CheckInEntry;
-        flaggedFundamental: boolean;
+        entry:         CheckInEntry;
+        recalibration: { route: 'pushback' | 'task_diagnostic'; reason: string } | null;
       };
       setHistory(prev => [...prev, json.entry]);
       setFreeText('');
@@ -162,12 +188,39 @@ export function InteractiveTaskCard({
       // needs to read them. Otherwise close it after a successful turn.
       if (!json.entry.proposedChanges?.length) setFormOpen(false);
       setCategory(null);
-      if (json.flaggedFundamental) setFlaggedFundamental(true);
+      // A12: clear the completion-path UI on success so the two-option
+      // surface does not linger after the founder has resolved it.
+      setCompletionPath(null);
     } catch {
       setError('Network error — please try again.');
     } finally {
       setSubmitting(false);
     }
+  }
+
+  async function handleSubmitCheckIn() {
+    if (!canSubmit || category === null) return;
+    await postCheckIn({
+      category,
+      freeText: freeText.trim() || '(no notes)',
+      // A12: the writing path always carries the founder's own words
+      // so the source is explicitly 'founder'. The default on the
+      // route is also 'founder', but being explicit here removes
+      // ambiguity for future readers.
+      source:   completionPath === 'writing' ? 'founder' : undefined,
+    });
+  }
+
+  // A12: "It went as planned" path. Submits the task's success
+  // criteria as the freeText with source='success_criteria_confirmed'
+  // so every completed task always carries outcome data, even when
+  // the founder does not type a reflection.
+  async function handleSuccessCriteriaConfirmed() {
+    await postCheckIn({
+      category: 'completed',
+      freeText: task.successCriteria,
+      source:   'success_criteria_confirmed',
+    });
   }
 
   function handleCancelForm() {
@@ -258,34 +311,57 @@ export function InteractiveTaskCard({
               {progress.completedTasks} of {progress.totalTasks} tasks complete · {Math.round((progress.completedTasks / progress.totalTasks) * 100)}% through your roadmap
             </p>
           )}
-          <button
-            type="button"
-            onClick={() => setShowCompletionMoment(false)}
-            className="self-start text-[10px] text-muted-foreground hover:text-foreground underline"
-          >
-            Dismiss
-          </button>
+
+          {/* A12: two-option outcome capture. Renders only while
+              completionPath === 'choice'. Picking either button moves
+              the founder forward — there is no path that leaves the
+              completed task with zero outcome data. */}
+          {completionPath === 'choice' && (
+            <div className="flex flex-col gap-2 pt-1">
+              <p className="text-[11px] text-foreground/90 font-medium">
+                How did this task actually go?
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => {
+                    setCompletionPath('writing');
+                    setCategory('completed');
+                    setFormOpen(true);
+                  }}
+                  className="rounded-md bg-primary px-3 py-1.5 text-[11px] font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                >
+                  Tell us how it went
+                </button>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => { void handleSuccessCriteriaConfirmed(); }}
+                  className="rounded-md border border-border bg-background px-3 py-1.5 text-[11px] font-medium text-foreground hover:bg-muted disabled:opacity-50"
+                >
+                  It went as planned
+                </button>
+              </div>
+              <p className="text-[10px] text-muted-foreground italic">
+                Skipping means the outcome matched the success criteria exactly.
+              </p>
+            </div>
+          )}
+
+          {completionPath === null && (
+            <button
+              type="button"
+              onClick={() => setShowCompletionMoment(false)}
+              className="self-start text-[10px] text-muted-foreground hover:text-foreground underline"
+            >
+              Dismiss
+            </button>
+          )}
         </motion.div>
       )}
 
-      <CheckInHistoryList history={history} recommendationId={recommendationId} />
-
-      {flaggedFundamental && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 flex flex-col gap-2">
-          <p className="text-[11px] text-red-700 dark:text-red-400 font-medium">
-            This blocker may be a sign the recommendation itself needs to change.
-          </p>
-          <p className="text-[11px] text-foreground/80 leading-relaxed">
-            Open the recommendation and push back on it directly — the agent will reason about whether to refine or replace the path with this new evidence.
-          </p>
-          <Link
-            href={`/discovery/recommendations/${recommendationId}`}
-            className="self-start rounded-md bg-red-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-red-700 transition-colors"
-          >
-            Re-examine the recommendation →
-          </Link>
-        </div>
-      )}
+      <CheckInHistoryList history={history} />
 
       <CheckInForm
         open={formOpen}
@@ -294,21 +370,49 @@ export function InteractiveTaskCard({
         submitting={submitting}
         error={error}
         canSubmit={canSubmit}
+        // A12: when the founder picked "Tell us how it went" from
+        // the two-option completion surface, the placeholder asks
+        // for the specific outcome rather than the generic
+        // per-category prompt.
+        placeholderOverride={
+          completionPath === 'writing'
+            ? 'What happened when you did this? Did it match what you expected?'
+            : null
+        }
         onCategoryChange={setCategory}
         onTextChange={setFreeText}
         onSubmit={() => { void handleSubmitCheckIn(); }}
         onCancel={handleCancelForm}
       />
 
-      {!formOpen && (
-        <button
-          type="button"
-          onClick={() => setFormOpen(true)}
-          className="self-start text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2"
-        >
-          Check in on this task →
-        </button>
+      {!formOpen && !diagnosticOpen && (
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setFormOpen(true)}
+            className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+          >
+            Check in on this task →
+          </button>
+          {/* A6: task-level diagnostic — always visible, always active.
+              Opens a focused diagnostic conversation about THIS specific
+              task. Separate turn budget from the check-in system. */}
+          <button
+            type="button"
+            onClick={() => setDiagnosticOpen(true)}
+            className="text-[11px] text-primary/80 hover:text-primary underline underline-offset-2"
+          >
+            Get help with this task
+          </button>
+        </div>
       )}
+
+      <TaskDiagnosticChat
+        roadmapId={roadmapId}
+        taskId={taskId}
+        open={diagnosticOpen}
+        onClose={() => setDiagnosticOpen(false)}
+      />
     </motion.div>
   );
 }

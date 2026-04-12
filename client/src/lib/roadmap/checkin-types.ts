@@ -36,34 +36,79 @@ export const CHECKIN_CATEGORIES = ['completed', 'blocked', 'unexpected', 'questi
 export type CheckInCategory = typeof CHECKIN_CATEGORIES[number];
 
 /**
+ * Provenance of a check-in entry's free-text content. A12 added the
+ * two-option completion flow: when a task transitions to completed
+ * the founder either writes their own outcome ('founder') or accepts
+ * the success criteria as the outcome by clicking "It went as
+ * planned" ('success_criteria_confirmed'). Optional on the schema so
+ * legacy entries (every check-in written before A12) parse cleanly;
+ * the brief generator and any analytics treat absent as 'founder'.
+ */
+export const CHECKIN_ENTRY_SOURCES = [
+  'founder',
+  'success_criteria_confirmed',
+  // A6: task-level diagnostic entries are stored in the same
+  // checkInHistory array as scheduled check-ins but tagged with
+  // this source so the check-in history list, the structured
+  // signals extractor, and the conversation arc summariser can
+  // distinguish the two conversation channels.
+  'task_diagnostic',
+] as const;
+export type CheckInEntrySource = typeof CHECKIN_ENTRY_SOURCES[number];
+
+/**
  * Action label set by the check-in agent on its structured response.
  * Stored on every CheckInEntry as audit + future training signal.
  */
+// A2: flagged_fundamental removed. A single blocker on a single
+// task is a task-level problem, not a recommendation-level problem.
+// If a blocker is truly fundamental, the pattern will surface across
+// multiple check-ins and trigger the recalibration offer (which now
+// has code-level guardrails and progress-aware routing).
 export const CHECKIN_AGENT_ACTIONS = [
   'acknowledged',
   'adjusted_next_step',
   'adjusted_roadmap',
-  'flagged_fundamental',
 ] as const;
 export type CheckInAgentAction = typeof CHECKIN_AGENT_ACTIONS[number];
 
 /**
- * Mid-roadmap execution support — persisted shapes mirror the
- * runtime schemas in checkin-agent.ts. Defined here (not imported
- * from checkin-agent.ts) because checkin-agent.ts is server-only
- * and these types must be readable from client components that
- * render the per-entry transcript.
+ * Mid-roadmap execution support — canonical persisted shapes for the
+ * three optional sub-fields the check-in agent emits and the route
+ * persists onto each CheckInEntry. Defined here (not in
+ * checkin-agent-schema.ts) because:
+ *   1. The persisted shape is the contract — the agent schema in
+ *      checkin-agent-schema.ts now imports these so the field names
+ *      and types cannot drift between what the agent emits and what
+ *      the entry stores.
+ *   2. Client components (history list, task card) need to render
+ *      these and cannot import from checkin-agent-schema.ts because
+ *      it pulls server-only siblings indirectly via CHECKIN_AGENT_ACTIONS.
+ *
+ * The .describe() metadata stays with the canonical definition so
+ * the agent schema gets the LLM-facing prompt text by import, not
+ * by redefinition. Adding .describe() is metadata only and does not
+ * affect runtime parsing.
  */
-const RecommendedToolEntrySchema = z.object({
-  name:       z.string(),
-  purpose:    z.string(),
-  isInternal: z.boolean(),
+export const TaskAdjustmentEntrySchema = z.object({
+  taskTitle:               z.string().describe('The exact title of an existing downstream task being adjusted.'),
+  proposedTitle:           z.string().optional(),
+  proposedDescription:     z.string().optional(),
+  proposedSuccessCriteria: z.string().optional(),
+  rationale:               z.string().describe('One sentence: why this adjustment, grounded in the founder\'s check-in.'),
+});
+export type TaskAdjustmentEntry = z.infer<typeof TaskAdjustmentEntrySchema>;
+
+export const RecommendedToolEntrySchema = z.object({
+  name:       z.string().describe('The tool name as the founder would search for it.'),
+  purpose:    z.string().describe('One short phrase: why THIS tool for THIS task. Specific to the founder\'s context.'),
+  isInternal: z.boolean().describe('true when the tool is a NeuraLaunch surface (validation page, pushback, parking lot). false for any external SaaS or service.'),
 });
 export type RecommendedToolEntry = z.infer<typeof RecommendedToolEntrySchema>;
 
-const RecalibrationOfferEntrySchema = z.object({
-  reason:  z.string(),
-  framing: z.string(),
+export const RecalibrationOfferEntrySchema = z.object({
+  reason:  z.string().describe('One sentence: what about the founder\'s execution evidence suggests the roadmap may be off-direction. Reference specifics — task titles, recurring patterns, founder quotes.'),
+  framing: z.string().describe('One short paragraph: how to frame the recalibration to the founder. Honest about uncertainty, never alarming, always specific.'),
 });
 export type RecalibrationOfferEntry = z.infer<typeof RecalibrationOfferEntrySchema>;
 
@@ -87,13 +132,7 @@ export const CheckInEntrySchema = z.object({
    * reject mechanism that mutates the roadmap is intentionally
    * deferred until real check-in data exists. See the spec.
    */
-  proposedChanges: z.array(z.object({
-    taskTitle:        z.string(),
-    proposedTitle:    z.string().optional(),
-    proposedDescription: z.string().optional(),
-    proposedSuccessCriteria: z.string().optional(),
-    rationale:        z.string(),
-  })).optional(),
+  proposedChanges: z.array(TaskAdjustmentEntrySchema).optional(),
   /**
    * Mid-roadmap execution support — sub-step breakdown the agent
    * surfaced because the founder seemed unclear how to start. 3-6
@@ -116,6 +155,15 @@ export const CheckInEntrySchema = z.object({
    * pushback flow today and the continuation checkpoint in Phase 5.
    */
   recalibrationOffer: RecalibrationOfferEntrySchema.optional(),
+  /**
+   * A12: provenance of the freeText content. Set to 'founder' when
+   * the founder typed their own outcome and to 'success_criteria_confirmed'
+   * when the founder clicked "It went as planned" — in which case
+   * freeText holds the task's successCriteria text rather than a
+   * founder reflection. Optional so legacy entries parse cleanly;
+   * absent means 'founder' by default.
+   */
+  source: z.enum(CHECKIN_ENTRY_SOURCES).optional(),
 });
 export type CheckInEntry = z.infer<typeof CheckInEntrySchema>;
 
@@ -129,6 +177,23 @@ export const StoredRoadmapTaskSchema = RoadmapTaskSchema.extend({
   startedAt:      z.string().nullable().optional(),
   completedAt:    z.string().nullable().optional(),
   checkInHistory: z.array(CheckInEntrySchema).optional(),
+  /**
+   * A7: a one-sentence narrative arc of the per-task check-in
+   * conversation, generated by a single Haiku summarisation call
+   * after the task hits its terminal moment (round 5 cap, OR
+   * completed-with-2+-entries). Captures how the founder's
+   * understanding evolved across rounds — early rounds where the
+   * nuance lived but which the brief generator otherwise never
+   * sees because it would only render the latest message per task.
+   *
+   * Nullable + optional: tasks with 0 or 1 check-ins skip the
+   * summarisation call (there is no arc to summarise) and the
+   * field stays absent. If Haiku is unavailable at trigger time
+   * the field stays null and the brief generator falls back to
+   * the latest-message-only rendering. The brief still generates,
+   * just with less narrative context on that task.
+   */
+  conversationArc: z.string().nullable().optional(),
 });
 export type StoredRoadmapTask = z.infer<typeof StoredRoadmapTaskSchema>;
 
@@ -145,6 +210,36 @@ export const StoredPhasesArraySchema = z.array(StoredRoadmapPhaseSchema);
  * recommendation level.
  */
 export const CHECKIN_HARD_CAP_ROUND = 5;
+
+/**
+ * A2: minimum check-in coverage before the check-in route will
+ * persist a recalibrationOffer from the agent. Below this threshold
+ * the agent's message still renders but the structured
+ * recalibrationOffer output is silently suppressed — there is not
+ * enough execution evidence yet to justify questioning the
+ * recommendation.
+ *
+ * 0.4 means at least 40% of tasks must have at least one check-in
+ * entry before a recalibration offer is surfaced to the founder.
+ */
+export const RECALIBRATION_MIN_COVERAGE = 0.4;
+
+/**
+ * A2: pure helper that counts how many tasks across all phases have
+ * at least one check-in entry. Used by the check-in route to
+ * compute the coverage ratio against RECALIBRATION_MIN_COVERAGE.
+ */
+export function countTasksWithCheckins(phases: StoredRoadmapPhase[]): number {
+  let count = 0;
+  for (const phase of phases) {
+    for (const task of phase.tasks) {
+      if (task.checkInHistory && task.checkInHistory.length > 0) {
+        count++;
+      }
+    }
+  }
+  return count;
+}
 
 /**
  * Stable task identifier. The roadmap JSON does not store IDs on

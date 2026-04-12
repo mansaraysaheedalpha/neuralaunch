@@ -13,15 +13,19 @@ import {
 } from '@/lib/validation/server-helpers';
 import {
   CHECKIN_CATEGORIES,
+  CHECKIN_ENTRY_SOURCES,
   CHECKIN_HARD_CAP_ROUND,
+  RECALIBRATION_MIN_COVERAGE,
   StoredPhasesArraySchema,
   patchTask,
   readTask,
   computeProgressSummary,
+  countTasksWithCheckins,
   type CheckInEntry,
   type StoredRoadmapPhase,
 } from '@/lib/roadmap/checkin-types';
 import { runCheckIn } from '@/lib/roadmap/checkin-agent';
+import { summariseConversationArc } from '@/lib/roadmap/conversation-arc-summariser';
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import { captureParkingLotFromCheckin } from '@/lib/continuation';
 import {
@@ -40,6 +44,14 @@ export const maxDuration = 90;
 const BodySchema = z.object({
   category: z.enum(CHECKIN_CATEGORIES),
   freeText: z.string().min(1).max(4000),
+  /**
+   * A12: provenance of the freeText. Set by the InteractiveTaskCard's
+   * two-option completion flow. 'success_criteria_confirmed' means
+   * the founder clicked "It went as planned" and freeText holds the
+   * task's success criteria text rather than a founder reflection.
+   * Optional and defaults to 'founder' on the entry write.
+   */
+  source:   z.enum(CHECKIN_ENTRY_SOURCES).optional(),
 });
 
 /**
@@ -75,7 +87,7 @@ export async function POST(
     if (!parsed.success) {
       throw new HttpError(400, 'Invalid body');
     }
-    const { category, freeText } = parsed.data;
+    const { category, freeText, source } = parsed.data;
 
     const roadmap = await prisma.roadmap.findFirst({
       where:  { id: roadmapId, userId },
@@ -112,8 +124,10 @@ export async function POST(
 
     const priorHistory = found.task.checkInHistory ?? [];
     const currentRound = priorHistory.length + 1;
+    // A2 Part 5: updated cap message routes to existing help surfaces
+    // instead of ejecting the founder from the platform.
     if (currentRound > CHECKIN_HARD_CAP_ROUND) {
-      throw new HttpError(409, `You have reached the check-in cap on this task. If you are still stuck, start a fresh discovery session and bring this learning forward.`);
+      throw new HttpError(409, `You've used all ${CHECKIN_HARD_CAP_ROUND} check-ins on this task. You can get more help by clicking "Get help with this task" for focused support, or by clicking "What's Next?" on your roadmap to evaluate your overall progress.`);
     }
 
     const phaseRow = phases[found.phaseIndex];
@@ -181,9 +195,28 @@ export async function POST(
       ...(response.recommendedTools && response.recommendedTools.length > 0
         ? { recommendedTools: response.recommendedTools }
         : {}),
-      ...(response.recalibrationOffer
-        ? { recalibrationOffer: response.recalibrationOffer }
-        : {}),
+      // A2 Part 2: code-level gate. The agent may emit a
+      // recalibrationOffer based on prompt reasoning, but the route
+      // only persists it when at least 40% of tasks have at least
+      // one check-in entry. Below that threshold the agent's message
+      // still renders but the structured offer is suppressed —
+      // there is not enough execution evidence to justify
+      // questioning the recommendation. The coverage check uses the
+      // CURRENT phases (before patching in this entry) because the
+      // founder's coverage at the moment they file this check-in is
+      // the relevant denominator.
+      ...(() => {
+        if (!response.recalibrationOffer) return {};
+        const summary2 = computeProgressSummary(phases);
+        const coverage = countTasksWithCheckins(phases) / Math.max(summary2.totalTasks, 1);
+        if (coverage < RECALIBRATION_MIN_COVERAGE) return {};
+        return { recalibrationOffer: response.recalibrationOffer };
+      })(),
+      // A12: persist the provenance so the brief generator can weight
+      // founder reflections higher than success-criteria confirmations
+      // and so analytics can tell the two paths apart. Default to
+      // 'founder' for any entry that did not pass an explicit source.
+      source: source ?? 'founder',
     };
 
     const next = patchTask(phases, taskId, t => ({
@@ -241,6 +274,10 @@ export async function POST(
           blockedTasks:   summary.blockedTasks,
           lastActivityAt: new Date(),
           nudgePending:   false,
+          // A11: clear the persisted stale-task title alongside
+          // nudgePending so the banner does not name a task that is
+          // no longer stale on the next render.
+          staleTaskTitle: null,
         },
       });
     });
@@ -253,19 +290,83 @@ export async function POST(
       researchCalls: researchAccumulator.length,
     });
 
+    // A7: conversation arc summarisation. Fires only at the terminal
+    // moments of a per-task check-in conversation:
+    //   - Round 5 (the cap) — there will be no more rounds.
+    //   - completed-with-2+-entries — the founder is closing this
+    //     task and we have a real arc to summarise.
+    // The historyAfter array is the in-memory shape we just patched
+    // into the phases JSON; using it directly avoids a round-trip
+    // through Prisma. Fail-open: any error from the helper returns
+    // null and we skip the second update.
+    const historyAfter = [...priorHistory, newEntry];
+    const isCapRound = currentRound === CHECKIN_HARD_CAP_ROUND;
+    const isCompletedWithHistory = category === 'completed' && historyAfter.length >= 2;
+    if (isCapRound || isCompletedWithHistory) {
+      const arc = await summariseConversationArc({
+        taskTitle: found.task.title,
+        history:   historyAfter,
+      });
+      if (arc != null) {
+        // Read-then-write the latest phases JSON so a concurrent
+        // check-in on a different task of the same roadmap does not
+        // get clobbered by this targeted arc-only update. The patch
+        // is best-effort: if the second write fails or the parse
+        // fails the conversationArc field stays null and the brief
+        // generator's fallback path takes over.
+        try {
+          const fresh = await prisma.roadmap.findUnique({
+            where:  { id: roadmapId },
+            select: { phases: true },
+          });
+          if (fresh) {
+            const freshParsed = StoredPhasesArraySchema.safeParse(fresh.phases);
+            if (freshParsed.success) {
+              const phasesWithArc = patchTask(freshParsed.data, taskId, t => ({
+                ...t,
+                conversationArc: arc,
+              }));
+              if (phasesWithArc) {
+                await prisma.roadmap.update({
+                  where: { id: roadmapId },
+                  data:  { phases: toJsonValue(phasesWithArc) },
+                });
+                log.info('[ConversationArc] Persisted', { taskId });
+              }
+            }
+          }
+        } catch (err) {
+          log.warn('[ConversationArc] Persist failed — leaving field null', {
+            message: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    }
+
+    // A2 Part 4: progress-aware routing for the recalibration offer.
+    // When the entry carries a recalibrationOffer (i.e. it passed the
+    // code-level gate), determine where the founder should go:
+    //   - Below 50% complete → pushback flow (reconsider the recommendation)
+    //   - 50%+ complete → task-level diagnostic (get help with what's left)
+    const hasRecal = !!newEntry.recalibrationOffer;
+    const completionPct = summary.totalTasks > 0
+      ? summary.completedTasks / summary.totalTasks
+      : 0;
+
     return NextResponse.json({
       entry:    newEntry,
       progress: summary,
-      // The client uses this to render the re-examine prompt that
-      // links into the recommendation pushback flow when the agent
-      // flagged a fundamental problem.
-      flaggedFundamental: response.action === 'flagged_fundamental',
-      recommendationId:   roadmap.recommendation.id,
-      // The full parking lot post-update — the client renders a
-      // small "we parked this for you" affordance when the array
-      // grew. Returning the entire array (rather than just a delta)
-      // is cheap because the cap is 50 items.
-      parkingLot:         nextParkingLot ?? currentParkingLot,
+      recommendationId: roadmap.recommendation.id,
+      // A2: progress-aware routing info for the client. The client
+      // renders different link text and different target surfaces
+      // depending on the founder's completion percentage.
+      recalibration: hasRecal
+        ? {
+            route: completionPct >= 0.5 ? 'task_diagnostic' as const : 'pushback' as const,
+            reason: newEntry.recalibrationOffer!.reason,
+          }
+        : null,
+      parkingLot: nextParkingLot ?? currentParkingLot,
     });
   } catch (err) {
     if (err instanceof HttpError) return httpErrorToResponse(err);

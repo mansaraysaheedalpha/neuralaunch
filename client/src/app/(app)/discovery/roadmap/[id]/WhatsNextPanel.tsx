@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, Loader2, MessageCircle, Send } from 'lucide-react';
+import { INCONCLUSIVE_RESOLUTION_OPTIONS } from '@/lib/continuation';
 import { useContinuationFlow } from './useContinuationFlow';
 
 /**
@@ -145,34 +146,75 @@ export function WhatsNextPanel({ roadmapId }: { roadmapId: string }) {
               ))}
             </div>
 
-            <div className="flex flex-col gap-2">
-              <textarea
-                value={draft}
-                onChange={e => setDraft(e.target.value)}
-                placeholder="Type your reply…"
-                rows={2}
-                disabled={flow.submitting}
-                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground resize-none disabled:opacity-50 outline-none focus:ring-2 focus:ring-primary/30"
-              />
-              <div className="flex justify-between items-center">
-                <button
-                  type="button"
-                  onClick={() => flow.reset()}
-                  className="text-[11px] text-muted-foreground hover:text-foreground"
-                >
-                  Close diagnostic
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { void handleSubmit(); }}
-                  disabled={draft.trim().length === 0 || flow.submitting}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[11px] font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
-                >
-                  {flow.submitting ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />}
-                  Send
-                </button>
-              </div>
-            </div>
+            {/* A1: when the last agent turn has verdict 'inconclusive',
+                show the three resolution options instead of the chat
+                input. The founder picks one and we either route to a
+                verdict or close gracefully. */}
+            {(() => {
+              const lastAgent = [...flow.diagnosticHistory].reverse().find(e => e.role === 'agent');
+              const isInconclusive = lastAgent?.verdict === 'inconclusive';
+              if (isInconclusive) {
+                return (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-[11px] text-foreground/90 font-medium">
+                      What would you like to do?
+                    </p>
+                    {INCONCLUSIVE_RESOLUTION_OPTIONS.map((option, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        disabled={flow.submitting}
+                        onClick={() => {
+                          if (option.verdict === null) {
+                            // "I need to step away" — close gracefully,
+                            // preserve transcript, no brief generated.
+                            flow.reset();
+                          } else {
+                            // Route the chosen verdict back through the
+                            // diagnostic submit path. The server processes
+                            // the verdict through nextStatusForVerdict.
+                            void flow.submitDiagnostic(option.label);
+                          }
+                        }}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[11px] text-left text-foreground hover:bg-muted disabled:opacity-50 transition-colors"
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                );
+              }
+              return (
+                <div className="flex flex-col gap-2">
+                  <textarea
+                    value={draft}
+                    onChange={e => setDraft(e.target.value)}
+                    placeholder="Type your reply…"
+                    rows={2}
+                    disabled={flow.submitting}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground resize-none disabled:opacity-50 outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                  <div className="flex justify-between items-center">
+                    <button
+                      type="button"
+                      onClick={() => flow.reset()}
+                      className="text-[11px] text-muted-foreground hover:text-foreground"
+                    >
+                      Close diagnostic
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { void handleSubmit(); }}
+                      disabled={draft.trim().length === 0 || flow.submitting}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-[11px] font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                    >
+                      {flow.submitting ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />}
+                      Send
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </motion.div>
         )}
       </AnimatePresence>

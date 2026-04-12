@@ -11,6 +11,7 @@ export {
   PARKING_LOT_MAX_ITEMS,
   PARKING_LOT_IDEA_MAX_LENGTH,
   DIAGNOSTIC_HARD_CAP_TURNS,
+  DIAGNOSTIC_WARNING_TURN,
 } from './constants';
 export type { ContinuationStatus } from './constants';
 
@@ -49,6 +50,7 @@ export type {
 } from './diagnostic-schema';
 export {
   DIAGNOSTIC_VERDICTS,
+  INCONCLUSIVE_RESOLUTION_OPTIONS,
   DiagnosticTurnSchema,
   DiagnosticHistoryEntrySchema,
   DiagnosticHistoryArraySchema,

@@ -34,6 +34,12 @@ export const DIAGNOSTIC_VERDICTS = [
   'recommend_re_anchor',
   'recommend_breakdown',
   'recommend_pivot',
+  // A1: emitted by the route (not the agent) when the turn limit is
+  // reached without a terminal verdict. The route runs one final
+  // agent call with a synthesis prompt and wraps the result in an
+  // inconclusive turn. The client renders the synthesis plus three
+  // resolution options for the founder to pick from.
+  'inconclusive',
 ] as const;
 export type DiagnosticVerdict = typeof DIAGNOSTIC_VERDICTS[number];
 
@@ -60,6 +66,28 @@ export const DiagnosticTurnSchema = z.object({
 export type DiagnosticTurn = z.infer<typeof DiagnosticTurnSchema>;
 
 /**
+ * A1: the resolution options presented to the founder when the
+ * diagnostic hits the turn cap without a terminal verdict. Each
+ * option maps to a verdict that the route processes through
+ * nextStatusForVerdict. The labels and descriptions drive the
+ * button text rendered by WhatsNextPanel.
+ */
+export const INCONCLUSIVE_RESOLUTION_OPTIONS = [
+  {
+    label:   "That's right, and I want help breaking through it.",
+    verdict: 'recommend_breakdown' as const,
+  },
+  {
+    label:   'Actually, I think the roadmap itself is the problem.',
+    verdict: 'recommend_pivot' as const,
+  },
+  {
+    label:   'I need to step away and think about this.',
+    verdict: null, // closes gracefully, no brief generated
+  },
+] as const;
+
+/**
  * One row in the persisted diagnostic history. Append-only into the
  * Roadmap.diagnosticHistory JSONB column. Founder rows have role
  * 'founder' and only `message`; agent rows have role 'agent' plus
@@ -72,6 +100,13 @@ export const DiagnosticHistoryEntrySchema = z.object({
   message:          z.string(),
   verdict:          z.enum(DIAGNOSTIC_VERDICTS).optional(),
   followUpQuestion: z.string().optional(),
+  /**
+   * A1: populated only on inconclusive verdict entries. The agent's
+   * best interpretation of the core blocker, produced by a dedicated
+   * final-turn synthesis call when the diagnostic hits the turn cap.
+   * The client renders this as a summary with three resolution options.
+   */
+  synthesisAttempt: z.string().optional(),
 });
 export type DiagnosticHistoryEntry = z.infer<typeof DiagnosticHistoryEntrySchema>;
 

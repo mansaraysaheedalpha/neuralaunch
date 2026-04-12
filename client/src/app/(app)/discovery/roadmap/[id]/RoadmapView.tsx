@@ -88,7 +88,12 @@ export function RoadmapView({
           this above any STALE banner because the urgency order is:
           (1) you have an open task that needs an update,
           (2) the recommendation changed underneath you. */}
-      {data.progress?.nudgePending && <NudgeBanner phases={data.phases} />}
+      {data.progress?.nudgePending && (
+        <NudgeBanner
+          phases={data.phases}
+          staleTaskTitle={data.progress?.staleTaskTitle ?? null}
+        />
+      )}
 
       {data.status === 'STALE' && (
         <motion.div
@@ -125,7 +130,6 @@ export function RoadmapView({
             phase={phase}
             index={i}
             roadmapId={data.id}
-            recommendationId={recommendationId}
             founderGoal={founderGoal}
             progress={phaseProgress}
             onOutcomePromptDue={() => setManualOutcomeTrigger(true)}

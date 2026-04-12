@@ -144,6 +144,10 @@ export async function GET(
           blockedTasks:   true,
           lastActivityAt: true,
           nudgePending:   true,
+          // A11: surface the exact stale task title persisted by the
+          // nudge cron so the NudgeBanner reads ground truth instead
+          // of re-deriving "the first in-progress task".
+          staleTaskTitle: true,
           outcomePromptPending: true,
         },
       },

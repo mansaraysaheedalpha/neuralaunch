@@ -137,6 +137,9 @@ export const continuationBriefFunction = inngest.createFunction(
         diagnosticHistory:   loaded.diagnosticHistory,
         researchAccumulator: accumulator,
         roadmapId,
+        // A4: pass the check-in coverage ratio so the brief prompt
+        // can calibrate its confidence to the evidence density.
+        checkinCoverage:     loaded.checkinCoverage,
       });
       return { brief, researchLog: accumulator };
     });

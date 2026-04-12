@@ -11,6 +11,12 @@ export interface RoadmapProgressData {
   blockedTasks:   number;
   lastActivityAt: string;
   nudgePending:   boolean;
+  /**
+   * A11: the exact title of the in-progress task the nudge cron
+   * flagged. Null on legacy rows flagged before this column existed.
+   * The NudgeBanner falls back to walking the phases when null.
+   */
+  staleTaskTitle: string | null;
   /** Concern 5 trigger #2 — set by the daily nudge sweep. */
   outcomePromptPending?: boolean;
 }

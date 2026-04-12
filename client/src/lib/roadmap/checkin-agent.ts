@@ -173,10 +173,10 @@ If category is "completed":
 - Tie your response back to the founder's stated goal from the belief state. The completion must feel like the product noticed.
 
 If category is "blocked":
-- Determine which of three cases applies:
+- Determine which of two cases applies:
   1. NORMAL FRICTION — the approach is correct, the blocker is expected difficulty for this stage. Tell the founder what to try differently. Action: 'acknowledged'.
   2. WRONG ASSUMPTION IN A SPECIFIC TASK — the blocker reveals a task-level mistake. Propose concrete adjustments to the next 1-2 tasks via proposedChanges. Action: 'adjusted_next_step'.
-  3. FUNDAMENTAL FLAW — the blocker reveals the recommendation path itself is wrong. Action: 'flagged_fundamental'. Do NOT pretend a fundamental problem is a tactical one. When this fires, the system will surface a prompt to re-examine the recommendation.
+- If the blocker seems to challenge the recommendation itself (not just this task), DO NOT escalate here — let the recalibration offer handle it across multiple check-ins where the pattern is visible.
 - Ask ONE focused clarifying question only if the context is genuinely ambiguous. If the free text is specific enough, skip the question and go directly to your assessment.
 
 If category is "unexpected":
@@ -193,10 +193,9 @@ If category is "question":
 CRITICAL RULES:
 1. NEVER ask more than one question per check-in turn.
 2. NEVER give generic encouragement. "You can do this" is not an answer. "You told me your goal was X, this task moves you toward X by Y" is an answer.
-3. NEVER pretend a fundamental problem is a tactical one. If the recommendation is wrong, say so and use 'flagged_fundamental'.
-4. NEVER repeat the same response on a second check-in about the same blocker — escalate. Either surface a more concrete fact from the belief state, or move from acknowledged to adjusted_next_step.
-5. Quote the founder's own context back to them whenever relevant.
-6. The agent's job is to be a trusted advisor with skin in the game, not a cheerleader.
+3. NEVER repeat the same response on a second check-in about the same blocker — escalate. Either surface a more concrete fact from the belief state, or move from acknowledged to adjusted_next_step.
+4. Quote the founder's own context back to them whenever relevant.
+5. The agent's job is to be a trusted advisor with skin in the game, not a cheerleader.
 
 PARKING LOT DETECTION:
 The founder may mention an adjacent idea, opportunity, or follow-on direction that does NOT belong on the active roadmap. When (and only when) they do this, set parkingLotItem.idea to a short phrase capturing what they said — verbatim from their own words, never your own invention. Examples:
@@ -228,13 +227,15 @@ ALWAYS check the founder's budget from the belief state. Do NOT recommend paid t
 DO NOT set this field as a generic list. If the founder did not ask about tools and has not signalled a tooling gap, leave it empty.
 
 3. RECALIBRATION OFFER (recalibrationOffer field):
-Fire this ONLY when accumulated evidence in the prior check-in history suggests the ROADMAP itself may be off-direction. Triggers:
-  - Multiple tasks blocked across different phases
-  - The same blocker recurring across tasks
-  - Repeated negative sentiment or "this doesn't feel right" signals
-  - Concrete evidence that a recommendation assumption was wrong (e.g. founder says "I assumed restaurants but my data shows catering")
-The recalibration offer is the SOFT signal — distinct from flagged_fundamental, which is the HARD escape hatch. Use recalibrationOffer when you are pattern-matching a trajectory; use flagged_fundamental when one specific blocker is unambiguous proof the recommendation is wrong.
-NEVER fire recalibrationOffer on a single isolated check-in unless that check-in itself is overwhelming evidence. The point is to detect drift over time, not to pull the cord on every blocker.
+Fire this when the evidence across the roadmap suggests the direction itself may be wrong. Look for:
+  - At least 2 tasks blocked across different phases (check the roadmap outline statuses)
+  - The founder has explicitly stated that a market assumption, audience assumption, or pricing assumption from the recommendation is wrong
+  - The founder's check-in sentiment has been consistently negative across 3+ check-ins on the current task
+  - Concrete evidence from the founder's outreach or execution that contradicts the recommendation's core thesis
+
+Do NOT fire this on normal task difficulty. A hard task is not a wrong direction. A single blocker that could be solved by adjusting the task approach is not a wrong direction. Only fire when the DIRECTION is questionable, not when the EXECUTION is hard.
+
+The system will only surface this to the founder if they have checked in on at least 40% of their tasks, so do not worry about firing too early — the system gates that for you. Focus on whether the evidence genuinely warrants it.
 
 Produce your structured response now.`,
         }],
@@ -257,12 +258,26 @@ Produce your structured response now.`,
 // ---------------------------------------------------------------------------
 
 function renderBeliefStateForCheckIn(context: DiscoveryContext): string {
+  // The full set of belief state fields the check-in agent benefits
+  // from. The four added in A10 — motivationAnchor, availableTimePerWeek,
+  // technicalAbility, teamSize — are the same fields the diagnostic
+  // engine receives and the same fields the founder spent the
+  // discovery interview answering. Cost is negligible (four short
+  // strings appended to a prompt that already includes the full
+  // roadmap outline) and they are load-bearing for re-anchoring
+  // (motivationAnchor), time-appropriate tool recommendations
+  // (availableTimePerWeek), skill-calibrated sub-step breakdowns
+  // (technicalAbility), and solo-vs-team task framing (teamSize).
   const fields: Array<[string, unknown]> = [
-    ['Primary goal',      context.primaryGoal?.value],
-    ['Situation',         context.situation?.value],
-    ['Geographic market', context.geographicMarket?.value],
-    ['Available budget',  context.availableBudget?.value],
-    ['Biggest concern',   context.biggestConcern?.value],
+    ['Primary goal',         context.primaryGoal?.value],
+    ['Situation',            context.situation?.value],
+    ['Geographic market',    context.geographicMarket?.value],
+    ['Available budget',     context.availableBudget?.value],
+    ['Biggest concern',      context.biggestConcern?.value],
+    ['Motivation anchor',    context.motivationAnchor?.value],
+    ['Available time/week',  context.availableTimePerWeek?.value],
+    ['Technical ability',    context.technicalAbility?.value],
+    ['Team size',            context.teamSize?.value],
   ];
   const lines: string[] = [];
   for (const [label, value] of fields) {

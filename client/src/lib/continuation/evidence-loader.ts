@@ -15,7 +15,7 @@ import 'server-only';
 import prisma from '@/lib/prisma';
 import { safeParseDiscoveryContext, type DiscoveryContext } from '@/lib/discovery/context-schema';
 import { RecommendationSchema, type Recommendation } from '@/lib/discovery/recommendation-schema';
-import { StoredPhasesArraySchema, type StoredRoadmapPhase } from '@/lib/roadmap/checkin-types';
+import { StoredPhasesArraySchema, countTasksWithCheckins, type StoredRoadmapPhase } from '@/lib/roadmap/checkin-types';
 import { safeParseParkingLot, type ParkingLot } from './parking-lot-schema';
 import { safeParseDiagnosticHistory, type DiagnosticHistory } from './diagnostic-schema';
 
@@ -114,6 +114,13 @@ export interface ContinuationEvidence {
     blockedTasks:   number;
     lastActivityAt: Date | null;
   };
+  /**
+   * A4: proportion of tasks that have at least one check-in entry.
+   * 0.0 = no tasks have any qualitative signal. 1.0 = every task
+   * has been checked in on at least once. The brief generator uses
+   * this to calibrate its confidence to the evidence density.
+   */
+  checkinCoverage: number;
 }
 
 /**
@@ -233,6 +240,10 @@ export async function loadContinuationEvidence(input: {
         blockedTasks:   row.progress?.blockedTasks   ?? 0,
         lastActivityAt: row.progress?.lastActivityAt ?? null,
       },
+      // A4: proportion of tasks with at least one check-in entry.
+      checkinCoverage: (row.progress?.totalTasks ?? 0) > 0
+        ? countTasksWithCheckins(phasesParsed.data) / (row.progress?.totalTasks ?? 1)
+        : 0,
     },
   };
 }
