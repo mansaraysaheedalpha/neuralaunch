@@ -195,6 +195,11 @@ RULES:
 7. durationWeeks must be realistic. At ${weeklyHours} hours/week, a phase with 5 tasks averaging 3 hours each takes at least 2 weeks.
 8. closingThought is addressed directly to this person — use "you", reference their specific situation, and end with the one action they should take today.
 
+INTERNAL TOOLS AVAILABLE TO THE FOUNDER:
+When generating tasks, you may suggest internal tools that help the founder execute. Attach a suggestedTools array to any task where a tool would materially help. Only suggest when genuinely relevant, not as a default.
+
+- conversation_coach: Helps founders prepare for and rehearse high-stakes one-on-one conversations. Generates scripts, objection handling, fallback positions, and offers role-play rehearsal. Suggest this for any task that involves pitching, negotiating, asking for something, confronting someone, delivering difficult news, or requesting a meeting where the founder might hesitate or avoid the conversation.
+
 Build the roadmap now.`,
         }],
       });

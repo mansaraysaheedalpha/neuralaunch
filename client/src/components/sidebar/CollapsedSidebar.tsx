@@ -3,7 +3,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Compass, User } from 'lucide-react';
+import { useSession } from 'next-auth/react';
+import { Compass, User, Wrench } from 'lucide-react';
+import { useHasRoadmap } from './useHasRoadmap';
 
 export interface CollapsedSidebarProps {
   onExpand: () => void;
@@ -16,8 +18,11 @@ export interface CollapsedSidebarProps {
  */
 export function CollapsedSidebar({ onExpand }: CollapsedSidebarProps) {
   const pathname = usePathname();
+  const { status } = useSession();
+  const { hasRoadmap } = useHasRoadmap(status === 'authenticated');
   const isDiscoveryActive = pathname === '/discovery' || pathname?.startsWith('/discovery/');
-  const isProfileActive = pathname === '/profile';
+  const isToolsActive     = pathname === '/tools' || pathname?.startsWith('/tools/');
+  const isProfileActive   = pathname === '/profile';
 
   return (
     <div className="flex flex-col h-full bg-card text-card-foreground border-r border-border p-2 pt-4 items-center">
@@ -40,6 +45,17 @@ export function CollapsedSidebar({ onExpand }: CollapsedSidebarProps) {
       >
         <Compass className="w-5 h-5" />
       </Link>
+      {hasRoadmap && (
+        <Link
+          href="/tools"
+          className={`group relative flex items-center justify-center w-10 h-10 rounded-lg transition-colors mb-1 ${
+            isToolsActive ? 'bg-primary/10 text-primary' : 'hover:bg-muted text-muted-foreground'
+          }`}
+          title="Tools"
+        >
+          <Wrench className="w-5 h-5" />
+        </Link>
+      )}
       <Link
         href="/profile"
         className={`group relative flex items-center justify-center w-10 h-10 rounded-lg transition-colors ${
