@@ -20,7 +20,6 @@ import { MODELS } from '@/lib/discovery/constants';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
 import { renderUserContent, sanitizeForPrompt } from '@/lib/validation/server-helpers';
 import { COACH_CHANNELS, SETUP_MAX_EXCHANGES } from './constants';
-import type { ConversationSetup } from './schemas';
 
 // ---------------------------------------------------------------------------
 // Response schema for the setup agent

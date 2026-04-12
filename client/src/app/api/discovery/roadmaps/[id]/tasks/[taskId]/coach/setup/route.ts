@@ -26,7 +26,6 @@ import {
 } from '@/lib/roadmap/checkin-types';
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import { COACH_TOOL_ID, SETUP_MAX_EXCHANGES } from '@/lib/roadmap/coach';
-import { CoachSessionSchema } from '@/lib/roadmap/coach/schemas';
 import { runCoachSetup } from '@/lib/roadmap/coach/setup-engine';
 
 export const maxDuration = 30;
