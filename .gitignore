@@ -29,6 +29,13 @@ client/.next/
 client/dist
 client/build
 
+# This project uses pnpm exclusively. npm and yarn lockfiles must
+# never be committed — they would silently corrupt node_modules
+# because of the Prisma postinstall patch (scripts/fix-prisma-pnpm.js).
+# See CLAUDE.md and RUNBOOK.md for the full reason.
+package-lock.json
+yarn.lock
+
 # Ignore environment variables. These are secret!
 # We will create a .env.example file to track which variables are needed.
 .env

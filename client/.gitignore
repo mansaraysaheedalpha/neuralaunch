@@ -10,6 +10,12 @@
 !.yarn/releases
 !.yarn/versions
 
+# pnpm-only project — npm and yarn lockfiles must never be tracked.
+# Ignored locally so a stray `npm install` cannot reintroduce them.
+# See CLAUDE.md → "Package manager" for the full reason.
+package-lock.json
+yarn.lock
+
 # testing
 /coverage
 

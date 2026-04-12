@@ -146,6 +146,24 @@ Users are waiting. Every unnecessary millisecond is friction between a person an
 
 ---
 
+## Package Manager
+
+**This project uses pnpm exclusively. Never npm. Never yarn.** This is not a preference — it is a hard correctness requirement.
+
+The Prisma client needs a postinstall patch (`scripts/fix-prisma-pnpm.js`, declared as the `postinstall` hook in `client/package.json`) that compensates for how pnpm symlinks `.prisma`. Running `npm install` or `yarn install` produces a `node_modules` layout the patch cannot fix, and TypeScript starts failing to resolve generated Prisma types — a silent corruption that wastes hours to diagnose.
+
+Concrete rules:
+
+- **Install / add / remove dependencies:** `pnpm install`, `pnpm add <pkg>`, `pnpm remove <pkg>`. Never `npm i`, `npm install`, `npm ci`, `yarn`, or `yarn add`.
+- **Run scripts:** `pnpm <script>` (e.g. `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm test`). Use `pnpm exec <bin>` instead of `npx <bin>` whenever the binary is already a project devDependency — `npx` invocations are fine for one-off tools that aren't installed.
+- **Lockfile:** `client/pnpm-lock.yaml` is the single source of truth for the dep tree. `package-lock.json` and `yarn.lock` are gitignored at the repo root and inside `client/` so a stray `npm install` cannot reintroduce them. If you find a `package-lock.json` in the working tree, delete it — do not commit it, do not run `npm install` to "regenerate" it.
+- **Documentation:** any code blocks, READMEs, or runbook entries showing install / build / test commands must use `pnpm`. The only exception is when documenting *why* npm is forbidden.
+- **Claude Code permissions:** the project's `.claude/settings.local.json` allow-lists pnpm commands and explicitly denies `npm install`, `npm i`, `npm ci`, `npm run`, and `yarn` invocations. Do not edit the deny list to "just this once" run npm — if a tool truly needs npm, escalate to the user instead of bypassing the guard.
+
+The reason is documented at `RUNBOOK.md` § "Never use npm install" and `README.md` line 80, both of which predate this section. This entry exists in CLAUDE.md so the rule is loaded into every Claude Code session by default.
+
+---
+
 ## AI Integration Standards
 
 ### Claude API calls
