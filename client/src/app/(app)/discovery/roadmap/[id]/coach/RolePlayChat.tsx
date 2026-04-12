@@ -6,8 +6,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, Send, Swords, X } from 'lucide-react';
-import type { RolePlayTurn } from '@/lib/roadmap/coach';
-import { ROLEPLAY_HARD_CAP_TURNS, ROLEPLAY_WARNING_TURN } from '@/lib/roadmap/coach';
+import type { RolePlayTurn } from '@/lib/roadmap/coach/schemas';
+// Import directly from constants, not the barrel — the barrel
+// re-exports server-only engine modules that webpack traces.
+import { ROLEPLAY_HARD_CAP_TURNS, ROLEPLAY_WARNING_TURN } from '@/lib/roadmap/coach/constants';
 
 export interface RolePlayChatProps {
   roadmapId:      string;

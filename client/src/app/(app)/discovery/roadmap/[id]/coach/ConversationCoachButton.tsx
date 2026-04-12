@@ -7,7 +7,9 @@
 // unconditionally.
 
 import { MessageSquare } from 'lucide-react';
-import { COACH_TOOL_ID } from '@/lib/roadmap/coach';
+// Import directly from constants, not the barrel — the barrel
+// re-exports server-only engine modules that webpack traces.
+import { COACH_TOOL_ID } from '@/lib/roadmap/coach/constants';
 
 export interface ConversationCoachButtonProps {
   suggestedTools?: string[];
