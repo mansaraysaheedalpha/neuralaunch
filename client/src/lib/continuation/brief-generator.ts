@@ -67,6 +67,14 @@ export interface GenerateBriefInput {
    */
   researchAccumulator?: ResearchLogEntry[];
   roadmapId:         string;
+  /**
+   * A4: proportion of tasks with at least one check-in entry
+   * (0.0–1.0). The brief prompt uses this to calibrate confidence:
+   *   >60% — generate normally
+   *   30-60% — state the limitation
+   *   <30% — generate with explicit caution
+   */
+  checkinCoverage:   number;
 }
 
 /**
@@ -166,6 +174,14 @@ ${parkingLotBlock}
 
 ${diagnosticBlock}
 
+${(() => {
+  const cov = input.checkinCoverage;
+  const total = input.metrics.tasksTotal;
+  const withCheckins = Math.round(cov * total);
+  if (cov >= 0.6) return '';
+  if (cov >= 0.3) return `EVIDENCE COVERAGE NOTE: You have check-in data on ${withCheckins} of ${total} tasks (${Math.round(cov * 100)}% coverage). The interpretation below is grounded in that subset — the tasks without check-in data may tell a different story. State this limitation in your opening sentence of whatHappened.\n`;
+  return `EVIDENCE COVERAGE CAUTION: You have very limited check-in data — only ${withCheckins} of ${total} tasks have any qualitative signal (${Math.round(cov * 100)}% coverage). The patterns you can see are only what's visible in the checked-in tasks. The "What the Evidence Says" section must state explicitly: "I'm working with incomplete evidence — only ${withCheckins} of ${total} tasks had check-in data." Generate with honest caution, not false confidence.\n`;
+})()}
 PRODUCE THE BRIEF — five sections, each grounded in the evidence above:
 
 1. whatHappened — 3 to 4 sentences. Interpret what the founder LEARNED, not what they completed. Reference specific tasks where the learning is clearest. The interpretation quality is the entire value of this brief.
@@ -184,7 +200,10 @@ PRODUCE THE BRIEF — five sections, each grounded in the evidence above:
 
 5. parkingLotItems — Pass through the parking-lot items provided above VERBATIM. Do not invent new items. Do not edit. If there are no items, return an empty array.
 
-closingThought — 2 to 3 sentences direct address. Acknowledge what they did, frame the choice ahead, end with "the next decision is yours." Honest, never patronising.
+closingThought — 2 to 3 sentences direct address. The closing thought MUST reference a specific piece of evidence from the execution and state what it means for the founder's next decision. Generic encouragement is not permitted.
+Example of what to produce: "Your strongest signal is that catering companies converted 3x faster than restaurants — the fork you choose will determine whether you build on that signal or start over."
+Example of what NOT to produce: "You've made great progress and should be proud of how far you've come."
+End with "the next decision is yours." Honest, never patronising.
 
 CRITICAL RULES:
 - Reference specific task titles, founder quotes, and parking-lot items by name. Generic statements are wasted bandwidth.
