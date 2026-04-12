@@ -15,6 +15,23 @@
 import { z } from 'zod';
 import { CHECKIN_AGENT_ACTIONS } from './checkin-types';
 
+// CLAUDE.md mandate: "Zod schemas for LLM output must NOT use .max()
+// on string fields." Anthropic's structured-output endpoint does not
+// consistently enforce string-length constraints during generation —
+// the model produces a longer string and the AI SDK's post-hoc Zod
+// parse rejects the entire response as AI_NoObjectGeneratedError.
+// Length intent goes in .describe() copy, and bounds are enforced via
+// post-clamp .transform() so the recommendation is never lost to a
+// spurious length validation failure. The clamp is conservative — it
+// preserves the head of the string and adds an ellipsis so callers
+// can tell truncation happened without parsing the value.
+const MAX_AGENT_MESSAGE_CHARS  = 2000;
+const MAX_PARKING_LOT_IDEA_CHARS = 280;
+
+function clampString(max: number) {
+  return (raw: string): string => raw.length <= max ? raw : raw.slice(0, max - 1) + '\u2026';
+}
+
 const TaskAdjustmentSchema = z.object({
   taskTitle:               z.string().describe('The exact title of an existing downstream task being adjusted.'),
   proposedTitle:           z.string().optional(),
@@ -32,7 +49,7 @@ const TaskAdjustmentSchema = z.object({
  * brief at "What's Next?" time.
  */
 const ParkingLotCaptureSchema = z.object({
-  idea: z.string().min(1).describe(
+  idea: z.string().min(1).transform(clampString(MAX_PARKING_LOT_IDEA_CHARS)).describe(
     'A short phrase capturing the adjacent idea verbatim from the founder. Maximum 280 characters. Must be the founder\'s own idea, not yours.'
   ),
 });
@@ -68,7 +85,7 @@ export const CheckInResponseSchema = z.object({
     'adjusted_roadmap: reserved for the future structured-edit mechanism — DO NOT use today. ' +
     'flagged_fundamental: blocker reveals the recommendation path itself is wrong; the orchestrator surfaces a re-examine prompt.'
   ),
-  message: z.string().max(2000).describe(
+  message: z.string().transform(clampString(MAX_AGENT_MESSAGE_CHARS)).describe(
     'The text the founder will read. Specific to their task, their context, and their belief state. ' +
     'Never generic encouragement. Hard cap of 2000 characters.'
   ),

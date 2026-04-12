@@ -50,6 +50,10 @@ export function ContinuationView({ roadmapId }: { roadmapId: string }) {
       }
       const json = await res.json() as ContinuationData;
       setData(json);
+      // Clear any prior failure flag — a transient network blip
+      // followed by a successful poll should let the brief render,
+      // not stay locked on the error surface forever.
+      setFailed(false);
     } catch {
       setFailed(true);
     }

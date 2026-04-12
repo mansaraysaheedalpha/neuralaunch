@@ -178,15 +178,22 @@ Do not use generic examples. Derive the question from what they actually said.`,
     : '';
 
   // Phase 5 of the research-tool spec — silent research findings.
-  // When the trigger detector fired research on the founder's prior
-  // message (e.g. they named a competitor or claimed a market
-  // condition), the findings appear here. The agent uses them to
-  // sharpen the next question — never to lecture the founder. The
-  // spec is explicit: "research findings do not get dumped into the
-  // conversation". The block is delimiter-wrapped via renderUserContent
-  // by the research tool itself before it reaches this prompt.
+  // When the pre-research helper produced a digest from the
+  // founder's prior message (e.g. they named a competitor or claimed
+  // a market condition), the findings appear here. The agent uses
+  // them to sharpen the next question — never to lecture the founder.
+  // The spec is explicit: "research findings do not get dumped into
+  // the conversation".
+  //
+  // SECURITY: the findings string is the OUTPUT of an LLM digest of
+  // tool results. Even though the tool result renderers
+  // (renderTavilySummary / renderExaSummary) wrap their inputs via
+  // renderUserContent, the digesting model could in principle echo
+  // injected content back out as plain text. Wrap defensively here
+  // before injection so the question-generator's prompt always sees
+  // the findings as opaque [[[ ]]] data, never as instructions.
   const researchPrefix = options.researchFindings
-    ? `RESEARCH FINDINGS (retrieved silently for the founder's prior message — use these to sharpen your next question, NEVER to lecture or dump information. If the founder claimed something the research contradicts or expands on, your next question can probe that gap naturally — e.g. "Have you come across [X]? They seem to be operating in a similar space — how does what you're building differ?"):\n${options.researchFindings}\n\n`
+    ? `RESEARCH FINDINGS (retrieved silently for the founder's prior message — use these to sharpen your next question, NEVER to lecture or dump information. If the founder claimed something the research contradicts or expands on, your next question can probe that gap naturally — e.g. "Have you come across [X]? They seem to be operating in a similar space — how does what you're building differ?"):\n${renderUserContent(options.researchFindings, 4000)}\n\n`
     : '';
 
   // Deterministic closed-field list — only fields the engine has explicitly asked about.
