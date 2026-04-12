@@ -16,7 +16,6 @@ import {
   CONTINUATION_BRIEF_EVENT,
   CONTINUATION_STATUSES,
   DIAGNOSTIC_HARD_CAP_TURNS,
-  DIAGNOSTIC_WARNING_TURN,
   evaluateScenario,
   loadContinuationEvidence,
   runDiagnosticTurn,

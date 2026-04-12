@@ -10,7 +10,6 @@ export interface PhaseBlockProps {
   phase:            RoadmapPhase;
   index:            number;
   roadmapId:        string;
-  recommendationId: string;
   founderGoal:      string | null;
   progress:         { totalTasks: number; completedTasks: number } | null;
   onOutcomePromptDue?: () => void;
@@ -25,7 +24,6 @@ export function PhaseBlock({
   phase,
   index,
   roadmapId,
-  recommendationId,
   founderGoal,
   progress,
   onOutcomePromptDue,
@@ -57,7 +55,6 @@ export function PhaseBlock({
             index={i}
             phaseNumber={phase.phase}
             roadmapId={roadmapId}
-            recommendationId={recommendationId}
             founderGoal={founderGoal}
             progress={progress}
             onOutcomePromptDue={onOutcomePromptDue}

@@ -57,7 +57,6 @@ export interface InteractiveTaskCardProps {
   index:            number;
   phaseNumber:      number;
   roadmapId:        string;
-  recommendationId: string;
   founderGoal:      string | null;
   /** Total + completed counts so the completion moment can show progress. */
   progress:         { totalTasks: number; completedTasks: number } | null;
@@ -69,7 +68,6 @@ export function InteractiveTaskCard({
   index,
   phaseNumber,
   roadmapId,
-  recommendationId,
   founderGoal,
   progress,
   onOutcomePromptDue,

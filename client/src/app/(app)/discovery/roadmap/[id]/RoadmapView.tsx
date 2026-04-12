@@ -130,7 +130,6 @@ export function RoadmapView({
             phase={phase}
             index={i}
             roadmapId={data.id}
-            recommendationId={recommendationId}
             founderGoal={founderGoal}
             progress={phaseProgress}
             onOutcomePromptDue={() => setManualOutcomeTrigger(true)}
