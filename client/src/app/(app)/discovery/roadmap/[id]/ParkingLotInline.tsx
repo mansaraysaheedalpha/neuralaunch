@@ -102,6 +102,27 @@ export function ParkingLotInline({ roadmapId, initialItems }: ParkingLotInlinePr
         Anything you want to remember but not act on yet. I&apos;ll surface these in your continuation brief later.
       </p>
 
+      {items.length > 0 && (
+        <ul className="flex flex-col gap-1.5">
+          {items.map((item, i) => (
+            <li
+              key={i}
+              className="rounded-lg border border-border bg-muted/30 px-3 py-2 flex flex-col gap-0.5"
+            >
+              <p className="text-[11px] text-foreground leading-relaxed">{item.idea}</p>
+              <p className="text-[10px] text-muted-foreground">
+                {item.taskContext
+                  ? `from "${item.taskContext}"`
+                  : item.surfacedFrom
+                    ? `surfaced via ${item.surfacedFrom}`
+                    : null}
+                {item.surfacedAt ? ` · ${new Date(item.surfacedAt).toLocaleDateString()}` : ''}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <AnimatePresence>
         {open && (
           <motion.div
