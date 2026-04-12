@@ -36,6 +36,18 @@ export const CHECKIN_CATEGORIES = ['completed', 'blocked', 'unexpected', 'questi
 export type CheckInCategory = typeof CHECKIN_CATEGORIES[number];
 
 /**
+ * Provenance of a check-in entry's free-text content. A12 added the
+ * two-option completion flow: when a task transitions to completed
+ * the founder either writes their own outcome ('founder') or accepts
+ * the success criteria as the outcome by clicking "It went as
+ * planned" ('success_criteria_confirmed'). Optional on the schema so
+ * legacy entries (every check-in written before A12) parse cleanly;
+ * the brief generator and any analytics treat absent as 'founder'.
+ */
+export const CHECKIN_ENTRY_SOURCES = ['founder', 'success_criteria_confirmed'] as const;
+export type CheckInEntrySource = typeof CHECKIN_ENTRY_SOURCES[number];
+
+/**
  * Action label set by the check-in agent on its structured response.
  * Stored on every CheckInEntry as audit + future training signal.
  */
@@ -130,6 +142,15 @@ export const CheckInEntrySchema = z.object({
    * pushback flow today and the continuation checkpoint in Phase 5.
    */
   recalibrationOffer: RecalibrationOfferEntrySchema.optional(),
+  /**
+   * A12: provenance of the freeText content. Set to 'founder' when
+   * the founder typed their own outcome and to 'success_criteria_confirmed'
+   * when the founder clicked "It went as planned" — in which case
+   * freeText holds the task's successCriteria text rather than a
+   * founder reflection. Optional so legacy entries parse cleanly;
+   * absent means 'founder' by default.
+   */
+  source: z.enum(CHECKIN_ENTRY_SOURCES).optional(),
 });
 export type CheckInEntry = z.infer<typeof CheckInEntrySchema>;
 

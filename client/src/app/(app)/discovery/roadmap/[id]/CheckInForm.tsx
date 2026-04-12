@@ -27,6 +27,14 @@ export interface CheckInFormProps {
   submitting:  boolean;
   error:       string | null;
   canSubmit:   boolean;
+  /**
+   * A12: when set, overrides the per-category placeholder. Used by
+   * the two-option completion flow to surface a more specific prompt
+   * ("What happened when you did this? Did it match what you
+   * expected?") when the founder explicitly picked "Tell us how it
+   * went". null means use the default per-category placeholder.
+   */
+  placeholderOverride?: string | null;
   onCategoryChange: (c: CheckInCategory) => void;
   onTextChange:     (s: string) => void;
   onSubmit:    () => void;
@@ -48,6 +56,7 @@ export function CheckInForm({
   submitting,
   error,
   canSubmit,
+  placeholderOverride,
   onCategoryChange,
   onTextChange,
   onSubmit,
@@ -87,7 +96,10 @@ export function CheckInForm({
             <textarea
               value={freeText}
               onChange={e => onTextChange(e.target.value)}
-              placeholder={category ? CHECKIN_PLACEHOLDERS[category] : 'Pick a category above…'}
+              placeholder={
+                placeholderOverride ??
+                (category ? CHECKIN_PLACEHOLDERS[category] : 'Pick a category above…')
+              }
               disabled={!category || submitting}
               rows={3}
               className="resize-none rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/30"

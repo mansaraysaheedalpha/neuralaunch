@@ -13,6 +13,7 @@ import {
 } from '@/lib/validation/server-helpers';
 import {
   CHECKIN_CATEGORIES,
+  CHECKIN_ENTRY_SOURCES,
   CHECKIN_HARD_CAP_ROUND,
   StoredPhasesArraySchema,
   patchTask,
@@ -40,6 +41,14 @@ export const maxDuration = 90;
 const BodySchema = z.object({
   category: z.enum(CHECKIN_CATEGORIES),
   freeText: z.string().min(1).max(4000),
+  /**
+   * A12: provenance of the freeText. Set by the InteractiveTaskCard's
+   * two-option completion flow. 'success_criteria_confirmed' means
+   * the founder clicked "It went as planned" and freeText holds the
+   * task's success criteria text rather than a founder reflection.
+   * Optional and defaults to 'founder' on the entry write.
+   */
+  source:   z.enum(CHECKIN_ENTRY_SOURCES).optional(),
 });
 
 /**
@@ -75,7 +84,7 @@ export async function POST(
     if (!parsed.success) {
       throw new HttpError(400, 'Invalid body');
     }
-    const { category, freeText } = parsed.data;
+    const { category, freeText, source } = parsed.data;
 
     const roadmap = await prisma.roadmap.findFirst({
       where:  { id: roadmapId, userId },
@@ -184,6 +193,11 @@ export async function POST(
       ...(response.recalibrationOffer
         ? { recalibrationOffer: response.recalibrationOffer }
         : {}),
+      // A12: persist the provenance so the brief generator can weight
+      // founder reflections higher than success-criteria confirmations
+      // and so analytics can tell the two paths apart. Default to
+      // 'founder' for any entry that did not pass an explicit source.
+      source: source ?? 'founder',
     };
 
     const next = patchTask(phases, taskId, t => ({
