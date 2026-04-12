@@ -161,16 +161,26 @@ ${(() => {
   // on this task, surface the preparation context so the check-in
   // agent can reference it. Transforms a generic "how did it go?"
   // into "you prepared for a pricing objection at X — did that come up?"
-  const session = task.coachSession as Record<string, unknown> | undefined;
-  if (!session?.setup) return '';
-  const setup = session.setup as Record<string, string>;
-  const rpHistory = session.rolePlayHistory as unknown[] | undefined;
+  // Safe field reads from the passthrough coachSession object.
+  // Using optional chaining + String() coercion instead of `as`
+  // casts so a malformed session doesn't crash the agent prompt.
+  const session = task.coachSession;
+  if (!session || typeof session !== 'object') return '';
+  const s = session as Record<string, unknown>;
+  const setup = s.setup as Record<string, unknown> | undefined;
+  if (!setup) return '';
+  const who       = String(setup.who ?? '');
+  const objective = String(setup.objective ?? '');
+  const fear      = String(setup.fear ?? '');
+  const channel   = String(setup.channel ?? 'unknown');
+  const rpHistory = Array.isArray(s.rolePlayHistory) ? s.rolePlayHistory : [];
+  if (!who) return '';
   return `THE FOUNDER USED THE CONVERSATION COACH ON THIS TASK:
-They prepared for a conversation with: ${renderUserContent(setup.who ?? '', 200)}
-Their objective was: ${renderUserContent(setup.objective ?? '', 300)}
-Their fear was: ${renderUserContent(setup.fear ?? '', 200)}
-Channel: ${setup.channel ?? 'unknown'}
-They rehearsed: ${rpHistory && rpHistory.length > 0 ? 'yes, ' + rpHistory.length + ' turns' : 'no'}
+They prepared for a conversation with: ${renderUserContent(who, 200)}
+Their objective was: ${renderUserContent(objective, 300)}
+Their fear was: ${renderUserContent(fear, 200)}
+Channel: ${channel}
+They rehearsed: ${rpHistory.length > 0 ? 'yes, ' + rpHistory.length + ' turns' : 'no'}
 
 When the founder checks in on this task, reference their preparation. If the conversation happened, ask how it compared to what they prepared for. If specific objections from the preparation came up, ask about them by name. If they haven't had the conversation yet, acknowledge the preparation and encourage them — they've done the hard work of preparing, now they need to execute.
 `;

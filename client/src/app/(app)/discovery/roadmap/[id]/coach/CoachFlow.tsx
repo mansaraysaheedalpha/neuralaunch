@@ -47,7 +47,7 @@ export function CoachFlow({ roadmapId, taskId, open, onClose }: CoachFlowProps) 
         {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ setup: completed }),
+          body:    '{}',
         },
       );
 
@@ -77,7 +77,7 @@ export function CoachFlow({ roadmapId, taskId, open, onClose }: CoachFlowProps) 
         {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ setupId: setup?.who }),
+          body:    '{}',
         },
       );
 
@@ -95,7 +95,7 @@ export function CoachFlow({ roadmapId, taskId, open, onClose }: CoachFlowProps) 
       setLoadError('Network error — please try again.');
       setStage('roleplay');
     }
-  }, [roadmapId, taskId, setup]);
+  }, [roadmapId, taskId]);
 
   const completedSession =
     setup && preparation

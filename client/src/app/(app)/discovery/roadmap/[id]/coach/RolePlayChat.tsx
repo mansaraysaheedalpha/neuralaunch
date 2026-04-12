@@ -74,14 +74,21 @@ export function RolePlayChat({
       }
 
       const json = await res.json() as {
-        turn:    RolePlayTurn;
-        capped?: boolean;
-        warning?: boolean;
+        message: string;
+        turn:    number;
+        capped:  boolean;
       };
 
-      setHistory(prev => [...prev, json.turn]);
       if (json.capped) {
         setCapped(true);
+      } else {
+        // Construct the proper RolePlayTurn from the flat response
+        const otherPartyTurn: RolePlayTurn = {
+          role:    'other_party',
+          message: json.message,
+          turn:    json.turn,
+        };
+        setHistory(prev => [...prev, otherPartyTurn]);
       }
     } catch {
       setError('Network error — please try again.');

@@ -14,6 +14,8 @@ import 'server-only';
 import { generateObject } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { logger } from '@/lib/logger';
+import { MODELS } from '@/lib/discovery/constants';
+import { withModelFallback } from '@/lib/ai/with-model-fallback';
 import { renderUserContent, sanitizeForPrompt } from '@/lib/validation/server-helpers';
 import { DebriefSchema, type Debrief, type RolePlayTurn, type PreparationPackage, type ConversationSetup } from './schemas';
 
@@ -61,8 +63,11 @@ export async function runDebrief(
     .map((o, i) => `${i + 1}. "${sanitizeForPrompt(o.objection, 200)}"`)
     .join('\n');
 
-  const { object } = await generateObject({
-    model:  aiSdkAnthropic(DEBRIEF_MODEL),
+  const { object } = await withModelFallback(
+    'coach:debrief',
+    { primary: DEBRIEF_MODEL, fallback: MODELS.INTERVIEW_FALLBACK_1 },
+    (modelId) => generateObject({
+    model:  aiSdkAnthropic(modelId),
     schema: DebriefSchema,
     messages: [{
       role: 'user',
@@ -98,7 +103,8 @@ TONE RULES:
 
 Produce the structured debrief now.`,
     }],
-  });
+  }),
+  );
 
   log.info('[CoachDebrief] Debrief generated', {
     wellCount:    object.whatWentWell.length,

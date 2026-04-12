@@ -147,6 +147,9 @@ CRITICAL RULES:
 Produce the structured preparation package now.`,
         }],
       });
+      if (!result.experimental_output) {
+        throw new Error('Model failed to produce the preparation package — exhausted tool budget without emitting structured output.');
+      }
       return result.experimental_output;
     },
   );

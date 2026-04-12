@@ -58,10 +58,7 @@ export function CoachSetupChat({
         {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({
-            message:  trimmed,
-            history:  exchanges.map(ex => ({ role: ex.role, message: ex.message })),
-          }),
+          body:    JSON.stringify({ message: trimmed }),
         },
       );
 
@@ -89,7 +86,7 @@ export function CoachSetupChat({
     } finally {
       setSubmitting(false);
     }
-  }, [draft, submitting, exchanges, roadmapId, taskId, onSetupComplete]);
+  }, [draft, submitting, roadmapId, taskId, onSetupComplete]);
 
   return (
     <div className="flex flex-col gap-3">
