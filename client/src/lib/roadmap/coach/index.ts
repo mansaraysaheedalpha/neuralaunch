@@ -31,3 +31,6 @@ export {
 
 export type { SetupResponse, RunCoachSetupInput } from './setup-engine';
 export { runCoachSetup } from './setup-engine';
+
+export type { RunCoachPreparationInput } from './preparation-engine';
+export { runCoachPreparation } from './preparation-engine';
