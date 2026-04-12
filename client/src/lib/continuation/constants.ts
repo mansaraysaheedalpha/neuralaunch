@@ -43,12 +43,21 @@ export const CONTINUATION_THRESHOLDS = {
 export const PARKING_LOT_MAX_ITEMS = 50;
 
 /**
- * Hard cap on diagnostic chat turns per roadmap. The diagnostic is
- * meant to be 2-4 rounds — if the founder needs more than this, they
- * should start a fresh discovery session, not continue chatting in
- * a context-thin diagnostic surface.
+ * Hard cap on diagnostic chat turns per roadmap. A1 raised the limit
+ * from 6 to 10 — the lower limit caused premature ejection in
+ * complex blockers where the agent needed several rounds to
+ * understand the problem. The inconclusive verdict + three-option
+ * resolution now handles the cap gracefully instead of throwing 409.
  */
-export const DIAGNOSTIC_HARD_CAP_TURNS = 6;
+export const DIAGNOSTIC_HARD_CAP_TURNS = 10;
+
+/**
+ * A1: the turn at which the diagnostic agent warns the founder the
+ * conversation limit is approaching. "We have 2 exchanges left in
+ * this diagnostic — let me make sure I understand what's happening."
+ * The prompt uses this directly.
+ */
+export const DIAGNOSTIC_WARNING_TURN = 8;
 
 /**
  * Lifecycle states the continuation flow walks through. Stored on
