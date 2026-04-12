@@ -34,3 +34,9 @@ export { runCoachSetup } from './setup-engine';
 
 export type { RunCoachPreparationInput } from './preparation-engine';
 export { runCoachPreparation } from './preparation-engine';
+
+export type { RunRolePlayTurnInput } from './roleplay-engine';
+export { runRolePlayTurn } from './roleplay-engine';
+
+export type { RunDebriefInput } from './debrief-engine';
+export { runDebrief } from './debrief-engine';
