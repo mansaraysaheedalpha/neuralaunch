@@ -257,12 +257,26 @@ Produce your structured response now.`,
 // ---------------------------------------------------------------------------
 
 function renderBeliefStateForCheckIn(context: DiscoveryContext): string {
+  // The full set of belief state fields the check-in agent benefits
+  // from. The four added in A10 — motivationAnchor, availableTimePerWeek,
+  // technicalAbility, teamSize — are the same fields the diagnostic
+  // engine receives and the same fields the founder spent the
+  // discovery interview answering. Cost is negligible (four short
+  // strings appended to a prompt that already includes the full
+  // roadmap outline) and they are load-bearing for re-anchoring
+  // (motivationAnchor), time-appropriate tool recommendations
+  // (availableTimePerWeek), skill-calibrated sub-step breakdowns
+  // (technicalAbility), and solo-vs-team task framing (teamSize).
   const fields: Array<[string, unknown]> = [
-    ['Primary goal',      context.primaryGoal?.value],
-    ['Situation',         context.situation?.value],
-    ['Geographic market', context.geographicMarket?.value],
-    ['Available budget',  context.availableBudget?.value],
-    ['Biggest concern',   context.biggestConcern?.value],
+    ['Primary goal',         context.primaryGoal?.value],
+    ['Situation',            context.situation?.value],
+    ['Geographic market',    context.geographicMarket?.value],
+    ['Available budget',     context.availableBudget?.value],
+    ['Biggest concern',      context.biggestConcern?.value],
+    ['Motivation anchor',    context.motivationAnchor?.value],
+    ['Available time/week',  context.availableTimePerWeek?.value],
+    ['Technical ability',    context.technicalAbility?.value],
+    ['Team size',            context.teamSize?.value],
   ];
   const lines: string[] = [];
   for (const [label, value] of fields) {
