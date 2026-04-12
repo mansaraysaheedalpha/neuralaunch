@@ -199,6 +199,21 @@ export const StoredRoadmapTaskSchema = RoadmapTaskSchema.extend({
    * just with less narrative context on that task.
    */
   conversationArc: z.string().nullable().optional(),
+  /**
+   * Conversation Coach session, when the founder used the Coach
+   * on this specific task. Persisted so the founder can re-read
+   * the preparation, the check-in agent can reference it, and the
+   * continuation engine can see it. Optional — only present on
+   * tasks where the founder launched the Coach from the task card.
+   *
+   * Stored as passthrough record here to avoid a circular import
+   * (coach/schemas.ts imports from checkin-types.ts indirectly via
+   * the COACH_CHANNELS constant chain). The Coach module's own
+   * CoachSessionSchema is the strict validator; this field is
+   * permissive on the StoredRoadmapTask read path so existing
+   * tasks without a coachSession (the vast majority) parse cleanly.
+   */
+  coachSession: z.object({}).passthrough().optional(),
 });
 export type StoredRoadmapTask = z.infer<typeof StoredRoadmapTaskSchema>;
 
