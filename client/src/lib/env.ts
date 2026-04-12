@@ -32,8 +32,14 @@ const envSchema = z.object({
   // chain stops at Haiku and a final failure is surfaced to the client.
   GOOGLE_AI_API_KEY: z.string().optional(),
 
-  // Search / Research
+  // Search / Research — both research providers are exposed to every
+  // research-enabled agent as two independently-named tools (exa_search,
+  // tavily_search). Both are optional: missing keys make the
+  // corresponding tool unavailable to the agent (the agent's tool list
+  // shrinks accordingly), but the call still proceeds. The agent
+  // chooses which tool to use per query — there is no auto-routing.
   TAVILY_API_KEY: z.string().optional(),
+  EXA_API_KEY:    z.string().optional(),
 
   // Note: RESEND_* variables were removed in Stage 7.1 because the
   // email service (src/lib/email-service.ts) was deleted in Stage 3

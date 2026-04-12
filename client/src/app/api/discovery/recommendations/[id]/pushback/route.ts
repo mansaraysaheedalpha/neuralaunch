@@ -36,9 +36,9 @@ import {
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import { RecommendationSchema, type Recommendation } from '@/lib/discovery/recommendation-schema';
 import {
-  runConditionalResearch,
   appendResearchLog,
   safeParseResearchLog,
+  type ResearchLogEntry,
 } from '@/lib/research';
 
 const BodySchema = z.object({
@@ -225,19 +225,12 @@ export async function POST(
       alternativeRejected:    rec.alternativeRejected,
     });
 
-    // Phase 6 of the research-tool spec — pushback agent research.
-    // The trigger detector pre-filters the founder's pushback message;
-    // hits run a small Haiku extractor that builds 1-3 specific
-    // queries (founder-named alternatives, market challenges, proposed
-    // approaches). The pushback agent uses the findings to make its
-    // defend / refine / replace decision more credible.
-    const research = await runConditionalResearch({
-      agent:            'pushback',
-      founderMessage:   parsed.data.message,
-      geographicMarket: (context.geographicMarket?.value as string | undefined) ?? null,
-      contextId:        recommendationId,
-    });
-
+    // B1: the pushback agent now decides per-query whether and how to
+    // research via two named tools (exa_search, tavily_search). The
+    // accumulator is owned by the route and captures every tool call
+    // so it can be appended to Recommendation.researchLog inside the
+    // existing optimistic-concurrency updateMany below.
+    const researchAccumulator: ResearchLogEntry[] = [];
     const response = await runPushbackTurn({
       recommendationId,
       recommendation:  currentRec,
@@ -245,7 +238,7 @@ export async function POST(
       history,
       userMessage:     parsed.data.message,
       currentRound,
-      researchFindings: research.findings || undefined,
+      researchAccumulator,
     });
 
     const agentTurn: PushbackTurnAgent = {
@@ -293,8 +286,8 @@ export async function POST(
     // concurrency updateMany below so a racing pushback POST cannot
     // clobber our research entries (the version guard rejects the
     // write entirely on a race).
-    const nextResearchLog = research.researchLog.length > 0
-      ? appendResearchLog(safeParseResearchLog(rec.researchLog), research.researchLog)
+    const nextResearchLog = researchAccumulator.length > 0
+      ? appendResearchLog(safeParseResearchLog(rec.researchLog), researchAccumulator)
       : null;
 
     // Optimistic concurrency check on the same column. If another

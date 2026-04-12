@@ -8,11 +8,17 @@ import { Button } from '@/components/ui/button';
 
 // Each key maps to a synthesisStep value written by the Inngest function.
 // Labels are what the user sees — written to reflect the real work happening.
+//
+// Note: the dedicated `researching` step was removed when the research
+// tool flipped to the AI SDK tool-calling architecture (B1). The
+// synthesis Opus call now drives its own research mid-loop via the
+// exa_search and tavily_search tools, so there is no separate
+// "researching" stage to surface — it happens INSIDE "Building your
+// recommendation".
 const STEPS = [
   { key: 'loading',      label: 'Reading your answers'          },
   { key: 'summarising',  label: 'Understanding your situation'  },
   { key: 'evaluating',   label: 'Identifying the right path'    },
-  { key: 'researching',  label: 'Researching your market'       },
   { key: 'synthesising', label: 'Building your recommendation'  },
 ] as const;
 

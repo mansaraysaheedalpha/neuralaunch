@@ -14,6 +14,7 @@ import { renderUserContent } from '@/lib/validation/server-helpers';
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import type { AudienceType }     from '@/lib/discovery/constants';
 import { safeParsePushbackHistory, type PushbackTurn } from '@/lib/discovery/pushback-engine';
+import type { ResearchLogEntry } from '@/lib/research';
 
 /**
  * pushbackAlternativeFunction
@@ -115,14 +116,24 @@ export const pushbackAlternativeFunction = inngest.createFunction(
       }));
     });
 
-    // Step 4 — Run final synthesis with NO research findings (the
-    // alternative is grounded in the founder's stated direction, not
-    // in fresh research). This is intentional: speed and cost both
-    // benefit, and the pushback transcript is the constraint we want
-    // the model to honour.
-    const altRecommendation = await step.run('run-final-synthesis', async () => {
-      return await runFinalSynthesis(summary, analysis, audienceType, '');
+    // Step 4 — Run final synthesis. The pushback transcript is the
+    // constraint the model must honour, so the alternative is built
+    // from the founder's stated direction first. The agent CAN still
+    // call research tools mid-loop if it needs to verify the
+    // alternative path against current market reality — that is the
+    // B1 architecture, and it is the right call here too.
+    const altSynthesisStep = await step.run('run-final-synthesis', async () => {
+      const accumulator: ResearchLogEntry[] = [];
+      const recommendation = await runFinalSynthesis({
+        summary,
+        analysis,
+        audienceType,
+        contextId:           sessionId,
+        researchAccumulator: accumulator,
+      });
+      return { recommendation, researchLog: accumulator };
     });
+    const altRecommendation = altSynthesisStep.recommendation;
 
     // Step 5 — Persist as a new Recommendation row and link it from
     // the original via the self-relation alternativeRecommendationId.
@@ -142,6 +153,12 @@ export const pushbackAlternativeFunction = inngest.createFunction(
             assumptions:            altRecommendation.assumptions,
             whatWouldMakeThisWrong: altRecommendation.whatWouldMakeThisWrong,
             alternativeRejected:    altRecommendation.alternativeRejected,
+            // Research audit log — every tool call the alternative
+            // synthesis fired (exa_search or tavily_search), captured
+            // by the per-call accumulator inside the run-final-synthesis
+            // step. Persisted on the new Recommendation row so the
+            // audit trail follows the alternative.
+            researchLog:            toJsonValue(altSynthesisStep.researchLog),
             // Concern 3 — preparatory metadata. The alternative is
             // still a phase-1 output (Discovery + synthesis fused),
             // even though it was triggered by a phase-3 closing move.

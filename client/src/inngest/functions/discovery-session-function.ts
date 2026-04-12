@@ -6,11 +6,11 @@ import { buildPhaseContext, PHASES } from '@/lib/phase-context';
 import {
   getSession,
   deleteSession,
-  runResearch,
   summariseContext,
   eliminateAlternatives,
   runFinalSynthesis,
 } from '@/lib/discovery';
+import type { ResearchLogEntry } from '@/lib/research';
 
 /**
  * discoverySessionFunction
@@ -62,36 +62,31 @@ export const discoverySessionFunction = inngest.createFunction(
       return await eliminateAlternatives(summary);
     });
 
-    // Step 4: Run targeted research now that the recommended direction is known.
-    // The query for the primary path is built from the "strongest fit" conclusion in analysis.
-    const researchResult = await step.run('run-research', async () => {
-      try { await prisma.discoverySession.update({ where: { id: sessionId }, data: { synthesisStep: 'researching' }, select: { id: true } }); } catch { /* non-fatal */ }
-      const result = await runResearch(
-        interviewState.context,
-        interviewState.audienceType ?? null,
-        sessionId,
-        summary,
-        analysis,
-      );
-      // Return metadata alongside findings so Inngest dashboard shows research health
-      return {
-        ...result,
-        queriesAttempted: result.queriesRun.length,
-        findingsLength:   result.findings.length,
-        researchSkipped:  result.findings.length === 0,
-      };
-    });
-
-    // Step 5: Final synthesis — direction + evidence + audience framing
-    const recommendation = await step.run('run-final-synthesis', async () => {
+    // Step 4: Final synthesis with inline research via AI SDK tools.
+    //
+    // The B1 architecture flipped research from a separate pre-step
+    // (synthesis-engine#runResearch) into an in-loop tool the agent
+    // chooses to call. The Opus call now exposes exa_search and
+    // tavily_search as two independent tools and decides per query
+    // which to use; the per-call accumulator captures every tool
+    // invocation for the audit log.
+    //
+    // The accumulator is captured as the step's return value (next
+    // to the recommendation) so an Inngest replay reads it from the
+    // serialised step state rather than re-running the research.
+    const synthesisResult = await step.run('run-final-synthesis', async () => {
       try { await prisma.discoverySession.update({ where: { id: sessionId }, data: { synthesisStep: 'synthesising' }, select: { id: true } }); } catch { /* non-fatal */ }
-      return await runFinalSynthesis(
+      const accumulator: ResearchLogEntry[] = [];
+      const recommendation = await runFinalSynthesis({
         summary,
         analysis,
-        interviewState.audienceType ?? null,
-        researchResult.findings,
-      );
+        audienceType: interviewState.audienceType ?? null,
+        contextId:    sessionId,
+        researchAccumulator: accumulator,
+      });
+      return { recommendation, researchLog: accumulator };
     });
+    const recommendation = synthesisResult.recommendation;
 
     // Step 6: Persist the recommendation to the database. Use upsert
     // keyed on sessionId (which is @unique on the Recommendation
@@ -115,10 +110,11 @@ export const discoverySessionFunction = inngest.createFunction(
         assumptions:            recommendation.assumptions,
         whatWouldMakeThisWrong: recommendation.whatWouldMakeThisWrong,
         alternativeRejected:    recommendation.alternativeRejected,
-        // Research audit log — every query, answer, and source from the
-        // research step. Persisted for QA (audit what agents research)
-        // and training data (which queries produce useful results).
-        researchLog:            toJsonValue(researchResult.researchLog ?? []),
+        // Research audit log — every tool call the agent fired during
+        // synthesis (exa_search or tavily_search), with the agent's
+        // chosen tool, the query string, and the rendered result
+        // summary. Powers QA + training data extraction.
+        researchLog:            toJsonValue(synthesisResult.researchLog),
         // Concern 3 — preparatory metadata. No behaviour today.
         phaseContext: toJsonValue(buildPhaseContext(PHASES.RECOMMENDATION, {
           discoverySessionId: sessionId,

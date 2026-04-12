@@ -25,9 +25,9 @@ import { runCheckIn } from '@/lib/roadmap/checkin-agent';
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import { captureParkingLotFromCheckin } from '@/lib/continuation';
 import {
-  runConditionalResearch,
   safeParseResearchLog,
   appendResearchLog,
+  type ResearchLogEntry,
 } from '@/lib/research';
 
 // Pro plan: 90s gives headroom for the conditional research path
@@ -119,16 +119,12 @@ export async function POST(
     const phaseRow = phases[found.phaseIndex];
     const context  = safeParseDiscoveryContext(roadmap.recommendation.session.beliefState);
 
-    // Conditional research: trigger detector pre-filters the founder
-    // free text, then runs a small Haiku extractor only on hits.
-    // Empty findings mean either no research signal OR a clean
-    // fail-open path — the check-in agent proceeds either way.
-    const research = await runConditionalResearch({
-      agent:            'checkin',
-      founderMessage:   freeText,
-      geographicMarket: (context.geographicMarket?.value as string | undefined) ?? null,
-      contextId:        roadmapId,
-    });
+    // B1: the check-in agent now decides per-query whether and how to
+    // research via two named tools (exa_search, tavily_search). The
+    // accumulator is owned by this route and captures every tool call
+    // so it can be appended to Roadmap.researchLog inside the
+    // existing transaction below.
+    const researchAccumulator: ResearchLogEntry[] = [];
 
     const response = await runCheckIn({
       recommendation: {
@@ -146,7 +142,8 @@ export async function POST(
       freeText,
       currentRound,
       taskId,
-      researchFindings:   research.findings || undefined,
+      contextId:          roadmapId,
+      researchAccumulator,
     });
 
     // Append the new entry. Future agent turns read this history.
@@ -211,13 +208,13 @@ export async function POST(
         taskTitle:     found.task.title,
       });
 
-    // Research log append. The conditional helper returns the audit
-    // entries for whatever queries it actually fired (zero, one, or
-    // up to RESEARCH_BUDGETS.checkin.perInvocation = 2). The helper
-    // bounds the column at MAX_RESEARCH_LOG_ENTRIES via appendResearchLog
-    // so the JSONB never grows without limit on a multi-cycle roadmap.
-    const nextResearchLog = research.researchLog.length > 0
-      ? appendResearchLog(safeParseResearchLog(roadmap.researchLog), research.researchLog)
+    // Research log append. The accumulator carries every tool call
+    // the agent fired during runCheckIn (zero, one, or up to the
+    // per-agent step budget). appendResearchLog bounds the column at
+    // MAX_RESEARCH_LOG_ENTRIES so the JSONB never grows without
+    // limit on a multi-cycle roadmap.
+    const nextResearchLog = researchAccumulator.length > 0
+      ? appendResearchLog(safeParseResearchLog(roadmap.researchLog), researchAccumulator)
       : null;
 
     await prisma.$transaction(async (tx) => {
@@ -253,7 +250,7 @@ export async function POST(
       action:        response.action,
       round:         currentRound,
       parkedIdea:    !!nextParkingLot,
-      researchQueries: research.queriesRun.length,
+      researchCalls: researchAccumulator.length,
     });
 
     return NextResponse.json({
