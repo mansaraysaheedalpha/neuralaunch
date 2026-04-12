@@ -28,3 +28,6 @@ export {
   type CoachSession,
   type ToolSessions,
 } from './schemas';
+
+export type { SetupResponse, RunCoachSetupInput } from './setup-engine';
+export { runCoachSetup } from './setup-engine';
