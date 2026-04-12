@@ -14,6 +14,7 @@ import {
 import {
   CONTINUATION_BRIEF_EVENT,
   CONTINUATION_STATUSES,
+  DIAGNOSTIC_HARD_CAP_TURNS,
   evaluateScenario,
   loadCheckpointStatus,
 } from '@/lib/continuation';
@@ -123,12 +124,38 @@ export async function POST(
     if (evaluation.needsDiagnostic) {
       // Scenario A or B — open the diagnostic chat. The next POST
       // from the founder lands on /diagnostic which calls the
-      // diagnostic engine. We do NOT clear the diagnostic history
-      // here — if the founder hit the button before, those entries
-      // are still relevant context for the next exchange.
+      // diagnostic engine.
+      //
+      // If the existing diagnostic history already has cap-many agent
+      // turns (from a prior abandoned session), clear it so the
+      // founder starts fresh. A stale full-length history would
+      // cause the diagnostic route to hit the turn cap on the very
+      // first message. Partial histories (under the cap) are
+      // preserved — they carry useful context from the prior
+      // exchange. This ONLY affects Roadmap.diagnosticHistory; task-
+      // level diagnostic entries live in task.checkInHistory and are
+      // completely untouched.
+      const existingAgentTurns = checkpointStatus.briefAlreadyExists
+        ? 0 // irrelevant — brief already exists guard fires above
+        : await (async () => {
+            const row = await prisma.roadmap.findUnique({
+              where:  { id: roadmapId },
+              select: { diagnosticHistory: true },
+            });
+            if (!row?.diagnosticHistory || !Array.isArray(row.diagnosticHistory)) return 0;
+            return (row.diagnosticHistory as Array<{ role?: string }>).filter(t => t.role === 'agent').length;
+          })();
+      const clearHistory = existingAgentTurns >= DIAGNOSTIC_HARD_CAP_TURNS;
+      if (clearHistory) {
+        log.info('[Checkpoint] Clearing stale diagnostic history — prior session hit the cap');
+      }
+
       await prisma.roadmap.update({
         where: { id: roadmapId },
-        data:  { continuationStatus: CONTINUATION_STATUSES.DIAGNOSING },
+        data:  {
+          continuationStatus: CONTINUATION_STATUSES.DIAGNOSING,
+          ...(clearHistory ? { diagnosticHistory: [] } : {}),
+        },
       });
       return NextResponse.json({
         scenario:        evaluation.scenario,
