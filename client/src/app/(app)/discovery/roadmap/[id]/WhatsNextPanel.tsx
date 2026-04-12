@@ -5,7 +5,11 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, Loader2, MessageCircle, Send } from 'lucide-react';
-import { INCONCLUSIVE_RESOLUTION_OPTIONS } from '@/lib/continuation';
+// Import directly from the schema file — NOT the barrel index.
+// The barrel re-exports server-only modules (brief-generator,
+// diagnostic-engine, evidence-loader, etc.) which webpack traces
+// transitively and rejects in client components.
+import { INCONCLUSIVE_RESOLUTION_OPTIONS } from '@/lib/continuation/diagnostic-schema';
 import { useContinuationFlow } from './useContinuationFlow';
 
 /**
