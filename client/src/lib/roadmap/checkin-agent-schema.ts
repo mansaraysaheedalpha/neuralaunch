@@ -69,8 +69,7 @@ export const CheckInResponseSchema = z.object({
   action: z.enum(CHECKIN_AGENT_ACTIONS).describe(
     'acknowledged: normal friction or successful completion — no roadmap change. ' +
     'adjusted_next_step: blocker reveals a task-level mistake; propose adjustments to the next 1-2 tasks. ' +
-    'adjusted_roadmap: reserved for the future structured-edit mechanism — DO NOT use today. ' +
-    'flagged_fundamental: blocker reveals the recommendation path itself is wrong; the orchestrator surfaces a re-examine prompt.'
+    'adjusted_roadmap: reserved for the future structured-edit mechanism — DO NOT use today.'
   ),
   message: z.string().transform(clampString(MAX_AGENT_MESSAGE_CHARS)).describe(
     'The text the founder will read. Specific to their task, their context, and their belief state. ' +

@@ -15,10 +15,12 @@ import {
   CHECKIN_CATEGORIES,
   CHECKIN_ENTRY_SOURCES,
   CHECKIN_HARD_CAP_ROUND,
+  RECALIBRATION_MIN_COVERAGE,
   StoredPhasesArraySchema,
   patchTask,
   readTask,
   computeProgressSummary,
+  countTasksWithCheckins,
   type CheckInEntry,
   type StoredRoadmapPhase,
 } from '@/lib/roadmap/checkin-types';
@@ -122,8 +124,10 @@ export async function POST(
 
     const priorHistory = found.task.checkInHistory ?? [];
     const currentRound = priorHistory.length + 1;
+    // A2 Part 5: updated cap message routes to existing help surfaces
+    // instead of ejecting the founder from the platform.
     if (currentRound > CHECKIN_HARD_CAP_ROUND) {
-      throw new HttpError(409, `You have reached the check-in cap on this task. If you are still stuck, start a fresh discovery session and bring this learning forward.`);
+      throw new HttpError(409, `You've used all ${CHECKIN_HARD_CAP_ROUND} check-ins on this task. You can get more help by clicking "Get help with this task" for focused support, or by clicking "What's Next?" on your roadmap to evaluate your overall progress.`);
     }
 
     const phaseRow = phases[found.phaseIndex];
@@ -191,9 +195,23 @@ export async function POST(
       ...(response.recommendedTools && response.recommendedTools.length > 0
         ? { recommendedTools: response.recommendedTools }
         : {}),
-      ...(response.recalibrationOffer
-        ? { recalibrationOffer: response.recalibrationOffer }
-        : {}),
+      // A2 Part 2: code-level gate. The agent may emit a
+      // recalibrationOffer based on prompt reasoning, but the route
+      // only persists it when at least 40% of tasks have at least
+      // one check-in entry. Below that threshold the agent's message
+      // still renders but the structured offer is suppressed —
+      // there is not enough execution evidence to justify
+      // questioning the recommendation. The coverage check uses the
+      // CURRENT phases (before patching in this entry) because the
+      // founder's coverage at the moment they file this check-in is
+      // the relevant denominator.
+      ...(() => {
+        if (!response.recalibrationOffer) return {};
+        const summary2 = computeProgressSummary(phases);
+        const coverage = countTasksWithCheckins(phases) / Math.max(summary2.totalTasks, 1);
+        if (coverage < RECALIBRATION_MIN_COVERAGE) return {};
+        return { recalibrationOffer: response.recalibrationOffer };
+      })(),
       // A12: persist the provenance so the brief generator can weight
       // founder reflections higher than success-criteria confirmations
       // and so analytics can tell the two paths apart. Default to
@@ -325,19 +343,30 @@ export async function POST(
       }
     }
 
+    // A2 Part 4: progress-aware routing for the recalibration offer.
+    // When the entry carries a recalibrationOffer (i.e. it passed the
+    // code-level gate), determine where the founder should go:
+    //   - Below 50% complete → pushback flow (reconsider the recommendation)
+    //   - 50%+ complete → task-level diagnostic (get help with what's left)
+    const hasRecal = !!newEntry.recalibrationOffer;
+    const completionPct = summary.totalTasks > 0
+      ? summary.completedTasks / summary.totalTasks
+      : 0;
+
     return NextResponse.json({
       entry:    newEntry,
       progress: summary,
-      // The client uses this to render the re-examine prompt that
-      // links into the recommendation pushback flow when the agent
-      // flagged a fundamental problem.
-      flaggedFundamental: response.action === 'flagged_fundamental',
-      recommendationId:   roadmap.recommendation.id,
-      // The full parking lot post-update — the client renders a
-      // small "we parked this for you" affordance when the array
-      // grew. Returning the entire array (rather than just a delta)
-      // is cheap because the cap is 50 items.
-      parkingLot:         nextParkingLot ?? currentParkingLot,
+      recommendationId: roadmap.recommendation.id,
+      // A2: progress-aware routing info for the client. The client
+      // renders different link text and different target surfaces
+      // depending on the founder's completion percentage.
+      recalibration: hasRecal
+        ? {
+            route: completionPct >= 0.5 ? 'task_diagnostic' as const : 'pushback' as const,
+            reason: newEntry.recalibrationOffer!.reason,
+          }
+        : null,
+      parkingLot: nextParkingLot ?? currentParkingLot,
     });
   } catch (err) {
     if (err instanceof HttpError) return httpErrorToResponse(err);

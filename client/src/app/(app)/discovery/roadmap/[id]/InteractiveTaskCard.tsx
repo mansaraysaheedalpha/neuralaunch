@@ -2,7 +2,6 @@
 // src/app/(app)/discovery/roadmap/[id]/InteractiveTaskCard.tsx
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { motion } from 'motion/react';
 import { Clock, Target } from 'lucide-react';
 import {
@@ -88,7 +87,6 @@ export function InteractiveTaskCard({
   const [submitting,  setSubmitting]  = useState(false);
   const [error,       setError]       = useState<string | null>(null);
   const [showCompletionMoment, setShowCompletionMoment] = useState(false);
-  const [flaggedFundamental,  setFlaggedFundamental]  = useState(false);
   // A12: two-option completion flow state. When the founder flips
   // status to completed, the card shows two buttons inside the
   // completion moment instead of auto-opening the check-in form:
@@ -180,8 +178,8 @@ export function InteractiveTaskCard({
         return;
       }
       const json = await res.json() as {
-        entry:              CheckInEntry;
-        flaggedFundamental: boolean;
+        entry:         CheckInEntry;
+        recalibration: { route: 'pushback' | 'task_diagnostic'; reason: string } | null;
       };
       setHistory(prev => [...prev, json.entry]);
       setFreeText('');
@@ -189,7 +187,6 @@ export function InteractiveTaskCard({
       // needs to read them. Otherwise close it after a successful turn.
       if (!json.entry.proposedChanges?.length) setFormOpen(false);
       setCategory(null);
-      if (json.flaggedFundamental) setFlaggedFundamental(true);
       // A12: clear the completion-path UI on success so the two-option
       // surface does not linger after the founder has resolved it.
       setCompletionPath(null);
@@ -363,24 +360,7 @@ export function InteractiveTaskCard({
         </motion.div>
       )}
 
-      <CheckInHistoryList history={history} recommendationId={recommendationId} />
-
-      {flaggedFundamental && (
-        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 flex flex-col gap-2">
-          <p className="text-[11px] text-red-700 dark:text-red-400 font-medium">
-            This blocker may be a sign the recommendation itself needs to change.
-          </p>
-          <p className="text-[11px] text-foreground/80 leading-relaxed">
-            Open the recommendation and push back on it directly — the agent will reason about whether to refine or replace the path with this new evidence.
-          </p>
-          <Link
-            href={`/discovery/recommendations/${recommendationId}`}
-            className="self-start rounded-md bg-red-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-red-700 transition-colors"
-          >
-            Re-examine the recommendation →
-          </Link>
-        </div>
-      )}
+      <CheckInHistoryList history={history} />
 
       <CheckInForm
         open={formOpen}

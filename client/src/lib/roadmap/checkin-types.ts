@@ -51,11 +51,15 @@ export type CheckInEntrySource = typeof CHECKIN_ENTRY_SOURCES[number];
  * Action label set by the check-in agent on its structured response.
  * Stored on every CheckInEntry as audit + future training signal.
  */
+// A2: flagged_fundamental removed. A single blocker on a single
+// task is a task-level problem, not a recommendation-level problem.
+// If a blocker is truly fundamental, the pattern will surface across
+// multiple check-ins and trigger the recalibration offer (which now
+// has code-level guardrails and progress-aware routing).
 export const CHECKIN_AGENT_ACTIONS = [
   'acknowledged',
   'adjusted_next_step',
   'adjusted_roadmap',
-  'flagged_fundamental',
 ] as const;
 export type CheckInAgentAction = typeof CHECKIN_AGENT_ACTIONS[number];
 
@@ -197,6 +201,36 @@ export const StoredPhasesArraySchema = z.array(StoredRoadmapPhaseSchema);
  * recommendation level.
  */
 export const CHECKIN_HARD_CAP_ROUND = 5;
+
+/**
+ * A2: minimum check-in coverage before the check-in route will
+ * persist a recalibrationOffer from the agent. Below this threshold
+ * the agent's message still renders but the structured
+ * recalibrationOffer output is silently suppressed — there is not
+ * enough execution evidence yet to justify questioning the
+ * recommendation.
+ *
+ * 0.4 means at least 40% of tasks must have at least one check-in
+ * entry before a recalibration offer is surfaced to the founder.
+ */
+export const RECALIBRATION_MIN_COVERAGE = 0.4;
+
+/**
+ * A2: pure helper that counts how many tasks across all phases have
+ * at least one check-in entry. Used by the check-in route to
+ * compute the coverage ratio against RECALIBRATION_MIN_COVERAGE.
+ */
+export function countTasksWithCheckins(phases: StoredRoadmapPhase[]): number {
+  let count = 0;
+  for (const phase of phases) {
+    for (const task of phase.tasks) {
+      if (task.checkInHistory && task.checkInHistory.length > 0) {
+        count++;
+      }
+    }
+  }
+  return count;
+}
 
 /**
  * Stable task identifier. The roadmap JSON does not store IDs on

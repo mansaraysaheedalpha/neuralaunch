@@ -1,13 +1,11 @@
 'use client';
 // src/app/(app)/discovery/roadmap/[id]/CheckInHistoryList.tsx
 
-import Link from 'next/link';
 import { Sparkles, Wrench, AlertTriangle } from 'lucide-react';
 import type { CheckInEntry } from '@/lib/roadmap/checkin-types';
 
 export interface CheckInHistoryListProps {
-  history:          CheckInEntry[];
-  recommendationId: string;
+  history: CheckInEntry[];
 }
 
 /**
@@ -24,7 +22,7 @@ export interface CheckInHistoryListProps {
  * Each block is conditionally rendered when present. The component
  * stays presentation-only and is safe to share between scenarios.
  */
-export function CheckInHistoryList({ history, recommendationId }: CheckInHistoryListProps) {
+export function CheckInHistoryList({ history }: CheckInHistoryListProps) {
   if (history.length === 0) return null;
   return (
     <div className="flex flex-col gap-2 pt-2 border-t border-border">
@@ -43,8 +41,7 @@ export function CheckInHistoryList({ history, recommendationId }: CheckInHistory
           </div>
           <div className={[
             'rounded-lg border px-3 py-2',
-            entry.agentAction === 'flagged_fundamental' ? 'border-red-500/30 bg-red-500/5' :
-            entry.agentAction === 'adjusted_next_step'  ? 'border-amber-500/30 bg-amber-500/5' :
+            entry.agentAction === 'adjusted_next_step' ? 'border-amber-500/30 bg-amber-500/5' :
             'border-border bg-muted/40',
           ].join(' ')}>
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-1">
@@ -116,7 +113,7 @@ export function CheckInHistoryList({ history, recommendationId }: CheckInHistory
               <div className="mt-2 pt-2 border-t border-orange-500/30">
                 <p className="text-[10px] font-medium text-orange-700 dark:text-orange-400 mb-1 flex items-center gap-1">
                   <AlertTriangle className="size-3" />
-                  This might be the wrong direction
+                  Possible direction concern
                 </p>
                 <p className="text-[11px] text-foreground/85 leading-snug mb-1">
                   {entry.recalibrationOffer.reason}
@@ -124,12 +121,6 @@ export function CheckInHistoryList({ history, recommendationId }: CheckInHistory
                 <p className="text-[11px] text-foreground/85 leading-snug">
                   {entry.recalibrationOffer.framing}
                 </p>
-                <Link
-                  href={`/discovery/recommendations/${recommendationId}`}
-                  className="mt-2 inline-block rounded-md border border-orange-500/40 bg-orange-500/10 px-2.5 py-1 text-[10px] font-medium text-orange-700 dark:text-orange-400 hover:bg-orange-500/15 transition-colors"
-                >
-                  Reconsider the recommendation →
-                </Link>
               </div>
             )}
           </div>
