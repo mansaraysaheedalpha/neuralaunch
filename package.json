@@ -1,0 +1,15 @@
+{
+  "name": "neuralaunch",
+  "private": true,
+  "scripts": {
+    "dev:web": "pnpm --filter client dev",
+    "dev:mobile": "pnpm --filter mobile start",
+    "build:web": "pnpm --filter client build",
+    "lint:web": "pnpm --filter client lint",
+    "typecheck": "pnpm -r run typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.15.4"
+}
