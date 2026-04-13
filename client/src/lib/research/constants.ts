@@ -94,4 +94,12 @@ export const RESEARCH_BUDGETS: Record<ResearchAgent, { steps: number; descriptio
     steps:       8,
     description: 'Market changes since recommendation, fork viability, parking-lot context.',
   },
+  composer: {
+    // Spec: 2-6 research calls per generation. Budget = 8 gives the
+    // agent room for up to 6 tool calls (recipient company lookup,
+    // industry norms, market context) plus the structured
+    // ComposerOutput emission with one step of headroom.
+    steps:       8,
+    description: 'Recipient research, industry norms, market context for outreach messages.',
+  },
 } as const;

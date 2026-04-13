@@ -23,3 +23,20 @@ export {
   type ComposerOutput,
   type ComposerSession,
 } from './schemas';
+
+export {
+  runComposerContext,
+  type RunComposerContextInput,
+  type ContextResponse,
+} from './context-engine';
+
+export {
+  runComposerGeneration,
+  type RunComposerGenerationInput,
+} from './generation-engine';
+
+export {
+  runComposerRegeneration,
+  type RunComposerRegenerationInput,
+  type RegenerationResponse,
+} from './regeneration-engine';

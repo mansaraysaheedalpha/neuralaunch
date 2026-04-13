@@ -22,6 +22,7 @@ export const RESEARCH_AGENTS = [
   'pushback',
   'checkin',
   'continuation',
+  'composer',
 ] as const;
 export type ResearchAgent = typeof RESEARCH_AGENTS[number];
 
