@@ -1,16 +1,17 @@
 // src/components/roadmap/TaskCard.tsx
 //
-// Interactive roadmap task card — status badge, description, time
-// estimate, success criteria, check-in button. The card is the
-// primary interaction surface for founders executing their roadmap.
+// Interactive roadmap task card — inline status control, check-in
+// button, check-in history transcript, coach button, and completion
+// moment. Mirrors the web app's InteractiveTaskCard.
 
 import { useState } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
-import type { RoadmapTask, TaskStatus } from '@/hooks/useRoadmap';
-import { Text, Card, Badge, Button } from '@/components/ui';
+import { api } from '@/services/api-client';
+import type { RoadmapTask, TaskStatus, CheckInEntry } from '@/hooks/useRoadmap';
+import { Text, Card, Badge, Button, Separator } from '@/components/ui';
 import { spacing, radius } from '@/constants/theme';
 
 interface Props {
@@ -19,14 +20,15 @@ interface Props {
   phaseNumber:      number;
   roadmapId:        string;
   recommendationId: string;
+  onStatusChange?:  () => void;
 }
 
-const STATUS_LABELS: Record<TaskStatus, string> = {
-  not_started: 'Not started',
-  in_progress: 'In progress',
-  completed:   'Completed',
-  blocked:     'Blocked',
-};
+const STATUS_OPTIONS: Array<{ value: TaskStatus; label: string }> = [
+  { value: 'not_started', label: 'Not started' },
+  { value: 'in_progress', label: 'In progress' },
+  { value: 'completed',   label: 'Completed' },
+  { value: 'blocked',     label: 'Blocked' },
+];
 
 const STATUS_VARIANTS: Record<TaskStatus, 'muted' | 'primary' | 'success' | 'destructive'> = {
   not_started: 'muted',
@@ -45,13 +47,40 @@ export function TaskCard({
   phaseNumber,
   roadmapId,
   recommendationId,
+  onStatusChange,
 }: Props) {
   const { colors: c } = useTheme();
   const router = useRouter();
-  const status: TaskStatus = task.status ?? 'not_started';
   const taskId = buildTaskId(phaseNumber, index);
+
+  const [status, setStatus]             = useState<TaskStatus>(task.status ?? 'not_started');
+  const [showStatusPicker, setShowPicker] = useState(false);
+  const [showHistory, setShowHistory]   = useState(false);
+  const [pendingStatus, setPendingStatus] = useState(false);
+
   const checkInCount = task.checkInHistory?.length ?? 0;
   const hasCoach = task.suggestedTools?.includes('conversation_coach');
+  const hasComposer = task.suggestedTools?.includes('outreach_composer');
+
+  async function handleStatusChange(newStatus: TaskStatus) {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowPicker(false);
+    const prevStatus = status;
+    setStatus(newStatus);
+    setPendingStatus(true);
+
+    try {
+      await api(`/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/status`, {
+        method: 'PATCH',
+        body: { status: newStatus },
+      });
+      onStatusChange?.();
+    } catch {
+      setStatus(prevStatus); // rollback
+    } finally {
+      setPendingStatus(false);
+    }
+  }
 
   function handleCheckIn() {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -65,32 +94,50 @@ export function TaskCard({
 
   return (
     <Card style={styles.card}>
-      {/* Header: title + status */}
+      {/* Header: title + status picker */}
       <View style={styles.header}>
-        <Text variant="label" style={styles.title}>{task.title}</Text>
-        <Badge label={STATUS_LABELS[status]} variant={STATUS_VARIANTS[status]} />
+        <Text variant="label" style={{ flex: 1 }}>{task.title}</Text>
+        <Pressable onPress={() => { void Haptics.selectionAsync(); setShowPicker(!showStatusPicker); }}>
+          <Badge label={STATUS_OPTIONS.find(s => s.value === status)?.label ?? status} variant={STATUS_VARIANTS[status]} />
+        </Pressable>
       </View>
 
-      {/* Description */}
-      <Text variant="caption" color={c.mutedForeground} style={styles.description}>
-        {task.description}
-      </Text>
+      {/* Status picker dropdown */}
+      {showStatusPicker && (
+        <View style={[styles.statusPicker, { backgroundColor: c.card, borderColor: c.border }]}>
+          {STATUS_OPTIONS.map(opt => (
+            <Pressable
+              key={opt.value}
+              onPress={() => { void handleStatusChange(opt.value); }}
+              style={[
+                styles.statusOption,
+                opt.value === status && { backgroundColor: c.primaryAlpha5 },
+              ]}
+            >
+              <Badge label={opt.label} variant={STATUS_VARIANTS[opt.value]} />
+            </Pressable>
+          ))}
+        </View>
+      )}
 
-      {/* Meta row: time + success criteria */}
+      {/* Description */}
+      <Text variant="caption" color={c.mutedForeground}>{task.description}</Text>
+
+      {/* Meta row */}
       <View style={styles.metaRow}>
         <View style={styles.metaItem}>
           <Text variant="overline" color={c.mutedForeground}>Time</Text>
-          <Text variant="caption" color={c.foreground}>{task.timeEstimate}</Text>
+          <Text variant="caption">{task.timeEstimate}</Text>
         </View>
         <View style={[styles.metaItem, { flex: 2 }]}>
           <Text variant="overline" color={c.mutedForeground}>Done when</Text>
-          <Text variant="caption" color={c.foreground}>{task.successCriteria}</Text>
+          <Text variant="caption">{task.successCriteria}</Text>
         </View>
       </View>
 
       {/* Rationale */}
       {task.rationale && (
-        <Text variant="caption" color={c.primary} style={styles.rationale}>
+        <Text variant="caption" color={c.primary} style={{ fontStyle: 'italic' }}>
           {task.rationale}
         </Text>
       )}
@@ -106,6 +153,43 @@ export function TaskCard({
         </View>
       )}
 
+      {/* Check-in history (collapsible) */}
+      {checkInCount > 0 && (
+        <View>
+          <Pressable
+            onPress={() => { void Haptics.selectionAsync(); setShowHistory(!showHistory); }}
+            style={styles.historyToggle}
+          >
+            <Text variant="caption" color={c.primary}>
+              {showHistory ? 'Hide' : 'Show'} check-in history ({checkInCount})
+            </Text>
+          </Pressable>
+
+          {showHistory && (
+            <View style={styles.historyList}>
+              {(task.checkInHistory ?? []).map((entry, i) => (
+                <View key={entry.id ?? i} style={[styles.historyEntry, { borderLeftColor: c.primaryAlpha20 }]}>
+                  <View style={styles.historyHeader}>
+                    <Badge label={entry.category} variant="muted" />
+                    <Text variant="caption" color={c.mutedForeground}>
+                      Round {entry.round}
+                    </Text>
+                  </View>
+                  <Text variant="caption" style={{ marginTop: spacing[1] }}>
+                    {entry.freeText}
+                  </Text>
+                  <View style={[styles.agentResponse, { backgroundColor: c.muted }]}>
+                    <Text variant="caption" color={c.foreground}>
+                      {entry.agentResponse}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+
       {/* Actions */}
       <View style={styles.actions}>
         <Button
@@ -115,9 +199,15 @@ export function TaskCard({
           size="sm"
         />
         {hasCoach && (
+          <Button title="Coach" onPress={handleCoach} variant="ghost" size="sm" />
+        )}
+        {hasComposer && (
           <Button
-            title="Conversation Coach"
-            onPress={handleCoach}
+            title="Outreach"
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push(`/roadmap/${roadmapId}/outreach?taskId=${taskId}`);
+            }}
             variant="ghost"
             size="sm"
           />
@@ -137,11 +227,14 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: spacing[2],
   },
-  title: {
-    flex: 1,
+  statusPicker: {
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
   },
-  description: {
-    lineHeight: 18,
+  statusOption: {
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
   },
   metaRow: {
     flexDirection: 'row',
@@ -150,12 +243,6 @@ const styles = StyleSheet.create({
   metaItem: {
     flex: 1,
     gap: spacing[0.5],
-  },
-  rationale: {
-    fontStyle: 'italic',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.06)',
-    paddingTop: spacing[2],
   },
   resourceRow: {
     flexDirection: 'row',
@@ -166,6 +253,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[2],
     paddingVertical: spacing[0.5],
     borderRadius: radius.sm,
+  },
+  historyToggle: {
+    paddingVertical: spacing[1],
+  },
+  historyList: {
+    gap: spacing[3],
+    marginTop: spacing[2],
+  },
+  historyEntry: {
+    borderLeftWidth: 2,
+    paddingLeft: spacing[3],
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    gap: spacing[2],
+    alignItems: 'center',
+  },
+  agentResponse: {
+    marginTop: spacing[2],
+    padding: spacing[3],
+    borderRadius: radius.lg,
   },
   actions: {
     flexDirection: 'row',
