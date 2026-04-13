@@ -52,7 +52,7 @@ export const useAuth = create<AuthState>((set) => ({
         return;
       }
       // Validate the token against the backend
-      const data = await api<{ user: User }>('/api/auth/session');
+      const data = await api<{ user: User }>('/api/auth/mobile/session');
       set({ user: data.user, isSignedIn: true, isLoading: false });
     } catch {
       // Token is invalid or expired — clear it
@@ -83,7 +83,7 @@ export const useAuth = create<AuthState>((set) => ({
       await setToken(token);
 
       // Fetch the user profile
-      const data = await api<{ user: User }>('/api/auth/session');
+      const data = await api<{ user: User }>('/api/auth/mobile/session');
       set({ user: data.user, isSignedIn: true });
     } catch {
       // Silent failure — user can retry

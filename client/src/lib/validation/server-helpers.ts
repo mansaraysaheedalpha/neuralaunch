@@ -45,14 +45,36 @@ export function httpErrorToResponse(err: unknown): NextResponse {
 
 /**
  * Require a signed-in session and return the userId.
- * Throws HttpError(401) otherwise.
+ *
+ * Checks two paths in order:
+ * 1. NextAuth cookie session (web app)
+ * 2. Bearer token in Authorization header (mobile app)
+ *
+ * This dual check is what makes every existing API route work for
+ * both web and mobile without any per-route changes. The mobile app
+ * sends `Authorization: Bearer <sessionToken>` on every request;
+ * the web app sends the NextAuth session cookie.
+ *
+ * Throws HttpError(401) if neither path resolves a valid user.
  */
-export async function requireUserId(): Promise<string> {
+export async function requireUserId(request?: Request): Promise<string> {
+  // Path 1: NextAuth cookie session
   const session = await auth();
-  if (!session?.user?.id) {
-    throw new HttpError(401, 'Unauthorised');
+  if (session?.user?.id) {
+    return session.user.id;
   }
-  return session.user.id;
+
+  // Path 2: Mobile Bearer token
+  if (request) {
+    const { extractBearerToken, resolveUserFromToken } = await import('@/lib/mobile-auth');
+    const token = extractBearerToken(request);
+    if (token) {
+      const user = await resolveUserFromToken(token);
+      if (user) return user.id;
+    }
+  }
+
+  throw new HttpError(401, 'Unauthorised');
 }
 
 /**
