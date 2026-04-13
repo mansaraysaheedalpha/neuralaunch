@@ -23,6 +23,8 @@ export const RESEARCH_AGENTS = [
   'checkin',
   'continuation',
   'composer',
+  'research-execution',
+  'research-followup',
 ] as const;
 export type ResearchAgent = typeof RESEARCH_AGENTS[number];
 

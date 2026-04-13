@@ -220,6 +220,12 @@ export const StoredRoadmapTaskSchema = RoadmapTaskSchema.extend({
    * the strict validator; this field is permissive on the read path.
    */
   composerSession: z.object({}).passthrough().optional(),
+  /**
+   * Founder Research Tool session. Same passthrough pattern —
+   * ResearchSessionSchema in lib/roadmap/research-tool/schemas.ts
+   * is the strict validator.
+   */
+  researchSession: z.object({}).passthrough().optional(),
 });
 export type StoredRoadmapTask = z.infer<typeof StoredRoadmapTaskSchema>;
 
