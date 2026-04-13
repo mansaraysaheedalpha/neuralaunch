@@ -16,11 +16,13 @@ import type { ResearchReport } from '@/lib/roadmap/research-tool/schemas';
 const TOOL_HREF: Record<string, string> = {
   conversation_coach: '/tools/conversation-coach',
   outreach_composer:  '/tools/outreach-composer',
+  // service_packager is in the schema enum but the tool isn't
+  // built yet — omitted here so the step renders as plain text
+  // without a broken link. Add when the tool ships.
 };
 
 export interface ResearchReportViewProps {
-  report:       ResearchReport;
-  onFollowUp:   (query: string) => void;
+  report: ResearchReport;
 }
 
 /**
@@ -29,7 +31,7 @@ export interface ResearchReportViewProps {
  * Full report renderer. Summary → Findings → Roadmap connections →
  * Suggested next steps → Sources (collapsible).
  */
-export function ResearchReportView({ report, onFollowUp: _onFollowUp }: ResearchReportViewProps) {
+export function ResearchReportView({ report }: ResearchReportViewProps) {
   const [sourcesOpen, setSourcesOpen] = useState(false);
 
   return (
