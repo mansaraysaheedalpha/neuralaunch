@@ -8,7 +8,7 @@
 
 import { create } from 'zustand';
 import * as WebBrowser from 'expo-web-browser';
-import { makeRedirectUri } from 'expo-linking';
+import * as Linking from 'expo-linking';
 import { getToken, setToken, clearToken, api, API_BASE_URL } from './api-client';
 
 // ---------------------------------------------------------------------------
@@ -63,7 +63,7 @@ export const useAuth = create<AuthState>((set) => ({
 
   signIn: async (provider) => {
     try {
-      const redirectUri = makeRedirectUri({ scheme: 'neuralaunch' });
+      const redirectUri = Linking.createURL('auth/callback');
 
       // Open the OAuth provider's auth page in a system browser.
       // The web backend handles the OAuth dance and redirects back

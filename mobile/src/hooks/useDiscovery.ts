@@ -6,7 +6,7 @@
 // useDiscoverySession.ts adapted for React Native.
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { api, apiStream, ApiError } from '@/services/api-client';
+import { api, ApiError, API_BASE_URL, getToken } from '@/services/api-client';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -88,14 +88,17 @@ export function useDiscovery() {
 
     try {
       // The turn endpoint returns either JSON (synthesizing) or a text stream (next question)
+      const token = await getToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const res = await fetch(
-        `${(await import('@/services/api-client')).API_BASE_URL}/api/discovery/sessions/${sid}/turn`,
+        `${API_BASE_URL}/api/discovery/sessions/${sid}/turn`,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${(await import('@/services/api-client')).getToken()}`,
-          },
+          headers,
           body: JSON.stringify({ message: content, history }),
           signal: abortRef.current.signal,
         },

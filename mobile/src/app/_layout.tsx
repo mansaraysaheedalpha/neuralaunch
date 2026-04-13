@@ -14,7 +14,7 @@ import { useAuth } from '@/services/auth';
 
 export default function RootLayout() {
   const { isDark, colors: c } = useTheme();
-  const hydrate = useAuth(s => s.hydrate);
+  const hydrate = useAuth((s: { hydrate: () => Promise<void> }) => s.hydrate);
 
   // Hydrate the auth session from secure store on app launch
   useEffect(() => {

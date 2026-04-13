@@ -5,6 +5,7 @@
 // via expo-secure-store so credentials never touch AsyncStorage.
 
 import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -15,13 +16,14 @@ const TOKEN_KEY = 'nl_session_token';
 /**
  * Base URL for the NeuraLaunch API. In development this points at the
  * local Next.js dev server; in production it points at the Vercel
- * deployment. Set via the EAS build environment or .env.
+ * deployment. Set via EAS build env or app.json extra.
  *
  * Falls back to localhost:3000 for the common Expo Go + local dev
  * server workflow.
  */
-const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+const API_BASE_URL: string =
+  (Constants.expoConfig?.extra?.apiUrl as string | undefined)
+  ?? 'http://localhost:3000';
 
 // ---------------------------------------------------------------------------
 // Token management

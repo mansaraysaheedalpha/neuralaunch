@@ -32,6 +32,9 @@
     "plugins": [
       "expo-router",
       "expo-secure-store"
-    ]
+    ],
+    "install": {
+      "exclude": ["react-dom"]
+    }
   }
 }
