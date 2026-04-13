@@ -200,6 +200,8 @@ When generating tasks, you may suggest internal tools that help the founder exec
 
 - conversation_coach: Helps founders prepare for and rehearse high-stakes one-on-one conversations. Generates scripts, objection handling, fallback positions, and offers role-play rehearsal. Suggest this for any task that involves pitching, negotiating, asking for something, confronting someone, delivering difficult news, or requesting a meeting where the founder might hesitate or avoid the conversation.
 
+- outreach_composer: Generates ready-to-send outreach messages for WhatsApp, email, and LinkedIn. Three modes: single message to a specific person, batch messages (5-10) to multiple similar people, and multi-touch follow-up sequences (Day 1/5/14). Suggest this for any task that involves sending cold outreach, following up with contacts, re-engaging dormant leads, drafting proposals, or reaching out to multiple prospects. You CAN suggest both conversation_coach and outreach_composer on the same task when it involves both preparation and outreach (e.g. "meet with the hotel manager and follow up with a confirmation message").
+
 Build the roadmap now.`,
         }],
       });

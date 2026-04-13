@@ -16,6 +16,9 @@ import { TaskDiagnosticChat } from './TaskDiagnosticChat';
 import { ConversationCoachButton } from './coach/ConversationCoachButton';
 import { CoachFlow } from './coach/CoachFlow';
 import { CoachSessionReview } from './coach/CoachSessionReview';
+import { OutreachComposerButton } from './composer/OutreachComposerButton';
+import { ComposerFlow } from './composer/ComposerFlow';
+import { ComposerSessionReview } from './composer/ComposerSessionReview';
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   not_started: 'Not started',
@@ -105,6 +108,8 @@ export function InteractiveTaskCard({
   const [diagnosticOpen, setDiagnosticOpen] = useState(false);
   // Conversation Coach flow toggle
   const [coachOpen, setCoachOpen] = useState(false);
+  // Outreach Composer flow toggle
+  const [composerOpen, setComposerOpen] = useState(false);
 
   // A12: when the founder chose the writing path on a completed
   // task they have explicitly opted into telling us what happened —
@@ -433,6 +438,22 @@ export function InteractiveTaskCard({
       {task.coachSession && !coachOpen && (
         <CoachSessionReview session={task.coachSession as Record<string, unknown>} />
       )}
+
+      {/* Outreach Composer — button + flow + session review */}
+      <OutreachComposerButton
+        suggestedTools={(task as { suggestedTools?: string[] }).suggestedTools}
+        onOpen={() => setComposerOpen(true)}
+      />
+      <ComposerFlow
+        roadmapId={roadmapId}
+        taskId={taskId}
+        open={composerOpen}
+        onClose={() => setComposerOpen(false)}
+      />
+      {!composerOpen && (() => {
+        const cs = (task as { composerSession?: Record<string, unknown> }).composerSession;
+        return cs ? <ComposerSessionReview session={cs} /> : null;
+      })()}
     </motion.div>
   );
 }
