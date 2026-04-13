@@ -32,3 +32,20 @@ export {
   type FollowUpRound,
   type ResearchSession,
 } from './schemas';
+
+export {
+  runResearchPlan,
+  type RunResearchPlanInput,
+  type ResearchPlan,
+} from './plan-engine';
+
+export {
+  runResearchExecution,
+  type RunResearchExecutionInput,
+} from './execution-engine';
+
+export {
+  runResearchFollowUp,
+  type RunResearchFollowUpInput,
+  type FollowUpResult,
+} from './followup-engine';
