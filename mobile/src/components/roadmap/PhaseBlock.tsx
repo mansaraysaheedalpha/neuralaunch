@@ -4,7 +4,7 @@
 // objective, duration, and its list of TaskCards.
 
 import { View, StyleSheet } from 'react-native';
-import Animated, { FadeInUp } from 'react-native-reanimated';
+
 import { useTheme } from '@/hooks/useTheme';
 import type { RoadmapPhase } from '@/hooks/useRoadmap';
 import { Text } from '@/components/ui';
@@ -22,10 +22,7 @@ export function PhaseBlock({ phase, index, roadmapId, recommendationId }: Props)
   const { colors: c } = useTheme();
 
   return (
-    <Animated.View
-      entering={FadeInUp.delay(index * 80).springify().damping(18)}
-      style={styles.container}
-    >
+    <View style={styles.container}>
       {/* Phase header */}
       <View style={styles.header}>
         <View style={[styles.phaseNumber, { backgroundColor: c.primaryAlpha10 }]}>
@@ -57,7 +54,7 @@ export function PhaseBlock({ phase, index, roadmapId, recommendationId }: Props)
           />
         ))}
       </View>
-    </Animated.View>
+    </View>
   );
 }
 

@@ -4,7 +4,7 @@
 // watch for, and any revised sections of the preparation package.
 
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
-import Animated, { FadeInUp } from 'react-native-reanimated';
+
 import { useTheme } from '@/hooks/useTheme';
 import { Text, Card, Button } from '@/components/ui';
 import { spacing } from '@/constants/theme';
@@ -43,15 +43,15 @@ export function DebriefView({ debrief, loading, onDone }: Props) {
 
   return (
     <View style={styles.container}>
-      <Animated.View entering={FadeInUp.delay(0)}>
+      <View>
         <Text variant="heading">Debrief</Text>
         <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1] }}>
           Here's what I noticed from your rehearsal.
         </Text>
-      </Animated.View>
+      </View>
 
       {/* What went well */}
-      <Animated.View entering={FadeInUp.delay(100)}>
+      <View>
         <Card variant="primary">
           <Text variant="overline" color={c.primary}>What Went Well</Text>
           <View style={{ gap: spacing[2], marginTop: spacing[2] }}>
@@ -63,10 +63,10 @@ export function DebriefView({ debrief, loading, onDone }: Props) {
             ))}
           </View>
         </Card>
-      </Animated.View>
+      </View>
 
       {/* What to watch for */}
-      <Animated.View entering={FadeInUp.delay(200)}>
+      <View>
         <Card>
           <Text variant="overline" color={c.mutedForeground}>What to Watch For</Text>
           <View style={{ gap: spacing[2], marginTop: spacing[2] }}>
@@ -78,23 +78,23 @@ export function DebriefView({ debrief, loading, onDone }: Props) {
             ))}
           </View>
         </Card>
-      </Animated.View>
+      </View>
 
       {/* Revised opening script */}
       {debrief.revisedSections?.openingScript && (
-        <Animated.View entering={FadeInUp.delay(300)}>
+        <View>
           <Card>
             <Text variant="overline" color={c.primary}>Revised Opening Script</Text>
             <Text variant="body" style={{ marginTop: spacing[2] }}>
               {debrief.revisedSections.openingScript}
             </Text>
           </Card>
-        </Animated.View>
+        </View>
       )}
 
       {/* New objection discovered */}
       {debrief.revisedSections?.additionalObjection && (
-        <Animated.View entering={FadeInUp.delay(400)}>
+        <View>
           <Card>
             <Text variant="overline" color={c.destructive}>New Objection Discovered</Text>
             <Text variant="label" style={{ marginTop: spacing[2] }}>
@@ -104,11 +104,11 @@ export function DebriefView({ debrief, loading, onDone }: Props) {
               {debrief.revisedSections.additionalObjection.response}
             </Text>
           </Card>
-        </Animated.View>
+        </View>
       )}
 
       {/* Done */}
-      <Animated.View entering={FadeInUp.delay(500)}>
+      <View>
         <Button
           title="Done — back to my roadmap"
           onPress={onDone}
@@ -116,7 +116,7 @@ export function DebriefView({ debrief, loading, onDone }: Props) {
           fullWidth
           style={{ marginTop: spacing[4] }}
         />
-      </Animated.View>
+      </View>
     </View>
   );
 }

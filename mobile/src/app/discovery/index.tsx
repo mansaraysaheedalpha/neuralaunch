@@ -7,7 +7,7 @@
 import { useEffect, useRef } from 'react';
 import { View, FlatList, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
-import Animated, { FadeIn } from 'react-native-reanimated';
+
 import { useTheme } from '@/hooks/useTheme';
 import { useDiscovery, type ChatMessage } from '@/hooks/useDiscovery';
 import {
@@ -91,7 +91,7 @@ export default function DiscoveryScreen() {
       >
         {/* Welcome state */}
         {messages.length === 0 && !isLoading && (
-          <Animated.View entering={FadeIn.duration(300)} style={styles.welcome}>
+          <View style={styles.welcome}>
             <Text variant="title" align="center">
               Tell me about your situation
             </Text>
@@ -106,7 +106,7 @@ export default function DiscoveryScreen() {
               questions to understand your situation fully before
               recommending anything.
             </Text>
-          </Animated.View>
+          </View>
         )}
 
         {/* Messages */}

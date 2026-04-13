@@ -1,20 +1,13 @@
 // src/components/ui/CollapsibleSection.tsx
 //
-// Collapsible section with animated expand/collapse — used for the
-// recommendation reveal sections. Matches the web app's Section
-// component pattern with ChevronDown rotation.
+// Collapsible section — plain RN Animated for Expo Go compatibility.
 
-import { useState, useCallback } from 'react';
-import { Pressable, View, StyleSheet } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  withTiming,
-  useSharedValue,
-} from 'react-native-reanimated';
+import { useState, useCallback, useRef } from 'react';
+import { Pressable, View, Animated, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
 import { Text } from './Text';
-import { spacing, animation } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
 
 interface Props {
   label: string;
@@ -29,18 +22,27 @@ export function CollapsibleSection({
 }: Props) {
   const { colors: c } = useTheme();
   const [open, setOpen] = useState(defaultOpen);
-  const rotation = useSharedValue(defaultOpen ? 0 : -90);
+  const rotation = useRef(new Animated.Value(defaultOpen ? 0 : -90)).current;
 
   const toggle = useCallback(() => {
     void Haptics.selectionAsync();
     const next = !open;
     setOpen(next);
-    rotation.value = withTiming(next ? 0 : -90, { duration: animation.fast });
+    Animated.timing(rotation, {
+      toValue: next ? 0 : -90,
+      duration: 150,
+      useNativeDriver: true,
+    }).start();
   }, [open, rotation]);
 
-  const chevronStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${rotation.value}deg` }],
-  }));
+  const chevronStyle = {
+    transform: [{
+      rotate: rotation.interpolate({
+        inputRange: [-90, 0],
+        outputRange: ['-90deg', '0deg'],
+      }),
+    }],
+  };
 
   return (
     <View>

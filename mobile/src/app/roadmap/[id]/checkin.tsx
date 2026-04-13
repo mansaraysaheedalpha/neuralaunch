@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { View, StyleSheet, ScrollView, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import Animated, { FadeInUp } from 'react-native-reanimated';
+
 import { useTheme } from '@/hooks/useTheme';
 import { api, ApiError } from '@/services/api-client';
 import { Text, Card, Button, ScreenContainer, Badge } from '@/components/ui';
@@ -145,7 +145,7 @@ export default function CheckInScreen() {
         >
           {/* Response state — show the agent's response */}
           {response ? (
-            <Animated.View entering={FadeInUp.springify().damping(18)} style={styles.responseContainer}>
+            <View style={styles.responseContainer}>
               {/* Completion moment */}
               {category === 'completed' && (
                 <Card variant="primary" style={styles.completionCard}>
@@ -192,7 +192,7 @@ export default function CheckInScreen() {
                 fullWidth
                 style={{ marginTop: spacing[4] }}
               />
-            </Animated.View>
+            </View>
           ) : (
             /* Input state */
             <>
@@ -234,7 +234,7 @@ export default function CheckInScreen() {
 
               {/* Free text input */}
               {category && (
-                <Animated.View entering={FadeInUp.duration(200)} style={styles.inputSection}>
+                <View style={styles.inputSection}>
                   <View
                     style={[
                       styles.textArea,
@@ -277,7 +277,7 @@ export default function CheckInScreen() {
                       Free text is optional for completed tasks.
                     </Text>
                   )}
-                </Animated.View>
+                </View>
               )}
 
               {/* Error */}

@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { View, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack, Link } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import Animated, { FadeIn } from 'react-native-reanimated';
+
 import { useTheme } from '@/hooks/useTheme';
 import { useRecommendation } from '@/hooks/useRecommendation';
 import { api, ApiError } from '@/services/api-client';
@@ -89,7 +89,7 @@ export default function RecommendationScreen() {
 
       <ScreenContainer>
         {/* Summary card — always visible */}
-        <Animated.View entering={FadeIn.delay(50)}>
+        <View>
           <Card variant="primary">
             <Text variant="overline" color={c.primary}>
               Your Recommendation
@@ -98,17 +98,17 @@ export default function RecommendationScreen() {
               {r.summary}
             </Text>
           </Card>
-        </Animated.View>
+        </View>
 
         {/* What would make this wrong */}
-        <Animated.View entering={FadeIn.delay(150)} style={styles.section}>
+        <View style={styles.section}>
           <Text variant="overline" color={c.mutedForeground}>
             What Would Make This Wrong
           </Text>
           <Text variant="body" color={c.mutedForeground} style={styles.italic}>
             {r.whatWouldMakeThisWrong}
           </Text>
-        </Animated.View>
+        </View>
 
         {/* Your Path */}
         <CollapsibleSection label="Your Path">

@@ -6,7 +6,7 @@
 
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
-import Animated, { FadeIn } from 'react-native-reanimated';
+
 import { useTheme } from '@/hooks/useTheme';
 import { useRoadmap } from '@/hooks/useRoadmap';
 import { Text, Card, Button, ScreenContainer } from '@/components/ui';
@@ -126,7 +126,7 @@ export default function RoadmapScreen() {
 
         {/* Closing thought */}
         {roadmap.closingThought && (
-          <Animated.View entering={FadeIn.delay(roadmap.phases.length * 80 + 100)}>
+          <View>
             <Card variant="primary" style={styles.closingCard}>
               <Text variant="overline" color={c.primary}>
                 Your Next Move
@@ -135,7 +135,7 @@ export default function RoadmapScreen() {
                 {roadmap.closingThought}
               </Text>
             </Card>
-          </Animated.View>
+          </View>
         )}
       </ScreenContainer>
     </>
