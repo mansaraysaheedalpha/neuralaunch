@@ -72,8 +72,20 @@ export function ComposerOutputView({
         setRegenErr(json.error ?? 'Could not regenerate. Please try again.');
         return;
       }
-      const json = await res.json() as { message: ComposerMessage };
-      setMessages(prev => prev.map(m => m.id === id ? json.message : m));
+      // The route returns { variation: { body, subject? } }, not a
+      // full ComposerMessage. Append the variation to the existing
+      // message's variations array locally.
+      const json = await res.json() as { variation: { body: string; subject?: string } };
+      setMessages(prev => prev.map(m => {
+        if (m.id !== id) return m;
+        return {
+          ...m,
+          variations: [
+            ...(m.variations ?? []),
+            { body: json.variation.body, subject: json.variation.subject, variationInstruction: 'different angle' },
+          ],
+        };
+      }));
     } catch {
       setRegenErr('Network error — please try again.');
     }

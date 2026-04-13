@@ -20,6 +20,8 @@ interface ContextExchange {
 export interface ComposerContextChatProps {
   roadmapId:         string;
   taskId:            string;
+  /** When true, POSTs to the standalone route (no taskId in URL). */
+  standalone?:       boolean;
   onContextComplete: (context: OutreachContext, mode: ComposerMode, channel: ComposerChannel) => void;
   onCancel:          () => void;
 }
@@ -35,6 +37,7 @@ export interface ComposerContextChatProps {
 export function ComposerContextChat({
   roadmapId,
   taskId,
+  standalone,
   onContextComplete,
   onCancel,
 }: ComposerContextChatProps) {
@@ -54,8 +57,11 @@ export function ComposerContextChat({
     setError(null);
 
     try {
+      const url = standalone
+        ? `/api/discovery/roadmaps/${roadmapId}/composer/generate`
+        : `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/composer/generate`;
       const res = await fetch(
-        `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/composer/generate`,
+        url,
         {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -89,7 +95,7 @@ export function ComposerContextChat({
     } finally {
       setSubmitting(false);
     }
-  }, [draft, submitting, roadmapId, taskId, onContextComplete]);
+  }, [draft, submitting, roadmapId, taskId, standalone, onContextComplete]);
 
   return (
     <div className="flex flex-col gap-3">

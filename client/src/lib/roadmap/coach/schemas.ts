@@ -147,11 +147,20 @@ export const CoachSessionSchema = z.object({
 export type CoachSession = z.infer<typeof CoachSessionSchema>;
 
 /**
- * The `toolSessions` array on the Roadmap row. Extensible — when
- * the Outreach Composer and Service Packager ship, their sessions
- * add to this array with their own `tool` discriminator.
+ * The `toolSessions` array on the Roadmap row. Each entry has a
+ * `tool` discriminator ('conversation_coach', 'outreach_composer',
+ * future tools). We use a permissive base schema with passthrough
+ * so entries from different tools can coexist in the same array
+ * without one tool's strict schema rejecting another's entries.
+ * Individual entries are validated by their own module's schema
+ * (CoachSessionSchema, ComposerSessionSchema) when accessed.
  */
-export const ToolSessionsArraySchema = z.array(CoachSessionSchema);
+const ToolSessionEntrySchema = z.object({
+  id:   z.string(),
+  tool: z.string(),
+}).passthrough();
+
+export const ToolSessionsArraySchema = z.array(ToolSessionEntrySchema);
 export type ToolSessions = z.infer<typeof ToolSessionsArraySchema>;
 
 /**

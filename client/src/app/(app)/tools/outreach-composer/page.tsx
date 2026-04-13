@@ -137,6 +137,7 @@ export default function StandaloneComposerPage() {
         <ComposerContextChat
           roadmapId={roadmapId}
           taskId="standalone"
+          standalone
           onContextComplete={(ctx, m, ch) => { void handleContextComplete(ctx, m, ch); }}
           onCancel={() => { window.location.href = '/tools'; }}
         />

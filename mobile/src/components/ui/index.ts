@@ -6,3 +6,6 @@ export { TextInput } from './TextInput';
 export { Badge } from './Badge';
 export { ScreenContainer } from './ScreenContainer';
 export { Separator } from './Separator';
+export { ChatBubble } from './ChatBubble';
+export { ChatInput } from './ChatInput';
+export { TypingIndicator } from './TypingIndicator';
