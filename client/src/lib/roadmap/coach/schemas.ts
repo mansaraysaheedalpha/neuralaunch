@@ -69,7 +69,27 @@ export const PreparationPackageSchema = z.object({
   postConversationChecklist: z.array(z.object({
     condition: z.string().describe('The outcome that triggers this action (e.g. "if they agreed").'),
     action:    z.string().describe('The specific thing to do immediately after.'),
-  })).describe('3-5 specific post-conversation actions based on possible outcomes.'),
+    /**
+     * Coach → Composer handoff. When the checklist item involves
+     * sending a follow-up message (e.g. "send a confirmation
+     * WhatsApp within 2 hours"), the preparation agent sets this
+     * so the checklist item renders a "Draft this message" button
+     * that opens the Outreach Composer pre-loaded with the
+     * conversation outcome context.
+     */
+    suggestedTool: z.enum(['outreach_composer']).optional().describe(
+      'Set to outreach_composer when this checklist action involves sending a written follow-up message. The UI will render a "Draft this message" button that opens the Outreach Composer pre-loaded with context from this conversation.'
+    ),
+    composerContext: z.object({
+      recipient:           z.string(),
+      conversationOutcome: z.string(),
+      agreedTerms:         z.string().optional(),
+      channel:             z.enum(['whatsapp', 'email', 'linkedin']),
+      messageGoal:         z.string(),
+    }).optional().describe(
+      'Pre-loaded context for the Outreach Composer. Only set when suggestedTool is outreach_composer. The Composer uses this to skip the context-collection step and generate the follow-up message immediately.'
+    ),
+  })).describe('3-5 specific post-conversation actions based on possible outcomes. When an action involves sending a written follow-up, set suggestedTool to outreach_composer and include composerContext so the founder can draft the message with one click.'),
   rolePlaySetup: RolePlaySetupSchema.describe(
     'Character sheet for the role-play: the other party\'s personality, motivations, concerns, power dynamic, and communication style.'
   ),
