@@ -56,7 +56,7 @@ export function ComposerOutputView({
     } catch { /* optimistic — already shown as sent */ }
   }, [sentIds, roadmapId, taskId]);
 
-  const handleRegenerate = useCallback(async (id: string) => {
+  const handleRegenerate = useCallback(async (id: string, instruction: string) => {
     setRegenErr(null);
     try {
       const res = await fetch(
@@ -64,7 +64,7 @@ export function ComposerOutputView({
         {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ messageId: id, variationInstruction: 'different angle' }),
+          body:    JSON.stringify({ messageId: id, variationInstruction: instruction }),
         },
       );
       if (!res.ok) {
@@ -82,7 +82,7 @@ export function ComposerOutputView({
           ...m,
           variations: [
             ...(m.variations ?? []),
-            { body: json.variation.body, subject: json.variation.subject, variationInstruction: 'different angle' },
+            { body: json.variation.body, subject: json.variation.subject, variationInstruction: instruction },
           ],
         };
       }));
@@ -139,7 +139,7 @@ export function ComposerOutputView({
               taskId={taskId}
               isSent={sentIds.has(msg.id)}
               onMarkSent={(id) => { void handleMarkSent(id); }}
-              onRegenerate={(id) => { void handleRegenerate(id); }}
+              onRegenerate={(id, instruction) => { void handleRegenerate(id, instruction); }}
             />
           </motion.div>
         ))}

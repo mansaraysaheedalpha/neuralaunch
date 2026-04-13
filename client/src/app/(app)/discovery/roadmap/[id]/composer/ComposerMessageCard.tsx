@@ -17,7 +17,7 @@ export interface ComposerMessageCardProps {
   taskId:       string;
   isSent:       boolean;
   onMarkSent:   (id: string) => void;
-  onRegenerate: (id: string) => void;
+  onRegenerate: (id: string, instruction: string) => void;
 }
 
 /**
@@ -27,6 +27,8 @@ export interface ComposerMessageCardProps {
  * mark-sent and Coach-handoff actions are surfaced inline. The copy action
  * shows the latest variation body if variations exist.
  */
+const QUICK_PICKS = ['more casual', 'shorter', 'different opening hook', 'more direct', 'less salesy'];
+
 export function ComposerMessageCard({
   message,
   isSent,
@@ -34,6 +36,8 @@ export function ComposerMessageCard({
   onRegenerate,
 }: ComposerMessageCardProps) {
   const [copied, setCopied] = useState(false);
+  const [regenOpen, setRegenOpen] = useState(false);
+  const [regenDraft, setRegenDraft] = useState('');
   const variationsUsed = message.variations?.length ?? 0;
   const canRegenerate  = variationsUsed < MAX_REGENERATIONS_PER_MESSAGE;
   const remainingLabel = canRegenerate
@@ -109,15 +113,48 @@ export function ComposerMessageCard({
           {copied ? 'Copied' : 'Copy'}
         </button>
 
-        <button
-          type="button"
-          onClick={() => onRegenerate(message.id)}
-          disabled={!canRegenerate}
-          className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          <RefreshCw className="size-3" />
-          Try a different angle ({remainingLabel})
-        </button>
+        {!regenOpen ? (
+          <button
+            type="button"
+            onClick={() => setRegenOpen(true)}
+            disabled={!canRegenerate}
+            className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <RefreshCw className="size-3" />
+            Try a different angle ({remainingLabel})
+          </button>
+        ) : (
+          <div className="flex flex-col gap-1.5 w-full pt-1">
+            <div className="flex flex-wrap gap-1">
+              {QUICK_PICKS.map(pick => (
+                <button
+                  key={pick}
+                  type="button"
+                  onClick={() => { onRegenerate(message.id, pick); setRegenOpen(false); setRegenDraft(''); }}
+                  className="rounded-full px-2 py-0.5 text-[10px] border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                >
+                  {pick}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-1.5">
+              <input
+                value={regenDraft}
+                onChange={e => setRegenDraft(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && regenDraft.trim()) { onRegenerate(message.id, regenDraft.trim()); setRegenOpen(false); setRegenDraft(''); } }}
+                placeholder="Or type your own..."
+                className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-[10px] text-foreground outline-none focus:ring-1 focus:ring-primary/30"
+              />
+              <button
+                type="button"
+                onClick={() => { setRegenOpen(false); setRegenDraft(''); }}
+                className="text-[10px] text-muted-foreground hover:text-foreground"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         <button
           type="button"

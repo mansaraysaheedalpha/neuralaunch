@@ -7,6 +7,12 @@
 import { z } from 'zod';
 import { COMPOSER_CHANNELS, COMPOSER_MODES, COMPOSER_TOOL_ID } from './constants';
 
+// CLAUDE.md: .max() on LLM output strings causes AI_NoObjectGeneratedError.
+// Use .transform() post-clamp instead.
+function clampString(max: number) {
+  return (raw: string): string => raw.length <= max ? raw : raw.slice(0, max - 1) + '\u2026';
+}
+
 // ---------------------------------------------------------------------------
 // Context (collected in Step 1)
 // ---------------------------------------------------------------------------
@@ -52,11 +58,11 @@ export const ComposerMessageSchema = z.object({
   /** Personalisation hook for batch mode. */
   personalisationHook:   z.string().optional(),
   /** Email subject line (email channel only). */
-  subject:               z.string().optional(),
+  subject:               z.string().transform(clampString(300)).optional(),
   /** The full message text — copy-paste ready. */
-  body:                  z.string(),
+  body:                  z.string().transform(clampString(4000)),
   /** Brief "why this works" annotation the founder reads but doesn't send. */
-  annotation:            z.string(),
+  annotation:            z.string().transform(clampString(1000)),
   /** Recommended send timing for sequence mode (e.g. "Day 5"). */
   sendTiming:            z.string().optional(),
   /** Escalation note for sequence mode (e.g. "assumes no response to Day 1"). */
