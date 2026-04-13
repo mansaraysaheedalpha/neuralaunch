@@ -9,3 +9,4 @@ export { Separator } from './Separator';
 export { ChatBubble } from './ChatBubble';
 export { ChatInput } from './ChatInput';
 export { TypingIndicator } from './TypingIndicator';
+export { CollapsibleSection } from './CollapsibleSection';
