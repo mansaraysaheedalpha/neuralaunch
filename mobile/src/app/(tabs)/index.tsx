@@ -3,14 +3,25 @@
 // Home tab — the founder's dashboard. Shows greeting, discovery CTA,
 // most recent recommendation summary, and active roadmap progress.
 
-import { View, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { useState, useCallback } from 'react';
+import { View, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import useSWR from 'swr';
+import { Compass, FileCheck, Zap, ArrowRight } from 'lucide-react-native';
 import { useAuth } from '@/services/auth';
 import { useTheme } from '@/hooks/useTheme';
-import { api } from '@/services/api-client';
-import { Text, Card, Button, Badge, ScreenContainer, Separator } from '@/components/ui';
+import { api, ApiError } from '@/services/api-client';
+import {
+  Text,
+  Card,
+  Button,
+  Badge,
+  ScreenContainer,
+  Separator,
+  ListSkeleton,
+  ErrorState,
+} from '@/components/ui';
 import { spacing } from '@/constants/theme';
 
 interface RecommendationSummary {
@@ -27,17 +38,37 @@ export default function HomeScreen() {
   const { colors: c } = useTheme();
   const router = useRouter();
 
-  const { data: recommendations, isLoading } = useSWR<RecommendationSummary[]>(
+  const { data: recommendations, isLoading, error, mutate } = useSWR<RecommendationSummary[]>(
     '/api/discovery/recommendations',
     (url: string) => api<RecommendationSummary[]>(url),
     { revalidateOnFocus: true },
   );
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    void Haptics.selectionAsync();
+    setRefreshing(true);
+    try { await mutate(); }
+    finally { setRefreshing(false); }
+  }, [mutate]);
+
   const firstName = user?.name?.split(' ')[0] ?? 'there';
   const latestRec = recommendations?.[0] ?? null;
 
+  // Hard error — show full error state (only if we have no cached data)
+  if (error && !recommendations) {
+    const kind = error instanceof ApiError && error.status === 401 ? 'auth'
+      : error instanceof ApiError && error.status === 0 ? 'network'
+      : 'generic';
+    return (
+      <ScreenContainer>
+        <ErrorState kind={kind} onRetry={() => void mutate()} />
+      </ScreenContainer>
+    );
+  }
+
   return (
-    <ScreenContainer>
+    <ScreenContainer refreshing={refreshing} onRefresh={onRefresh}>
       {/* Greeting */}
       <View style={styles.header}>
         <Text variant="caption" color={c.mutedForeground}>
@@ -65,6 +96,7 @@ export default function HomeScreen() {
             router.push('/discovery');
           }}
           size="md"
+          icon={<Compass size={18} color={c.primaryForeground} />}
         />
       </Card>
 
@@ -74,10 +106,12 @@ export default function HomeScreen() {
           Your recommendations
         </Text>
 
-        {isLoading ? (
-          <ActivityIndicator size="small" color={c.primary} />
+        {isLoading && !recommendations ? (
+          <ListSkeleton count={2} />
         ) : latestRec ? (
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`View recommendation: ${latestRec.path}`}
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push(`/recommendation/${latestRec.id}`);
@@ -101,9 +135,12 @@ export default function HomeScreen() {
               <Text variant="caption" color={c.mutedForeground} numberOfLines={2} style={{ marginTop: spacing[1] }}>
                 {latestRec.summary}
               </Text>
-              <Text variant="label" color={c.primary} style={{ marginTop: spacing[3] }}>
-                View recommendation →
-              </Text>
+              <View style={styles.recCta}>
+                <Text variant="label" color={c.primary}>
+                  View recommendation
+                </Text>
+                <ArrowRight size={16} color={c.primary} />
+              </View>
             </Card>
           </Pressable>
         ) : (
@@ -118,6 +155,8 @@ export default function HomeScreen() {
         {/* Show more link if multiple */}
         {recommendations && recommendations.length > 1 && (
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="View all recommendations"
             onPress={() => router.push('/recommendations')}
             style={{ marginTop: spacing[2] }}
           >
@@ -133,23 +172,29 @@ export default function HomeScreen() {
       {/* Quick links */}
       <View style={styles.quickLinks}>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Validation Pages"
           onPress={() => {
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             router.push('/validation' as any);
           }}
           style={[styles.quickLink, { borderColor: c.border }]}
         >
-          <Text variant="label">Validation Pages</Text>
+          <FileCheck size={20} color={c.primary} />
+          <Text variant="label" style={{ marginTop: spacing[2] }}>Validation</Text>
           <Text variant="caption" color={c.mutedForeground}>Test your ideas</Text>
         </Pressable>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Tools"
           onPress={() => {
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             router.push('/(tabs)/tools' as any);
           }}
           style={[styles.quickLink, { borderColor: c.border }]}
         >
-          <Text variant="label">Tools</Text>
+          <Zap size={20} color={c.primary} />
+          <Text variant="label" style={{ marginTop: spacing[2] }}>Tools</Text>
           <Text variant="caption" color={c.mutedForeground}>Coach, outreach</Text>
         </Pressable>
       </View>
@@ -176,6 +221,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing[2],
   },
+  recCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[1],
+    marginTop: spacing[3],
+  },
   quickLinks: {
     flexDirection: 'row',
     gap: spacing[3],
@@ -185,6 +236,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 12,
     padding: spacing[4],
-    gap: spacing[0.5],
   },
 });

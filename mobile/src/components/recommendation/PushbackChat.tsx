@@ -147,7 +147,6 @@ export function PushbackChat({
             <ChatBubble
               content={item.content}
               role={item.role === 'user' ? 'user' : 'assistant'}
-              animated={false}
             />
           )}
           contentContainerStyle={styles.messageList}

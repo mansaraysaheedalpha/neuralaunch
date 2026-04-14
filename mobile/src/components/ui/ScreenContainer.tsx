@@ -3,7 +3,7 @@
 // Root container for every screen. Handles safe area insets,
 // background color, and the standard scroll/non-scroll layout.
 
-import { View, ScrollView, StyleSheet, type ViewStyle } from 'react-native';
+import { View, ScrollView, StyleSheet, RefreshControl, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { spacing } from '@/constants/theme';
@@ -14,6 +14,10 @@ interface Props {
   scroll?: boolean;
   /** Remove horizontal padding — for edge-to-edge layouts */
   noPadding?: boolean;
+  /** When set alongside onRefresh, shows the pull-to-refresh spinner. */
+  refreshing?: boolean;
+  /** Called when the user pulls down to refresh. */
+  onRefresh?: () => void;
   style?: ViewStyle;
 }
 
@@ -21,6 +25,8 @@ export function ScreenContainer({
   children,
   scroll = true,
   noPadding = false,
+  refreshing,
+  onRefresh,
   style,
 }: Props) {
   const { colors: c } = useTheme();
@@ -49,6 +55,18 @@ export function ScreenContainer({
       ]}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
+      refreshControl={
+        onRefresh
+          ? (
+            <RefreshControl
+              refreshing={refreshing ?? false}
+              onRefresh={onRefresh}
+              tintColor={c.primary}
+              colors={[c.primary]}
+            />
+          )
+          : undefined
+      }
     >
       {children}
     </ScrollView>

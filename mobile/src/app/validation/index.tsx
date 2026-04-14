@@ -3,14 +3,24 @@
 // Validation dashboard — lists the founder's validation pages with
 // status, visitor count, signal strength, and build brief readiness.
 
-import { View, FlatList, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { useState, useCallback } from 'react';
+import { View, FlatList, Pressable, StyleSheet, RefreshControl } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import useSWR from 'swr';
+import { FileCheck } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { api } from '@/services/api-client';
-import { Text, Card, Badge, ScreenContainer } from '@/components/ui';
-import { spacing, radius } from '@/constants/theme';
+import { api, ApiError } from '@/services/api-client';
+import {
+  Text,
+  Card,
+  Badge,
+  ScreenContainer,
+  ListSkeleton,
+  ErrorState,
+  EmptyState,
+} from '@/components/ui';
+import { spacing } from '@/constants/theme';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -36,11 +46,19 @@ export default function ValidationDashboardScreen() {
   const { colors: c } = useTheme();
   const router = useRouter();
 
-  const { data: pages, isLoading } = useSWR<ValidationPageSummary[]>(
+  const { data: pages, isLoading, error, mutate } = useSWR<ValidationPageSummary[]>(
     '/api/discovery/validation-pages',
     (url: string) => api<ValidationPageSummary[]>(url),
     { revalidateOnFocus: true },
   );
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    void Haptics.selectionAsync();
+    setRefreshing(true);
+    try { await mutate(); }
+    finally { setRefreshing(false); }
+  }, [mutate]);
 
   function handlePagePress(pageId: string) {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -53,98 +71,130 @@ export default function ValidationDashboardScreen() {
     ARCHIVED: 'muted',
   };
 
+  const headerOpts = (
+    <Stack.Screen
+      options={{
+        headerShown: true,
+        headerTitle: 'Validation Pages',
+        headerTintColor: c.foreground,
+        headerStyle: { backgroundColor: c.background },
+        headerShadowVisible: false,
+      }}
+    />
+  );
+
+  // Hard error — show full error state (only if no cached data)
+  if (error && !pages) {
+    const kind = error instanceof ApiError && error.status === 401 ? 'auth'
+      : error instanceof ApiError && error.status === 0 ? 'network'
+      : 'generic';
+    return (
+      <>
+        {headerOpts}
+        <ScreenContainer scroll={false}>
+          <ErrorState kind={kind} onRetry={() => void mutate()} />
+        </ScreenContainer>
+      </>
+    );
+  }
+
+  if (isLoading && !pages) {
+    return (
+      <>
+        {headerOpts}
+        <ScreenContainer>
+          <ListSkeleton count={3} />
+        </ScreenContainer>
+      </>
+    );
+  }
+
+  if (!pages || pages.length === 0) {
+    return (
+      <>
+        {headerOpts}
+        <ScreenContainer scroll={false}>
+          <EmptyState
+            icon={FileCheck}
+            title="No validation pages yet"
+            message="Start from a recommendation to build a landing page, share it, and watch signal land."
+            actionLabel="Go to recommendations"
+            onAction={() => router.push('/recommendations')}
+          />
+        </ScreenContainer>
+      </>
+    );
+  }
+
   return (
     <>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          headerTitle: 'Validation Pages',
-          headerTintColor: c.foreground,
-          headerStyle: { backgroundColor: c.background },
-          headerShadowVisible: false,
-        }}
-      />
-
+      {headerOpts}
       <ScreenContainer scroll={false}>
-        {isLoading ? (
-          <View style={styles.centered}>
-            <ActivityIndicator size="large" color={c.primary} />
-          </View>
-        ) : !pages || pages.length === 0 ? (
-          <View style={styles.empty}>
-            <Text variant="body" color={c.mutedForeground} align="center">
-              You haven't built a validation page yet.
-            </Text>
-            <Text variant="caption" color={c.mutedForeground} align="center" style={{ marginTop: spacing[1] }}>
-              Start from a recommendation to create one.
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={pages}
-            keyExtractor={item => item.id}
-            contentContainerStyle={styles.list}
-            showsVerticalScrollIndicator={false}
-            renderItem={({ item }) => (
-              <Pressable onPress={() => handlePagePress(item.id)}>
-                <Card style={styles.pageCard}>
-                  <View style={styles.pageHeader}>
-                    <Badge
-                      label={item.status.toLowerCase()}
-                      variant={statusVariant[item.status] ?? 'muted'}
-                    />
-                    {item.hasReport && (
-                      <Badge label="Build brief ready" variant="primary" />
-                    )}
-                  </View>
+        <FlatList
+          data={pages}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.list}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={c.primary}
+              colors={[c.primary]}
+            />
+          }
+          renderItem={({ item }) => (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Open validation page: ${item.recommendationPath ?? item.slug}`}
+              onPress={() => handlePagePress(item.id)}
+            >
+              <Card style={styles.pageCard}>
+                <View style={styles.pageHeader}>
+                  <Badge
+                    label={item.status.toLowerCase()}
+                    variant={statusVariant[item.status] ?? 'muted'}
+                  />
+                  {item.hasReport && (
+                    <Badge label="Build brief ready" variant="primary" />
+                  )}
+                </View>
 
-                  <Text variant="label" style={{ marginTop: spacing[2] }} numberOfLines={2}>
-                    {item.recommendationPath ?? 'Untitled page'}
+                <Text variant="label" style={{ marginTop: spacing[2] }} numberOfLines={2}>
+                  {item.recommendationPath ?? 'Untitled page'}
+                </Text>
+
+                <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[0.5] }}>
+                  /lp/{item.slug}
+                </Text>
+
+                <View style={styles.metaRow}>
+                  <Text variant="caption" color={c.mutedForeground}>
+                    {item.visitorCount} visitor{item.visitorCount === 1 ? '' : 's'}
                   </Text>
-
-                  <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[0.5] }}>
-                    /lp/{item.slug}
-                  </Text>
-
-                  <View style={styles.metaRow}>
+                  {item.signalStrength && (
                     <Text variant="caption" color={c.mutedForeground}>
-                      {item.visitorCount} visitor{item.visitorCount === 1 ? '' : 's'}
+                      signal: {item.signalStrength}
                     </Text>
-                    {item.signalStrength && (
-                      <Text variant="caption" color={c.mutedForeground}>
-                        signal: {item.signalStrength}
-                      </Text>
-                    )}
-                    {item.status === 'LIVE' && (
-                      <Text variant="caption" color={c.mutedForeground}>
-                        {item.channelsShared} shared
-                      </Text>
-                    )}
-                  </View>
-                </Card>
-              </Pressable>
-            )}
-          />
-        )}
+                  )}
+                  {item.status === 'LIVE' && (
+                    <Text variant="caption" color={c.mutedForeground}>
+                      {item.channelsShared} shared
+                    </Text>
+                  )}
+                </View>
+              </Card>
+            </Pressable>
+          )}
+        />
       </ScreenContainer>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  empty: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing[8],
-  },
   list: {
-    padding: spacing[5],
+    paddingVertical: spacing[5],
     gap: spacing[3],
   },
   pageCard: {
