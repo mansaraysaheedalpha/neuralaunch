@@ -1,626 +1,828 @@
-"use client"; // This landing page uses animations and interactive elements
-
+import type { Metadata } from "next";
 import Link from "next/link";
-// Add imports for scroll animations
-import { motion, useScroll, useTransform, type Variants } from "motion/react";
-import { useRef } from "react";
 import {
   ArrowRight,
-  BrainCircuit,
-  Rocket,
-  CheckCircle,
-  Zap,
-  FileText,
-  Bot,
+  MessageSquare,
+  Compass,
+  ListChecks,
+  Wrench,
+  RefreshCcw,
+  Mic,
+  Send,
+  Search,
+  Bell,
+  Brain,
+  Check,
 } from "lucide-react";
-import LandingHeader from "@/components/LandingHeader";
-import LandingFooter from "@/components/LandingFooter";
-import HeroBackgroundGradient from "@/components/HeroBackgroundGradient";
-import HeroForegroundGrid from "@/components/HeroForegroundGrid";
-import HeroForegroundStreaks from "@/components/HeroForegroundStreaks";
+import MarketingHeader from "@/components/marketing/MarketingHeader";
+import MarketingFooter from "@/components/marketing/MarketingFooter";
+import RevealOnScroll from "@/components/marketing/RevealOnScroll";
 
-// --- Animation Variants ---
-const fadeIn = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.6 } },
-};
-const wordVariants = {
-  hidden: { opacity: 0, y: 10 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      type: "spring" as const,
-      damping: 12,
-      stiffness: 100,
-    },
+const HERO_SUBHEAD =
+  "NeuraLaunch interviews your situation, commits to one clear recommendation, then partners with you through every task — until you've shipped, learned, or decided what comes next.";
+
+export const metadata: Metadata = {
+  title: "NeuraLaunch — From Lost to Launched",
+  description: HERO_SUBHEAD,
+  openGraph: {
+    title: "NeuraLaunch — From Lost to Launched",
+    description: HERO_SUBHEAD,
+    type: "website",
+    siteName: "NeuraLaunch",
   },
-};
-const staggerContainer = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.2,
-      delayChildren: 0.1,
-    },
+  twitter: {
+    card: "summary_large_image",
+    title: "NeuraLaunch — From Lost to Launched",
+    description: HERO_SUBHEAD,
   },
 };
 
-const featureIconVariants: Variants = {
-  rest: { scale: 1, rotate: 0 },
-  hover: {
-    scale: 1.1,
-    rotate: 10,
-    transition: { type: "spring" as const, stiffness: 300 },
-  },
-};
-
-// --- Add Icon Animation Variants ---
-const iconPopIn: Variants = {
-  hidden: { scale: 0.5, opacity: 0 },
-  visible: {
-    scale: 1,
-    opacity: 1,
-    transition: {
-      // Use a string literal const assertion to preserve the specific "spring" type without using `any`.
-      type: "spring" as const,
-      stiffness: 260,
-      damping: 20,
-      delay: 0.3, // Small delay after card fades in
-    },
-  },
-};
-
-// --- Section Components ---
-
-// Module-level constant — decorative offsets for hero particles.
-// Computed once at module load time so the React 19 purity rule
-// does not flag Math.random() inside a render/memo body.
-const PARTICLE_OFFSETS = Array.from({ length: 8 }, () => Math.random() * 30 - 15);
-
-const HeroSection = () => {
-  const headlineWords = "Build the Right Thing, Faster.".split(" ");
-  const primaryWordIndex = 5;
-
-  const particleOffsets = PARTICLE_OFFSETS;
-
-  return (
-    <section className="relative overflow-hidden py-32 text-center">
-      <HeroBackgroundGradient />
-      <HeroForegroundGrid />
-      <HeroForegroundStreaks />
-
-      {/* Floating Particles */}
-      {particleOffsets.map((offset, i) => (
-        <motion.div
-          key={i}
-          animate={{
-            y: [0, -30, 0],
-            x: [0, offset, 0],
-            opacity: [0.2, 0.6, 0.2],
-            scale: [1, 1.2, 1],
-          }}
-          transition={{
-            duration: 3 + i * 0.5,
-            repeat: Infinity,
-            ease: "easeInOut",
-            delay: i * 0.3,
-          }}
-          className="absolute w-2 h-2 bg-gradient-to-r from-primary to-secondary rounded-full blur-sm"
-          style={{
-            left: `${10 + i * 10}%`,
-            top: `${20 + (i % 3) * 20}%`,
-          }}
-        />
-      ))}
-
-      <motion.div
-        variants={staggerContainer}
-        initial="hidden"
-        animate="visible"
-        className="relative z-10 max-w-4xl mx-auto px-4"
-      >
-        {/* Animated Headline */}
-        <motion.h1
-          variants={staggerContainer}
-          initial="hidden"
-          animate="visible"
-          className="text-5xl md:text-7xl font-black tracking-tighter text-foreground leading-tight"
-        >
-          {headlineWords.map((word, index) => (
-            <motion.span
-              key={index}
-              variants={wordVariants}
-              className={`inline-block ${
-                index === primaryWordIndex ? "text-primary" : ""
-              } mr-[0.25em]`}
-            >
-              {word}
-            </motion.span>
-          ))}
-        </motion.h1>
-
-        {/* Sub-headline */}
-        <motion.p
-          variants={fadeIn}
-          className="text-xl text-muted-foreground mb-12 max-w-2xl mx-auto"
-        >
-          NeuraLaunch combines AI-driven blueprints with structured validation
-          sprints, empowering founders to turn visionary ideas into market-ready
-          startups.
-        </motion.p>
-
-        {/* ENHANCED: Dual CTA Buttons */}
-        <motion.div
-          variants={fadeIn}
-          className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8"
-        >
-          {/* Button 1: Start Discovery (Primary CTA) */}
-          <Link href="/discovery" passHref>
-            <motion.span
-              whileHover={{
-                scale: 1.05,
-                boxShadow: "0px 10px 20px hsla(var(--primary), 0.3)",
-              }}
-              whileTap={{ scale: 0.95 }}
-              animate={{
-                boxShadow: [
-                  "0 0 0 0 hsla(var(--primary), 0.4)",
-                  "0 0 20px 10px hsla(var(--primary), 0.1)",
-                  "0 0 0 0 hsla(var(--primary), 0.4)",
-                ],
-              }}
-              transition={{
-                duration: 2,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-              className="text-lg inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-primary to-secondary text-primary-foreground rounded-xl font-semibold shadow-lg transition-all duration-300 cursor-pointer"
-            >
-              <BrainCircuit className="w-5 h-5" />
-              Start Your Discovery
-              <ArrowRight className="w-5 h-5" />
-            </motion.span>
-          </Link>
-
-          {/* Button 2: AI Agent Builder (Direct Build) */}
-          <Link href="/agentic" passHref>
-            <motion.span
-              whileHover={{
-                scale: 1.05,
-                boxShadow: "0px 10px 20px hsla(var(--secondary), 0.3)",
-              }}
-              whileTap={{ scale: 0.95 }}
-              className="text-lg inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-semibold shadow-lg transition-all duration-300 cursor-pointer border-2 border-purple-400/30 hover:border-purple-400/50"
-            >
-              <Bot className="w-5 h-5" />
-              AI Agent Builder
-              <Zap className="w-5 h-5" />
-            </motion.span>
-          </Link>
-        </motion.div>
-
-        {/* NEW: Differentiator Text */}
-        <motion.div
-          variants={fadeIn}
-          className="flex flex-col sm:flex-row gap-6 justify-center text-sm text-muted-foreground items-center"
-        >
-          <span className="flex items-center gap-2 px-4 py-2 bg-card/50 rounded-lg border border-border">
-            <CheckCircle className="w-4 h-4 text-primary" />
-            Validate first, then build
-          </span>
-          <span className="text-muted-foreground/50 hidden sm:block">or</span>
-          <span className="flex items-center gap-2 px-4 py-2 bg-card/50 rounded-lg border border-border">
-            <Zap className="w-4 h-4 text-purple-500" />
-            Build immediately from vision
-          </span>
-        </motion.div>
-      </motion.div>
-    </section>
-  );
-};
-
-// --- ProblemSolutionSection with Symmetrical Cards and Simplified Scroll Animation ---
-const ProblemSolutionSection = () => {
-  const sectionRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ["start end", "center center"],
-  });
-
-  const problemOpacity = useTransform(scrollYProgress, [0, 1], [1, 0.7]);
-  const solutionOpacity = useTransform(scrollYProgress, [0, 1], [0.7, 1]);
-  const lineScaleY = useTransform(scrollYProgress, [0, 1], [0, 1]);
-
-  // --- NEW Transforms for Background Graphics Opacity ---
-  const chaosGraphicOpacity = useTransform(scrollYProgress, [0, 1], [0.6, 0]); // Chaos fades out
-  const orderGraphicOpacity = useTransform(scrollYProgress, [0, 1], [0, 0.6]); // Order fades in
-
-  return (
-    <section
-      ref={sectionRef}
-      className="py-24 md:py-32 bg-background dark:bg-slate-900 overflow-hidden relative"
-    >
-      {/* Animated Dividing Line */}
-      <motion.div
-        className="absolute left-1/2 top-0 bottom-0 w-[2px] bg-gradient-to-b from-transparent via-primary/50 to-transparent hidden md:block"
-        style={{
-          scaleY: lineScaleY,
-          transformOrigin: "top",
-          translateX: "-50%",
-        }}
-      />
-
-      {/* Content Grid */}
-      <div className="max-w-6xl mx-auto px-4 grid md:grid-cols-2 gap-12 md:gap-16 items-center relative z-10">
-        {/* Problem Side Card */}
-        <motion.div
-          style={{ opacity: problemOpacity }}
-          className="p-8 border border-border rounded-xl bg-card dark:bg-slate-800/50 shadow-sm md:pr-8 relative overflow-hidden" // Added relative & overflow-hidden
-        >
-          {/* --- CHAOS/COMPLEXITY GRAPHIC --- */}
-          <motion.div
-            style={{ opacity: chaosGraphicOpacity }}
-            className="absolute inset-0 bg-[url('/noise-texture.svg')] bg-repeat opacity-60 mix-blend-overlay dark:mix-blend-lighten pointer-events-none z-0" // Example chaos graphic
-          />
-          {/* ---------------------------------- */}
-          <div className="relative z-10">
-            {" "}
-            {/* Wrap content to keep it above graphic */}
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground mb-4">
-              Stop Building in the Dark.
-            </h2>
-            <p className="text-xl text-muted-foreground mb-6">
-              Countless startups fail because they build products nobody wants.
-              Wasted time, drained resources, and broken dreams are the result
-              of poor validation.
-            </p>
-            <div className="flex flex-wrap gap-4 text-muted-foreground">
-              <span className="flex items-center gap-2">
-                <Zap className="w-5 h-5 text-red-500" /> Wasted Engineering
-                Hours
-              </span>
-              <span className="flex items-center gap-2">
-                <Zap className="w-5 h-5 text-red-500" /> Missed Market
-                Opportunities
-              </span>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Solution Side Card */}
-        <motion.div
-          style={{ opacity: solutionOpacity }}
-          className="p-8 border border-border rounded-xl bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5 dark:from-primary/10 dark:via-secondary/10 dark:to-accent/10 shadow-sm md:pl-8 relative overflow-hidden" // Added relative & overflow-hidden
-        >
-          {/* --- ORDER/CLARITY GRAPHIC --- */}
-          <motion.div
-            style={{ opacity: orderGraphicOpacity }}
-            className="absolute inset-0 bg-[radial-gradient(#301934_1px,transparent_1px)] [background-size:16px_16px] opacity-60 mix-blend-overlay dark:mix-blend-lighten pointer-events-none z-0" // Example order graphic (faint grid)
-          />
-          {/* ------------------------------- */}
-          <div className="relative z-10">
-            {" "}
-            {/* Wrap content to keep it above graphic */}
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground mb-4">
-              Validate with AI Precision.
-            </h2>
-            <p className="text-lg md:text-xl text-muted-foreground mb-4">
-              NeuraLaunch provides an AI-architected blueprint and a rigorous
-              72-hour sprint to ensure you&apos;re building a solution for a
-              real, validated market need *before* you write a line of code.
-            </p>
-            <div className="flex flex-wrap gap-4 text-primary font-medium">
-              <span className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5" /> Data-Driven Decisions
-              </span>
-              <span className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5" /> Faster Time-to-Market
-              </span>
-            </div>
-          </div>
-        </motion.div>
-      </div>
-    </section>
-  );
-};
-
-// --- HowItWorksSection ---
-const HowItWorksSection = () => {
-  const steps = [
-    {
-      icon: BrainCircuit,
-      title: "Define Your Spark",
-      description:
-        "Input your skills, passions, or initial idea. Our AI analyzes your unique potential.",
-    },
-    {
-      icon: FileText,
-      title: "Receive AI Blueprint",
-      description:
-        "Get a comprehensive startup plan covering validation, GTM, moat, and economics.",
-    },
-    {
-      icon: Rocket,
-      title: "Execute Validation Sprint",
-      description:
-        "Follow a structured 72-hour plan with AI assistance to test your core assumptions.",
-    },
-  ];
-
-  const gridRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: gridRef,
-    offset: ["start end", "center center"],
-  });
-  const line1ScaleX = useTransform(scrollYProgress, [0, 0.5], [0, 1]);
-  const line2ScaleX = useTransform(scrollYProgress, [0.5, 1], [0, 1]);
-
-  return (
-    <section className="py-24 bg-muted/30 dark:bg-slate-800/30 overflow-hidden">
-      {" "}
-      {/* Added overflow-hidden */}
-      <div className="max-w-5xl mx-auto px-4 text-center">
-        <motion.h2
-          variants={fadeIn}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          className="text-4xl md:text-5xl font-bold tracking-tight text-foreground mb-4"
-        >
-          How NeuraLaunch Works
-        </motion.h2>
-        <motion.p
-          variants={fadeIn}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.3 }}
-          transition={{ delay: 0.1 }}
-          className="text-xl text-muted-foreground mb-16 max-w-2xl mx-auto"
-        >
-          From initial concept to validated idea in three streamlined steps.
-        </motion.p>
-
-        {/* --- Grid Container - ADD REF and RELATIVE --- */}
-        <motion.div
-          ref={gridRef} // Attach ref here
-          variants={staggerContainer}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.2 }}
-          className="grid md:grid-cols-3 gap-8 relative" // <<< Added relative positioning
-        >
-          {/* --- Animated Connecting Lines (Hidden below md breakpoint) --- */}
-          {/* Line between card 1 and 2 */}
-          <motion.div
-            className="absolute top-1/2 left-[calc(16.66%+1rem)] w-[calc(33.33%-2rem)] h-[2px] bg-gradient-to-r from-primary/50 to-primary/50 hidden md:block" // Position and style
-            style={{
-              scaleX: line1ScaleX, // Animate horizontal scale
-              transformOrigin: "left", // Scale from left to right
-              translateY: "-50%", // Center vertically
-            }}
-          />
-          {/* Line between card 2 and 3 */}
-          <motion.div
-            className="absolute top-1/2 left-[calc(50%+1rem)] w-[calc(33.33%-2rem)] h-[2px] bg-gradient-to-r from-primary/50 to-primary/50 hidden md:block" // Position and style
-            style={{
-              scaleX: line2ScaleX, // Animate horizontal scale
-              transformOrigin: "left", // Scale from left to right
-              translateY: "-50%", // Center vertically
-            }}
-          />
-          {/* ---------------------------------------------------------------- */}
-
-          {/* Map through steps (cards) */}
-          {steps.map((step, index) => (
-            <motion.div
-              variants={fadeIn}
-              key={index}
-              whileHover={{
-                scale: 1.03,
-                boxShadow: "0px 10px 20px -5px hsla(var(--primary), 0.2)",
-                transition: { type: "spring", stiffness: 300 },
-              }}
-              className="p-8 bg-card dark:bg-slate-800 border border-border rounded-xl shadow-sm text-left cursor-pointer relative z-10" // <<< Added relative z-10 to keep cards above lines
-            >
-              <motion.div
-                variants={iconPopIn} // Use the new pop-in animation
-                className="mb-4 inline-block" // Wrap icon to animate independently
-              >
-                <step.icon className="w-12 h-12 text-primary" />
-              </motion.div>
-              <h3 className="text-xl font-semibold text-foreground mb-2">
-                {step.title}
-              </h3>
-              <p className="text-base text-muted-foreground">
-                {step.description}
-              </p>
-            </motion.div>
-          ))}
-        </motion.div>
-      </div>
-    </section>
-  );
-};
-
-// --- FeaturesSection ---
-const FeaturesSection = () => {
-  const features = [
-    {
-      icon: FileText,
-      title: "AI Architect Blueprints",
-      description:
-        "Receive detailed, actionable startup plans generated by AI, covering everything from niche selection to unit economics.",
-      color: "from-violet-500 to-purple-600",
-    },
-    {
-      icon: Zap,
-      title: "72-Hour Validation Sprint",
-      description:
-        "Execute a structured, time-boxed sprint with AI-assisted tasks designed to rigorously test your core assumptions.",
-      color: "from-blue-500 to-cyan-600",
-    },
-    {
-      icon: Bot,
-      title: "Persistent AI Co-Pilot",
-      description:
-        "Chat with your AI cofounder that remembers your project context, analyzes data, and provides strategic guidance.",
-      color: "from-pink-500 to-rose-600",
-    },
-  ];
-
-  return (
-    <section className="py-24 bg-background dark:bg-slate-900">
-      <div className="max-w-6xl mx-auto px-4 perspective-[1000px]">
-        <motion.h2
-          variants={fadeIn}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-          className="text-4xl md:text-5xl font-bold tracking-tight text-foreground text-center mb-16"
-        >
-          Powered by Intelligent Tools
-        </motion.h2>
-        <motion.div
-          variants={staggerContainer}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.1 }}
-          className="grid md:grid-cols-3 gap-8"
-        >
-          {features.map((feature, index) => (
-            <motion.div
-              variants={fadeIn}
-              key={index}
-              whileHover={{
-                rotateX: 5,
-                rotateY: index === 0 ? -5 : index === 2 ? 5 : 0,
-                y: -10,
-                transition: { type: "spring", stiffness: 300, damping: 20 },
-              }}
-              className="feature-card p-8 rounded-xl border border-border bg-card dark:bg-slate-800/50 transition-all duration-300 group cursor-pointer relative hover:border-primary/50"
-            >
-              {/* Gradient Accent Line */}
-              <div
-                className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${feature.color} rounded-t-xl`}
-              />
-
-              {/* Animated Icon Background */}
-              <motion.div
-                animate={{
-                  scale: [1, 1.2, 1],
-                  rotate: [0, 5, 0],
-                }}
-                transition={{
-                  duration: 3,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-                className="absolute -top-4 -right-4 w-32 h-32 bg-gradient-to-br from-primary/10 to-transparent rounded-full blur-2xl opacity-0 group-hover:opacity-100"
-              />
-
-              {/* Inner wrapper */}
-              <motion.div
-                className="relative z-10"
-                whileHover={{
-                  rotateX: -3,
-                  rotateY: index === 0 ? 3 : index === 2 ? -3 : 0,
-                }}
-              >
-                {/* Icon animation */}
-                <motion.div
-                  variants={featureIconVariants}
-                  initial="rest"
-                  whileHover="hover"
-                  className="inline-block mb-6"
-                >
-                  <div
-                    className={`w-16 h-16 bg-gradient-to-br ${feature.color} rounded-2xl flex items-center justify-center shadow-lg`}
-                  >
-                    <feature.icon className="w-8 h-8 text-white transition-transform duration-300" />
-                  </div>
-                </motion.div>
-                <h3 className="text-xl font-semibold text-foreground mb-4">
-                  {feature.title}
-                </h3>
-                <p className="text-base text-muted-foreground">
-                  {feature.description}
-                </p>
-              </motion.div>
-            </motion.div>
-          ))}
-        </motion.div>
-      </div>
-    </section>
-  );
-};
-// --- FinalCTASection ---
-const FinalCTASection = () => (
-  <section className="py-32 md:py-40 bg-gradient-to-t from-background via-violet-50/10 to-purple-50/10 dark:from-slate-900 dark:via-slate-800/30 dark:to-slate-900 text-center">
-    <motion.div
-      variants={staggerContainer}
-      initial="hidden"
-      whileInView="visible"
-      viewport={{ once: true }}
-    >
-      <motion.h2
-        variants={fadeIn}
-        className="text-5xl md:text-6xl font-black tracking-tight text-foreground mb-6"
-      >
-        Ready to Find Your Path?
-      </motion.h2>
-      <motion.p
-        variants={fadeIn}
-        className="text-xl md:text-2xl text-muted-foreground mb-12 max-w-xl mx-auto"
-      >
-        Answer a few honest questions. Get one clear direction — built
-        specifically for your situation.
-      </motion.p>
-      <motion.div variants={fadeIn}>
-        <Link href="/discovery" passHref>
-          <motion.span
-            whileHover={{
-              scale: 1.05,
-              boxShadow: "0px 10px 20px hsla(var(--primary), 0.3)",
-            }}
-            whileTap={{ scale: 0.95 }}
-            animate={{
-              scale: [1, 1.02, 1],
-              boxShadow: [
-                "0px 0px 0px 0px hsla(var(--primary), 0.4)",
-                "0px 0px 15px 5px hsla(var(--primary), 0.6)",
-                "0px 0px 0px 0px hsla(var(--primary), 0.4)",
-              ],
-            }}
-            transition={{
-              duration: 2.5,
-              ease: "easeInOut",
-              repeat: Infinity,
-              repeatDelay: 1,
-            }}
-            className="inline-flex items-center gap-2 px-10 py-5 bg-gradient-to-r from-primary to-secondary text-primary-foreground md:text-xl rounded-xl font-semibold text-lg shadow-lg transition-all duration-300 cursor-pointer"
-          >
-            Start Your Discovery
-            <ArrowRight className="w-6 h-6" />
-          </motion.span>
-        </Link>
-      </motion.div>
-    </motion.div>
-  </section>
-);
-
-// --- Main Page Component ---
 export default function LandingPage() {
   return (
-    <div className="pt-20">
-      <LandingHeader />
-      <HeroSection />
-      <ProblemSolutionSection /> {/* Removed scroll animation imports/logic */}
-      <HowItWorksSection />
-      <FeaturesSection />
-      <FinalCTASection />
-      <LandingFooter />
+    <div className="min-h-screen bg-[#070F1C] text-[#F7F8FA] antialiased [scroll-behavior:smooth]">
+      <MarketingHeader />
+      <main id="main" className="pt-16">
+        <Hero />
+        <Problem />
+        <HowItWorks />
+        <OneRecommendation />
+        <ExecutionTools />
+        <Differentiation />
+        <ItStaysWithYou />
+        <Pricing />
+        <FinalCTA />
+      </main>
+      <MarketingFooter />
     </div>
+  );
+}
+
+/* ============================================================
+   SECTION 1 — HERO
+   ============================================================ */
+function Hero() {
+  return (
+    <section
+      aria-labelledby="hero-heading"
+      className="relative overflow-hidden border-b border-slate-800 bg-gradient-to-b from-[#070F1C] via-[#0A1628] to-[#0D1E38]"
+    >
+      {/* subtle radial glow — purely decorative, css-only */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 mx-auto h-[600px] max-w-5xl bg-[radial-gradient(ellipse_at_top,_rgba(37,99,235,0.15),_transparent_60%)]"
+      />
+
+      <div className="relative mx-auto max-w-5xl px-4 pb-24 pt-20 sm:px-6 sm:pb-28 sm:pt-28 lg:px-8 lg:pb-36 lg:pt-36">
+        <div className="text-center">
+          <RevealOnScroll>
+            <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-[#0D1E38]/80 px-3.5 py-1.5 text-xs font-medium text-slate-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#10B981]" />
+              From lost to launched. For everyone.
+            </p>
+          </RevealOnScroll>
+
+          <RevealOnScroll delayMs={80}>
+            <h1
+              id="hero-heading"
+              className="mx-auto max-w-3xl text-balance text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl md:text-6xl"
+            >
+              You know something needs to change.{" "}
+              <span className="text-[#D4A843]">
+                We&rsquo;ll tell you what — and walk it with you.
+              </span>
+            </h1>
+          </RevealOnScroll>
+
+          <RevealOnScroll delayMs={160}>
+            <p className="mx-auto mt-7 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
+              {HERO_SUBHEAD}
+            </p>
+          </RevealOnScroll>
+
+          <RevealOnScroll delayMs={240}>
+            <div className="mt-10 flex justify-center">
+              <Link
+                href="/discovery"
+                className="group inline-flex items-center gap-2 rounded-md bg-[#2563EB] px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#2563EB]/20 transition-all hover:bg-[#1D4ED8] hover:shadow-xl hover:shadow-[#2563EB]/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 focus-visible:ring-offset-[#070F1C]"
+              >
+                Start Your Discovery
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+              </Link>
+            </div>
+            <p className="mt-4 text-xs text-slate-500">
+              Free to start. No credit card required.
+            </p>
+          </RevealOnScroll>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ============================================================
+   SECTION 2 — THE PROBLEM
+   ============================================================ */
+const PROBLEM_MOMENTS: Array<{ title: string; body: string }> = [
+  {
+    title: "The graduate",
+    body: "Studied for years. Applied everywhere. Got nowhere. Has skills the world needs and no clear path to use them.",
+  },
+  {
+    title: "The stuck founder",
+    body: "Started something. Got some traction. Hit a wall. Cannot tell if the problem is the product, the market, the pricing, or something deeper.",
+  },
+  {
+    title: "The shop owner",
+    body: "Has real customers and real revenue. Knows growth is possible. Cannot see the next move from where they're standing.",
+  },
+  {
+    title: "The aspiring builder",
+    body: "Has a real idea. Maybe even early users. No idea how to take the next step without burning months on the wrong thing.",
+  },
+  {
+    title: "The professional with a side project",
+    body: "Has skills, has resources, maybe even a small team. Drowning in options. Cannot find the one direction that actually fits.",
+  },
+];
+
+function Problem() {
+  return (
+    <section
+      aria-labelledby="problem-heading"
+      className="border-b border-slate-800 bg-[#070F1C]"
+    >
+      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
+        <div className="mx-auto max-w-3xl text-center">
+          <RevealOnScroll>
+            <h2
+              id="problem-heading"
+              className="text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl"
+            >
+              You are not the first person to feel stuck.
+            </h2>
+          </RevealOnScroll>
+          <RevealOnScroll delayMs={80}>
+            <p className="mt-5 text-base leading-relaxed text-slate-400 sm:text-lg">
+              The world has consultants — expensive, generic, built for
+              companies that already have money. The world has AI tools — they
+              give you five options when you need one answer, then leave you
+              alone the moment the answer is delivered.
+              <span className="mt-3 block font-medium text-slate-200">
+                Nothing has been built for the moments in between. Until now.
+              </span>
+            </p>
+          </RevealOnScroll>
+        </div>
+
+        <div className="mx-auto mt-16 grid max-w-6xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {PROBLEM_MOMENTS.map((moment, i) => (
+            <RevealOnScroll key={moment.title} delayMs={i * 60}>
+              <article className="h-full rounded-lg border border-slate-800 bg-[#0D1E38]/40 p-6 transition-colors hover:border-slate-700 hover:bg-[#0D1E38]/70">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-[#D4A843]">
+                  {moment.title}
+                </h3>
+                <p className="mt-3 text-sm leading-relaxed text-slate-300">
+                  {moment.body}
+                </p>
+              </article>
+            </RevealOnScroll>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ============================================================
+   SECTION 3 — HOW IT WORKS
+   ============================================================ */
+const STEPS: Array<{
+  icon: typeof MessageSquare;
+  title: string;
+  body: string;
+}> = [
+  {
+    icon: MessageSquare,
+    title: "Be heard",
+    body: "A focused interview that builds a real picture of who you are, what you want, what you have, and what you've already tried.",
+  },
+  {
+    icon: Compass,
+    title: "One recommendation",
+    body: "Not a menu. One direction — with the reasoning, the risks, and the assumptions laid bare. Push back if you disagree.",
+  },
+  {
+    icon: ListChecks,
+    title: "A real roadmap",
+    body: "Phased, sequenced, sized to the hours you actually have. Every task with a reason and a way to know it's done.",
+  },
+  {
+    icon: Wrench,
+    title: "Execute with tools",
+    body: "Conversation Coach, Outreach Composer, Research Tool — built for the work that actually decides whether you win.",
+  },
+  {
+    icon: RefreshCcw,
+    title: "Learn and continue",
+    body: "When the cycle ends, NeuraLaunch tells you what happened, what it got wrong, and what comes next.",
+  },
+];
+
+function HowItWorks() {
+  return (
+    <section
+      aria-labelledby="how-it-works-heading"
+      className="border-b border-slate-800 bg-[#0A1628]"
+    >
+      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
+        <div className="mx-auto max-w-3xl text-center">
+          <RevealOnScroll>
+            <p className="text-sm font-semibold uppercase tracking-wider text-[#2563EB]">
+              How it works
+            </p>
+          </RevealOnScroll>
+          <RevealOnScroll delayMs={60}>
+            <h2
+              id="how-it-works-heading"
+              className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl"
+            >
+              One arc. From first question to first outcome.
+            </h2>
+          </RevealOnScroll>
+        </div>
+
+        <ol className="mx-auto mt-16 grid max-w-6xl grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
+          {STEPS.map((step, i) => {
+            const Icon = step.icon;
+            return (
+              <RevealOnScroll key={step.title} delayMs={i * 80}>
+                <li className="relative h-full rounded-lg border border-slate-800 bg-[#070F1C] p-6">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-700 bg-[#0D1E38] text-xs font-semibold text-slate-300">
+                      {i + 1}
+                    </span>
+                    <Icon
+                      className="h-5 w-5 text-[#2563EB]"
+                      aria-hidden="true"
+                    />
+                  </div>
+                  <h3 className="mt-5 text-lg font-semibold text-white">
+                    {step.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-400">
+                    {step.body}
+                  </p>
+                </li>
+              </RevealOnScroll>
+            );
+          })}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+/* ============================================================
+   SECTION 4 — ONE RECOMMENDATION. NOT FIVE.
+   ============================================================ */
+function OneRecommendation() {
+  return (
+    <section
+      aria-labelledby="one-rec-heading"
+      className="border-b border-slate-800 bg-[#070F1C]"
+    >
+      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
+        <div className="mx-auto max-w-5xl">
+          <div className="overflow-hidden rounded-2xl border border-[#D4A843]/30 bg-gradient-to-br from-[#0D1E38] to-[#0A1628] p-8 sm:p-12 lg:p-16">
+            <RevealOnScroll>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#D4A843]">
+                The principle
+              </p>
+            </RevealOnScroll>
+            <RevealOnScroll delayMs={80}>
+              <h2
+                id="one-rec-heading"
+                className="mt-4 text-balance text-3xl font-semibold leading-tight tracking-tight text-white sm:text-4xl md:text-5xl"
+              >
+                One recommendation.{" "}
+                <span className="text-[#D4A843]">Not five.</span>
+              </h2>
+            </RevealOnScroll>
+            <RevealOnScroll delayMs={160}>
+              <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-14">
+                <div>
+                  <p className="text-base leading-relaxed text-slate-300 sm:text-lg">
+                    Every other AI tool is afraid to commit. It gives you
+                    options. It hedges. It says &ldquo;here are some strategies
+                    you could consider.&rdquo;
+                  </p>
+                  <p className="mt-4 text-base leading-relaxed text-slate-300 sm:text-lg">
+                    NeuraLaunch does not do that. After listening to your full
+                    situation, it commits to{" "}
+                    <span className="font-medium text-white">
+                      one direction
+                    </span>{" "}
+                    — the right one for you specifically — with the reasoning,
+                    the risks, and the assumptions laid out plainly.
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-[#070F1C]/60 p-6">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
+                    If you disagree
+                  </h3>
+                  <p className="mt-3 text-base leading-relaxed text-slate-300">
+                    You can push back. Up to seven rounds of real argument. It
+                    will{" "}
+                    <span className="text-white">defend where it should</span>,{" "}
+                    <span className="text-white">
+                      refine where the point is valid
+                    </span>
+                    , and{" "}
+                    <span className="text-white">
+                      replace the recommendation entirely
+                    </span>{" "}
+                    if you and the evidence together prove it wrong.
+                  </p>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-500">
+                    When someone is lost, they do not need more options. They
+                    need someone willing to point at the way — and willing to
+                    change their mind when the case is made.
+                  </p>
+                </div>
+              </div>
+            </RevealOnScroll>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ============================================================
+   SECTION 5 — THE EXECUTION TOOLS
+   ============================================================ */
+const TOOLS: Array<{
+  icon: typeof Mic;
+  name: string;
+  tagline: string;
+  body: string;
+  example: string;
+}> = [
+  {
+    icon: Mic,
+    name: "Conversation Coach",
+    tagline: "Rehearse the pitch before you walk in.",
+    body: "Tell it who you're talking to and what you're afraid of. It produces the opening, the asks, the objections you'll face — then role-plays the conversation in character so you can practise before it matters.",
+    example:
+      "Plays the supplier you're negotiating with. Pushes back the way they would. Doesn't make it artificially easy.",
+  },
+  {
+    icon: Send,
+    name: "Outreach Composer",
+    tagline: "Your messages, written and ready to send.",
+    body: "Single message, batch of ten variations, or a Day 1 / Day 5 / Day 14 sequence — for WhatsApp, email, or LinkedIn. Each one comes with a short note explaining why it works, so you learn the pattern.",
+    example:
+      "\"Follow up with the five owners who didn't respond on Tuesday.\" Three messages, ready to copy and send.",
+  },
+  {
+    icon: Search,
+    name: "Research Tool",
+    tagline: "Find the people, the competitors, the answers.",
+    body: "Ask in plain language. Get back structured findings — businesses, people, competitors, regulations — with contact information, source URLs, and a verified / likely / unverified label on each one.",
+    example:
+      "\"Five biggest restaurant suppliers in Freetown and what they charge.\" Names, sites, prices, sources.",
+  },
+];
+
+function ExecutionTools() {
+  return (
+    <section
+      aria-labelledby="tools-heading"
+      className="border-b border-slate-800 bg-[#0A1628]"
+    >
+      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
+        <div className="mx-auto max-w-3xl text-center">
+          <RevealOnScroll>
+            <p className="text-sm font-semibold uppercase tracking-wider text-[#2563EB]">
+              The tools
+            </p>
+          </RevealOnScroll>
+          <RevealOnScroll delayMs={60}>
+            <h2
+              id="tools-heading"
+              className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl"
+            >
+              Built for the work that decides whether you win.
+            </h2>
+          </RevealOnScroll>
+          <RevealOnScroll delayMs={120}>
+            <p className="mt-5 text-base leading-relaxed text-slate-400 sm:text-lg">
+              The first cold message. The pricing call. The conversation with
+              the partner you've been avoiding. These moments decide outcomes.
+              We built the tools for them.
+            </p>
+          </RevealOnScroll>
+        </div>
+
+        <div className="mx-auto mt-14 grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-3">
+          {TOOLS.map((tool, i) => {
+            const Icon = tool.icon;
+            return (
+              <RevealOnScroll key={tool.name} delayMs={i * 100}>
+                <article className="group h-full rounded-xl border border-slate-800 bg-[#070F1C] p-7 transition-all hover:border-[#2563EB]/40 hover:bg-[#0D1E38]/60">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#2563EB]/10 ring-1 ring-inset ring-[#2563EB]/30">
+                    <Icon
+                      className="h-5 w-5 text-[#2563EB]"
+                      aria-hidden="true"
+                    />
+                  </div>
+                  <h3 className="mt-6 text-xl font-semibold text-white">
+                    {tool.name}
+                  </h3>
+                  <p className="mt-2 text-sm font-medium text-[#D4A843]">
+                    {tool.tagline}
+                  </p>
+                  <p className="mt-4 text-sm leading-relaxed text-slate-400">
+                    {tool.body}
+                  </p>
+                  <div className="mt-6 rounded-md border border-slate-800 bg-[#0A1628] p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      What it does
+                    </p>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-300">
+                      {tool.example}
+                    </p>
+                  </div>
+                </article>
+              </RevealOnScroll>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ============================================================
+   SECTION 6 — WHAT MAKES THIS DIFFERENT
+   ============================================================ */
+const COMPARISONS: Array<{ them: string; us: string }> = [
+  {
+    them: "Idea validators score your idea and send you away.",
+    us: "NeuraLaunch interviews your situation — not your idea — and stays with you through every task that follows.",
+  },
+  {
+    them: "Report generators produce a document you read once and close.",
+    us: "NeuraLaunch produces a roadmap you live inside for weeks, with tools and check-ins built into every step.",
+  },
+  {
+    them: "Advice tools give you options.",
+    us: "NeuraLaunch gives you one answer, defends it, and changes its mind only if you argue well enough.",
+  },
+  {
+    them: "Chatbots forget everything when you close the tab.",
+    us: "NeuraLaunch remembers every check-in, every block, every adjacent idea — and uses them to tell you what you learned.",
+  },
+  {
+    them: "Consultants cost thousands, live in one meeting, and disappear.",
+    us: "NeuraLaunch is there every time you open the tab, at a fraction of the price, with perfect recall.",
+  },
+];
+
+function Differentiation() {
+  return (
+    <section
+      aria-labelledby="diff-heading"
+      className="border-b border-slate-800 bg-[#070F1C]"
+    >
+      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
+        <div className="mx-auto max-w-3xl text-center">
+          <RevealOnScroll>
+            <h2
+              id="diff-heading"
+              className="text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl"
+            >
+              The category had a gap. We filled it.
+            </h2>
+          </RevealOnScroll>
+          <RevealOnScroll delayMs={80}>
+            <p className="mt-5 text-base leading-relaxed text-slate-400 sm:text-lg">
+              An AI that stays with a founder across the full execution cycle —
+              from first question to first outcome — and interprets what
+              happened so the next cycle is smarter than the last.
+            </p>
+          </RevealOnScroll>
+        </div>
+
+        <div className="mx-auto mt-14 max-w-5xl space-y-3">
+          {COMPARISONS.map((row, i) => (
+            <RevealOnScroll key={row.them} delayMs={i * 60}>
+              <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-slate-800 bg-slate-800 md:grid-cols-2">
+                <div className="bg-[#0A1628] p-6">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    The tools that exist
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-400 line-through decoration-slate-700 decoration-1 underline-offset-4">
+                    {row.them}
+                  </p>
+                </div>
+                <div className="bg-[#0D1E38] p-6">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#2563EB]">
+                    NeuraLaunch
+                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-200">
+                    {row.us}
+                  </p>
+                </div>
+              </div>
+            </RevealOnScroll>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ============================================================
+   SECTION 7 — IT STAYS WITH YOU
+   ============================================================ */
+function ItStaysWithYou() {
+  return (
+    <section
+      aria-labelledby="stays-heading"
+      className="border-b border-slate-800 bg-[#0A1628]"
+    >
+      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
+        <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 lg:grid-cols-2 lg:gap-20">
+          <RevealOnScroll>
+            <div>
+              <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-[#10B981]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#10B981]" />
+                It stays with you
+              </p>
+              <h2
+                id="stays-heading"
+                className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl"
+              >
+                A partner. Not a tool you check.
+              </h2>
+              <p className="mt-6 text-base leading-relaxed text-slate-300 sm:text-lg">
+                NeuraLaunch doesn&rsquo;t disappear after handing you a plan.
+                It checks in when you&rsquo;ve been stuck on a task too long.
+                It notices when the pattern across many tasks suggests the
+                direction itself is wrong — and offers to recalibrate. It
+                remembers every conversation. And when the cycle ends, it
+                tells you what happened, what it got wrong, and what comes
+                next.
+              </p>
+            </div>
+          </RevealOnScroll>
+
+          <RevealOnScroll delayMs={120}>
+            <div className="space-y-3">
+              <Beat
+                icon={Bell}
+                title="It checks in"
+                body="When you've been working on a task longer than its time estimate — or you've gone quiet for too long — it surfaces the question."
+              />
+              <Beat
+                icon={Brain}
+                title="It remembers"
+                body="Every check-in, every blocked task, every parked idea is held in context. Nothing has to be re-explained."
+              />
+              <Beat
+                icon={RefreshCcw}
+                title="It recalibrates"
+                body="When several check-ins point structurally the same way, it offers to revisit the recommendation — without you having to ask."
+              />
+              <Beat
+                icon={Compass}
+                title="It tells you what's next"
+                body="At the end of a cycle: a five-section brief on what happened, what was wrong, and two to four concrete forks to choose from."
+              />
+            </div>
+          </RevealOnScroll>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Beat({
+  icon: Icon,
+  title,
+  body,
+}: {
+  icon: typeof Bell;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="flex items-start gap-4 rounded-lg border border-slate-800 bg-[#070F1C] p-5">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#10B981]/10 ring-1 ring-inset ring-[#10B981]/30">
+        <Icon className="h-4 w-4 text-[#10B981]" aria-hidden="true" />
+      </div>
+      <div>
+        <h3 className="text-base font-semibold text-white">{title}</h3>
+        <p className="mt-1 text-sm leading-relaxed text-slate-400">{body}</p>
+      </div>
+    </div>
+  );
+}
+
+/* ============================================================
+   SECTION 8 — PRICING
+   ============================================================ */
+const TIERS: Array<{
+  name: string;
+  description: string;
+  features: string[];
+  highlighted?: boolean;
+  cta: string;
+}> = [
+  {
+    name: "Free",
+    description:
+      "The full discovery interview and your first recommendation.",
+    features: [
+      "Complete discovery interview",
+      "One full recommendation, with reasoning",
+      "Push back up to seven rounds",
+      "See the alternatives the system rejected",
+    ],
+    cta: "Start free",
+  },
+  {
+    name: "Starter",
+    description:
+      "The full execution roadmap with all three internal tools.",
+    features: [
+      "Phased execution roadmap",
+      "Conversation Coach",
+      "Outreach Composer",
+      "Research Tool",
+      "Task check-ins and diagnostic help",
+      "Parking lot for adjacent ideas",
+    ],
+    highlighted: true,
+    cta: "Start free",
+  },
+  {
+    name: "Builder",
+    description: "Everything in Starter, plus validation and continuation.",
+    features: [
+      "Everything in Starter",
+      "Live validation landing page",
+      "Build brief from real market signal",
+      "Continuation brief at cycle end",
+      "Fork selection into next cycle",
+    ],
+    cta: "Start free",
+  },
+  {
+    name: "Scale",
+    description: "Multiple concurrent roadmaps with cross-cycle memory.",
+    features: [
+      "Everything in Builder",
+      "Multiple roadmaps in parallel",
+      "Priority research and synthesis",
+      "Full cross-cycle memory",
+    ],
+    cta: "Start free",
+  },
+];
+
+function Pricing() {
+  return (
+    <section
+      id="pricing"
+      aria-labelledby="pricing-heading"
+      className="border-b border-slate-800 bg-[#070F1C] scroll-mt-20"
+    >
+      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
+        <div className="mx-auto max-w-3xl text-center">
+          <RevealOnScroll>
+            <p className="text-sm font-semibold uppercase tracking-wider text-[#2563EB]">
+              Pricing
+            </p>
+          </RevealOnScroll>
+          <RevealOnScroll delayMs={60}>
+            <h2
+              id="pricing-heading"
+              className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl"
+            >
+              Each tier unlocks the next layer of the journey.
+            </h2>
+          </RevealOnScroll>
+          <RevealOnScroll delayMs={120}>
+            <p className="mt-5 text-base leading-relaxed text-slate-400 sm:text-lg">
+              The free tier earns trust. The paid tiers deliver transformation.
+              Pricing reflects what founders at each tier actually get.
+            </p>
+          </RevealOnScroll>
+        </div>
+
+        <div className="mx-auto mt-14 grid max-w-7xl grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          {TIERS.map((tier, i) => (
+            <RevealOnScroll key={tier.name} delayMs={i * 80}>
+              <article
+                className={`relative flex h-full flex-col rounded-xl border p-7 transition-colors ${
+                  tier.highlighted
+                    ? "border-[#2563EB] bg-[#0D1E38] shadow-lg shadow-[#2563EB]/10"
+                    : "border-slate-800 bg-[#0A1628] hover:border-slate-700"
+                }`}
+              >
+                {tier.highlighted && (
+                  <span className="absolute -top-3 left-7 inline-flex items-center rounded-full bg-[#2563EB] px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white">
+                    Most founders start here
+                  </span>
+                )}
+                <h3 className="text-lg font-semibold text-white">
+                  {tier.name}
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-slate-400">
+                  {tier.description}
+                </p>
+                <p className="mt-6 text-sm font-medium text-slate-500">
+                  Pricing announced soon
+                </p>
+                <ul className="mt-6 space-y-2.5 text-sm">
+                  {tier.features.map((feature) => (
+                    <li
+                      key={feature}
+                      className="flex items-start gap-2.5 text-slate-300"
+                    >
+                      <Check
+                        className={`mt-0.5 h-4 w-4 shrink-0 ${
+                          tier.highlighted
+                            ? "text-[#2563EB]"
+                            : "text-[#10B981]"
+                        }`}
+                        aria-hidden="true"
+                      />
+                      <span>{feature}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-auto pt-8">
+                  <Link
+                    href="/discovery"
+                    className={`inline-flex w-full items-center justify-center gap-1.5 rounded-md px-4 py-2.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#070F1C] ${
+                      tier.highlighted
+                        ? "bg-[#2563EB] text-white hover:bg-[#1D4ED8] focus-visible:ring-[#2563EB]"
+                        : "border border-slate-700 bg-transparent text-white hover:border-slate-500 hover:bg-slate-800 focus-visible:ring-slate-500"
+                    }`}
+                  >
+                    {tier.cta}
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
+              </article>
+            </RevealOnScroll>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ============================================================
+   SECTION 9 — FINAL CTA
+   ============================================================ */
+function FinalCTA() {
+  return (
+    <section
+      aria-labelledby="final-cta-heading"
+      className="bg-gradient-to-b from-[#0A1628] to-[#070F1C]"
+    >
+      <div className="mx-auto max-w-5xl px-4 py-24 sm:px-6 sm:py-28 lg:px-8 lg:py-36">
+        <RevealOnScroll>
+          <div className="text-center">
+            <h2
+              id="final-cta-heading"
+              className="text-balance text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl"
+            >
+              From lost to launched.{" "}
+              <span className="text-[#D4A843]">For everyone.</span>{" "}
+              One step at a time.
+            </h2>
+            <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
+              Answer a few honest questions. Get one clear direction —
+              built specifically for your situation. Then have a partner
+              with you through the work that follows.
+            </p>
+            <div className="mt-10 flex justify-center">
+              <Link
+                href="/discovery"
+                className="group inline-flex items-center gap-2 rounded-md bg-[#2563EB] px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#2563EB]/20 transition-all hover:bg-[#1D4ED8] hover:shadow-xl hover:shadow-[#2563EB]/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 focus-visible:ring-offset-[#070F1C]"
+              >
+                Start Your Discovery
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+              </Link>
+            </div>
+          </div>
+        </RevealOnScroll>
+      </div>
+    </section>
   );
 }
