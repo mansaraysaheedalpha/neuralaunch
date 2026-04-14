@@ -228,3 +228,19 @@ export const animation = {
   normal: 250,
   slow:   400,
 } as const;
+
+// ---------------------------------------------------------------------------
+// Icon sizing scale — always pass one of these to Lucide icons. Never
+// pass a raw number. Keeps iconography visually consistent across
+// meta rows, buttons, tab bars, headers, and CTAs.
+// ---------------------------------------------------------------------------
+
+export const iconSize = {
+  xs: 11, // inline-with-caption text (meta-row labels)
+  sm: 14, // small buttons, inline actions, ChevronDown on toggles
+  md: 18, // medium buttons, input-row icons, empty-state inline
+  lg: 22, // tab bar icons, header icons
+  xl: 40, // centred empty/error state hero icons
+} as const;
+
+export type IconSize = keyof typeof iconSize;
