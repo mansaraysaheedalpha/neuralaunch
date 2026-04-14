@@ -4,14 +4,15 @@
 // recommendations and validation pages, sign out.
 
 import { useState, useEffect } from 'react';
-import { View, Switch, StyleSheet, Alert } from 'react-native';
+import { View, Switch, StyleSheet, Alert, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { Sparkles, FileCheck, ChevronRight } from 'lucide-react-native';
 import { useAuth } from '@/services/auth';
 import { useTheme } from '@/hooks/useTheme';
 import { api } from '@/services/api-client';
 import { Text, Button, Card, Separator, ScreenContainer } from '@/components/ui';
-import { spacing, radius } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
@@ -98,12 +99,14 @@ export default function ProfileScreen() {
         <Text variant="overline" color={c.mutedForeground}>Your work</Text>
         <Card noPadding>
           <NavRow
+            icon={Sparkles}
             label="Past recommendations"
             onPress={() => router.push('/recommendations')}
             colors={c}
           />
           <View style={[styles.divider, { backgroundColor: c.border }]} />
           <NavRow
+            icon={FileCheck}
             label="Validation pages"
             onPress={() => router.push('/validation')}
             colors={c}
@@ -158,37 +161,40 @@ export default function ProfileScreen() {
 // ---------------------------------------------------------------------------
 
 function NavRow({
+  icon: Icon,
   label,
   onPress,
   colors: c,
 }: {
+  icon?: React.ComponentType<{ size?: number; color?: string }>;
   label: string;
   onPress: () => void;
   colors: Record<string, string>;
 }) {
   return (
-    <View style={navStyles.row}>
-      <Text
-        variant="label"
-        color={c.foreground}
-        onPress={() => {
-          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          onPress();
-        }}
-        style={navStyles.label}
-      >
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={() => {
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        onPress();
+      }}
+      style={({ pressed }) => [navStyles.row, pressed && { opacity: 0.6 }]}
+    >
+      {Icon && <Icon size={18} color={c.mutedForeground} />}
+      <Text variant="label" color={c.foreground} style={navStyles.label}>
         {label}
       </Text>
-      <Text variant="caption" color={c.mutedForeground}>→</Text>
-    </View>
+      <ChevronRight size={18} color={c.mutedForeground} />
+    </Pressable>
   );
 }
 
 const navStyles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: spacing[3],
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[3.5],
   },

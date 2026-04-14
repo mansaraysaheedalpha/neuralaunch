@@ -118,6 +118,8 @@ export default function DiscoveryScreen() {
           headerBackTitle: 'Home',
           headerRight: () => (
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Interview guide"
               onPress={() => setGuideVisible(true)}
               style={{ padding: spacing[2] }}
             >

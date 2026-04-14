@@ -135,7 +135,7 @@ export default function OutcomeScreen() {
         }}
       />
 
-      <ScreenContainer>
+      <ScreenContainer keyboardAvoid>
         {submitted ? (
           <View style={styles.successContainer}>
             <Card variant="primary" style={{ alignItems: 'center', paddingVertical: spacing[8] }}>

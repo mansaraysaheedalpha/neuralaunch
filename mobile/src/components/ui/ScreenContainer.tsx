@@ -3,7 +3,15 @@
 // Root container for every screen. Handles safe area insets,
 // background color, and the standard scroll/non-scroll layout.
 
-import { View, ScrollView, StyleSheet, RefreshControl, type ViewStyle } from 'react-native';
+import {
+  View,
+  ScrollView,
+  StyleSheet,
+  RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
+  type ViewStyle,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/useTheme';
 import { spacing } from '@/constants/theme';
@@ -18,6 +26,8 @@ interface Props {
   refreshing?: boolean;
   /** Called when the user pulls down to refresh. */
   onRefresh?: () => void;
+  /** Wrap contents in a KeyboardAvoidingView — for screens with form inputs. */
+  keyboardAvoid?: boolean;
   style?: ViewStyle;
 }
 
@@ -27,6 +37,7 @@ export function ScreenContainer({
   noPadding = false,
   refreshing,
   onRefresh,
+  keyboardAvoid = false,
   style,
 }: Props) {
   const { colors: c } = useTheme();
@@ -40,37 +51,52 @@ export function ScreenContainer({
     ...(!noPadding && { paddingHorizontal: spacing[5] }),
   };
 
+  let body: React.ReactNode;
   if (!scroll) {
-    return <View style={[containerStyle, style]}>{children}</View>;
+    body = <View style={[containerStyle, style]}>{children}</View>;
+  } else {
+    body = (
+      <ScrollView
+        style={[{ flex: 1, backgroundColor: c.background }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          containerStyle,
+          { paddingBottom: insets.bottom + spacing[8] },
+          style,
+        ]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        refreshControl={
+          onRefresh
+            ? (
+              <RefreshControl
+                refreshing={refreshing ?? false}
+                onRefresh={onRefresh}
+                tintColor={c.primary}
+                colors={[c.primary]}
+              />
+            )
+            : undefined
+        }
+      >
+        {children}
+      </ScrollView>
+    );
   }
 
-  return (
-    <ScrollView
-      style={[{ flex: 1, backgroundColor: c.background }]}
-      contentContainerStyle={[
-        styles.scrollContent,
-        containerStyle,
-        { paddingBottom: insets.bottom + spacing[8] },
-        style,
-      ]}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-      refreshControl={
-        onRefresh
-          ? (
-            <RefreshControl
-              refreshing={refreshing ?? false}
-              onRefresh={onRefresh}
-              tintColor={c.primary}
-              colors={[c.primary]}
-            />
-          )
-          : undefined
-      }
-    >
-      {children}
-    </ScrollView>
-  );
+  if (keyboardAvoid) {
+    return (
+      <KeyboardAvoidingView
+        style={{ flex: 1, backgroundColor: c.background }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        {body}
+      </KeyboardAvoidingView>
+    );
+  }
+
+  return body;
 }
 
 const styles = StyleSheet.create({

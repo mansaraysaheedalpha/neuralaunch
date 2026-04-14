@@ -100,7 +100,7 @@ export default function OutreachComposerScreen() {
         }}
       />
 
-      <ScreenContainer>
+      <ScreenContainer keyboardAvoid>
         {/* Input form */}
         <Text variant="title">Who are you reaching out to?</Text>
         <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1], marginBottom: spacing[5] }}>
