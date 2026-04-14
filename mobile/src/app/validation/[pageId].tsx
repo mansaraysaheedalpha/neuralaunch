@@ -4,11 +4,12 @@
 // build brief panel, and page controls (publish, copy link).
 
 import { useState } from 'react';
-import { View, StyleSheet, Pressable } from 'react-native';
+import { View, StyleSheet, Pressable, Share } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import useSWR from 'swr';
+import { Share2 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { api, ApiError, API_BASE_URL } from '@/services/api-client';
 import {
@@ -21,7 +22,7 @@ import {
   ListSkeleton,
   ErrorState,
 } from '@/components/ui';
-import { spacing, radius } from '@/constants/theme';
+import { spacing, radius, iconSize } from '@/constants/theme';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -112,6 +113,20 @@ export default function ValidationDetailScreen() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  async function handleShareLink() {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const result = await Share.share({
+        message: pageUrl,
+        url:     pageUrl, // iOS uses url; Android uses message
+        title:   'NeuraLaunch validation page',
+      });
+      if (result.action === Share.sharedAction) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch { /* user cancelled or native error — silent */ }
+  }
+
   async function handleToggleChannel(channel: string, completed: boolean) {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
@@ -161,13 +176,23 @@ export default function ValidationDetailScreen() {
             />
           )}
           {isLive && (
-            <Button
-              title={copied ? '✓ Link copied' : 'Copy link'}
-              onPress={() => { void handleCopyLink(); }}
-              variant="secondary"
-              size="lg"
-              fullWidth
-            />
+            <>
+              <Button
+                title={copied ? '✓ Link copied' : 'Copy link'}
+                onPress={() => { void handleCopyLink(); }}
+                variant="secondary"
+                size="lg"
+                fullWidth
+              />
+              <Button
+                title="Share page"
+                onPress={() => { void handleShareLink(); }}
+                variant="ghost"
+                size="lg"
+                fullWidth
+                icon={<Share2 size={iconSize.sm} color={c.primary} />}
+              />
+            </>
           )}
         </View>
 

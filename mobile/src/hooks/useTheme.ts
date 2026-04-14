@@ -5,7 +5,7 @@
 // imports `useTheme()` — never reads palette values directly.
 
 import { useColorScheme } from 'react-native';
-import { colors, type ColorScheme } from '@/constants/theme';
+import { colors, shadows, type ColorScheme } from '@/constants/theme';
 
 export function useTheme() {
   const systemScheme = useColorScheme();
@@ -13,6 +13,7 @@ export function useTheme() {
   return {
     scheme,
     isDark: scheme === 'dark',
-    colors: colors(scheme),
+    colors:  colors(scheme),
+    shadows: shadows(scheme),
   };
 }

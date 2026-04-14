@@ -5,15 +5,15 @@
 // reaching out to and why, the AI produces 3 message variations.
 
 import { useState, useRef } from 'react';
-import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, TextInput as RNTextInput } from 'react-native';
+import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Share, TextInput as RNTextInput } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { Copy, Check } from 'lucide-react-native';
+import { Copy, Check, Share2 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { api, ApiError } from '@/services/api-client';
 import { Text, Card, Button, Badge, ScreenContainer } from '@/components/ui';
-import { spacing, radius, typography } from '@/constants/theme';
+import { spacing, radius, typography, iconSize } from '@/constants/theme';
 
 type Channel = 'email' | 'linkedin' | 'whatsapp' | 'sms';
 
@@ -86,6 +86,25 @@ export default function OutreachComposerScreen() {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setCopiedId(variation.id);
     setTimeout(() => setCopiedId(null), 2000);
+  }
+
+  async function handleShare(variation: Variation) {
+    const fullText = variation.subject
+      ? `Subject: ${variation.subject}\n\n${variation.message}`
+      : variation.message;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      const result = await Share.share({
+        message: fullText,
+        // iOS uses `title` for mail-subject & some activity types;
+        // Android ignores it in the chooser but respects it for some
+        // targets. Fall back to the tone so there's always a title.
+        title: variation.subject ?? `Outreach (${variation.tone})`,
+      });
+      if (result.action === Share.sharedAction) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch { /* user cancelled or native error — silent */ }
   }
 
   return (
@@ -205,13 +224,28 @@ export default function OutreachComposerScreen() {
                 <Card key={variation.id}>
                   <View style={styles.variationHeader}>
                     <Badge label={variation.tone} variant="primary" />
-                    <Pressable onPress={() => { void handleCopy(variation); }} style={styles.copyButton}>
-                      {copiedId === variation.id ? (
-                        <Check size={16} color={c.success} />
-                      ) : (
-                        <Copy size={16} color={c.mutedForeground} />
-                      )}
-                    </Pressable>
+                    <View style={styles.iconActions}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Share message"
+                        onPress={() => { void handleShare(variation); }}
+                        style={styles.copyButton}
+                      >
+                        <Share2 size={iconSize.sm} color={c.mutedForeground} />
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={copiedId === variation.id ? 'Copied' : 'Copy message'}
+                        onPress={() => { void handleCopy(variation); }}
+                        style={styles.copyButton}
+                      >
+                        {copiedId === variation.id ? (
+                          <Check size={iconSize.sm} color={c.success} />
+                        ) : (
+                          <Copy size={iconSize.sm} color={c.mutedForeground} />
+                        )}
+                      </Pressable>
+                    </View>
                   </View>
 
                   {variation.subject && (
@@ -232,7 +266,7 @@ export default function OutreachComposerScreen() {
               ))}
             </View>
 
-            {/* Regenerate */}
+            {/* Regenerate + done */}
             <Button
               title="Generate new variations"
               onPress={handleGenerate}
@@ -241,6 +275,21 @@ export default function OutreachComposerScreen() {
               fullWidth
               style={{ marginTop: spacing[4] }}
             />
+            {roadmapId && (
+              <Button
+                title="Done — back to my roadmap"
+                // Use replace with an explicit target so a deep-link
+                // into this screen (push notification, share URL,
+                // external browser) still navigates somewhere sensible
+                // — router.back() silently does nothing on an empty
+                // back stack.
+                onPress={() => router.replace(`/roadmap/${roadmapId}`)}
+                variant="secondary"
+                size="md"
+                fullWidth
+                style={{ marginTop: spacing[2] }}
+              />
+            )}
           </View>
         )}
       </ScreenContainer>
@@ -283,6 +332,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  iconActions: {
+    flexDirection: 'row',
+    gap: spacing[1],
   },
   copyButton: {
     padding: spacing[2],

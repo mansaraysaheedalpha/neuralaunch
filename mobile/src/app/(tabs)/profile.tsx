@@ -12,7 +12,7 @@ import { useAuth } from '@/services/auth';
 import { useTheme } from '@/hooks/useTheme';
 import { api } from '@/services/api-client';
 import { Text, Button, Card, Separator, ScreenContainer } from '@/components/ui';
-import { spacing } from '@/constants/theme';
+import { spacing, iconSize } from '@/constants/theme';
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
@@ -181,11 +181,11 @@ function NavRow({
       }}
       style={({ pressed }) => [navStyles.row, pressed && { opacity: 0.6 }]}
     >
-      {Icon && <Icon size={18} color={c.mutedForeground} />}
+      {Icon && <Icon size={iconSize.md} color={c.mutedForeground} />}
       <Text variant="label" color={c.foreground} style={navStyles.label}>
         {label}
       </Text>
-      <ChevronRight size={18} color={c.mutedForeground} />
+      <ChevronRight size={iconSize.md} color={c.mutedForeground} />
     </Pressable>
   );
 }

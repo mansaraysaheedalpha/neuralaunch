@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { Menu, X, ArrowRight } from "lucide-react";
@@ -25,9 +26,14 @@ export default function MarketingHeader() {
           className="flex items-center gap-2.5 transition-opacity hover:opacity-90"
           aria-label="NeuraLaunch home"
         >
-          <span className="flex h-9 w-9 items-center justify-center rounded-md bg-[#2563EB] text-sm font-bold tracking-tight text-white">
-            NL
-          </span>
+          <Image
+            src="/neuralaunch_logo.svg"
+            alt=""
+            width={36}
+            height={27}
+            priority
+            className="h-7 w-auto"
+          />
           <span className="text-lg font-semibold tracking-tight text-white">
             NeuraLaunch
           </span>
