@@ -33,7 +33,7 @@ interface PushMessage {
  *
  * Never throws. Logs failures and returns null on error.
  */
-export async function sendPush(messages: PushMessage | PushMessage[]): Promise<unknown | null> {
+export async function sendPush(messages: PushMessage | PushMessage[]): Promise<unknown> {
   const payload = Array.isArray(messages) ? messages : [messages];
   if (payload.length === 0) return null;
 
@@ -56,7 +56,7 @@ export async function sendPush(messages: PushMessage | PushMessage[]): Promise<u
       return null;
     }
 
-    const json = await res.json().catch(() => null);
+    const json: unknown = await res.json().catch(() => null);
     return json;
   } catch (err) {
     logger.warn('[Push] Expo push request threw', {
