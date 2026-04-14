@@ -9,13 +9,16 @@ import { Analytics } from "@vercel/analytics/next";
 import Script from "next/script";
 
 export const metadata: Metadata = {
-  // Keep your metadata
   icons: {
     icon: "/favicon.ico",
     apple: "/apple-touch-icon.png",
   },
-  title: "NeuraLaunch - AI Startup Co-Pilot", // Updated name
-  description: "Go from skill to validated startup blueprint with AI.",
+  title: {
+    default: "NeuraLaunch — From Lost to Launched",
+    template: "%s",
+  },
+  description:
+    "NeuraLaunch interviews your situation, commits to one clear recommendation, then partners with you through every task — until you've shipped, learned, or decided what comes next.",
 };
 
 export const viewport: Viewport = {

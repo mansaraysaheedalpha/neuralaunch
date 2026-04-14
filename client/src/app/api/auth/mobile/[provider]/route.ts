@@ -11,42 +11,8 @@
 // app's scheme with the session token.
 
 import { NextResponse } from 'next/server';
-import { randomBytes, createHash } from 'crypto';
 import { env } from '@/lib/env';
-
-// The state parameter carries the mobile redirect URI through the
-// OAuth dance. It's HMAC'd so an attacker can't inject a malicious
-// redirect URI by crafting their own state.
-function signState(redirectUri: string): string {
-  const nonce = randomBytes(16).toString('hex');
-  const payload = `${nonce}:${redirectUri}`;
-  const signature = createHash('sha256')
-    .update(`${env.NEXTAUTH_SECRET}:${payload}`)
-    .digest('hex')
-    .slice(0, 16);
-  // base64url so it's URL-safe
-  return Buffer.from(`${signature}:${payload}`).toString('base64url');
-}
-
-export function verifyState(state: string): string | null {
-  try {
-    const decoded = Buffer.from(state, 'base64url').toString();
-    const [signature, ...rest] = decoded.split(':');
-    const payload = rest.join(':');
-    const [, ...uriParts] = payload.split(':');
-    const redirectUri = uriParts.join(':');
-
-    const expected = createHash('sha256')
-      .update(`${env.NEXTAUTH_SECRET}:${payload}`)
-      .digest('hex')
-      .slice(0, 16);
-
-    if (signature !== expected) return null;
-    return redirectUri;
-  } catch {
-    return null;
-  }
-}
+import { signState } from '@/lib/mobile-auth';
 
 // Provider configs — authorization URLs and required scopes
 const PROVIDERS: Record<string, {
