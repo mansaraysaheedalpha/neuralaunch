@@ -3,61 +3,48 @@
 // Registers the device's Expo push token with the backend. Called
 // once after a successful sign-in (see auth.ts hydrate / signIn).
 //
-// expo-notifications + expo-device are dynamically required so this
-// file type-checks even before the packages are installed. Once
-// `pnpm exec expo install expo-notifications expo-device` is run
-// inside mobile/, registration activates automatically.
-//
-// Registration is best-effort — failures are swallowed. A user without
-// push never blocks the rest of the app.
+// Registration is best-effort — every failure mode is swallowed and
+// the user proceeds without push. Exits early when:
+//   · running on an emulator / simulator (Device.isDevice === false)
+//   · OS permission was denied
+//   · Expo project isn't configured for push (no projectId)
+//   · backend POST fails
 
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
 import { api } from './api-client';
 
-// We only ever want to register once per sign-in session to avoid
-// flooding the backend if the auth store re-hydrates. The flag is
-// keyed by the token itself so if Expo rotates the token we re-register.
+// De-dup re-registrations. Keyed by token so an Expo token rotation
+// triggers a fresh POST.
 let lastRegisteredToken: string | null = null;
 
-type PushModule = {
-  getExpoPushTokenAsync: (opts?: { projectId?: string }) => Promise<{ data: string }>;
-  getPermissionsAsync:   () => Promise<{ status: string }>;
-  requestPermissionsAsync: () => Promise<{ status: string }>;
-  setNotificationChannelAsync?: (id: string, opts: Record<string, unknown>) => Promise<void>;
-};
-
-type DeviceModule = {
-  isDevice: boolean;
-};
-
-function tryRequire<T>(name: string): T | null {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-explicit-any
-    return require(name) as T;
-  } catch {
-    return null;
-  }
+/**
+ * Resolve the EAS project ID that Expo uses when minting push tokens.
+ * In SDK 49+ `getExpoPushTokenAsync()` requires this on EAS builds.
+ *
+ * Expo places it at either `expoConfig.extra.eas.projectId` (the value
+ * `eas init` writes into app.json) or at `easConfig.projectId` on a
+ * fully resolved Constants. We check both paths.
+ */
+function resolveProjectId(): string | undefined {
+  const fromExtra = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
+  const fromEas   = (Constants as unknown as { easConfig?: { projectId?: string } })
+    .easConfig?.projectId;
+  return fromExtra ?? fromEas;
 }
 
 /**
- * Register this device's Expo push token with the backend. Idempotent
- * — safe to call on every sign-in or app foreground. Returns true on
- * success, false if the token wasn't obtained (permission denied,
- * simulator, packages not installed, etc.).
+ * Register this device's Expo push token with the backend.
+ * Idempotent — safe to call on every sign-in or app foreground.
+ * Returns true when a token was minted and successfully POSTed.
  */
 export async function registerPushToken(): Promise<boolean> {
-  const Notifications = tryRequire<PushModule>('expo-notifications');
-  const Device        = tryRequire<DeviceModule>('expo-device');
-
-  if (!Notifications || !Device) {
-    // Packages not installed. Graceful no-op.
-    return false;
-  }
-
   // Emulators / simulators can't receive push.
   if (!Device.isDevice) return false;
 
-  // Permission flow — request if not already granted.
+  // Permission flow — request once if not already granted.
   const existing = await Notifications.getPermissionsAsync();
   let status = existing.status;
   if (status !== 'granted') {
@@ -66,25 +53,38 @@ export async function registerPushToken(): Promise<boolean> {
   }
   if (status !== 'granted') return false;
 
-  // Android needs a channel for notifications to fire in the foreground.
-  if (Platform.OS === 'android' && Notifications.setNotificationChannelAsync) {
+  // Android needs a notification channel configured or foreground
+  // pushes silently drop. One 'default' channel is enough for now.
+  if (Platform.OS === 'android') {
     try {
       await Notifications.setNotificationChannelAsync('default', {
         name: 'Default',
-        importance: 4, // HIGH
+        importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 250, 250],
       });
     } catch { /* best-effort */ }
   }
 
-  let tokenData: { data: string };
+  const projectId = resolveProjectId();
+
+  let token: string;
   try {
-    tokenData = await Notifications.getExpoPushTokenAsync();
+    // Pass projectId explicitly when we have one. Omitting it works in
+    // Expo Go (which uses Expo's shared project) but fails on standalone
+    // EAS builds — this distinction matters for production.
+    const result = projectId
+      ? await Notifications.getExpoPushTokenAsync({ projectId })
+      : await Notifications.getExpoPushTokenAsync();
+    token = result.data;
   } catch {
+    // Most common cause: EAS build with no configured projectId.
+    // Surface via console.warn so the ops team notices, but don't
+    // throw — the rest of the app still works without push.
+    // eslint-disable-next-line no-console
+    console.warn('[push] getExpoPushTokenAsync failed — push disabled this session');
     return false;
   }
 
-  const token = tokenData.data;
   if (!token || token === lastRegisteredToken) return true;
 
   try {
@@ -92,7 +92,11 @@ export async function registerPushToken(): Promise<boolean> {
       method: 'POST',
       body: {
         token,
-        platform: Platform.OS === 'ios' ? 'ios' : Platform.OS === 'android' ? 'android' : 'web',
+        platform: Platform.OS === 'ios'
+          ? 'ios'
+          : Platform.OS === 'android'
+            ? 'android'
+            : 'web',
       },
     });
     lastRegisteredToken = token;

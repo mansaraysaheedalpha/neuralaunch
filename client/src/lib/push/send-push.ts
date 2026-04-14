@@ -80,13 +80,26 @@ export async function sendPushToUser(
   body: string,
   data?: Record<string, unknown>,
 ): Promise<number> {
-  const user = await prisma.user.findUnique({
-    where:  { id: userId },
-    select: {
-      nudgesEnabled: true,
-      pushTokens: { select: { token: true } },
-    },
-  });
+  // Defensive query: swallow any Prisma error (missing table, dead
+  // connection) so the nudge cron, the check-in route, and every
+  // other caller proceed even if push infrastructure is half-deployed.
+  // This is intentional — push is best-effort.
+  let user: { nudgesEnabled: boolean; pushTokens: { token: string }[] } | null;
+  try {
+    user = await prisma.user.findUnique({
+      where:  { id: userId },
+      select: {
+        nudgesEnabled: true,
+        pushTokens: { select: { token: true } },
+      },
+    });
+  } catch (err) {
+    logger.warn('[Push] user lookup failed — skipping push', {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return 0;
+  }
 
   if (!user) return 0;
   if (!user.nudgesEnabled) return 0;
