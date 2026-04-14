@@ -11,7 +11,7 @@ import { useState } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { MessageSquare, Send, CheckSquare } from 'lucide-react-native';
+import { MessageSquare, Send, Search, CheckSquare } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { api } from '@/services/api-client';
 import type { RoadmapTask, TaskStatus } from '@/hooks/useRoadmap';
@@ -50,6 +50,7 @@ export function TaskCard({
   const checkInCount = task.checkInHistory?.length ?? 0;
   const hasCoach    = task.suggestedTools?.includes('conversation_coach');
   const hasComposer = task.suggestedTools?.includes('outreach_composer');
+  const hasResearch = task.suggestedTools?.includes('research_tool');
 
   async function handleStatusChange(next: TaskStatus) {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -162,6 +163,15 @@ export function TaskCard({
             variant="ghost"
             size="sm"
             icon={<Send size={iconSize.sm} color={c.primary} />}
+          />
+        )}
+        {hasResearch && (
+          <Button
+            title="Research"
+            onPress={() => navigate(`/roadmap/${roadmapId}/research?taskId=${taskId}`)}
+            variant="ghost"
+            size="sm"
+            icon={<Search size={iconSize.sm} color={c.primary} />}
           />
         )}
       </View>
