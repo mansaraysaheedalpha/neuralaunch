@@ -42,13 +42,7 @@ export default function MarketingHeader() {
             About
           </Link>
           <Link
-            href="/faq"
-            className="text-sm font-medium text-slate-400 transition-colors hover:text-white"
-          >
-            FAQ
-          </Link>
-          <Link
-            href="#pricing"
+            href="/#pricing"
             className="text-sm font-medium text-slate-400 transition-colors hover:text-white"
           >
             Pricing
@@ -108,14 +102,7 @@ export default function MarketingHeader() {
               About
             </Link>
             <Link
-              href="/faq"
-              className="block rounded-md px-3 py-2 text-base font-medium text-slate-300 hover:bg-slate-800 hover:text-white"
-              onClick={() => setMobileOpen(false)}
-            >
-              FAQ
-            </Link>
-            <Link
-              href="#pricing"
+              href="/#pricing"
               className="block rounded-md px-3 py-2 text-base font-medium text-slate-300 hover:bg-slate-800 hover:text-white"
               onClick={() => setMobileOpen(false)}
             >
