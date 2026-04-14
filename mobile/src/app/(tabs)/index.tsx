@@ -21,6 +21,7 @@ import {
   Separator,
   ListSkeleton,
   ErrorState,
+  FadeInView,
 } from '@/components/ui';
 import { spacing } from '@/constants/theme';
 
@@ -78,6 +79,7 @@ export default function HomeScreen() {
       </View>
 
       {/* Quick action — start a discovery session */}
+      <FadeInView>
       <Card variant="primary" style={styles.ctaCard}>
         <Text variant="overline" color={c.primary}>
           Ready to discover your path?
@@ -99,8 +101,10 @@ export default function HomeScreen() {
           icon={<Compass size={18} color={c.primaryForeground} />}
         />
       </Card>
+      </FadeInView>
 
       {/* Latest recommendation */}
+      <FadeInView delay={80}>
       <View style={styles.section}>
         <Text variant="title" style={styles.sectionTitle}>
           Your recommendations
@@ -166,10 +170,12 @@ export default function HomeScreen() {
           </Pressable>
         )}
       </View>
+      </FadeInView>
 
       <Separator />
 
       {/* Quick links */}
+      <FadeInView delay={160}>
       <View style={styles.quickLinks}>
         <Pressable
           accessibilityRole="button"
@@ -198,6 +204,7 @@ export default function HomeScreen() {
           <Text variant="caption" color={c.mutedForeground}>Coach, outreach</Text>
         </Pressable>
       </View>
+      </FadeInView>
     </ScreenContainer>
   );
 }

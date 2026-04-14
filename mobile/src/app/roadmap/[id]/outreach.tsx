@@ -5,11 +5,11 @@
 // reaching out to and why, the AI produces 3 message variations.
 
 import { useState, useRef } from 'react';
-import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, TextInput as RNTextInput } from 'react-native';
+import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Share, TextInput as RNTextInput } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { Copy, Check } from 'lucide-react-native';
+import { Copy, Check, Share2 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { api, ApiError } from '@/services/api-client';
 import { Text, Card, Button, Badge, ScreenContainer } from '@/components/ui';
@@ -86,6 +86,19 @@ export default function OutreachComposerScreen() {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setCopiedId(variation.id);
     setTimeout(() => setCopiedId(null), 2000);
+  }
+
+  async function handleShare(variation: Variation) {
+    const fullText = variation.subject
+      ? `Subject: ${variation.subject}\n\n${variation.message}`
+      : variation.message;
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await Share.share({
+        message: fullText,
+        ...(variation.subject ? { title: variation.subject } : {}),
+      });
+    } catch { /* user cancelled */ }
   }
 
   return (
@@ -205,13 +218,28 @@ export default function OutreachComposerScreen() {
                 <Card key={variation.id}>
                   <View style={styles.variationHeader}>
                     <Badge label={variation.tone} variant="primary" />
-                    <Pressable onPress={() => { void handleCopy(variation); }} style={styles.copyButton}>
-                      {copiedId === variation.id ? (
-                        <Check size={16} color={c.success} />
-                      ) : (
-                        <Copy size={16} color={c.mutedForeground} />
-                      )}
-                    </Pressable>
+                    <View style={styles.iconActions}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Share message"
+                        onPress={() => { void handleShare(variation); }}
+                        style={styles.copyButton}
+                      >
+                        <Share2 size={16} color={c.mutedForeground} />
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={copiedId === variation.id ? 'Copied' : 'Copy message'}
+                        onPress={() => { void handleCopy(variation); }}
+                        style={styles.copyButton}
+                      >
+                        {copiedId === variation.id ? (
+                          <Check size={16} color={c.success} />
+                        ) : (
+                          <Copy size={16} color={c.mutedForeground} />
+                        )}
+                      </Pressable>
+                    </View>
                   </View>
 
                   {variation.subject && (
@@ -232,7 +260,7 @@ export default function OutreachComposerScreen() {
               ))}
             </View>
 
-            {/* Regenerate */}
+            {/* Regenerate + done */}
             <Button
               title="Generate new variations"
               onPress={handleGenerate}
@@ -241,6 +269,16 @@ export default function OutreachComposerScreen() {
               fullWidth
               style={{ marginTop: spacing[4] }}
             />
+            {roadmapId && (
+              <Button
+                title="Done — back to my roadmap"
+                onPress={() => router.back()}
+                variant="secondary"
+                size="md"
+                fullWidth
+                style={{ marginTop: spacing[2] }}
+              />
+            )}
           </View>
         )}
       </ScreenContainer>
@@ -283,6 +321,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  iconActions: {
+    flexDirection: 'row',
+    gap: spacing[1],
   },
   copyButton: {
     padding: spacing[2],
