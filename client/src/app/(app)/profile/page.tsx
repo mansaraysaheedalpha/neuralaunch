@@ -41,16 +41,16 @@ export default async function ProfilePage() {
     <div className="container max-w-4xl mx-auto py-8 px-4">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent mb-2">
-          Profile Settings
+        <h1 className="mb-2 text-3xl font-semibold tracking-tight text-foreground">
+          Profile settings
         </h1>
         <p className="text-muted-foreground">
-          Manage your account settings and integrations
+          Manage your account and connected providers.
         </p>
       </div>
 
       {/* Profile Information Card */}
-      <Card className="mb-6 border-2">
+      <Card className="mb-6">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <User className="w-5 h-5" />
@@ -65,7 +65,7 @@ export default async function ProfilePage() {
           <div className="flex items-center gap-4">
             <Avatar className="h-20 w-20 border-2 border-primary/20">
               <AvatarImage src={session.user.image || ""} alt={session.user.name || ""} />
-              <AvatarFallback className="text-lg bg-gradient-to-br from-primary to-secondary text-white">
+              <AvatarFallback className="bg-primary text-lg font-semibold text-primary-foreground">
                 {userInitials}
               </AvatarFallback>
             </Avatar>
@@ -81,7 +81,7 @@ export default async function ProfilePage() {
       </Card>
 
       {/* Integrations Card */}
-      <Card className="border-2">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5" />
@@ -107,8 +107,8 @@ export default async function ProfilePage() {
                 </div>
               </div>
               {googleAccount ? (
-                <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-300 dark:border-green-700">
-                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="mr-1 h-3 w-3" />
                   Connected
                 </Badge>
               ) : (
@@ -136,27 +136,27 @@ export default async function ProfilePage() {
                 </div>
               </div>
               {githubAccount ? (
-                <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border-green-300 dark:border-green-700">
-                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="mr-1 h-3 w-3" />
                   Connected
                 </Badge>
               ) : (
-                <Badge variant="outline" className="border-orange-300 dark:border-orange-700 text-orange-800 dark:text-orange-200 bg-orange-50 dark:bg-orange-950">
+                <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400">
                   Required
                 </Badge>
               )}
             </div>
 
             {githubAccount && (
-              <div className="pl-[52px] space-y-2">
-                <div className="flex items-start gap-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-sm">
-                  <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-500 mt-0.5 flex-shrink-0" />
+              <div className="space-y-2 pl-[52px]">
+                <div className="flex items-start gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-500 dark:text-emerald-400" />
                   <div>
-                    <p className="text-green-900 dark:text-green-200 font-medium">
-                      GitHub Account Connected
+                    <p className="font-medium text-foreground">
+                      GitHub account connected
                     </p>
-                    <p className="text-green-700 dark:text-green-300 text-xs mt-1">
-                      Your GitHub account is linked and ready for use. You can now create and manage repositories.
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Your GitHub account is linked and ready for use.
                     </p>
                   </div>
                 </div>

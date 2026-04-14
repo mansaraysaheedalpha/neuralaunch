@@ -55,7 +55,7 @@ export default function Sidebar({
       {/* Footer */}
       <div className="p-2 border-t border-border flex-shrink-0">
         <div className="flex items-center space-x-2 p-2 rounded-xl">
-          <div className="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center text-primary-foreground text-sm font-bold">
+          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-sm font-bold tracking-tight text-primary-foreground">
             NL
           </div>
           <div className="flex-1 min-w-0">
