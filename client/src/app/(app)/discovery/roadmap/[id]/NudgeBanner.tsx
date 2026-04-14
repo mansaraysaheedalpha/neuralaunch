@@ -45,9 +45,9 @@ export function NudgeBanner({
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 flex flex-col gap-2"
+      className="flex flex-col gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3"
     >
-      <p className="text-[10px] uppercase tracking-widest text-primary/70">
+      <p className="text-[10px] uppercase tracking-widest text-amber-600 dark:text-amber-400">
         Quick check-in
       </p>
       <p className="text-xs text-foreground leading-relaxed">
