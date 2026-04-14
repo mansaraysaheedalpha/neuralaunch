@@ -4,6 +4,7 @@
 // objective, duration, and its list of TaskCards.
 
 import { View, StyleSheet } from 'react-native';
+import { CalendarDays } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/useTheme';
 import type { RoadmapPhase } from '@/hooks/useRoadmap';
@@ -35,9 +36,12 @@ export function PhaseBlock({ phase, index, roadmapId, recommendationId }: Props)
           <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[0.5] }}>
             {phase.objective}
           </Text>
-          <Text variant="caption" color={c.mutedForeground} style={{ opacity: 0.6, marginTop: spacing[0.5] }}>
-            {phase.durationWeeks} week{phase.durationWeeks !== 1 ? 's' : ''}
-          </Text>
+          <View style={styles.durationRow}>
+            <CalendarDays size={11} color={c.mutedForeground} style={{ opacity: 0.6 }} />
+            <Text variant="caption" color={c.mutedForeground} style={{ opacity: 0.6 }}>
+              {phase.durationWeeks} week{phase.durationWeeks !== 1 ? 's' : ''}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -76,6 +80,12 @@ const styles = StyleSheet.create({
   },
   headerText: {
     flex: 1,
+  },
+  durationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[1],
+    marginTop: spacing[0.5],
   },
   tasks: {
     paddingLeft: spacing[10],

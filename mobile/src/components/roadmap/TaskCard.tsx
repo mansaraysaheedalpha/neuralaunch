@@ -8,6 +8,15 @@ import { useState } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
+import {
+  Clock,
+  Target,
+  MessageSquare,
+  Send,
+  CheckSquare,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { api } from '@/services/api-client';
 import type { RoadmapTask, TaskStatus, CheckInEntry } from '@/hooks/useRoadmap';
@@ -126,11 +135,17 @@ export function TaskCard({
       {/* Meta row */}
       <View style={styles.metaRow}>
         <View style={styles.metaItem}>
-          <Text variant="overline" color={c.mutedForeground}>Time</Text>
+          <View style={styles.metaLabel}>
+            <Clock size={11} color={c.mutedForeground} />
+            <Text variant="overline" color={c.mutedForeground}>Time</Text>
+          </View>
           <Text variant="caption">{task.timeEstimate}</Text>
         </View>
         <View style={[styles.metaItem, { flex: 2 }]}>
-          <Text variant="overline" color={c.mutedForeground}>Done when</Text>
+          <View style={styles.metaLabel}>
+            <Target size={11} color={c.mutedForeground} />
+            <Text variant="overline" color={c.mutedForeground}>Done when</Text>
+          </View>
           <Text variant="caption">{task.successCriteria}</Text>
         </View>
       </View>
@@ -157,9 +172,14 @@ export function TaskCard({
       {checkInCount > 0 && (
         <View>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={showHistory ? 'Hide check-in history' : 'Show check-in history'}
             onPress={() => { void Haptics.selectionAsync(); setShowHistory(!showHistory); }}
             style={styles.historyToggle}
           >
+            {showHistory
+              ? <ChevronUp   size={14} color={c.primary} />
+              : <ChevronDown size={14} color={c.primary} />}
             <Text variant="caption" color={c.primary}>
               {showHistory ? 'Hide' : 'Show'} check-in history ({checkInCount})
             </Text>
@@ -197,9 +217,16 @@ export function TaskCard({
           onPress={handleCheckIn}
           variant="secondary"
           size="sm"
+          icon={<CheckSquare size={14} color={c.foreground} />}
         />
         {hasCoach && (
-          <Button title="Coach" onPress={handleCoach} variant="ghost" size="sm" />
+          <Button
+            title="Coach"
+            onPress={handleCoach}
+            variant="ghost"
+            size="sm"
+            icon={<MessageSquare size={14} color={c.primary} />}
+          />
         )}
         {hasComposer && (
           <Button
@@ -210,6 +237,7 @@ export function TaskCard({
             }}
             variant="ghost"
             size="sm"
+            icon={<Send size={14} color={c.primary} />}
           />
         )}
       </View>
@@ -244,6 +272,11 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: spacing[0.5],
   },
+  metaLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[1],
+  },
   resourceRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -255,6 +288,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   historyToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[1],
     paddingVertical: spacing[1],
   },
   historyList: {

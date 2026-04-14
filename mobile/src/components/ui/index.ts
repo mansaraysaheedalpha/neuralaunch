@@ -13,3 +13,4 @@ export { CollapsibleSection } from './CollapsibleSection';
 export { Skeleton, CardSkeleton, ListSkeleton } from './Skeleton';
 export { ErrorState } from './ErrorState';
 export { EmptyState } from './EmptyState';
+export { FadeInView } from './FadeInView';
