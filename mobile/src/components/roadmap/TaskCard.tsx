@@ -94,8 +94,15 @@ export function TaskCard({
 
       {pickerOpen && <TaskStatusPicker value={status} onChange={handleStatusChange} />}
 
-      {/* Description */}
-      <Text variant="caption" color={c.mutedForeground}>{task.description}</Text>
+      {/*
+        Description IS the tool choreography — the roadmap generator
+        writes explicit "use the Research Tool then the Outreach
+        Composer" workflow prose into this field. Render it as the
+        primary reading content of the card, not a caption.
+       */}
+      <Text variant="body" color={c.foreground} style={styles.description}>
+        {task.description}
+      </Text>
 
       {/* Meta row */}
       <TaskMeta
@@ -171,6 +178,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     gap: spacing[2],
+  },
+  description: {
+    // Relaxed line-height so multi-paragraph choreography reads well
+    lineHeight: 22,
   },
   rationale: {
     fontStyle: 'italic',
