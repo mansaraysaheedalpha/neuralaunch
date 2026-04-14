@@ -4,14 +4,23 @@
 // build brief panel, and page controls (publish, copy link).
 
 import { useState } from 'react';
-import { View, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import useSWR from 'swr';
 import { useTheme } from '@/hooks/useTheme';
-import { api, API_BASE_URL } from '@/services/api-client';
-import { Text, Card, Button, Badge, ScreenContainer, Separator } from '@/components/ui';
+import { api, ApiError, API_BASE_URL } from '@/services/api-client';
+import {
+  Text,
+  Card,
+  Button,
+  Badge,
+  ScreenContainer,
+  Separator,
+  ListSkeleton,
+  ErrorState,
+} from '@/components/ui';
 import { spacing, radius } from '@/constants/theme';
 
 // ---------------------------------------------------------------------------
@@ -54,7 +63,7 @@ export default function ValidationDetailScreen() {
   const { pageId } = useLocalSearchParams<{ pageId: string }>();
   const { colors: c } = useTheme();
 
-  const { data: page, isLoading, mutate } = useSWR<ValidationPageDetail>(
+  const { data: page, isLoading, error, mutate } = useSWR<ValidationPageDetail>(
     pageId ? `/api/discovery/validation/${pageId}` : null,
     (url: string) => api<ValidationPageDetail>(url),
   );
@@ -62,11 +71,24 @@ export default function ValidationDetailScreen() {
   const [publishing, setPublishing] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  if (error && !page) {
+    const kind = error instanceof ApiError && error.status === 401 ? 'auth'
+      : error instanceof ApiError && error.status === 0 ? 'network'
+      : 'generic';
+    return (
+      <ScreenContainer>
+        <ErrorState kind={kind} onRetry={() => void mutate()} />
+      </ScreenContainer>
+    );
+  }
+
   if (isLoading || !page) {
     return (
-      <View style={[styles.centered, { backgroundColor: c.background }]}>
-        <ActivityIndicator size="large" color={c.primary} />
-      </View>
+      <ScreenContainer>
+        <View style={{ marginTop: spacing[6] }}>
+          <ListSkeleton count={4} />
+        </View>
+      </ScreenContainer>
     );
   }
 
@@ -337,11 +359,6 @@ export default function ValidationDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   controlsRow: {
     flexDirection: 'row',
     alignItems: 'center',

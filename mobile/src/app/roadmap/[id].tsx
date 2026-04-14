@@ -9,7 +9,14 @@ import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
 
 import { useTheme } from '@/hooks/useTheme';
 import { useRoadmap } from '@/hooks/useRoadmap';
-import { Text, Card, Button, ScreenContainer } from '@/components/ui';
+import {
+  Text,
+  Card,
+  Button,
+  ScreenContainer,
+  ListSkeleton,
+  ErrorState,
+} from '@/components/ui';
 import { ProgressHeader } from '@/components/roadmap/ProgressHeader';
 import { PhaseBlock } from '@/components/roadmap/PhaseBlock';
 import { spacing } from '@/constants/theme';
@@ -20,32 +27,47 @@ export default function RoadmapScreen() {
   const router = useRouter();
   const { roadmap, isLoading, isGenerating, refresh } = useRoadmap(recommendationId ?? null);
 
-  // Loading / generating state
-  if (isLoading || isGenerating || !roadmap) {
+  const headerOpts = (
+    <Stack.Screen
+      options={{
+        headerShown: true,
+        headerTitle: 'Your Roadmap',
+        headerTintColor: c.foreground,
+        headerStyle: { backgroundColor: c.background },
+        headerShadowVisible: false,
+      }}
+    />
+  );
+
+  // Generating state — keep the richer "building your roadmap" spinner
+  // because the wait is meaningful and founders need reassurance.
+  if (isGenerating) {
     return (
       <>
-        <Stack.Screen
-          options={{
-            headerShown: true,
-            headerTitle: 'Your Roadmap',
-            headerTintColor: c.foreground,
-            headerStyle: { backgroundColor: c.background },
-            headerShadowVisible: false,
-          }}
-        />
+        {headerOpts}
         <View style={[styles.centered, { backgroundColor: c.background }]}>
           <ActivityIndicator size="large" color={c.primary} />
           <Text variant="label" color={c.mutedForeground} style={{ marginTop: spacing[3] }}>
-            {isGenerating
-              ? 'Building your execution roadmap…'
-              : 'Loading…'}
+            Building your execution roadmap…
           </Text>
-          {isGenerating && (
-            <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1] }}>
-              This takes about 20–30 seconds
-            </Text>
-          )}
+          <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1] }}>
+            This takes about 20–30 seconds
+          </Text>
         </View>
+      </>
+    );
+  }
+
+  // Initial load / no-data yet — skeleton
+  if (isLoading || !roadmap) {
+    return (
+      <>
+        {headerOpts}
+        <ScreenContainer>
+          <View style={{ marginTop: spacing[6] }}>
+            <ListSkeleton count={4} />
+          </View>
+        </ScreenContainer>
       </>
     );
   }
@@ -54,23 +76,14 @@ export default function RoadmapScreen() {
   if (roadmap.status === 'FAILED') {
     return (
       <>
-        <Stack.Screen
-          options={{
-            headerShown: true,
-            headerTitle: 'Your Roadmap',
-            headerTintColor: c.foreground,
-            headerStyle: { backgroundColor: c.background },
-            headerShadowVisible: false,
-          }}
-        />
-        <View style={[styles.centered, { backgroundColor: c.background }]}>
-          <Text variant="label" color={c.destructive}>
-            Something went wrong
-          </Text>
-          <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1] }}>
-            Your roadmap could not be generated. Please try again.
-          </Text>
-        </View>
+        {headerOpts}
+        <ScreenContainer>
+          <ErrorState
+            title="Roadmap generation failed"
+            message="Your roadmap could not be generated. Please try again."
+            onRetry={() => void refresh()}
+          />
+        </ScreenContainer>
       </>
     );
   }

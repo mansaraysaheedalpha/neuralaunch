@@ -5,7 +5,7 @@
 // This is the screen the discovery chat redirects to after synthesis.
 
 import { useState } from 'react';
-import { View, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import { View, StyleSheet, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack, Link } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
@@ -20,6 +20,8 @@ import {
   Separator,
   ScreenContainer,
   CollapsibleSection,
+  ListSkeleton,
+  ErrorState,
 } from '@/components/ui';
 import { PushbackChat } from '@/components/recommendation/PushbackChat';
 import { AssumptionRow } from '@/components/recommendation/AssumptionRow';
@@ -32,19 +34,29 @@ export default function RecommendationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors: c } = useTheme();
   const router = useRouter();
-  const { recommendation: r, isLoading, refresh } = useRecommendation(id ?? null);
+  const { recommendation: r, isLoading, error, refresh } = useRecommendation(id ?? null);
 
   const [accepting, setAccepting]   = useState(false);
   const [acceptError, setAcceptError] = useState<string | null>(null);
 
+  if (error && !r) {
+    const kind = error instanceof ApiError && error.status === 401 ? 'auth'
+      : error instanceof ApiError && error.status === 0 ? 'network'
+      : 'generic';
+    return (
+      <ScreenContainer>
+        <ErrorState kind={kind} onRetry={() => void refresh()} />
+      </ScreenContainer>
+    );
+  }
+
   if (isLoading || !r) {
     return (
-      <View style={[styles.centered, { backgroundColor: c.background }]}>
-        <ActivityIndicator size="large" color={c.primary} />
-        <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[3] }}>
-          Loading your recommendation…
-        </Text>
-      </View>
+      <ScreenContainer>
+        <View style={{ marginTop: spacing[8] }}>
+          <ListSkeleton count={5} />
+        </View>
+      </ScreenContainer>
     );
   }
 
@@ -264,11 +276,6 @@ export default function RecommendationScreen() {
 }
 
 const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   section: {
     gap: spacing[1],
     marginTop: spacing[4],
