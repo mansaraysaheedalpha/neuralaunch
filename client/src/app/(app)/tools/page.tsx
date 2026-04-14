@@ -7,7 +7,7 @@
 // their entire value is context-awareness.
 
 import Link from 'next/link';
-import { MessageSquare, Mail } from 'lucide-react';
+import { MessageSquare, Mail, Search } from 'lucide-react';
 
 const TOOLS = [
   {
@@ -24,6 +24,14 @@ const TOOLS = [
     description: 'Draft ready-to-send outreach messages for WhatsApp, email, and LinkedIn. Three modes: single message to a specific person, batch messages to similar people, and multi-touch follow-up sequences.',
     icon:        Mail,
     href:        '/tools/outreach-composer',
+    status:      'available' as const,
+  },
+  {
+    id:          'research',
+    name:        'Research Tool',
+    description: 'Ask any question about your market, competitors, potential customers, regulations, or pricing. The tool conducts a deep, multi-source investigation and returns a structured, cited report specific to your context.',
+    icon:        Search,
+    href:        '/tools/research',
     status:      'available' as const,
   },
   // Future tools slot in here:

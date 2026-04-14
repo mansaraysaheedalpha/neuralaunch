@@ -5,6 +5,7 @@ import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { MODELS } from '@/lib/discovery/constants';
+import { withModelFallback } from '@/lib/ai/with-model-fallback';
 import { DISTRIBUTION_BRIEF_CONFIG } from './constants';
 import { DistributionBriefSchema, type DistributionBrief } from './schemas';
 import { renderUserContent } from './server-helpers';
@@ -83,8 +84,11 @@ export async function generateDistributionBrief(
   let lastErr: unknown = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const { object } = await generateObject({
-        model:  aiSdkAnthropic(MODELS.INTERVIEW),
+      const { object } = await withModelFallback(
+        'validation:distributionBrief',
+        { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
+        (modelId) => generateObject({
+        model:  aiSdkAnthropic(modelId),
         schema: z.object({ channels: DistributionBriefSchema }),
         messages: [{
           role: 'user',
@@ -115,7 +119,8 @@ Generate exactly ${DISTRIBUTION_BRIEF_CONFIG.CHANNEL_COUNT} distribution channel
 - Do NOT recommend Product Hunt or international communities if the market is local
 - Rank channels by expected yield — highest first`,
         }],
-      });
+      }),
+      );
 
       log.info('Distribution brief generated', { sessionId, channelCount: object.channels.length });
       return object.channels;

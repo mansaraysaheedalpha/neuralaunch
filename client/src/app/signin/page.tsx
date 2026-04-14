@@ -2,7 +2,7 @@
 "use client";
 
 import { signIn } from "next-auth/react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import { Sparkles, ArrowRight, Shield } from "lucide-react";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";

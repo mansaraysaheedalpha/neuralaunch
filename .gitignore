@@ -19,8 +19,14 @@ yarn-error.log*
 # ===================================================================
 # Frontend (Next.js / TypeScript / Node.js)
 # ===================================================================
-# Ignore dependency directories
+# Ignore dependency directories — all workspaces + root
+node_modules/
 client/node_modules/
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+mobile/expo-env.d.ts
 
 # Ignore Next.js build output directory
 client/.next/

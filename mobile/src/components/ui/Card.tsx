@@ -3,7 +3,7 @@
 // Content card — the primary container for grouped information.
 // Matches the web app's rounded-xl border border-border bg-card pattern.
 
-import { View, type ViewStyle, StyleSheet } from 'react-native';
+import { View, type ViewStyle, type StyleProp, StyleSheet } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { radius, spacing, shadows } from '@/constants/theme';
 
@@ -12,7 +12,7 @@ interface Props {
   variant?: 'default' | 'primary' | 'muted';
   /** Remove internal padding — for cards that manage their own layout */
   noPadding?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function Card({

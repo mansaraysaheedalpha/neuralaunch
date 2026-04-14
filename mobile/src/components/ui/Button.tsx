@@ -27,6 +27,8 @@ interface Props {
   loading?: boolean;
   icon?: React.ReactNode;
   fullWidth?: boolean;
+  /** Override the accessibility label (defaults to the visible title). */
+  accessibilityLabel?: string;
   style?: ViewStyle;
 }
 
@@ -39,6 +41,7 @@ export function Button({
   loading = false,
   icon,
   fullWidth = false,
+  accessibilityLabel,
   style,
 }: Props) {
   const { colors: c } = useTheme();
@@ -57,6 +60,9 @@ export function Button({
     <Pressable
       onPress={handlePress}
       disabled={isDisabled}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? title}
+      accessibilityState={{ disabled: isDisabled, busy: loading }}
       style={({ pressed }) => [
         containerStyle,
         pressed && !isDisabled && { opacity: 0.88 },

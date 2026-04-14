@@ -4,12 +4,13 @@
 // A streaming chat that adapts its questions based on the founder's
 // answers, then synthesises a single committed recommendation.
 
-import { useEffect, useRef } from 'react';
-import { View, FlatList, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { View, FlatList, StyleSheet, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import { HelpCircle } from 'lucide-react-native';
+
 import { useTheme } from '@/hooks/useTheme';
-import { useDiscovery, type ChatMessage } from '@/hooks/useDiscovery';
+import { useDiscovery, fetchIncompleteSession, type ChatMessage } from '@/hooks/useDiscovery';
 import {
   Text,
   ChatBubble,
@@ -18,12 +19,20 @@ import {
   Card,
   Button,
 } from '@/components/ui';
+import { InterviewGuide } from '@/components/discovery/InterviewGuide';
+import { SessionResumption } from '@/components/discovery/SessionResumption';
 import { spacing } from '@/constants/theme';
+
+type InitPhase = 'checking' | 'resumable' | 'chat';
 
 export default function DiscoveryScreen() {
   const { colors: c } = useTheme();
   const router = useRouter();
   const flatListRef = useRef<FlatList>(null);
+  const [guideVisible, setGuideVisible] = useState(false);
+  const [initPhase, setInitPhase] = useState<InitPhase>('checking');
+  const [incomplete, setIncomplete] = useState<{ sessionId: string; questionCount: number } | null>(null);
+  const [resumeLoading, setResumeLoading] = useState(false);
 
   const {
     messages,
@@ -33,13 +42,40 @@ export default function DiscoveryScreen() {
     synthesisError,
     recommendation,
     initSession,
+    resumeSession,
+    discardSession,
     sendMessage,
   } = useDiscovery();
 
-  // Init session on mount
+  // Check for incomplete session on mount
   useEffect(() => {
-    void initSession();
+    async function check() {
+      const existing = await fetchIncompleteSession();
+      if (existing) {
+        setIncomplete(existing);
+        setInitPhase('resumable');
+      } else {
+        setInitPhase('chat');
+        void initSession();
+      }
+    }
+    void check();
   }, [initSession]);
+
+  async function handleResume() {
+    if (!incomplete) return;
+    setResumeLoading(true);
+    await resumeSession(incomplete.sessionId);
+    setInitPhase('chat');
+    setResumeLoading(false);
+  }
+
+  async function handleDiscard() {
+    if (!incomplete) return;
+    await discardSession(incomplete.sessionId);
+    setIncomplete(null);
+    setInitPhase('chat');
+  }
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -66,7 +102,6 @@ export default function DiscoveryScreen() {
       <ChatBubble
         content={item.content}
         role={item.role}
-        animated
       />
     );
   }
@@ -81,9 +116,33 @@ export default function DiscoveryScreen() {
           headerStyle: { backgroundColor: c.background },
           headerShadowVisible: false,
           headerBackTitle: 'Home',
+          headerRight: () => (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Interview guide"
+              onPress={() => setGuideVisible(true)}
+              style={{ padding: spacing[2] }}
+            >
+              <HelpCircle size={22} color={c.mutedForeground} />
+            </Pressable>
+          ),
         }}
       />
 
+      <InterviewGuide
+        visible={guideVisible}
+        onClose={() => setGuideVisible(false)}
+      />
+
+      {/* Resumption prompt when an incomplete session exists */}
+      {initPhase === 'resumable' && incomplete ? (
+        <SessionResumption
+          questionCount={incomplete.questionCount}
+          onResume={handleResume}
+          onDiscard={() => { void handleDiscard(); }}
+          loading={resumeLoading}
+        />
+      ) : (
       <KeyboardAvoidingView
         style={[styles.container, { backgroundColor: c.background }]}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -91,7 +150,7 @@ export default function DiscoveryScreen() {
       >
         {/* Welcome state */}
         {messages.length === 0 && !isLoading && (
-          <Animated.View entering={FadeIn.duration(300)} style={styles.welcome}>
+          <View style={styles.welcome}>
             <Text variant="title" align="center">
               Tell me about your situation
             </Text>
@@ -106,7 +165,7 @@ export default function DiscoveryScreen() {
               questions to understand your situation fully before
               recommending anything.
             </Text>
-          </Animated.View>
+          </View>
         )}
 
         {/* Messages */}
@@ -140,6 +199,7 @@ export default function DiscoveryScreen() {
           />
         )}
       </KeyboardAvoidingView>
+      )}
     </>
   );
 }

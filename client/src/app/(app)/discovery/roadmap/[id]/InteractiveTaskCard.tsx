@@ -19,6 +19,9 @@ import { CoachSessionReview } from './coach/CoachSessionReview';
 import { OutreachComposerButton } from './composer/OutreachComposerButton';
 import { ComposerFlow } from './composer/ComposerFlow';
 import { ComposerSessionReview } from './composer/ComposerSessionReview';
+import { ResearchToolButton } from './research/ResearchToolButton';
+import { ResearchFlow } from './research/ResearchFlow';
+import { ResearchSessionReview } from './research/ResearchSessionReview';
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   not_started: 'Not started',
@@ -110,6 +113,8 @@ export function InteractiveTaskCard({
   const [coachOpen, setCoachOpen] = useState(false);
   // Outreach Composer flow toggle
   const [composerOpen, setComposerOpen] = useState(false);
+  // Research Tool flow toggle
+  const [researchOpen, setResearchOpen] = useState(false);
 
   // A12: when the founder chose the writing path on a completed
   // task they have explicitly opted into telling us what happened —
@@ -453,6 +458,22 @@ export function InteractiveTaskCard({
       {!composerOpen && (() => {
         const cs = (task as { composerSession?: Record<string, unknown> }).composerSession;
         return cs ? <ComposerSessionReview session={cs} /> : null;
+      })()}
+
+      {/* Research Tool — button + flow + session review */}
+      <ResearchToolButton
+        suggestedTools={(task as { suggestedTools?: string[] }).suggestedTools}
+        onOpen={() => setResearchOpen(true)}
+      />
+      <ResearchFlow
+        roadmapId={roadmapId}
+        taskId={taskId}
+        open={researchOpen}
+        onClose={() => setResearchOpen(false)}
+      />
+      {!researchOpen && (() => {
+        const rs = (task as { researchSession?: Record<string, unknown> }).researchSession;
+        return rs ? <ResearchSessionReview session={rs} /> : null;
       })()}
     </motion.div>
   );

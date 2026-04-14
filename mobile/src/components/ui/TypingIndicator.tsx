@@ -1,18 +1,12 @@
 // src/components/ui/TypingIndicator.tsx
 //
-// Three-dot animated typing indicator shown while the AI is
-// generating a response. Smooth, subtle, premium.
+// Three-dot typing indicator using React Native's built-in Animated
+// API — no reanimated dependency, works in Expo Go without issues.
 
-import { View, StyleSheet } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  withRepeat,
-  withSequence,
-  withTiming,
-  withDelay,
-} from 'react-native-reanimated';
+import { useEffect, useRef } from 'react';
+import { View, Animated, StyleSheet } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { radius, spacing, animation } from '@/constants/theme';
+import { radius, spacing } from '@/constants/theme';
 
 export function TypingIndicator() {
   const { colors: c } = useTheme();
@@ -20,35 +14,28 @@ export function TypingIndicator() {
   return (
     <View style={[styles.container, { backgroundColor: c.muted }]}>
       {[0, 1, 2].map(i => (
-        <Dot key={i} delay={i * 150} color={c.mutedForeground} />
+        <Dot key={i} delay={i * 200} color={c.mutedForeground} />
       ))}
     </View>
   );
 }
 
 function Dot({ delay, color }: { delay: number; color: string }) {
-  const animStyle = useAnimatedStyle(() => ({
-    opacity: withDelay(
-      delay,
-      withRepeat(
-        withSequence(
-          withTiming(1, { duration: 400 }),
-          withTiming(0.3, { duration: 400 }),
-        ),
-        -1,
-        true,
-      ),
-    ),
-  }));
+  const opacity = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, { toValue: 1, duration: 400, delay, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 0.3, duration: 400, useNativeDriver: true }),
+      ]),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [delay, opacity]);
 
   return (
-    <Animated.View
-      style={[
-        styles.dot,
-        { backgroundColor: color },
-        animStyle,
-      ]}
-    />
+    <Animated.View style={[styles.dot, { backgroundColor: color, opacity }]} />
   );
 }
 
@@ -56,7 +43,7 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing[1.5],
+    gap: 6,
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[3],
     borderRadius: radius.xl,
