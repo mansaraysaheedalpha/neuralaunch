@@ -1,26 +1,28 @@
-// src/app/(tabs)/profile.tsx
+// src/app/(tabs)/settings.tsx
 //
-// Profile tab — user info, consent toggle, navigation to past
-// recommendations and validation pages, sign out.
+// Settings tab (replaces the old Profile tab). Account identity card,
+// navigation to past work, training-data consent, notification
+// preferences, and sign-out.
 
 import { useState, useEffect } from 'react';
 import { View, Switch, StyleSheet, Alert, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Sparkles, FileCheck, ChevronRight } from 'lucide-react-native';
+import { Sparkles, FileCheck, Bell, ChevronRight } from 'lucide-react-native';
 import { useAuth } from '@/services/auth';
 import { useTheme } from '@/hooks/useTheme';
 import { api } from '@/services/api-client';
 import { Text, Button, Card, Separator, ScreenContainer } from '@/components/ui';
 import { spacing, iconSize } from '@/constants/theme';
 
-export default function ProfileScreen() {
+export default function SettingsScreen() {
   const { user, signOut } = useAuth();
   const { colors: c } = useTheme();
   const router = useRouter();
 
   const [consent, setConsent]       = useState(false);
   const [consentLoading, setConsentLoading] = useState(true);
+  const [nudgeEnabled, setNudgeEnabled] = useState(true);
 
   // Load current consent state
   useEffect(() => {
@@ -38,20 +40,31 @@ export default function ProfileScreen() {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const previous = consent;
     setConsent(value);
-
     try {
       await api('/api/user/training-consent', {
         method: 'PATCH',
         body: { consent: value },
       });
-
       if (!value) {
-        // Revoked — show confirmation that anonymised data was deleted
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch {
-      // Rollback on failure
       setConsent(previous);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  }
+
+  async function handleNudgeToggle(value: boolean) {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const previous = nudgeEnabled;
+    setNudgeEnabled(value);
+    try {
+      await api('/api/user/push-preferences', {
+        method: 'PATCH',
+        body: { nudgesEnabled: value },
+      });
+    } catch {
+      setNudgeEnabled(previous);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   }
@@ -74,7 +87,8 @@ export default function ProfileScreen() {
   return (
     <ScreenContainer>
       <View style={styles.header}>
-        <Text variant="heading">Profile</Text>
+        <Text variant="caption" color={c.mutedForeground}>Account & preferences</Text>
+        <Text variant="heading">Settings</Text>
       </View>
 
       {/* User card */}
@@ -94,7 +108,7 @@ export default function ProfileScreen() {
         </View>
       </Card>
 
-      {/* Navigation links */}
+      {/* Your work navigation */}
       <View style={styles.section}>
         <Text variant="overline" color={c.mutedForeground}>Your work</Text>
         <Card noPadding>
@@ -114,11 +128,33 @@ export default function ProfileScreen() {
         </Card>
       </View>
 
-      {/* Consent toggle */}
+      {/* Notifications */}
       <View style={styles.section}>
-        <Text variant="overline" color={c.mutedForeground}>Settings</Text>
+        <Text variant="overline" color={c.mutedForeground}>Notifications</Text>
         <Card>
-          <View style={styles.consentRow}>
+          <View style={styles.toggleRow}>
+            <Bell size={iconSize.md} color={c.mutedForeground} style={{ marginTop: 2 }} />
+            <View style={{ flex: 1 }}>
+              <Text variant="label">Task nudges</Text>
+              <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1] }}>
+                When a task has been in progress longer than expected, we'll send a push asking how it went.
+              </Text>
+            </View>
+            <Switch
+              value={nudgeEnabled}
+              onValueChange={handleNudgeToggle}
+              trackColor={{ false: c.muted, true: c.primaryAlpha20 }}
+              thumbColor={nudgeEnabled ? c.primary : c.mutedForeground}
+            />
+          </View>
+        </Card>
+      </View>
+
+      {/* Privacy / training consent */}
+      <View style={styles.section}>
+        <Text variant="overline" color={c.mutedForeground}>Privacy</Text>
+        <Card>
+          <View style={styles.toggleRow}>
             <View style={{ flex: 1 }}>
               <Text variant="label">Training data consent</Text>
               <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1] }}>
@@ -148,17 +184,12 @@ export default function ProfileScreen() {
         fullWidth
       />
 
-      {/* App version */}
       <Text variant="caption" color={c.mutedForeground} align="center" style={{ marginTop: spacing[4] }}>
         NeuraLaunch v1.0.0
       </Text>
     </ScreenContainer>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Nav row helper
-// ---------------------------------------------------------------------------
 
 function NavRow({
   icon: Icon,
@@ -227,7 +258,7 @@ const styles = StyleSheet.create({
     gap: spacing[2],
     marginBottom: spacing[4],
   },
-  consentRow: {
+  toggleRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: spacing[3],
