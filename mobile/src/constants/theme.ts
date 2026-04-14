@@ -3,59 +3,46 @@
 // NeuraLaunch design system — single source of truth for every color,
 // spacing, radius, and typography value in the mobile app.
 //
-// Derived from the web app's CSS custom properties (globals.css) so
-// both surfaces feel like the same product. HSL values are converted
-// to hex for React Native compatibility.
+// Palette: electric blue primary (#2563EB) + warm gold secondary
+// (#D4A843). Dark mode is the product's default surface; light mode
+// mirrors it. No purple anywhere — this product has moved past that.
 
 // ---------------------------------------------------------------------------
-// Palette — exact matches to the web app's HSL custom properties
+// Palette
 // ---------------------------------------------------------------------------
 
 export const palette = {
-  // Core brand
-  purple: {
-    50:  '#f3eeff',
-    100: '#e0d4ff',
-    200: '#c5a8ff',
-    400: '#8b5cf6',
-    500: '#7c3aed', // primary light mode (hsl 259 92% 62%)
-    600: '#6d28d9',
-    700: '#5b21b6',
-    900: '#1a0a3e', // primary-foreground dark mode
-  },
-
   // Neutrals — light mode
   light: {
-    background:        '#f7f8fa', // hsl(210 20% 98%)
-    foreground:        '#2e3440', // hsl(210 10% 23%)
-    card:              '#ffffff', // hsl(0 0% 100%)
-    cardForeground:    '#2e3440',
-    muted:             '#f0f4f8', // hsl(210 40% 96.1%)
-    mutedForeground:   '#6b7b95', // hsl(215 25% 55%)
-    border:            '#dfe5ee', // hsl(214.3 31.8% 91.4%)
-    input:             '#dfe5ee',
+    background:      '#F7F8FA',
+    foreground:      '#1A2540',
+    card:            '#FFFFFF',
+    cardForeground:  '#1A2540',
+    muted:           '#F0F4F8',
+    mutedForeground: '#64748B',
+    border:          '#E2E8F0',
+    input:           '#E2E8F0',
   },
 
-  // Neutrals — dark mode
+  // Neutrals — dark mode (the product's default)
   dark: {
-    background:        '#151b2d', // hsl(222 47% 11%)
-    foreground:        '#f0f4f8', // hsl(210 40% 98%)
-    card:              '#1c2340', // hsl(222 47% 14%)
-    cardForeground:    '#f0f4f8',
-    muted:             '#222d45', // hsl(217 32% 17%)
-    mutedForeground:   '#a3b1c9', // hsl(215 20% 75%)
-    border:            '#2e3d5c', // hsl(217 32% 27%)
-    input:             '#2e3d5c',
+    background:      '#0A1628',
+    foreground:      '#F7F8FA',
+    card:            '#111B2E',
+    cardForeground:  '#F7F8FA',
+    muted:           '#1A2540',
+    mutedForeground: '#94A3B8',
+    border:          '#1E293B',
+    input:           '#1E293B',
   },
 
-  // Semantic
-  destructive:       '#ef4444',
-  destructiveMuted:  'rgba(239, 68, 68, 0.1)',
-  success:           '#22c55e',
-  successMuted:      'rgba(34, 197, 94, 0.1)',
-  warning:           '#f59e0b',
-  warningMuted:      'rgba(245, 158, 11, 0.1)',
-
+  // Semantic — scheme-invariant hex values
+  destructive:      '#EF4444',
+  destructiveMuted: 'rgba(239, 68, 68, 0.1)',
+  success:          '#10B981',
+  successMuted:     'rgba(16, 185, 129, 0.12)',
+  warning:          '#F59E0B',
+  warningMuted:     'rgba(245, 158, 11, 0.12)',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -64,32 +51,35 @@ export const palette = {
 
 export type ColorScheme = 'light' | 'dark';
 
-// Primary hex values per scheme — mirrored into `colors()` but also
-// used standalone by the `primaryAlpha()` helper so the alpha tint
-// follows whichever primary hue the current scheme uses. Without this
-// the light-mode purple would tint dark-mode backgrounds incorrectly.
-const PRIMARY_RGB: Record<ColorScheme, { r: number; g: number; b: number }> = {
-  light: { r: 124, g: 58,  b: 237 }, // #7c3aed
-  dark:  { r: 167, g: 139, b: 250 }, // #a78bfa
-};
+// Electric blue (#2563EB) is the brand primary in both schemes.
+// Warm gold (#D4A843) is the secondary accent — used sparingly for
+// high-value moments (recommendation reveal callouts, the Outreach
+// Composer, hero sparkles on the recommendation reveal).
+const PRIMARY_RGB   = { r: 0x25, g: 0x63, b: 0xEB }; // #2563EB
+const SECONDARY_RGB = { r: 0xD4, g: 0xA8, b: 0x43 }; // #D4A843
 
-function primaryAlpha(scheme: ColorScheme, alpha: number): string {
-  const { r, g, b } = PRIMARY_RGB[scheme];
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+function alphaOf({ r, g, b }: { r: number; g: number; b: number }, a: number) {
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
 export function colors(scheme: ColorScheme) {
   const n = scheme === 'dark' ? palette.dark : palette.light;
-  const primary = scheme === 'dark' ? '#a78bfa' : palette.purple[500]; // brighter in dark
-  const primaryForeground = scheme === 'dark' ? palette.purple[900] : '#ffffff';
 
   return {
-    primary,
-    primaryForeground,
-    primaryAlpha5:  primaryAlpha(scheme, 0.05),
-    primaryAlpha10: primaryAlpha(scheme, 0.10),
-    primaryAlpha20: primaryAlpha(scheme, 0.20),
+    // Brand
+    primary:           '#2563EB',
+    primaryForeground: '#FFFFFF',
+    primaryAlpha5:     alphaOf(PRIMARY_RGB, 0.05),
+    primaryAlpha10:    alphaOf(PRIMARY_RGB, 0.10),
+    primaryAlpha20:    alphaOf(PRIMARY_RGB, 0.20),
 
+    // Warm gold — secondary accent, used sparingly
+    secondary:         '#D4A843',
+    secondaryForeground: '#1A2540',
+    secondaryAlpha10:  alphaOf(SECONDARY_RGB, 0.10),
+    secondaryAlpha20:  alphaOf(SECONDARY_RGB, 0.20),
+
+    // Surface / text
     background:        n.background,
     foreground:        n.foreground,
     card:              n.card,
@@ -99,6 +89,7 @@ export function colors(scheme: ColorScheme) {
     border:            n.border,
     input:             n.input,
 
+    // Semantic
     destructive:       palette.destructive,
     destructiveMuted:  palette.destructiveMuted,
     success:           palette.success,
@@ -141,28 +132,26 @@ export const spacing = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Border radius — matches the web app's --radius-* tokens
+// Border radius
 // ---------------------------------------------------------------------------
 
 export const radius = {
-  sm:   6,   // 0.375rem
-  md:   8,   // 0.5rem
-  lg:   12,  // 0.75rem
-  xl:   16,  // 1rem
-  '2xl': 24, // 1.5rem
+  sm:   6,
+  md:   8,
+  lg:   12,
+  xl:   16,
+  '2xl': 24,
   full: 9999,
 } as const;
 
 // ---------------------------------------------------------------------------
-// Typography — system fonts with the same visual hierarchy as Geist Sans
+// Typography
 // ---------------------------------------------------------------------------
 
 export const typography = {
-  // Font families — system defaults for maximum native feel
   sans: undefined as string | undefined, // system default
   mono: 'monospace',
 
-  // Size scale
   size: {
     '2xs': 10,
     xs:    11,
@@ -174,7 +163,6 @@ export const typography = {
     '3xl': 30,
   },
 
-  // Line heights (multipliers)
   leading: {
     none:    1,
     tight:   1.25,
@@ -184,7 +172,6 @@ export const typography = {
     loose:   1.8,
   },
 
-  // Font weights
   weight: {
     normal:   '400' as const,
     medium:   '500' as const,
@@ -192,7 +179,6 @@ export const typography = {
     bold:     '700' as const,
   },
 
-  // Tracking (letter spacing)
   tracking: {
     tight:  -0.3,
     normal: 0,
@@ -202,14 +188,10 @@ export const typography = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Shadows — platform-specific, premium feel
+// Shadows — scheme-aware. Black shadows at 0.05 opacity are invisible
+// on a dark background; we bump opacity + blur radius in dark mode.
 // ---------------------------------------------------------------------------
 
-// Dark mode bumps shadow opacity considerably — black shadow at 0.05
-// opacity on a near-black background is visually absent. We stay
-// with black shadows (white "glow" feels wrong) and rely on opacity +
-// blur radius to reinstate depth. Android `elevation` is independent
-// of shadowColor so it already works in both schemes.
 export function shadows(scheme: ColorScheme) {
   const darker = scheme === 'dark';
   return {
@@ -238,7 +220,7 @@ export function shadows(scheme: ColorScheme) {
 }
 
 // ---------------------------------------------------------------------------
-// Animation durations — consistent motion language
+// Animation durations
 // ---------------------------------------------------------------------------
 
 export const animation = {
@@ -248,15 +230,13 @@ export const animation = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Icon sizing scale — always pass one of these to Lucide icons. Never
-// pass a raw number. Keeps iconography visually consistent across
-// meta rows, buttons, tab bars, headers, and CTAs.
+// Icon sizing scale — always pass one of these to Lucide icons.
 // ---------------------------------------------------------------------------
 
 export const iconSize = {
-  xs: 11, // inline-with-caption text (meta-row labels)
-  sm: 14, // small buttons, inline actions, ChevronDown on toggles
-  md: 18, // medium buttons, input-row icons, empty-state inline
+  xs: 11, // inline-with-caption text
+  sm: 14, // small buttons, inline actions
+  md: 18, // medium buttons, input icons
   lg: 22, // tab bar icons, header icons
   xl: 40, // centred empty/error state hero icons
 } as const;
