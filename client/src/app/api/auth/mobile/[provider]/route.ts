@@ -27,7 +27,10 @@ const PROVIDERS: Record<string, {
   },
   github: {
     authUrl:  'https://github.com/login/oauth/authorize',
-    clientId: env.GITHUB_CLIENT_ID,
+    // GitHub OAuth Apps only permit one callback URL, so mobile uses a
+    // dedicated "NeuraLaunch Mobile" OAuth App. Google's single client
+    // supports multiple authorised redirects so it stays shared above.
+    clientId: env.GITHUB_MOBILE_CLIENT_ID,
     scope:    'read:user user:email',
   },
 };
