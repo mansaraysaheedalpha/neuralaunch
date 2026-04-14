@@ -4,6 +4,7 @@ import { generateObject }              from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { logger }                      from '@/lib/logger';
 import { MODELS }                      from '@/lib/discovery/constants';
+import { withModelFallback }           from '@/lib/ai/with-model-fallback';
 import {
   ValidationReportSchema,
   type ValidationReport,
@@ -133,8 +134,11 @@ export async function generateBuildBrief(input: BuildBriefInput): Promise<Valida
     surveyCount:  metrics.surveyResponses.length,
   });
 
-  const { object } = await generateObject({
-    model:  aiSdkAnthropic(MODELS.SYNTHESIS), // Opus
+  const { object } = await withModelFallback(
+    'validation:buildBrief',
+    { primary: MODELS.SYNTHESIS, fallback: MODELS.INTERVIEW },
+    (modelId) => generateObject({
+    model:  aiSdkAnthropic(modelId),
     schema: ValidationReportSchema,
     messages: [{
       role: 'user',
@@ -205,7 +209,8 @@ RULES:
 
 11. If the signal contradicts the original recommendation path, say so plainly in the buildBrief. Never paper over it.`,
     }],
-  });
+  }),
+  );
 
   log.info('Build brief generated', {
     signalStrength:  object.signalStrength,

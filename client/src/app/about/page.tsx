@@ -1,7 +1,7 @@
 //src/app/about/page.tsx
 "use client";
 
-import { motion, useScroll, useTransform, useInView } from "framer-motion";
+import { motion, useScroll, useTransform, useInView } from "motion/react";
 import {
   BrainCircuit,
   Rocket,
@@ -130,7 +130,7 @@ export default function AboutPage() {
       icon: BrainCircuit,
       title: "AI-Powered Blueprints",
       description:
-        "Generate comprehensive startup plans using Google Gemini AI, covering everything from market analysis to unit economics.",
+        "Generate comprehensive startup plans using Anthropic Claude, covering everything from market analysis to unit economics.",
       gradient: "from-violet-500 to-purple-600",
     },
     {
@@ -177,9 +177,9 @@ export default function AboutPage() {
       technologies: [
         "Next.js 15 (App Router)",
         "TypeScript (strict mode)",
-        "Tailwind CSS",
+        "Tailwind CSS v4",
         "Radix UI + shadcn/ui",
-        "Framer Motion",
+        "Motion v12",
       ],
       color: "from-blue-400 to-cyan-500",
     },
@@ -199,10 +199,10 @@ export default function AboutPage() {
       category: "AI & ML",
       icon: Sparkles,
       technologies: [
-        "Google Gemini (gemini-1.5-flash, gemini-1.5-pro)",
-        "OpenAI GPT-4",
-        "pgvector for RAG",
-        "OpenAI Embeddings",
+        "Anthropic Claude (Opus 4.6, Sonnet 4.6, Haiku 4.5)",
+        "Vercel AI SDK v6",
+        "Exa + Tavily for agent research",
+        "Inngest v4 for durable orchestration",
       ],
       color: "from-purple-400 to-pink-500",
     },

@@ -5,7 +5,7 @@ import Link from "next/link";
 import ThemeSwitcher from "./ThemeSwitcher";
 import { useSession, signOut } from "next-auth/react";
 import Image from "next/image";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 
 export default function LandingHeader() {
@@ -124,7 +124,7 @@ export default function LandingHeader() {
                   {/* Link to Go to App */}
                   <DropdownMenu.Item asChild>
                     <Link
-                      href="/generate"
+                      href="/discovery"
                       className="flex items-center gap-2 px-3 py-2 rounded hover:bg-muted cursor-pointer outline-none select-none"
                     >
                       {/* Rocket Icon */}
