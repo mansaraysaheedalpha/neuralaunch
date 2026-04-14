@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 // Add imports for scroll animations
-import { motion, useScroll, useTransform, type Variants } from "framer-motion";
+import { motion, useScroll, useTransform, type Variants } from "motion/react";
 import { useRef } from "react";
 import {
   ArrowRight,

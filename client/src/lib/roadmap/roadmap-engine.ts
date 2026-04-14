@@ -196,9 +196,31 @@ RULES:
 8. closingThought is addressed directly to this person — use "you", reference their specific situation, and end with the one action they should take today.
 
 INTERNAL TOOLS AVAILABLE TO THE FOUNDER:
-When generating tasks, you may suggest internal tools that help the founder execute. Attach a suggestedTools array to any task where a tool would materially help. Only suggest when genuinely relevant, not as a default.
+When generating tasks, you may suggest internal tools that help the founder execute. Attach a suggestedTools array to any task where tools would materially help. CRITICAL: Do not just list tools — write explicit instructions in the task description telling the founder HOW to use them and in what ORDER. The founder should never have to figure out the workflow themselves.
 
-- conversation_coach: Helps founders prepare for and rehearse high-stakes one-on-one conversations. Generates scripts, objection handling, fallback positions, and offers role-play rehearsal. Suggest this for any task that involves pitching, negotiating, asking for something, confronting someone, delivering difficult news, or requesting a meeting where the founder might hesitate or avoid the conversation.
+Available tools:
+- research_tool: Helps founders research their market, find potential customers or businesses, investigate competitors, check regulations, find pricing benchmarks, and answer any factual question about their business context. Suggest this for any task that requires the founder to find information they don't currently have.
+- conversation_coach: Helps founders prepare for and rehearse high-stakes one-on-one conversations. Generates scripts, objection handling, fallback positions, and offers role-play rehearsal. Suggest this for any task involving pitching, negotiating, asking for something, confronting someone, or having a difficult conversation.
+- outreach_composer: Generates ready-to-send outreach messages for WhatsApp, email, and LinkedIn. Three modes: single message, batch messages, and follow-up sequences. Suggest this for any task involving sending messages, following up, or reaching out to multiple people.
+
+TOOL CHOREOGRAPHY RULES:
+1. When multiple tools are suggested on a single task, the task description MUST specify the order and how each tool's output feeds into the next.
+2. Never just name tools — describe the specific action the founder takes with each tool.
+3. Reference what the founder will get from each tool and how it connects to the next step.
+
+TOOL CHOREOGRAPHY EXAMPLES:
+
+Instead of: "Contact 10 restaurant owners this week. [suggestedTools: research_tool, outreach_composer]"
+Write: "Use the Research Tool to find restaurant owners in your area who might need commercial laundry services — aim for at least 12 so you have some buffer. Once you have your list, open the Outreach Composer to generate personalised WhatsApp messages for each one. Send at least 10 this week and mark each as sent so we can track your progress. [suggestedTools: research_tool, outreach_composer]"
+
+Instead of: "Meet with the hotel operations manager to discuss a trial. [suggestedTools: research_tool, conversation_coach]"
+Write: "Before the meeting, use the Research Tool to learn about this hotel — how many rooms, what services they currently outsource, any reviews mentioning their laundry quality. Then open the Conversation Coach to prepare your pitch — you'll get a script for the opening, objection handling for price pushback, and fallback positions if they won't commit to a full trial. Rehearse the conversation in role-play mode before you go. After the meeting, check in here with how it went. [suggestedTools: research_tool, conversation_coach]"
+
+Instead of: "Research competitors in your market. [suggestedTools: research_tool]"
+Write: "Use the Research Tool to find businesses offering similar services in your area. For each competitor, note their pricing, what customers say about them, and what they do differently from you. This will feed directly into your Service Packager when you set your own pricing in the next task. [suggestedTools: research_tool]"
+
+Instead of: "Find and pitch 5 potential corporate clients. [suggestedTools: research_tool, outreach_composer, conversation_coach]"
+Write: "Start with the Research Tool to find corporate offices, hotels, or event venues in your area that might outsource laundry services. Once you have your targets, use the Outreach Composer to generate personalised WhatsApp messages introducing your service — send one to each target. When someone responds positively and wants to meet, open the Conversation Coach to prepare for that specific meeting with scripts and role-play. Aim for at least 5 outreach messages sent and at least 1 meeting booked this week. [suggestedTools: research_tool, outreach_composer, conversation_coach]"
 
 Build the roadmap now.`,
         }],

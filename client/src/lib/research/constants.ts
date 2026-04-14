@@ -94,4 +94,26 @@ export const RESEARCH_BUDGETS: Record<ResearchAgent, { steps: number; descriptio
     steps:       8,
     description: 'Market changes since recommendation, fork viability, parking-lot context.',
   },
+  composer: {
+    // Spec: 2-6 research calls per generation. Budget = 8 gives the
+    // agent room for up to 6 tool calls (recipient company lookup,
+    // industry norms, market context) plus the structured
+    // ComposerOutput emission with one step of headroom.
+    steps:       8,
+    description: 'Recipient research, industry norms, market context for outreach messages.',
+  },
+  'research-execution': {
+    // Spec: 5-25 research calls for initial deep research. The
+    // largest budget in the system. Simple queries use 5-8, complex
+    // prospect discovery uses 15-25. The agent plans multi-step
+    // searches, evaluates results, fires follow-ups to fill gaps.
+    steps:       25,
+    description: 'Deep multi-round research: market, competitors, prospects, regulations, pricing.',
+  },
+  'research-followup': {
+    // Spec: targeted follow-up queries after the initial report.
+    // 10-step budget for narrower scope (one angle, not a full sweep).
+    steps:       10,
+    description: 'Follow-up queries building on existing research context.',
+  },
 } as const;

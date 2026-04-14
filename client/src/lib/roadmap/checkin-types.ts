@@ -214,6 +214,18 @@ export const StoredRoadmapTaskSchema = RoadmapTaskSchema.extend({
    * tasks without a coachSession (the vast majority) parse cleanly.
    */
   coachSession: z.object({}).passthrough().optional(),
+  /**
+   * Outreach Composer session. Same passthrough pattern as
+   * coachSession — the Composer module's ComposerSessionSchema is
+   * the strict validator; this field is permissive on the read path.
+   */
+  composerSession: z.object({}).passthrough().optional(),
+  /**
+   * Founder Research Tool session. Same passthrough pattern —
+   * ResearchSessionSchema in lib/roadmap/research-tool/schemas.ts
+   * is the strict validator.
+   */
+  researchSession: z.object({}).passthrough().optional(),
 });
 export type StoredRoadmapTask = z.infer<typeof StoredRoadmapTaskSchema>;
 

@@ -185,6 +185,60 @@ They rehearsed: ${rpHistory.length > 0 ? 'yes, ' + rpHistory.length + ' turns' :
 When the founder checks in on this task, reference their preparation. If the conversation happened, ask how it compared to what they prepared for. If specific objections from the preparation came up, ask about them by name. If they haven't had the conversation yet, acknowledge the preparation and encourage them — they've done the hard work of preparing, now they need to execute.
 `;
 })()}
+${(() => {
+  // Outreach Composer awareness: when the founder used the Composer
+  // on this task, surface the outreach context so the check-in agent
+  // can ask about responses and follow-up.
+  const cs = task.composerSession;
+  if (!cs || typeof cs !== 'object') return '';
+  const c = cs as Record<string, unknown>;
+  const ctx = c.context as Record<string, unknown> | undefined;
+  if (!ctx) return '';
+  const target  = String(ctx.targetDescription ?? ctx.goal ?? '');
+  const mode    = String(c.mode ?? 'unknown');
+  const channel = String(c.channel ?? 'unknown');
+  const output  = c.output as Record<string, unknown> | undefined;
+  const msgs    = Array.isArray(output?.messages) ? output.messages : [];
+  const sent    = Array.isArray(c.sentMessages) ? c.sentMessages : [];
+  if (msgs.length === 0) return '';
+  return `THE FOUNDER USED THE OUTREACH COMPOSER ON THIS TASK:
+Mode: ${mode}
+Channel: ${channel}
+Target: ${renderUserContent(target, 300)}
+Goal: ${renderUserContent(String(ctx.goal ?? ''), 300)}
+Messages generated: ${msgs.length}
+Messages marked as sent: ${sent.length}
+
+When the founder checks in, reference their outreach. If they sent messages, ask about responses — did anyone reply? What did they say? If they generated messages but haven't sent them, ask what's holding them back. If they're in batch mode and sent some but not all, ask whether the remaining targets are still worth pursuing or whether the responses they got changed their approach.
+`;
+})()}
+${(() => {
+  // Founder Research Tool awareness: when the founder used the
+  // Research Tool on this task, surface what they researched and
+  // what they found so the check-in connects findings to execution.
+  const rs = task.researchSession;
+  if (!rs || typeof rs !== 'object') return '';
+  const r = rs as Record<string, unknown>;
+  const query   = String(r.query ?? '');
+  const report  = r.report as Record<string, unknown> | undefined;
+  const findings = Array.isArray(report?.findings) ? report.findings : [];
+  const followUps = Array.isArray(r.followUps) ? r.followUps : [];
+  if (!query) return '';
+  // Summarise finding types for the prompt
+  const typeCounts: Record<string, number> = {};
+  for (const f of findings) {
+    const t = String((f as Record<string, unknown>).type ?? 'unknown');
+    typeCounts[t] = (typeCounts[t] ?? 0) + 1;
+  }
+  const typesSummary = Object.entries(typeCounts).map(([t, c]) => `${c} ${t}`).join(', ');
+  return `THE FOUNDER USED THE RESEARCH TOOL ON THIS TASK:
+Original query: ${renderUserContent(query, 300)}
+Findings count: ${findings.length} (${typesSummary || 'none'})
+Follow-up rounds: ${followUps.length}
+
+When the founder checks in, reference their research. If they found potential customers or businesses, ask whether they've reached out yet. If they researched competitors, ask how their own offering compares based on what they learned. If they investigated regulations, ask whether they've taken any compliance steps. The research was done to inform action — the check-in should connect findings to execution.
+`;
+})()}
 PRIOR CHECK-IN HISTORY ON THIS SPECIFIC TASK:
 ${historyBlock}
 
