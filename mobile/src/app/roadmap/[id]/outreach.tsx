@@ -1,35 +1,59 @@
 // src/app/roadmap/[id]/outreach.tsx
 //
-// Outreach Composer — generates personalised outreach messages for
-// cold emails, LinkedIn, WhatsApp. Founder describes who they're
-// reaching out to and why, the AI produces 3 message variations.
+// Outreach Composer — 3-mode version per the spec.
+//
+// Flow:
+//   context-form → generating → output
+//
+// Context form collects: target description, relationship, goal
+// (required), optional prior interaction / recipient name, channel
+// (whatsapp | email | linkedin), mode (single | batch | sequence).
+//
+// Output view dispatches on mode:
+//   single   — one ComposerMessageCard, full width
+//   batch    — 5-10 cards with personalisation hooks
+//   sequence — 3 cards (Day 1 / Day 5 / Day 14) with escalation notes
+//
+// Each card owns regenerate (max 2 variations) + mark-sent + native
+// share + copy + Coach handoff when suggestedTool present.
 
-import { useState, useRef } from 'react';
-import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Share, TextInput as RNTextInput } from 'react-native';
+import { useState, useCallback } from 'react';
+import {
+  View,
+  StyleSheet,
+  Pressable,
+  TextInput as RNTextInput,
+} from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import { Copy, Check, Share2 } from 'lucide-react-native';
+import { Send } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { api, ApiError } from '@/services/api-client';
-import { Text, Card, Button, Badge, ScreenContainer } from '@/components/ui';
+import { Text, Card, Button, ScreenContainer } from '@/components/ui';
+import {
+  ComposerMessageCard,
+  type ComposerMessage,
+  type ComposerVariation,
+} from '@/components/outreach/ComposerMessageCard';
 import { spacing, radius, typography, iconSize } from '@/constants/theme';
 
-type Channel = 'email' | 'linkedin' | 'whatsapp' | 'sms';
+type Channel = 'whatsapp' | 'email' | 'linkedin';
+type Mode    = 'single' | 'batch' | 'sequence';
 
-interface Variation {
-  id:        string;
-  channel:   Channel;
-  subject?:  string;
-  message:   string;
-  tone:      string;
+interface ComposerOutput {
+  messages: ComposerMessage[];
 }
 
 const CHANNELS: Array<{ id: Channel; label: string }> = [
+  { id: 'whatsapp', label: 'WhatsApp' },
   { id: 'email',    label: 'Email' },
   { id: 'linkedin', label: 'LinkedIn' },
-  { id: 'whatsapp', label: 'WhatsApp' },
-  { id: 'sms',      label: 'SMS' },
+];
+
+const MODES: Array<{ id: Mode; title: string; copy: string }> = [
+  { id: 'single',   title: 'One specific person',        copy: 'A single ready-to-send message for a named recipient.' },
+  { id: 'batch',    title: 'Many similar people',        copy: '5-10 personalised variations to reach a whole list.' },
+  { id: 'sequence', title: 'A follow-up sequence',       copy: 'Day 1, Day 5, Day 14 — escalates if nobody replies.' },
 ];
 
 export default function OutreachComposerScreen() {
@@ -37,39 +61,58 @@ export default function OutreachComposerScreen() {
   const { colors: c } = useTheme();
   const router = useRouter();
 
-  const [channel, setChannel]       = useState<Channel | null>(null);
-  const [recipient, setRecipient]   = useState('');
-  const [purpose, setPurpose]       = useState('');
+  // Form state
+  const [channel, setChannel] = useState<Channel | null>(null);
+  const [mode, setMode]       = useState<Mode | null>(null);
+  const [target, setTarget]       = useState('');
+  const [relationship, setRelationship] = useState('');
+  const [goal, setGoal]           = useState('');
+  const [priorInteraction, setPriorInteraction] = useState('');
+
+  // Output state
+  const [output, setOutput]       = useState<ComposerOutput | null>(null);
+  const [sentIds, setSentIds]     = useState<Set<string>>(new Set());
   const [generating, setGenerating] = useState(false);
-  const [variations, setVariations] = useState<Variation[]>([]);
-  const [copiedId, setCopiedId]     = useState<string | null>(null);
-  const [error, setError]           = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const canGenerate =
-    channel !== null && recipient.trim().length > 0 && purpose.trim().length > 0 && !generating;
+    channel !== null &&
+    mode !== null &&
+    target.trim().length > 0 &&
+    relationship.trim().length > 0 &&
+    goal.trim().length > 0 &&
+    !generating;
+
+  function basePath(suffix: 'generate' | 'regenerate' | 'mark-sent'): string {
+    return taskId
+      ? `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/composer/${suffix}`
+      : `/api/discovery/roadmaps/${roadmapId}/composer/${suffix}`;
+  }
 
   async function handleGenerate() {
     if (!canGenerate || !roadmapId) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setGenerating(true);
     setError(null);
-
     try {
-      const basePath = taskId
-        ? `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/composer/generate`
-        : `/api/discovery/roadmaps/${roadmapId}/composer/generate`;
-
-      const data = await api<{ variations: Variation[] }>(basePath, {
-        method: 'POST',
-        body: {
-          channel,
-          recipient: recipient.trim(),
-          purpose: purpose.trim(),
+      const data = await api<{ output: ComposerOutput }>(
+        basePath('generate'),
+        {
+          method: 'POST',
+          body: {
+            context: {
+              targetDescription: target.trim(),
+              relationship:      relationship.trim(),
+              goal:              goal.trim(),
+              ...(priorInteraction.trim() ? { priorInteraction: priorInteraction.trim() } : {}),
+            },
+            mode,
+            channel,
+          },
         },
-      });
-
+      );
+      setOutput(data.output);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setVariations(data.variations);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not generate. Try again.');
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -78,33 +121,60 @@ export default function OutreachComposerScreen() {
     }
   }
 
-  async function handleCopy(variation: Variation) {
-    const fullText = variation.subject
-      ? `Subject: ${variation.subject}\n\n${variation.message}`
-      : variation.message;
-    await Clipboard.setStringAsync(fullText);
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setCopiedId(variation.id);
-    setTimeout(() => setCopiedId(null), 2000);
-  }
-
-  async function handleShare(variation: Variation) {
-    const fullText = variation.subject
-      ? `Subject: ${variation.subject}\n\n${variation.message}`
-      : variation.message;
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try {
-      const result = await Share.share({
-        message: fullText,
-        // iOS uses `title` for mail-subject & some activity types;
-        // Android ignores it in the chooser but respects it for some
-        // targets. Fall back to the tone so there's always a title.
-        title: variation.subject ?? `Outreach (${variation.tone})`,
-      });
-      if (result.action === Share.sharedAction) {
+  const handleRegenerate = useCallback(
+    async (messageId: string, instruction: string) => {
+      try {
+        const data = await api<{ variation: ComposerVariation }>(
+          basePath('regenerate'),
+          { method: 'POST', body: { messageId, instruction } },
+        );
+        setOutput(prev => prev ? {
+          messages: prev.messages.map(m =>
+            m.id === messageId
+              ? { ...m, variations: [...(m.variations ?? []), data.variation] }
+              : m
+          ),
+        } : prev);
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : 'Could not rewrite.');
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
-    } catch { /* user cancelled or native error — silent */ }
+    },
+    [roadmapId, taskId],
+  );
+
+  const handleMarkSent = useCallback(
+    async (messageId: string, sent: boolean) => {
+      // Optimistic local update
+      setSentIds(prev => {
+        const next = new Set(prev);
+        sent ? next.add(messageId) : next.delete(messageId);
+        return next;
+      });
+      if (!sent) return; // only server-record "sent"; un-toggle is local for now
+      try {
+        await api(basePath('mark-sent'), { method: 'POST', body: { messageId } });
+      } catch {
+        // Roll back on failure
+        setSentIds(prev => {
+          const next = new Set(prev);
+          next.delete(messageId);
+          return next;
+        });
+      }
+    },
+    [roadmapId, taskId],
+  );
+
+  function handleCoachHandoff(_m: ComposerMessage) {
+    // Open the Coach on the same task (or standalone). The backend
+    // embeds coachContext separately; the client just navigates and
+    // trusts the Coach to pick up context via taskId.
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(taskId
+      ? `/roadmap/${roadmapId}/coach?taskId=${taskId}`
+      : `/roadmap/${roadmapId}/coach`);
   }
 
   return (
@@ -118,226 +188,332 @@ export default function OutreachComposerScreen() {
           headerShadowVisible: false,
         }}
       />
-
       <ScreenContainer keyboardAvoid>
-        {/* Input form */}
-        <Text variant="title">Who are you reaching out to?</Text>
-        <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1], marginBottom: spacing[5] }}>
-          I'll generate three message variations tailored to your market,
-          your product, and the person you're writing to.
-        </Text>
-
-        {/* Channel selection */}
-        <Text variant="overline" color={c.mutedForeground} style={{ marginBottom: spacing[2] }}>
-          Channel
-        </Text>
-        <View style={styles.channelRow}>
-          {CHANNELS.map(ch => {
-            const isSelected = channel === ch.id;
-            return (
-              <Pressable
-                key={ch.id}
-                onPress={() => {
-                  void Haptics.selectionAsync();
-                  setChannel(ch.id);
-                }}
-                style={[
-                  styles.channelPill,
-                  {
-                    backgroundColor: isSelected ? c.primaryAlpha10 : c.card,
-                    borderColor: isSelected ? c.primary : c.border,
-                  },
-                ]}
-              >
-                <Text variant="label" color={isSelected ? c.primary : c.foreground}>
-                  {ch.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {/* Recipient */}
-        <View style={styles.inputGroup}>
-          <Text variant="overline" color={c.mutedForeground} style={{ marginBottom: spacing[2] }}>
-            Who are you writing to?
-          </Text>
-          <View style={[styles.textArea, { backgroundColor: c.card, borderColor: c.border }]}>
-            <RNTextInput
-              value={recipient}
-              onChangeText={setRecipient}
-              placeholder="e.g. 'Operations manager at a local hotel I've never met'"
-              placeholderTextColor={c.placeholder}
-              multiline
-              maxLength={500}
-              style={styles.input}
-            />
-          </View>
-        </View>
-
-        {/* Purpose */}
-        <View style={styles.inputGroup}>
-          <Text variant="overline" color={c.mutedForeground} style={{ marginBottom: spacing[2] }}>
-            What do you need from them?
-          </Text>
-          <View style={[styles.textArea, { backgroundColor: c.card, borderColor: c.border }]}>
-            <RNTextInput
-              value={purpose}
-              onChangeText={setPurpose}
-              placeholder="e.g. 'Get a 15-minute call to pitch my laundry service'"
-              placeholderTextColor={c.placeholder}
-              multiline
-              maxLength={2000}
-              style={[styles.input, { minHeight: 80 }]}
-            />
-          </View>
-        </View>
-
-        {error && (
-          <Text variant="caption" color={c.destructive} style={{ marginTop: spacing[2] }}>
-            {error}
-          </Text>
-        )}
-
-        {/* Generate button */}
-        <Button
-          title={generating ? 'Writing your messages…' : 'Generate 3 variations'}
-          onPress={handleGenerate}
-          loading={generating}
-          disabled={!canGenerate}
-          size="lg"
-          fullWidth
-          style={{ marginTop: spacing[6] }}
-        />
-
-        {/* Variations */}
-        {variations.length > 0 && (
-          <View style={styles.variationsSection}>
-            <Text variant="title">Your messages</Text>
-            <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1], marginBottom: spacing[4] }}>
-              Three tones to pick from. Tap the copy button on the one
-              that fits best.
-            </Text>
-
-            <View style={{ gap: spacing[3] }}>
-              {variations.map(variation => (
-                <Card key={variation.id}>
-                  <View style={styles.variationHeader}>
-                    <Badge label={variation.tone} variant="primary" />
-                    <View style={styles.iconActions}>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Share message"
-                        onPress={() => { void handleShare(variation); }}
-                        style={styles.copyButton}
-                      >
-                        <Share2 size={iconSize.sm} color={c.mutedForeground} />
-                      </Pressable>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={copiedId === variation.id ? 'Copied' : 'Copy message'}
-                        onPress={() => { void handleCopy(variation); }}
-                        style={styles.copyButton}
-                      >
-                        {copiedId === variation.id ? (
-                          <Check size={iconSize.sm} color={c.success} />
-                        ) : (
-                          <Copy size={iconSize.sm} color={c.mutedForeground} />
-                        )}
-                      </Pressable>
-                    </View>
-                  </View>
-
-                  {variation.subject && (
-                    <>
-                      <Text variant="overline" color={c.mutedForeground} style={{ marginTop: spacing[2] }}>
-                        Subject
-                      </Text>
-                      <Text variant="label" style={{ marginTop: spacing[0.5] }}>
-                        {variation.subject}
-                      </Text>
-                    </>
-                  )}
-
-                  <Text variant="body" style={{ marginTop: spacing[3] }}>
-                    {variation.message}
-                  </Text>
-                </Card>
-              ))}
-            </View>
-
-            {/* Regenerate + done */}
-            <Button
-              title="Generate new variations"
-              onPress={handleGenerate}
-              variant="ghost"
-              size="md"
-              fullWidth
-              style={{ marginTop: spacing[4] }}
-            />
-            {roadmapId && (
-              <Button
-                title="Done — back to my roadmap"
-                // Use replace with an explicit target so a deep-link
-                // into this screen (push notification, share URL,
-                // external browser) still navigates somewhere sensible
-                // — router.back() silently does nothing on an empty
-                // back stack.
-                onPress={() => router.replace(`/roadmap/${roadmapId}`)}
-                variant="secondary"
-                size="md"
-                fullWidth
-                style={{ marginTop: spacing[2] }}
-              />
-            )}
-          </View>
+        {output ? (
+          <OutputView
+            output={output}
+            mode={mode ?? 'single'}
+            sentIds={sentIds}
+            onMarkSent={handleMarkSent}
+            onRegenerate={handleRegenerate}
+            onCoachHandoff={handleCoachHandoff}
+            onStartOver={() => {
+              setOutput(null);
+              setSentIds(new Set());
+            }}
+            onBackToRoadmap={() => router.replace(`/roadmap/${roadmapId}`)}
+          />
+        ) : (
+          <FormView
+            target={target} setTarget={setTarget}
+            relationship={relationship} setRelationship={setRelationship}
+            goal={goal} setGoal={setGoal}
+            priorInteraction={priorInteraction} setPriorInteraction={setPriorInteraction}
+            channel={channel} setChannel={setChannel}
+            mode={mode} setMode={setMode}
+            canGenerate={canGenerate}
+            generating={generating}
+            error={error}
+            onGenerate={handleGenerate}
+          />
         )}
       </ScreenContainer>
     </>
   );
 }
 
+// ---------------------------------------------------------------------------
+// FormView — context + mode + channel + generate button
+// ---------------------------------------------------------------------------
+
+interface FormProps {
+  target: string;           setTarget: (s: string) => void;
+  relationship: string;     setRelationship: (s: string) => void;
+  goal: string;             setGoal: (s: string) => void;
+  priorInteraction: string; setPriorInteraction: (s: string) => void;
+  channel: Channel | null;  setChannel: (c: Channel) => void;
+  mode: Mode | null;        setMode: (m: Mode) => void;
+  canGenerate: boolean;
+  generating: boolean;
+  error: string | null;
+  onGenerate: () => void;
+}
+
+function FormView({
+  target, setTarget,
+  relationship, setRelationship,
+  goal, setGoal,
+  priorInteraction, setPriorInteraction,
+  channel, setChannel,
+  mode, setMode,
+  canGenerate,
+  generating,
+  error,
+  onGenerate,
+}: FormProps) {
+  const { colors: c } = useTheme();
+
+  return (
+    <>
+      <Text variant="title">What are you writing?</Text>
+      <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1], marginBottom: spacing[5] }}>
+        Tell me who you're reaching, what you're trying to achieve, and which channel — I'll produce messages you can copy and send.
+      </Text>
+
+      {/* Mode picker */}
+      <Text variant="overline" color={c.mutedForeground}>Mode</Text>
+      <View style={styles.modeList}>
+        {MODES.map(m => {
+          const selected = mode === m.id;
+          return (
+            <Pressable
+              key={m.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Mode: ${m.title}`}
+              accessibilityState={{ selected }}
+              onPress={() => {
+                void Haptics.selectionAsync();
+                setMode(m.id);
+              }}
+            >
+              <Card
+                variant={selected ? 'primary' : 'default'}
+                style={selected ? [styles.modeCard, { borderColor: c.primary, borderWidth: 2 }] : styles.modeCard}
+              >
+                <Text variant="label">{m.title}</Text>
+                <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1] }}>
+                  {m.copy}
+                </Text>
+              </Card>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Channel */}
+      <Text variant="overline" color={c.mutedForeground} style={{ marginTop: spacing[5] }}>Channel</Text>
+      <View style={styles.channelRow}>
+        {CHANNELS.map(ch => {
+          const selected = channel === ch.id;
+          return (
+            <Pressable
+              key={ch.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Channel: ${ch.label}`}
+              accessibilityState={{ selected }}
+              onPress={() => {
+                void Haptics.selectionAsync();
+                setChannel(ch.id);
+              }}
+              style={[
+                styles.channelPill,
+                {
+                  backgroundColor: selected ? c.primaryAlpha10 : c.card,
+                  borderColor:     selected ? c.primary        : c.border,
+                },
+              ]}
+            >
+              <Text variant="label" color={selected ? c.primary : c.foreground}>
+                {ch.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Target description */}
+      <TextField
+        label={mode === 'batch' ? 'Who are you reaching out to?' : 'Who is the recipient?'}
+        hint={mode === 'batch'
+          ? '"Restaurant owners in Accra who serve event venues"'
+          : '"Mariama, operations manager at Hotel Barmoi"'}
+        value={target}
+        onChangeText={setTarget}
+      />
+
+      {/* Relationship */}
+      <TextField
+        label="Your relationship to them"
+        hint='"We met at the Ecobank event last month" / "Cold — no prior contact"'
+        value={relationship}
+        onChangeText={setRelationship}
+      />
+
+      {/* Goal */}
+      <TextField
+        label="What's the goal?"
+        hint='"Get them to agree to a 15-minute demo" / "Re-engage after 3 weeks silent"'
+        value={goal}
+        onChangeText={setGoal}
+      />
+
+      {/* Optional prior interaction */}
+      <TextField
+        label="Prior interaction (optional)"
+        hint='Leave blank for cold outreach'
+        value={priorInteraction}
+        onChangeText={setPriorInteraction}
+      />
+
+      {error && (
+        <Text variant="caption" color={c.destructive} style={{ marginTop: spacing[3] }}>
+          {error}
+        </Text>
+      )}
+
+      <Button
+        title={generating
+          ? (mode === 'batch' ? 'Writing 5-10 messages…' : 'Writing your messages…')
+          : 'Generate'}
+        onPress={onGenerate}
+        loading={generating}
+        disabled={!canGenerate}
+        size="lg"
+        fullWidth
+        icon={<Send size={iconSize.md} color={c.primaryForeground} />}
+        style={{ marginTop: spacing[6] }}
+      />
+    </>
+  );
+}
+
+function TextField({
+  label, hint, value, onChangeText,
+}: {
+  label: string; hint: string; value: string; onChangeText: (s: string) => void;
+}) {
+  const { colors: c } = useTheme();
+  return (
+    <View style={{ marginTop: spacing[5] }}>
+      <Text variant="overline" color={c.mutedForeground} style={{ marginBottom: spacing[2] }}>
+        {label}
+      </Text>
+      <View style={[styles.textArea, { backgroundColor: c.card, borderColor: c.border }]}>
+        <RNTextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={hint}
+          placeholderTextColor={c.placeholder}
+          multiline
+          maxLength={500}
+          style={[styles.input, { color: c.foreground }]}
+        />
+      </View>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// OutputView — renders per-mode
+// ---------------------------------------------------------------------------
+
+interface OutputProps {
+  output:          ComposerOutput;
+  mode:            Mode;
+  sentIds:         Set<string>;
+  onMarkSent:      (id: string, sent: boolean) => void;
+  onRegenerate:    (id: string, instruction: string) => Promise<void>;
+  onCoachHandoff?: (m: ComposerMessage) => void;
+  onStartOver:     () => void;
+  onBackToRoadmap: () => void;
+}
+
+function OutputView({
+  output,
+  mode,
+  sentIds,
+  onMarkSent,
+  onRegenerate,
+  onCoachHandoff,
+  onStartOver,
+  onBackToRoadmap,
+}: OutputProps) {
+  const { colors: c } = useTheme();
+  const modeHeading = mode === 'batch'
+    ? `${output.messages.length} message${output.messages.length === 1 ? '' : 's'}`
+    : mode === 'sequence'
+      ? '3-step follow-up sequence'
+      : 'Your message';
+
+  return (
+    <>
+      <Text variant="title">{modeHeading}</Text>
+      <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1], marginBottom: spacing[4] }}>
+        {mode === 'batch' && 'Each message shares the same core pitch but varies the opening and personalisation hook.'}
+        {mode === 'sequence' && 'Send in order. Day 5 assumes no response to Day 1. Day 14 either reframes or closes gracefully.'}
+        {mode === 'single' && 'Copy, paste, send. Use "Try a different angle" if the tone is not quite right.'}
+      </Text>
+
+      <View style={styles.messagesList}>
+        {output.messages.map(m => (
+          <ComposerMessageCard
+            key={m.id}
+            message={m}
+            isSent={sentIds.has(m.id)}
+            onMarkSent={onMarkSent}
+            onRegenerate={onRegenerate}
+            onCoachHandoff={onCoachHandoff}
+          />
+        ))}
+      </View>
+
+      <Button
+        title="Start over with different context"
+        onPress={onStartOver}
+        variant="ghost"
+        size="md"
+        fullWidth
+        style={{ marginTop: spacing[6] }}
+      />
+      <Button
+        title="Done — back to my roadmap"
+        onPress={onBackToRoadmap}
+        variant="secondary"
+        size="md"
+        fullWidth
+        style={{ marginTop: spacing[2] }}
+      />
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Styles
+// ---------------------------------------------------------------------------
+
 const styles = StyleSheet.create({
+  modeList: {
+    gap: spacing[2],
+    marginTop: spacing[2],
+  },
+  modeCard: {
+    padding: spacing[3],
+  },
   channelRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing[2],
-    marginBottom: spacing[5],
+    marginTop: spacing[2],
   },
   channelPill: {
-    borderWidth: 1,
-    borderRadius: radius.full,
     paddingHorizontal: spacing[4],
-    paddingVertical: spacing[2],
-  },
-  inputGroup: {
-    marginBottom: spacing[4],
+    paddingVertical: spacing[2.5],
+    borderRadius: radius.lg,
+    borderWidth: 1,
   },
   textArea: {
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderRadius: radius.xl,
     padding: spacing[3],
   },
   input: {
     fontSize: typography.size.sm,
     lineHeight: typography.size.sm * typography.leading.relaxed,
-    minHeight: 44,
+    minHeight: 60,
     textAlignVertical: 'top',
-    color: undefined, // inherited
   },
-  variationsSection: {
-    marginTop: spacing[8],
-  },
-  variationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  iconActions: {
-    flexDirection: 'row',
-    gap: spacing[1],
-  },
-  copyButton: {
-    padding: spacing[2],
+  messagesList: {
+    gap: spacing[3],
   },
 });
+
