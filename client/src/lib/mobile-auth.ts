@@ -15,8 +15,9 @@
 // Authorization header.
 
 import 'server-only';
-import { randomBytes } from 'crypto';
+import { randomBytes, createHash } from 'crypto';
 import prisma from '@/lib/prisma';
+import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
 
 // Session token: 32 bytes of crypto randomness, base64url encoded.
@@ -110,4 +111,43 @@ export function extractBearerToken(request: Request): string | null {
   if (!auth) return null;
   if (!auth.startsWith('Bearer ')) return null;
   return auth.slice(7).trim() || null;
+}
+
+// ---------------------------------------------------------------------------
+// OAuth state signing — carries the mobile redirect URI through the OAuth
+// dance with an HMAC so a malicious actor can't inject their own redirect.
+//
+// These live here (not inside the route.ts files) because Next.js 15's
+// App Router forbids non-handler exports from route.ts files.
+// ---------------------------------------------------------------------------
+
+export function signState(redirectUri: string): string {
+  const nonce = randomBytes(16).toString('hex');
+  const payload = `${nonce}:${redirectUri}`;
+  const signature = createHash('sha256')
+    .update(`${env.NEXTAUTH_SECRET}:${payload}`)
+    .digest('hex')
+    .slice(0, 16);
+  // base64url so it's URL-safe
+  return Buffer.from(`${signature}:${payload}`).toString('base64url');
+}
+
+export function verifyState(state: string): string | null {
+  try {
+    const decoded = Buffer.from(state, 'base64url').toString();
+    const [signature, ...rest] = decoded.split(':');
+    const payload = rest.join(':');
+    const [, ...uriParts] = payload.split(':');
+    const redirectUri = uriParts.join(':');
+
+    const expected = createHash('sha256')
+      .update(`${env.NEXTAUTH_SECRET}:${payload}`)
+      .digest('hex')
+      .slice(0, 16);
+
+    if (signature !== expected) return null;
+    return redirectUri;
+  } catch {
+    return null;
+  }
 }

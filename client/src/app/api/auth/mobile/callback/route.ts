@@ -11,8 +11,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
-import { createMobileSession } from '@/lib/mobile-auth';
-import { verifyState } from '../[provider]/route';
+import { createMobileSession, verifyState } from '@/lib/mobile-auth';
 
 // ---------------------------------------------------------------------------
 // Provider-specific token + profile fetchers
