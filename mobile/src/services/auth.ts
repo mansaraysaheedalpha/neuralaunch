@@ -10,6 +10,7 @@ import { create } from 'zustand';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { getToken, setToken, clearToken, api, API_BASE_URL } from './api-client';
+import { registerPushToken, clearPushRegistration } from './push';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,6 +55,9 @@ export const useAuth = create<AuthState>((set) => ({
       // Validate the token against the backend
       const data = await api<{ user: User }>('/api/auth/mobile/session');
       set({ user: data.user, isSignedIn: true, isLoading: false });
+      // Fire-and-forget push registration so silent re-launches pick
+      // up tokens too (Expo rotates; the backend upsert is idempotent).
+      void registerPushToken();
     } catch {
       // Token is invalid or expired — clear it
       await clearToken();
@@ -85,6 +89,7 @@ export const useAuth = create<AuthState>((set) => ({
       // Fetch the user profile
       const data = await api<{ user: User }>('/api/auth/mobile/session');
       set({ user: data.user, isSignedIn: true });
+      void registerPushToken();
     } catch {
       // Silent failure — user can retry
     }
@@ -92,6 +97,7 @@ export const useAuth = create<AuthState>((set) => ({
 
   signOut: async () => {
     await clearToken();
+    clearPushRegistration();
     set({ user: null, isSignedIn: false });
   },
 }));
