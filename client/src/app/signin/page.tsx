@@ -6,6 +6,7 @@ import { ArrowLeft, Shield } from "lucide-react";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function SignInPage() {
   const handleSignIn = (provider: "google" | "github") => {
@@ -41,10 +42,16 @@ export default function SignInPage() {
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.15, duration: 0.5 }}
-            className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-lg bg-[#2563EB] text-xl font-bold tracking-tight text-white"
-            aria-hidden="true"
+            className="mb-6 inline-flex items-center justify-center"
           >
-            NL
+            <Image
+              src="/neuralaunch_logo.svg"
+              alt=""
+              width={64}
+              height={48}
+              priority
+              className="h-12 w-auto"
+            />
           </motion.div>
           <motion.h1
             initial={{ opacity: 0 }}
