@@ -20,6 +20,11 @@ import { api } from './api-client';
 // triggers a fresh POST.
 let lastRegisteredToken: string | null = null;
 
+/** Read the currently registered token (null if not registered). */
+export function getRegisteredToken(): string | null {
+  return lastRegisteredToken;
+}
+
 /**
  * Resolve the EAS project ID that Expo uses when minting push tokens.
  * In SDK 49+ `getExpoPushTokenAsync()` requires this on EAS builds.
@@ -106,7 +111,28 @@ export async function registerPushToken(): Promise<boolean> {
   }
 }
 
-/** Clear the in-memory registration cache (call on sign-out). */
+/**
+ * Clear the in-memory registration cache. Called on sign-out. The
+ * backend deletion is separate — see unregisterPushToken() below,
+ * which is called by auth.signOut() BEFORE the auth token is cleared
+ * (so the DELETE is still authorised).
+ */
 export function clearPushRegistration(): void {
   lastRegisteredToken = null;
+}
+
+/**
+ * Remove this device's push token from the backend. Called on
+ * sign-out so the user does not continue to receive pushes for an
+ * account they are no longer signed into. Best-effort — failures
+ * are swallowed so sign-out itself never breaks.
+ */
+export async function unregisterPushToken(): Promise<void> {
+  if (!lastRegisteredToken) return;
+  try {
+    await api(
+      `/api/user/push-token?token=${encodeURIComponent(lastRegisteredToken)}`,
+      { method: 'DELETE' },
+    );
+  } catch { /* best-effort */ }
 }

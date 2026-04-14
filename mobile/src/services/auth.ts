@@ -10,7 +10,7 @@ import { create } from 'zustand';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { getToken, setToken, clearToken, api, API_BASE_URL } from './api-client';
-import { registerPushToken, clearPushRegistration } from './push';
+import { registerPushToken, clearPushRegistration, unregisterPushToken } from './push';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -96,8 +96,13 @@ export const useAuth = create<AuthState>((set) => ({
   },
 
   signOut: async () => {
-    await clearToken();
+    // Unregister the push token BEFORE clearing the auth token, or
+    // the DELETE request is un-authenticated and rejected. Best-effort
+    // so network failures never trap the user in a half-signed-out
+    // state.
+    await unregisterPushToken();
     clearPushRegistration();
+    await clearToken();
     set({ user: null, isSignedIn: false });
   },
 }));
