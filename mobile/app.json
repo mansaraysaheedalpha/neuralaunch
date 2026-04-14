@@ -35,6 +35,9 @@
     ],
     "install": {
       "exclude": ["react-dom"]
+    },
+    "extra": {
+      "apiUrl": "https://startupvalidator.app"
     }
   }
 }
