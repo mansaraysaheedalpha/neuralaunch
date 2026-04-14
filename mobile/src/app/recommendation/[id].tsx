@@ -22,6 +22,7 @@ import {
   CollapsibleSection,
 } from '@/components/ui';
 import { PushbackChat } from '@/components/recommendation/PushbackChat';
+import { AssumptionRow } from '@/components/recommendation/AssumptionRow';
 import { spacing } from '@/constants/theme';
 
 // Pushback hard cap — matches the web app's PUSHBACK_CONFIG.HARD_CAP_ROUND
@@ -157,14 +158,14 @@ export default function RecommendationScreen() {
 
         {/* Assumptions */}
         <CollapsibleSection label="Assumptions">
-          <View style={{ gap: spacing[1.5] }}>
+          <View style={{ gap: spacing[3] }}>
             {r.assumptions.map((a, i) => (
-              <View key={i} style={styles.assumptionRow}>
-                <Text variant="caption" color={c.mutedForeground}>—</Text>
-                <Text variant="body" color={c.foreground} style={{ flex: 1, opacity: 0.8 }}>
-                  {a}
-                </Text>
-              </View>
+              <AssumptionRow
+                key={i}
+                text={a}
+                path={r.path}
+                reasoning={r.reasoning}
+              />
             ))}
           </View>
         </CollapsibleSection>
@@ -192,6 +193,13 @@ export default function RecommendationScreen() {
                 title="View My Execution Roadmap"
                 onPress={() => router.push(`/roadmap/${id}`)}
                 size="lg"
+                fullWidth
+              />
+              <Button
+                title="Report outcome"
+                onPress={() => router.push(`/recommendation/${id}/outcome` as any)}
+                variant="ghost"
+                size="md"
                 fullWidth
               />
             </>

@@ -4,9 +4,10 @@
 // A streaming chat that adapts its questions based on the founder's
 // answers, then synthesises a single committed recommendation.
 
-import { useEffect, useRef } from 'react';
-import { View, FlatList, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { View, FlatList, StyleSheet, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
+import { HelpCircle } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/useTheme';
 import { useDiscovery, type ChatMessage } from '@/hooks/useDiscovery';
@@ -18,12 +19,14 @@ import {
   Card,
   Button,
 } from '@/components/ui';
+import { InterviewGuide } from '@/components/discovery/InterviewGuide';
 import { spacing } from '@/constants/theme';
 
 export default function DiscoveryScreen() {
   const { colors: c } = useTheme();
   const router = useRouter();
   const flatListRef = useRef<FlatList>(null);
+  const [guideVisible, setGuideVisible] = useState(false);
 
   const {
     messages,
@@ -66,7 +69,6 @@ export default function DiscoveryScreen() {
       <ChatBubble
         content={item.content}
         role={item.role}
-        animated
       />
     );
   }
@@ -81,7 +83,20 @@ export default function DiscoveryScreen() {
           headerStyle: { backgroundColor: c.background },
           headerShadowVisible: false,
           headerBackTitle: 'Home',
+          headerRight: () => (
+            <Pressable
+              onPress={() => setGuideVisible(true)}
+              style={{ padding: spacing[2] }}
+            >
+              <HelpCircle size={22} color={c.mutedForeground} />
+            </Pressable>
+          ),
         }}
+      />
+
+      <InterviewGuide
+        visible={guideVisible}
+        onClose={() => setGuideVisible(false)}
       />
 
       <KeyboardAvoidingView
