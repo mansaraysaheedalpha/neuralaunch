@@ -56,10 +56,6 @@ export const palette = {
   warning:           '#f59e0b',
   warningMuted:      'rgba(245, 158, 11, 0.1)',
 
-  // Transparency helpers
-  primaryAlpha10:    'rgba(124, 58, 237, 0.1)',
-  primaryAlpha20:    'rgba(124, 58, 237, 0.2)',
-  primaryAlpha5:     'rgba(124, 58, 237, 0.05)',
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -67,6 +63,20 @@ export const palette = {
 // ---------------------------------------------------------------------------
 
 export type ColorScheme = 'light' | 'dark';
+
+// Primary hex values per scheme — mirrored into `colors()` but also
+// used standalone by the `primaryAlpha()` helper so the alpha tint
+// follows whichever primary hue the current scheme uses. Without this
+// the light-mode purple would tint dark-mode backgrounds incorrectly.
+const PRIMARY_RGB: Record<ColorScheme, { r: number; g: number; b: number }> = {
+  light: { r: 124, g: 58,  b: 237 }, // #7c3aed
+  dark:  { r: 167, g: 139, b: 250 }, // #a78bfa
+};
+
+function primaryAlpha(scheme: ColorScheme, alpha: number): string {
+  const { r, g, b } = PRIMARY_RGB[scheme];
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 export function colors(scheme: ColorScheme) {
   const n = scheme === 'dark' ? palette.dark : palette.light;
@@ -76,9 +86,9 @@ export function colors(scheme: ColorScheme) {
   return {
     primary,
     primaryForeground,
-    primaryAlpha10: palette.primaryAlpha10,
-    primaryAlpha20: palette.primaryAlpha20,
-    primaryAlpha5:  palette.primaryAlpha5,
+    primaryAlpha5:  primaryAlpha(scheme, 0.05),
+    primaryAlpha10: primaryAlpha(scheme, 0.10),
+    primaryAlpha20: primaryAlpha(scheme, 0.20),
 
     background:        n.background,
     foreground:        n.foreground,
@@ -195,29 +205,37 @@ export const typography = {
 // Shadows — platform-specific, premium feel
 // ---------------------------------------------------------------------------
 
-export const shadows = {
-  sm: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  md: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  lg: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-} as const;
+// Dark mode bumps shadow opacity considerably — black shadow at 0.05
+// opacity on a near-black background is visually absent. We stay
+// with black shadows (white "glow" feels wrong) and rely on opacity +
+// blur radius to reinstate depth. Android `elevation` is independent
+// of shadowColor so it already works in both schemes.
+export function shadows(scheme: ColorScheme) {
+  const darker = scheme === 'dark';
+  return {
+    sm: {
+      shadowColor:  '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: darker ? 0.28 : 0.05,
+      shadowRadius:  darker ? 3    : 2,
+      elevation:     1,
+    },
+    md: {
+      shadowColor:  '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: darker ? 0.35 : 0.08,
+      shadowRadius:  darker ? 6    : 4,
+      elevation:     3,
+    },
+    lg: {
+      shadowColor:  '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: darker ? 0.42 : 0.10,
+      shadowRadius:  darker ? 12   : 8,
+      elevation:     5,
+    },
+  } as const;
+}
 
 // ---------------------------------------------------------------------------
 // Animation durations — consistent motion language

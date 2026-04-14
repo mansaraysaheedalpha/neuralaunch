@@ -5,7 +5,7 @@
 
 import { View, type ViewStyle, type StyleProp, StyleSheet } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { radius, spacing, shadows } from '@/constants/theme';
+import { radius, spacing } from '@/constants/theme';
 
 interface Props {
   children: React.ReactNode;
@@ -21,7 +21,7 @@ export function Card({
   noPadding = false,
   style,
 }: Props) {
-  const { colors: c } = useTheme();
+  const { colors: c, shadows: s } = useTheme();
 
   const variantStyles: Record<string, ViewStyle> = {
     default: {
@@ -47,7 +47,7 @@ export function Card({
         styles.base,
         variantStyles[variant],
         !noPadding && styles.padding,
-        shadows.sm,
+        s.sm,
         style,
       ]}
     >
