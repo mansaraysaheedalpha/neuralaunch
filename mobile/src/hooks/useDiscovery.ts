@@ -66,6 +66,33 @@ export function useDiscovery() {
     }
   }, []);
 
+  // ---- Resume an existing session ----
+  const resumeSession = useCallback(async (existingSessionId: string) => {
+    setStatus('loading');
+    try {
+      const data = await api<{ messages: ChatMessage[] }>(
+        `/api/discovery/sessions/${existingSessionId}/resume`,
+      );
+      sessionIdRef.current = existingSessionId;
+      setSessionId(existingSessionId);
+      setMessages(data.messages ?? []);
+      setStatus('idle');
+    } catch {
+      // Resume failed — fall back to a new session
+      void initSession();
+    }
+  }, [initSession]);
+
+  // ---- Discard an incomplete session ----
+  const discardSession = useCallback(async (existingSessionId: string) => {
+    try {
+      await api(`/api/discovery/sessions/${existingSessionId}`, {
+        method: 'DELETE',
+      });
+    } catch { /* non-fatal */ }
+    await initSession();
+  }, [initSession]);
+
   // ---- Send message ----
   const sendMessage = useCallback(async (content: string) => {
     const sid = sessionIdRef.current;
@@ -202,6 +229,31 @@ export function useDiscovery() {
     synthesisError,
     recommendation,
     initSession,
+    resumeSession,
+    discardSession,
     sendMessage,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Incomplete session check — used by the discovery screen on mount to
+// show the SessionResumption UI if a previous session is resumable.
+// ---------------------------------------------------------------------------
+
+export async function fetchIncompleteSession(): Promise<{
+  sessionId:     string;
+  questionCount: number;
+} | null> {
+  try {
+    const data = await api<{
+      incomplete: { id: string; questionCount: number } | null;
+    }>('/api/discovery/sessions/incomplete');
+    if (!data.incomplete) return null;
+    return {
+      sessionId:     data.incomplete.id,
+      questionCount: data.incomplete.questionCount,
+    };
+  } catch {
+    return null;
+  }
 }

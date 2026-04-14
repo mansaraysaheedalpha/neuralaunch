@@ -10,7 +10,7 @@ import { useRouter, Stack } from 'expo-router';
 import { HelpCircle } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/useTheme';
-import { useDiscovery, type ChatMessage } from '@/hooks/useDiscovery';
+import { useDiscovery, fetchIncompleteSession, type ChatMessage } from '@/hooks/useDiscovery';
 import {
   Text,
   ChatBubble,
@@ -20,13 +20,19 @@ import {
   Button,
 } from '@/components/ui';
 import { InterviewGuide } from '@/components/discovery/InterviewGuide';
+import { SessionResumption } from '@/components/discovery/SessionResumption';
 import { spacing } from '@/constants/theme';
+
+type InitPhase = 'checking' | 'resumable' | 'chat';
 
 export default function DiscoveryScreen() {
   const { colors: c } = useTheme();
   const router = useRouter();
   const flatListRef = useRef<FlatList>(null);
   const [guideVisible, setGuideVisible] = useState(false);
+  const [initPhase, setInitPhase] = useState<InitPhase>('checking');
+  const [incomplete, setIncomplete] = useState<{ sessionId: string; questionCount: number } | null>(null);
+  const [resumeLoading, setResumeLoading] = useState(false);
 
   const {
     messages,
@@ -36,13 +42,40 @@ export default function DiscoveryScreen() {
     synthesisError,
     recommendation,
     initSession,
+    resumeSession,
+    discardSession,
     sendMessage,
   } = useDiscovery();
 
-  // Init session on mount
+  // Check for incomplete session on mount
   useEffect(() => {
-    void initSession();
+    async function check() {
+      const existing = await fetchIncompleteSession();
+      if (existing) {
+        setIncomplete(existing);
+        setInitPhase('resumable');
+      } else {
+        setInitPhase('chat');
+        void initSession();
+      }
+    }
+    void check();
   }, [initSession]);
+
+  async function handleResume() {
+    if (!incomplete) return;
+    setResumeLoading(true);
+    await resumeSession(incomplete.sessionId);
+    setInitPhase('chat');
+    setResumeLoading(false);
+  }
+
+  async function handleDiscard() {
+    if (!incomplete) return;
+    await discardSession(incomplete.sessionId);
+    setIncomplete(null);
+    setInitPhase('chat');
+  }
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -99,6 +132,15 @@ export default function DiscoveryScreen() {
         onClose={() => setGuideVisible(false)}
       />
 
+      {/* Resumption prompt when an incomplete session exists */}
+      {initPhase === 'resumable' && incomplete ? (
+        <SessionResumption
+          questionCount={incomplete.questionCount}
+          onResume={handleResume}
+          onDiscard={() => { void handleDiscard(); }}
+          loading={resumeLoading}
+        />
+      ) : (
       <KeyboardAvoidingView
         style={[styles.container, { backgroundColor: c.background }]}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -155,6 +197,7 @@ export default function DiscoveryScreen() {
           />
         )}
       </KeyboardAvoidingView>
+      )}
     </>
   );
 }
