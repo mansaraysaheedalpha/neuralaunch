@@ -23,7 +23,7 @@ import {
   ErrorState,
   FadeInView,
 } from '@/components/ui';
-import { spacing } from '@/constants/theme';
+import { spacing, iconSize } from '@/constants/theme';
 
 interface RecommendationSummary {
   id:                 string;
@@ -80,130 +80,130 @@ export default function HomeScreen() {
 
       {/* Quick action — start a discovery session */}
       <FadeInView>
-      <Card variant="primary" style={styles.ctaCard}>
-        <Text variant="overline" color={c.primary}>
-          Ready to discover your path?
-        </Text>
-        <Text
-          variant="body"
-          style={{ marginTop: spacing[2], marginBottom: spacing[4] }}
-        >
-          Start a conversation and get one honest recommendation
-          tailored to your exact situation.
-        </Text>
-        <Button
-          title="Start Discovery"
-          onPress={() => {
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push('/discovery');
-          }}
-          size="md"
-          icon={<Compass size={18} color={c.primaryForeground} />}
-        />
-      </Card>
+        <Card variant="primary" style={styles.ctaCard}>
+          <Text variant="overline" color={c.primary}>
+            Ready to discover your path?
+          </Text>
+          <Text
+            variant="body"
+            style={{ marginTop: spacing[2], marginBottom: spacing[4] }}
+          >
+            Start a conversation and get one honest recommendation
+            tailored to your exact situation.
+          </Text>
+          <Button
+            title="Start Discovery"
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push('/discovery');
+            }}
+            size="md"
+            icon={<Compass size={iconSize.md} color={c.primaryForeground} />}
+          />
+        </Card>
       </FadeInView>
 
       {/* Latest recommendation */}
       <FadeInView delay={80}>
-      <View style={styles.section}>
-        <Text variant="title" style={styles.sectionTitle}>
-          Your recommendations
-        </Text>
+        <View style={styles.section}>
+          <Text variant="title" style={styles.sectionTitle}>
+            Your recommendations
+          </Text>
 
-        {isLoading && !recommendations ? (
-          <ListSkeleton count={2} />
-        ) : latestRec ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`View recommendation: ${latestRec.path}`}
-            onPress={() => {
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push(`/recommendation/${latestRec.id}`);
-            }}
-          >
-            <Card>
-              <View style={styles.recHeader}>
-                <Badge
-                  label={latestRec.acceptedAt ? 'Accepted' : 'Pending'}
-                  variant={latestRec.acceptedAt ? 'success' : 'warning'}
-                />
-                {latestRec.recommendationType && (
-                  <Text variant="caption" color={c.mutedForeground}>
-                    {latestRec.recommendationType.replace(/_/g, ' ')}
-                  </Text>
-                )}
-              </View>
-              <Text variant="label" numberOfLines={2} style={{ marginTop: spacing[2] }}>
-                {latestRec.path}
-              </Text>
-              <Text variant="caption" color={c.mutedForeground} numberOfLines={2} style={{ marginTop: spacing[1] }}>
-                {latestRec.summary}
-              </Text>
-              <View style={styles.recCta}>
-                <Text variant="label" color={c.primary}>
-                  View recommendation
+          {isLoading && !recommendations ? (
+            <ListSkeleton count={2} />
+          ) : latestRec ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`View recommendation: ${latestRec.path}`}
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push(`/recommendation/${latestRec.id}`);
+              }}
+            >
+              <Card>
+                <View style={styles.recHeader}>
+                  <Badge
+                    label={latestRec.acceptedAt ? 'Accepted' : 'Pending'}
+                    variant={latestRec.acceptedAt ? 'success' : 'warning'}
+                  />
+                  {latestRec.recommendationType && (
+                    <Text variant="caption" color={c.mutedForeground}>
+                      {latestRec.recommendationType.replace(/_/g, ' ')}
+                    </Text>
+                  )}
+                </View>
+                <Text variant="label" numberOfLines={2} style={{ marginTop: spacing[2] }}>
+                  {latestRec.path}
                 </Text>
-                <ArrowRight size={16} color={c.primary} />
-              </View>
+                <Text variant="caption" color={c.mutedForeground} numberOfLines={2} style={{ marginTop: spacing[1] }}>
+                  {latestRec.summary}
+                </Text>
+                <View style={styles.recCta}>
+                  <Text variant="label" color={c.primary}>
+                    View recommendation
+                  </Text>
+                  <ArrowRight size={iconSize.sm} color={c.primary} />
+                </View>
+              </Card>
+            </Pressable>
+          ) : (
+            <Card>
+              <Text variant="body" color={c.mutedForeground}>
+                No recommendations yet. Start a discovery session to get
+                your first one.
+              </Text>
             </Card>
-          </Pressable>
-        ) : (
-          <Card>
-            <Text variant="body" color={c.mutedForeground}>
-              No recommendations yet. Start a discovery session to get
-              your first one.
-            </Text>
-          </Card>
-        )}
+          )}
 
-        {/* Show more link if multiple */}
-        {recommendations && recommendations.length > 1 && (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="View all recommendations"
-            onPress={() => router.push('/recommendations')}
-            style={{ marginTop: spacing[2] }}
-          >
-            <Text variant="label" color={c.primary} align="center">
-              View all {recommendations.length} recommendations →
-            </Text>
-          </Pressable>
-        )}
-      </View>
+          {/* Show more link if multiple */}
+          {recommendations && recommendations.length > 1 && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="View all recommendations"
+              onPress={() => router.push('/recommendations')}
+              style={{ marginTop: spacing[2] }}
+            >
+              <Text variant="label" color={c.primary} align="center">
+                View all {recommendations.length} recommendations →
+              </Text>
+            </Pressable>
+          )}
+        </View>
       </FadeInView>
 
       <Separator />
 
       {/* Quick links */}
       <FadeInView delay={160}>
-      <View style={styles.quickLinks}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Validation Pages"
-          onPress={() => {
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push('/validation' as any);
-          }}
-          style={[styles.quickLink, { borderColor: c.border }]}
-        >
-          <FileCheck size={20} color={c.primary} />
-          <Text variant="label" style={{ marginTop: spacing[2] }}>Validation</Text>
-          <Text variant="caption" color={c.mutedForeground}>Test your ideas</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Tools"
-          onPress={() => {
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push('/(tabs)/tools' as any);
-          }}
-          style={[styles.quickLink, { borderColor: c.border }]}
-        >
-          <Zap size={20} color={c.primary} />
-          <Text variant="label" style={{ marginTop: spacing[2] }}>Tools</Text>
-          <Text variant="caption" color={c.mutedForeground}>Coach, outreach</Text>
-        </Pressable>
-      </View>
+        <View style={styles.quickLinks}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Validation Pages"
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push('/validation' as any);
+            }}
+            style={[styles.quickLink, { borderColor: c.border }]}
+          >
+            <FileCheck size={iconSize.md} color={c.primary} />
+            <Text variant="label" style={{ marginTop: spacing[2] }}>Validation</Text>
+            <Text variant="caption" color={c.mutedForeground}>Test your ideas</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Tools"
+            onPress={() => {
+              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push('/(tabs)/tools' as any);
+            }}
+            style={[styles.quickLink, { borderColor: c.border }]}
+          >
+            <Zap size={iconSize.md} color={c.primary} />
+            <Text variant="label" style={{ marginTop: spacing[2] }}>Tools</Text>
+            <Text variant="caption" color={c.mutedForeground}>Coach, outreach</Text>
+          </Pressable>
+        </View>
       </FadeInView>
     </ScreenContainer>
   );

@@ -10,7 +10,7 @@ import * as Haptics from 'expo-haptics';
 import { MessageSquare, Send, ArrowRight, type LucideIcon } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { Text, Card, Badge, ScreenContainer } from '@/components/ui';
-import { spacing } from '@/constants/theme';
+import { spacing, iconSize } from '@/constants/theme';
 
 interface ToolDefinition {
   id:          string;
@@ -73,7 +73,7 @@ export default function ToolsScreen() {
               <Card style={styles.toolCard}>
                 <View style={styles.toolHeader}>
                   <View style={[styles.iconBadge, { backgroundColor: c.primaryAlpha10 }]}>
-                    <Icon size={18} color={c.primary} />
+                    <Icon size={iconSize.md} color={c.primary} />
                   </View>
                   <Text variant="title" style={{ flex: 1 }}>{tool.title}</Text>
                   {tool.badge && <Badge label={tool.badge} variant="primary" />}
@@ -83,7 +83,7 @@ export default function ToolsScreen() {
                 </Text>
                 <View style={styles.toolCta}>
                   <Text variant="label" color={c.primary}>Open tool</Text>
-                  <ArrowRight size={16} color={c.primary} />
+                  <ArrowRight size={iconSize.sm} color={c.primary} />
                 </View>
               </Card>
             </Pressable>

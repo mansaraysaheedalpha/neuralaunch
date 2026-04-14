@@ -10,7 +10,7 @@ import { useTheme } from '@/hooks/useTheme';
 import type { RoadmapPhase } from '@/hooks/useRoadmap';
 import { Text } from '@/components/ui';
 import { TaskCard } from './TaskCard';
-import { spacing } from '@/constants/theme';
+import { spacing, iconSize } from '@/constants/theme';
 
 interface Props {
   phase:            RoadmapPhase;
@@ -37,7 +37,7 @@ export function PhaseBlock({ phase, index, roadmapId, recommendationId }: Props)
             {phase.objective}
           </Text>
           <View style={styles.durationRow}>
-            <CalendarDays size={11} color={c.mutedForeground} style={{ opacity: 0.6 }} />
+            <CalendarDays size={iconSize.xs} color={c.mutedForeground} style={{ opacity: 0.6 }} />
             <Text variant="caption" color={c.mutedForeground} style={{ opacity: 0.6 }}>
               {phase.durationWeeks} week{phase.durationWeeks !== 1 ? 's' : ''}
             </Text>
