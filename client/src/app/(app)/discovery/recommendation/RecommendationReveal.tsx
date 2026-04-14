@@ -209,9 +209,9 @@ export function RecommendationReveal({
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05 }}
-            className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4"
+            className="rounded-xl border border-[#D4A843]/30 bg-[#D4A843]/5 px-5 py-4"
           >
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-2">Your Recommendation</p>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#D4A843]">Your Recommendation</p>
             <p className="text-sm text-foreground leading-relaxed">{r.summary}</p>
           </motion.div>
         )}

@@ -7,6 +7,7 @@
 // conversation loading is replaced by useConversationsList (SWR).
 
 import { Fragment } from 'react';
+import Image from 'next/image';
 import { useSession } from 'next-auth/react';
 import { SidebarHeader } from './sidebar/SidebarHeader';
 import { SidebarNav } from './sidebar/SidebarNav';
@@ -55,9 +56,13 @@ export default function Sidebar({
       {/* Footer */}
       <div className="p-2 border-t border-border flex-shrink-0">
         <div className="flex items-center space-x-2 p-2 rounded-xl">
-          <div className="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-full flex items-center justify-center text-primary-foreground text-sm font-bold">
-            NL
-          </div>
+          <Image
+            src="/neuralaunch_logo.svg"
+            alt=""
+            width={40}
+            height={30}
+            className="h-8 w-auto"
+          />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-foreground truncate">
               NeuraLaunch

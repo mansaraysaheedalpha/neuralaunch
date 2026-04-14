@@ -13,7 +13,7 @@ import { Copy, Check, Share2 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { api, ApiError } from '@/services/api-client';
 import { Text, Card, Button, Badge, ScreenContainer } from '@/components/ui';
-import { spacing, radius, typography } from '@/constants/theme';
+import { spacing, radius, typography, iconSize } from '@/constants/theme';
 
 type Channel = 'email' | 'linkedin' | 'whatsapp' | 'sms';
 
@@ -94,11 +94,17 @@ export default function OutreachComposerScreen() {
       : variation.message;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      await Share.share({
+      const result = await Share.share({
         message: fullText,
-        ...(variation.subject ? { title: variation.subject } : {}),
+        // iOS uses `title` for mail-subject & some activity types;
+        // Android ignores it in the chooser but respects it for some
+        // targets. Fall back to the tone so there's always a title.
+        title: variation.subject ?? `Outreach (${variation.tone})`,
       });
-    } catch { /* user cancelled */ }
+      if (result.action === Share.sharedAction) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch { /* user cancelled or native error — silent */ }
   }
 
   return (
@@ -225,7 +231,7 @@ export default function OutreachComposerScreen() {
                         onPress={() => { void handleShare(variation); }}
                         style={styles.copyButton}
                       >
-                        <Share2 size={16} color={c.mutedForeground} />
+                        <Share2 size={iconSize.sm} color={c.mutedForeground} />
                       </Pressable>
                       <Pressable
                         accessibilityRole="button"
@@ -234,9 +240,9 @@ export default function OutreachComposerScreen() {
                         style={styles.copyButton}
                       >
                         {copiedId === variation.id ? (
-                          <Check size={16} color={c.success} />
+                          <Check size={iconSize.sm} color={c.success} />
                         ) : (
-                          <Copy size={16} color={c.mutedForeground} />
+                          <Copy size={iconSize.sm} color={c.mutedForeground} />
                         )}
                       </Pressable>
                     </View>
@@ -272,7 +278,12 @@ export default function OutreachComposerScreen() {
             {roadmapId && (
               <Button
                 title="Done — back to my roadmap"
-                onPress={() => router.back()}
+                // Use replace with an explicit target so a deep-link
+                // into this screen (push notification, share URL,
+                // external browser) still navigates somewhere sensible
+                // — router.back() silently does nothing on an empty
+                // back stack.
+                onPress={() => router.replace(`/roadmap/${roadmapId}`)}
                 variant="secondary"
                 size="md"
                 fullWidth

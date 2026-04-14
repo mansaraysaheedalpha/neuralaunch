@@ -7,7 +7,7 @@ import { AlertCircle, WifiOff, Lock } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { Text } from './Text';
 import { Button } from './Button';
-import { spacing } from '@/constants/theme';
+import { spacing, iconSize } from '@/constants/theme';
 
 type ErrorKind = 'generic' | 'network' | 'auth';
 
@@ -47,7 +47,7 @@ export function ErrorState({
 
   return (
     <View style={styles.container}>
-      <Icon size={40} color={c.mutedForeground} />
+      <Icon size={iconSize.xl} color={c.mutedForeground} />
       <Text variant="title" align="center" style={{ marginTop: spacing[4] }}>
         {title ?? preset.title}
       </Text>

@@ -92,9 +92,9 @@ export class ErrorBoundary extends Component<Props, State> {
               
               <button
                 onClick={() => (window.location.href = "/")}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg font-medium hover:bg-secondary/90 transition-colors"
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-transparent px-4 py-2 font-medium text-foreground transition-colors hover:bg-muted"
               >
-                Go Home
+                Go home
               </button>
             </div>
           </div>

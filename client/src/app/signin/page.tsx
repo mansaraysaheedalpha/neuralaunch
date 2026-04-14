@@ -1,12 +1,12 @@
-//src/app/signin/page.tsx
 "use client";
 
 import { signIn } from "next-auth/react";
 import { motion } from "motion/react";
-import { Sparkles, ArrowRight, Shield } from "lucide-react";
+import { ArrowLeft, Shield } from "lucide-react";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function SignInPage() {
   const handleSignIn = (provider: "google" | "github") => {
@@ -14,124 +14,133 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="relative flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-background via-violet-50/10 to-purple-50/10 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800/50 p-4 overflow-hidden">
-      {/* Background decoration */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-primary/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-20 right-10 w-96 h-96 bg-secondary/5 rounded-full blur-3xl" />
-      </div>
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#070F1C] p-4 text-[#F7F8FA]">
+      {/* Subtle radial glow — decorative only, matches landing page */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 mx-auto h-[500px] max-w-3xl bg-[radial-gradient(ellipse_at_top,_rgba(37,99,235,0.12),_transparent_60%)]"
+      />
 
-      {/* Back to Home Link */}
+      {/* Back to home */}
       <Link
         href="/"
-        className="absolute top-6 left-6 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        className="absolute left-6 top-6 inline-flex items-center gap-1.5 text-sm font-medium text-slate-400 transition-colors hover:text-white"
       >
-        <ArrowRight className="w-4 h-4 rotate-180" />
-        Back to Home
+        <ArrowLeft className="h-4 w-4" />
+        Back to home
       </Link>
 
-      {/* Main Sign In Card */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: "easeOut" }}
         className="relative z-10 w-full max-w-md"
       >
-        {/* Logo and Branding */}
-        <div className="text-center mb-8">
+        {/* Brand mark */}
+        <div className="mb-10 text-center">
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.2, duration: 0.5 }}
-            className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary to-secondary rounded-2xl mb-4 shadow-lg"
+            transition={{ delay: 0.15, duration: 0.5 }}
+            className="mb-6 inline-flex items-center justify-center"
           >
-            <Sparkles className="w-8 h-8 text-white" />
+            <Image
+              src="/neuralaunch_logo.svg"
+              alt=""
+              width={64}
+              height={48}
+              priority
+              className="h-12 w-auto"
+            />
           </motion.div>
           <motion.h1
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.3, duration: 0.5 }}
-            className="text-3xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent mb-2"
+            transition={{ delay: 0.25, duration: 0.5 }}
+            className="text-3xl font-semibold tracking-tight text-white"
           >
             Welcome to NeuraLaunch
           </motion.h1>
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.4, duration: 0.5 }}
-            className="text-muted-foreground"
+            transition={{ delay: 0.35, duration: 0.5 }}
+            className="mt-3 text-sm text-slate-400"
           >
-            Sign in to start building your validated startup
+            Sign in to start your discovery.
           </motion.p>
         </div>
 
-        {/* Sign In Options Card */}
+        {/* Sign-in card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5, duration: 0.5 }}
-          className="bg-card/80 backdrop-blur-xl border border-border rounded-2xl shadow-2xl p-8"
+          transition={{ delay: 0.4, duration: 0.5 }}
+          className="rounded-xl border border-slate-800 bg-[#0A1628] p-6 shadow-xl sm:p-8"
         >
-          <div className="space-y-4">
-            {/* Google Sign In */}
-            <motion.button
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
+          <div className="space-y-3">
+            {/* Google */}
+            <button
+              type="button"
               onClick={() => handleSignIn("google")}
-              className="group relative w-full flex items-center justify-center gap-3 px-6 py-4 bg-white dark:bg-slate-800 border-2 border-border hover:border-primary/50 rounded-xl font-medium text-foreground transition-all duration-300 overflow-hidden"
+              className="group inline-flex w-full items-center justify-center gap-3 rounded-md border border-slate-700 bg-[#0D1E38] px-6 py-3 text-sm font-medium text-white transition-colors hover:border-slate-600 hover:bg-[#0D1E38]/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A1628]"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <FcGoogle className="w-5 h-5 relative z-10" />
-              <span className="relative z-10">Continue with Google</span>
-            </motion.button>
+              <FcGoogle className="h-5 w-5" aria-hidden="true" />
+              <span>Continue with Google</span>
+            </button>
 
-            {/* GitHub Sign In */}
-            <motion.button
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
+            {/* GitHub */}
+            <button
+              type="button"
               onClick={() => handleSignIn("github")}
-              className="group relative w-full flex items-center justify-center gap-3 px-6 py-4 bg-gradient-to-r from-gray-900 to-gray-800 dark:from-gray-700 dark:to-gray-600 border-2 border-transparent hover:border-gray-600 rounded-xl font-medium text-white transition-all duration-300 overflow-hidden"
+              className="group inline-flex w-full items-center justify-center gap-3 rounded-md border border-slate-700 bg-[#0D1E38] px-6 py-3 text-sm font-medium text-white transition-colors hover:border-slate-600 hover:bg-[#0D1E38]/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A1628]"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <FaGithub className="w-5 h-5 relative z-10" />
-              <span className="relative z-10">Continue with GitHub</span>
-            </motion.button>
+              <FaGithub className="h-5 w-5" aria-hidden="true" />
+              <span>Continue with GitHub</span>
+            </button>
           </div>
 
           {/* Divider */}
           <div className="relative my-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border" />
+              <div className="w-full border-t border-slate-800" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-card px-3 text-muted-foreground">
+              <span className="bg-[#0A1628] px-3 text-slate-500">
                 Secure authentication
               </span>
             </div>
           </div>
 
-          {/* Trust Indicators */}
-          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-            <Shield className="w-4 h-4" />
-            <span>Your data is protected and secure</span>
+          {/* Trust note */}
+          <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
+            <Shield className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Your data is protected and never shared.</span>
           </div>
         </motion.div>
 
-        {/* Terms and Privacy */}
+        {/* Legal footer */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 0.6, duration: 0.5 }}
-          className="text-xs text-center text-muted-foreground mt-6"
+          transition={{ delay: 0.5, duration: 0.5 }}
+          className="mt-6 text-center text-xs text-slate-500"
         >
           By continuing, you agree to our{" "}
-          <Link href="/terms" className="text-primary hover:underline">
+          <Link
+            href="/legal/terms"
+            className="font-medium text-[#2563EB] underline-offset-4 hover:underline"
+          >
             Terms of Service
           </Link>{" "}
           and{" "}
-          <Link href="/privacy" className="text-primary hover:underline">
+          <Link
+            href="/legal/privacy"
+            className="font-medium text-[#2563EB] underline-offset-4 hover:underline"
+          >
             Privacy Policy
           </Link>
+          .
         </motion.p>
       </motion.div>
     </div>

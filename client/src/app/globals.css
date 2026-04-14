@@ -13,26 +13,44 @@ body {
 }
 
 :root {
-  /* Color Palette */
-  --background: 210 20% 98%; /* Light mode background */
-  --foreground: 210 10% 23%; /* Light mode text */
+  /* Color Palette — Light mode (clean professional, rarely used since app defaults to system/dark) */
+  --background: 210 20% 98%; /* near-white */
+  --foreground: 215 25% 15%;
 
   --card: 0 0% 100%;
-  --card-foreground: 210 10% 23%;
+  --card-foreground: 215 25% 15%;
 
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215 25% 55%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 25% 45%;
 
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
+  --border: 215 20% 88%;
+  --input: 215 20% 88%;
 
-  /* Brand Colors */
-  --primary: 259 92% 62%;
+  /* Brand Colors — Electric Blue #2563EB */
+  --primary: 221 83% 53%;
   --primary-foreground: 0 0% 100%;
-  --primary-light: 259 92% 95%;
+  --primary-light: 221 83% 95%;
 
-  --secondary: 336 88% 65%;
-  --secondary-foreground: 0 0% 100%;
+  /* Secondary now maps to a neutral slate — the old pink/rose is removed.
+     Any component that still reads --secondary now renders as a muted
+     neutral button surface, not a hot-pink accent. */
+  --secondary: 215 20% 92%;
+  --secondary-foreground: 215 25% 15%;
+
+  /* Accent tokens for shadcn variants */
+  --accent: 215 20% 92%;
+  --accent-foreground: 215 25% 15%;
+
+  /* Destructive (error) */
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Premium gold accent — #D4A843 (used sparingly) */
+  --gold: 43 60% 55%;
+
+  /* Success emerald — #10B981 */
+  --success: 160 84% 39%;
+  --success-foreground: 0 0% 100%;
 
   /* Shadows - More subtle and layered */
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.03);
@@ -55,23 +73,40 @@ body {
 }
 
 .dark {
-  --background: 222 47% 11%; /* Softer than pure black */
-  --foreground: 210 40% 98%;
+  /* Deep navy background — #070F1C / #0D1E38 */
+  --background: 218 60% 7%;
+  --foreground: 210 17% 97%;
 
-  --card: 222 47% 14%;
-  --card-foreground: 210 40% 98%;
+  --card: 217 62% 14%;
+  --card-foreground: 210 17% 97%;
 
-  --muted: 217 32% 17%;
-  --muted-foreground: 215 20% 75%;
+  --muted: 217 33% 17%; /* slate-800 */
+  --muted-foreground: 215 20% 65%; /* slate-400 */
 
-  --border: 217 32% 27%;
-  --input: 217 32% 27%;
+  --border: 217 33% 17%; /* slate-800 */
+  --input: 217 33% 17%;
 
-  --primary: 259 92% 70%; /* Brighter for dark mode contrast */
-  --primary-foreground: 259 92% 10%;
+  /* Brand Colors — Electric Blue, slightly brighter for dark contrast */
+  --primary: 217 91% 60%;
+  --primary-foreground: 0 0% 100%;
+  --primary-light: 217 91% 20%;
 
-  --secondary: 336 88% 75%;
-  --secondary-foreground: 336 88% 10%;
+  /* Secondary = neutral slate in dark mode */
+  --secondary: 217 33% 20%;
+  --secondary-foreground: 210 17% 97%;
+
+  /* Accent */
+  --accent: 217 33% 20%;
+  --accent-foreground: 210 17% 97%;
+
+  /* Destructive */
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Gold + emerald stay consistent across modes */
+  --gold: 43 60% 55%;
+  --success: 160 84% 39%;
+  --success-foreground: 0 0% 100%;
 }
 
 /* ============================================
@@ -180,42 +215,17 @@ body {
   }
 }
 
+/* Feature card — simple bordered surface with subtle lift on hover.
+   Replaced the old violet→pink sweep gradient that violated the new
+   palette. Borders and shadows carry the emphasis now. */
 .feature-card {
-  /* Define a large gradient background, initially positioned */
-  background-image: linear-gradient(
-    110deg,
-    hsl(var(--card)) 0%, /* Start with card bg */
-    hsl(var(--card)) 40%,
-    hsla(var(--primary) / 0.1) 60%, /* Subtle primary color */
-    hsla(var(--secondary) / 0.1) 80%, /* Subtle secondary color */
-    hsl(var(--card)) 100% /* End with card bg */
-  );
-  background-size: 250% 100%; /* Make gradient wider than the card */
-  background-position: 100% 0; /* Start with the color part off-screen to the right */
-  transition: background-position 0.5s ease-out, transform 0.3s ease-out, box-shadow 0.3s ease-out; /* Include background-position in transition */
+  background-color: hsl(var(--card));
+  transition: transform 0.3s ease-out, box-shadow 0.3s ease-out,
+    border-color 0.3s ease-out;
 }
 
 .feature-card:hover {
-  background-position: 0 0; /* Shift gradient into view on hover */
-  transform: translateY(-5px); /* Re-add lift effect via CSS */
-  box-shadow: 0px 15px 25px -10px hsla(var(--primary), 0.25); /* Re-add shadow effect via CSS */
-}
-
-/* Optional: Dark mode adjustments for gradient */
-.dark .feature-card {
-   background-image: linear-gradient(
-    110deg,
-    hsl(var(--card) / 0.8) 0%, /* Darker card bg */
-    hsl(var(--card) / 0.8) 40%,
-    hsla(var(--primary) / 0.2) 60%, /* Slightly stronger primary */
-    hsla(var(--secondary) / 0.2) 80%, /* Slightly stronger secondary */
-    hsl(var(--card) / 0.8) 100%
-  );
-   background-size: 250% 100%;
-   background-position: 100% 0;
-}
-
-.dark .feature-card:hover {
-   background-position: 0 0;
-   box-shadow: 0px 15px 25px -10px hsla(var(--primary), 0.35); /* Adjust shadow for dark */
+  transform: translateY(-2px);
+  border-color: hsl(var(--primary) / 0.4);
+  box-shadow: 0 10px 20px -10px hsl(var(--primary) / 0.25);
 }

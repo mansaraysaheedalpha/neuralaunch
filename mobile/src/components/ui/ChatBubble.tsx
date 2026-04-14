@@ -7,7 +7,7 @@
 import { View, type ViewStyle } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { Text } from './Text';
-import { radius, spacing, typography, shadows } from '@/constants/theme';
+import { radius, spacing, typography } from '@/constants/theme';
 
 interface Props {
   content: string;
@@ -16,7 +16,7 @@ interface Props {
 }
 
 export function ChatBubble({ content, role, style }: Props) {
-  const { colors: c } = useTheme();
+  const { colors: c, shadows: s } = useTheme();
 
   const isUser = role === 'user';
 
@@ -30,7 +30,7 @@ export function ChatBubble({ content, role, style }: Props) {
     paddingVertical: spacing[3],
     maxWidth: '85%' as any,
     alignSelf: isUser ? 'flex-end' : 'flex-start',
-    ...shadows.sm,
+    ...s.sm,
   };
 
   const textColor = isUser ? c.primaryForeground : c.foreground;

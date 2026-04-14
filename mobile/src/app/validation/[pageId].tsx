@@ -22,7 +22,7 @@ import {
   ListSkeleton,
   ErrorState,
 } from '@/components/ui';
-import { spacing, radius } from '@/constants/theme';
+import { spacing, radius, iconSize } from '@/constants/theme';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -116,12 +116,15 @@ export default function ValidationDetailScreen() {
   async function handleShareLink() {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
-      await Share.share({
+      const result = await Share.share({
         message: pageUrl,
         url:     pageUrl, // iOS uses url; Android uses message
-        title:   page?.recommendationId ? 'NeuraLaunch validation page' : undefined,
+        title:   'NeuraLaunch validation page',
       });
-    } catch { /* user cancelled */ }
+      if (result.action === Share.sharedAction) {
+        void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch { /* user cancelled or native error — silent */ }
   }
 
   async function handleToggleChannel(channel: string, completed: boolean) {
@@ -187,7 +190,7 @@ export default function ValidationDetailScreen() {
                 variant="ghost"
                 size="lg"
                 fullWidth
-                icon={<Share2 size={16} color={c.primary} />}
+                icon={<Share2 size={iconSize.sm} color={c.primary} />}
               />
             </>
           )}

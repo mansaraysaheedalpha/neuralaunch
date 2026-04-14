@@ -7,7 +7,7 @@ import type { LucideIcon } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { Text } from './Text';
 import { Button } from './Button';
-import { spacing } from '@/constants/theme';
+import { spacing, iconSize } from '@/constants/theme';
 
 interface Props {
   icon?:    LucideIcon;
@@ -22,7 +22,7 @@ export function EmptyState({ icon: Icon, title, message, actionLabel, onAction }
 
   return (
     <View style={styles.container}>
-      {Icon && <Icon size={40} color={c.mutedForeground} style={{ opacity: 0.5 }} />}
+      {Icon && <Icon size={iconSize.xl} color={c.mutedForeground} style={{ opacity: 0.5 }} />}
       <Text variant="title" align="center" style={{ marginTop: Icon ? spacing[4] : 0 }}>
         {title}
       </Text>
