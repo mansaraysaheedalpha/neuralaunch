@@ -14,16 +14,35 @@ import Constants from 'expo-constants';
 const TOKEN_KEY = 'nl_session_token';
 
 /**
- * Base URL for the NeuraLaunch API. In development this points at the
- * local Next.js dev server; in production it points at the Vercel
- * deployment. Set via EAS build env or app.json extra.
+ * Base URL for the NeuraLaunch API. Resolution order:
  *
- * Falls back to localhost:3000 for the common Expo Go + local dev
- * server workflow.
+ *   1. `Constants.expoConfig.extra.apiUrl` — set in mobile/app.json.
+ *      In production builds (EAS / App Store / Play Store) this is
+ *      the only source that should be used.
+ *
+ *   2. `__DEV__` fallback — only when the bundler is in dev mode AND
+ *      `extra.apiUrl` is absent. Points at `http://localhost:3000`.
+ *      This path is deliberately unreachable in production.
+ *
+ * Rationale: the previous implementation silently fell back to
+ * localhost in every environment. On a physical phone, `localhost`
+ * resolves to the phone itself and sign-in died. Forcing production
+ * to require `extra.apiUrl` makes misconfiguration loud instead of
+ * silent.
  */
-const API_BASE_URL: string =
-  (Constants.expoConfig?.extra?.apiUrl as string | undefined)
-  ?? 'http://localhost:3000';
+const configuredApiUrl = Constants.expoConfig?.extra?.apiUrl as string | undefined;
+const API_BASE_URL: string = configuredApiUrl
+  ?? (__DEV__ ? 'http://localhost:3000' : '');
+
+if (!API_BASE_URL) {
+  // Fail loud at module-load time. A mis-built app with no apiUrl
+  // would otherwise issue requests to a relative URL against the
+  // mobile bundle host and fail in confusing ways at first API call.
+  // eslint-disable-next-line no-console
+  console.error(
+    '[api-client] No API URL configured. Set extra.apiUrl in mobile/app.json.',
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Token management

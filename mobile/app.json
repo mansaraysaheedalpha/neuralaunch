@@ -2,26 +2,36 @@
   "expo": {
     "name": "NeuraLaunch",
     "slug": "neuralaunch",
+    "owner": "neuralaunch",
     "version": "1.0.0",
+    "description": "From lost to launched. NeuraLaunch listens to your situation, commits to one clear recommendation, and walks the execution with you — Conversation Coach, Outreach Composer, and Research Tool included.",
+    "primaryColor": "#2563EB",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "scheme": "neuralaunch",
+    "privacy": "public",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1a1f36"
+      "backgroundColor": "#0A1628"
     },
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.neuralaunch.mobile"
+      "bundleIdentifier": "app.neuralaunch.mobile",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "app.neuralaunch.mobile",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1a1f36"
+        "backgroundColor": "#0A1628"
       },
       "edgeToEdgeEnabled": true
     },
@@ -31,10 +41,19 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#2563EB"
+        }
+      ]
     ],
     "install": {
       "exclude": ["react-dom"]
+    },
+    "extra": {
+      "apiUrl": "https://startupvalidator.app"
     }
   }
 }

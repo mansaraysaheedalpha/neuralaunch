@@ -72,7 +72,12 @@ async function exchangeGoogleCode(code: string, callbackUrl: string): Promise<OA
 }
 
 async function exchangeGitHubCode(code: string): Promise<OAuthUser> {
-  // Exchange code for access token
+  // Exchange code for access token.
+  // Uses the mobile-specific GitHub OAuth App credentials. GitHub
+  // OAuth Apps permit exactly one callback URL, so we register a
+  // separate "NeuraLaunch Mobile" app for the /api/auth/mobile/*
+  // flow. The web app's GITHUB_CLIENT_ID stays pointed at the original
+  // OAuth App whose callback URL is the NextAuth web callback.
   const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
     method: 'POST',
     headers: {
@@ -80,8 +85,8 @@ async function exchangeGitHubCode(code: string): Promise<OAuthUser> {
       'Accept': 'application/json',
     },
     body: JSON.stringify({
-      client_id:     env.GITHUB_CLIENT_ID,
-      client_secret: env.GITHUB_CLIENT_SECRET,
+      client_id:     env.GITHUB_MOBILE_CLIENT_ID,
+      client_secret: env.GITHUB_MOBILE_CLIENT_SECRET,
       code,
     }),
   });

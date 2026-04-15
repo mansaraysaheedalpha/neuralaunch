@@ -1,92 +1,19 @@
 // src/app/roadmap/[id].tsx
 //
-// Roadmap view screen — interactive task cards organized by phase,
-// progress header, closing thought, and stale-roadmap banner.
-// The [id] param is the recommendationId (matching the web app's URL).
+// Stack-pushed roadmap view reached by deep-link, push notification,
+// or tap on a specific recommendation. The [id] param is the
+// recommendationId (matching the web app's URL). The body is
+// RoadmapViewer — same renderer used by the Roadmap tab for the
+// founder's active roadmap.
 
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
-import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
-
+import { useLocalSearchParams, Stack } from 'expo-router';
 import { useTheme } from '@/hooks/useTheme';
-import { useRoadmap } from '@/hooks/useRoadmap';
-import {
-  Text,
-  Card,
-  Button,
-  ScreenContainer,
-  ListSkeleton,
-  ErrorState,
-} from '@/components/ui';
-import { ProgressHeader } from '@/components/roadmap/ProgressHeader';
-import { PhaseBlock } from '@/components/roadmap/PhaseBlock';
-import { spacing } from '@/constants/theme';
+import { ScreenContainer } from '@/components/ui';
+import { RoadmapViewer } from '@/components/roadmap/RoadmapViewer';
 
 export default function RoadmapScreen() {
   const { id: recommendationId } = useLocalSearchParams<{ id: string }>();
   const { colors: c } = useTheme();
-  const router = useRouter();
-  const { roadmap, isLoading, isGenerating, refresh } = useRoadmap(recommendationId ?? null);
-
-  const headerOpts = (
-    <Stack.Screen
-      options={{
-        headerShown: true,
-        headerTitle: 'Your Roadmap',
-        headerTintColor: c.foreground,
-        headerStyle: { backgroundColor: c.background },
-        headerShadowVisible: false,
-      }}
-    />
-  );
-
-  // Generating state — keep the richer "building your roadmap" spinner
-  // because the wait is meaningful and founders need reassurance.
-  if (isGenerating) {
-    return (
-      <>
-        {headerOpts}
-        <View style={[styles.centered, { backgroundColor: c.background }]}>
-          <ActivityIndicator size="large" color={c.primary} />
-          <Text variant="label" color={c.mutedForeground} style={{ marginTop: spacing[3] }}>
-            Building your execution roadmap…
-          </Text>
-          <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1] }}>
-            This takes about 20–30 seconds
-          </Text>
-        </View>
-      </>
-    );
-  }
-
-  // Initial load / no-data yet — skeleton
-  if (isLoading || !roadmap) {
-    return (
-      <>
-        {headerOpts}
-        <ScreenContainer>
-          <View style={{ marginTop: spacing[6] }}>
-            <ListSkeleton count={4} />
-          </View>
-        </ScreenContainer>
-      </>
-    );
-  }
-
-  // Failed state
-  if (roadmap.status === 'FAILED') {
-    return (
-      <>
-        {headerOpts}
-        <ScreenContainer>
-          <ErrorState
-            title="Roadmap generation failed"
-            message="Your roadmap could not be generated. Please try again."
-            onRetry={() => void refresh()}
-          />
-        </ScreenContainer>
-      </>
-    );
-  }
 
   return (
     <>
@@ -99,100 +26,9 @@ export default function RoadmapScreen() {
           headerShadowVisible: false,
         }}
       />
-
       <ScreenContainer>
-        {/* Stale banner */}
-        {roadmap.status === 'STALE' && (
-          <Card variant="muted" style={styles.staleBanner}>
-            <Text variant="caption" color={c.warning}>
-              Your recommendation was updated after this roadmap was generated.
-              The content below may be outdated.
-            </Text>
-            <Button
-              title="Regenerate roadmap"
-              onPress={() => { /* TODO: wire regeneration */ }}
-              variant="secondary"
-              size="sm"
-              style={{ marginTop: spacing[2] }}
-            />
-          </Card>
-        )}
-
-        {/* Progress header */}
-        <ProgressHeader
-          totalWeeks={roadmap.totalWeeks}
-          weeklyHours={roadmap.weeklyHours}
-          progress={roadmap.progress}
-        />
-
-        {/* Phases */}
-        <View style={styles.phases}>
-          {roadmap.phases.map((phase, i) => (
-            <PhaseBlock
-              key={phase.phase}
-              phase={phase}
-              index={i}
-              roadmapId={roadmap.id}
-              recommendationId={recommendationId ?? ''}
-            />
-          ))}
-        </View>
-
-        {/* Closing thought */}
-        {roadmap.closingThought && (
-          <View>
-            <Card variant="primary" style={styles.closingCard}>
-              <Text variant="overline" color={c.primary}>
-                Your Next Move
-              </Text>
-              <Text variant="body" style={{ marginTop: spacing[2] }}>
-                {roadmap.closingThought}
-              </Text>
-            </Card>
-          </View>
-        )}
-
-        {/* Continuation link — visible once some tasks are done */}
-        {roadmap.progress && roadmap.progress.completedTasks > 0 && (
-          <View style={{ marginTop: spacing[6] }}>
-            <Card variant="muted">
-              <Text variant="overline" color={c.mutedForeground}>
-                What's next
-              </Text>
-              <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1] }}>
-                Looking for the next step? Generate a continuation brief
-                based on your progress so far.
-              </Text>
-              <Button
-                title="See what's next →"
-                onPress={() => router.push(`/roadmap/${recommendationId}/continuation` as any)}
-                variant="ghost"
-                size="sm"
-                style={{ marginTop: spacing[2], alignSelf: 'flex-start' }}
-              />
-            </Card>
-          </View>
-        )}
+        <RoadmapViewer recommendationId={recommendationId ?? null} />
       </ScreenContainer>
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: spacing[8],
-  },
-  staleBanner: {
-    marginBottom: spacing[4],
-  },
-  phases: {
-    gap: spacing[10],
-    marginTop: spacing[6],
-  },
-  closingCard: {
-    marginTop: spacing[8],
-  },
-});
