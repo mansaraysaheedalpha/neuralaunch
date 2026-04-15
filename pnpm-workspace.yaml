@@ -1,4 +1,9 @@
+# `mobile/` is intentionally NOT a workspace member. EAS Build's
+# monorepo detection misidentifies pnpm workspaces and falls back to
+# `yarn install`, which fails on the modern `packageManager` field.
+# Treating mobile as a standalone pnpm project (with its own
+# pnpm-lock.yaml) sidesteps the issue. Local mobile dev works via
+# `cd mobile && pnpm <cmd>` instead of `pnpm --filter mobile <cmd>`.
 packages:
   - 'client'
-  - 'mobile'
   - 'packages/*'
