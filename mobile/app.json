@@ -17,7 +17,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#0A1628"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.neuralaunch.mobile",
@@ -50,13 +52,21 @@
       ]
     ],
     "install": {
-      "exclude": ["react-dom"]
+      "exclude": [
+        "react-dom"
+      ]
     },
     "extra": {
       "apiUrl": "https://startupvalidator.app",
       "eas": {
         "projectId": "e6240873-bbe7-49e3-8634-f68f53043cd1"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e6240873-bbe7-49e3-8634-f68f53043cd1"
     }
   }
 }

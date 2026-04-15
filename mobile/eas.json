@@ -14,7 +14,8 @@
       },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://startupvalidator.app"
-      }
+      },
+      "channel": "base"
     },
     "development": {
       "extends": "base",
