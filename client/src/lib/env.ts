@@ -19,11 +19,20 @@ const envSchema = z.object({
   NEXTAUTH_URL:    z.string().url().min(1),
   NEXTAUTH_SECRET: z.string().min(32),
 
-  // OAuth Providers
+  // OAuth Providers — web
   GOOGLE_CLIENT_ID:     z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   GITHUB_CLIENT_ID:     z.string().min(1),
   GITHUB_CLIENT_SECRET: z.string().min(1),
+
+  // OAuth Providers — mobile
+  // Google is shared with the web app (the mobile callback URL is
+  // registered as an additional Authorized redirect URI on the same
+  // OAuth 2.0 Client). GitHub does not allow multiple callback URLs
+  // per OAuth App, so a separate "NeuraLaunch Mobile" app exists and
+  // ships its own client ID + secret.
+  GITHUB_MOBILE_CLIENT_ID:     z.string().min(1),
+  GITHUB_MOBILE_CLIENT_SECRET: z.string().min(1),
 
   // AI Services
   ANTHROPIC_API_KEY: z.string().min(1),

@@ -46,6 +46,28 @@ model User {
   trainingConsent   Boolean                 @default(false)
   trainingConsentAt DateTime?
   outcomes          RecommendationOutcome[]
+
+  // ----- Push notifications -----
+  //
+  // `pushTokens` are Expo push tokens registered per device. A user can
+  // have multiple devices; we send to each active one. `nudgesEnabled`
+  // is the master toggle from the mobile Settings screen — when false
+  // we still keep the tokens (so re-enabling is instant) but skip
+  // sending.
+  pushTokens        PushToken[]
+  nudgesEnabled     Boolean                 @default(true)
+}
+
+model PushToken {
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  platform     String   // 'ios' | 'android' | 'web'
+  createdAt    DateTime @default(now())
+  lastUsedAt   DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Account {

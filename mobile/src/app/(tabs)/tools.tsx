@@ -7,7 +7,7 @@
 import { View, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { MessageSquare, Send, ArrowRight, type LucideIcon } from 'lucide-react-native';
+import { MessageSquare, Send, Search, ArrowRight, type LucideIcon } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { Text, Card, Badge, ScreenContainer } from '@/components/ui';
 import { spacing, iconSize } from '@/constants/theme';
@@ -36,6 +36,13 @@ const TOOLS: ToolDefinition[] = [
     description: 'Generate personalised outreach messages for cold emails, LinkedIn, WhatsApp, and more — adapted to your market, your product, and your audience.',
     route:       '/tools/outreach',
     icon:        Send,
+  },
+  {
+    id:          'research_tool',
+    title:       'Research Tool',
+    description: 'Ask anything — find customers, check regulations, compare competitors, verify pricing. The agent plans, executes a deep multi-source investigation, and returns a cited report tied back to your roadmap.',
+    route:       '/tools/research',
+    icon:        Search,
   },
 ];
 

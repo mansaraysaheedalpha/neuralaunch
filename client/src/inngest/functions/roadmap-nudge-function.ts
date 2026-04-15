@@ -6,6 +6,7 @@ import {
   StoredPhasesArraySchema,
   type StoredRoadmapPhase,
 } from '@/lib/roadmap/checkin-types';
+import { sendPushToUser } from '@/lib/push/send-push';
 
 /**
  * roadmapNudgeFunction
@@ -26,8 +27,12 @@ import {
  *   - nudgePending is currently false (do not stack)
  *   - nudgeLastSentAt is null OR > 7 days ago (no spam)
  *
- * Nudge delivery is in-app only — no email, no push, no SMS in v1.
- * The client reads nudgePending and renders the prompt.
+ * Nudge delivery is twofold:
+ *   1. nudgePending flag drives the in-app banner the next time the
+ *      founder opens their roadmap.
+ *   2. If the user has registered Expo push tokens and has not
+ *      disabled nudges in Settings, we also fire an Expo push so
+ *      they see the nudge without having to open the app.
  *
  * Idempotent: running twice on the same day is a no-op on the second
  * pass because the first pass will have set nudgePending=true (or
@@ -75,6 +80,9 @@ export const roadmapNudgeFunction = inngest.createFunction(
           totalTasks:      true,
           completedTasks:  true,
           lastActivityAt:  true,
+          roadmap: {
+            select: { userId: true },
+          },
         },
         take: NUDGE_CANDIDATE_CAP,
       });
@@ -139,6 +147,22 @@ export const roadmapNudgeFunction = inngest.createFunction(
             roadmapId:    row.roadmapId,
             staleTaskTitle: stale.taskTitle,
           });
+
+          // Fire push (best-effort — never blocks). The send helper
+          // respects User.nudgesEnabled and silently returns 0 if the
+          // user has opted out or has no registered tokens.
+          const pushCount = await sendPushToUser(
+            row.roadmap.userId,
+            'How did it go?',
+            `You were working on "${stale.taskTitle}". Tap to check in.`,
+            { roadmapId: row.roadmapId, taskTitle: stale.taskTitle },
+          );
+          if (pushCount > 0) {
+            log.info('[RoadmapNudge] Push delivered', {
+              roadmapId: row.roadmapId,
+              devices:   pushCount,
+            });
+          }
         });
       } catch (err) {
         log.error(
