@@ -67,6 +67,15 @@ const config: Config = {
         lg: "var(--shadow-lg)",
         xl: "var(--shadow-xl)",
       },
+      transitionDuration: {
+        fast: "150ms",
+        medium: "250ms",
+        slow: "400ms",
+      },
+      transitionTimingFunction: {
+        standard: "cubic-bezier(0, 0, 0.2, 1)",
+        emphasis: "cubic-bezier(0.22, 1, 0.36, 1)",
+      },
       keyframes: {
         "gradient-x": {
           "0%, 100%": {
