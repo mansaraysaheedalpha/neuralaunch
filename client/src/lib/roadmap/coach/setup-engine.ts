@@ -12,7 +12,7 @@
 // to SETUP_MAX_EXCHANGES times.
 
 import 'server-only';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
@@ -92,13 +92,14 @@ export async function runCoachSetup(
 
   const isLastExchange = input.exchangeNumber >= SETUP_MAX_EXCHANGES;
 
-  const { object } = await withModelFallback(
+  const object = await withModelFallback(
     'coach:setup',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
-    (modelId) => generateObject({
-      model:  aiSdkAnthropic(modelId),
-      schema: SetupResponseSchema,
-      messages: [{
+    async (modelId) => {
+      const { output } = await generateText({
+        model:  aiSdkAnthropic(modelId),
+        output: Output.object({ schema: SetupResponseSchema }),
+        messages: [{
         role: 'user',
         content: `You are the setup stage of NeuraLaunch's Conversation Coach. Your job is to understand the founder's upcoming high-stakes conversation so you can prepare them for it.
 
@@ -130,7 +131,9 @@ ${input.taskContext
 
 Produce your structured response now.`,
       }],
-    }),
+      });
+      return output;
+    },
   );
 
   log.info('[CoachSetup] Turn complete', {

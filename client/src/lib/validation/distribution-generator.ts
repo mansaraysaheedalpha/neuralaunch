@@ -1,6 +1,6 @@
 // src/lib/validation/distribution-generator.ts
 import 'server-only';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
@@ -84,13 +84,14 @@ export async function generateDistributionBrief(
   let lastErr: unknown = null;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const { object } = await withModelFallback(
+      const output = await withModelFallback(
         'validation:distributionBrief',
         { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
-        (modelId) => generateObject({
-        model:  aiSdkAnthropic(modelId),
-        schema: z.object({ channels: DistributionBriefSchema }),
-        messages: [{
+        async (modelId) => {
+          const { output } = await generateText({
+            model:  aiSdkAnthropic(modelId),
+            output: Output.object({ schema: z.object({ channels: DistributionBriefSchema }) }),
+            messages: [{
           role: 'user',
           content: `You are generating a three-channel distribution brief for a founder who has just published their validation landing page.
 
@@ -118,12 +119,14 @@ Generate exactly ${DISTRIBUTION_BRIEF_CONFIG.CHANNEL_COUNT} distribution channel
 - Do NOT recommend channels the founder has already tried and failed with
 - Do NOT recommend Product Hunt or international communities if the market is local
 - Rank channels by expected yield — highest first`,
-        }],
-      }),
+          }],
+          });
+          return output;
+        },
       );
 
-      log.info('Distribution brief generated', { sessionId, channelCount: object.channels.length });
-      return object.channels;
+      log.info('Distribution brief generated', { sessionId, channelCount: output.channels.length });
+      return output.channels;
     } catch (err) {
       lastErr = err;
       log.warn('Distribution brief attempt failed, retrying', { attempt });

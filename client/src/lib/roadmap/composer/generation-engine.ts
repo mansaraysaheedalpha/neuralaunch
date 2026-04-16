@@ -142,7 +142,7 @@ export async function runComposerGeneration(
         model:   aiSdkAnthropic(modelId),
         tools,
         stopWhen: stepCountIs(RESEARCH_BUDGETS.composer.steps),
-        experimental_output: Output.object({ schema: ComposerOutputSchema }),
+        output: Output.object({ schema: ComposerOutputSchema }),
         messages: [{
           role: 'user',
           content: `You are NeuraLaunch's Outreach Composer. The founder needs ready-to-send outreach messages. Your output must be copy-paste ready — no placeholders, no templates, no editing required.
@@ -184,10 +184,10 @@ CRITICAL RULES:
 Produce the structured ComposerOutput now.`,
         }],
       });
-      if (!result.experimental_output) {
+      if (!result.output) {
         throw new Error('Model failed to produce ComposerOutput — exhausted tool budget without emitting structured output.');
       }
-      return result.experimental_output;
+      return result.output;
     },
   );
 

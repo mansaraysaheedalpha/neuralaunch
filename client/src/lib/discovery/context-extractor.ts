@@ -1,6 +1,6 @@
 // src/lib/discovery/context-extractor.ts
 import 'server-only';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { DiscoveryContext, DiscoveryContextField } from './context-schema';
@@ -166,9 +166,9 @@ export async function extractContext(
     'extractContext',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
     async (modelId) => {
-    const { object } = await generateObject({
+    const { output } = await generateText({
       model:  aiSdkAnthropic(modelId),
-      schema: ExtractionResultSchema,
+      output: Output.object({ schema: ExtractionResultSchema }),
       messages: [{
         role:    'user',
         content: `You are processing a message in a startup discovery interview.
@@ -222,7 +222,7 @@ Do NOT flag routine mentions of tools (e.g., "I use Excel") or general context (
 If inputType is NOT "answer": set extractions to an empty array, contradicts to false, and followUp.detected to false.`,
       }],
     });
-    return object;
+    return output;
   });
 
   // Build the followUp signal from the extraction result
@@ -312,9 +312,9 @@ export async function detectAudienceType(
     'detectAudienceType',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
     async (modelId) => {
-    const { object } = await generateObject({
+    const { output } = await generateText({
       model:  aiSdkAnthropic(modelId),
-      schema: AudienceClassificationSchema,
+      output: Output.object({ schema: AudienceClassificationSchema }),
       messages: [{
         role:    'user',
         content: `Classify this person's audience type based on what they have shared.
@@ -337,7 +337,7 @@ Audience types:
 Choose the closest fit. Confidence 0.6-0.8 if inferred, 0.8-1.0 if explicit.`,
       }],
     });
-    return object;
+    return output;
   });
 
   return object;

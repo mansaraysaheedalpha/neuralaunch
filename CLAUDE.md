@@ -192,6 +192,62 @@ const response = await anthropic.messages.create({
 - Tool definitions must be generated via `z.toJSONSchema()` — never handwrite JSON Schema
 - The `useChat` hook is the only client-side hook for conversation state
 
+### Prompt caching (Anthropic)
+
+**Every Claude call with a stable prefix ≥ 1024 tokens MUST cache.** A cache
+hit pays 0.1× the normal input-token price, cuts latency from >1s to ~100ms,
+and is backwards-compatible (a miss renders identically to an uncached call).
+Cached prompts stay warm for 5 minutes server-side — a perfect fit for
+multi-turn interactions (discovery interview, pushback loop, check-in
+conversations, coach rehearsal, diagnostic chat).
+
+**Use the helpers in `src/lib/ai/prompt-cache.ts`. Never write `cache_control`
+or `providerOptions.anthropic.cacheControl` inline — the helper applies the
+right shape and the right minimum-token threshold.**
+
+Choose the shape that matches the call:
+
+```typescript
+// CORRECT — Vercel AI SDK, two-message split (most common)
+const { object } = await generateObject({
+  model: aiSdkAnthropic(modelId),
+  schema: MySchema,
+  messages: cachedUserMessages(STABLE_RULES_AND_CONTEXT, VOLATILE_TURN),
+});
+
+// CORRECT — Vercel AI SDK with a system prompt (streaming questions etc.)
+await streamText({
+  model,
+  system: cachedSystem(BIG_SYSTEM_RULES),
+  messages: priorTurnsPlusCurrent,
+});
+
+// CORRECT — raw @anthropic-ai/sdk (synthesis-engine summarisation etc.)
+await anthropicClient.messages.create({
+  model,
+  max_tokens: 1024,
+  messages: [{ role: 'user', content: cachedAnthropicContent(STABLE, VOLATILE) }],
+});
+
+// WRONG — single concatenated message when a stable prefix exists
+messages: [{ role: 'user', content: `${RULES}${CONTEXT}${USER_TURN}` }];
+
+// WRONG — hand-rolled cache_control inline
+providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } };
+```
+
+**What counts as stable:** rules / instructions, tool-use guidance, schema
+descriptions, belief-state rendering, roadmap outlines (stable until task
+status changes), recommendation blocks, prior conversation turns older than
+the current one. **What counts as volatile:** the founder's latest message,
+the specific task being checked in on this call, and any per-call
+classification verdicts.
+
+**Where the breakpoint goes:** at the END of the stable content, right before
+the volatile suffix. Anthropic caches everything up to and including the
+marker. Maximum four cache breakpoints per request — almost every call in
+this codebase only needs one.
+
 ### Zod v4 schema patterns
 
 ```typescript

@@ -91,7 +91,7 @@ export async function runResearchExecution(
         model:   aiSdkAnthropic(modelId),
         tools,
         stopWhen: stepCountIs(RESEARCH_BUDGETS['research-execution'].steps),
-        experimental_output: Output.object({ schema: ResearchReportSchema }),
+        output: Output.object({ schema: ResearchReportSchema }),
         messages: [{
           role: 'user',
           content: `You are NeuraLaunch's Founder Research Tool — an analyst-grade research agent. The founder has asked a research question and you have an approved research plan. Execute the plan using the research tools available, then produce a structured research report.
@@ -159,10 +159,10 @@ Execute the research plan now and produce the structured ResearchReport.`,
         }],
       });
 
-      if (!result.experimental_output) {
+      if (!result.output) {
         throw new Error('Research execution failed — model exhausted step budget without emitting structured output.');
       }
-      return result.experimental_output;
+      return result.output;
     },
   );
 

@@ -11,7 +11,7 @@
 // (they can skip it), so a hard failure is acceptable.
 
 import 'server-only';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { logger } from '@/lib/logger';
 import { MODELS } from '@/lib/discovery/constants';
@@ -63,13 +63,14 @@ export async function runDebrief(
     .map((o, i) => `${i + 1}. "${sanitizeForPrompt(o.objection, 200)}"`)
     .join('\n');
 
-  const { object } = await withModelFallback(
+  const object = await withModelFallback(
     'coach:debrief',
     { primary: DEBRIEF_MODEL, fallback: MODELS.INTERVIEW_FALLBACK_1 },
-    (modelId) => generateObject({
-    model:  aiSdkAnthropic(modelId),
-    schema: DebriefSchema,
-    messages: [{
+    async (modelId) => {
+      const { output } = await generateText({
+        model:  aiSdkAnthropic(modelId),
+        output: Output.object({ schema: DebriefSchema }),
+        messages: [{
       role: 'user',
       content: `You are reviewing a conversation rehearsal for NeuraLaunch's Conversation Coach. The founder has just completed a role-play of a high-stakes conversation. Your job is to produce a concise, honest debrief that helps them perform better in the real conversation.
 
@@ -102,8 +103,10 @@ TONE RULES:
 - Honest. Do not sugarcoat significant hesitations or missteps — the real conversation is what matters.
 
 Produce the structured debrief now.`,
-    }],
-  }),
+        }],
+      });
+      return output;
+    },
   );
 
   log.info('[CoachDebrief] Debrief generated', {

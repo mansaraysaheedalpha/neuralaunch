@@ -8,7 +8,7 @@
 // at CONTEXT_MAX_EXCHANGES before forcing 'ready' with defaults.
 
 import 'server-only';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
@@ -105,13 +105,14 @@ export async function runComposerContext(
 
   const isLastExchange = input.exchangeNumber >= CONTEXT_MAX_EXCHANGES;
 
-  const { object } = await withModelFallback(
+  const object = await withModelFallback(
     'composer:context',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
-    (modelId) => generateObject({
-      model:  aiSdkAnthropic(modelId),
-      schema: ContextResponseSchema,
-      messages: [{
+    async (modelId) => {
+      const { output } = await generateText({
+        model:  aiSdkAnthropic(modelId),
+        output: Output.object({ schema: ContextResponseSchema }),
+        messages: [{
         role: 'user',
         content: `You are the context-collection stage of NeuraLaunch's Outreach Composer. Your job is to understand who the founder is reaching out to, the goal, the channel, and the right mode before generating messages.
 
@@ -145,7 +146,9 @@ ${input.taskContext
 
 Produce your structured response now.`,
       }],
-    }),
+      });
+      return output;
+    },
   );
 
   log.info('[ComposerContext] Turn complete', {

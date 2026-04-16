@@ -1,6 +1,6 @@
 // src/lib/validation/build-brief-generator.ts
 import 'server-only';
-import { generateObject }              from 'ai';
+import { generateText, Output }        from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { logger }                      from '@/lib/logger';
 import { MODELS }                      from '@/lib/discovery/constants';
@@ -134,13 +134,14 @@ export async function generateBuildBrief(input: BuildBriefInput): Promise<Valida
     surveyCount:  metrics.surveyResponses.length,
   });
 
-  const { object } = await withModelFallback(
+  const object = await withModelFallback(
     'validation:buildBrief',
     { primary: MODELS.SYNTHESIS, fallback: MODELS.INTERVIEW },
-    (modelId) => generateObject({
-    model:  aiSdkAnthropic(modelId),
-    schema: ValidationReportSchema,
-    messages: [{
+    async (modelId) => {
+      const { output } = await generateText({
+        model:  aiSdkAnthropic(modelId),
+        output: Output.object({ schema: ValidationReportSchema }),
+        messages: [{
       role: 'user',
       content: `You are writing the committed build brief for a founder who has just collected enough validation data to make a product decision.
 
@@ -208,8 +209,10 @@ RULES:
 10. Never invent numbers. Every claim must trace back to the data above.
 
 11. If the signal contradicts the original recommendation path, say so plainly in the buildBrief. Never paper over it.`,
-    }],
-  }),
+      }],
+      });
+      return output;
+    },
   );
 
   log.info('Build brief generated', {
