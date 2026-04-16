@@ -3,14 +3,20 @@
 // Shared constants for the task UI — status labels, Badge variants,
 // and the canonical taskId format.
 
-import type { TaskStatus } from '@/hooks/useRoadmap';
+import { TASK_STATUSES, type TaskStatus } from '@neuralaunch/constants';
 
-export const STATUS_OPTIONS: Array<{ value: TaskStatus; label: string }> = [
-  { value: 'not_started', label: 'Not started' },
-  { value: 'in_progress', label: 'In progress' },
-  { value: 'completed',   label: 'Completed' },
-  { value: 'blocked',     label: 'Blocked' },
-];
+// Enum values sourced from @neuralaunch/constants so mobile and the
+// client server can't drift. Labels remain in mobile because they
+// are UI-layer concerns.
+const STATUS_LABELS: Record<TaskStatus, string> = {
+  not_started: 'Not started',
+  in_progress: 'In progress',
+  completed:   'Completed',
+  blocked:     'Blocked',
+};
+
+export const STATUS_OPTIONS: Array<{ value: TaskStatus; label: string }> =
+  TASK_STATUSES.map((value) => ({ value, label: STATUS_LABELS[value] }));
 
 export const STATUS_VARIANTS: Record<
   TaskStatus,

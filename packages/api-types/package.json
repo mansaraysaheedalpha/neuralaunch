@@ -11,10 +11,8 @@
       "default": "./src/index.ts"
     }
   },
-  "dependencies": {
-    "zod": "^4.1.12"
-  },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^5",
+    "zod": "^4.1.12"
   }
 }
