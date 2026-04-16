@@ -182,14 +182,18 @@ export default function RecommendationScreen() {
           </View>
         </CollapsibleSection>
 
-        {/* Alternative Considered & Rejected */}
-        <CollapsibleSection label="Alternative Considered & Rejected">
-          <Card>
-            <Text variant="label">{r.alternativeRejected.alternative}</Text>
-            <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1] }}>
-              {r.alternativeRejected.whyNotForThem}
-            </Text>
-          </Card>
+        {/* Alternatives Considered & Rejected */}
+        <CollapsibleSection label="Alternatives Considered & Rejected">
+          <View style={{ gap: spacing[3] }}>
+            {r.alternativeRejected.map((alt, idx) => (
+              <Card key={idx}>
+                <Text variant="label">{alt.alternative}</Text>
+                <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1] }}>
+                  {alt.whyNotForThem}
+                </Text>
+              </Card>
+            ))}
+          </View>
         </CollapsibleSection>
 
         <Separator />

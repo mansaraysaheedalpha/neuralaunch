@@ -379,24 +379,28 @@ WHERE "consentedToTraining" = false
 This project uses **pnpm**, never npm. `npm install` will silently corrupt `node_modules` because of how the Prisma client is patched in `scripts/fix-prisma-pnpm.js` (declared as the `postinstall` hook in `client/package.json`).
 
 ```bash
-# Install / reinstall deps
-cd client && pnpm install
+# Install / reinstall deps (from repo root — runs the whole workspace)
+pnpm install
 
 # Run dev server
-cd client && pnpm dev
+pnpm --filter client dev
 
 # Production build (runs `prisma migrate deploy && prisma generate` first)
-cd client && pnpm build
+pnpm --filter client build
 
 # Create a new migration from a schema edit (do NOT apply yet)
-cd client && pnpm prisma migrate dev --create-only
+pnpm --filter client prisma migrate dev --create-only
 
 # Resolve a P3009 stuck migration (see playbook 5a)
-cd client && pnpm prisma migrate resolve --applied <migration_name>
-cd client && pnpm prisma migrate resolve --rolled-back <migration_name>
+pnpm --filter client prisma migrate resolve --applied <migration_name>
+pnpm --filter client prisma migrate resolve --rolled-back <migration_name>
 
 # After deleting routes, clear the Next.js type cache and re-typecheck
-cd client && rm -rf .next/types && npx tsc --noEmit
+cd client && rm -rf .next/types && pnpm exec tsc --noEmit
+
+# Mobile install / typecheck (mobile is standalone, not part of the workspace)
+cd mobile && pnpm install --ignore-workspace
+cd mobile && pnpm exec tsc --noEmit
 
 # Inspect git state safely (NEVER use -uall — memory issues on this repo)
 git status

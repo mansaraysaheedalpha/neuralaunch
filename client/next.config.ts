@@ -5,6 +5,14 @@ import { withSentryConfig } from "@sentry/nextjs";
 const nextConfig: NextJsConfig = {
   reactStrictMode: false,
   productionBrowserSourceMaps: false, // Keep this
+  // Workspace packages that ship raw TypeScript (.ts) sources rather
+  // than pre-compiled JS. Next.js / webpack won't process files from
+  // node_modules by default — listing them here opts them into the
+  // same SWC transpile pipeline as the app's own source.
+  transpilePackages: [
+    '@neuralaunch/api-types',
+    '@neuralaunch/constants',
+  ],
   images: {
     remotePatterns: [
       {

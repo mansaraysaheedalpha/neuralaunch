@@ -11,5 +11,12 @@
   "engines": {
     "node": ">=20"
   },
-  "packageManager": "pnpm@9.15.4"
+  "packageManager": "pnpm@9.15.4",
+  "_pnpm_overrides_reason": "zod pinned to 4.1.12: the 4.3.x line tightens generic inference and breaks Inngest's JsonifyObject wrapper on Zod-inferred types that come from a workspace package. inngest pinned to 4.1.1: the 4.2.x release retypes JsonifyObject in a way that no longer collapses passthrough fields, breaking assignability at every Inngest function that reads a StoredRoadmapPhase[] from a step return value. Revisit when Inngest upgrades or when this codebase moves off Inngest's runtime serdes.",
+  "pnpm": {
+    "overrides": {
+      "zod": "4.1.12",
+      "inngest": "4.1.1"
+    }
+  }
 }

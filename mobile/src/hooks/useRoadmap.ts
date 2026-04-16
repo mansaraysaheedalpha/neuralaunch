@@ -7,50 +7,29 @@
 import { useEffect } from 'react';
 import useSWR from 'swr';
 import { api } from '@/services/api-client';
+import {
+  StoredRoadmapPhaseSchema,
+  type StoredRoadmapTask,
+  type StoredRoadmapPhase,
+  type CheckInEntry,
+} from '@neuralaunch/api-types';
+import { type TaskStatus } from '@neuralaunch/constants';
+import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
-// Types — mirror the web app's StoredRoadmapTask + Phase
+// Re-export the cross-app shapes so existing component imports
+// (`import { RoadmapTask } from '@/hooks/useRoadmap'`) keep working.
+// Canonical source: @neuralaunch/api-types + @neuralaunch/constants.
 // ---------------------------------------------------------------------------
 
-export type TaskStatus = 'not_started' | 'in_progress' | 'completed' | 'blocked';
+export type { StoredRoadmapTask as RoadmapTask };
+export type { StoredRoadmapPhase as RoadmapPhase };
+export type { CheckInEntry };
+export type { TaskStatus };
 
-export interface CheckInEntry {
-  id:            string;
-  timestamp:     string;
-  category:      'completed' | 'blocked' | 'unexpected' | 'question';
-  freeText:      string;
-  agentResponse: string;
-  agentAction:   string;
-  round:         number;
-  proposedChanges?: Array<{
-    taskTitle:               string;
-    proposedTitle?:          string;
-    proposedDescription?:    string;
-    proposedSuccessCriteria?: string;
-    rationale:               string;
-  }>;
-}
-
-export interface RoadmapTask {
-  title:           string;
-  description:     string;
-  rationale:       string;
-  timeEstimate:    string;
-  successCriteria: string;
-  resources?:      string[];
-  suggestedTools?: string[];
-  status?:         TaskStatus;
-  completedAt?:    string | null;
-  checkInHistory?: CheckInEntry[];
-}
-
-export interface RoadmapPhase {
-  phase:         number;
-  title:         string;
-  objective:     string;
-  durationWeeks: number;
-  tasks:         RoadmapTask[];
-}
+// ---------------------------------------------------------------------------
+// Mobile-specific shapes (not in the shared API schema)
+// ---------------------------------------------------------------------------
 
 export interface RoadmapProgress {
   totalTasks:     number;
@@ -63,7 +42,7 @@ export interface RoadmapProgress {
 export interface RoadmapData {
   id:             string;
   status:         'GENERATING' | 'READY' | 'FAILED' | 'STALE';
-  phases:         RoadmapPhase[];
+  phases:         StoredRoadmapPhase[];
   closingThought: string | null;
   weeklyHours:    number | null;
   totalWeeks:     number | null;
@@ -72,13 +51,44 @@ export interface RoadmapData {
 }
 
 // ---------------------------------------------------------------------------
+// Runtime-validated response shape. The envelope fields (id, status,
+// closingThought, etc.) are mobile-local; the phases array is validated
+// against the shared schema so backend drift in the task / check-in
+// shape surfaces as a clean error rather than a silent crash.
+// ---------------------------------------------------------------------------
+
+const RoadmapResponseSchema = z.union([
+  z.object({ status: z.literal('not_started') }),
+  z.object({
+    id:               z.string(),
+    status:           z.enum(['GENERATING', 'READY', 'FAILED', 'STALE']),
+    phases:           z.array(StoredRoadmapPhaseSchema),
+    closingThought:   z.string().nullable(),
+    weeklyHours:      z.number().nullable(),
+    totalWeeks:       z.number().nullable(),
+    progress:         z
+      .object({
+        totalTasks:     z.number(),
+        completedTasks: z.number(),
+        blockedTasks:   z.number(),
+        lastActivityAt: z.string(),
+        nudgePending:   z.boolean(),
+      })
+      .nullable(),
+    recommendationId: z.string(),
+  }),
+]);
+
+// ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
 
 async function fetchRoadmap(url: string): Promise<RoadmapData | null> {
   try {
-    const data = await api<RoadmapData | { status: 'not_started' }>(url);
-    if ('phases' in data) return data as RoadmapData;
+    const raw = await api<unknown>(url);
+    const parsed = RoadmapResponseSchema.safeParse(raw);
+    if (!parsed.success) return null;
+    if ('phases' in parsed.data) return parsed.data;
     return null;
   } catch {
     return null;

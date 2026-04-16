@@ -1,15 +1,22 @@
 // src/lib/roadmap/constants.ts
+//
+// MAX_ROADMAP_PHASES and MAX_TASKS_PER_PHASE are shared with mobile
+// (which renders roadmaps) and live in @neuralaunch/constants;
+// re-exported here so existing imports keep working.
+//
+// The model IDs (PLANNER / REFINER), the Inngest event name, and the
+// WEEKLY_HOURS_MAP stay defined here — they're consumed by the
+// roadmap engine and Inngest worker, neither of which run on mobile.
+
+export {
+  MAX_ROADMAP_PHASES,
+  MAX_TASKS_PER_PHASE,
+} from '@neuralaunch/constants';
 
 export const ROADMAP_MODELS = {
   PLANNER:  'claude-sonnet-4-6', // Phase planning and task generation
   REFINER:  'claude-opus-4-6',   // Only used when constraints conflict
 } as const;
-
-// Maximum phases a roadmap can contain — prevents runaway generation
-export const MAX_ROADMAP_PHASES = 5;
-
-// Tasks per phase — bounded for focus, not exhaustiveness
-export const MAX_TASKS_PER_PHASE = 5;
 
 // Inngest event name
 export const ROADMAP_EVENT = 'discovery/roadmap.requested' as const;
