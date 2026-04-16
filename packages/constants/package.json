@@ -1,0 +1,17 @@
+{
+  "name": "@neuralaunch/constants",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Domain constants shared between client and mobile — enum value lists (RECOMMENDATION_TYPES, PUSHBACK_MODES, CHECKIN_CATEGORIES, TASK_STATUSES), configuration limits (PUSHBACK_CONFIG, MAX_ROADMAP_PHASES), and any other literal values that both apps need to agree on.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

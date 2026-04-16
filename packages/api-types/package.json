@@ -1,0 +1,20 @@
+{
+  "name": "@neuralaunch/api-types",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Zod schemas and inferred TypeScript types shared between the client (Next.js) and mobile (Expo) apps. The single source of truth for every API request/response shape that crosses the wire. Mobile imports these to runtime-validate responses; client imports the same schemas from here so both sides can't drift.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "zod": "^4.1.12"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

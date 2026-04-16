@@ -21,6 +21,8 @@
     "@google/genai": "^1.49.0",
     "@hookform/resolvers": "^5.2.2",
     "@langchain/langgraph": "^1.0.1",
+    "@neuralaunch/api-types": "workspace:*",
+    "@neuralaunch/constants": "workspace:*",
     "@octokit/rest": "^22.0.0",
     "@paralleldrive/cuid2": "^3.0.4",
     "@prisma/client": "6.19.0",
