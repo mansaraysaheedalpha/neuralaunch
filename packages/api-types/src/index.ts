@@ -12,11 +12,7 @@
  * Node (client API routes) and React Native (mobile hooks).
  */
 
-// Initial scaffold — real schemas land in later commits of the
-// monorepo migration. Re-exports added as each domain moves over:
-//   - roadmap.ts       → RoadmapSchema, Roadmap, RoadmapPhase, RoadmapTask
-//   - recommendation.ts → RecommendationSchema, Recommendation
-//   - checkin.ts       → CheckInEntrySchema, CheckInEntry, TaskStatus
-//   - pushback.ts      → PushbackTurnSchema, PushbackTurn
-//   - auth.ts          → User, Session
-export {};
+export * from './roadmap';
+export * from './recommendation';
+export * from './checkin';
+export * from './pushback';
