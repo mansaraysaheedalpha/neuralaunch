@@ -9,10 +9,16 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { ResearchFlow } from '@/app/(app)/discovery/roadmap/[id]/research/ResearchFlow';
+import {
+  readPackagerHandoffParams,
+  fetchPackagerHandoff,
+  buildResearchQueryFromPackage,
+} from '@/app/(app)/tools/packager-handoff';
 
 export default function StandaloneResearchPage() {
   const [roadmapId, setRoadmapId] = useState<string | null>(null);
   const [loading, setLoading]     = useState(true);
+  const [seedQuery, setSeedQuery] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     void (async () => {
@@ -22,6 +28,16 @@ export default function StandaloneResearchPage() {
         const json = await res.json() as { hasRoadmap: boolean; roadmapId?: string };
         if (json.hasRoadmap && json.roadmapId) setRoadmapId(json.roadmapId);
       } catch { /* fall through */ }
+
+      // Packager → Research handoff: when the URL carries fromPackager,
+      // fetch the package and build a sensible initial research query
+      // for the founder to confirm or edit before submitting.
+      const handoffParams = readPackagerHandoffParams();
+      if (handoffParams) {
+        const handoff = await fetchPackagerHandoff(handoffParams.roadmapId, handoffParams.sessionId);
+        if (handoff) setSeedQuery(buildResearchQueryFromPackage(handoff));
+      }
+
       setLoading(false);
     })();
   }, []);
@@ -64,6 +80,7 @@ export default function StandaloneResearchPage() {
         open
         onClose={() => { window.location.href = '/tools'; }}
         standalone
+        prePopulatedQuery={seedQuery}
       />
     </div>
   );

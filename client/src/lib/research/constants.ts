@@ -116,4 +116,14 @@ export const RESEARCH_BUDGETS: Record<ResearchAgent, { steps: number; descriptio
     steps:       10,
     description: 'Follow-up queries building on existing research context.',
   },
+  'service-packager': {
+    // Spec: 2-6 research calls per package generation. Budget = 8
+    // gives the agent room for up to 6 tool calls (market rate
+    // verification, competitor pricing, local benchmarks) plus the
+    // structured ServicePackage emission with one step of headroom.
+    // Same profile as composer — structured output after targeted
+    // research, Opus-quality reasoning.
+    steps:       8,
+    description: 'Market rate verification, competitor pricing lookup, local benchmarks for pricing tiers.',
+  },
 } as const;

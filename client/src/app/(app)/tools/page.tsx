@@ -7,7 +7,7 @@
 // their entire value is context-awareness.
 
 import Link from 'next/link';
-import { MessageSquare, Mail, Search } from 'lucide-react';
+import { MessageSquare, Mail, Search, Package } from 'lucide-react';
 
 const TOOLS = [
   {
@@ -34,8 +34,14 @@ const TOOLS = [
     href:        '/tools/research',
     status:      'available' as const,
   },
-  // Future tools slot in here:
-  // { id: 'service-packager', name: 'Service Packager', ... status: 'coming_soon' },
+  {
+    id:          'service-packager',
+    name:        'Service Packager',
+    description: 'Turn your skill into a structured service offering with tiered pricing, revenue scenarios, and a one-page brief you can share with prospects today. Especially useful when your recommendation is to build a service.',
+    icon:        Package,
+    href:        '/tools/service-packager',
+    status:      'available' as const,
+  },
 ];
 
 export default function ToolsPage() {
