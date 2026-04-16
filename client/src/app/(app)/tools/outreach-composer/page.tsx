@@ -15,6 +15,11 @@ import { ComposerOutputView }  from '@/app/(app)/discovery/roadmap/[id]/composer
 import { ComposerSessionReview } from '@/app/(app)/discovery/roadmap/[id]/composer/ComposerSessionReview';
 import type { OutreachContext, ComposerOutput } from '@/lib/roadmap/composer/schemas';
 import type { ComposerChannel, ComposerMode } from '@/lib/roadmap/composer/constants';
+import {
+  readPackagerHandoffParams,
+  fetchPackagerHandoff,
+  buildComposerSeedMessage,
+} from '@/app/(app)/tools/packager-handoff';
 
 type Stage =
   | 'loading'
@@ -32,8 +37,9 @@ export default function StandaloneComposerPage() {
   const [channel,   setChannel]   = useState<ComposerChannel | null>(null);
   const [output,    setOutput]    = useState<ComposerOutput | null>(null);
   const [error,     setError]     = useState<string | null>(null);
+  const [seedDraft, setSeedDraft] = useState<string | undefined>(undefined);
 
-  // Auto-detect the most recent roadmap
+  // Auto-detect the most recent roadmap and any inbound packager handoff.
   useEffect(() => {
     void (async () => {
       try {
@@ -42,6 +48,14 @@ export default function StandaloneComposerPage() {
         const json = await res.json() as { hasRoadmap: boolean; roadmapId?: string };
         if (!json.hasRoadmap || !json.roadmapId) { setStage('no_roadmap'); return; }
         setRoadmapId(json.roadmapId);
+
+        // Packager → Composer handoff.
+        const handoffParams = readPackagerHandoffParams();
+        if (handoffParams) {
+          const handoff = await fetchPackagerHandoff(handoffParams.roadmapId, handoffParams.sessionId);
+          if (handoff) setSeedDraft(buildComposerSeedMessage(handoff));
+        }
+
         setStage('context');
       } catch {
         setStage('no_roadmap');
@@ -138,6 +152,7 @@ export default function StandaloneComposerPage() {
           roadmapId={roadmapId}
           taskId="standalone"
           standalone
+          initialDraft={seedDraft}
           onContextComplete={(ctx, m, ch) => { void handleContextComplete(ctx, m, ch); }}
           onCancel={() => { window.location.href = '/tools'; }}
         />

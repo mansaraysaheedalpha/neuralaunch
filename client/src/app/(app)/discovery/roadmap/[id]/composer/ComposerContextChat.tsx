@@ -6,7 +6,7 @@
 // each message to the composer generate route and calls onContextComplete
 // when the server returns a completed context/mode/channel.
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, Send } from 'lucide-react';
 import type { OutreachContext } from '@/lib/roadmap/composer/schemas';
@@ -22,6 +22,13 @@ export interface ComposerContextChatProps {
   taskId:            string;
   /** When true, POSTs to the standalone route (no taskId in URL). */
   standalone?:       boolean;
+  /**
+   * Pre-populated draft for the first founder message. When set, the
+   * chat auto-submits the draft once on mount so cross-tool handoffs
+   * (Packager → Composer) skip the empty-state and land the founder
+   * on the agent's response.
+   */
+  initialDraft?:     string;
   onContextComplete: (context: OutreachContext, mode: ComposerMode, channel: ComposerChannel) => void;
   onCancel:          () => void;
 }
@@ -38,11 +45,12 @@ export function ComposerContextChat({
   roadmapId,
   taskId,
   standalone,
+  initialDraft,
   onContextComplete,
   onCancel,
 }: ComposerContextChatProps) {
   const [exchanges,  setExchanges]  = useState<ContextExchange[]>([]);
-  const [draft,      setDraft]      = useState('');
+  const [draft,      setDraft]      = useState(initialDraft ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [error,      setError]      = useState<string | null>(null);
 
@@ -96,6 +104,17 @@ export function ComposerContextChat({
       setSubmitting(false);
     }
   }, [draft, submitting, roadmapId, taskId, standalone, onContextComplete]);
+
+  // Auto-submit a pre-populated draft once on mount. Used by cross-tool
+  // handoffs (Packager → Composer). Guarded by a ref so React 18
+  // strict-mode double-invoke does not fire two submissions.
+  const autoSentRef = useRef(false);
+  useEffect(() => {
+    if (autoSentRef.current) return;
+    if (!initialDraft || initialDraft.trim().length === 0) return;
+    autoSentRef.current = true;
+    void handleSend();
+  }, [initialDraft, handleSend]);
 
   return (
     <div className="flex flex-col gap-3">

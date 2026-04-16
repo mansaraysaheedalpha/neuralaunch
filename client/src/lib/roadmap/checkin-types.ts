@@ -226,6 +226,12 @@ export const StoredRoadmapTaskSchema = RoadmapTaskSchema.extend({
    * is the strict validator.
    */
   researchSession: z.object({}).passthrough().optional(),
+  /**
+   * Service Packager session. Same passthrough pattern —
+   * PackagerSessionSchema in lib/roadmap/service-packager/schemas.ts
+   * is the strict validator.
+   */
+  packagerSession: z.object({}).passthrough().optional(),
 });
 export type StoredRoadmapTask = z.infer<typeof StoredRoadmapTaskSchema>;
 
