@@ -9,6 +9,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, Send } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import type { OutreachContext } from '@/lib/roadmap/composer/schemas';
 import type { ComposerChannel, ComposerMode } from '@/lib/roadmap/composer/constants';
 
@@ -156,7 +157,7 @@ export function ComposerContextChat({
       )}
 
       <div className="flex gap-2">
-        <input
+        <Input
           value={draft}
           onChange={e => setDraft(e.target.value)}
           onKeyDown={e => {
@@ -167,7 +168,7 @@ export function ComposerContextChat({
           }}
           placeholder="Who are you reaching out to, and what's the goal?"
           disabled={submitting}
-          className="flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground disabled:opacity-50 outline-none focus:ring-2 focus:ring-primary/30"
+          className="flex-1 px-2 py-1.5 text-xs"
         />
         <button
           type="button"

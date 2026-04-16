@@ -8,6 +8,7 @@
 
 import { useState } from 'react';
 import { Clock, Pencil, Play } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 
 export interface ResearchPlanEditorProps {
   plan:          string;
@@ -44,12 +45,12 @@ export function ResearchPlanEditor({
         </p>
       </div>
 
-      <textarea
+      <Textarea
         value={editedPlan}
         onChange={e => setEditedPlan(e.target.value)}
         disabled={loading}
         rows={6}
-        className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground disabled:opacity-50 outline-none focus:ring-2 focus:ring-primary/30 resize-none leading-relaxed"
+        className="min-h-0 resize-none py-2 text-xs leading-relaxed"
       />
 
       <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">

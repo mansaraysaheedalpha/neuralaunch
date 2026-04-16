@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, Loader2, MessageCircle, Send } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 // Import directly from the schema file — NOT the barrel index.
 // The barrel re-exports server-only modules (brief-generator,
 // diagnostic-engine, evidence-loader, etc.) which webpack traces
@@ -190,13 +191,13 @@ export function WhatsNextPanel({ roadmapId }: { roadmapId: string }) {
               }
               return (
                 <div className="flex flex-col gap-2">
-                  <textarea
+                  <Textarea
                     value={draft}
                     onChange={e => setDraft(e.target.value)}
                     placeholder="Type your reply…"
                     rows={2}
                     disabled={flow.submitting}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs text-foreground resize-none disabled:opacity-50 outline-none focus:ring-2 focus:ring-primary/30"
+                    className="min-h-0 resize-none py-2 text-xs"
                   />
                   <div className="flex justify-between items-center">
                     <button

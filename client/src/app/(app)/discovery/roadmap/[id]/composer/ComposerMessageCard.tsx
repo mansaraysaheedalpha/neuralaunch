@@ -8,6 +8,7 @@
 
 import { useState, useCallback } from 'react';
 import { Copy, Check, RefreshCw, SendHorizonal, Link2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import type { ComposerMessage } from '@/lib/roadmap/composer/schemas';
 import { MAX_REGENERATIONS_PER_MESSAGE } from '@/lib/roadmap/composer/constants';
 
@@ -138,12 +139,12 @@ export function ComposerMessageCard({
               ))}
             </div>
             <div className="flex gap-1.5">
-              <input
+              <Input
                 value={regenDraft}
                 onChange={e => setRegenDraft(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && regenDraft.trim()) { onRegenerate(message.id, regenDraft.trim()); setRegenOpen(false); setRegenDraft(''); } }}
                 placeholder="Or type your own..."
-                className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-[10px] text-foreground outline-none focus:ring-1 focus:ring-primary/30"
+                className="flex-1 px-2 py-1 text-[10px]"
               />
               <button
                 type="button"

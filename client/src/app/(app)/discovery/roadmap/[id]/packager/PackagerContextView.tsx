@@ -8,6 +8,7 @@
 
 import { useState } from 'react';
 import { Loader2, Search, Sparkles } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import type { ServiceContext } from '@/lib/roadmap/service-packager/schemas';
 
 export interface PackagerContextViewProps {
@@ -76,13 +77,13 @@ export function PackagerContextView({
         <label className="text-[11px] uppercase tracking-wider text-muted-foreground">
           Want to adjust anything?
         </label>
-        <textarea
+        <Textarea
           value={draft}
           onChange={e => setDraft(e.target.value)}
           rows={2}
           placeholder='e.g. "actually I want to focus on guest houses, not hotels"'
           disabled={pending}
-          className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/40 disabled:opacity-60"
+          className="min-h-0 resize-none py-2 text-xs"
         />
       </div>
 

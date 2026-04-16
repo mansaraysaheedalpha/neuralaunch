@@ -10,6 +10,7 @@
 import { useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, Send, HelpCircle } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 
 interface DiagnosticExchange {
   id:      string;
@@ -161,13 +162,13 @@ export function TaskDiagnosticChat({
 
             {!resolved && !escalate && !inconclusive && (
               <div className="flex gap-2">
-                <input
+                <Input
                   value={draft}
                   onChange={e => setDraft(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}
                   placeholder="What do you need help with?"
                   disabled={submitting}
-                  className="flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground disabled:opacity-50 outline-none focus:ring-2 focus:ring-primary/30"
+                  className="flex-1 px-2 py-1.5 text-xs"
                 />
                 <button
                   type="button"

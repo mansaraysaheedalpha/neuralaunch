@@ -6,6 +6,7 @@
 
 import { useState } from 'react';
 import { Send } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 // Import directly from constants for the max cap.
 import { FOLLOWUP_MAX_ROUNDS } from '@/lib/roadmap/research-tool/constants';
 
@@ -54,7 +55,7 @@ export function ResearchFollowUpInput({
         </p>
       ) : (
         <div className="flex gap-2">
-          <input
+          <Input
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => {
@@ -65,7 +66,7 @@ export function ResearchFollowUpInput({
             }}
             disabled={disabled || capped}
             placeholder="Ask a follow-up question…"
-            className="flex-1 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 disabled:opacity-50 outline-none focus:ring-2 focus:ring-primary/30"
+            className="flex-1 px-2.5 py-1.5 text-xs"
           />
           <button
             type="button"

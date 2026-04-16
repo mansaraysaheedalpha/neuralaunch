@@ -4,6 +4,7 @@
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { motion } from 'motion/react';
 import { ThumbsDown, ArrowRight } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 
 interface AssumptionRowProps {
   text:      string;
@@ -131,14 +132,14 @@ export function AssumptionRow({ text, path, reasoning }: AssumptionRowProps) {
               animate={{ opacity: 1, height: 'auto' }}
               className="flex gap-2 items-end"
             >
-              <textarea
+              <Textarea
                 ref={clarifyRef}
                 value={clarifyText}
                 onChange={e => setClarifyText(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Tell us more about your situation…"
                 rows={2}
-                className="flex-1 resize-none bg-muted/40 rounded-lg px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground outline-none border border-border focus:border-primary/40 transition-colors"
+                className="flex-1 min-h-0 resize-none bg-muted/40 px-3 py-2 text-xs"
               />
               <button
                 onClick={handleClarifySubmit}

@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Bookmark, Loader2, X } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import type { ParkingLotItem } from '@/lib/continuation';
 
 const MAX_IDEA_LENGTH = 280;
@@ -131,14 +132,14 @@ export function ParkingLotInline({ roadmapId, initialItems }: ParkingLotInlinePr
             exit={{ opacity: 0, height: 0 }}
             className="flex flex-col gap-2 overflow-hidden"
           >
-            <textarea
+            <Textarea
               value={draft}
               onChange={e => setDraft(e.target.value.slice(0, MAX_IDEA_LENGTH))}
               placeholder="A short phrase capturing the idea…"
               rows={2}
               maxLength={MAX_IDEA_LENGTH}
               disabled={submitting}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-[11px] text-foreground resize-none disabled:opacity-50 outline-none focus:ring-2 focus:ring-primary/30"
+              className="min-h-0 resize-none py-2 text-[11px]"
             />
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-muted-foreground">
