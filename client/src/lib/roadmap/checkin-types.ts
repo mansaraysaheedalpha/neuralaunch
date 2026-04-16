@@ -1,6 +1,28 @@
 // src/lib/roadmap/checkin-types.ts
 import { z } from 'zod';
 import { RoadmapTaskSchema, RoadmapPhaseSchema } from './roadmap-schema';
+import {
+  TASK_STATUSES,
+  CHECKIN_CATEGORIES,
+  CHECKIN_ENTRY_SOURCES,
+  CHECKIN_AGENT_ACTIONS,
+} from '@neuralaunch/constants';
+
+// Re-export the cross-app constants so existing client imports
+// (`import { TASK_STATUSES } from '.../checkin-types'`) keep working.
+// The canonical source is now @neuralaunch/constants.
+export {
+  TASK_STATUSES,
+  type TaskStatus,
+  CHECKIN_CATEGORIES,
+  type CheckInCategory,
+  CHECKIN_ENTRY_SOURCES,
+  type CheckInEntrySource,
+  CHECKIN_AGENT_ACTIONS,
+  type CheckInAgentAction,
+  CHECKIN_HARD_CAP_ROUND,
+  RECALIBRATION_MIN_COVERAGE,
+} from '@neuralaunch/constants';
 
 /**
  * Check-in extensions to the roadmap task JSON.
@@ -29,48 +51,12 @@ import { RoadmapTaskSchema, RoadmapPhaseSchema } from './roadmap-schema';
  * downstream consumer must handle the null gracefully.
  */
 
-export const TASK_STATUSES = ['not_started', 'in_progress', 'completed', 'blocked'] as const;
-export type TaskStatus = typeof TASK_STATUSES[number];
-
-export const CHECKIN_CATEGORIES = ['completed', 'blocked', 'unexpected', 'question'] as const;
-export type CheckInCategory = typeof CHECKIN_CATEGORIES[number];
-
-/**
- * Provenance of a check-in entry's free-text content. A12 added the
- * two-option completion flow: when a task transitions to completed
- * the founder either writes their own outcome ('founder') or accepts
- * the success criteria as the outcome by clicking "It went as
- * planned" ('success_criteria_confirmed'). Optional on the schema so
- * legacy entries (every check-in written before A12) parse cleanly;
- * the brief generator and any analytics treat absent as 'founder'.
- */
-export const CHECKIN_ENTRY_SOURCES = [
-  'founder',
-  'success_criteria_confirmed',
-  // A6: task-level diagnostic entries are stored in the same
-  // checkInHistory array as scheduled check-ins but tagged with
-  // this source so the check-in history list, the structured
-  // signals extractor, and the conversation arc summariser can
-  // distinguish the two conversation channels.
-  'task_diagnostic',
-] as const;
-export type CheckInEntrySource = typeof CHECKIN_ENTRY_SOURCES[number];
-
-/**
- * Action label set by the check-in agent on its structured response.
- * Stored on every CheckInEntry as audit + future training signal.
- */
-// A2: flagged_fundamental removed. A single blocker on a single
-// task is a task-level problem, not a recommendation-level problem.
-// If a blocker is truly fundamental, the pattern will surface across
-// multiple check-ins and trigger the recalibration offer (which now
-// has code-level guardrails and progress-aware routing).
-export const CHECKIN_AGENT_ACTIONS = [
-  'acknowledged',
-  'adjusted_next_step',
-  'adjusted_roadmap',
-] as const;
-export type CheckInAgentAction = typeof CHECKIN_AGENT_ACTIONS[number];
+// (Constants TASK_STATUSES, CHECKIN_CATEGORIES, CHECKIN_ENTRY_SOURCES,
+// and CHECKIN_AGENT_ACTIONS moved to @neuralaunch/constants and
+// re-exported above. The full prose for why each one looks the way
+// it does — the A12 two-option completion flow, the A6
+// task-diagnostic source, the A2 removal of flagged_fundamental —
+// lives next to the values in packages/constants/src/checkin.ts.)
 
 /**
  * Mid-roadmap execution support — canonical persisted shapes for the
@@ -242,25 +228,8 @@ export type StoredRoadmapPhase = z.infer<typeof StoredRoadmapPhaseSchema>;
 
 export const StoredPhasesArraySchema = z.array(StoredRoadmapPhaseSchema);
 
-/**
- * Hard cap on per-task check-in rounds. Mirrors the pushback round
- * cap on recommendations but at the task level rather than the
- * recommendation level.
- */
-export const CHECKIN_HARD_CAP_ROUND = 5;
-
-/**
- * A2: minimum check-in coverage before the check-in route will
- * persist a recalibrationOffer from the agent. Below this threshold
- * the agent's message still renders but the structured
- * recalibrationOffer output is silently suppressed — there is not
- * enough execution evidence yet to justify questioning the
- * recommendation.
- *
- * 0.4 means at least 40% of tasks must have at least one check-in
- * entry before a recalibration offer is surfaced to the founder.
- */
-export const RECALIBRATION_MIN_COVERAGE = 0.4;
+// (CHECKIN_HARD_CAP_ROUND and RECALIBRATION_MIN_COVERAGE moved to
+// @neuralaunch/constants and re-exported above.)
 
 /**
  * A2: pure helper that counts how many tasks across all phases have
