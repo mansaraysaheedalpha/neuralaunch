@@ -7,6 +7,8 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { api, ApiError, API_BASE_URL, getToken } from '@/services/api-client';
+import { RecommendationSchema, type Recommendation } from '@neuralaunch/api-types';
+import { z } from 'zod';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -20,19 +22,20 @@ export interface ChatMessage {
 
 type Status = 'idle' | 'loading' | 'streaming' | 'error';
 
-interface Recommendation {
-  id:                     string;
-  summary:                string;
-  path:                   string;
-  reasoning:              string;
-  firstThreeSteps:        string[];
-  timeToFirstResult:      string;
-  risks:                  Array<{ risk: string; mitigation: string }>;
-  assumptions:            string[];
-  whatWouldMakeThisWrong: string;
-  alternativeRejected:    { alternative: string; whyNotForThem: string };
-  recommendationType:     string | null;
-}
+// The synthesis-polling response includes both a recommendation payload
+// (the shared shape) and a lightweight `status` field for the pending
+// case. The id comes from the server as a sibling to the recommendation
+// fields — extend the shared schema to include it.
+const PollingRecommendationSchema = RecommendationSchema.extend({
+  id: z.string(),
+});
+
+const SynthesisPollResponseSchema = z.object({
+  recommendation: PollingRecommendationSchema.optional(),
+  status:         z.string().optional(),
+});
+
+type PollingRecommendation = z.infer<typeof PollingRecommendationSchema>;
 
 // ---------------------------------------------------------------------------
 // Hook
@@ -44,7 +47,7 @@ export function useDiscovery() {
   const [sessionId,      setSessionId]      = useState<string | null>(null);
   const [isSynthesizing, setIsSynthesizing] = useState(false);
   const [synthesisError, setSynthesisError] = useState(false);
-  const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
+  const [recommendation, setRecommendation] = useState<PollingRecommendation | null>(null);
 
   const sessionIdRef    = useRef<string | null>(null);
   const pollIntervalRef = useRef(3000);
@@ -188,12 +191,13 @@ export function useDiscovery() {
       }
 
       try {
-        const data = await api<{ recommendation?: Recommendation; status?: string }>(
+        const raw = await api<unknown>(
           `/api/discovery/sessions/${sessionIdRef.current}/recommendation`,
         );
 
-        if (data.recommendation) {
-          setRecommendation(data.recommendation);
+        const parsed = SynthesisPollResponseSchema.safeParse(raw);
+        if (parsed.success && parsed.data.recommendation) {
+          setRecommendation(parsed.data.recommendation);
           setIsSynthesizing(false);
           return;
         }

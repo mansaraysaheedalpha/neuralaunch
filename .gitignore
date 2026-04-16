@@ -42,12 +42,9 @@ client/build
 package-lock.json
 yarn.lock
 
-# Root-level pnpm-lock.yaml MUST NOT be committed. It appears here
-# whenever pnpm detects the workspace config (pnpm-workspace.yaml)
-# during an install run from the repo root or from client/ without
-# --ignore-workspace. The canonical lockfile is client/pnpm-lock.yaml.
-# See CLAUDE.md § "Package Manager" for the correct workflow.
-/pnpm-lock.yaml
+# (Previously a /pnpm-lock.yaml ignore lived here. With packages/* as
+# real workspace members, the root lockfile IS the canonical one and
+# must be committed. See CLAUDE.md § "Package Manager".)
 
 # Ignore environment variables. These are secret!
 # We will create a .env.example file to track which variables are needed.

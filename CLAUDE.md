@@ -12,19 +12,24 @@
 **Repository layout:**
 ```
 neuralaunch/
-├── client/              # Next.js 15 application (the product)
-│   ├── src/app/         # App Router pages and API routes
-│   ├── src/lib/         # Core business logic, engines, services
-│   │   ├── ai/          # Provider fallback chain + shared AI helpers
-│   │   ├── discovery/   # Phase 1 — interview, synthesis, pushback
-│   │   ├── roadmap/     # Phase 2 — execution plan, check-ins, nudges
-│   │   └── validation/  # Phase 3 — landing page, reporting, lifecycle
-│   ├── src/components/  # React components (grouped by feature)
-│   ├── src/inngest/     # Durable background functions + event type map
-│   └── prisma/          # Database schema and migrations
-├── ARCHITECTURE.md      # How the system actually flows
-├── RUNBOOK.md           # On-call playbook for production incidents
-└── CLAUDE.md            # This file — engineering standards (mandatory)
+├── client/                 # Next.js 15 application (the product)
+│   ├── src/app/            # App Router pages and API routes
+│   ├── src/lib/            # Core business logic, engines, services
+│   │   ├── ai/             # Provider fallback chain + shared AI helpers
+│   │   ├── discovery/      # Phase 1 — interview, synthesis, pushback
+│   │   ├── roadmap/        # Phase 2 — execution plan, check-ins, nudges
+│   │   └── validation/     # Phase 3 — landing page, reporting, lifecycle
+│   ├── src/components/     # React components (grouped by feature)
+│   ├── src/inngest/        # Durable background functions + event type map
+│   └── prisma/             # Database schema and migrations
+├── mobile/                 # React Native (Expo) app — NOT a workspace member
+│   └── (standalone install; consumes packages/* via link:)
+├── packages/               # Workspace packages shared by client + mobile
+│   ├── api-types/          # Zod schemas + inferred types (wire protocol)
+│   └── constants/          # Enum value lists + configuration limits
+├── ARCHITECTURE.md         # How the system actually flows
+├── RUNBOOK.md              # On-call playbook for production incidents
+└── CLAUDE.md               # This file — engineering standards (mandatory)
 ```
 
 **Active branch strategy:**
@@ -156,12 +161,12 @@ Concrete rules:
 
 - **Install / add / remove dependencies:** `pnpm install`, `pnpm add <pkg>`, `pnpm remove <pkg>`. Never `npm i`, `npm install`, `npm ci`, `yarn`, or `yarn add`.
 - **Run scripts:** `pnpm <script>` (e.g. `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm test`). Use `pnpm exec <bin>` instead of `npx <bin>` whenever the binary is already a project devDependency — `npx` invocations are fine for one-off tools that aren't installed.
-- **Lockfile:** `client/pnpm-lock.yaml` is the single source of truth for the dep tree. `package-lock.json` and `yarn.lock` are gitignored at the repo root and inside `client/` so a stray `npm install` cannot reintroduce them. If you find a `package-lock.json` in the working tree, delete it — do not commit it, do not run `npm install` to "regenerate" it.
-- **Adding client dependencies — use `--ignore-workspace`:** a `pnpm-workspace.yaml` lives at the repo root so the root `package.json` scripts (`pnpm --filter client dev`, `build:web`, `lint:web`, `typecheck`) work. The footgun: running `pnpm add <pkg>` from inside `client/` without `--ignore-workspace` makes pnpm write the new dep to a **root-level** `pnpm-lock.yaml` (gitignored, not deployed) instead of updating `client/pnpm-lock.yaml` — `client/package.json` gets the new entry but the canonical lockfile stays stale. Vercel's install may silently regenerate and hide the drift, but the invariant is broken.
-  - **Correct:** `cd client && pnpm add <pkg> --ignore-workspace` — forces client to resolve as standalone and writes to `client/pnpm-lock.yaml`.
-  - **Also correct:** from the repo root, `pnpm --filter client add <pkg> --ignore-workspace` is equivalent.
-  - **After adding:** verify `client/pnpm-lock.yaml` shows up in `git status`; if only `client/package.json` changed, the install went to the wrong lockfile and you need to re-run with `--ignore-workspace`.
-  - The root `pnpm-lock.yaml` is gitignored specifically to prevent it from being committed by accident — see `.gitignore` for the entry and the reason.
+- **Monorepo shape:** the repo is a pnpm workspace. Members are `client` and `packages/*` (which currently contains `api-types` and `constants` — shared schemas and enum value lists consumed by both client and mobile). Mobile is **intentionally not a workspace member** — EAS Build misdetects pnpm workspaces as yarn workspaces, so mobile installs standalone with its own lockfile. Mobile consumes the shared packages via `link:../packages/*` relative symlinks, which work in both local dev and on EAS build workers (where the full monorepo is uploaded and a pre-install hook in `mobile/package.json` strips the root workspace file before install runs).
+- **Lockfiles:** the root `pnpm-lock.yaml` is the single source of truth for the client workspace (client + packages/*). It is committed. Mobile keeps its own `mobile/pnpm-lock.yaml` (also committed) for the standalone install. `package-lock.json` and `yarn.lock` are gitignored so a stray `npm install` cannot reintroduce them. If you find a `package-lock.json` in the working tree, delete it — do not commit it, do not run `npm install` to "regenerate" it.
+- **Adding client or package dependencies:** run `pnpm add <pkg>` from inside `client/` (or `packages/<name>/`), or equivalently `pnpm --filter <workspace-name> add <pkg>` from the repo root. The dep lands on the right `package.json` and the root `pnpm-lock.yaml` updates. Verify `pnpm-lock.yaml` at the repo root shows up in `git status` after the add — if only a `package.json` changed, something went wrong.
+- **Adding mobile dependencies:** run `cd mobile && pnpm add <pkg> --ignore-workspace`. The `--ignore-workspace` flag is mandatory for mobile — without it pnpm writes to the root lockfile instead of `mobile/pnpm-lock.yaml`.
+- **Shared packages:** any value that must match across client and mobile — Zod schemas for wire shapes, enum value lists, configuration limits — belongs in `packages/api-types` or `packages/constants`. The client uses `workspace:*` references to these packages; mobile uses `link:../packages/*`. **Do not duplicate enum values or domain types in both apps — import them.** `packages/api-types` declares `zod` as a peerDependency, so both client and mobile must pin compatible versions.
+- **Pinned dependencies via pnpm overrides:** zod is pinned to exactly `4.1.12` in the root `package.json` overrides block (mobile pins the same version in its own package.json). inngest is pinned to `4.1.1`. The reason lives in `_pnpm_overrides_reason` at the top of the root `package.json` — read it there before bumping either. Unpinning without checking will reintroduce the JsonifyObject / workspace-package type-identity issue.
 - **Documentation:** any code blocks, READMEs, or runbook entries showing install / build / test commands must use `pnpm`. The only exception is when documenting *why* npm is forbidden.
 - **Claude Code permissions:** the project's `.claude/settings.local.json` allow-lists pnpm commands and explicitly denies `npm install`, `npm i`, `npm ci`, `npm run`, and `yarn` invocations. Do not edit the deny list to "just this once" run npm — if a tool truly needs npm, escalate to the user instead of bypassing the guard.
 
