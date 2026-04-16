@@ -45,6 +45,38 @@ function estimateTokens(text: string): number {
 }
 
 /**
+ * Mark a single-message prompt as cached end-to-end. Use this when
+ * the whole prompt is stable across a single call's internal tool
+ * loop (e.g. generateText with stopWhen: stepCountIs(25)) — the AI
+ * SDK re-sends the initial prompt on every tool-use / tool-result
+ * iteration, and caching lets every iteration after the first hit
+ * the cache. No cross-call reuse is implied.
+ *
+ * Replace:
+ *     messages: [{ role: 'user', content: whole_prompt }]
+ * with:
+ *     messages: cachedSingleMessage(whole_prompt)
+ */
+export function cachedSingleMessage(
+  content: string,
+  options?: { minTokens?: number },
+): UserModelMessage[] {
+  const minTokens = options?.minTokens ?? CACHE_MIN_TOKENS;
+  if (estimateTokens(content) < minTokens) {
+    return [{ role: 'user', content }];
+  }
+  return [
+    {
+      role: 'user',
+      content,
+      providerOptions: {
+        anthropic: { cacheControl: { type: 'ephemeral' } },
+      },
+    },
+  ];
+}
+
+/**
  * Build a two-message array for Vercel AI SDK calls.
  *
  * Replace:
