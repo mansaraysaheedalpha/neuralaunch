@@ -1,47 +1,43 @@
 // src/app/(tabs)/index.tsx
 //
-// Home tab — the founder's dashboard. Shows greeting, discovery CTA,
-// most recent recommendation summary, and active roadmap progress.
+// The Roadmap tab (default). Shows the founder's most-recent active
+// roadmap. If they have no roadmap yet, directs them to the Sessions
+// tab to start their first discovery. If they have multiple roadmaps,
+// we show the most recently updated one here; the Sessions tab is the
+// place to switch between them.
 
-import { useState, useCallback } from 'react';
-import { View, Pressable, StyleSheet } from 'react-native';
+import { useCallback, useState } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import useSWR from 'swr';
-import { Compass, FileCheck, Zap, ArrowRight } from 'lucide-react-native';
-import { useAuth } from '@/services/auth';
+import { Map } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { api, ApiError } from '@/services/api-client';
 import {
   Text,
-  Card,
-  Button,
-  Badge,
   ScreenContainer,
-  Separator,
   ListSkeleton,
   ErrorState,
-  FadeInView,
+  EmptyState,
 } from '@/components/ui';
-import { spacing, iconSize } from '@/constants/theme';
+import { RoadmapViewer } from '@/components/roadmap/RoadmapViewer';
+import { spacing } from '@/constants/theme';
 
-interface RecommendationSummary {
+interface RoadmapSummary {
   id:                 string;
-  path:               string;
-  summary:            string;
-  acceptedAt:         string | null;
-  recommendationType: string | null;
-  createdAt:          string;
+  recommendationId:   string;
+  status:             string;
+  updatedAt?:         string;
 }
 
-export default function HomeScreen() {
-  const { user } = useAuth();
+export default function RoadmapTabScreen() {
   const { colors: c } = useTheme();
   const router = useRouter();
 
-  const { data: recommendations, isLoading, error, mutate } = useSWR<RecommendationSummary[]>(
-    '/api/discovery/recommendations',
-    (url: string) => api<RecommendationSummary[]>(url),
+  const { data: roadmaps, isLoading, error, mutate } = useSWR<RoadmapSummary[]>(
+    '/api/discovery/roadmaps',
+    (url: string) => api<RoadmapSummary[]>(url),
     { revalidateOnFocus: true },
   );
 
@@ -53,11 +49,13 @@ export default function HomeScreen() {
     finally { setRefreshing(false); }
   }, [mutate]);
 
-  const firstName = user?.name?.split(' ')[0] ?? 'there';
-  const latestRec = recommendations?.[0] ?? null;
+  // Active = anything except FAILED. Pick the most recent.
+  const active = roadmaps
+    ?.filter(r => r.status !== 'FAILED')
+    .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''))[0]
+    ?? null;
 
-  // Hard error — show full error state (only if we have no cached data)
-  if (error && !recommendations) {
+  if (error && !roadmaps) {
     const kind = error instanceof ApiError && error.status === 401 ? 'auth'
       : error instanceof ApiError && error.status === 0 ? 'network'
       : 'generic';
@@ -68,143 +66,41 @@ export default function HomeScreen() {
     );
   }
 
+  if (isLoading && !roadmaps) {
+    return (
+      <ScreenContainer>
+        <View style={{ marginTop: spacing[6] }}>
+          <ListSkeleton count={4} />
+        </View>
+      </ScreenContainer>
+    );
+  }
+
+  if (!active) {
+    return (
+      <ScreenContainer scroll={false}>
+        <EmptyState
+          icon={Map}
+          title="No roadmap yet"
+          message="Your roadmap is built from the discovery interview. Start a session to get your first recommendation and execution plan."
+          actionLabel="Start a discovery"
+          onAction={() => {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push('/(tabs)/sessions' as any);
+          }}
+        />
+      </ScreenContainer>
+    );
+  }
+
   return (
     <ScreenContainer refreshing={refreshing} onRefresh={onRefresh}>
-      {/* Greeting */}
+      {/* Tab-context header — the roadmap viewer has its own phase headers */}
       <View style={styles.header}>
-        <Text variant="caption" color={c.mutedForeground}>
-          Welcome back
-        </Text>
-        <Text variant="heading">{firstName}</Text>
+        <Text variant="caption" color={c.mutedForeground}>Your active roadmap</Text>
+        <Text variant="heading">Roadmap</Text>
       </View>
-
-      {/* Quick action — start a discovery session */}
-      <FadeInView>
-        <Card variant="primary" style={styles.ctaCard}>
-          <Text variant="overline" color={c.primary}>
-            Ready to discover your path?
-          </Text>
-          <Text
-            variant="body"
-            style={{ marginTop: spacing[2], marginBottom: spacing[4] }}
-          >
-            Start a conversation and get one honest recommendation
-            tailored to your exact situation.
-          </Text>
-          <Button
-            title="Start Discovery"
-            onPress={() => {
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push('/discovery');
-            }}
-            size="md"
-            icon={<Compass size={iconSize.md} color={c.primaryForeground} />}
-          />
-        </Card>
-      </FadeInView>
-
-      {/* Latest recommendation */}
-      <FadeInView delay={80}>
-        <View style={styles.section}>
-          <Text variant="title" style={styles.sectionTitle}>
-            Your recommendations
-          </Text>
-
-          {isLoading && !recommendations ? (
-            <ListSkeleton count={2} />
-          ) : latestRec ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`View recommendation: ${latestRec.path}`}
-              onPress={() => {
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push(`/recommendation/${latestRec.id}`);
-              }}
-            >
-              <Card>
-                <View style={styles.recHeader}>
-                  <Badge
-                    label={latestRec.acceptedAt ? 'Accepted' : 'Pending'}
-                    variant={latestRec.acceptedAt ? 'success' : 'warning'}
-                  />
-                  {latestRec.recommendationType && (
-                    <Text variant="caption" color={c.mutedForeground}>
-                      {latestRec.recommendationType.replace(/_/g, ' ')}
-                    </Text>
-                  )}
-                </View>
-                <Text variant="label" numberOfLines={2} style={{ marginTop: spacing[2] }}>
-                  {latestRec.path}
-                </Text>
-                <Text variant="caption" color={c.mutedForeground} numberOfLines={2} style={{ marginTop: spacing[1] }}>
-                  {latestRec.summary}
-                </Text>
-                <View style={styles.recCta}>
-                  <Text variant="label" color={c.primary}>
-                    View recommendation
-                  </Text>
-                  <ArrowRight size={iconSize.sm} color={c.primary} />
-                </View>
-              </Card>
-            </Pressable>
-          ) : (
-            <Card>
-              <Text variant="body" color={c.mutedForeground}>
-                No recommendations yet. Start a discovery session to get
-                your first one.
-              </Text>
-            </Card>
-          )}
-
-          {/* Show more link if multiple */}
-          {recommendations && recommendations.length > 1 && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="View all recommendations"
-              onPress={() => router.push('/recommendations')}
-              style={{ marginTop: spacing[2] }}
-            >
-              <Text variant="label" color={c.primary} align="center">
-                View all {recommendations.length} recommendations →
-              </Text>
-            </Pressable>
-          )}
-        </View>
-      </FadeInView>
-
-      <Separator />
-
-      {/* Quick links */}
-      <FadeInView delay={160}>
-        <View style={styles.quickLinks}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Validation Pages"
-            onPress={() => {
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push('/validation' as any);
-            }}
-            style={[styles.quickLink, { borderColor: c.border }]}
-          >
-            <FileCheck size={iconSize.md} color={c.primary} />
-            <Text variant="label" style={{ marginTop: spacing[2] }}>Validation</Text>
-            <Text variant="caption" color={c.mutedForeground}>Test your ideas</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Tools"
-            onPress={() => {
-              void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push('/(tabs)/tools' as any);
-            }}
-            style={[styles.quickLink, { borderColor: c.border }]}
-          >
-            <Zap size={iconSize.md} color={c.primary} />
-            <Text variant="label" style={{ marginTop: spacing[2] }}>Tools</Text>
-            <Text variant="caption" color={c.mutedForeground}>Coach, outreach</Text>
-          </Pressable>
-        </View>
-      </FadeInView>
+      <RoadmapViewer recommendationId={active.recommendationId} />
     </ScreenContainer>
   );
 }
@@ -212,36 +108,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   header: {
     paddingTop: spacing[4],
-    paddingBottom: spacing[6],
-  },
-  ctaCard: {
-    marginBottom: spacing[6],
-  },
-  section: {
-    marginBottom: spacing[2],
-  },
-  sectionTitle: {
-    marginBottom: spacing[3],
-  },
-  recHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[2],
-  },
-  recCta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[1],
-    marginTop: spacing[3],
-  },
-  quickLinks: {
-    flexDirection: 'row',
-    gap: spacing[3],
-  },
-  quickLink: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: spacing[4],
+    paddingBottom: spacing[4],
   },
 });
+

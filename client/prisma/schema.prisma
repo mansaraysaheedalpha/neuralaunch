@@ -46,6 +46,44 @@ model User {
   trainingConsent   Boolean                 @default(false)
   trainingConsentAt DateTime?
   outcomes          RecommendationOutcome[]
+
+  // ----- Aggregate analytics consent -----
+  //
+  // Separate from trainingConsent. This governs whether NeuraLaunch
+  // may include this user's data in aggregate, non-identifiable
+  // analytics (e.g. completion rates by category, common blockers,
+  // average time-to-launch). The aggregates are never tied back to
+  // an individual — they are counts and percentages across the
+  // entire user base.
+  //
+  // Unlike trainingConsent, revoking this does NOT trigger retroactive
+  // deletion because aggregated counts cannot be "unglued" from a
+  // specific user. The user is simply excluded from future aggregate
+  // computations going forward.
+  aggregateAnalyticsConsent   Boolean   @default(false)
+  aggregateAnalyticsConsentAt DateTime?
+
+  // ----- Push notifications -----
+  //
+  // `pushTokens` are Expo push tokens registered per device. A user can
+  // have multiple devices; we send to each active one. `nudgesEnabled`
+  // is the master toggle from the mobile Settings screen — when false
+  // we still keep the tokens (so re-enabling is instant) but skip
+  // sending.
+  pushTokens        PushToken[]
+  nudgesEnabled     Boolean                 @default(true)
+}
+
+model PushToken {
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  platform     String   // 'ios' | 'android' | 'web'
+  createdAt    DateTime @default(now())
+  lastUsedAt   DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Account {

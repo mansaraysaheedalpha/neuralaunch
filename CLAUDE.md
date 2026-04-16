@@ -157,6 +157,11 @@ Concrete rules:
 - **Install / add / remove dependencies:** `pnpm install`, `pnpm add <pkg>`, `pnpm remove <pkg>`. Never `npm i`, `npm install`, `npm ci`, `yarn`, or `yarn add`.
 - **Run scripts:** `pnpm <script>` (e.g. `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm test`). Use `pnpm exec <bin>` instead of `npx <bin>` whenever the binary is already a project devDependency — `npx` invocations are fine for one-off tools that aren't installed.
 - **Lockfile:** `client/pnpm-lock.yaml` is the single source of truth for the dep tree. `package-lock.json` and `yarn.lock` are gitignored at the repo root and inside `client/` so a stray `npm install` cannot reintroduce them. If you find a `package-lock.json` in the working tree, delete it — do not commit it, do not run `npm install` to "regenerate" it.
+- **Adding client dependencies — use `--ignore-workspace`:** a `pnpm-workspace.yaml` lives at the repo root so the root `package.json` scripts (`pnpm --filter client dev`, `build:web`, `lint:web`, `typecheck`) work. The footgun: running `pnpm add <pkg>` from inside `client/` without `--ignore-workspace` makes pnpm write the new dep to a **root-level** `pnpm-lock.yaml` (gitignored, not deployed) instead of updating `client/pnpm-lock.yaml` — `client/package.json` gets the new entry but the canonical lockfile stays stale. Vercel's install may silently regenerate and hide the drift, but the invariant is broken.
+  - **Correct:** `cd client && pnpm add <pkg> --ignore-workspace` — forces client to resolve as standalone and writes to `client/pnpm-lock.yaml`.
+  - **Also correct:** from the repo root, `pnpm --filter client add <pkg> --ignore-workspace` is equivalent.
+  - **After adding:** verify `client/pnpm-lock.yaml` shows up in `git status`; if only `client/package.json` changed, the install went to the wrong lockfile and you need to re-run with `--ignore-workspace`.
+  - The root `pnpm-lock.yaml` is gitignored specifically to prevent it from being committed by accident — see `.gitignore` for the entry and the reason.
 - **Documentation:** any code blocks, READMEs, or runbook entries showing install / build / test commands must use `pnpm`. The only exception is when documenting *why* npm is forbidden.
 - **Claude Code permissions:** the project's `.claude/settings.local.json` allow-lists pnpm commands and explicitly denies `npm install`, `npm i`, `npm ci`, `npm run`, and `yarn` invocations. Do not edit the deny list to "just this once" run npm — if a tool truly needs npm, escalate to the user instead of bypassing the guard.
 
@@ -191,6 +196,62 @@ const response = await anthropic.messages.create({
 - Use `generateObject` with a Zod schema for all structured data extraction
 - Tool definitions must be generated via `z.toJSONSchema()` — never handwrite JSON Schema
 - The `useChat` hook is the only client-side hook for conversation state
+
+### Prompt caching (Anthropic)
+
+**Every Claude call with a stable prefix ≥ 1024 tokens MUST cache.** A cache
+hit pays 0.1× the normal input-token price, cuts latency from >1s to ~100ms,
+and is backwards-compatible (a miss renders identically to an uncached call).
+Cached prompts stay warm for 5 minutes server-side — a perfect fit for
+multi-turn interactions (discovery interview, pushback loop, check-in
+conversations, coach rehearsal, diagnostic chat).
+
+**Use the helpers in `src/lib/ai/prompt-cache.ts`. Never write `cache_control`
+or `providerOptions.anthropic.cacheControl` inline — the helper applies the
+right shape and the right minimum-token threshold.**
+
+Choose the shape that matches the call:
+
+```typescript
+// CORRECT — Vercel AI SDK, two-message split (most common)
+const { object } = await generateObject({
+  model: aiSdkAnthropic(modelId),
+  schema: MySchema,
+  messages: cachedUserMessages(STABLE_RULES_AND_CONTEXT, VOLATILE_TURN),
+});
+
+// CORRECT — Vercel AI SDK with a system prompt (streaming questions etc.)
+await streamText({
+  model,
+  system: cachedSystem(BIG_SYSTEM_RULES),
+  messages: priorTurnsPlusCurrent,
+});
+
+// CORRECT — raw @anthropic-ai/sdk (synthesis-engine summarisation etc.)
+await anthropicClient.messages.create({
+  model,
+  max_tokens: 1024,
+  messages: [{ role: 'user', content: cachedAnthropicContent(STABLE, VOLATILE) }],
+});
+
+// WRONG — single concatenated message when a stable prefix exists
+messages: [{ role: 'user', content: `${RULES}${CONTEXT}${USER_TURN}` }];
+
+// WRONG — hand-rolled cache_control inline
+providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } };
+```
+
+**What counts as stable:** rules / instructions, tool-use guidance, schema
+descriptions, belief-state rendering, roadmap outlines (stable until task
+status changes), recommendation blocks, prior conversation turns older than
+the current one. **What counts as volatile:** the founder's latest message,
+the specific task being checked in on this call, and any per-call
+classification verdicts.
+
+**Where the breakpoint goes:** at the END of the stable content, right before
+the volatile suffix. Anthropic caches everything up to and including the
+marker. Maximum four cache breakpoints per request — almost every call in
+this codebase only needs one.
 
 ### Zod v4 schema patterns
 

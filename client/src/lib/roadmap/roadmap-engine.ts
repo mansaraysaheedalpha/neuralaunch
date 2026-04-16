@@ -1,6 +1,6 @@
 // src/lib/roadmap/roadmap-engine.ts
 import 'server-only';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { RoadmapSchema, Roadmap } from './roadmap-schema';
 import { ROADMAP_MODELS, MAX_ROADMAP_PHASES, MAX_TASKS_PER_PHASE, WEEKLY_HOURS_MAP } from './constants';
@@ -156,9 +156,9 @@ export async function generateRoadmap(
     'roadmap:generateRoadmap',
     { primary: ROADMAP_MODELS.PLANNER, fallback: MODELS.INTERVIEW_FALLBACK_1 },
     async (modelId) => {
-      const { object } = await generateObject({
+      const { output } = await generateText({
         model:  anthropic(modelId),
-        schema: RoadmapSchema,
+        output: Output.object({ schema: RoadmapSchema }),
         messages: [{
           role:    'user',
           content: `You are building a personalised execution roadmap for someone who just received a strategic recommendation.
@@ -232,7 +232,7 @@ Write: "Open the Service Packager to turn your tutoring expertise into a concret
 Build the roadmap now.`,
         }],
       });
-      return object;
+      return output;
     },
   );
 

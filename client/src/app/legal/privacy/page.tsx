@@ -1,19 +1,32 @@
-import type { Metadata } from "next";
-import LegalPage from "../LegalPage";
+import type { Metadata } from 'next';
+import LegalDocumentPage from '@/components/legal/LegalDocumentPage';
+import { loadLegalMarkdown, LEGAL_DOCUMENTS, LAST_UPDATED } from '@/lib/legal/load-markdown';
+
+export const dynamic = 'force-static';
+
+const DOC = LEGAL_DOCUMENTS.privacy;
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — NeuraLaunch",
-  description:
-    "The Privacy Policy for the NeuraLaunch platform — a product of Tabempa Engineering Limited.",
-  robots: { index: false, follow: true },
+  title: `${DOC.title} — NeuraLaunch`,
+  description: DOC.description,
+  robots: { index: true, follow: true },
+  openGraph: {
+    title: `${DOC.title} — NeuraLaunch`,
+    description: DOC.description,
+    type: 'article',
+    siteName: 'NeuraLaunch',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: `${DOC.title} — NeuraLaunch`,
+    description: DOC.description,
+  },
+  other: {
+    'article:modified_time': LAST_UPDATED,
+  },
 };
 
 export default function PrivacyPage() {
-  return (
-    <LegalPage
-      heading="Privacy Policy"
-      lastUpdated="April 2026"
-      body="The Privacy Policy for NeuraLaunch is currently being prepared. This page will be updated with full details on how we collect, use, store, and protect your personal information, including data from discovery sessions, roadmaps, check-ins, and tool usage. NeuraLaunch is a product of Tabempa Engineering Limited. If you have questions in the meantime, contact us at [support email]."
-    />
-  );
+  const source = loadLegalMarkdown('privacy');
+  return <LegalDocumentPage slug="privacy" source={source} />;
 }

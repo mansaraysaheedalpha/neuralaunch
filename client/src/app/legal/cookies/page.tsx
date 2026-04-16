@@ -1,19 +1,32 @@
-import type { Metadata } from "next";
-import LegalPage from "../LegalPage";
+import type { Metadata } from 'next';
+import LegalDocumentPage from '@/components/legal/LegalDocumentPage';
+import { loadLegalMarkdown, LEGAL_DOCUMENTS, LAST_UPDATED } from '@/lib/legal/load-markdown';
+
+export const dynamic = 'force-static';
+
+const DOC = LEGAL_DOCUMENTS.cookies;
 
 export const metadata: Metadata = {
-  title: "Cookie Policy — NeuraLaunch",
-  description:
-    "The Cookie Policy for the NeuraLaunch platform — a product of Tabempa Engineering Limited.",
-  robots: { index: false, follow: true },
+  title: `${DOC.title} — NeuraLaunch`,
+  description: DOC.description,
+  robots: { index: true, follow: true },
+  openGraph: {
+    title: `${DOC.title} — NeuraLaunch`,
+    description: DOC.description,
+    type: 'article',
+    siteName: 'NeuraLaunch',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: `${DOC.title} — NeuraLaunch`,
+    description: DOC.description,
+  },
+  other: {
+    'article:modified_time': LAST_UPDATED,
+  },
 };
 
 export default function CookiesPage() {
-  return (
-    <LegalPage
-      heading="Cookie Policy"
-      lastUpdated="April 2026"
-      body="The Cookie Policy for NeuraLaunch is currently being prepared. This page will be updated with details on the cookies and similar technologies used on the NeuraLaunch platform. NeuraLaunch is a product of Tabempa Engineering Limited. If you have questions in the meantime, contact us at [support email]."
-    />
-  );
+  const source = loadLegalMarkdown('cookies');
+  return <LegalDocumentPage slug="cookies" source={source} />;
 }

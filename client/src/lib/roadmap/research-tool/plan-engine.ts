@@ -10,7 +10,7 @@
 // to the execution engine which executes it exactly.
 
 import 'server-only';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
@@ -75,13 +75,14 @@ export async function runResearchPlan(
 
   log.info('[ResearchPlan] Generating research plan');
 
-  const { object } = await withModelFallback(
+  const object = await withModelFallback(
     'research:plan',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
-    (modelId) => generateObject({
-      model:  aiSdkAnthropic(modelId),
-      schema: ResearchPlanResponseSchema,
-      messages: [{
+    async (modelId) => {
+      const { output } = await generateText({
+        model:  aiSdkAnthropic(modelId),
+        output: Output.object({ schema: ResearchPlanResponseSchema }),
+        messages: [{
         role: 'user',
         content: `You are the planning stage of NeuraLaunch's Founder Research Tool. The founder has asked a research question. Your job is to produce a brief, clear research plan they can read and approve before the research begins.
 
@@ -107,7 +108,9 @@ PLAN RULES:
 
 Produce the research plan now.`,
       }],
-    }),
+      });
+      return output;
+    },
   );
 
   log.info('[ResearchPlan] Plan generated', { estimatedTime: object.estimatedTime });

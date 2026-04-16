@@ -10,7 +10,7 @@
 // diagnostic turn. The route persists the result.
 
 import 'server-only';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
@@ -93,13 +93,14 @@ export async function runTaskDiagnosticTurn(
     .map(([k, v]) => `${k}: ${sanitizeForPrompt(String(v), 300)}`)
     .join('\n');
 
-  const { object } = await withModelFallback(
+  const object = await withModelFallback(
     'roadmap:taskDiagnostic',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
-    (modelId) => generateObject({
-      model:  aiSdkAnthropic(modelId),
-      schema: TaskDiagnosticTurnSchema,
-      messages: [{
+    async (modelId) => {
+      const { output } = await generateText({
+        model:  aiSdkAnthropic(modelId),
+        output: Output.object({ schema: TaskDiagnosticTurnSchema }),
+        messages: [{
         role: 'user',
         content: `You are NeuraLaunch's task-level diagnostic assistant. The founder is stuck on a specific task and has asked for help right now. Your job is to help them execute THIS specific task — not to diagnose their overall roadmap direction.
 
@@ -141,7 +142,9 @@ CRITICAL RULES:
 
 Produce your structured response now.`,
       }],
-    }),
+      });
+      return output;
+    },
   );
 
   log.info('[TaskDiagnostic] Turn complete', {

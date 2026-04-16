@@ -1,7 +1,7 @@
 // src/lib/validation/page-generator.ts
 import 'server-only';
 import { randomBytes } from 'crypto';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
@@ -163,9 +163,9 @@ export async function generateValidationPage(
     'validation:generatePage',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
     async (modelId) => {
-      const { object } = await generateObject({
+      const { output } = await generateText({
         model:  aiSdkAnthropic(modelId),
-        schema: ValidationPageContentSchema,
+        output: Output.object({ schema: ValidationPageContentSchema }),
         messages: [{
           role: 'user',
           content: `You are generating the content for a validation landing page for a startup idea.
@@ -200,7 +200,7 @@ Generate the full page content. Rules:
 Do not invent facts. Use only what is provided above.`,
         }],
       });
-      return object;
+      return output;
     },
   );
 

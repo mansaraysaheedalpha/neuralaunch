@@ -1,6 +1,6 @@
 // src/lib/validation/interpreter.ts
 import 'server-only';
-import { generateObject }              from 'ai';
+import { generateText, Output }        from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { logger }                      from '@/lib/logger';
 import { MODELS }                      from '@/lib/discovery/constants';
@@ -86,9 +86,9 @@ export async function interpretValidationMetrics(
     'validation:interpret',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
     async (modelId) => {
-      const { object } = await generateObject({
+      const { output } = await generateText({
         model:  aiSdkAnthropic(modelId),
-        schema: ValidationInterpretationSchema,
+        output: Output.object({ schema: ValidationInterpretationSchema }),
         messages: [{
           role: 'user',
           content: `You are interpreting the latest analytics snapshot for a founder's validation landing page.
@@ -146,7 +146,7 @@ You are allowed — and expected — to return "negative" when the data warrants
 Do not invent data. Use only the numbers above.`,
         }],
       });
-      return object;
+      return output;
     },
   );
 

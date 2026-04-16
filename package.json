@@ -2,8 +2,8 @@
   "name": "neuralaunch",
   "private": true,
   "scripts": {
+    "_comment": "mobile/ is not a workspace member (see pnpm-workspace.yaml). For mobile commands run: cd mobile && pnpm <cmd>",
     "dev:web": "pnpm --filter client dev",
-    "dev:mobile": "pnpm --filter mobile start",
     "build:web": "pnpm --filter client build",
     "lint:web": "pnpm --filter client lint",
     "typecheck": "pnpm -r run typecheck"

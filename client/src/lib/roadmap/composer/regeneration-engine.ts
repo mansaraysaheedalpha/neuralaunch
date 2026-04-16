@@ -9,7 +9,7 @@
 // this engine. The engine itself never checks.
 
 import 'server-only';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
@@ -56,13 +56,14 @@ export async function runComposerRegeneration(
 
   const { originalMessage, context } = input;
 
-  const { object } = await withModelFallback(
+  const object = await withModelFallback(
     'composer:regeneration',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
-    (modelId) => generateObject({
-      model:  aiSdkAnthropic(modelId),
-      schema: RegenerationResponseSchema,
-      messages: [{
+    async (modelId) => {
+      const { output } = await generateText({
+        model:  aiSdkAnthropic(modelId),
+        output: Output.object({ schema: RegenerationResponseSchema }),
+        messages: [{
         role: 'user',
         content: `You are NeuraLaunch's Outreach Composer, producing a variation of an outreach message.
 
@@ -89,7 +90,9 @@ RULES:
 
 Produce the variation now.`,
       }],
-    }),
+      });
+      return output;
+    },
   );
 
   log.info('[ComposerRegeneration] Variation generated');
