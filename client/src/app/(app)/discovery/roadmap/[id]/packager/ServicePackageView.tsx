@@ -42,7 +42,7 @@ export function ServicePackageView({ pkg }: ServicePackageViewProps) {
           <ul className="flex flex-col gap-1.5">
             {pkg.included.map((item, i) => (
               <li key={i} className="flex items-start gap-2 text-xs text-foreground">
-                <Check className="size-3.5 text-emerald-500 dark:text-emerald-400 shrink-0 mt-0.5" />
+                <Check className="size-3.5 text-success shrink-0 mt-0.5" />
                 <div>
                   <span className="font-medium">{item.item}</span>
                   <span className="text-muted-foreground"> — {item.description}</span>
@@ -97,7 +97,7 @@ export function ServicePackageView({ pkg }: ServicePackageViewProps) {
                     <ul className="flex flex-col gap-0.5 mt-1">
                       {tier.features.map((f, fi) => (
                         <li key={fi} className="text-[10.5px] text-foreground flex items-start gap-1">
-                          <Check className="size-2.5 text-emerald-500 dark:text-emerald-400 shrink-0 mt-1" />
+                          <Check className="size-2.5 text-success shrink-0 mt-1" />
                           <span>{f}</span>
                         </li>
                       ))}
@@ -131,7 +131,7 @@ export function ServicePackageView({ pkg }: ServicePackageViewProps) {
                   {s.clients} client{s.clients === 1 ? '' : 's'} · {s.tierMix} · {s.weeklyHours}
                 </p>
                 {s.hiringNote && (
-                  <p className="text-[10px] text-amber-600 dark:text-amber-400">⚠ {s.hiringNote}</p>
+                  <p className="text-[10px] text-gold">⚠ {s.hiringNote}</p>
                 )}
               </div>
             ))}
@@ -150,7 +150,7 @@ export function ServicePackageView({ pkg }: ServicePackageViewProps) {
             onClick={handleCopyBrief}
             className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] text-foreground hover:bg-muted transition-colors"
           >
-            {copied ? <Check className="size-3 text-emerald-500" /> : <Copy className="size-3" />}
+            {copied ? <Check className="size-3 text-success" /> : <Copy className="size-3" />}
             {copied ? 'Copied' : 'Copy to clipboard'}
           </button>
         </div>

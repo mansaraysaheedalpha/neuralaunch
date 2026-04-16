@@ -60,7 +60,7 @@ export function ComposerSessionReview({ session }: ComposerSessionReviewProps) {
             Drafted {messages.length} {channelLabel} {modeLabel}
           </p>
           {sentCount > 0 && (
-            <span className="flex items-center gap-1 text-[10px] text-green-600 dark:text-green-400">
+            <span className="flex items-center gap-1 text-[10px] text-success">
               <SendHorizonal className="size-3" />
               {sentCount} sent
             </span>

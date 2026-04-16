@@ -79,9 +79,9 @@ export function BuildBriefPanel({
   }
 
   const signalStyles: Record<string, string> = {
-    strong:   'bg-green-500/10 text-green-600 dark:text-green-400',
-    moderate: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-    weak:     'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+    strong:   'bg-success/10 text-success',
+    moderate: 'bg-gold/10 text-gold',
+    weak:     'bg-gold/10 text-gold',
     negative: 'bg-red-500/10 text-red-600 dark:text-red-400',
   };
 

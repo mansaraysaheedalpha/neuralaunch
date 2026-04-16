@@ -13,7 +13,7 @@ import { Copy, Check, ExternalLink, MapPin } from 'lucide-react';
 import type { ResearchFinding } from '@/lib/roadmap/research-tool/schemas';
 
 const CONFIDENCE_BADGE: Record<string, string> = {
-  verified:   'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20',
+  verified:   'bg-success/10 text-success border-success/20',
   likely:     'bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 border-yellow-500/20',
   unverified: 'bg-muted text-muted-foreground border-border',
 };
@@ -45,7 +45,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
       title={`Copy ${label}`}
     >
       {copied
-        ? <Check className="size-3 text-green-500" />
+        ? <Check className="size-3 text-success" />
         : <Copy className="size-3" />
       }
       {label}

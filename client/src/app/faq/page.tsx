@@ -271,7 +271,7 @@ const CATEGORIES: Category[] = [
 
 export default function FAQPage() {
   return (
-    <div className="min-h-screen bg-[#070F1C] text-[#F7F8FA] antialiased">
+    <div className="min-h-screen bg-navy-950 text-slate-50 antialiased">
       <MarketingHeader />
       <main id="main" className="pt-16">
         <Hero />
@@ -291,7 +291,7 @@ function Hero() {
   return (
     <section
       aria-labelledby="faq-hero"
-      className="relative overflow-hidden border-b border-slate-800 bg-gradient-to-b from-[#070F1C] via-[#0A1628] to-[#0D1E38]"
+      className="relative overflow-hidden border-b border-slate-800 bg-gradient-to-b from-navy-950 via-navy-900 to-navy-800"
     >
       <div
         aria-hidden="true"
@@ -300,8 +300,8 @@ function Hero() {
       <div className="relative mx-auto max-w-3xl px-4 pb-16 pt-20 sm:px-6 sm:pb-24 sm:pt-28 lg:px-8 lg:pb-28">
         <div className="text-center">
           <RevealOnScroll>
-            <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-[#0D1E38]/80 px-3.5 py-1.5 text-xs font-medium text-slate-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#2563EB]" />
+            <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-navy-800/80 px-3.5 py-1.5 text-xs font-medium text-slate-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
               Questions &amp; answers
             </p>
           </RevealOnScroll>
@@ -311,7 +311,7 @@ function Hero() {
               className="text-balance text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl md:text-6xl"
             >
               How NeuraLaunch works,{" "}
-              <span className="text-[#D4A843]">end to end.</span>
+              <span className="text-gold">end to end.</span>
             </h1>
           </RevealOnScroll>
           <RevealOnScroll delayMs={160}>
@@ -334,7 +334,7 @@ function Index() {
   return (
     <section
       aria-label="Question categories"
-      className="border-b border-slate-800 bg-[#070F1C]"
+      className="border-b border-slate-800 bg-navy-950"
     >
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
         <ul className="flex flex-wrap justify-center gap-2 text-sm">
@@ -342,7 +342,7 @@ function Index() {
             <li key={cat.id}>
               <a
                 href={`#${cat.id}`}
-                className="inline-flex items-center rounded-full border border-slate-800 bg-[#0A1628] px-4 py-2 font-medium text-slate-300 transition-colors hover:border-[#2563EB]/40 hover:bg-[#0D1E38] hover:text-white"
+                className="inline-flex items-center rounded-full border border-slate-800 bg-navy-900 px-4 py-2 font-medium text-slate-300 transition-colors hover:border-primary/40 hover:bg-navy-800 hover:text-white"
               >
                 {cat.title}
               </a>
@@ -361,7 +361,7 @@ function FAQList() {
   return (
     <section
       aria-label="Frequently asked questions"
-      className="border-b border-slate-800 bg-[#0A1628]"
+      className="border-b border-slate-800 bg-navy-900"
     >
       <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-24">
         <div className="space-y-16">
@@ -387,8 +387,8 @@ function FAQList() {
               <div className="space-y-3">
                 {cat.items.map((qa, i) => (
                   <RevealOnScroll key={qa.question} delayMs={i * 40}>
-                    <details className="group rounded-lg border border-slate-800 bg-[#070F1C] transition-colors open:border-slate-700 hover:border-slate-700">
-                      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A1628]">
+                    <details className="group rounded-lg border border-slate-800 bg-navy-950 transition-colors open:border-slate-700 hover:border-slate-700">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-900">
                         <span className="text-base font-medium text-white sm:text-lg">
                           {qa.question}
                         </span>
@@ -421,7 +421,7 @@ function FinalCTA() {
   return (
     <section
       aria-labelledby="faq-cta-heading"
-      className="bg-gradient-to-b from-[#0A1628] to-[#070F1C]"
+      className="bg-gradient-to-b from-navy-900 to-navy-950"
     >
       <div className="mx-auto max-w-4xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-28">
         <RevealOnScroll>
@@ -431,7 +431,7 @@ function FinalCTA() {
               className="text-balance text-3xl font-semibold tracking-tight text-white sm:text-4xl"
             >
               Still wondering whether this is for you?{" "}
-              <span className="text-[#D4A843]">Try it.</span>
+              <span className="text-gold">Try it.</span>
             </h2>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
               The discovery interview and your first recommendation are free.
@@ -441,7 +441,7 @@ function FinalCTA() {
             <div className="mt-10 flex justify-center">
               <Link
                 href="/discovery"
-                className="group inline-flex items-center gap-2 rounded-md bg-[#2563EB] px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#2563EB]/20 transition-all hover:bg-[#1D4ED8] hover:shadow-xl hover:shadow-[#2563EB]/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 focus-visible:ring-offset-[#070F1C]"
+                className="group inline-flex items-center gap-2 rounded-md bg-primary px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-primary/20 transition-all hover:bg-blue-700 hover:shadow-xl hover:shadow-primary/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950"
               >
                 Start Your Discovery
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />

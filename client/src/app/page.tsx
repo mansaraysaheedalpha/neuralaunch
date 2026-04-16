@@ -39,7 +39,7 @@ export const metadata: Metadata = {
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-[#070F1C] text-[#F7F8FA] antialiased [scroll-behavior:smooth]">
+    <div className="min-h-screen bg-navy-950 text-slate-50 antialiased [scroll-behavior:smooth]">
       <MarketingHeader />
       <main id="main" className="pt-16">
         <Hero />
@@ -64,7 +64,7 @@ function Hero() {
   return (
     <section
       aria-labelledby="hero-heading"
-      className="relative overflow-hidden border-b border-slate-800 bg-gradient-to-b from-[#070F1C] via-[#0A1628] to-[#0D1E38]"
+      className="relative overflow-hidden border-b border-slate-800 bg-gradient-to-b from-navy-950 via-navy-900 to-navy-800"
     >
       {/* subtle radial glow — purely decorative, css-only */}
       <div
@@ -75,8 +75,8 @@ function Hero() {
       <div className="relative mx-auto max-w-5xl px-4 pb-24 pt-20 sm:px-6 sm:pb-28 sm:pt-28 lg:px-8 lg:pb-36 lg:pt-36">
         <div className="text-center">
           <RevealOnScroll>
-            <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-[#0D1E38]/80 px-3.5 py-1.5 text-xs font-medium text-slate-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#10B981]" />
+            <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-navy-800/80 px-3.5 py-1.5 text-xs font-medium text-slate-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
               From lost to launched. For everyone.
             </p>
           </RevealOnScroll>
@@ -87,7 +87,7 @@ function Hero() {
               className="mx-auto max-w-3xl text-balance text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl md:text-6xl"
             >
               You know something needs to change.{" "}
-              <span className="text-[#D4A843]">
+              <span className="text-gold">
                 We&rsquo;ll tell you what — and walk it with you.
               </span>
             </h1>
@@ -103,7 +103,7 @@ function Hero() {
             <div className="mt-10 flex justify-center">
               <Link
                 href="/discovery"
-                className="group inline-flex items-center gap-2 rounded-md bg-[#2563EB] px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#2563EB]/20 transition-all hover:bg-[#1D4ED8] hover:shadow-xl hover:shadow-[#2563EB]/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 focus-visible:ring-offset-[#070F1C]"
+                className="group inline-flex items-center gap-2 rounded-md bg-primary px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-primary/20 transition-all hover:bg-blue-700 hover:shadow-xl hover:shadow-primary/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950"
               >
                 Start Your Discovery
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
@@ -149,7 +149,7 @@ function Problem() {
   return (
     <section
       aria-labelledby="problem-heading"
-      className="border-b border-slate-800 bg-[#070F1C]"
+      className="border-b border-slate-800 bg-navy-950"
     >
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
         <div className="mx-auto max-w-3xl text-center">
@@ -177,8 +177,8 @@ function Problem() {
         <div className="mx-auto mt-16 grid max-w-6xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {PROBLEM_MOMENTS.map((moment, i) => (
             <RevealOnScroll key={moment.title} delayMs={i * 60}>
-              <article className="h-full rounded-lg border border-slate-800 bg-[#0D1E38]/40 p-6 transition-colors hover:border-slate-700 hover:bg-[#0D1E38]/70">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-[#D4A843]">
+              <article className="h-full rounded-lg border border-slate-800 bg-navy-800/40 p-6 transition-colors hover:border-slate-700 hover:bg-navy-800/70">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-gold">
                   {moment.title}
                 </h3>
                 <p className="mt-3 text-sm leading-relaxed text-slate-300">
@@ -232,12 +232,12 @@ function HowItWorks() {
   return (
     <section
       aria-labelledby="how-it-works-heading"
-      className="border-b border-slate-800 bg-[#0A1628]"
+      className="border-b border-slate-800 bg-navy-900"
     >
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
         <div className="mx-auto max-w-3xl text-center">
           <RevealOnScroll>
-            <p className="text-sm font-semibold uppercase tracking-wider text-[#2563EB]">
+            <p className="text-sm font-semibold uppercase tracking-wider text-primary">
               How it works
             </p>
           </RevealOnScroll>
@@ -256,13 +256,13 @@ function HowItWorks() {
             const Icon = step.icon;
             return (
               <RevealOnScroll key={step.title} delayMs={i * 80}>
-                <li className="relative h-full rounded-lg border border-slate-800 bg-[#070F1C] p-6">
+                <li className="relative h-full rounded-lg border border-slate-800 bg-navy-950 p-6">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-700 bg-[#0D1E38] text-xs font-semibold text-slate-300">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-700 bg-navy-800 text-xs font-semibold text-slate-300">
                       {i + 1}
                     </span>
                     <Icon
-                      className="h-5 w-5 text-[#2563EB]"
+                      className="h-5 w-5 text-primary"
                       aria-hidden="true"
                     />
                   </div>
@@ -289,13 +289,13 @@ function OneRecommendation() {
   return (
     <section
       aria-labelledby="one-rec-heading"
-      className="border-b border-slate-800 bg-[#070F1C]"
+      className="border-b border-slate-800 bg-navy-950"
     >
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
         <div className="mx-auto max-w-5xl">
-          <div className="overflow-hidden rounded-2xl border border-[#D4A843]/30 bg-gradient-to-br from-[#0D1E38] to-[#0A1628] p-8 sm:p-12 lg:p-16">
+          <div className="overflow-hidden rounded-2xl border border-gold/30 bg-gradient-to-br from-navy-800 to-navy-900 p-8 sm:p-12 lg:p-16">
             <RevealOnScroll>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#D4A843]">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gold">
                 The principle
               </p>
             </RevealOnScroll>
@@ -305,7 +305,7 @@ function OneRecommendation() {
                 className="mt-4 text-balance text-3xl font-semibold leading-tight tracking-tight text-white sm:text-4xl md:text-5xl"
               >
                 One recommendation.{" "}
-                <span className="text-[#D4A843]">Not five.</span>
+                <span className="text-gold">Not five.</span>
               </h2>
             </RevealOnScroll>
             <RevealOnScroll delayMs={160}>
@@ -326,7 +326,7 @@ function OneRecommendation() {
                     the risks, and the assumptions laid out plainly.
                   </p>
                 </div>
-                <div className="rounded-xl border border-slate-800 bg-[#070F1C]/60 p-6">
+                <div className="rounded-xl border border-slate-800 bg-navy-950/60 p-6">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
                     If you disagree
                   </h3>
@@ -398,12 +398,12 @@ function ExecutionTools() {
   return (
     <section
       aria-labelledby="tools-heading"
-      className="border-b border-slate-800 bg-[#0A1628]"
+      className="border-b border-slate-800 bg-navy-900"
     >
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
         <div className="mx-auto max-w-3xl text-center">
           <RevealOnScroll>
-            <p className="text-sm font-semibold uppercase tracking-wider text-[#2563EB]">
+            <p className="text-sm font-semibold uppercase tracking-wider text-primary">
               The tools
             </p>
           </RevealOnScroll>
@@ -429,23 +429,23 @@ function ExecutionTools() {
             const Icon = tool.icon;
             return (
               <RevealOnScroll key={tool.name} delayMs={i * 100}>
-                <article className="group h-full rounded-xl border border-slate-800 bg-[#070F1C] p-7 transition-all hover:border-[#2563EB]/40 hover:bg-[#0D1E38]/60">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#2563EB]/10 ring-1 ring-inset ring-[#2563EB]/30">
+                <article className="group h-full rounded-xl border border-slate-800 bg-navy-950 p-7 transition-all hover:border-primary/40 hover:bg-navy-800/60">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 ring-1 ring-inset ring-primary/30">
                     <Icon
-                      className="h-5 w-5 text-[#2563EB]"
+                      className="h-5 w-5 text-primary"
                       aria-hidden="true"
                     />
                   </div>
                   <h3 className="mt-6 text-xl font-semibold text-white">
                     {tool.name}
                   </h3>
-                  <p className="mt-2 text-sm font-medium text-[#D4A843]">
+                  <p className="mt-2 text-sm font-medium text-gold">
                     {tool.tagline}
                   </p>
                   <p className="mt-4 text-sm leading-relaxed text-slate-400">
                     {tool.body}
                   </p>
-                  <div className="mt-6 rounded-md border border-slate-800 bg-[#0A1628] p-4">
+                  <div className="mt-6 rounded-md border border-slate-800 bg-navy-900 p-4">
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                       What it does
                     </p>
@@ -493,7 +493,7 @@ function Differentiation() {
   return (
     <section
       aria-labelledby="diff-heading"
-      className="border-b border-slate-800 bg-[#070F1C]"
+      className="border-b border-slate-800 bg-navy-950"
     >
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
         <div className="mx-auto max-w-3xl text-center">
@@ -518,7 +518,7 @@ function Differentiation() {
           {COMPARISONS.map((row, i) => (
             <RevealOnScroll key={row.them} delayMs={i * 60}>
               <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-slate-800 bg-slate-800 md:grid-cols-2">
-                <div className="bg-[#0A1628] p-6">
+                <div className="bg-navy-900 p-6">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                     The tools that exist
                   </p>
@@ -526,8 +526,8 @@ function Differentiation() {
                     {row.them}
                   </p>
                 </div>
-                <div className="bg-[#0D1E38] p-6">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-[#2563EB]">
+                <div className="bg-navy-800 p-6">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-primary">
                     NeuraLaunch
                   </p>
                   <p className="mt-2 text-sm leading-relaxed text-slate-200">
@@ -550,14 +550,14 @@ function ItStaysWithYou() {
   return (
     <section
       aria-labelledby="stays-heading"
-      className="border-b border-slate-800 bg-[#0A1628]"
+      className="border-b border-slate-800 bg-navy-900"
     >
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
         <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 lg:grid-cols-2 lg:gap-20">
           <RevealOnScroll>
             <div>
-              <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-[#10B981]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#10B981]" />
+              <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-success">
+                <span className="h-1.5 w-1.5 rounded-full bg-success" />
                 It stays with you
               </p>
               <h2
@@ -618,9 +618,9 @@ function Beat({
   body: string;
 }) {
   return (
-    <div className="flex items-start gap-4 rounded-lg border border-slate-800 bg-[#070F1C] p-5">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#10B981]/10 ring-1 ring-inset ring-[#10B981]/30">
-        <Icon className="h-4 w-4 text-[#10B981]" aria-hidden="true" />
+    <div className="flex items-start gap-4 rounded-lg border border-slate-800 bg-navy-950 p-5">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-success/10 ring-1 ring-inset ring-success/30">
+        <Icon className="h-4 w-4 text-success" aria-hidden="true" />
       </div>
       <div>
         <h3 className="text-base font-semibold text-white">{title}</h3>
@@ -697,12 +697,12 @@ function Pricing() {
     <section
       id="pricing"
       aria-labelledby="pricing-heading"
-      className="border-b border-slate-800 bg-[#070F1C] scroll-mt-20"
+      className="border-b border-slate-800 bg-navy-950 scroll-mt-20"
     >
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
         <div className="mx-auto max-w-3xl text-center">
           <RevealOnScroll>
-            <p className="text-sm font-semibold uppercase tracking-wider text-[#2563EB]">
+            <p className="text-sm font-semibold uppercase tracking-wider text-primary">
               Pricing
             </p>
           </RevealOnScroll>
@@ -728,12 +728,12 @@ function Pricing() {
               <article
                 className={`relative flex h-full flex-col rounded-xl border p-7 transition-colors ${
                   tier.highlighted
-                    ? "border-[#2563EB] bg-[#0D1E38] shadow-lg shadow-[#2563EB]/10"
-                    : "border-slate-800 bg-[#0A1628] hover:border-slate-700"
+                    ? "border-primary bg-navy-800 shadow-lg shadow-primary/10"
+                    : "border-slate-800 bg-navy-900 hover:border-slate-700"
                 }`}
               >
                 {tier.highlighted && (
-                  <span className="absolute -top-3 left-7 inline-flex items-center rounded-full bg-[#2563EB] px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white">
+                  <span className="absolute -top-3 left-7 inline-flex items-center rounded-full bg-primary px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white">
                     Most founders start here
                   </span>
                 )}
@@ -755,8 +755,8 @@ function Pricing() {
                       <Check
                         className={`mt-0.5 h-4 w-4 shrink-0 ${
                           tier.highlighted
-                            ? "text-[#2563EB]"
-                            : "text-[#10B981]"
+                            ? "text-primary"
+                            : "text-success"
                         }`}
                         aria-hidden="true"
                       />
@@ -767,9 +767,9 @@ function Pricing() {
                 <div className="mt-auto pt-8">
                   <Link
                     href="/discovery"
-                    className={`inline-flex w-full items-center justify-center gap-1.5 rounded-md px-4 py-2.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#070F1C] ${
+                    className={`inline-flex w-full items-center justify-center gap-1.5 rounded-md px-4 py-2.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 ${
                       tier.highlighted
-                        ? "bg-[#2563EB] text-white hover:bg-[#1D4ED8] focus-visible:ring-[#2563EB]"
+                        ? "bg-primary text-white hover:bg-blue-700 focus-visible:ring-primary"
                         : "border border-slate-700 bg-transparent text-white hover:border-slate-500 hover:bg-slate-800 focus-visible:ring-slate-500"
                     }`}
                   >
@@ -793,7 +793,7 @@ function FinalCTA() {
   return (
     <section
       aria-labelledby="final-cta-heading"
-      className="bg-gradient-to-b from-[#0A1628] to-[#070F1C]"
+      className="bg-gradient-to-b from-navy-900 to-navy-950"
     >
       <div className="mx-auto max-w-5xl px-4 py-24 sm:px-6 sm:py-28 lg:px-8 lg:py-36">
         <RevealOnScroll>
@@ -803,7 +803,7 @@ function FinalCTA() {
               className="text-balance text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl"
             >
               From lost to launched.{" "}
-              <span className="text-[#D4A843]">For everyone.</span>{" "}
+              <span className="text-gold">For everyone.</span>{" "}
               One step at a time.
             </h2>
             <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
@@ -814,7 +814,7 @@ function FinalCTA() {
             <div className="mt-10 flex justify-center">
               <Link
                 href="/discovery"
-                className="group inline-flex items-center gap-2 rounded-md bg-[#2563EB] px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#2563EB]/20 transition-all hover:bg-[#1D4ED8] hover:shadow-xl hover:shadow-[#2563EB]/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 focus-visible:ring-offset-[#070F1C]"
+                className="group inline-flex items-center gap-2 rounded-md bg-primary px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-primary/20 transition-all hover:bg-blue-700 hover:shadow-xl hover:shadow-primary/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950"
               >
                 Start Your Discovery
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />

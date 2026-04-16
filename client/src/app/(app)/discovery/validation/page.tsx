@@ -127,8 +127,8 @@ export default async function ValidationDashboardPage() {
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    DRAFT:    'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-    LIVE:     'bg-green-500/10 text-green-600 dark:text-green-400',
+    DRAFT:    'bg-gold/10 text-gold',
+    LIVE:     'bg-success/10 text-success',
     ARCHIVED: 'bg-muted text-muted-foreground',
   };
   return (

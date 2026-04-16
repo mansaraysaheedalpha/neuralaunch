@@ -102,7 +102,7 @@ const components: Components = {
           href={href}
           {...targetProps}
           {...rest}
-          className="font-medium text-[#2563EB] underline-offset-4 transition-colors hover:text-[#1D4ED8] hover:underline focus:outline-none focus-visible:underline"
+          className="font-medium text-primary underline-offset-4 transition-colors hover:text-blue-700 hover:underline focus:outline-none focus-visible:underline"
         >
           {children}
         </a>
@@ -113,7 +113,7 @@ const components: Components = {
       <a
         href={href}
         {...rest}
-        className="font-medium text-[#2563EB] underline-offset-4 hover:underline"
+        className="font-medium text-primary underline-offset-4 hover:underline"
       >
         {children}
       </a>
@@ -122,7 +122,7 @@ const components: Components = {
   code: ({ children, ...props }) => (
     <code
       {...props}
-      className="rounded bg-slate-800/80 px-1.5 py-0.5 font-mono text-[0.9em] text-[#D4A843]"
+      className="rounded bg-slate-800/80 px-1.5 py-0.5 font-mono text-[0.9em] text-gold"
     >
       {children}
     </code>
@@ -130,7 +130,7 @@ const components: Components = {
   blockquote: ({ children, ...props }) => (
     <blockquote
       {...props}
-      className="mt-6 border-l-2 border-[#D4A843] bg-[#D4A843]/5 px-5 py-3 italic text-slate-300"
+      className="mt-6 border-l-2 border-gold bg-gold/5 px-5 py-3 italic text-slate-300"
     >
       {children}
     </blockquote>
@@ -146,7 +146,7 @@ const components: Components = {
     </div>
   ),
   thead: ({ children, ...props }) => (
-    <thead {...props} className="bg-[#2563EB]/10 text-white">
+    <thead {...props} className="bg-primary/10 text-white">
       {children}
     </thead>
   ),

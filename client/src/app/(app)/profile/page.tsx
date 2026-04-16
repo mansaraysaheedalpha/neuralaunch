@@ -107,7 +107,7 @@ export default async function ProfilePage() {
                 </div>
               </div>
               {googleAccount ? (
-                <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <Badge className="border-success/30 bg-success/10 text-success">
                   <CheckCircle2 className="mr-1 h-3 w-3" />
                   Connected
                 </Badge>
@@ -136,12 +136,12 @@ export default async function ProfilePage() {
                 </div>
               </div>
               {githubAccount ? (
-                <Badge className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <Badge className="border-success/30 bg-success/10 text-success">
                   <CheckCircle2 className="mr-1 h-3 w-3" />
                   Connected
                 </Badge>
               ) : (
-                <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <Badge variant="outline" className="border-gold/30 bg-gold/10 text-gold">
                   Required
                 </Badge>
               )}
@@ -149,8 +149,8 @@ export default async function ProfilePage() {
 
             {githubAccount && (
               <div className="space-y-2 pl-[52px]">
-                <div className="flex items-start gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-500 dark:text-emerald-400" />
+                <div className="flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 p-3 text-sm">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
                   <div>
                     <p className="font-medium text-foreground">
                       GitHub account connected

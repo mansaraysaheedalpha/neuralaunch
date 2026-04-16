@@ -62,10 +62,10 @@ export default function LegalTableOfContents({
           onClick={() => setMobileOpen((v) => !v)}
           aria-expanded={mobileOpen}
           aria-controls="toc-mobile-list"
-          className="flex w-full items-center justify-between rounded-lg border border-slate-800 bg-[#0A1628] px-4 py-3 text-sm font-medium text-slate-200 transition-colors hover:border-slate-700 hover:bg-[#0D1E38] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+          className="flex w-full items-center justify-between rounded-lg border border-slate-800 bg-navy-900 px-4 py-3 text-sm font-medium text-slate-200 transition-colors hover:border-slate-700 hover:bg-navy-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <span className="inline-flex items-center gap-2">
-            <List className="h-4 w-4 text-[#2563EB]" aria-hidden="true" />
+            <List className="h-4 w-4 text-primary" aria-hidden="true" />
             Jump to section
           </span>
           <ChevronDown
@@ -78,7 +78,7 @@ export default function LegalTableOfContents({
         {mobileOpen && (
           <ol
             id="toc-mobile-list"
-            className="mt-2 space-y-0.5 rounded-lg border border-slate-800 bg-[#0A1628] p-2"
+            className="mt-2 space-y-0.5 rounded-lg border border-slate-800 bg-navy-900 p-2"
           >
             {entries.map((entry, i) => (
               <li key={entry.id}>
@@ -87,7 +87,7 @@ export default function LegalTableOfContents({
                   onClick={() => setMobileOpen(false)}
                   className={`block rounded-md px-3 py-2 text-sm transition-colors ${
                     activeId === entry.id
-                      ? 'bg-[#2563EB]/10 text-[#2563EB]'
+                      ? 'bg-primary/10 text-primary'
                       : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                   }`}
                 >
@@ -119,7 +119,7 @@ export default function LegalTableOfContents({
                   href={`#${entry.id}`}
                   className={`-ml-px block border-l-2 px-4 py-1.5 text-sm transition-colors ${
                     isActive
-                      ? 'border-[#2563EB] text-[#2563EB]'
+                      ? 'border-primary text-primary'
                       : 'border-transparent text-slate-400 hover:border-slate-600 hover:text-slate-200'
                   }`}
                 >

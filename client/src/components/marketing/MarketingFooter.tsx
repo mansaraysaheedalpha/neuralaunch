@@ -10,7 +10,7 @@ export default function MarketingFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-slate-800 bg-[#070F1C]">
+    <footer className="border-t border-slate-800 bg-navy-950">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
         <div className="grid grid-cols-1 gap-10 md:grid-cols-12">
           {/* Brand block */}

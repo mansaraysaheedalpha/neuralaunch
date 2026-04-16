@@ -113,8 +113,8 @@ export function ConversationList({
                     {formatDate(conversation.updatedAt)}
                   </p>
                   {isInProgress && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                      <span className="size-1 rounded-full bg-amber-500 animate-pulse" />
+                    <span className="inline-flex items-center gap-1 rounded-full bg-gold/10 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wider text-gold">
+                      <span className="size-1 rounded-full bg-gold animate-pulse" />
                       In progress
                     </span>
                   )}

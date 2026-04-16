@@ -290,7 +290,7 @@ export function OutcomeForm({
       )}
 
       {consentLoadFailed && (
-        <p className="text-[10px] text-amber-600 dark:text-amber-400">
+        <p className="text-[10px] text-gold">
           Could not load your training-data preference. Your outcome will be saved without sharing.
         </p>
       )}

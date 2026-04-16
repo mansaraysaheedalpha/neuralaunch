@@ -32,17 +32,17 @@ export function DebriefView({ debrief, onDone }: DebriefViewProps) {
         </p>
 
         {/* What went well */}
-        <div className="rounded-lg border border-green-500/30 bg-green-500/5 px-3 py-3 mb-3">
+        <div className="rounded-lg border border-success/30 bg-success/5 px-3 py-3 mb-3">
           <div className="flex items-center gap-1.5 mb-2">
-            <CheckCircle2 className="size-3.5 text-green-600 dark:text-green-400" />
-            <p className="text-xs font-semibold text-green-700 dark:text-green-400">
+            <CheckCircle2 className="size-3.5 text-success" />
+            <p className="text-xs font-semibold text-success">
               What went well
             </p>
           </div>
           <ul className="flex flex-col gap-1.5">
             {whatWentWell.map((item, i) => (
               <li key={i} className="flex gap-2 items-start">
-                <span className="shrink-0 size-1.5 rounded-full bg-green-500 mt-1.5" />
+                <span className="shrink-0 size-1.5 rounded-full bg-success mt-1.5" />
                 <p className="text-[11px] text-foreground/90 leading-relaxed">{item}</p>
               </li>
             ))}
@@ -50,17 +50,17 @@ export function DebriefView({ debrief, onDone }: DebriefViewProps) {
         </div>
 
         {/* What to watch for */}
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-3 mb-3">
+        <div className="rounded-lg border border-gold/30 bg-gold/5 px-3 py-3 mb-3">
           <div className="flex items-center gap-1.5 mb-2">
-            <AlertTriangle className="size-3.5 text-amber-600 dark:text-amber-400" />
-            <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="size-3.5 text-gold" />
+            <p className="text-xs font-semibold text-gold">
               What to watch for
             </p>
           </div>
           <ul className="flex flex-col gap-1.5">
             {whatToWatchFor.map((item, i) => (
               <li key={i} className="flex gap-2 items-start">
-                <span className="shrink-0 size-1.5 rounded-full bg-amber-500 mt-1.5" />
+                <span className="shrink-0 size-1.5 rounded-full bg-gold mt-1.5" />
                 <p className="text-[11px] text-foreground/90 leading-relaxed">{item}</p>
               </li>
             ))}

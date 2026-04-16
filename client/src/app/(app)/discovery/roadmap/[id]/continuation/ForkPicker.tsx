@@ -30,9 +30,9 @@ export function ForkPicker({ forks, onPick, picking, error, isPicked }: ForkPick
       <motion.div
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-xl border border-green-500/30 bg-green-500/5 px-5 py-4 flex flex-col gap-2"
+        className="rounded-xl border border-success/30 bg-success/5 px-5 py-4 flex flex-col gap-2"
       >
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-green-700 dark:text-green-400 flex items-center gap-1">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-success flex items-center gap-1">
           <Check className="size-3" />
           Fork selected
         </p>

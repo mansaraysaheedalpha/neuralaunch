@@ -95,8 +95,8 @@ export function ValidationPageControls({
         <span className={[
           'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
           isLive
-            ? 'bg-green-500/10 text-green-600 dark:text-green-400'
-            : 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+            ? 'bg-success/10 text-success'
+            : 'bg-gold/10 text-gold',
         ].join(' ')}>
           {isLive ? 'Live' : 'Draft'}
         </span>

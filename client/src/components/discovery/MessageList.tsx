@@ -98,7 +98,7 @@ export function MessageList({
                   msg.role === 'user'
                     ? 'bg-primary text-primary-foreground'
                     : isCutStreamHere
-                      ? 'bg-muted text-foreground/80 border border-amber-500/30'
+                      ? 'bg-muted text-foreground/80 border border-gold/30'
                       : 'bg-muted text-foreground',
                 )}
               >
@@ -107,8 +107,8 @@ export function MessageList({
 
               {/* Cut-stream indicator anchored to the trimmed assistant bubble */}
               {isCutStreamHere && (
-                <div className="flex items-center gap-2 text-[11px] text-amber-700 dark:text-amber-400">
-                  <span className="block h-px w-6 bg-amber-500/40" />
+                <div className="flex items-center gap-2 text-[11px] text-gold">
+                  <span className="block h-px w-6 bg-gold/40" />
                   <span>Response was interrupted</span>
                   <RetryIconButton onClick={onRetryTurn} label="Retry message" />
                 </div>

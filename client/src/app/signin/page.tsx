@@ -14,7 +14,7 @@ export default function SignInPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#070F1C] p-4 text-[#F7F8FA]">
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-navy-950 p-4 text-slate-50">
       {/* Subtle radial glow — decorative only, matches landing page */}
       <div
         aria-hidden="true"
@@ -76,14 +76,14 @@ export default function SignInPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4, duration: 0.5 }}
-          className="rounded-xl border border-slate-800 bg-[#0A1628] p-6 shadow-xl sm:p-8"
+          className="rounded-xl border border-slate-800 bg-navy-900 p-6 shadow-xl sm:p-8"
         >
           <div className="space-y-3">
             {/* Google */}
             <button
               type="button"
               onClick={() => handleSignIn("google")}
-              className="group inline-flex w-full items-center justify-center gap-3 rounded-md border border-slate-700 bg-[#0D1E38] px-6 py-3 text-sm font-medium text-white transition-colors hover:border-slate-600 hover:bg-[#0D1E38]/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A1628]"
+              className="group inline-flex w-full items-center justify-center gap-3 rounded-md border border-slate-700 bg-navy-800 px-6 py-3 text-sm font-medium text-white transition-colors hover:border-slate-600 hover:bg-navy-800/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-900"
             >
               <FcGoogle className="h-5 w-5" aria-hidden="true" />
               <span>Continue with Google</span>
@@ -93,7 +93,7 @@ export default function SignInPage() {
             <button
               type="button"
               onClick={() => handleSignIn("github")}
-              className="group inline-flex w-full items-center justify-center gap-3 rounded-md border border-slate-700 bg-[#0D1E38] px-6 py-3 text-sm font-medium text-white transition-colors hover:border-slate-600 hover:bg-[#0D1E38]/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A1628]"
+              className="group inline-flex w-full items-center justify-center gap-3 rounded-md border border-slate-700 bg-navy-800 px-6 py-3 text-sm font-medium text-white transition-colors hover:border-slate-600 hover:bg-navy-800/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-900"
             >
               <FaGithub className="h-5 w-5" aria-hidden="true" />
               <span>Continue with GitHub</span>
@@ -106,7 +106,7 @@ export default function SignInPage() {
               <div className="w-full border-t border-slate-800" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-[#0A1628] px-3 text-slate-500">
+              <span className="bg-navy-900 px-3 text-slate-500">
                 Secure authentication
               </span>
             </div>
@@ -129,14 +129,14 @@ export default function SignInPage() {
           By continuing, you agree to our{" "}
           <Link
             href="/legal/terms"
-            className="font-medium text-[#2563EB] underline-offset-4 hover:underline"
+            className="font-medium text-primary underline-offset-4 hover:underline"
           >
             Terms of Service
           </Link>{" "}
           and{" "}
           <Link
             href="/legal/privacy"
-            className="font-medium text-[#2563EB] underline-offset-4 hover:underline"
+            className="font-medium text-primary underline-offset-4 hover:underline"
           >
             Privacy Policy
           </Link>

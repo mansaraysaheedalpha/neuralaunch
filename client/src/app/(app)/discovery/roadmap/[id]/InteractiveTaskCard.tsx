@@ -26,7 +26,7 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
 const STATUS_BADGE_CLASSES: Record<TaskStatus, string> = {
   not_started: 'bg-muted text-muted-foreground',
   in_progress: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-  completed:   'bg-green-500/10 text-green-600 dark:text-green-400',
+  completed:   'bg-success/10 text-success',
   blocked:     'bg-red-500/10 text-red-600 dark:text-red-400',
 };
 
@@ -87,7 +87,7 @@ export function InteractiveTaskCard({
       transition={{ delay: index * 0.05 }}
       className={[
         'rounded-lg border bg-card p-4 flex flex-col gap-3',
-        ck.status === 'completed' ? 'border-green-500/30 opacity-90' :
+        ck.status === 'completed' ? 'border-success/30 opacity-90' :
         ck.status === 'blocked'   ? 'border-red-500/30' :
         'border-border',
       ].join(' ')}

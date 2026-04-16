@@ -44,7 +44,7 @@ export default function MarketingHeader() {
     .toUpperCase();
 
   return (
-    <header className="fixed left-0 right-0 top-0 z-50 border-b border-slate-800 bg-[#070F1C]/90 backdrop-blur supports-[backdrop-filter]:bg-[#070F1C]/75">
+    <header className="fixed left-0 right-0 top-0 z-50 border-b border-slate-800 bg-navy-950/90 backdrop-blur supports-[backdrop-filter]:bg-navy-950/75">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link
@@ -106,7 +106,7 @@ export default function MarketingHeader() {
               </Link>
               <Link
                 href="/discovery"
-                className="inline-flex items-center gap-1.5 rounded-md bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1D4ED8] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 focus-visible:ring-offset-[#070F1C]"
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950"
               >
                 Start Your Discovery
                 <ArrowRight className="h-4 w-4" />
@@ -119,7 +119,7 @@ export default function MarketingHeader() {
         <button
           type="button"
           onClick={() => setMobileOpen((v) => !v)}
-          className="inline-flex items-center justify-center rounded-md p-2 text-slate-300 hover:bg-slate-800 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] md:hidden"
+          className="inline-flex items-center justify-center rounded-md p-2 text-slate-300 hover:bg-slate-800 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary md:hidden"
           aria-expanded={mobileOpen}
           aria-controls="mobile-menu"
           aria-label="Toggle navigation menu"
@@ -136,7 +136,7 @@ export default function MarketingHeader() {
       {mobileOpen && (
         <div
           id="mobile-menu"
-          className="border-t border-slate-800 bg-[#070F1C] md:hidden"
+          className="border-t border-slate-800 bg-navy-950 md:hidden"
         >
           <div className="space-y-1 px-4 py-4">
             <Link
@@ -200,7 +200,7 @@ export default function MarketingHeader() {
                 </Link>
                 <Link
                   href="/discovery"
-                  className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-[#2563EB] px-4 py-2.5 text-base font-semibold text-white hover:bg-[#1D4ED8]"
+                  className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2.5 text-base font-semibold text-white hover:bg-blue-700"
                   onClick={() => setMobileOpen(false)}
                 >
                   Start Your Discovery
@@ -234,10 +234,10 @@ function UserMenu({
       <DropdownMenu.Trigger asChild>
         <button
           type="button"
-          className="flex items-center gap-2 rounded-full border border-slate-800 p-0.5 pr-3 transition-colors hover:border-slate-700 hover:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 focus-visible:ring-offset-[#070F1C]"
+          className="flex items-center gap-2 rounded-full border border-slate-800 p-0.5 pr-3 transition-colors hover:border-slate-700 hover:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950"
           aria-label="Account menu"
         >
-          <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-[#2563EB] text-xs font-semibold text-white">
+          <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-primary text-xs font-semibold text-white">
             {image ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -258,10 +258,10 @@ function UserMenu({
         <DropdownMenu.Content
           align="end"
           sideOffset={8}
-          className="z-50 w-64 rounded-lg border border-slate-800 bg-[#0A1628] p-1.5 shadow-xl"
+          className="z-50 w-64 rounded-lg border border-slate-800 bg-navy-900 p-1.5 shadow-xl"
         >
           <div className="flex items-center gap-3 px-2.5 py-2">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#2563EB] text-xs font-semibold text-white">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-xs font-semibold text-white">
               {image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img

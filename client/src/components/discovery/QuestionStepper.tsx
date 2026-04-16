@@ -107,10 +107,10 @@ export function QuestionStepper({
                   {failure.partial}
                 </p>
               )}
-              <div className="flex items-center gap-2 text-[11px] text-amber-700 dark:text-amber-400">
+              <div className="flex items-center gap-2 text-[11px] text-gold">
                 {failure.kind === 'cut_stream' && failure.partial && failure.partial.trim().length > 0 ? (
                   <>
-                    <span className="block h-px w-6 bg-amber-500/40" />
+                    <span className="block h-px w-6 bg-gold/40" />
                     <span>Response was interrupted</span>
                   </>
                 ) : (

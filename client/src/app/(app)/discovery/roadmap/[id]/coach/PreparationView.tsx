@@ -83,7 +83,7 @@ function CopyButton({ text }: { text: string }) {
       className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
     >
       {copied
-        ? <><Check className="size-3 text-green-500" /><span className="text-green-500">Copied</span></>
+        ? <><Check className="size-3 text-success" /><span className="text-success">Copied</span></>
         : <><Copy className="size-3" /><span>Copy</span></>
       }
     </button>

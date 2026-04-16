@@ -162,7 +162,7 @@ export function ComposerMessageCard({
           className={[
             'flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] transition-colors',
             isSent
-              ? 'border-green-500/40 bg-green-500/10 text-green-600 dark:text-green-400'
+              ? 'border-success/40 bg-success/10 text-success'
               : 'border-border text-muted-foreground hover:text-foreground',
           ].join(' ')}
         >
