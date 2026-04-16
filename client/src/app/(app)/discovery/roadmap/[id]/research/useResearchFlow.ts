@@ -17,6 +17,14 @@ export interface UseResearchFlowResult {
   plan:            string;
   estimatedTime:   string;
   report:          ResearchReport | null;
+  /**
+   * Standalone research session id, populated after the plan returns
+   * a sessionId. Used by Research → Packager cross-tool handoff so
+   * the Packager link can reference this session for findings pre-load.
+   * Null on the task-launched flow (the persisted session id lives on
+   * task.researchSession.id; not surfaced through this hook).
+   */
+  sessionId:       string | null;
   followUps:       Array<{ query: string; findings: ResearchFinding[]; round: number }>;
   error:           string | null;
   followUpLoading: boolean;
@@ -128,7 +136,7 @@ export function useResearchFlow(input: {
   const handleRevise = useCallback(() => setStage('query'), []);
 
   return {
-    stage, query, plan, estimatedTime, report, followUps,
+    stage, query, plan, estimatedTime, report, sessionId, followUps,
     error, followUpLoading,
     handleQuerySubmit, handlePlanApprove, handleFollowUp, handleRevise,
   };

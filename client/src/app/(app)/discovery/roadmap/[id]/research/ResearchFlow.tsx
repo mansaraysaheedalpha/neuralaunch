@@ -88,7 +88,11 @@ export function ResearchFlow({
 
             {flow.stage === 'report' && flow.report && (
               <div className="flex flex-col gap-4">
-                <ResearchReportView report={flow.report} />
+                <ResearchReportView
+                  report={flow.report}
+                  roadmapId={roadmapId}
+                  sessionId={flow.sessionId}
+                />
 
                 {flow.followUps.map((fu, i) => (
                   <div key={i} className="flex flex-col gap-2 pt-2 border-t border-border">

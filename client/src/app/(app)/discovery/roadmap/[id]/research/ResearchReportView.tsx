@@ -16,13 +16,21 @@ import type { ResearchReport } from '@/lib/roadmap/research-tool/schemas';
 const TOOL_HREF: Record<string, string> = {
   conversation_coach: '/tools/conversation-coach',
   outreach_composer:  '/tools/outreach-composer',
-  // service_packager is in the schema enum but the tool isn't
-  // built yet — omitted here so the step renders as plain text
-  // without a broken link. Add when the tool ships.
+  service_packager:   '/tools/service-packager',
 };
 
 export interface ResearchReportViewProps {
   report: ResearchReport;
+  /**
+   * Roadmap id and current research session id. When both are present
+   * AND the suggested next step is `service_packager`, the link
+   * carries `?fromResearch=<sessionId>&roadmapId=<id>` so the receiving
+   * Packager can pre-load with the research findings. Both optional —
+   * task-launched flows that don't surface a session id still render
+   * a working link, just without findings pre-load.
+   */
+  roadmapId?: string;
+  sessionId?: string | null;
 }
 
 /**
@@ -31,8 +39,20 @@ export interface ResearchReportViewProps {
  * Full report renderer. Summary → Findings → Roadmap connections →
  * Suggested next steps → Sources (collapsible).
  */
-export function ResearchReportView({ report }: ResearchReportViewProps) {
+export function ResearchReportView({ report, roadmapId, sessionId }: ResearchReportViewProps) {
   const [sourcesOpen, setSourcesOpen] = useState(false);
+
+  // For Research → Packager: when both ids are present, append them
+  // to the link so the receiving standalone Packager can fetch the
+  // research session and pre-load its first message with findings.
+  function buildToolHref(tool: string): string | null {
+    const base = TOOL_HREF[tool];
+    if (!base) return null;
+    if (tool === 'service_packager' && roadmapId && sessionId) {
+      return `${base}?roadmapId=${encodeURIComponent(roadmapId)}&fromResearch=${encodeURIComponent(sessionId)}`;
+    }
+    return base;
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -77,7 +97,7 @@ export function ResearchReportView({ report }: ResearchReportViewProps) {
           <p className="text-[11px] font-semibold text-foreground">Suggested next steps</p>
           <div className="flex flex-col gap-2">
             {report.suggestedNextSteps.map((step, i) => {
-              const href = step.suggestedTool ? TOOL_HREF[step.suggestedTool] : null;
+              const href = step.suggestedTool ? buildToolHref(step.suggestedTool) : null;
               return href ? (
                 <a
                   key={i}

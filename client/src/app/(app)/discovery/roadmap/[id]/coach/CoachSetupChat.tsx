@@ -6,7 +6,7 @@
 // fear, channel), and the Coach produces a ConversationSetup when
 // complete. Mirrors the TaskDiagnosticChat bubble styling.
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, Send } from 'lucide-react';
 import type { ConversationSetup } from '@/lib/roadmap/coach';
@@ -19,6 +19,13 @@ interface SetupExchange {
 export interface CoachSetupChatProps {
   roadmapId:       string;
   taskId:          string;
+  /**
+   * Pre-populated draft for the first founder message. When set, the
+   * chat auto-submits the draft once on mount so cross-tool handoffs
+   * (Packager → Coach) skip the empty-state and land the founder on
+   * the agent's response.
+   */
+  initialDraft?:   string;
   onSetupComplete: (setup: ConversationSetup) => void;
   onCancel:        () => void;
 }
@@ -34,11 +41,12 @@ export interface CoachSetupChatProps {
 export function CoachSetupChat({
   roadmapId,
   taskId,
+  initialDraft,
   onSetupComplete,
   onCancel,
 }: CoachSetupChatProps) {
   const [exchanges,  setExchanges]  = useState<SetupExchange[]>([]);
-  const [draft,      setDraft]      = useState('');
+  const [draft,      setDraft]      = useState(initialDraft ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [error,      setError]      = useState<string | null>(null);
 
@@ -87,6 +95,17 @@ export function CoachSetupChat({
       setSubmitting(false);
     }
   }, [draft, submitting, roadmapId, taskId, onSetupComplete]);
+
+  // Auto-submit a pre-populated draft once on mount. Used by cross-tool
+  // handoffs (Packager → Coach). Guarded by a ref so React 18 strict-mode
+  // double-invoke does not fire two submissions.
+  const autoSentRef = useRef(false);
+  useEffect(() => {
+    if (autoSentRef.current) return;
+    if (!initialDraft || initialDraft.trim().length === 0) return;
+    autoSentRef.current = true;
+    void handleSend();
+  }, [initialDraft, handleSend]);
 
   return (
     <div className="flex flex-col gap-3">

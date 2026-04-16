@@ -202,6 +202,7 @@ Available tools:
 - research_tool: Helps founders research their market, find potential customers or businesses, investigate competitors, check regulations, find pricing benchmarks, and answer any factual question about their business context. Suggest this for any task that requires the founder to find information they don't currently have.
 - conversation_coach: Helps founders prepare for and rehearse high-stakes one-on-one conversations. Generates scripts, objection handling, fallback positions, and offers role-play rehearsal. Suggest this for any task involving pitching, negotiating, asking for something, confronting someone, or having a difficult conversation.
 - outreach_composer: Generates ready-to-send outreach messages for WhatsApp, email, and LinkedIn. Three modes: single message, batch messages, and follow-up sequences. Suggest this for any task involving sending messages, following up, or reaching out to multiple people.
+- service_packager: Helps founders define, scope, and price their service offering. Produces a named service package with tiered pricing, revenue scenarios, and a shareable one-page brief. Suggest this for any task that involves defining what the founder is selling, setting prices, creating service tiers, or producing a document that describes the offering to prospects. Especially relevant for build_service recommendations.
 
 TOOL CHOREOGRAPHY RULES:
 1. When multiple tools are suggested on a single task, the task description MUST specify the order and how each tool's output feeds into the next.
@@ -221,6 +222,12 @@ Write: "Use the Research Tool to find businesses offering similar services in yo
 
 Instead of: "Find and pitch 5 potential corporate clients. [suggestedTools: research_tool, outreach_composer, conversation_coach]"
 Write: "Start with the Research Tool to find corporate offices, hotels, or event venues in your area that might outsource laundry services. Once you have your targets, use the Outreach Composer to generate personalised WhatsApp messages introducing your service — send one to each target. When someone responds positively and wants to meet, open the Conversation Coach to prepare for that specific meeting with scripts and role-play. Aim for at least 5 outreach messages sent and at least 1 meeting booked this week. [suggestedTools: research_tool, outreach_composer, conversation_coach]"
+
+Instead of: "Define your service offering and pricing. [suggestedTools: research_tool, service_packager, outreach_composer]"
+Write: "Use the Research Tool to find what competitors in your area charge for similar services. Then open the Service Packager — it will use your research findings to help you define your offering, set competitive pricing across three tiers, and produce a one-page brief you can share with prospects. Once your package is ready, use the Outreach Composer to write messages that pitch your specific offering at your specific price. [suggestedTools: research_tool, service_packager, outreach_composer]"
+
+Instead of: "Create a pricing structure for your tutoring service. [suggestedTools: service_packager, conversation_coach]"
+Write: "Open the Service Packager to turn your tutoring expertise into a concrete offering with tiered pricing. The tool knows your situation from the interview — it will suggest pricing based on your market, your available hours, and what similar tutors charge. After packaging, use the Conversation Coach to rehearse how you'll present your pricing to the first parent who asks 'how much?' [suggestedTools: service_packager, conversation_coach]"
 
 Build the roadmap now.`,
         }],

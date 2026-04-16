@@ -15,6 +15,11 @@ import { PreparationView } from '@/app/(app)/discovery/roadmap/[id]/coach/Prepar
 import { RolePlayChat } from '@/app/(app)/discovery/roadmap/[id]/coach/RolePlayChat';
 import { DebriefView } from '@/app/(app)/discovery/roadmap/[id]/coach/DebriefView';
 import type { ConversationSetup, PreparationPackage, Debrief } from '@/lib/roadmap/coach';
+import {
+  readPackagerHandoffParams,
+  fetchPackagerHandoff,
+  buildCoachSeedMessage,
+} from '@/app/(app)/tools/packager-handoff';
 
 type Stage = 'loading' | 'no_roadmap' | 'setup' | 'loading_preparation' | 'preparation' | 'roleplay' | 'loading_debrief' | 'debrief' | 'done';
 
@@ -25,8 +30,9 @@ export default function StandaloneCoachPage() {
   const [preparation, setPrep]    = useState<PreparationPackage | null>(null);
   const [debrief, setDebrief]     = useState<Debrief | null>(null);
   const [error, setError]         = useState<string | null>(null);
+  const [seedDraft, setSeedDraft] = useState<string | undefined>(undefined);
 
-  // Auto-detect the most recent roadmap
+  // Auto-detect the most recent roadmap and any inbound packager handoff.
   useEffect(() => {
     void (async () => {
       try {
@@ -35,6 +41,14 @@ export default function StandaloneCoachPage() {
         const json = await res.json() as { hasRoadmap: boolean; roadmapId?: string };
         if (!json.hasRoadmap || !json.roadmapId) { setStage('no_roadmap'); return; }
         setRoadmapId(json.roadmapId);
+
+        // Packager → Coach handoff.
+        const handoffParams = readPackagerHandoffParams();
+        if (handoffParams) {
+          const handoff = await fetchPackagerHandoff(handoffParams.roadmapId, handoffParams.sessionId);
+          if (handoff) setSeedDraft(buildCoachSeedMessage(handoff));
+        }
+
         setStage('setup');
       } catch {
         setStage('no_roadmap');
@@ -126,6 +140,7 @@ export default function StandaloneCoachPage() {
         <CoachSetupChat
           roadmapId={roadmapId}
           taskId="standalone"
+          initialDraft={seedDraft}
           onSetupComplete={(completed) => { void handleSetupComplete(completed); }}
           onCancel={() => { window.location.href = '/tools'; }}
         />
