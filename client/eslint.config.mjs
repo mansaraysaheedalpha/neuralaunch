@@ -1,19 +1,13 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
+import nextVitals from "eslint-config-next/core-web-vitals";
 import typescriptParser from "@typescript-eslint/parser"; // 1. Import the TypeScript parser
 import typescriptPlugin from "@typescript-eslint/eslint-plugin"; // 2. Import the TypeScript plugin
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
-
 const eslintConfig = [
-  // Existing Next.js recommended rules (Core Web Vitals + Base TypeScript)
-  ...compat.extends("next/core-web-vitals"),
+  // Next.js Core Web Vitals + base recommended rules.
+  // Native flat config import (Next 16 — replaces the legacy
+  // FlatCompat.extends("next/core-web-vitals") wrapper which
+  // hits a circular-structure JSON error against eslint-config-next 16).
+  ...nextVitals,
 
   // --- NEW: Stricter TypeScript Configuration ---
   {
