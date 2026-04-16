@@ -1,8 +1,9 @@
-// src/middleware.ts
+// src/proxy.ts
 /**
- * Next.js Middleware
+ * Next.js Proxy (renamed from middleware in Next 16)
  *
- * Applies security headers and other middleware to all requests
+ * Applies security headers to every request before it reaches the
+ * route handler. Runs on the Node.js runtime.
  */
 
 import { NextResponse } from "next/server";
@@ -19,13 +20,13 @@ export function proxy(_request: NextRequest) {
   // Known trade-off: script-src includes 'unsafe-inline' and
   // 'unsafe-eval'. Both are normally CSP weaknesses, but they are
   // currently required because:
-  //   1. Next.js 15 inlines bootstrap scripts that need 'unsafe-inline'
+  //   1. Next.js inlines bootstrap scripts that need 'unsafe-inline'
   //   2. The Google Analytics + Hotjar bootstrap scripts in
   //      app/layout.tsx use dangerouslySetInnerHTML (inline)
   //   3. Some third-party tracking scripts evaluate dynamic code
   //
   // The right long-term fix is nonce-based CSP (generate a per-request
-  // nonce in the middleware, attach it to NextResponse, then pass it
+  // nonce in the proxy, attach it to NextResponse, then pass it
   // to the <Script> components). That is a meaningful refactor and
   // is captured in the maintainability pass scope. Until then, the
   // remaining XSS defence is the user-input sanitisation pass we
@@ -93,7 +94,7 @@ export function proxy(_request: NextRequest) {
   return response;
 }
 
-// Apply middleware to all routes except static files and API routes that handle their own security
+// Apply the proxy to all routes except static files and API routes that handle their own security
 export const config = {
   matcher: [
     /*
