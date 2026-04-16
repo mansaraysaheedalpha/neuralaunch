@@ -72,6 +72,23 @@ model User {
   // sending.
   pushTokens        PushToken[]
   nudgesEnabled     Boolean                 @default(true)
+
+  // ----- Lifecycle memory architecture -----
+  //
+  // The Founder Profile is a single living document per user that
+  // evolves across every cycle and every venture. It is the system's
+  // primary context about who the founder is. Updated at cycle
+  // boundaries by the Lifecycle Transition Engine (Inngest jobs).
+  // Always loaded into every agent call. Size-bounded (500-1000
+  // tokens). See docs/neuralaunch-lifecycle-memory.md §3 and §4.1.
+  //
+  // Ventures organise the founder's journey into distinct business
+  // directions. Each venture contains a sequence of cycles (an
+  // Interview → Recommendation → Roadmap → Execute → Continuation
+  // loop). A founder can have multiple ventures in parallel; tier
+  // constraints gate active count (Execute: 1, Compound: 3).
+  founderProfile   FounderProfile?
+  ventures         Venture[]
 }
 
 model PushToken {
@@ -399,10 +416,21 @@ model Recommendation {
   // trigger paths.
   outcome RecommendationOutcome?
 
+  // ----- Lifecycle memory -----
+  //
+  // Links this recommendation to the Cycle it belongs to within a
+  // Venture. Nullable because existing recommendations predate the
+  // Venture/Cycle model — they'll be backfilled by the lifecycle
+  // migration script (Phase 8). New recommendations should have this
+  // populated at creation time.
+  cycleId String? @unique
+  cycle   Cycle?  @relation(fields: [cycleId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([sessionId])
+  @@index([cycleId])
 }
 
 enum RoadmapStatus {
@@ -590,9 +618,19 @@ model Roadmap {
   // for aggregate counts.
   progress RoadmapProgress?
 
+  // ----- Lifecycle memory —----
+  //
+  // Direct reference to the Venture this roadmap belongs to, for
+  // query convenience. Derivable from recommendation.cycle.venture
+  // but cached here so Sessions-tab queries can list roadmaps per
+  // venture without joining through Cycle. Nullable for legacy rows.
+  ventureId String?
+  venture   Venture? @relation(fields: [ventureId], references: [id], onDelete: SetNull)
+
   @@index([userId])
   @@index([recommendationId])
   @@index([parentRoadmapId])
+  @@index([ventureId])
 }
 
 /**
@@ -916,4 +954,123 @@ model ValidationEvent {
 
   @@index([validationPageId, eventType])
   @@index([validationPageId, createdAt])
+}
+
+// ============================================================================
+// Lifecycle memory architecture — FounderProfile, Venture, Cycle
+//
+// See docs/neuralaunch-lifecycle-memory.md for the full specification.
+// These three models implement the three-layer memory architecture:
+//   L1 FounderProfile   — always loaded, small (500-1000 tokens)
+//   L2 Cycle.summary    — loaded when relevant (1000-2000 tokens per cycle)
+//   L3 Raw history      — queried selectively (checkInHistory, tool sessions)
+// ============================================================================
+
+/**
+ * FounderProfile
+ *
+ * One row per user. The system's current understanding of who the
+ * founder is. Updated at every cycle boundary by the Lifecycle
+ * Transition Engine (Inngest). Always loaded into every agent call —
+ * this is the L1 memory layer.
+ *
+ * The profile JSON column stores a FounderProfileSchema-validated
+ * document with four sections: stableContext, currentSituation,
+ * behaviouralCalibration, journeyOverview. Size-bounded; never grows
+ * unboundedly. Snapshot semantics, not log semantics — a pricing
+ * change overwrites the field, it does not append.
+ */
+model FounderProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// FounderProfileSchema-validated JSON. See lib/lifecycle/schemas.ts.
+  profile Json
+
+  /// The Cycle.id whose completion produced the latest profile update.
+  /// Null on bootstrap rows (first profile created from belief state).
+  lastUpdatedByCycleId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/**
+ * Venture
+ *
+ * A distinct business direction the founder is pursuing. Contains a
+ * sequence of Cycles. A founder can have multiple ventures; the
+ * tier gate limits how many can be `active` simultaneously (Execute:
+ * 1, Compound: 3).
+ *
+ * Name is auto-generated from the first recommendation in the
+ * venture's first cycle; the founder can rename from Sessions tab.
+ */
+model Venture {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name   String
+  /// 'active' | 'paused' | 'completed'
+  status String @default("active")
+
+  /// The Cycle.id currently in progress for this venture. Null when
+  /// the venture is paused or completed.
+  currentCycleId String?
+
+  cycles   Cycle[]
+  roadmaps Roadmap[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, status])
+}
+
+/**
+ * Cycle
+ *
+ * One execution loop within a Venture. Sequential — cycleNumber 1,
+ * 2, 3… The cycle links the existing Recommendation and Roadmap
+ * models. On completion the Lifecycle Transition Engine writes a
+ * compressed CycleSummary into the `summary` field (L2 memory).
+ *
+ * A cycle ends with the founder picking a fork from the continuation
+ * brief; the fork selection is recorded here so the next cycle's
+ * interview agent can reference it.
+ */
+model Cycle {
+  id        String  @id @default(cuid())
+  ventureId String
+  venture   Venture @relation(fields: [ventureId], references: [id], onDelete: Cascade)
+
+  cycleNumber Int
+  /// 'in_progress' | 'completed' | 'abandoned'
+  status      String @default("in_progress")
+
+  /// One-to-one with Recommendation. Populated at cycle creation.
+  recommendation Recommendation?
+  /// Denormalised roadmapId for query convenience (also findable via
+  /// recommendation → roadmap). Nullable until the roadmap is generated.
+  roadmapId String?
+
+  /// CycleSummarySchema-validated JSON. See lib/lifecycle/schemas.ts.
+  /// Populated by the Lifecycle Transition Engine after the
+  /// continuation brief is generated.
+  summary Json?
+
+  /// The fork the founder selected to start the next cycle. Null
+  /// while the cycle is current or if the founder abandons before
+  /// picking a fork.
+  selectedForkIndex   Int?
+  selectedForkSummary String?
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([ventureId])
+  @@index([ventureId, cycleNumber])
 }
