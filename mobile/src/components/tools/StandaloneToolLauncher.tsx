@@ -1,8 +1,8 @@
 // src/components/tools/StandaloneToolLauncher.tsx
 //
-// Shared entry point for the three standalone tool routes
-// (/tools/coach, /tools/outreach, /tools/research). The task-level
-// tool screens at /roadmap/[id]/{coach,outreach,research} already
+// Shared entry point for the four standalone tool routes
+// (/tools/{coach,outreach,research,packager}). The task-level tool
+// screens at /roadmap/[id]/{coach,outreach,research,packager} already
 // handle the no-taskId case, so "standalone" is really just routing
 // those screens without a taskId.
 //
@@ -30,7 +30,7 @@ interface RoadmapSummary {
 }
 
 interface Props {
-  tool:  'coach' | 'outreach' | 'research';
+  tool:  'coach' | 'outreach' | 'research' | 'packager';
   label: string;
 }
 
