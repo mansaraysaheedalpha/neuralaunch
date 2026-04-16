@@ -7,7 +7,7 @@
 import { View, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { MessageSquare, Send, Search, ArrowRight, type LucideIcon } from 'lucide-react-native';
+import { MessageSquare, Send, Search, Package, ArrowRight, type LucideIcon } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { Text, Card, Badge, ScreenContainer } from '@/components/ui';
 import { spacing, iconSize } from '@/constants/theme';
@@ -43,6 +43,13 @@ const TOOLS: ToolDefinition[] = [
     description: 'Ask anything — find customers, check regulations, compare competitors, verify pricing. The agent plans, executes a deep multi-source investigation, and returns a cited report tied back to your roadmap.',
     route:       '/tools/research',
     icon:        Search,
+  },
+  {
+    id:          'service_packager',
+    title:       'Service Packager',
+    description: 'Define your offering — name, target client, tiers, pricing, and a one-page brief you can send to prospects. Combines market research with your costs and time to produce a ready-to-share package.',
+    route:       '/tools/packager',
+    icon:        Package,
   },
 ];
 

@@ -5,15 +5,26 @@
 // preferences, and sign-out.
 
 import { useState, useEffect } from 'react';
-import { View, Switch, StyleSheet, Alert, Pressable } from 'react-native';
+import { View, Switch, StyleSheet, Alert, Pressable, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Sparkles, FileCheck, Bell, ChevronRight } from 'lucide-react-native';
+import {
+  Sparkles,
+  FileCheck,
+  Bell,
+  ChevronRight,
+  ShieldCheck,
+  Code,
+  Mail,
+  ExternalLink,
+} from 'lucide-react-native';
 import { useAuth } from '@/services/auth';
 import { useTheme } from '@/hooks/useTheme';
 import { api } from '@/services/api-client';
 import { Text, Button, Card, Separator, ScreenContainer } from '@/components/ui';
 import { spacing, iconSize } from '@/constants/theme';
+
+const LEGAL_BASE_URL = 'https://startupvalidator.app/legal';
 
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
@@ -23,8 +34,9 @@ export default function SettingsScreen() {
   const [consent, setConsent]       = useState(false);
   const [consentLoading, setConsentLoading] = useState(true);
   const [nudgeEnabled, setNudgeEnabled] = useState(true);
+  const [linkedProviders, setLinkedProviders] = useState<string[]>([]);
 
-  // Load current consent state
+  // Load current consent state + linked OAuth providers on mount.
   useEffect(() => {
     async function load() {
       try {
@@ -32,6 +44,11 @@ export default function SettingsScreen() {
         setConsent(data.consent);
       } catch { /* default false */ }
       setConsentLoading(false);
+
+      try {
+        const providers = await api<{ providers: string[] }>('/api/user/linked-providers');
+        setLinkedProviders(providers.providers);
+      } catch { /* degrade silently — section just doesn't render */ }
     }
     void load();
   }, []);
@@ -128,6 +145,32 @@ export default function SettingsScreen() {
         </Card>
       </View>
 
+      {/* Connected accounts — which OAuth providers the founder signed in with */}
+      {linkedProviders.length > 0 && (
+        <View style={styles.section}>
+          <Text variant="overline" color={c.mutedForeground}>Connected accounts</Text>
+          <Card>
+            <View style={{ gap: spacing[2.5] }}>
+              {linkedProviders.map(provider => (
+                <View key={provider} style={styles.providerRow}>
+                  {provider === 'github' ? (
+                    <Code size={iconSize.md} color={c.foreground} />
+                  ) : provider === 'google' ? (
+                    <Mail size={iconSize.md} color={c.foreground} />
+                  ) : (
+                    <ShieldCheck size={iconSize.md} color={c.foreground} />
+                  )}
+                  <Text variant="label" style={{ flex: 1 }}>
+                    {provider === 'github' ? 'GitHub' : provider === 'google' ? 'Google' : provider}
+                  </Text>
+                  <Text variant="caption" color={c.success}>Connected</Text>
+                </View>
+              ))}
+            </View>
+          </Card>
+        </View>
+      )}
+
       {/* Notifications */}
       <View style={styles.section}>
         <Text variant="overline" color={c.mutedForeground}>Notifications</Text>
@@ -174,6 +217,18 @@ export default function SettingsScreen() {
         </Card>
       </View>
 
+      {/* About & legal — opens web pages in the system browser */}
+      <View style={styles.section}>
+        <Text variant="overline" color={c.mutedForeground}>About & legal</Text>
+        <Card noPadding>
+          <LegalRow label="Privacy policy"  path="privacy"  colors={c} />
+          <View style={[styles.divider, { backgroundColor: c.border }]} />
+          <LegalRow label="Terms of service" path="terms"    colors={c} />
+          <View style={[styles.divider, { backgroundColor: c.border }]} />
+          <LegalRow label="Cookie policy"   path="cookies"  colors={c} />
+        </Card>
+      </View>
+
       <Separator />
 
       {/* Sign out */}
@@ -188,6 +243,37 @@ export default function SettingsScreen() {
         NeuraLaunch v1.0.0
       </Text>
     </ScreenContainer>
+  );
+}
+
+function LegalRow({
+  label,
+  path,
+  colors: c,
+}: {
+  label: string;
+  path:  'privacy' | 'terms' | 'cookies';
+  colors: Record<string, string>;
+}) {
+  async function open() {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await Linking.openURL(`${LEGAL_BASE_URL}/${path}`);
+    } catch { /* best-effort */ }
+  }
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={`Open ${label}`}
+      onPress={() => { void open(); }}
+      style={({ pressed }) => [navStyles.row, pressed && { opacity: 0.6 }]}
+    >
+      <ExternalLink size={iconSize.md} color={c.mutedForeground} />
+      <Text variant="label" color={c.foreground} style={navStyles.label}>
+        {label}
+      </Text>
+      <ChevronRight size={iconSize.md} color={c.mutedForeground} />
+    </Pressable>
   );
 }
 
@@ -261,6 +347,11 @@ const styles = StyleSheet.create({
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    gap: spacing[3],
+  },
+  providerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing[3],
   },
   divider: {

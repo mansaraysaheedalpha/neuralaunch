@@ -227,8 +227,11 @@ export default function ResearchToolScreen() {
       router.push(taskId
         ? `/roadmap/${roadmapId}/outreach?taskId=${taskId}`
         : `/roadmap/${roadmapId}/outreach`);
+    } else if (step.suggestedTool === 'service_packager') {
+      router.push(taskId
+        ? `/roadmap/${roadmapId}/packager?taskId=${taskId}`
+        : `/roadmap/${roadmapId}/packager`);
     }
-    // service_packager isn't built on mobile yet — silently ignore
   }
 
   return (
@@ -441,7 +444,7 @@ function ReportView({
                   </View>
                   {s.suggestedTool && (
                     <Text variant="caption" color={c.primary} style={{ marginTop: spacing[1] }}>
-                      Open {s.suggestedTool === 'conversation_coach' ? 'Conversation Coach' : s.suggestedTool === 'outreach_composer' ? 'Outreach Composer' : s.suggestedTool}
+                      Open {s.suggestedTool === 'conversation_coach' ? 'Conversation Coach' : s.suggestedTool === 'outreach_composer' ? 'Outreach Composer' : s.suggestedTool === 'service_packager' ? 'Service Packager' : s.suggestedTool}
                     </Text>
                   )}
                 </Card>
