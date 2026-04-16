@@ -65,7 +65,7 @@ const components: Components = {
   ul: ({ children, ...props }) => (
     <ul
       {...props}
-      className="mt-5 space-y-2 pl-6 text-[17px] leading-[1.75] text-slate-300 marker:text-slate-500 [&>li]:list-disc"
+      className="mt-5 space-y-2 pl-6 text-[17px] leading-[1.75] text-slate-300 marker:text-slate-300 [&>li]:list-disc"
     >
       {children}
     </ul>
@@ -73,7 +73,7 @@ const components: Components = {
   ol: ({ children, ...props }) => (
     <ol
       {...props}
-      className="mt-5 space-y-2 pl-6 text-[17px] leading-[1.75] text-slate-300 marker:text-slate-500 [&>li]:list-decimal"
+      className="mt-5 space-y-2 pl-6 text-[17px] leading-[1.75] text-slate-300 marker:text-slate-300 [&>li]:list-decimal"
     >
       {children}
     </ol>

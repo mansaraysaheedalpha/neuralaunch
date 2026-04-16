@@ -91,7 +91,7 @@ export default function LegalTableOfContents({
                       : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                   }`}
                 >
-                  <span className="mr-2 text-xs text-slate-500">
+                  <span className="mr-2 text-xs text-slate-300">
                     {i + 1}.
                   </span>
                   {entry.title}
@@ -107,7 +107,7 @@ export default function LegalTableOfContents({
         aria-label="Table of contents"
         className="hidden lg:sticky lg:top-24 lg:block lg:self-start"
       >
-        <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-300">
           On this page
         </p>
         <ol className="space-y-1 border-l border-slate-800">
@@ -123,7 +123,7 @@ export default function LegalTableOfContents({
                       : 'border-transparent text-slate-400 hover:border-slate-600 hover:text-slate-200'
                   }`}
                 >
-                  <span className="mr-1.5 text-xs text-slate-500">
+                  <span className="mr-1.5 text-xs text-slate-300">
                     {i + 1}.
                   </span>
                   {entry.title}

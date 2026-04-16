@@ -74,7 +74,7 @@ export default function LegalDocumentPage({
             <h1 className="mt-3 text-balance text-4xl font-semibold tracking-tight text-white sm:text-5xl md:text-6xl">
               {doc.title}
             </h1>
-            <p className="mt-4 text-sm text-slate-500">
+            <p className="mt-4 text-sm text-slate-300">
               Last updated: <span className="text-slate-300">{LAST_UPDATED}</span>
             </p>
           </div>
@@ -90,7 +90,7 @@ export default function LegalDocumentPage({
 
               {/* Cross-links to the other documents */}
               <div className="mt-20 border-t border-slate-800 pt-10">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">
                   Related documents
                 </p>
                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -103,7 +103,7 @@ export default function LegalDocumentPage({
                         className="group flex items-center justify-between rounded-lg border border-slate-800 bg-navy-900 p-5 transition-colors hover:border-primary/40 hover:bg-navy-800"
                       >
                         <div>
-                          <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                          <p className="text-xs font-medium uppercase tracking-wider text-slate-300">
                             Read next
                           </p>
                           <p className="mt-1 text-base font-semibold text-white">
@@ -111,7 +111,7 @@ export default function LegalDocumentPage({
                           </p>
                         </div>
                         <ArrowRight
-                          className="h-5 w-5 shrink-0 text-slate-500 transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
+                          className="h-5 w-5 shrink-0 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
                           aria-hidden="true"
                         />
                       </Link>

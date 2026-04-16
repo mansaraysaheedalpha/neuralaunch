@@ -82,7 +82,7 @@ function Hero() {
             </h1>
           </RevealOnScroll>
           <RevealOnScroll delayMs={160}>
-            <p className="mx-auto mt-7 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
+            <p className="mx-auto mt-7 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
               The gap between <em className="text-slate-200 not-italic">where someone is</em>{" "}
               and <em className="text-slate-200 not-italic">where they could be</em>{" "}
               should not be decided by what they already have. Not their money,
@@ -254,7 +254,7 @@ function Beliefs() {
                   <h3 className="mt-6 text-xl font-semibold text-white">
                     {belief.title}
                   </h3>
-                  <p className="mt-3 text-base leading-relaxed text-slate-400">
+                  <p className="mt-3 text-base leading-relaxed text-slate-300">
                     {belief.body}
                   </p>
                 </article>
@@ -325,7 +325,7 @@ function Team() {
             </h2>
           </RevealOnScroll>
           <RevealOnScroll delayMs={120}>
-            <p className="mt-5 text-base leading-relaxed text-slate-400 sm:text-lg">
+            <p className="mt-5 text-base leading-relaxed text-slate-300 sm:text-lg">
               Not a corporation. Not a VC-backed team of fifty. A small group
               that decided the gap between lost and launched should not be
               decided by what someone already has.
@@ -355,7 +355,7 @@ function Team() {
                       </p>
                     </div>
                   </div>
-                  <p className="mt-5 text-sm leading-relaxed text-slate-400">
+                  <p className="mt-5 text-sm leading-relaxed text-slate-300">
                     {member.blurb}
                   </p>
                 </article>
@@ -447,7 +447,7 @@ function Stat({
         <Icon className={`h-4 w-4 ${a.text}`} aria-hidden="true" />
       </div>
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">
           {label}
         </p>
         <p className="mt-1 text-base font-semibold text-white">{value}</p>
@@ -475,7 +475,7 @@ function FinalCTA() {
               The best way to understand what we&rsquo;re building is to{" "}
               <span className="text-gold">use it.</span>
             </h2>
-            <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
+            <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
               One honest interview. One clear direction. A partner with you
               through the work that follows.
             </p>

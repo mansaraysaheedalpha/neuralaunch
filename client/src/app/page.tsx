@@ -94,7 +94,7 @@ function Hero() {
           </RevealOnScroll>
 
           <RevealOnScroll delayMs={160}>
-            <p className="mx-auto mt-7 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
+            <p className="mx-auto mt-7 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
               {HERO_SUBHEAD}
             </p>
           </RevealOnScroll>
@@ -109,7 +109,7 @@ function Hero() {
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
             </div>
-            <p className="mt-4 text-xs text-slate-500">
+            <p className="mt-4 text-xs text-slate-300">
               Free to start. No credit card required.
             </p>
           </RevealOnScroll>
@@ -162,7 +162,7 @@ function Problem() {
             </h2>
           </RevealOnScroll>
           <RevealOnScroll delayMs={80}>
-            <p className="mt-5 text-base leading-relaxed text-slate-400 sm:text-lg">
+            <p className="mt-5 text-base leading-relaxed text-slate-300 sm:text-lg">
               The world has consultants — expensive, generic, built for
               companies that already have money. The world has AI tools — they
               give you five options when you need one answer, then leave you
@@ -269,7 +269,7 @@ function HowItWorks() {
                   <h3 className="mt-5 text-lg font-semibold text-white">
                     {step.title}
                   </h3>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-400">
+                  <p className="mt-2 text-sm leading-relaxed text-slate-300">
                     {step.body}
                   </p>
                 </li>
@@ -327,7 +327,7 @@ function OneRecommendation() {
                   </p>
                 </div>
                 <div className="rounded-xl border border-slate-800 bg-navy-950/60 p-6">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-300">
                     If you disagree
                   </h3>
                   <p className="mt-3 text-base leading-relaxed text-slate-300">
@@ -343,7 +343,7 @@ function OneRecommendation() {
                     </span>{" "}
                     if you and the evidence together prove it wrong.
                   </p>
-                  <p className="mt-3 text-sm leading-relaxed text-slate-500">
+                  <p className="mt-3 text-sm leading-relaxed text-slate-300">
                     When someone is lost, they do not need more options. They
                     need someone willing to point at the way — and willing to
                     change their mind when the case is made.
@@ -416,7 +416,7 @@ function ExecutionTools() {
             </h2>
           </RevealOnScroll>
           <RevealOnScroll delayMs={120}>
-            <p className="mt-5 text-base leading-relaxed text-slate-400 sm:text-lg">
+            <p className="mt-5 text-base leading-relaxed text-slate-300 sm:text-lg">
               The first cold message. The pricing call. The conversation with
               the partner you've been avoiding. These moments decide outcomes.
               We built the tools for them.
@@ -442,11 +442,11 @@ function ExecutionTools() {
                   <p className="mt-2 text-sm font-medium text-gold">
                     {tool.tagline}
                   </p>
-                  <p className="mt-4 text-sm leading-relaxed text-slate-400">
+                  <p className="mt-4 text-sm leading-relaxed text-slate-300">
                     {tool.body}
                   </p>
                   <div className="mt-6 rounded-md border border-slate-800 bg-navy-900 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">
                       What it does
                     </p>
                     <p className="mt-2 text-sm leading-relaxed text-slate-300">
@@ -506,7 +506,7 @@ function Differentiation() {
             </h2>
           </RevealOnScroll>
           <RevealOnScroll delayMs={80}>
-            <p className="mt-5 text-base leading-relaxed text-slate-400 sm:text-lg">
+            <p className="mt-5 text-base leading-relaxed text-slate-300 sm:text-lg">
               An AI that stays with a founder across the full execution cycle —
               from first question to first outcome — and interprets what
               happened so the next cycle is smarter than the last.
@@ -519,10 +519,10 @@ function Differentiation() {
             <RevealOnScroll key={row.them} delayMs={i * 60}>
               <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-slate-800 bg-slate-800 md:grid-cols-2">
                 <div className="bg-navy-900 p-6">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">
                     The tools that exist
                   </p>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-400 line-through decoration-slate-700 decoration-1 underline-offset-4">
+                  <p className="mt-2 text-sm leading-relaxed text-slate-300 line-through decoration-slate-700 decoration-1 underline-offset-4">
                     {row.them}
                   </p>
                 </div>
@@ -624,7 +624,7 @@ function Beat({
       </div>
       <div>
         <h3 className="text-base font-semibold text-white">{title}</h3>
-        <p className="mt-1 text-sm leading-relaxed text-slate-400">{body}</p>
+        <p className="mt-1 text-sm leading-relaxed text-slate-300">{body}</p>
       </div>
     </div>
   );
@@ -715,7 +715,7 @@ function Pricing() {
             </h2>
           </RevealOnScroll>
           <RevealOnScroll delayMs={120}>
-            <p className="mt-5 text-base leading-relaxed text-slate-400 sm:text-lg">
+            <p className="mt-5 text-base leading-relaxed text-slate-300 sm:text-lg">
               The free tier earns trust. The paid tiers deliver transformation.
               Pricing reflects what founders at each tier actually get.
             </p>
@@ -740,10 +740,10 @@ function Pricing() {
                 <h3 className="text-lg font-semibold text-white">
                   {tier.name}
                 </h3>
-                <p className="mt-2 text-sm leading-relaxed text-slate-400">
+                <p className="mt-2 text-sm leading-relaxed text-slate-300">
                   {tier.description}
                 </p>
-                <p className="mt-6 text-sm font-medium text-slate-500">
+                <p className="mt-6 text-sm font-medium text-slate-300">
                   Pricing announced soon
                 </p>
                 <ul className="mt-6 space-y-2.5 text-sm">
@@ -806,7 +806,7 @@ function FinalCTA() {
               <span className="text-gold">For everyone.</span>{" "}
               One step at a time.
             </h2>
-            <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
+            <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
               Answer a few honest questions. Get one clear direction —
               built specifically for your situation. Then have a partner
               with you through the work that follows.

@@ -315,7 +315,7 @@ function Hero() {
             </h1>
           </RevealOnScroll>
           <RevealOnScroll delayMs={160}>
-            <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
+            <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
               Honest answers to the questions founders actually ask — about the
               interview, the recommendation, the roadmap, the tools, and what
               happens at the end of a cycle.
@@ -380,7 +380,7 @@ function FAQList() {
                   >
                     {cat.title}
                   </h2>
-                  <p className="mt-2 text-sm text-slate-500">{cat.blurb}</p>
+                  <p className="mt-2 text-sm text-slate-300">{cat.blurb}</p>
                 </div>
               </RevealOnScroll>
 
@@ -398,7 +398,7 @@ function FAQList() {
                         />
                       </summary>
                       <div className="border-t border-slate-800 px-5 pb-5 pt-4">
-                        <p className="text-sm leading-relaxed text-slate-400 sm:text-base">
+                        <p className="text-sm leading-relaxed text-slate-300 sm:text-base">
                           {qa.answer}
                         </p>
                       </div>
@@ -433,7 +433,7 @@ function FinalCTA() {
               Still wondering whether this is for you?{" "}
               <span className="text-gold">Try it.</span>
             </h2>
-            <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
+            <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
               The discovery interview and your first recommendation are free.
               Twenty minutes from now, you&rsquo;ll know whether the answer
               feels right.

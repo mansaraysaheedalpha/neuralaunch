@@ -157,7 +157,7 @@ export default function MarketingHeader() {
             {isAuthed ? (
               <>
                 <div className="my-2 border-t border-slate-800" />
-                <div className="px-3 py-2 text-xs uppercase tracking-wider text-slate-500">
+                <div className="px-3 py-2 text-xs uppercase tracking-wider text-slate-300">
                   Signed in as{" "}
                   <span className="text-slate-300">{displayName}</span>
                 </div>
@@ -278,7 +278,7 @@ function UserMenu({
                 {displayName}
               </p>
               {email && (
-                <p className="truncate text-xs text-slate-400">{email}</p>
+                <p className="truncate text-xs text-slate-300">{email}</p>
               )}
             </div>
           </div>
@@ -288,7 +288,7 @@ function UserMenu({
               href="/discovery"
               className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-slate-200 outline-none transition-colors hover:bg-slate-800 focus:bg-slate-800"
             >
-              <LayoutDashboard className="h-4 w-4 text-slate-400" aria-hidden="true" />
+              <LayoutDashboard className="h-4 w-4 text-slate-300" aria-hidden="true" />
               Dashboard
             </Link>
           </DropdownMenu.Item>
@@ -297,7 +297,7 @@ function UserMenu({
               href="/profile"
               className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-slate-200 outline-none transition-colors hover:bg-slate-800 focus:bg-slate-800"
             >
-              <UserIcon className="h-4 w-4 text-slate-400" aria-hidden="true" />
+              <UserIcon className="h-4 w-4 text-slate-300" aria-hidden="true" />
               Profile
             </Link>
           </DropdownMenu.Item>
@@ -306,7 +306,7 @@ function UserMenu({
               href="/settings"
               className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-slate-200 outline-none transition-colors hover:bg-slate-800 focus:bg-slate-800"
             >
-              <Settings className="h-4 w-4 text-slate-400" aria-hidden="true" />
+              <Settings className="h-4 w-4 text-slate-300" aria-hidden="true" />
               Settings
             </Link>
           </DropdownMenu.Item>
@@ -315,7 +315,7 @@ function UserMenu({
             onSelect={() => void signOut()}
             className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-slate-200 outline-none transition-colors hover:bg-slate-800 focus:bg-slate-800"
           >
-            <LogOut className="h-4 w-4 text-slate-400" aria-hidden="true" />
+            <LogOut className="h-4 w-4 text-slate-300" aria-hidden="true" />
             Sign out
           </DropdownMenu.Item>
         </DropdownMenu.Content>

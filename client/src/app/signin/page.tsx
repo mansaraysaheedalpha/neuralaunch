@@ -65,7 +65,7 @@ export default function SignInPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.35, duration: 0.5 }}
-            className="mt-3 text-sm text-slate-400"
+            className="mt-3 text-sm text-slate-300"
           >
             Sign in to start your discovery.
           </motion.p>
@@ -106,14 +106,14 @@ export default function SignInPage() {
               <div className="w-full border-t border-slate-800" />
             </div>
             <div className="relative flex justify-center text-xs">
-              <span className="bg-navy-900 px-3 text-slate-500">
+              <span className="bg-navy-900 px-3 text-slate-300">
                 Secure authentication
               </span>
             </div>
           </div>
 
           {/* Trust note */}
-          <div className="flex items-center justify-center gap-2 text-xs text-slate-500">
+          <div className="flex items-center justify-center gap-2 text-xs text-slate-300">
             <Shield className="h-3.5 w-3.5" aria-hidden="true" />
             <span>Your data is protected and never shared.</span>
           </div>
@@ -124,7 +124,7 @@ export default function SignInPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5, duration: 0.5 }}
-          className="mt-6 text-center text-xs text-slate-500"
+          className="mt-6 text-center text-xs text-slate-300"
         >
           By continuing, you agree to our{" "}
           <Link
