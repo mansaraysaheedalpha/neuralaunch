@@ -109,7 +109,7 @@ export async function runResearchFollowUp(
         model:   aiSdkAnthropic(modelId),
         tools,
         stopWhen: stepCountIs(RESEARCH_BUDGETS['research-followup'].steps),
-        experimental_output: Output.object({ schema: FollowUpResponseSchema }),
+        output: Output.object({ schema: FollowUpResponseSchema }),
         messages: [{
           role: 'user',
           content: `You are NeuraLaunch's Founder Research Tool handling a follow-up question. The founder has already received an initial research report and is now asking for more. Your job is to conduct TARGETED additional research that builds on what is already known — do NOT start over.
@@ -153,10 +153,10 @@ Execute the targeted follow-up research now and return only the new findings.`,
         }],
       });
 
-      if (!result.experimental_output) {
+      if (!result.output) {
         throw new Error('Follow-up research failed — model exhausted step budget without emitting structured output.');
       }
-      return result.experimental_output;
+      return result.output;
     },
   );
 

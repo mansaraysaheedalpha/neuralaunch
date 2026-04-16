@@ -6,7 +6,7 @@
 // and decides what to do based on the verdict the agent emits.
 
 import 'server-only';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { logger } from '@/lib/logger';
 import { MODELS } from '@/lib/discovery/constants';
@@ -82,9 +82,9 @@ export async function runDiagnosticTurn(input: RunDiagnosticTurnInput): Promise<
     'continuation:diagnosticTurn',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
     async (modelId) => {
-      const { object } = await generateObject({
+      const { output } = await generateText({
         model:  aiSdkAnthropic(modelId),
-        schema: DiagnosticTurnSchema,
+        output: Output.object({ schema: DiagnosticTurnSchema }),
         messages: [{
           role: 'user',
           content: `You are NeuraLaunch's continuation diagnostic agent. The founder hit "What's Next?" on a roadmap and entered Scenario ${scenario}. Your job is short, focused, and conversational — never a synthesis pass.
@@ -124,7 +124,7 @@ CRITICAL RULES:
 Produce your structured response now.`,
         }],
       });
-      return object;
+      return output;
     },
   );
 

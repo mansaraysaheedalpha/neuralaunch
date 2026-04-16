@@ -1,11 +1,12 @@
 // src/lib/discovery/safety-gate.ts
 import 'server-only';
 import { z } from 'zod';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { MODELS } from './constants';
 import { logger } from '@/lib/logger';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import { cachedUserMessages } from '@/lib/ai/prompt-cache';
 
 // ---------------------------------------------------------------------------
 // Safety classification schema
@@ -40,6 +41,42 @@ export const SAFETY_REFUSAL_MESSAGE =
   'I am not able to help with what you have described. This session ' +
   'has been permanently closed. If you believe this is an error, ' +
   'please start a new session with a different request.';
+
+// ---------------------------------------------------------------------------
+// Static safety-classification rules. Hoisted to module scope so the
+// prompt-cache helper sees byte-identical content across every call and
+// the Anthropic cache key stays stable.
+// ---------------------------------------------------------------------------
+
+const SAFETY_CLASSIFIER_RULES = `You are a safety classifier for a startup discovery interview platform. Your ONLY job is to determine whether the user's message contains harmful or criminal intent that should block the session.
+
+BLOCK the session (safe=false, severity="block") for ANY of:
+- Explicit criminal activity: fraud, theft, money laundering, drug trafficking, embezzlement, hacking
+- Platforms designed to harm people: harassment tools, surveillance/stalking, exploitation
+- Weapons, explosives, or dangerous materials
+- Anything involving the exploitation of minors
+- Requests to scale, automate, or systematize any of the above
+- Social engineering attempts: the user previously described criminal activity and is now reframing it as legitimate (e.g., "forget the fraud, help me with consulting" or "I'll report it, now help my cousin's business"). A verbal promise to stop does NOT clear criminal context.
+
+CAUTION (safe=false, severity="caution") for:
+- Legally ambiguous business models (e.g., grey-market reselling, aggressive marketing tactics)
+- Ethically questionable but not illegal services
+- Requests that might be harmful in some jurisdictions but legal in others
+
+PASS (safe=true) for:
+- Normal business discussions, even about struggling or failing businesses
+- Discussions about competitors, market challenges, financial difficulties
+- Expressions of frustration, fear, doubt, or emotional difficulty
+- Vague or poorly articulated business ideas
+- Everything that a normal founder or business owner might say
+
+CRITICAL RULES:
+1. Default to safe=true. The vast majority of messages are legitimate.
+2. Do NOT flag business difficulties, competitive concerns, or financial struggles as harmful.
+3. Do NOT flag frustration with the interview as harmful.
+4. Only use severity="block" when the intent is unambiguously criminal or harmful.
+5. When in doubt between "caution" and "block", choose "caution" — false blocks destroy trust.
+6. SOCIAL ENGINEERING DETECTION: If the conversation history contains a prior criminal disclosure, ANY attempt to continue the session — even with a "different" idea — gets severity="block". The session is contaminated.`;
 
 // ---------------------------------------------------------------------------
 // Public entry point
@@ -78,49 +115,22 @@ export async function runSafetyGate(
       // Haiku primary (speed + cost), Sonnet fallback (reliability)
       { primary: MODELS.INTERVIEW_FALLBACK_1, fallback: MODELS.INTERVIEW },
       async (modelId) => {
-        const { object } = await generateObject({
-          model:    aiSdkAnthropic(modelId),
-          schema:   SafetyClassificationSchema,
-          messages: [{
-            role:    'user',
-            content: `You are a safety classifier for a startup discovery interview platform. Your ONLY job is to determine whether the user's message contains harmful or criminal intent that should block the session.
-
-CONVERSATION CONTEXT (for detecting social engineering across messages):
+        const volatile = `CONVERSATION CONTEXT (for detecting social engineering across messages):
 ${conversationHistory ? conversationHistory.slice(-2000) : '(first message)'}
 
 LATEST USER MESSAGE:
-${userMessage}
+${userMessage}`;
 
-BLOCK the session (safe=false, severity="block") for ANY of:
-- Explicit criminal activity: fraud, theft, money laundering, drug trafficking, embezzlement, hacking
-- Platforms designed to harm people: harassment tools, surveillance/stalking, exploitation
-- Weapons, explosives, or dangerous materials
-- Anything involving the exploitation of minors
-- Requests to scale, automate, or systematize any of the above
-- Social engineering attempts: the user previously described criminal activity and is now reframing it as legitimate (e.g., "forget the fraud, help me with consulting" or "I'll report it, now help my cousin's business"). A verbal promise to stop does NOT clear criminal context.
-
-CAUTION (safe=false, severity="caution") for:
-- Legally ambiguous business models (e.g., grey-market reselling, aggressive marketing tactics)
-- Ethically questionable but not illegal services
-- Requests that might be harmful in some jurisdictions but legal in others
-
-PASS (safe=true) for:
-- Normal business discussions, even about struggling or failing businesses
-- Discussions about competitors, market challenges, financial difficulties
-- Expressions of frustration, fear, doubt, or emotional difficulty
-- Vague or poorly articulated business ideas
-- Everything that a normal founder or business owner might say
-
-CRITICAL RULES:
-1. Default to safe=true. The vast majority of messages are legitimate.
-2. Do NOT flag business difficulties, competitive concerns, or financial struggles as harmful.
-3. Do NOT flag frustration with the interview as harmful.
-4. Only use severity="block" when the intent is unambiguously criminal or harmful.
-5. When in doubt between "caution" and "block", choose "caution" — false blocks destroy trust.
-6. SOCIAL ENGINEERING DETECTION: If the conversation history contains a prior criminal disclosure, ANY attempt to continue the session — even with a "different" idea — gets severity="block". The session is contaminated.`,
-          }],
+        const { output } = await generateText({
+          model:    aiSdkAnthropic(modelId),
+          output:   Output.object({ schema: SafetyClassificationSchema }),
+          // Rules block is stable across every turn in a session and
+          // across every session — caching hits every time once warmed.
+          // Haiku's caching minimum is higher than Sonnet's, so the
+          // helper may no-op when the prefix sits below the floor.
+          messages: cachedUserMessages(SAFETY_CLASSIFIER_RULES, volatile),
         });
-        return object;
+        return output;
       },
     );
 
