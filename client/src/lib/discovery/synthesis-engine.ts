@@ -217,11 +217,11 @@ When you are ready, emit the structured recommendation as your final output.`;
         model: aiSdkAnthropic(modelId),
         tools,
         stopWhen: stepCountIs(RESEARCH_BUDGETS.recommendation.steps),
-        experimental_output: Output.object({ schema: RecommendationSchema }),
+        output: Output.object({ schema: RecommendationSchema }),
         messages: cachedUserMessages(synthesisStable, synthesisVolatile),
       });
 
-      return result.experimental_output;
+      return result.output;
     },
   );
 

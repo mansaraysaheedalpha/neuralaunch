@@ -15,7 +15,7 @@
 //   - linkedin:  brief, professional, within platform character norms
 
 import 'server-only';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
@@ -91,13 +91,14 @@ export async function runRolePlayTurn(
     ? '\n\nIMPORTANT: This is turn ' + input.turn + ' of the rehearsal. The rehearsal is approaching its limit. You MUST naturally weave into your reply — as the other party — a cue that suggests this particular exchange is reaching a natural pause or conclusion. Do not break character or say "rehearsal ending." Stay in character but signal a natural close.'
     : '';
 
-  const { object } = await withModelFallback(
+  const object = await withModelFallback(
     'coach:roleplay',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
-    (modelId) => generateObject({
-      model:  aiSdkAnthropic(modelId),
-      schema: RolePlayResponseSchema,
-      messages: [{
+    async (modelId) => {
+      const { output } = await generateText({
+        model:  aiSdkAnthropic(modelId),
+        output: Output.object({ schema: RolePlayResponseSchema }),
+        messages: [{
         role: 'user',
         content: `You are running a conversation rehearsal for NeuraLaunch's Conversation Coach. You are playing the OTHER PARTY in this rehearsal — not the founder, not a narrator.
 
@@ -137,7 +138,9 @@ RULES:
 
 Produce your in-character response now.`,
       }],
-    }),
+      });
+      return output;
+    },
   );
 
   log.info('[CoachRolePlay] Turn complete', { turn: input.turn });

@@ -3,7 +3,7 @@ import 'server-only';
 import { logger } from '@/lib/logger';
 
 /**
- * Shared model-fallback helper for every generateObject call site in
+ * Shared model-fallback helper for every generateText + Output.object call site in
  * the codebase.
  *
  * Background — production incident on 2026-04-08:
@@ -78,7 +78,7 @@ export function isAnthropicOverload(err: unknown): boolean {
 }
 
 /**
- * Run a generateObject (or any LLM-shaped) call against a primary
+ * Run a generateText + Output.object (or any LLM-shaped) call against a primary
  * model, then transparently fall back to a smaller model on Anthropic
  * overload. Caller passes a factory taking the model id so we can
  * re-issue the exact same call against the fallback on the second
@@ -90,12 +90,12 @@ export function isAnthropicOverload(err: unknown): boolean {
  *     'moduleName:functionName',
  *     { primary: MODELS.SYNTHESIS, fallback: MODELS.INTERVIEW },
  *     async (modelId) => {
- *       const { object } = await generateObject({
+ *       const { output } = await generateText({
  *         model: aiSdkAnthropic(modelId),
- *         schema: MySchema,
+ *         output: Output.object({ schema: MySchema }),
  *         messages: [...],
  *       });
- *       return object;
+ *       return output;
  *     },
  *   );
  *

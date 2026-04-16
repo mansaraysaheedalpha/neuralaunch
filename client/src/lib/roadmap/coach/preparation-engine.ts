@@ -95,7 +95,7 @@ export async function runCoachPreparation(
         model: aiSdkAnthropic(modelId),
         tools,
         stopWhen: stepCountIs(RESEARCH_BUDGETS.recommendation.steps),
-        experimental_output: Output.object({ schema: PreparationPackageSchema }),
+        output: Output.object({ schema: PreparationPackageSchema }),
         messages: [{
           role: 'user',
           content: `You are NeuraLaunch's Conversation Coach. The founder has described a high-stakes conversation they need to have. Your job is to produce a complete preparation package that gives them the exact words, the exact strategy, and the exact fallback plan.
@@ -147,10 +147,10 @@ CRITICAL RULES:
 Produce the structured preparation package now.`,
         }],
       });
-      if (!result.experimental_output) {
+      if (!result.output) {
         throw new Error('Model failed to produce the preparation package — exhausted tool budget without emitting structured output.');
       }
-      return result.experimental_output;
+      return result.output;
     },
   );
 

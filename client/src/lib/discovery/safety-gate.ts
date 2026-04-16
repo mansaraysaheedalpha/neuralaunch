@@ -1,7 +1,7 @@
 // src/lib/discovery/safety-gate.ts
 import 'server-only';
 import { z } from 'zod';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { MODELS } from './constants';
 import { logger } from '@/lib/logger';
@@ -121,16 +121,16 @@ ${conversationHistory ? conversationHistory.slice(-2000) : '(first message)'}
 LATEST USER MESSAGE:
 ${userMessage}`;
 
-        const { object } = await generateObject({
+        const { output } = await generateText({
           model:    aiSdkAnthropic(modelId),
-          schema:   SafetyClassificationSchema,
+          output:   Output.object({ schema: SafetyClassificationSchema }),
           // Rules block is stable across every turn in a session and
           // across every session — caching hits every time once warmed.
           // Haiku's caching minimum is higher than Sonnet's, so the
           // helper may no-op when the prefix sits below the floor.
           messages: cachedUserMessages(SAFETY_CLASSIFIER_RULES, volatile),
         });
-        return object;
+        return output;
       },
     );
 

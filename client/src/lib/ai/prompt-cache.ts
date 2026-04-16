@@ -16,7 +16,7 @@ import type Anthropic from '@anthropic-ai/sdk';
  * fresh each call.
  *
  * This module exposes four tiny helpers:
- *   - cachedUserMessages()      for Vercel AI SDK generateObject / generateText / streamText
+ *   - cachedUserMessages()      for Vercel AI SDK generateText (with Output.object) / streamText
  *   - cachedSystem()            for Vercel AI SDK calls that use the `system` parameter
  *   - cachedAnthropicContent()  for raw @anthropic-ai/sdk messages
  *   - cachedAnthropicSystem()   for raw @anthropic-ai/sdk system blocks

@@ -329,10 +329,10 @@ Produce your structured response now.`;
         model: aiSdkAnthropic(modelId),
         tools,
         stopWhen: stepCountIs(RESEARCH_BUDGETS.checkin.steps),
-        experimental_output: Output.object({ schema: CheckInResponseSchema }),
+        output: Output.object({ schema: CheckInResponseSchema }),
         messages: cachedUserMessages(stable, volatile),
       });
-      return result.experimental_output;
+      return result.output;
     },
   );
 

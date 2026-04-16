@@ -1,7 +1,7 @@
 // src/lib/discovery/pushback-engine.ts
 import 'server-only';
 import { z } from 'zod';
-import { generateObject, generateText, stepCountIs, Output } from 'ai';
+import { generateText, stepCountIs, Output } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { logger } from '@/lib/logger';
 import { MODELS } from './constants';
@@ -332,10 +332,10 @@ Produce your structured response now.`;
       model:    aiSdkAnthropic(MODELS.SYNTHESIS), // Opus
       tools,
       stopWhen: stepCountIs(RESEARCH_BUDGETS.pushback.steps),
-      experimental_output: Output.object({ schema: PushbackResponseSchema }),
+      output: Output.object({ schema: PushbackResponseSchema }),
       messages: promptMessages,
     });
-    decision = result.experimental_output;
+    decision = result.output;
   } catch (err) {
     // Same cause-extraction shape as the second call. AI SDK wraps the
     // underlying Zod failure on err.cause; logging it lets us see
@@ -425,9 +425,9 @@ YOUR DECISION FROM THE PRIOR STEP: ${decision.action === PUSHBACK_ACTIONS.REFINE
 
 Produce the updated recommendation now.`;
 
-      const { object: updated } = await generateObject({
+      const { output: updated } = await generateText({
         model:    aiSdkAnthropic(MODELS.SYNTHESIS),
-        schema:   RecommendationSchema,
+        output:   Output.object({ schema: RecommendationSchema }),
         messages: cachedUserMessages(rewriteStable, rewriteVolatile),
       });
       patch = updated;

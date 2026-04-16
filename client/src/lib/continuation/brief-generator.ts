@@ -217,10 +217,10 @@ When you are ready, emit the structured continuation brief as your final output.
         model: aiSdkAnthropic(modelId),
         tools,
         stopWhen: stepCountIs(RESEARCH_BUDGETS.continuation.steps),
-        experimental_output: Output.object({ schema: ContinuationBriefSchema }),
+        output: Output.object({ schema: ContinuationBriefSchema }),
         messages: cachedUserMessages(briefStable, briefVolatile),
       });
-      return result.experimental_output;
+      return result.output;
     },
   );
 
