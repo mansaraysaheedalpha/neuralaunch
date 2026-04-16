@@ -12,7 +12,7 @@
 **Repository layout:**
 ```
 neuralaunch/
-├── client/                 # Next.js 15 application (the product)
+├── client/                 # Next.js 16 application (the product)
 │   ├── src/app/            # App Router pages and API routes
 │   ├── src/lib/            # Core business logic, engines, services
 │   │   ├── ai/             # Provider fallback chain + shared AI helpers
@@ -122,7 +122,7 @@ Users are waiting. Every unnecessary millisecond is friction between a person an
 
 | Layer | Technology | Version | Notes |
 |---|---|---|---|
-| Framework | Next.js | 15.5.x | App Router only. No Pages Router. |
+| Framework | Next.js | 16.2.x | App Router only. No Pages Router. Pinned to `--webpack` until the custom webpack config is ported to Turbopack — see `client/package.json` scripts. |
 | Language | TypeScript | 5.x | Strict mode. No `any`. |
 | Styling | Tailwind CSS | 4.x | Utility-first. No inline styles. |
 | Components | shadcn/ui | v4 CLI | Chat, Timeline, Stepper blocks for AI UX. |
@@ -479,4 +479,4 @@ is the right shape.
 ---
 
 *NeuraLaunch — Built with precision by Saheed Alpha Mansaray*
-*Engineering standards last updated: 2026-04-09*
+*Engineering standards last updated: 2026-04-16*
