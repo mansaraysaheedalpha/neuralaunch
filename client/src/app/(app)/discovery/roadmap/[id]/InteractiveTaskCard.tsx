@@ -6,7 +6,6 @@ import { useState } from 'react';
 import {
   buildTaskId,
   type StoredRoadmapTask,
-  type TaskStatus,
 } from '@/lib/roadmap/checkin-types';
 import { CheckInForm }         from './CheckInForm';
 import { CheckInHistoryList }  from './CheckInHistoryList';
@@ -14,21 +13,8 @@ import { TaskDiagnosticChat }  from './TaskDiagnosticChat';
 import { TaskToolLaunchers }   from './TaskToolLaunchers';
 import { TaskCompletionMoment } from './TaskCompletionMoment';
 import { TaskMetadata }        from './TaskMetadata';
+import { TaskStatusPicker }    from './TaskStatusPicker';
 import { useTaskCheckIn }      from './useTaskCheckIn';
-
-const STATUS_LABELS: Record<TaskStatus, string> = {
-  not_started: 'Not started',
-  in_progress: 'In progress',
-  completed:   'Completed',
-  blocked:     'Blocked',
-};
-
-const STATUS_BADGE_CLASSES: Record<TaskStatus, string> = {
-  not_started: 'bg-muted text-muted-foreground',
-  in_progress: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
-  completed:   'bg-success/10 text-success',
-  blocked:     'bg-red-500/10 text-red-600 dark:text-red-400',
-};
 
 /**
  * InteractiveTaskCard — orchestrator for one roadmap task. Owns the
@@ -99,19 +85,11 @@ export function InteractiveTaskCard({
         ].join(' ')}>
           {ck.task.title}
         </p>
-        <select
-          value={ck.status}
-          disabled={ck.pendingStatus}
-          onChange={e => { void ck.handleStatusChange(e.target.value as TaskStatus); }}
-          className={[
-            'shrink-0 text-[10px] uppercase tracking-wider rounded-full px-2 py-1 border-0 font-medium cursor-pointer outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50',
-            STATUS_BADGE_CLASSES[ck.status],
-          ].join(' ')}
-        >
-          {(['not_started', 'in_progress', 'completed', 'blocked'] as const).map(s => (
-            <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-          ))}
-        </select>
+        <TaskStatusPicker
+          status={ck.status}
+          pending={ck.pendingStatus}
+          onChange={(s) => { void ck.handleStatusChange(s); }}
+        />
       </div>
 
       <TaskMetadata task={ck.task} />
