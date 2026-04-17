@@ -12,11 +12,11 @@ import {
   Search,
   Bell,
   Brain,
-  Check,
 } from "lucide-react";
 import MarketingHeader from "@/components/marketing/MarketingHeader";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
 import RevealOnScroll from "@/components/marketing/RevealOnScroll";
+import { PricingSection } from "@/components/marketing/PricingSection";
 
 const HERO_SUBHEAD =
   "NeuraLaunch interviews your situation, commits to one clear recommendation, then partners with you through every task — until you've shipped, learned, or decided what comes next.";
@@ -633,65 +633,6 @@ function Beat({
 /* ============================================================
    SECTION 8 — PRICING
    ============================================================ */
-const TIERS: Array<{
-  name: string;
-  description: string;
-  features: string[];
-  highlighted?: boolean;
-  cta: string;
-}> = [
-  {
-    name: "Free",
-    description:
-      "The full discovery interview and your first recommendation.",
-    features: [
-      "Complete discovery interview",
-      "One full recommendation, with reasoning",
-      "Push back up to seven rounds",
-      "See the alternatives the system rejected",
-    ],
-    cta: "Start free",
-  },
-  {
-    name: "Starter",
-    description:
-      "The full execution roadmap with all three internal tools.",
-    features: [
-      "Phased execution roadmap",
-      "Conversation Coach",
-      "Outreach Composer",
-      "Research Tool",
-      "Task check-ins and diagnostic help",
-      "Parking lot for adjacent ideas",
-    ],
-    highlighted: true,
-    cta: "Start free",
-  },
-  {
-    name: "Builder",
-    description: "Everything in Starter, plus validation and continuation.",
-    features: [
-      "Everything in Starter",
-      "Live validation landing page",
-      "Build brief from real market signal",
-      "Continuation brief at cycle end",
-      "Fork selection into next cycle",
-    ],
-    cta: "Start free",
-  },
-  {
-    name: "Scale",
-    description: "Multiple concurrent roadmaps with cross-cycle memory.",
-    features: [
-      "Everything in Builder",
-      "Multiple roadmaps in parallel",
-      "Priority research and synthesis",
-      "Full cross-cycle memory",
-    ],
-    cta: "Start free",
-  },
-];
-
 function Pricing() {
   return (
     <section
@@ -717,69 +658,12 @@ function Pricing() {
           <RevealOnScroll delayMs={120}>
             <p className="mt-5 text-base leading-relaxed text-slate-300 sm:text-lg">
               The free tier earns trust. The paid tiers deliver transformation.
-              Pricing reflects what founders at each tier actually get.
             </p>
           </RevealOnScroll>
         </div>
 
-        <div className="mx-auto mt-14 grid max-w-7xl grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {TIERS.map((tier, i) => (
-            <RevealOnScroll key={tier.name} delayMs={i * 80}>
-              <article
-                className={`relative flex h-full flex-col rounded-xl border p-7 transition-colors ${
-                  tier.highlighted
-                    ? "border-primary bg-navy-800 shadow-lg shadow-primary/10"
-                    : "border-slate-800 bg-navy-900 hover:border-slate-700"
-                }`}
-              >
-                {tier.highlighted && (
-                  <span className="absolute -top-3 left-7 inline-flex items-center rounded-full bg-primary px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white">
-                    Most founders start here
-                  </span>
-                )}
-                <h3 className="text-lg font-semibold text-white">
-                  {tier.name}
-                </h3>
-                <p className="mt-2 text-sm leading-relaxed text-slate-300">
-                  {tier.description}
-                </p>
-                <p className="mt-6 text-sm font-medium text-slate-300">
-                  Pricing announced soon
-                </p>
-                <ul className="mt-6 space-y-2.5 text-sm">
-                  {tier.features.map((feature) => (
-                    <li
-                      key={feature}
-                      className="flex items-start gap-2.5 text-slate-300"
-                    >
-                      <Check
-                        className={`mt-0.5 h-4 w-4 shrink-0 ${
-                          tier.highlighted
-                            ? "text-primary"
-                            : "text-success"
-                        }`}
-                        aria-hidden="true"
-                      />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-auto pt-8">
-                  <Link
-                    href="/discovery"
-                    className={`inline-flex w-full items-center justify-center gap-1.5 rounded-md px-4 py-2.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 ${
-                      tier.highlighted
-                        ? "bg-primary text-white hover:bg-blue-700 focus-visible:ring-primary"
-                        : "border border-slate-700 bg-transparent text-white hover:border-slate-500 hover:bg-slate-800 focus-visible:ring-slate-500"
-                    }`}
-                  >
-                    {tier.cta}
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                </div>
-              </article>
-            </RevealOnScroll>
-          ))}
+        <div className="mt-14">
+          <PricingSection />
         </div>
       </div>
     </section>
