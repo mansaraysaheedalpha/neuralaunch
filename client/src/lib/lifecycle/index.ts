@@ -1,0 +1,48 @@
+// src/lib/lifecycle/index.ts
+//
+// Public API for the lifecycle memory module.
+
+export {
+  FounderProfileSchema,
+  CycleSummarySchema,
+  safeParseFounderProfile,
+  safeParseCycleSummary,
+  type FounderProfile,
+  type CycleSummary,
+} from './schemas';
+
+export {
+  getFounderProfile,
+  upsertFounderProfile,
+} from './profile';
+
+export {
+  getActiveVentures,
+  getCurrentCycle,
+  createVenture,
+  createCycle,
+  getAllVentures,
+  type Venture,
+  type Cycle,
+} from './venture';
+
+export {
+  renderFounderProfileBlock,
+  renderCycleSummariesBlock,
+  renderInterviewOpeningBlock,
+} from './prompt-renderers';
+
+export {
+  loadInterviewContext,
+  loadRecommendationContext,
+  loadRoadmapContext,
+  loadPerTaskAgentContext,
+  loadContinuationBriefContext,
+  loadCycleSummaryGeneratorContext,
+  type InterviewContext,
+  type RecommendationContext,
+  type RoadmapContext,
+  type PerTaskAgentContext,
+  type ContinuationBriefContext,
+  type CycleSummaryGeneratorContext,
+} from './context-loaders';
