@@ -50,3 +50,18 @@ export function resolveTier(priceId: string | null | undefined): TierInfo {
   if (!priceId) return FREE_TIER;
   return PRICE_TO_TIER[priceId] ?? FREE_TIER;
 }
+
+/**
+ * Maximum number of simultaneously active ventures allowed per tier.
+ * Per docs/neuralaunch-pricing-spec.md §1.3 line "Active cycles at once"
+ * and docs/neuralaunch-lifecycle-memory.md §2.2.
+ *
+ *   free     — 0 active ventures (one-off recommendation only, no roadmap)
+ *   execute  — 1 active venture with one active cycle at a time
+ *   compound — up to 3 active ventures in parallel
+ */
+export const TIER_VENTURE_LIMITS: Record<Tier, number> = {
+  free:     0,
+  execute:  1,
+  compound: 3,
+};
