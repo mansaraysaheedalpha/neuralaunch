@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, ArrowRight, Loader2 } from 'lucide-react';
 import { AssumptionRow } from './AssumptionRow';
@@ -15,6 +16,7 @@ import {
 import { PushbackChat } from './PushbackChat';
 import type { PushbackTurn } from '@/lib/discovery/pushback-types';
 import { safeParseAlternatives } from '@/lib/discovery/recommendation-schema';
+import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
 
 interface Props {
   recommendation: {
@@ -96,6 +98,9 @@ export function RecommendationReveal({
   validationSignalStrength = null,
 }: Props) {
   const router      = useRouter();
+  const { data: session } = useSession();
+  const tier = session?.user?.tier ?? 'free';
+  const isFreeTier = tier === 'free';
   const steps       = r.firstThreeSteps as string[];
   const risks       = r.risks as RiskRow[];
   const assumptions = r.assumptions as string[];
@@ -298,7 +303,15 @@ export function RecommendationReveal({
                        fired yet (e.g. acceptance happened on a
                        different device). Show a building placeholder. */}
           <div>
-            {!isAccepted ? (
+            {isFreeTier && !isAccepted ? (
+              <UpgradePrompt
+                requiredTier="execute"
+                variant="hero"
+                heading="Ready to execute?"
+                description="Your Free tier includes this recommendation and its reasoning. Upgrade to Execute to commit to this path — we'll generate your execution roadmap with Coach, Composer, Research, and Packager unlocked on every task."
+                primaryLabel="Upgrade to Execute"
+              />
+            ) : !isAccepted ? (
               <>
                 <p className="text-xs text-muted-foreground mb-3">
                   When you are ready to commit to this path, click below. This is the moment of
@@ -414,7 +427,7 @@ export function RecommendationReveal({
               pushback on roadmapReady would silently kill the feature
               for almost every user. Acceptance is the only real
               "discussion is closed" signal. */}
-          {!isAccepted && (
+          {!isAccepted && !isFreeTier && (
             <div>
               <PushbackChat
                 recommendationId={r.id}
