@@ -3,8 +3,7 @@
 import { signIn } from "next-auth/react";
 import { motion } from "motion/react";
 import { ArrowLeft, Shield } from "lucide-react";
-import { FcGoogle } from "react-icons/fc";
-import { FaGithub } from "react-icons/fa";
+import { FaGoogle, FaGithub } from "react-icons/fa";
 import Link from "next/link";
 import Image from "next/image";
 
@@ -85,7 +84,7 @@ export default function SignInPage() {
               onClick={() => handleSignIn("google")}
               className="group inline-flex w-full items-center justify-center gap-3 rounded-md border border-slate-700 bg-navy-800 px-6 py-3 text-sm font-medium text-white transition-colors hover:border-slate-600 hover:bg-navy-800/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-900"
             >
-              <FcGoogle className="h-5 w-5" aria-hidden="true" />
+              <FaGoogle className="h-4 w-4" aria-hidden="true" />
               <span>Continue with Google</span>
             </button>
 
@@ -95,7 +94,7 @@ export default function SignInPage() {
               onClick={() => handleSignIn("github")}
               className="group inline-flex w-full items-center justify-center gap-3 rounded-md border border-slate-700 bg-navy-800 px-6 py-3 text-sm font-medium text-white transition-colors hover:border-slate-600 hover:bg-navy-800/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-900"
             >
-              <FaGithub className="h-5 w-5" aria-hidden="true" />
+              <FaGithub className="h-4 w-4" aria-hidden="true" />
               <span>Continue with GitHub</span>
             </button>
           </div>
