@@ -15,8 +15,8 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowUp } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { Text } from './Text';
 import { spacing, radius, typography } from '@/constants/theme';
 
 interface Props {
@@ -94,13 +94,11 @@ export function ChatInput({
               },
             ]}
           >
-            <Text
-              variant="label"
+            <ArrowUp
+              size={20}
               color={canSend ? c.primaryForeground : c.mutedForeground}
-              style={{ fontSize: typography.size.sm }}
-            >
-              ↑
-            </Text>
+              strokeWidth={2.5}
+            />
           </View>
         </Pressable>
       </View>
