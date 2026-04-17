@@ -36,6 +36,12 @@ export const maxDuration = 90;
 const TurnRequestSchema = z.object({
   message: z.string().min(1).max(4000),
   history: z.string().max(8000).default(''),
+  /**
+   * Optional authorship signal. 'voice' marks the message as
+   * microphone-transcribed so the chat history can render a mic
+   * badge and cohort analytics can distinguish voice vs typed.
+   */
+  inputMethod: z.enum(['voice']).optional(),
 });
 
 /**
@@ -94,7 +100,7 @@ export async function POST(
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid request', issues: parsed.error.format() }, { status: 400 });
   }
-  const { message, history } = parsed.data;
+  const { message, history, inputMethod } = parsed.data;
 
   const state = await getSession(sessionId);
   if (!state) {
@@ -164,7 +170,7 @@ export async function POST(
   // Persist user message immediately (fire-and-forget, non-fatal)
   if (conversationId) {
     prisma.message.create({
-      data: { conversationId, role: 'user', content: message },
+      data: { conversationId, role: 'user', content: message, inputMethod: inputMethod ?? null },
     }).catch(() => { /* non-fatal */ });
   }
 

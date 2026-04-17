@@ -234,6 +234,16 @@ model Message {
    */
   modelUsed String?
 
+  /**
+   * How a user message was authored. 'voice' when the content
+   * originated from a microphone transcription (Deepgram → Whisper
+   * via POST /api/voice/transcribe), null otherwise. Null for all
+   * assistant messages and for every message written before voice
+   * mode shipped. Powers the mic-icon badge in the chat history and
+   * cohort analytics via `voice_message_sent`.
+   */
+  inputMethod String?
+
   // The transcript loader queries `where: { conversationId }, orderBy: createdAt asc`.
   // Without this index every conversation transcript would do a full
   // table scan filtered by conversationId. Stage 7.2 scalability fix.

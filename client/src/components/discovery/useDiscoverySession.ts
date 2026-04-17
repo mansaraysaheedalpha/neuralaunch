@@ -72,7 +72,7 @@ export interface DiscoverySessionState {
   currentQuestion:        string;
   questionIndex:          number;
   turnError:              TurnError | null;
-  sendMessage:            (content: string) => Promise<void>;
+  sendMessage:            (content: string, inputMethod?: 'voice') => Promise<void>;
   retryLastTurn:          () => Promise<void>;
   setStepperVisible:      (v: boolean) => void;
   retryRecommendation:    () => void;
@@ -135,7 +135,7 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
   // Mutable ref to the latest sendMessage closure so the
   // dismissPendingOutcomeAndRetry callback (defined before
   // sendMessage) can call it without a stale-closure warning.
-  const sendMessageInternalRef = useRef<((content: string, isRetry?: boolean, ackPendingOutcome?: boolean) => Promise<void>) | null>(null);
+  const sendMessageInternalRef = useRef<((content: string, isRetry?: boolean, ackPendingOutcome?: boolean, inputMethod?: 'voice') => Promise<void>) | null>(null);
   // Full bidirectional history — user answers + AI questions. Separate from
   // `messages` display state so the chat UI is not affected.
   // Pre-populated from resumed messages so post-resume turns have full context.
@@ -211,6 +211,7 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
     userContent: string,
     isRetry = false,
     ackPendingOutcome = false,
+    inputMethod?: 'voice',
   ) => {
     if (!userContent.trim()) return;
 
@@ -237,7 +238,7 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
     // appended for the original attempt; we leave it in place because
     // the server uses it to generate the same context.
     if (!isRetry) {
-      const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: userContent };
+      const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: userContent, inputMethod };
       setMessages(prev => [...prev, userMsg]);
     }
     abortRef.current = new AbortController();
@@ -265,7 +266,7 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
       const res = await fetch(`/api/discovery/sessions/${sid}/turn`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ message: userContent, history: sendHistory }),
+        body:    JSON.stringify({ message: userContent, history: sendHistory, inputMethod }),
         signal:  abortRef.current.signal,
       });
 
@@ -438,10 +439,11 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
     onComplete?.(recommendation, conversationIdRef.current ?? '');
   }, [recommendation, onComplete]);
 
-  // Public sendMessage exposes the single-arg shape — the internal
-  // retry path uses the second arg directly via retryLastTurn.
+  // Public sendMessage exposes (content, inputMethod?) — the internal
+  // retry path uses isRetry/ackPendingOutcome directly via retryLastTurn
+  // and dismissPendingOutcomeAndRetry.
   const publicSendMessage = useCallback(
-    (content: string) => sendMessage(content),
+    (content: string, inputMethod?: 'voice') => sendMessage(content, false, false, inputMethod),
     [sendMessage],
   );
 

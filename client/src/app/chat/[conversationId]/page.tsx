@@ -1,6 +1,7 @@
 // src/app/chat/[conversationId]/page.tsx
 import { notFound, redirect } from 'next/navigation';
 import Link                    from 'next/link';
+import { Mic }                 from 'lucide-react';
 import { auth }                from '@/auth';
 import prisma                  from '@/lib/prisma';
 import { safeParsePushbackHistory } from '@/lib/discovery/pushback-engine';
@@ -73,10 +74,11 @@ export default async function ChatTranscriptPage({
     orderBy: { createdAt: 'asc' },
     take:    -200,
     select:  {
-      id:        true,
-      role:      true,
-      content:   true,
-      createdAt: true,
+      id:          true,
+      role:        true,
+      content:     true,
+      createdAt:   true,
+      inputMethod: true,
     },
   });
 
@@ -140,13 +142,30 @@ export default async function ChatTranscriptPage({
               <div
                 key={msg.id}
                 className={[
-                  'rounded-2xl px-4 py-3 text-sm leading-relaxed max-w-[85%] whitespace-pre-wrap break-words',
-                  msg.role === 'user'
-                    ? 'self-end bg-primary text-primary-foreground'
-                    : 'self-start bg-muted text-foreground',
+                  'flex flex-col gap-1 max-w-[85%]',
+                  msg.role === 'user' ? 'self-end items-end' : 'self-start items-start',
                 ].join(' ')}
               >
-                {msg.content}
+                <div
+                  className={[
+                    'rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words',
+                    msg.role === 'user'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-foreground',
+                  ].join(' ')}
+                >
+                  {msg.content}
+                </div>
+                {msg.role === 'user' && msg.inputMethod === 'voice' && (
+                  <div
+                    className="flex items-center gap-1 text-[10px] text-muted-foreground/70"
+                    aria-label="Sent by voice"
+                    title="Sent by voice"
+                  >
+                    <Mic className="size-2.5" aria-hidden="true" />
+                    <span>voice</span>
+                  </div>
+                )}
               </div>
             ))}
 
