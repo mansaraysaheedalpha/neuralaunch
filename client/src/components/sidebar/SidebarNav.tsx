@@ -38,6 +38,7 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
       <Link
         href="/discovery"
         onClick={onNavigate}
+        aria-current={isDiscoveryActive ? 'page' : undefined}
         className={`group relative flex items-center px-3 py-3 rounded-xl transition-all duration-200 ${
           isDiscoveryActive ? 'bg-primary/10' : 'hover:bg-muted'
         }`}
@@ -64,6 +65,7 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
       <Link
         href="/discovery/recommendations"
         onClick={onNavigate}
+        aria-current={isPastRecsActive ? 'page' : undefined}
         className={`group relative flex items-center px-3 py-2 rounded-xl transition-all duration-200 ml-8 ${
           isPastRecsActive ? 'bg-primary/10' : 'hover:bg-muted'
         }`}
@@ -82,6 +84,7 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
       <Link
         href="/discovery/validation"
         onClick={onNavigate}
+        aria-current={isValidationActive ? 'page' : undefined}
         className={`group relative flex items-center px-3 py-2 rounded-xl transition-all duration-200 ml-8 ${
           isValidationActive ? 'bg-primary/10' : 'hover:bg-muted'
         }`}
@@ -104,6 +107,7 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
         <Link
           href="/tools"
           onClick={onNavigate}
+          aria-current={isToolsActive ? 'page' : undefined}
           className={`group relative flex items-center px-3 py-3 rounded-xl transition-all duration-200 ${
             isToolsActive ? 'bg-primary/10' : 'hover:bg-muted'
           }`}
@@ -131,6 +135,7 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
       <Link
         href="/settings"
         onClick={onNavigate}
+        aria-current={isSettingsActive ? 'page' : undefined}
         className={`group relative flex items-center px-3 py-3 rounded-xl transition-all duration-200 ${
           isSettingsActive ? 'bg-primary/10' : 'hover:bg-muted'
         }`}

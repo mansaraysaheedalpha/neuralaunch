@@ -10,6 +10,7 @@ import { PhaseBlock } from './PhaseBlock';
 import { WhatsNextPanel } from './WhatsNextPanel';
 import { ParkingLotInline } from './ParkingLotInline';
 import { NudgeBanner } from './NudgeBanner';
+import { RoadmapProgressHeader } from './RoadmapProgressHeader';
 
 /**
  * RoadmapView
@@ -82,6 +83,21 @@ export function RoadmapView({
           </p>
         )}
       </motion.div>
+
+      {data.progress && (
+        <RoadmapProgressHeader
+          totalTasks={data.progress.totalTasks}
+          completedTasks={data.progress.completedTasks}
+          blockedTasks={data.progress.blockedTasks ?? 0}
+          totalPhases={data.phases.length}
+          currentPhase={
+            (data.phases.findIndex(p =>
+              (p.tasks as Array<{ status?: string }>).some(t => t.status !== 'completed'),
+            ) + 1) || data.phases.length
+          }
+          totalWeeks={data.totalWeeks ?? null}
+        />
+      )}
 
       {/* Proactive nudge banner — set by the daily Inngest sweep when
           an in-progress task has gone stale. The founder always sees
