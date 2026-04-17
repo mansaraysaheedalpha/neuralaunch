@@ -309,6 +309,9 @@ importers:
 
   packages/api-types:
     dependencies:
+      '@neuralaunch/constants':
+        specifier: workspace:*
+        version: link:../constants
       typescript:
         specifier: ^5
         version: 5.9.3
