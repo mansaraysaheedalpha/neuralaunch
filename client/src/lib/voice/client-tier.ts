@@ -1,23 +1,21 @@
-'use client';
+"use client";
+
+import { useSession } from "next-auth/react";
 
 /**
  * Client-side counterpart to lib/voice/tier-gate.ts.
  *
- * Single swap point for tier resolution on the client. Today returns
- * 'compound' unconditionally because the Paddle integration (which
- * exposes the tier on session.user.tier) is still on a parallel
- * branch. When Paddle merges, update this file to read tier from the
- * NextAuth session and every voice integration picks up the change
- * without further edits.
+ * Reads the tier from the NextAuth session. The Paddle integration
+ * populates session.user.tier via the session callback in auth.ts.
  */
 
-export type VoiceTier = 'execute' | 'compound';
+export type VoiceTier = "free" | "execute" | "compound";
 
 export function useVoiceTier(): VoiceTier {
-  // STUB — replace with useSession().data?.user?.tier once Paddle merges.
-  return 'compound';
+  const { data } = useSession();
+  return (data?.user?.tier ?? "free") as VoiceTier;
 }
 
 export function canUseVoiceMode(tier: VoiceTier): boolean {
-  return tier === 'compound';
+  return tier === "compound";
 }

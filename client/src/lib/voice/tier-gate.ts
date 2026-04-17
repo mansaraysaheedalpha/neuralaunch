@@ -1,40 +1,39 @@
 // src/lib/voice/tier-gate.ts
-import 'server-only';
+import "server-only";
+import prisma from "@/lib/prisma";
 
 /**
  * Voice mode is gated to the Compound tier ($49/mo).
  *
- * Tier resolution is intentionally behind this helper so the rest of the
- * voice code does not need to know where the tier comes from. Today the
- * canonical source is the session JWT written by Paddle — which is being
- * built on a parallel branch (feat/paddle-integration). Until that merges,
- * this helper short-circuits to 'compound' so the voice flow is testable.
- *
- * When Paddle lands, replace the body of getVoiceTier() with a read of
- * session.user.tier. No other call site changes.
+ * Tier resolution reads from the Subscription record populated by the
+ * Paddle webhook processor. This matches the pattern used by
+ * require-tier.ts for API route gating.
  */
 
-export type VoiceTier = 'execute' | 'compound';
+export type VoiceTier = "free" | "execute" | "compound";
 
-// Why `async` on a stub with no await: the real implementation will read
-// the tier from the session / user row (an async DB or JWT decode). Keeping
-// the stub async keeps the call-site signature stable across the Paddle
-// merge — no call sites change when the stub is replaced.
-// eslint-disable-next-line @typescript-eslint/require-await
-export async function getVoiceTier(_userId: string): Promise<VoiceTier> {
-  return 'compound';
+export async function getVoiceTier(userId: string): Promise<VoiceTier> {
+  const subscription = await prisma.subscription.findUnique({
+    where: { userId },
+    select: { tier: true, status: true },
+  });
+
+  if (!subscription) return "free";
+  if (subscription.status === "canceled") return "free";
+
+  return (subscription.tier ?? "free") as VoiceTier;
 }
 
 export async function assertCompoundTier(userId: string): Promise<void> {
   const tier = await getVoiceTier(userId);
-  if (tier !== 'compound') {
-    throw new VoiceTierError('Voice mode requires the Compound plan');
+  if (tier !== "compound") {
+    throw new VoiceTierError("Voice mode requires the Compound plan");
   }
 }
 
 export class VoiceTierError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'VoiceTierError';
+    this.name = "VoiceTierError";
   }
 }
