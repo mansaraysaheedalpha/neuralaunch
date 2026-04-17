@@ -64,6 +64,18 @@ const envSchema = z.object({
   NEXT_PUBLIC_APP_URL:  z.string().url().optional(),
   NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
 
+  // Paddle (Merchant of Record). The server keys are required in every
+  // deployed environment so the app refuses to start without them —
+  // catching a missing secret at boot beats discovering it on the first
+  // webhook delivery. The public keys are validated as strings rather
+  // than required because local dev without Paddle still needs to work
+  // for non-billing contributors; the pricing UI gracefully hides CTAs
+  // when the client token is absent.
+  PADDLE_API_KEY:                  z.string().min(1),
+  PADDLE_WEBHOOK_SECRET:           z.string().min(1),
+  NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: z.string().optional(),
+  NEXT_PUBLIC_PADDLE_ENV:          z.enum(['sandbox', 'production']).default('sandbox'),
+
   // Node environment
   NODE_ENV:   z.enum(['development', 'production', 'test']).default('development'),
   VERCEL_ENV: z.enum(['development', 'preview', 'production']).optional(),
