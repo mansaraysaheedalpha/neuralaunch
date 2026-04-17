@@ -3,11 +3,24 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Check, Sparkles } from 'lucide-react';
+import { SubscribeButton } from '@/components/SubscribeButton';
 
 type BillingCycle = 'annual' | 'monthly';
 
+/**
+ * Pricing information resolved by the server component wrapper via
+ * getPriceIds(). The monthly id swaps to the hidden founding price
+ * when a slot is available — the client never knows or cares which.
+ */
+export interface TierPricing {
+  monthly:                string;
+  annual:                 string;
+  isFoundingRate:         boolean;
+  foundingSlotsRemaining: number;
+}
+
 interface Tier {
-  name:        string;
+  name:        'Free' | 'Execute' | 'Compound';
   tagline:     string;
   monthly:     number;
   annual:      number;
@@ -77,27 +90,47 @@ function annualSavings(tier: Tier): number {
   return (tier.monthly * 12) - tier.annual;
 }
 
-export function PricingSection() {
+interface PricingSectionProps {
+  execute:  TierPricing;
+  compound: TierPricing;
+}
+
+export function PricingSection({ execute, compound }: PricingSectionProps) {
   const [cycle, setCycle] = useState<BillingCycle>('annual');
+
+  // Either tier having a founding slot keeps the banner visible. The
+  // per-tier detail lives in each card's "Founding rate" line below.
+  const foundingBannerVisible = execute.isFoundingRate || compound.isFoundingRate;
+  const foundingSlotsRemaining = Math.max(
+    execute.foundingSlotsRemaining,
+    compound.foundingSlotsRemaining,
+  );
+
+  const pricingByTier: Record<'Execute' | 'Compound', TierPricing> = {
+    Execute:  execute,
+    Compound: compound,
+  };
 
   return (
     <>
-      {/* Founding member banner */}
-      <div className="mx-auto max-w-2xl mb-10">
-        <div className="rounded-xl border border-gold/20 bg-gold/5 px-6 py-4 text-center">
-          <p className="flex items-center justify-center gap-2 text-sm font-semibold text-gold">
-            <Sparkles className="size-4" aria-hidden="true" />
-            Founding Member Rates
-          </p>
-          <p className="mt-2 text-sm text-slate-300 leading-relaxed">
-            First 50 users: Execute at <span className="text-gold font-semibold">$19/month</span> forever.
-            Compound at <span className="text-gold font-semibold">$29/month</span> forever.
-          </p>
-          <p className="mt-1 text-xs text-slate-400">
-            Limited to 50 founding members
-          </p>
+      {/* Founding member banner — hidden once all 50 slots are claimed. */}
+      {foundingBannerVisible && (
+        <div className="mx-auto max-w-2xl mb-10">
+          <div className="rounded-xl border border-gold/20 bg-gold/5 px-6 py-4 text-center">
+            <p className="flex items-center justify-center gap-2 text-sm font-semibold text-gold">
+              <Sparkles className="size-4" aria-hidden="true" />
+              Founding Member Rates
+            </p>
+            <p className="mt-2 text-sm text-slate-300 leading-relaxed">
+              First 50 users: Execute at <span className="text-gold font-semibold">$19/month</span> forever.
+              Compound at <span className="text-gold font-semibold">$29/month</span> forever.
+            </p>
+            <p className="mt-1 text-xs text-slate-400">
+              {foundingSlotsRemaining} of 50 founding slots remaining
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Billing toggle */}
       <div className="flex items-center justify-center gap-3 mb-10">
@@ -147,13 +180,18 @@ export function PricingSection() {
             'text-success';
           const ctaClass =
             tier.accent === 'primary'
-              ? 'bg-primary text-white hover:bg-blue-700 focus-visible:ring-primary'
+              ? 'inline-flex w-full items-center justify-center gap-1.5 rounded-md px-4 py-2.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 bg-primary text-white hover:bg-blue-700 focus-visible:ring-primary disabled:opacity-60 disabled:cursor-not-allowed'
               : tier.accent === 'gold'
-                ? 'bg-gold text-white hover:opacity-90 focus-visible:ring-gold'
-                : 'border border-slate-700 bg-transparent text-white hover:border-slate-500 hover:bg-slate-800 focus-visible:ring-slate-500';
+                ? 'inline-flex w-full items-center justify-center gap-1.5 rounded-md px-4 py-2.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 bg-gold text-white hover:opacity-90 focus-visible:ring-gold disabled:opacity-60 disabled:cursor-not-allowed'
+                : 'inline-flex w-full items-center justify-center gap-1.5 rounded-md px-4 py-2.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 border border-slate-700 bg-transparent text-white hover:border-slate-500 hover:bg-slate-800 focus-visible:ring-slate-500';
 
           const price = cycle === 'annual' ? tier.annual : tier.monthly;
           const savings = annualSavings(tier);
+          const isPaid = tier.name !== 'Free';
+          const pricing = isPaid ? pricingByTier[tier.name as 'Execute' | 'Compound'] : null;
+          const priceId = pricing ? (cycle === 'annual' ? pricing.annual : pricing.monthly) : null;
+          // Founding rate only applies to monthly — mirrors spec §1.2.
+          const showFoundingNote = pricing?.isFoundingRate && cycle === 'monthly';
 
           return (
             <article
@@ -183,9 +221,18 @@ export function PricingSection() {
                     </p>
                   </>
                 ) : (
-                  <p className="text-3xl font-bold text-white">
-                    ${price}<span className="text-lg font-medium text-slate-400">/mo</span>
-                  </p>
+                  <>
+                    <p className="text-3xl font-bold text-white">
+                      ${tier.name === 'Execute' && showFoundingNote ? 19
+                        : tier.name === 'Compound' && showFoundingNote ? 29
+                        : price}<span className="text-lg font-medium text-slate-400">/mo</span>
+                    </p>
+                    {showFoundingNote && (
+                      <p className="mt-1 text-xs text-gold">
+                        Founding member rate — ${price}/mo after launch
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -199,13 +246,22 @@ export function PricingSection() {
               </ul>
 
               <div className="mt-auto pt-8">
-                <Link
-                  href="/signin"
-                  className={`inline-flex w-full items-center justify-center gap-1.5 rounded-md px-4 py-2.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 ${ctaClass}`}
-                >
-                  {tier.cta}
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
+                {isPaid && priceId ? (
+                  <SubscribeButton
+                    priceId={priceId}
+                    tierName={tier.name as 'Execute' | 'Compound'}
+                    label={tier.cta}
+                    className={ctaClass}
+                  />
+                ) : (
+                  <Link
+                    href="/signin"
+                    className={ctaClass}
+                  >
+                    {tier.cta}
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                )}
               </div>
             </article>
           );
