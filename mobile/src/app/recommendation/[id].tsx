@@ -101,24 +101,35 @@ export default function RecommendationScreen() {
       />
 
       <ScreenContainer>
-        {/* Summary card — always visible */}
+        {/* Summary card — always visible. Gold border + gold-tinted background
+            mark this as the product's "moment" colour, not a blog-post callout. */}
         <View>
-          <Card variant="primary">
-            <Text variant="overline" color={c.primary}>
+          <Card
+            noPadding
+            style={{
+              backgroundColor: c.secondaryAlpha10,
+              borderColor: c.secondary,
+              borderWidth: 1,
+              padding: spacing[5],
+            }}
+          >
+            <Text variant="overline" color={c.secondary}>
               Your Recommendation
             </Text>
-            <Text variant="body" style={{ marginTop: spacing[2] }}>
+            <Text variant="title" style={{ marginTop: spacing[2] }}>
               {r.summary}
             </Text>
           </Card>
         </View>
 
-        {/* What would make this wrong */}
+        {/* What would make this wrong — regular weight, full foreground colour.
+            This statement is equal in weight to the summary; italic would read
+            as a whisper. */}
         <View style={styles.section}>
           <Text variant="overline" color={c.mutedForeground}>
             What Would Make This Wrong
           </Text>
-          <Text variant="body" color={c.mutedForeground} style={styles.italic}>
+          <Text variant="body" color={c.foreground}>
             {r.whatWouldMakeThisWrong}
           </Text>
         </View>
@@ -126,13 +137,6 @@ export default function RecommendationScreen() {
         {/* Your Path */}
         <CollapsibleSection label="Your Path">
           <Text variant="title">{r.path}</Text>
-        </CollapsibleSection>
-
-        {/* Why This Fits You */}
-        <CollapsibleSection label="Why This Fits You">
-          <Text variant="body" color={c.foreground} style={{ opacity: 0.9 }}>
-            {r.reasoning}
-          </Text>
         </CollapsibleSection>
 
         {/* First Three Steps */}
@@ -149,13 +153,19 @@ export default function RecommendationScreen() {
           </View>
         </CollapsibleSection>
 
-        {/* Time to First Result */}
-        <CollapsibleSection label="Time to First Result">
+        {/* Supporting sections — collapsed by default on mobile to keep the
+            reveal a moment instead of a document. */}
+        <CollapsibleSection label="Why This Fits You" defaultOpen={false}>
+          <Text variant="body" color={c.foreground} style={{ opacity: 0.9 }}>
+            {r.reasoning}
+          </Text>
+        </CollapsibleSection>
+
+        <CollapsibleSection label="Time to First Result" defaultOpen={false}>
           <Text variant="label">{r.timeToFirstResult}</Text>
         </CollapsibleSection>
 
-        {/* Risks & Mitigations */}
-        <CollapsibleSection label="Risks & Mitigations">
+        <CollapsibleSection label="Risks & Mitigations" defaultOpen={false}>
           <View style={{ gap: spacing[2] }}>
             {r.risks.map((row, i) => (
               <Card key={i}>
@@ -168,8 +178,7 @@ export default function RecommendationScreen() {
           </View>
         </CollapsibleSection>
 
-        {/* Assumptions */}
-        <CollapsibleSection label="Assumptions">
+        <CollapsibleSection label="Assumptions" defaultOpen={false}>
           <View style={{ gap: spacing[3] }}>
             {r.assumptions.map((a, i) => (
               <AssumptionRow
@@ -182,8 +191,7 @@ export default function RecommendationScreen() {
           </View>
         </CollapsibleSection>
 
-        {/* Alternatives Considered & Rejected */}
-        <CollapsibleSection label="Alternatives Considered & Rejected">
+        <CollapsibleSection label="Alternatives Considered & Rejected" defaultOpen={false}>
           <View style={{ gap: spacing[3] }}>
             {r.alternativeRejected.map((alt, idx) => (
               <Card key={idx}>
@@ -283,9 +291,6 @@ const styles = StyleSheet.create({
   section: {
     gap: spacing[1],
     marginTop: spacing[4],
-  },
-  italic: {
-    fontStyle: 'italic',
   },
   stepsList: {
     gap: spacing[3],
