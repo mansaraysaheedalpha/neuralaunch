@@ -41,6 +41,14 @@ const envSchema = z.object({
   // chain stops at Haiku and a final failure is surfaced to the client.
   GOOGLE_AI_API_KEY: z.string().optional(),
 
+  // Voice transcription providers.
+  // Primary: Deepgram Nova-2 at $0.0043/min. Fallback: OpenAI Whisper
+  // at $0.006/min. Both are optional at startup so the app can boot
+  // without voice configured — the transcribe route refuses requests
+  // at runtime when no provider key is set.
+  DEEPGRAM_API_KEY: z.string().optional(),
+  OPENAI_API_KEY:   z.string().optional(),
+
   // Search / Research — both research providers are exposed to every
   // research-enabled agent as two independently-named tools (exa_search,
   // tavily_search). Both are optional: missing keys make the
