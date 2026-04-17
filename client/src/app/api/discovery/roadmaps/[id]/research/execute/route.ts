@@ -19,6 +19,8 @@ import {
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import { safeParseResearchLog, appendResearchLog, type ResearchLogEntry } from '@/lib/research';
 import { safeParseResearchSession, runResearchExecution } from '@/lib/roadmap/research-tool';
+import { loadPerTaskAgentContext } from '@/lib/lifecycle';
+import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
 
 // Opus + 25 research steps — can take 3-6 minutes
 export const maxDuration = 300;
@@ -81,9 +83,14 @@ export async function POST(
 
     const bsRaw = roadmap.recommendation?.session?.beliefState;
     const bs    = bsRaw ? safeParseDiscoveryContext(bsRaw) : null;
+
+    const { profile } = await loadPerTaskAgentContext(userId);
+    const founderProfileBlock = renderFounderProfileBlock(profile);
+
     const accumulator: ResearchLogEntry[] = [];
 
     const report = await runResearchExecution({
+      founderProfileBlock: founderProfileBlock || undefined,
       query:                 existingSession.query,
       plan:                  parsed.data.plan,
       beliefState: {
