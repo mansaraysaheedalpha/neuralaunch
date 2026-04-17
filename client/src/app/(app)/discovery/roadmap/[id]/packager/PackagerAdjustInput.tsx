@@ -6,8 +6,12 @@
 // adjustment cap is reached.
 
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import { Loader2 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
+import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
+import { canUseVoiceMode, useVoiceTier } from '@/lib/voice/client-tier';
+import { trackVoiceEvent } from '@/lib/voice/analytics';
 import { MAX_ADJUSTMENT_ROUNDS } from '@/lib/roadmap/service-packager/constants';
 
 export interface PackagerAdjustInputProps {
@@ -29,6 +33,20 @@ export function PackagerAdjustInput({
   const [draft, setDraft] = useState('');
   const exhausted = adjustmentsUsed >= MAX_ADJUSTMENT_ROUNDS;
 
+  const voiceTier    = useVoiceTier();
+  const voiceEnabled = canUseVoiceMode(voiceTier);
+
+  const handleVoiceTranscription = (text: string) => {
+    if (!text.trim()) return;
+    setDraft(prev => prev.trim().length > 0 ? `${prev.trim()} ${text}` : text);
+    trackVoiceEvent('voice_transcribed', { surface: 'packager' });
+  };
+
+  const handleVoiceError = (message: string) => {
+    trackVoiceEvent('voice_error', { surface: 'packager', errorMessage: message });
+    toast.error(message);
+  };
+
   function handleSend() {
     const text = draft.trim();
     if (!text || exhausted) return;
@@ -44,16 +62,26 @@ export function PackagerAdjustInput({
           {adjustmentsUsed}/{MAX_ADJUSTMENT_ROUNDS} adjustments used
         </p>
       </div>
-      <Textarea
-        value={draft}
-        onChange={e => setDraft(e.target.value)}
-        rows={2}
-        placeholder={exhausted
-          ? 'You\'ve used all three adjustments on this package.'
-          : 'e.g. "make the premium tier include emergency same-day service"'}
-        disabled={pending || exhausted}
-        className="min-h-0 resize-none py-2 text-xs"
-      />
+      <div className="flex items-start gap-2">
+        <Textarea
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          rows={2}
+          placeholder={exhausted
+            ? 'You\'ve used all three adjustments on this package.'
+            : 'e.g. "make the premium tier include emergency same-day service"'}
+          disabled={pending || exhausted}
+          className="min-h-0 flex-1 resize-none py-2 text-xs"
+        />
+        {voiceEnabled && !exhausted && (
+          <VoiceInputButton
+            onTranscription={handleVoiceTranscription}
+            onError={handleVoiceError}
+            disabled={pending}
+            className="shrink-0"
+          />
+        )}
+      </div>
       <button
         type="button"
         onClick={handleSend}

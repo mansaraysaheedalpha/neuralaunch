@@ -7,9 +7,13 @@
 // complete. Mirrors the TaskDiagnosticChat bubble styling.
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, Send } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
+import { canUseVoiceMode, useVoiceTier } from '@/lib/voice/client-tier';
+import { trackVoiceEvent } from '@/lib/voice/analytics';
 import type { ConversationSetup } from '@/lib/roadmap/coach';
 
 interface SetupExchange {
@@ -50,6 +54,20 @@ export function CoachSetupChat({
   const [draft,      setDraft]      = useState(initialDraft ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [error,      setError]      = useState<string | null>(null);
+
+  const voiceTier    = useVoiceTier();
+  const voiceEnabled = canUseVoiceMode(voiceTier);
+
+  const handleVoiceTranscription = (text: string) => {
+    if (!text.trim()) return;
+    setDraft(prev => prev.trim().length > 0 ? `${prev.trim()} ${text}` : text);
+    trackVoiceEvent('voice_transcribed', { surface: 'coach_setup' });
+  };
+
+  const handleVoiceError = (message: string) => {
+    trackVoiceEvent('voice_error', { surface: 'coach_setup', errorMessage: message });
+    toast.error(message);
+  };
 
   const handleSend = useCallback(async () => {
     const trimmed = draft.trim();
@@ -161,6 +179,14 @@ export function CoachSetupChat({
           disabled={submitting}
           className="flex-1 px-2 py-1.5 text-xs"
         />
+        {voiceEnabled && (
+          <VoiceInputButton
+            onTranscription={handleVoiceTranscription}
+            onError={handleVoiceError}
+            disabled={submitting}
+            className="shrink-0"
+          />
+        )}
         <button
           type="button"
           onClick={() => { void handleSend(); }}
