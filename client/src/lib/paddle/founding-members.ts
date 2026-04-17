@@ -70,11 +70,26 @@ const PRICE_IDS: Record<
  * page hits it. If that ever becomes hot, wrap with a short-TTL
  * Upstash cache keyed on `founding-slots:v1`; invalidate from the
  * webhook processor when isFoundingMember rolls over.
+ *
+ * Fail-safe: if the count query errors (database unreachable at build
+ * time, transient connection issue), we return the STANDARD (non-
+ * founding) pricing. Showing $29/mo when we could have shown $19/mo
+ * is a far smaller harm than crashing the entire landing page render.
  */
 export async function getPriceIds(tier: 'execute' | 'compound'): Promise<TierPriceIds> {
-  const used = await getFoundingMemberCount();
-  const available = used < FOUNDING_MEMBER_LIMIT;
   const ids = PRICE_IDS[tier];
+  let used: number;
+  try {
+    used = await getFoundingMemberCount();
+  } catch {
+    return {
+      monthly:                ids.monthly,
+      annual:                 ids.annual,
+      isFoundingRate:         false,
+      foundingSlotsRemaining: 0,
+    };
+  }
+  const available = used < FOUNDING_MEMBER_LIMIT;
   return {
     monthly:                available ? ids.founding : ids.monthly,
     annual:                 ids.annual,
