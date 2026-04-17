@@ -11,6 +11,7 @@ import {
   RATE_LIMITS,
 } from '@/lib/validation/server-helpers';
 import { safeParsePushbackHistory } from '@/lib/discovery/pushback-engine';
+import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
 /**
  * POST /api/discovery/recommendations/[id]/accept
@@ -27,6 +28,7 @@ export async function POST(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
+    await requireTierOrThrow(userId, 'execute');
     await rateLimitByUser(userId, 'rec-accept', RATE_LIMITS.API_AUTHENTICATED);
 
     const { id: recommendationId } = await params;
@@ -90,6 +92,7 @@ export async function DELETE(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
+    await requireTierOrThrow(userId, 'execute');
     await rateLimitByUser(userId, 'rec-unaccept', RATE_LIMITS.API_AUTHENTICATED);
 
     const { id: recommendationId } = await params;

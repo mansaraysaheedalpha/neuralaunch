@@ -22,6 +22,7 @@ import {
 import { safeParseResearchLog, appendResearchLog, type ResearchLogEntry } from '@/lib/research';
 import { loadPerTaskAgentContext } from '@/lib/lifecycle';
 import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
+import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
 export const maxDuration = 90;
 
@@ -43,6 +44,7 @@ export async function POST(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
+    await requireTierOrThrow(userId, 'execute');
     await rateLimitByUser(userId, 'packager-standalone-generate', RATE_LIMITS.AI_GENERATION);
     const { id: roadmapId } = await params;
     const log = logger.child({ route: 'POST packager-standalone-generate', roadmapId, userId });

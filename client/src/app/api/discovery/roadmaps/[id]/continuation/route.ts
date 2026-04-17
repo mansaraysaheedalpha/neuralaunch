@@ -14,6 +14,7 @@ import {
   safeParseDiagnosticHistory,
   safeParseParkingLot,
 } from '@/lib/continuation';
+import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
 export const maxDuration = 30;
 
@@ -40,6 +41,7 @@ export async function GET(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
+    await requireTierOrThrow(userId, 'execute');
     await rateLimitByUser(userId, 'roadmap-continuation-read', RATE_LIMITS.API_READ);
 
     const { id: roadmapId } = await params;

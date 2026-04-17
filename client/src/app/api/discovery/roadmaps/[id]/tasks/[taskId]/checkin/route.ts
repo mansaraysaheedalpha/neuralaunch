@@ -31,6 +31,7 @@ import {
   appendResearchLog,
   type ResearchLogEntry,
 } from '@/lib/research';
+import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
 // Pro plan: 90s gives headroom for the conditional research path
 // (trigger detector LLM call + up to 2 Tavily queries in parallel)
@@ -71,6 +72,7 @@ export async function POST(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
+    await requireTierOrThrow(userId, 'execute');
     // AI_GENERATION tier — every check-in is a paid Sonnet call
     await rateLimitByUser(userId, 'roadmap-checkin', RATE_LIMITS.AI_GENERATION);
 

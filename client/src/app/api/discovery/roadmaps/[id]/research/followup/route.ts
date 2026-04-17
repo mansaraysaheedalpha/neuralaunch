@@ -23,6 +23,7 @@ import {
   safeParseResearchSession,
   runResearchFollowUp,
 } from '@/lib/roadmap/research-tool';
+import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
 // Sonnet + 10 research steps
 export const maxDuration = 120;
@@ -45,6 +46,7 @@ export async function POST(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
+    await requireTierOrThrow(userId, 'execute');
     await rateLimitByUser(userId, 'research-standalone-followup', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId } = await params;

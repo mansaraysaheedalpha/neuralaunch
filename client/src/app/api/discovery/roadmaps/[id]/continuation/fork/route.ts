@@ -19,6 +19,7 @@ import {
   persistForkRecommendation,
 } from '@/lib/continuation';
 import { ROADMAP_EVENT } from '@/lib/roadmap';
+import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
 export const maxDuration = 30;
 
@@ -52,6 +53,7 @@ export async function POST(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
+    await requireTierOrThrow(userId, 'execute');
     await rateLimitByUser(userId, 'roadmap-continuation-fork', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId } = await params;

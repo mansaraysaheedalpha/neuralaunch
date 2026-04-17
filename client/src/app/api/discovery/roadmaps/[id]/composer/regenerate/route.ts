@@ -23,6 +23,7 @@ import {
   runComposerRegeneration,
   safeParseComposerSession,
 } from '@/lib/roadmap/composer';
+import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
 export const maxDuration = 30;
 
@@ -46,6 +47,7 @@ export async function POST(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
+    await requireTierOrThrow(userId, 'execute');
     await rateLimitByUser(userId, 'composer-standalone-regenerate', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId } = await params;

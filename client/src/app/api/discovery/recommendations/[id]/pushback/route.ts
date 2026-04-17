@@ -40,6 +40,7 @@ import {
   safeParseResearchLog,
   type ResearchLogEntry,
 } from '@/lib/research';
+import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
 const BodySchema = z.object({
   message: z.string().min(1).max(4000),
@@ -64,6 +65,7 @@ export async function POST(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
+    await requireTierOrThrow(userId, 'execute');
     // AI_GENERATION tier (5 req/min) — pushback turns are paid Opus
     // calls. The per-recommendation 7-round cap protects a single
     // recommendation; this protects the user's AI spend across
