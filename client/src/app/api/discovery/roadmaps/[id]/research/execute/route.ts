@@ -21,6 +21,7 @@ import { safeParseResearchLog, appendResearchLog, type ResearchLogEntry } from '
 import { safeParseResearchSession, runResearchExecution } from '@/lib/roadmap/research-tool';
 import { loadPerTaskAgentContext } from '@/lib/lifecycle';
 import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
+import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
 // Opus + 25 research steps — can take 3-6 minutes
 export const maxDuration = 300;
@@ -44,6 +45,7 @@ export async function POST(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
+    await requireTierOrThrow(userId, 'execute');
     await rateLimitByUser(userId, 'research-standalone-execute', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId } = await params;

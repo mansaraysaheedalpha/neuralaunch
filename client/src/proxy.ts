@@ -36,13 +36,20 @@ export function proxy(_request: NextRequest) {
   // Removed `t.contentsquare.net` from both script-src and connect-src
   // — it was in the allow-list but never used in the codebase. Dead
   // allow-list entries widen the attack surface for zero benefit.
+  // Paddle.js is loaded from cdn.paddle.com, renders its overlay
+  // checkout inside an iframe hosted at *.paddle.com, and fires API
+  // calls back to *.paddle.com. All three directives need to be
+  // widened or the checkout silently fails with CSP violations in
+  // DevTools. Nothing else in the pipeline loads from paddle.com, so
+  // the additional surface is scoped.
   const cspHeader = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://va.vercel-scripts.com https://www.googletagmanager.com https://static.hotjar.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://va.vercel-scripts.com https://www.googletagmanager.com https://static.hotjar.com https://cdn.paddle.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' blob: data: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "connect-src 'self' https://vercel.live https://vitals.vercel-insights.com https://www.google-analytics.com https://www.googletagmanager.com https://*.hotjar.com",
+    "connect-src 'self' https://vercel.live https://vitals.vercel-insights.com https://www.google-analytics.com https://www.googletagmanager.com https://*.hotjar.com https://*.paddle.com",
+    "frame-src 'self' https://*.paddle.com",
     "worker-src 'self' blob:",
     // 'self' (not 'none') because the validation page preview at
     // /discovery/validation/[pageId] embeds /lp/[slug] inside an

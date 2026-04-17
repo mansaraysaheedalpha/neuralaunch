@@ -17,6 +17,7 @@ import MarketingHeader from "@/components/marketing/MarketingHeader";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
 import RevealOnScroll from "@/components/marketing/RevealOnScroll";
 import { PricingSection } from "@/components/marketing/PricingSection";
+import { getPriceIds } from "@/lib/paddle/founding-members";
 
 const HERO_SUBHEAD =
   "NeuraLaunch interviews your situation, commits to one clear recommendation, then partners with you through every task — until you've shipped, learned, or decided what comes next.";
@@ -633,7 +634,15 @@ function Beat({
 /* ============================================================
    SECTION 8 — PRICING
    ============================================================ */
-function Pricing() {
+async function Pricing() {
+  // Fetch per-tier price ids at request time. The hidden founding rate
+  // is returned only while slots remain — switching to the standard
+  // monthly price the moment the 50-user ceiling is hit.
+  const [execute, compound] = await Promise.all([
+    getPriceIds('execute'),
+    getPriceIds('compound'),
+  ]);
+
   return (
     <section
       id="pricing"
@@ -663,7 +672,7 @@ function Pricing() {
         </div>
 
         <div className="mt-14">
-          <PricingSection />
+          <PricingSection execute={execute} compound={compound} />
         </div>
       </div>
     </section>

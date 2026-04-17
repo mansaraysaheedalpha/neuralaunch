@@ -47,6 +47,9 @@ importers:
       '@octokit/rest':
         specifier: ^22.0.0
         version: 22.0.1
+      '@paddle/paddle-node-sdk':
+        specifier: ^3.7.0
+        version: 3.7.0
       '@paralleldrive/cuid2':
         specifier: ^3.0.4
         version: 3.3.0
@@ -1625,6 +1628,10 @@ packages:
 
   '@oxc-project/types@0.124.0':
     resolution: {integrity: sha512-VBFWMTBvHxS11Z5Lvlr3IWgrwhMTXV+Md+EQF0Xf60+wAdsGFTBx7X7K/hP4pi8N7dcm1RvcHwDxZ16Qx8keUg==}
+
+  '@paddle/paddle-node-sdk@3.7.0':
+    resolution: {integrity: sha512-VUlmBCGmCJU7mv1H/t7PDVg2GvnPy9tt3rnqbkf4BqpxL6zxKtgFxxXT/B7k6QX//L5lW6fC58ax/a86DJ/zcw==}
+    engines: {node: '>=20'}
 
   '@panva/hkdf@1.2.1':
     resolution: {integrity: sha512-6oclG6Y3PiDFcoyk8srjLfVKyMfVCKJ27JwNPViuXziFpmdz+MZnZN/aKY0JGXgYuO/VghU0jcOAZgWXZ1Dmrw==}
@@ -8233,6 +8240,8 @@ snapshots:
       '@opentelemetry/core': 2.6.1(@opentelemetry/api@1.9.1)
 
   '@oxc-project/types@0.124.0': {}
+
+  '@paddle/paddle-node-sdk@3.7.0': {}
 
   '@panva/hkdf@1.2.1': {}
 

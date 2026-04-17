@@ -17,6 +17,7 @@ import {
   RATE_LIMITS,
 } from '@/lib/validation/server-helpers';
 import { safeParseComposerSession } from '@/lib/roadmap/composer';
+import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
 export const maxDuration = 10;
 
@@ -39,6 +40,7 @@ export async function POST(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
+    await requireTierOrThrow(userId, 'execute');
     await rateLimitByUser(userId, 'composer-standalone-mark-sent', RATE_LIMITS.API_AUTHENTICATED);
 
     const { id: roadmapId } = await params;

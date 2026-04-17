@@ -12,6 +12,7 @@ import {
   RATE_LIMITS,
 } from '@/lib/validation/server-helpers';
 import { z } from 'zod';
+import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
 const ParamsSchema = z.object({ id: z.string().min(1) });
 
@@ -47,6 +48,7 @@ export async function POST(
   const userId = session.user.id;
 
   try {
+    await requireTierOrThrow(userId, 'execute');
     await rateLimitByUser(userId, 'roadmap-trigger', RATE_LIMITS.AI_GENERATION);
   } catch (err) {
     if (err instanceof HttpError) return httpErrorToResponse(err);
