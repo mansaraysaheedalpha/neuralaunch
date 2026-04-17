@@ -14,6 +14,8 @@ import {
   safeParseResearchLog,
   type ResearchLogEntry,
 } from '@/lib/research';
+import { loadContinuationBriefContext } from '@/lib/lifecycle';
+import { renderFounderProfileBlock, renderCycleSummariesBlock } from '@/lib/lifecycle/prompt-renderers';
 
 /**
  * continuationBriefFunction
@@ -125,6 +127,23 @@ export const continuationBriefFunction = inngest.createFunction(
     // The accumulator is captured as part of the step's return value
     // (alongside the brief) so an Inngest replay reads it from the
     // serialised step state rather than re-running the research.
+    // Load lifecycle context (FounderProfile + prior Cycle Summaries)
+    // so the brief gains venture arc awareness. The ventureId comes
+    // from the roadmap row's ventureId field; null for pre-lifecycle
+    // roadmaps (the block will be empty and the brief runs as before).
+    const lifecycleBlock = await step.run('load-lifecycle-context', async () => {
+      const roadmap = await prisma.roadmap.findUnique({
+        where:  { id: roadmapId },
+        select: { ventureId: true },
+      });
+      if (!roadmap?.ventureId) return '';
+      const ctx = await loadContinuationBriefContext(userId, roadmap.ventureId);
+      return [
+        renderFounderProfileBlock(ctx.profile),
+        renderCycleSummariesBlock(ctx.cycleSummaries),
+      ].filter(b => b.length > 0).join('\n');
+    });
+
     const briefStep = await step.run('generate-brief', async () => {
       const accumulator: ResearchLogEntry[] = [];
       const brief = await generateContinuationBrief({
@@ -137,9 +156,8 @@ export const continuationBriefFunction = inngest.createFunction(
         diagnosticHistory:   loaded.diagnosticHistory,
         researchAccumulator: accumulator,
         roadmapId,
-        // A4: pass the check-in coverage ratio so the brief prompt
-        // can calibrate its confidence to the evidence density.
         checkinCoverage:     loaded.checkinCoverage,
+        lifecycleBlock:      lifecycleBlock || undefined,
       });
       return { brief, researchLog: accumulator };
     });
@@ -189,6 +207,29 @@ export const continuationBriefFunction = inngest.createFunction(
       forks:           brief.forks.length,
       parkingLotItems: brief.parkingLotItems.length,
       researchCalls:   briefStep.researchLog.length,
+    });
+
+    // Emit the lifecycle transition event. This triggers the Lifecycle
+    // Transition Engine (Phase 7) which generates a CycleSummary from
+    // this cycle's data and updates the Founder Profile. The event is
+    // best-effort — if the roadmap has no ventureId (pre-lifecycle
+    // data), the engine will skip gracefully.
+    await step.run('emit-cycle-completing', async () => {
+      const roadmap = await prisma.roadmap.findUnique({
+        where:  { id: roadmapId },
+        select: { ventureId: true, recommendation: { select: { cycleId: true } } },
+      });
+      const cycleId = roadmap?.recommendation?.cycleId;
+      const ventureId = roadmap?.ventureId;
+      if (!cycleId || !ventureId) {
+        log.info('[ContinuationBrief] No cycle/venture link — skipping lifecycle event', { roadmapId });
+        return;
+      }
+      await inngest.send({
+        name: 'neuralaunch/cycle.completing',
+        data: { cycleId, userId, ventureId },
+      });
+      log.info('[ContinuationBrief] Emitted neuralaunch/cycle.completing', { cycleId, ventureId });
     });
 
     return { roadmapId, status: 'complete' };

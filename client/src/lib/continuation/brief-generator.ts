@@ -76,6 +76,14 @@ export interface GenerateBriefInput {
    *   <30% — generate with explicit caution
    */
   checkinCoverage:   number;
+  /**
+   * Pre-rendered lifecycle context block (FounderProfile + prior Cycle
+   * Summaries for the venture). When present, the brief agent gains
+   * venture arc awareness — it can reference patterns across cycles
+   * (e.g. "across three cycles, you consistently block on outreach").
+   * Empty string when no lifecycle data exists yet.
+   */
+  lifecycleBlock?:   string;
 }
 
 /**
@@ -107,6 +115,7 @@ export async function generateContinuationBrief(input: GenerateBriefInput): Prom
   const motivationLine  = input.motivationAnchor
     ? `MOTIVATION ANCHOR (the founder's own answer to "why pursue this at all"): ${renderUserContent(input.motivationAnchor, 600)}`
     : 'MOTIVATION ANCHOR: not captured during the interview.';
+  const lifecyclePrefix = input.lifecycleBlock ?? '';
 
   const accumulator = input.researchAccumulator ?? [];
   const accumulatorBaseline = accumulator.length;
@@ -173,7 +182,7 @@ CRITICAL RULES:
       // Volatile suffix: the per-roadmap evidence that changes with
       // every brief generation — belief state, recommendation,
       // execution record, metrics, parking lot, diagnostic history.
-      const briefVolatile = `THE FOUNDER'S BELIEF STATE FROM THE ORIGINAL INTERVIEW:
+      const briefVolatile = `${lifecyclePrefix ? `${lifecyclePrefix}\nWhen prior cycle summaries exist, reference cross-cycle patterns in the "What the Evidence Says" section. If the same type of task blocks across multiple cycles, name the pattern explicitly. Forks that account for venture-level patterns are more valuable than forks that only reference the current cycle.\n\n` : ''}THE FOUNDER'S BELIEF STATE FROM THE ORIGINAL INTERVIEW:
 ${beliefBlock}
 
 ${motivationLine}
