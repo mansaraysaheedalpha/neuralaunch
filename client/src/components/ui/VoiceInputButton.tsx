@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { Loader2, Mic, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { trackVoiceEvent } from '@/lib/voice/analytics';
 
 /**
  * VoiceInputButton — microphone primitive that captures audio via
@@ -141,6 +142,7 @@ export function VoiceInputButton({
       cleanupStream();
 
       if (wasCancelled) {
+        trackVoiceEvent('voice_recording_cancelled');
         setState('idle');
         setElapsed(0);
         return;
@@ -165,6 +167,7 @@ export function VoiceInputButton({
     recorder.start();
     setState('recording');
     setElapsed(0);
+    trackVoiceEvent('voice_recording_started');
     tickRef.current = window.setInterval(() => {
       const nextElapsed = Math.floor((Date.now() - startedAtRef.current) / 1000);
       setElapsed(nextElapsed);
