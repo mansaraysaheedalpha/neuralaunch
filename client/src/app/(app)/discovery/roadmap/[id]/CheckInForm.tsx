@@ -1,9 +1,14 @@
 'use client';
 // src/app/(app)/discovery/roadmap/[id]/CheckInForm.tsx
 
+import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
+import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
+import { canUseVoiceMode, useVoiceTier } from '@/lib/voice/client-tier';
+import { trackVoiceEvent } from '@/lib/voice/analytics';
+import { suggestCheckInCategory } from '@/lib/voice/checkin-category';
 
 const CHECKIN_CATEGORY_LABELS = {
   completed:  'Completed ✓',
@@ -63,6 +68,26 @@ export function CheckInForm({
   onSubmit,
   onCancel,
 }: CheckInFormProps) {
+  const voiceTier    = useVoiceTier();
+  const voiceEnabled = canUseVoiceMode(voiceTier);
+
+  const handleVoiceTranscription = (text: string) => {
+    if (!text.trim()) return;
+    onTextChange(freeText.trim().length > 0 ? `${freeText.trim()} ${text}` : text);
+    trackVoiceEvent('voice_transcribed', { surface: 'checkin' });
+    // Auto-suggest category from keywords when the founder has not
+    // chosen one yet. Never overwrite an explicit selection.
+    if (!category) {
+      const suggestion = suggestCheckInCategory(text);
+      if (suggestion) onCategoryChange(suggestion);
+    }
+  };
+
+  const handleVoiceError = (message: string) => {
+    trackVoiceEvent('voice_error', { surface: 'checkin', errorMessage: message });
+    toast.error(message);
+  };
+
   return (
     <AnimatePresence>
       {open && (
@@ -94,17 +119,27 @@ export function CheckInForm({
                 </button>
               ))}
             </div>
-            <Textarea
-              value={freeText}
-              onChange={e => onTextChange(e.target.value)}
-              placeholder={
-                placeholderOverride ??
-                (category ? CHECKIN_PLACEHOLDERS[category] : 'Pick a category above…')
-              }
-              disabled={!category || submitting}
-              rows={3}
-              className="min-h-0 resize-none py-2 text-xs"
-            />
+            <div className="flex items-start gap-2">
+              <Textarea
+                value={freeText}
+                onChange={e => onTextChange(e.target.value)}
+                placeholder={
+                  placeholderOverride ??
+                  (category ? CHECKIN_PLACEHOLDERS[category] : 'Pick a category above…')
+                }
+                disabled={!category || submitting}
+                rows={3}
+                className="min-h-0 flex-1 resize-none py-2 text-xs"
+              />
+              {voiceEnabled && (
+                <VoiceInputButton
+                  onTranscription={handleVoiceTranscription}
+                  onError={handleVoiceError}
+                  disabled={submitting}
+                  className="shrink-0"
+                />
+              )}
+            </div>
             {error && (
               <div className="rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1.5 text-[11px] text-red-700 dark:text-red-400">
                 {error}
