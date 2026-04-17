@@ -12,6 +12,7 @@ import {
 } from '@/lib/validation/server-helpers';
 import { StoredPhasesArraySchema } from '@/lib/roadmap/checkin-types';
 import { safeParseResearchSession } from '@/lib/roadmap/research-tool';
+import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
 export async function GET(
   request: Request,
@@ -19,6 +20,7 @@ export async function GET(
 ) {
   try {
     const userId = await requireUserId(request);
+    await requireTierOrThrow(userId, 'execute');
     await rateLimitByUser(userId, 'research-session-read', RATE_LIMITS.API_READ);
 
     const { id: roadmapId, sessionId } = await params;

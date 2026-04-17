@@ -12,6 +12,7 @@
 import { useRef, useState } from 'react';
 import {
   View,
+  Pressable,
   ScrollView,
   StyleSheet,
   useWindowDimensions,
@@ -192,15 +193,17 @@ export default function OnboardingScreen() {
             ))}
           </View>
           {!lastPage && (
-            <Text
-              variant="caption"
-              color={c.mutedForeground}
+            <Pressable
               onPress={() => goToSlide(SLIDE_COUNT - 1)}
               accessibilityRole="button"
               accessibilityLabel="Skip onboarding"
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              style={styles.skipButton}
             >
-              Skip
-            </Text>
+              <Text variant="caption" color={c.mutedForeground}>
+                Skip
+              </Text>
+            </Pressable>
           )}
         </View>
       </View>
@@ -352,5 +355,9 @@ const styles = StyleSheet.create({
   dot: {
     height: 8,
     borderRadius: 4,
+  },
+  skipButton: {
+    paddingVertical: spacing[3],
+    paddingHorizontal: spacing[4],
   },
 });

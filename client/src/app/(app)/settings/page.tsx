@@ -5,6 +5,7 @@ import prisma       from '@/lib/prisma';
 import { TrainingConsentSection }          from './TrainingConsentSection';
 import { AggregateAnalyticsConsentSection } from './AggregateAnalyticsConsentSection';
 import { AccountInfoSection }              from './AccountInfoSection';
+import { BillingSection }                  from './BillingSection';
 
 /**
  * SettingsPage
@@ -22,7 +23,7 @@ export default async function SettingsPage() {
   if (!session?.user?.id) redirect('/signin');
   const userId = session.user.id;
 
-  const [user, accounts] = await Promise.all([
+  const [user, accounts, subscription] = await Promise.all([
     prisma.user.findUnique({
       where:  { id: userId },
       select: {
@@ -30,11 +31,22 @@ export default async function SettingsPage() {
         trainingConsentAt:          true,
         aggregateAnalyticsConsent:   true,
         aggregateAnalyticsConsentAt: true,
+        paddleCustomerId:           true,
       },
     }),
     prisma.account.findMany({
       where:  { userId },
       select: { provider: true },
+    }),
+    prisma.subscription.findUnique({
+      where:  { userId },
+      select: {
+        tier:              true,
+        status:            true,
+        isFoundingMember:  true,
+        cancelAtPeriodEnd: true,
+        currentPeriodEnd:  true,
+      },
     }),
   ]);
   if (!user) redirect('/signin');
@@ -82,6 +94,25 @@ export default async function SettingsPage() {
         <AggregateAnalyticsConsentSection
           initialConsent={user.aggregateAnalyticsConsent}
           initialConsentedAt={user.aggregateAnalyticsConsentAt?.toISOString() ?? null}
+        />
+      </section>
+
+      {/* Billing */}
+      <section className="flex flex-col gap-4">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Billing</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Manage your subscription, update your card, and download invoices.
+          </p>
+        </div>
+
+        <BillingSection
+          tier={(subscription?.tier ?? 'free') as 'free' | 'execute' | 'compound'}
+          status={subscription?.status ?? 'none'}
+          isFoundingMember={subscription?.isFoundingMember ?? false}
+          cancelAtPeriodEnd={subscription?.cancelAtPeriodEnd ?? false}
+          currentPeriodEnd={subscription?.currentPeriodEnd?.toISOString() ?? null}
+          hasBillingProfile={Boolean(user.paddleCustomerId)}
         />
       </section>
     </div>

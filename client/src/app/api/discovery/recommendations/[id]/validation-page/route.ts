@@ -19,6 +19,7 @@ import {
 } from '@/lib/discovery/constants';
 import type { Roadmap }          from '@/lib/roadmap/roadmap-schema';
 import { buildPhaseContext, PHASES } from '@/lib/phase-context';
+import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
 /**
  * POST /api/discovery/recommendations/[id]/validation-page
@@ -34,6 +35,7 @@ export async function POST(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
+    await requireTierOrThrow(userId, 'compound');
     await rateLimitByUser(userId, 'validation-page-generate', RATE_LIMITS.AI_GENERATION);
 
     const { id: recommendationId } = await params;
@@ -181,6 +183,7 @@ export async function GET(
 ) {
   try {
     const userId = await requireUserId();
+    await requireTierOrThrow(userId, 'compound');
     const { id: recommendationId } = await params;
 
     const recommendation = await prisma.recommendation.findFirst({

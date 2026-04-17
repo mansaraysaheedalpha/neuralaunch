@@ -20,6 +20,8 @@ export function ChatBubble({ content, role, style }: Props) {
 
   const isUser = role === 'user';
 
+  const maxWidth: ViewStyle['maxWidth'] = '85%';
+
   const bubbleStyle: ViewStyle = {
     backgroundColor: isUser ? c.primary : c.muted,
     borderRadius: radius.xl,
@@ -28,7 +30,7 @@ export function ChatBubble({ content, role, style }: Props) {
       : { borderBottomLeftRadius: radius.sm }),
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[3],
-    maxWidth: '85%' as any,
+    maxWidth,
     alignSelf: isUser ? 'flex-end' : 'flex-start',
     ...s.sm,
   };
@@ -40,7 +42,10 @@ export function ChatBubble({ content, role, style }: Props) {
       <Text
         variant="body"
         color={textColor}
-        style={{ fontSize: typography.size.sm, lineHeight: typography.size.sm * typography.leading.relaxed }}
+        style={{
+          fontSize: typography.size.base,
+          lineHeight: typography.size.base * typography.leading.normal,
+        }}
       >
         {content}
       </Text>

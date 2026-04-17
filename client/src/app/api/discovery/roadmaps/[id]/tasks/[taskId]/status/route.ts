@@ -20,6 +20,7 @@ import {
   type StoredRoadmapPhase,
   type TaskStatus,
 } from '@/lib/roadmap/checkin-types';
+import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
 export const maxDuration = 30;
 
@@ -48,6 +49,7 @@ export async function PATCH(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
+    await requireTierOrThrow(userId, 'execute');
     await rateLimitByUser(userId, 'roadmap-task-status', RATE_LIMITS.API_AUTHENTICATED);
 
     const { id: roadmapId, taskId } = await params;

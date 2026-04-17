@@ -25,6 +25,7 @@ import {
   type RolePlayTurn,
 } from '@/lib/roadmap/coach/schemas';
 import { runDebrief } from '@/lib/roadmap/coach/debrief-engine';
+import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
 // Haiku is fast but allow headroom for a longer transcript
 export const maxDuration = 30;
@@ -47,6 +48,7 @@ export async function POST(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
+    await requireTierOrThrow(userId, 'execute');
     await rateLimitByUser(userId, 'coach-standalone-debrief', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId } = await params;

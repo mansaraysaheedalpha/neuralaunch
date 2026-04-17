@@ -52,10 +52,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // by allowDangerousEmailAccountLinking
       return true;
     },
-    session({ session, user }) {
-      if (session.user) {
-        session.user.id = user.id;
-      }
+    async session({ session, user }) {
+      if (!session.user) return session;
+      session.user.id = user.id;
+
+      // Billing tier is embedded in the session so API routes can
+      // gate on session.user.tier without a second database round
+      // trip per request. We are already inside the PrismaAdapter
+      // session callback (database strategy) — the user was fetched
+      // from Postgres milliseconds ago, so the extra findUnique is
+      // cheap and warm-cached.
+      //
+      // The Subscription table exists from migration
+      // 20260417160000_add_paddle_subscription onwards. Pre-migration
+      // sessions or users who have never checked out get null, and
+      // we default them to the free tier. The authoritative source
+      // is always the Subscription row; this is a session cache.
+      const subscription = await prisma.subscription.findUnique({
+        where:  { userId: user.id },
+        select: { tier: true, status: true },
+      });
+      session.user.tier               = (subscription?.tier ?? 'free') as 'free' | 'execute' | 'compound';
+      session.user.subscriptionStatus = subscription?.status ?? 'none';
       return session;
     },
   },

@@ -15,8 +15,8 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ArrowUp } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { Text } from './Text';
 import { spacing, radius, typography } from '@/constants/theme';
 
 interface Props {
@@ -77,21 +77,29 @@ export function ChatInput({
         <Pressable
           onPress={handleSend}
           disabled={!canSend}
+          accessibilityRole="button"
+          accessibilityLabel="Send message"
+          accessibilityState={{ disabled: !canSend }}
           style={({ pressed }) => [
-            styles.sendButton,
-            {
-              backgroundColor: canSend ? c.primary : 'transparent',
-              opacity: pressed && canSend ? 0.8 : canSend ? 1 : 0.3,
-            },
+            styles.sendHitArea,
+            { opacity: pressed && canSend ? 0.8 : 1 },
           ]}
         >
-          <Text
-            variant="label"
-            color={canSend ? c.primaryForeground : c.mutedForeground}
-            style={{ fontSize: typography.size.sm }}
+          <View
+            style={[
+              styles.sendCircle,
+              {
+                backgroundColor: canSend ? c.primary : 'transparent',
+                opacity: canSend ? 1 : 0.3,
+              },
+            ]}
           >
-            ↑
-          </Text>
+            <ArrowUp
+              size={20}
+              color={canSend ? c.primaryForeground : c.mutedForeground}
+              strokeWidth={2.5}
+            />
+          </View>
         </Pressable>
       </View>
     </View>
@@ -121,9 +129,15 @@ const styles = StyleSheet.create({
     maxHeight: 100,
     paddingVertical: spacing[1],
   },
-  sendButton: {
-    width: 32,
-    height: 32,
+  sendHitArea: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sendCircle: {
+    width: 36,
+    height: 36,
     borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',

@@ -28,6 +28,7 @@ import { runCoachPreparation } from '@/lib/roadmap/coach/preparation-engine';
 import { safeParseResearchLog, appendResearchLog, type ResearchLogEntry } from '@/lib/research';
 import { loadPerTaskAgentContext } from '@/lib/lifecycle';
 import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
+import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
 // Opus + research tools can take 30-60s
 export const maxDuration = 90;
@@ -45,6 +46,7 @@ export async function POST(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
+    await requireTierOrThrow(userId, 'execute');
     await rateLimitByUser(userId, 'coach-prepare', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId, taskId } = await params;

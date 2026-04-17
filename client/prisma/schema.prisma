@@ -89,6 +89,68 @@ model User {
   // constraints gate active count (Execute: 1, Compound: 3).
   founderProfile   FounderProfile?
   ventures         Venture[]
+
+  // ----- Billing (Paddle) -----
+  //
+  // One-to-one link to the Paddle subscription row; null for users who
+  // have never checked out. Also carries the Paddle customer id as a
+  // column on User so we can generate a portal deep link even after a
+  // subscription is canceled and removed. See lib/paddle/* and
+  // docs/neuralaunch-pricing-spec.md §3.
+  //
+  // tierUpdatedAt is bumped by the webhook processor whenever the
+  // subscription tier changes. The auth session callback reads it and,
+  // when it is newer than the session snapshot, re-fetches the tier
+  // from Postgres so a webhook-driven upgrade propagates to the user's
+  // next navigation without waiting for re-authentication.
+  paddleCustomerId String?       @unique
+  subscription     Subscription?
+  tierUpdatedAt    DateTime?
+}
+
+/**
+ * Subscription
+ *
+ * Mirrors the Paddle subscription entity for the user. One row per user
+ * when the user has ever checked out. Created/updated by the webhook
+ * processor at lib/paddle/webhook-processor.ts on subscription.* and
+ * transaction.* events. Never written by the client — Paddle is the
+ * source of truth, webhooks reconcile to Postgres.
+ *
+ * `tier` is the derived product tier (free/execute/compound) used for
+ * feature gating. `priceId` is the specific Paddle Price, which
+ * distinguishes founding-member rows from standard rows on the same
+ * product. `isFoundingMember` is denormalised from priceId at write
+ * time for fast aggregation in the founding-slot counter.
+ */
+model Subscription {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  paddleSubscriptionId String   @unique
+  paddleCustomerId     String
+
+  /// 'active' | 'past_due' | 'paused' | 'canceled'
+  status               String
+  /// 'free' | 'execute' | 'compound' — derived from priceId via tiers.ts
+  tier                 String   @default("free")
+
+  /// Paddle Price entity id — null for legacy free-tier backfill rows.
+  priceId              String?
+  /// 'month' | 'year' — mirrored from Paddle's billing_cycle.interval.
+  billingInterval      String?
+
+  cancelAtPeriodEnd    Boolean  @default(false)
+  currentPeriodEnd     DateTime
+
+  isFoundingMember     Boolean  @default(false)
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([isFoundingMember])
+  @@index([status])
 }
 
 model PushToken {
