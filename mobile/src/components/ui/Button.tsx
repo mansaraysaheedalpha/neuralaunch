@@ -56,10 +56,15 @@ export function Button({
   const containerStyle = getContainerStyle(variant, size, c, fullWidth);
   const textStyle = getTextStyle(variant, size, c);
 
+  // Small buttons are visually 40pt tall but extend the tap target to 44pt
+  // via hitSlop to meet the Apple HIG minimum without bulking up the UI.
+  const hitSlop = size === 'sm' ? { top: 4, bottom: 4, left: 4, right: 4 } : undefined;
+
   return (
     <Pressable
       onPress={handlePress}
       disabled={isDisabled}
+      hitSlop={hitSlop}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
       accessibilityState={{ disabled: isDisabled, busy: loading }}
@@ -105,7 +110,7 @@ function getContainerStyle(
   };
 
   const sizeStyles: Record<Size, ViewStyle> = {
-    sm: { paddingHorizontal: spacing[3], paddingVertical: spacing[1.5], minHeight: 32 },
+    sm: { paddingHorizontal: spacing[3], paddingVertical: spacing[2], minHeight: 40 },
     md: { paddingHorizontal: spacing[4], paddingVertical: spacing[2.5], minHeight: 44 },
     lg: { paddingHorizontal: spacing[6], paddingVertical: spacing[3.5], minHeight: 52 },
   };
