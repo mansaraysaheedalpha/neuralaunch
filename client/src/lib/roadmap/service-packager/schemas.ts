@@ -36,6 +36,9 @@ export const ServiceContextSchema = z.object({
    * datapoint findings pre-digested for the generation prompt.
    */
   researchFindings:      z.string().optional(),
+  /** The original research query from the task's researchSession, used
+   *  by the UI badge to show "Informed by your research on [query]". */
+  researchQuery:         z.string().optional(),
 });
 export type ServiceContext = z.infer<typeof ServiceContextSchema>;
 

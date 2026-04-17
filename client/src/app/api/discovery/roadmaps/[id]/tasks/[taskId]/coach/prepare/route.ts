@@ -26,6 +26,8 @@ import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import { ConversationSetupSchema } from '@/lib/roadmap/coach/schemas';
 import { runCoachPreparation } from '@/lib/roadmap/coach/preparation-engine';
 import { safeParseResearchLog, appendResearchLog, type ResearchLogEntry } from '@/lib/research';
+import { loadPerTaskAgentContext } from '@/lib/lifecycle';
+import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
 
 // Opus + research tools can take 30-60s
 export const maxDuration = 90;
@@ -86,6 +88,8 @@ export async function POST(
       ? safeParseDiscoveryContext(roadmap.recommendation.session.beliefState)
       : null;
 
+    const { profile } = await loadPerTaskAgentContext(userId);
+    const founderProfileBlock = renderFounderProfileBlock(profile);
     const accumulator: ResearchLogEntry[] = [];
 
     const preparation = await runCoachPreparation({
@@ -102,6 +106,7 @@ export async function POST(
       recommendationSummary: roadmap.recommendation?.summary ?? null,
       roadmapId,
       researchAccumulator:   accumulator,
+      founderProfileBlock:   founderProfileBlock || undefined,
     });
 
     // Persist preparation + research log
