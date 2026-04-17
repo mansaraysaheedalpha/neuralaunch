@@ -56,7 +56,9 @@ export function PackagerContextView({
       {context.researchFindings && (
         <div className="flex items-center gap-1.5 text-[10px] text-primary rounded-md border border-primary/20 bg-primary/5 px-2.5 py-1.5 self-start">
           <Search className="size-3 shrink-0" />
-          Pre-loaded with findings from your prior Research Tool session on this task
+          {context.researchQuery
+            ? `Informed by your research on "${context.researchQuery.length > 60 ? context.researchQuery.slice(0, 57) + '...' : context.researchQuery}"`
+            : 'Using findings from your research session'}
         </div>
       )}
 

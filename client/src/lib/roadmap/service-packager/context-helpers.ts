@@ -77,6 +77,14 @@ export function buildPrePopulatedContextFromTask(input: {
     ? `Task: ${taskTitle}. ${taskDescription}\n\nRecommendation context: ${recommendationSummary}`
     : `Task: ${taskTitle}. ${taskDescription}`;
 
+  // Extract the research query for the UI badge (safeParseResearchSession
+  // is already used by digestResearchSessionForPackager; re-parse here
+  // to grab the query string without duplicating the digest logic).
+  const rsObj = input.researchSession as Record<string, unknown> | undefined;
+  const researchQuery = rsObj && typeof rsObj === 'object' && typeof rsObj['query'] === 'string'
+    ? rsObj['query'] as string
+    : undefined;
+
   return {
     serviceSummary,
     targetMarket:          beliefState.geographicMarket ?? '',
@@ -84,6 +92,7 @@ export function buildPrePopulatedContextFromTask(input: {
     founderCosts:          beliefState.availableBudget ?? undefined,
     taskContext:           taskDescription,
     researchFindings:      researchFindings ?? undefined,
+    researchQuery,
   };
 }
 
