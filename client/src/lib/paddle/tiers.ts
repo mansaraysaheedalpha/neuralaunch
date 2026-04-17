@@ -1,10 +1,14 @@
 // src/lib/paddle/tiers.ts
 //
-// NOTE: Replace placeholder price IDs with actual Paddle dashboard IDs
-// before production deployment. The current placeholders are used for
-// type-checking and test infrastructure only. The real IDs are
-// generated when the products and prices are created in the Paddle
-// dashboard (see docs/neuralaunch-pricing-spec.md §2.4).
+// The ids below are REAL Paddle SANDBOX price ids. Promoting to
+// production requires:
+//   1. Creating equivalent products + prices in the Paddle production
+//      dashboard (spec §2.4).
+//   2. Replacing the ids in this file AND in lib/paddle/founding-members.ts
+//      with the production-generated ids.
+//   3. Flipping NEXT_PUBLIC_PADDLE_ENV to 'production' in Vercel.
+// Sandbox and production are entirely separate Paddle accounts with
+// separate id namespaces — none of these values carry over.
 
 /**
  * Public tier names used throughout the app for gating decisions.
@@ -29,15 +33,15 @@ export interface TierInfo {
  */
 export const PRICE_TO_TIER: Record<string, TierInfo> = {
   // Execute — standard public prices.
-  'pri_exec_mo_01':  { tier: 'execute',  isFounder: false },
-  'pri_exec_yr_01':  { tier: 'execute',  isFounder: false },
+  'pri_01kpdhyc6th4715bj15rqbe54y': { tier: 'execute',  isFounder: false }, // $29/month
+  'pri_01kpdhzw31cfhffbzbj4cmz8mg': { tier: 'execute',  isFounder: false }, // $279/year
   // Compound — standard public prices.
-  'pri_comp_mo_01':  { tier: 'compound', isFounder: false },
-  'pri_comp_yr_01':  { tier: 'compound', isFounder: false },
+  'pri_01kpdhpkmqcyp5ccfs9ft9qbwx': { tier: 'compound', isFounder: false }, // $49/month
+  'pri_01kpdhvdzk2k50pn76x95xkj03': { tier: 'compound', isFounder: false }, // $479/year
   // Founding member — hidden prices, injected only by the backend when
   // the founding-slot counter confirms availability.
-  'pri_exec_fnd_01': { tier: 'execute',  isFounder: true  },
-  'pri_comp_fnd_01': { tier: 'compound', isFounder: true  },
+  'pri_01kpdj0yeht31xvdmq1b5wrvz6': { tier: 'execute',  isFounder: true  }, // $19/month
+  'pri_01kpdhwqxr35hmd4agqsdehv98': { tier: 'compound', isFounder: true  }, // $29/month
 };
 
 const FREE_TIER: TierInfo = { tier: 'free', isFounder: false };
@@ -46,3 +50,18 @@ export function resolveTier(priceId: string | null | undefined): TierInfo {
   if (!priceId) return FREE_TIER;
   return PRICE_TO_TIER[priceId] ?? FREE_TIER;
 }
+
+/**
+ * Maximum number of simultaneously active ventures allowed per tier.
+ * Per docs/neuralaunch-pricing-spec.md §1.3 line "Active cycles at once"
+ * and docs/neuralaunch-lifecycle-memory.md §2.2.
+ *
+ *   free     — 0 active ventures (one-off recommendation only, no roadmap)
+ *   execute  — 1 active venture with one active cycle at a time
+ *   compound — up to 3 active ventures in parallel
+ */
+export const TIER_VENTURE_LIMITS: Record<Tier, number> = {
+  free:     0,
+  execute:  1,
+  compound: 3,
+};

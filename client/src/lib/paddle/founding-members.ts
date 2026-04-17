@@ -52,14 +52,14 @@ const PRICE_IDS: Record<
   { monthly: string; annual: string; founding: string }
 > = {
   execute: {
-    monthly:  'pri_exec_mo_01',
-    annual:   'pri_exec_yr_01',
-    founding: 'pri_exec_fnd_01',
+    monthly:  'pri_01kpdhyc6th4715bj15rqbe54y', // $29/month standard
+    annual:   'pri_01kpdhzw31cfhffbzbj4cmz8mg', // $279/year (no founding annual — spec §1.2)
+    founding: 'pri_01kpdj0yeht31xvdmq1b5wrvz6', // $19/month founding (hidden)
   },
   compound: {
-    monthly:  'pri_comp_mo_01',
-    annual:   'pri_comp_yr_01',
-    founding: 'pri_comp_fnd_01',
+    monthly:  'pri_01kpdhpkmqcyp5ccfs9ft9qbwx', // $49/month standard
+    annual:   'pri_01kpdhvdzk2k50pn76x95xkj03', // $479/year (no founding annual — spec §1.2)
+    founding: 'pri_01kpdhwqxr35hmd4agqsdehv98', // $29/month founding (hidden)
   },
 };
 

@@ -2,9 +2,13 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect, type FormEvent } from 'react';
+import toast from 'react-hot-toast';
 import TextareaAutosize from 'react-textarea-autosize';
 import { BookOpen, SendHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
+import { canUseVoiceMode, useVoiceTier } from '@/lib/voice/client-tier';
+import { trackVoiceEvent, voiceMessageCallout, wordCount } from '@/lib/voice/analytics';
 import type { Recommendation } from '@/lib/discovery/client';
 import { MessageList } from './MessageList';
 import { WelcomeLayer } from './WelcomeLayer';
@@ -59,7 +63,13 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
   const [input,      setInput]      = useState<string>(readPersistedDraft);
   const [hasStarted, setHasStarted] = useState(!!resume);
   const [guideOpen,  setGuideOpen]  = useState(false);
+  // Tracks whether the current draft originated from voice so we can show the
+  // word-count callout (spec § 8.1) after it is sent and log the right metric.
+  const voiceOriginRef = useRef(false);
   const mainInputRef = useRef<HTMLTextAreaElement>(null);
+
+  const voiceTier = useVoiceTier();
+  const voiceEnabled = canUseVoiceMode(voiceTier);
 
   // Persist every keystroke. Debouncing is unnecessary — localStorage writes
   // are synchronous but fast, and text-input events are already throttled
@@ -126,8 +136,41 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
 
   const handleSend = useCallback((content: string) => {
     setHasStarted(true);
-    void sendMessage(content);
+    const wasVoice = voiceOriginRef.current;
+    voiceOriginRef.current = false;
+    if (wasVoice) {
+      const words = wordCount(content);
+      trackVoiceEvent('voice_message_sent', {
+        surface: 'discovery_interview',
+        wordCount: words,
+      });
+      if (words >= 30) {
+        // Subtle reinforcement — only show for responses long enough to
+        // make the "about X minutes of speaking" framing meaningful.
+        toast.success(voiceMessageCallout(content), { duration: 3000 });
+      }
+    }
+    void sendMessage(content, wasVoice ? 'voice' : undefined);
   }, [sendMessage]);
+
+  const handleVoiceTranscription = useCallback((text: string) => {
+    if (!text.trim()) return;
+    voiceOriginRef.current = true;
+    setInput((prev) => prev.trim().length > 0 ? `${prev.trim()} ${text}` : text);
+    trackVoiceEvent('voice_transcribed', {
+      surface: 'discovery_interview',
+      wordCount: wordCount(text),
+    });
+    requestAnimationFrame(() => mainInputRef.current?.focus());
+  }, []);
+
+  const handleVoiceError = useCallback((message: string) => {
+    trackVoiceEvent('voice_error', {
+      surface: 'discovery_interview',
+      errorMessage: message,
+    });
+    toast.error(message);
+  }, []);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -207,6 +250,13 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
             className="flex gap-2 items-end w-full max-w-2xl rounded-xl border border-border bg-background px-4 py-3"
           >
             {inputField}
+            {voiceEnabled && (
+              <VoiceInputButton
+                onTranscription={handleVoiceTranscription}
+                onError={handleVoiceError}
+                disabled={!sessionReady || isSynthesizing}
+              />
+            )}
             <Button type="submit" size="icon" disabled={!canSubmit} variant="ghost">
               <SendHorizontal className="size-4" />
             </Button>
@@ -237,6 +287,13 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
           className="flex gap-2 items-end border-t border-border bg-background px-4 py-3"
         >
           {inputField}
+          {voiceEnabled && (
+            <VoiceInputButton
+              onTranscription={handleVoiceTranscription}
+              onError={handleVoiceError}
+              disabled={!sessionReady || isSynthesizing}
+            />
+          )}
           <Button type="submit" size="icon" disabled={!canSubmit} variant="ghost">
             <SendHorizontal className="size-4" />
           </Button>

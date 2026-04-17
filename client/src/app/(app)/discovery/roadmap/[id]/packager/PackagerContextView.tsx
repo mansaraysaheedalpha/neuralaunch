@@ -7,8 +7,12 @@
 // context exchange until status: ready.
 
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import { Loader2, Search, Sparkles } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
+import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
+import { canUseVoiceMode, useVoiceTier } from '@/lib/voice/client-tier';
+import { trackVoiceEvent } from '@/lib/voice/analytics';
 import type { ServiceContext } from '@/lib/roadmap/service-packager/schemas';
 
 export interface PackagerContextViewProps {
@@ -30,6 +34,20 @@ export function PackagerContextView({
   context, pending, agentNote, onConfirm, onAdjust,
 }: PackagerContextViewProps) {
   const [draft, setDraft] = useState('');
+
+  const voiceTier    = useVoiceTier();
+  const voiceEnabled = canUseVoiceMode(voiceTier);
+
+  const handleVoiceTranscription = (text: string) => {
+    if (!text.trim()) return;
+    setDraft(prev => prev.trim().length > 0 ? `${prev.trim()} ${text}` : text);
+    trackVoiceEvent('voice_transcribed', { surface: 'packager' });
+  };
+
+  const handleVoiceError = (message: string) => {
+    trackVoiceEvent('voice_error', { surface: 'packager', errorMessage: message });
+    toast.error(message);
+  };
 
   function handleAdjust() {
     const text = draft.trim();
@@ -79,14 +97,24 @@ export function PackagerContextView({
         <label className="text-[11px] uppercase tracking-wider text-muted-foreground">
           Want to adjust anything?
         </label>
-        <Textarea
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          rows={2}
-          placeholder='e.g. "actually I want to focus on guest houses, not hotels"'
-          disabled={pending}
-          className="min-h-0 resize-none py-2 text-xs"
-        />
+        <div className="flex items-start gap-2">
+          <Textarea
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            rows={2}
+            placeholder='e.g. "actually I want to focus on guest houses, not hotels"'
+            disabled={pending}
+            className="min-h-0 flex-1 resize-none py-2 text-xs"
+          />
+          {voiceEnabled && (
+            <VoiceInputButton
+              onTranscription={handleVoiceTranscription}
+              onError={handleVoiceError}
+              disabled={pending}
+              className="shrink-0"
+            />
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-2">

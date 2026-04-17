@@ -13,6 +13,7 @@ import {
   createInterviewState,
   saveSession,
 } from '@/lib/discovery';
+import { assertVentureLimitNotReached } from '@/lib/lifecycle';
 
 const CreateSessionSchema = z.object({
   // Matches the per-turn cap in /sessions/[sessionId]/turn/route.ts so a
@@ -95,6 +96,21 @@ export async function POST(req: NextRequest) {
   }
   const { firstMessage, acknowledgePendingOutcome, scenario, ventureId, forkContext } = parsed.data;
   const title = firstMessage?.trim().slice(0, 80) || 'Discovery Interview';
+
+  // Tier-based active-venture limit. `fresh_start` is the scenario
+  // where a founder with an existing FounderProfile is starting a
+  // wholly new venture — the exact moment the active-venture count
+  // is about to increase. `first_interview` is the founder's first
+  // ever discovery so no existing ventures can be in play. `fork_continuation`
+  // continues an existing venture and creates a new cycle, not a new venture.
+  if (scenario === 'fresh_start') {
+    try {
+      await assertVentureLimitNotReached(userId);
+    } catch (err) {
+      if (err instanceof HttpError) return httpErrorToResponse(err);
+      throw err;
+    }
+  }
 
   // Concern 5 trigger #3 — pending outcome check.
   // If the founder has any prior recommendation with a roadmap that

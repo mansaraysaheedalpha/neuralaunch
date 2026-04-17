@@ -2,7 +2,7 @@
 'use client';
 
 import { AnimatePresence, motion } from 'motion/react';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Mic } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ThinkingPanel } from './ThinkingPanel';
 
@@ -10,6 +10,8 @@ export interface ChatMessage {
   id:      string;
   role:    'user' | 'assistant';
   content: string;
+  /** 'voice' when this user bubble originated from a microphone transcription. */
+  inputMethod?: 'voice' | null;
 }
 
 interface MessageListProps {
@@ -104,6 +106,17 @@ export function MessageList({
               >
                 {msg.content}
               </div>
+
+              {msg.role === 'user' && msg.inputMethod === 'voice' && (
+                <div
+                  className="flex items-center gap-1 text-[10px] text-muted-foreground/70"
+                  aria-label="Sent by voice"
+                  title="Sent by voice"
+                >
+                  <Mic className="size-2.5" aria-hidden="true" />
+                  <span>voice</span>
+                </div>
+              )}
 
               {/* Cut-stream indicator anchored to the trimmed assistant bubble */}
               {isCutStreamHere && (

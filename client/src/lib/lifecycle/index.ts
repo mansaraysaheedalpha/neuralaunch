@@ -27,6 +27,10 @@ export {
 } from './venture';
 
 export {
+  assertVentureLimitNotReached,
+} from './tier-limits';
+
+export {
   renderFounderProfileBlock,
   renderCycleSummariesBlock,
   renderInterviewOpeningBlock,

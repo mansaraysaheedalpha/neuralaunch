@@ -10,7 +10,9 @@
 // here so the parent task card stays close to the 200-line cap.
 
 import { useState } from 'react';
+import { useSession } from 'next-auth/react';
 import type { StoredRoadmapTask } from '@/lib/roadmap/checkin-types';
+import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
 import { ConversationCoachButton } from './coach/ConversationCoachButton';
 import { CoachFlow }                from './coach/CoachFlow';
 import { CoachSessionReview }       from './coach/CoachSessionReview';
@@ -36,11 +38,28 @@ export function TaskToolLaunchers({ roadmapId, taskId, task }: TaskToolLaunchers
   const [researchOpen, setResearchOpen] = useState(false);
   const [packagerOpen, setPackagerOpen] = useState(false);
 
+  const { data: session } = useSession();
+  const tier = session?.user?.tier ?? 'free';
+
   const suggestedTools = (task as { suggestedTools?: string[] }).suggestedTools;
   const coachSession    = (task as { coachSession?:    Record<string, unknown> }).coachSession;
   const composerSession = (task as { composerSession?: Record<string, unknown> }).composerSession;
   const researchSession = (task as { researchSession?: Record<string, unknown> }).researchSession;
   const packagerSession = (task as { packagerSession?: Record<string, unknown> }).packagerSession;
+
+  // Free-tier users see an upgrade prompt only when the task actually
+  // suggests one or more of the four tools. Tasks with no suggested
+  // tools (generic to-do items) render nothing here regardless of tier,
+  // matching the existing render contract from the conditional
+  // *Button components.
+  const anyToolSuggested = (suggestedTools ?? []).some(
+    t => t === 'conversation_coach' || t === 'outreach_composer' || t === 'research_tool' || t === 'service_packager',
+  );
+
+  if (tier === 'free') {
+    if (!anyToolSuggested) return null;
+    return <UpgradePrompt requiredTier="execute" variant="compact" />;
+  }
 
   return (
     <>

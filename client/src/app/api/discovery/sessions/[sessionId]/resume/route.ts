@@ -61,7 +61,7 @@ export async function GET(
           select: {
             messages: {
               orderBy: { createdAt: 'asc' },
-              select:  { role: true, content: true },
+              select:  { role: true, content: true, inputMethod: true },
             },
           },
         },

@@ -15,7 +15,7 @@ interface IncompleteSession {
 }
 
 interface ResumeData {
-  messages:       { role: string; content: string }[];
+  messages:       { role: string; content: string; inputMethod?: string | null }[];
   questionCount:  number;
   conversationId: string | null;
 }
@@ -70,9 +70,10 @@ export function SessionResumption({ session, firstName }: Props) {
     const priorMessages: ChatMessage[] = resumeData.messages
       .filter(m => m.role === 'user' || m.role === 'assistant')
       .map(m => ({
-        id:      crypto.randomUUID(),
-        role:    m.role as 'user' | 'assistant',
-        content: m.content,
+        id:          crypto.randomUUID(),
+        role:        m.role as 'user' | 'assistant',
+        content:     m.content,
+        inputMethod: m.inputMethod === 'voice' ? 'voice' : null,
       }));
 
     return (
