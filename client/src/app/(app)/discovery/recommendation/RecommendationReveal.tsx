@@ -209,16 +209,16 @@ export function RecommendationReveal({
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05 }}
-            className="rounded-xl border border-gold/30 bg-gold/5 px-5 py-4"
+            className="rounded-xl border border-gold/30 bg-gold/5 px-6 py-5"
           >
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-gold">Your Recommendation</p>
-            <p className="text-sm text-foreground leading-relaxed">{r.summary}</p>
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-gold">Your Recommendation</p>
+            <p className="text-body text-foreground">{r.summary}</p>
           </motion.div>
         )}
 
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
           <p className="text-xs uppercase tracking-widest text-muted-foreground/70 mb-2">What Would Make This Wrong</p>
-          <p className="text-sm text-foreground/80 leading-relaxed italic">{r.whatWouldMakeThisWrong}</p>
+          <p className="text-body text-foreground">{r.whatWouldMakeThisWrong}</p>
         </motion.div>
 
         <Section label="Your Path" delay={0.3}>
@@ -230,13 +230,10 @@ export function RecommendationReveal({
         </Section>
 
         <Section label="First Three Steps" delay={0.5}>
-          <ol className="flex flex-col gap-3">
+          <ol className="flex flex-col gap-3 list-decimal list-inside">
             {steps.map((step, i) => (
-              <li key={i} className="flex gap-3 text-sm">
-                <span className="flex-shrink-0 size-6 rounded-full bg-primary/10 text-primary text-xs flex items-center justify-center font-semibold">
-                  {i + 1}
-                </span>
-                <span className="text-foreground/90 leading-relaxed pt-0.5">{step}</span>
+              <li key={i} className="text-sm text-foreground/90 leading-relaxed pl-1">
+                {step}
               </li>
             ))}
           </ol>
