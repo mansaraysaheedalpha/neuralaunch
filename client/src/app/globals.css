@@ -205,6 +205,43 @@ body {
     background-color: hsl(var(--muted)) !important;
 }
 
+/* ============================================
+   TYPOGRAPHY SCALE
+   Five named tiers — display/heading/subheading/body/caption.
+   Apply these utility classes instead of reaching for ad-hoc
+   text-4xl/text-sm combinations directly.
+   ============================================ */
+
+.text-display {
+  font-size: clamp(2.25rem, 5vw, 4.5rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+
+.text-heading {
+  font-size: clamp(1.875rem, 4vw, 3rem);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+
+.text-subheading {
+  font-size: clamp(1.25rem, 2.5vw, 1.5rem);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.text-body {
+  font-size: 1rem;
+  line-height: 1.625;
+}
+
+.text-caption {
+  font-size: 0.875rem;
+  color: hsl(var(--muted-foreground));
+}
+
 /* Reduced Motion Accessibility */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

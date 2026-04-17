@@ -84,7 +84,7 @@ function Hero() {
           <RevealOnScroll delayMs={80}>
             <h1
               id="hero-heading"
-              className="mx-auto max-w-3xl text-balance text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl md:text-6xl"
+              className="mx-auto max-w-3xl text-balance text-display text-white"
             >
               You know something needs to change.{" "}
               <span className="text-gold">
@@ -156,7 +156,7 @@ function Problem() {
           <RevealOnScroll>
             <h2
               id="problem-heading"
-              className="text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl"
+              className="text-heading text-white"
             >
               You are not the first person to feel stuck.
             </h2>
@@ -244,7 +244,7 @@ function HowItWorks() {
           <RevealOnScroll delayMs={60}>
             <h2
               id="how-it-works-heading"
-              className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl"
+              className="mt-3 text-heading text-white"
             >
               One arc. From first question to first outcome.
             </h2>
@@ -302,7 +302,7 @@ function OneRecommendation() {
             <RevealOnScroll delayMs={80}>
               <h2
                 id="one-rec-heading"
-                className="mt-4 text-balance text-3xl font-semibold leading-tight tracking-tight text-white sm:text-4xl md:text-5xl"
+                className="mt-4 text-balance text-heading text-white"
               >
                 One recommendation.{" "}
                 <span className="text-gold">Not five.</span>
@@ -410,7 +410,7 @@ function ExecutionTools() {
           <RevealOnScroll delayMs={60}>
             <h2
               id="tools-heading"
-              className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl"
+              className="mt-3 text-heading text-white"
             >
               Built for the work that decides whether you win.
             </h2>
@@ -500,7 +500,7 @@ function Differentiation() {
           <RevealOnScroll>
             <h2
               id="diff-heading"
-              className="text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl"
+              className="text-heading text-white"
             >
               The category had a gap. We filled it.
             </h2>
@@ -562,7 +562,7 @@ function ItStaysWithYou() {
               </p>
               <h2
                 id="stays-heading"
-                className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl"
+                className="mt-4 text-heading text-white"
               >
                 A partner. Not a tool you check.
               </h2>
@@ -709,7 +709,7 @@ function Pricing() {
           <RevealOnScroll delayMs={60}>
             <h2
               id="pricing-heading"
-              className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl"
+              className="mt-3 text-heading text-white"
             >
               Each tier unlocks the next layer of the journey.
             </h2>
@@ -800,7 +800,7 @@ function FinalCTA() {
           <div className="text-center">
             <h2
               id="final-cta-heading"
-              className="text-balance text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl"
+              className="text-balance text-heading text-white"
             >
               From lost to launched.{" "}
               <span className="text-gold">For everyone.</span>{" "}

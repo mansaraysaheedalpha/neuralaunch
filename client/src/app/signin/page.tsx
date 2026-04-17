@@ -57,7 +57,7 @@ export default function SignInPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.25, duration: 0.5 }}
-            className="text-3xl font-semibold tracking-tight text-white"
+            className="text-heading text-white"
           >
             Welcome to NeuraLaunch
           </motion.h1>
