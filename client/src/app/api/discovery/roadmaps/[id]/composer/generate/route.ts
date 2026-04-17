@@ -19,6 +19,8 @@ import {
   runComposerContext, runComposerGeneration, OutreachContextSchema,
 } from '@/lib/roadmap/composer';
 import { safeParseResearchLog, appendResearchLog, type ResearchLogEntry } from '@/lib/research';
+import { loadPerTaskAgentContext } from '@/lib/lifecycle';
+import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
 
 export const maxDuration = 60;
 
@@ -87,8 +89,12 @@ export async function POST(
       return NextResponse.json({ status: response.status, message: response.message, context: response.context ?? null, mode: response.mode ?? null, channel: response.channel ?? null, sessionId });
     }
 
+    const { profile } = await loadPerTaskAgentContext(userId);
+    const founderProfileBlock = renderFounderProfileBlock(profile);
+
     const accumulator: ResearchLogEntry[] = [];
     const output = await runComposerGeneration({
+      founderProfileBlock: founderProfileBlock || undefined,
       context: parsed.data.context, mode: parsed.data.mode, channel: parsed.data.channel,
       beliefState: { primaryGoal: bs?.primaryGoal?.value ?? null, geographicMarket: bs?.geographicMarket?.value ?? null, situation: bs?.situation?.value ?? null, availableBudget: bs?.availableBudget?.value ?? null, technicalAbility: bs?.technicalAbility?.value ?? null, availableTimePerWeek: bs?.availableTimePerWeek?.value ?? null },
       recommendationPath: roadmap.recommendation?.path ?? null, recommendationSummary: roadmap.recommendation?.summary ?? null,

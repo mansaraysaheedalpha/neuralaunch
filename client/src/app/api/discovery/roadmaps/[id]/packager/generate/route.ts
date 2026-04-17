@@ -20,6 +20,8 @@ import {
   buildPrePopulatedContextStandalone,
 } from '@/lib/roadmap/service-packager';
 import { safeParseResearchLog, appendResearchLog, type ResearchLogEntry } from '@/lib/research';
+import { loadPerTaskAgentContext } from '@/lib/lifecycle';
+import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
 
 export const maxDuration = 90;
 
@@ -94,8 +96,12 @@ export async function POST(
       return NextResponse.json({ status: response.status, message: response.message, context: response.context ?? prePopulated, sessionId });
     }
 
+    const { profile } = await loadPerTaskAgentContext(userId);
+    const founderProfileBlock = renderFounderProfileBlock(profile);
+
     const accumulator: ResearchLogEntry[] = [];
     const pkg = await runPackagerGeneration({
+      founderProfileBlock: founderProfileBlock || undefined,
       context: parsed.data.context,
       beliefState: { primaryGoal: bs?.primaryGoal?.value as string | null ?? null, geographicMarket: bs?.geographicMarket?.value as string | null ?? null, situation: bs?.situation?.value as string | null ?? null, availableBudget: bs?.availableBudget?.value as string | null ?? null, technicalAbility: bs?.technicalAbility?.value as string | null ?? null, availableTimePerWeek: bs?.availableTimePerWeek?.value as string | null ?? null },
       recommendationPath: roadmap.recommendation?.path ?? null, recommendationSummary: roadmap.recommendation?.summary ?? null,
