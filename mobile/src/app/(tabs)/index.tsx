@@ -11,15 +11,14 @@ import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import useSWR from 'swr';
-import { Map } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { api, ApiError } from '@/services/api-client';
 import {
   Text,
+  Button,
   ScreenContainer,
   ListSkeleton,
   ErrorState,
-  EmptyState,
 } from '@/components/ui';
 import { RoadmapViewer } from '@/components/roadmap/RoadmapViewer';
 import { spacing } from '@/constants/theme';
@@ -77,18 +76,36 @@ export default function RoadmapTabScreen() {
   }
 
   if (!active) {
+    // First-run: render the discovery invitation inline instead of
+    // bouncing through the Sessions tab. The voice matches the onboarding
+    // carousel — this is the same moment, continued.
     return (
       <ScreenContainer scroll={false}>
-        <EmptyState
-          icon={Map}
-          title="No roadmap yet"
-          message="Your roadmap is built from the discovery interview. Start a session to get your first recommendation and execution plan."
-          actionLabel="Start a discovery"
-          onAction={() => {
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            router.push('/(tabs)/sessions' as any);
-          }}
-        />
+        <View style={styles.firstRun}>
+          <Text variant="heading" align="center" style={styles.firstRunTitle}>
+            Your first step is a conversation.
+          </Text>
+          <Text
+            variant="body"
+            color={c.mutedForeground}
+            align="center"
+            style={styles.firstRunCopy}
+          >
+            Start your discovery interview. It takes 8–12 minutes and
+            produces one honest recommendation.
+          </Text>
+          <View style={styles.firstRunCta}>
+            <Button
+              title="Start your discovery"
+              onPress={() => {
+                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/discovery' as any);
+              }}
+              size="lg"
+              fullWidth
+            />
+          </View>
+        </View>
       </ScreenContainer>
     );
   }
@@ -109,6 +126,24 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: spacing[4],
     paddingBottom: spacing[4],
+  },
+  firstRun: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing[6],
+  },
+  firstRunTitle: {
+    maxWidth: 320,
+    marginBottom: spacing[3],
+  },
+  firstRunCopy: {
+    maxWidth: 360,
+    marginBottom: spacing[8],
+  },
+  firstRunCta: {
+    width: '100%',
+    maxWidth: 360,
   },
 });
 
