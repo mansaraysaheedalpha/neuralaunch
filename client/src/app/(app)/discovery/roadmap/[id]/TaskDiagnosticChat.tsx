@@ -10,6 +10,7 @@
 import { useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, Send, HelpCircle } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 
 interface DiagnosticExchange {
   id:      string;
@@ -137,20 +138,20 @@ export function TaskDiagnosticChat({
                 </div>
               ))}
               {inconclusive && (
-                <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2 text-[11px] text-foreground/90 whitespace-pre-wrap">
-                  <p className="text-[10px] font-medium text-amber-700 dark:text-amber-400 mb-1">Summary</p>
+                <div className="rounded-lg border border-gold/30 bg-gold/5 p-2 text-[11px] text-foreground/90 whitespace-pre-wrap">
+                  <p className="text-[10px] font-medium text-gold mb-1">Summary</p>
                   {inconclusive}
                 </div>
               )}
             </div>
 
             {resolved && (
-              <p className="text-[11px] text-green-600 dark:text-green-400 font-medium">
+              <p className="text-[11px] text-success font-medium">
                 Glad I could help. Close this panel whenever you are ready.
               </p>
             )}
             {escalate && (
-              <p className="text-[11px] text-amber-600 dark:text-amber-400">
+              <p className="text-[11px] text-gold">
                 This looks like a roadmap-level concern. Try hitting &quot;What&apos;s Next?&quot; to evaluate your overall progress.
               </p>
             )}
@@ -161,13 +162,13 @@ export function TaskDiagnosticChat({
 
             {!resolved && !escalate && !inconclusive && (
               <div className="flex gap-2">
-                <input
+                <Input
                   value={draft}
                   onChange={e => setDraft(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}
                   placeholder="What do you need help with?"
                   disabled={submitting}
-                  className="flex-1 rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground disabled:opacity-50 outline-none focus:ring-2 focus:ring-primary/30"
+                  className="flex-1 px-2 py-1.5 text-xs"
                 />
                 <button
                   type="button"

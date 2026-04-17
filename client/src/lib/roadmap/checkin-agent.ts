@@ -63,6 +63,12 @@ export interface RunCheckInInput {
    * omitted.
    */
   researchAccumulator?: ResearchLogEntry[];
+  /**
+   * Pre-rendered Founder Profile block (L1 lifecycle memory). Added
+   * to the cached stable prefix so the check-in agent knows who the
+   * founder is across cycles. Empty string when no profile exists.
+   */
+  founderProfileBlock?: string;
 }
 
 /**
@@ -143,6 +149,7 @@ ${getResearchToolGuidance()}
 
 For check-ins specifically: research is most valuable when the founder is STUCK (cannot find vendors, doesn't know which tool fits, asks for market data). Use the tools sparingly — most check-ins do not need research. When you do call them, the results sharpen the recommendedTools field with concrete names, not generic categories.
 
+${input.founderProfileBlock ?? ''}
 THE FOUNDER'S BELIEF STATE FROM THE INTERVIEW:
 ${beliefBlock}
 

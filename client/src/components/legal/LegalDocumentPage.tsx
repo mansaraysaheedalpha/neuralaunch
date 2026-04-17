@@ -53,12 +53,12 @@ export default function LegalDocumentPage({
     .replace(/^---\n+/, '');
 
   return (
-    <div className="min-h-screen bg-[#070F1C] text-[#F7F8FA] antialiased [scroll-behavior:smooth]">
+    <div className="min-h-screen bg-navy-950 text-slate-50 antialiased [scroll-behavior:smooth]">
       <MarketingHeader />
 
       <main className="pt-16">
         {/* Document header */}
-        <header className="border-b border-slate-800 bg-gradient-to-b from-[#070F1C] via-[#0A1628] to-[#0D1E38]">
+        <header className="border-b border-slate-800 bg-gradient-to-b from-navy-950 via-navy-900 to-navy-800">
           <div className="mx-auto max-w-5xl px-4 pb-10 pt-16 sm:px-6 sm:pb-14 sm:pt-20 lg:px-8">
             <Link
               href="/"
@@ -68,13 +68,13 @@ export default function LegalDocumentPage({
               Back to home
             </Link>
 
-            <p className="mt-10 text-sm font-semibold uppercase tracking-wider text-[#2563EB]">
+            <p className="mt-10 text-sm font-semibold uppercase tracking-wider text-primary">
               Legal
             </p>
             <h1 className="mt-3 text-balance text-4xl font-semibold tracking-tight text-white sm:text-5xl md:text-6xl">
               {doc.title}
             </h1>
-            <p className="mt-4 text-sm text-slate-500">
+            <p className="mt-4 text-sm text-slate-300">
               Last updated: <span className="text-slate-300">{LAST_UPDATED}</span>
             </p>
           </div>
@@ -90,7 +90,7 @@ export default function LegalDocumentPage({
 
               {/* Cross-links to the other documents */}
               <div className="mt-20 border-t border-slate-800 pt-10">
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">
                   Related documents
                 </p>
                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -100,10 +100,10 @@ export default function LegalDocumentPage({
                       <Link
                         key={s}
                         href={`/legal/${s}`}
-                        className="group flex items-center justify-between rounded-lg border border-slate-800 bg-[#0A1628] p-5 transition-colors hover:border-[#2563EB]/40 hover:bg-[#0D1E38]"
+                        className="group flex items-center justify-between rounded-lg border border-slate-800 bg-navy-900 p-5 transition-colors hover:border-primary/40 hover:bg-navy-800"
                       >
                         <div>
-                          <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                          <p className="text-xs font-medium uppercase tracking-wider text-slate-300">
                             Read next
                           </p>
                           <p className="mt-1 text-base font-semibold text-white">
@@ -111,7 +111,7 @@ export default function LegalDocumentPage({
                           </p>
                         </div>
                         <ArrowRight
-                          className="h-5 w-5 shrink-0 text-slate-500 transition-transform group-hover:translate-x-0.5 group-hover:text-[#2563EB]"
+                          className="h-5 w-5 shrink-0 text-slate-400 transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
                           aria-hidden="true"
                         />
                       </Link>

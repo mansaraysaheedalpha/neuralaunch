@@ -209,9 +209,9 @@ export function RecommendationReveal({
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05 }}
-            className="rounded-xl border border-[#D4A843]/30 bg-[#D4A843]/5 px-5 py-4"
+            className="rounded-xl border border-gold/30 bg-gold/5 px-5 py-4"
           >
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#D4A843]">Your Recommendation</p>
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-gold">Your Recommendation</p>
             <p className="text-sm text-foreground leading-relaxed">{r.summary}</p>
           </motion.div>
         )}
@@ -433,8 +433,8 @@ export function RecommendationReveal({
           {/* Alternative recommendation surfacing — when the round-7
               alternative is ready, point the founder at it. */}
           {alternativeReady && r.alternativeRecommendationId && (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
-              <p className="text-[10px] uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-2">
+            <div className="rounded-xl border border-gold/30 bg-gold/5 p-4">
+              <p className="text-[10px] uppercase tracking-widest text-gold mb-2">
                 Alternative ready
               </p>
               <p className="text-xs text-foreground leading-relaxed mb-3">
@@ -442,7 +442,7 @@ export function RecommendationReveal({
               </p>
               <Link
                 href={`/discovery/recommendations/${r.alternativeRecommendationId}`}
-                className="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-xs font-medium text-amber-700 dark:text-amber-300 transition-opacity hover:opacity-80"
+                className="inline-flex items-center gap-2 rounded-lg border border-gold/40 bg-gold/10 px-4 py-2 text-xs font-medium text-gold transition-opacity hover:opacity-80"
               >
                 <ArrowRight className="size-3.5" />
                 View the alternative recommendation

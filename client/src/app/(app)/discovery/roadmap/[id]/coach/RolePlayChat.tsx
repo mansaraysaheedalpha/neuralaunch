@@ -6,6 +6,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, Send, Swords, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import type { RolePlayTurn } from '@/lib/roadmap/coach/schemas';
 // Import directly from constants, not the barrel — the barrel
 // re-exports server-only engine modules that webpack traces.
@@ -104,15 +105,15 @@ export function RolePlayChat({
   const nearCap = currentTurn >= ROLEPLAY_WARNING_TURN && !capped;
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border-2 border-amber-500/40 bg-amber-500/5 p-3">
+    <div className="flex flex-col gap-3 rounded-lg border-2 border-gold/40 bg-gold/5 p-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Swords className="size-3.5 text-amber-600 dark:text-amber-400" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-amber-700 dark:text-amber-400">
+          <Swords className="size-3.5 text-gold" />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-gold">
             Rehearsal Mode
           </span>
-          <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+          <span className="rounded-full bg-gold/20 px-2 py-0.5 text-[10px] font-semibold text-gold">
             {turnDisplay}
           </span>
         </div>
@@ -126,12 +127,12 @@ export function RolePlayChat({
         </button>
       </div>
 
-      <p className="text-[10px] text-amber-700/70 dark:text-amber-400/70">
+      <p className="text-[10px] text-gold/70">
         Practising with: <span className="font-semibold">{otherPartyName}</span>
       </p>
 
       {/* Message list */}
-      <div ref={scrollRef} className="flex flex-col gap-2 max-h-72 overflow-y-auto rounded-md border border-amber-500/20 bg-background px-3 py-3">
+      <div ref={scrollRef} className="flex flex-col gap-2 max-h-72 overflow-y-auto rounded-md border border-gold/20 bg-background px-3 py-3">
         {history.length === 0 && (
           <p className="text-[11px] text-muted-foreground italic">Start with your opening — type what you would say or send.</p>
         )}
@@ -139,18 +140,18 @@ export function RolePlayChat({
           {history.map((turn, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}
               className={['rounded-lg px-2.5 py-1.5 text-[11px] break-words whitespace-pre-wrap max-w-[88%]',
-                turn.role === 'founder' ? 'self-end bg-primary/10 text-foreground' : 'self-start bg-amber-500/10 border border-amber-500/20 text-foreground/90',
+                turn.role === 'founder' ? 'self-end bg-primary/10 text-foreground' : 'self-start bg-gold/10 border border-gold/20 text-foreground/90',
               ].join(' ')}
             >
               {turn.role === 'other_party' && (
-                <p className="text-[9px] font-semibold text-amber-600 dark:text-amber-400 mb-0.5 uppercase tracking-wide">{otherPartyName}</p>
+                <p className="text-[9px] font-semibold text-gold mb-0.5 uppercase tracking-wide">{otherPartyName}</p>
               )}
               {turn.message}
             </motion.div>
           ))}
         </AnimatePresence>
         {submitting && (
-          <div className="self-start flex items-center gap-1.5 text-[11px] text-amber-600 dark:text-amber-400">
+          <div className="self-start flex items-center gap-1.5 text-[11px] text-gold">
             <Loader2 className="size-3 animate-spin" /><span>{otherPartyName} is responding…</span>
           </div>
         )}
@@ -158,12 +159,12 @@ export function RolePlayChat({
 
       {/* Warning / cap banner */}
       {nearCap && (
-        <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+        <p className="text-[10px] text-gold font-medium">
           {ROLEPLAY_HARD_CAP_TURNS - currentTurn + 1} turns remaining.
         </p>
       )}
       {capped && (
-        <div className="rounded-md bg-amber-500/10 border border-amber-500/30 px-3 py-2.5 text-[11px] text-amber-700 dark:text-amber-300 font-medium">
+        <div className="rounded-md bg-gold/10 border border-gold/30 px-3 py-2.5 text-[11px] text-gold font-medium">
           Rehearsal complete — you&apos;ve used all {ROLEPLAY_HARD_CAP_TURNS} turns.
         </div>
       )}
@@ -174,13 +175,13 @@ export function RolePlayChat({
 
       {!capped && (
         <div className="flex gap-2">
-          <input value={draft} onChange={e => setDraft(e.target.value)}
+          <Input value={draft} onChange={e => setDraft(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}
             placeholder="Type what you would say…" disabled={submitting}
-            className="flex-1 rounded-md border border-amber-500/30 bg-background px-2 py-1.5 text-xs text-foreground disabled:opacity-50 outline-none focus:ring-2 focus:ring-amber-500/30"
+            className="flex-1 border-gold/30 px-2 py-1.5 text-xs focus-visible:ring-gold/30 focus-visible:border-gold/50"
           />
           <button type="button" onClick={() => { void handleSend(); }} disabled={draft.trim().length === 0 || submitting}
-            className="shrink-0 rounded-md bg-amber-500 px-2.5 py-1.5 text-[11px] font-medium text-white hover:opacity-90 disabled:opacity-50">
+            className="shrink-0 rounded-md bg-gold px-2.5 py-1.5 text-[11px] font-medium text-white hover:opacity-90 disabled:opacity-50">
             {submitting ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />}
           </button>
         </div>

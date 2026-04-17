@@ -36,9 +36,9 @@ export function TaskCompletionMoment({
     <motion.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 flex flex-col gap-2"
+      className="rounded-lg border border-success/30 bg-success/5 p-3 flex flex-col gap-2"
     >
-      <p className="text-xs font-medium text-green-700 dark:text-green-400">✓ {taskTitle}</p>
+      <p className="text-xs font-medium text-success">✓ {taskTitle}</p>
       <p className="text-[11px] text-foreground/80 leading-relaxed">
         You hit the success criteria: <span className="italic">{truncate(successCriteria, 200)}</span>.
       </p>

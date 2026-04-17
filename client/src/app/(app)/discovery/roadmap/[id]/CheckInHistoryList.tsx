@@ -41,7 +41,7 @@ export function CheckInHistoryList({ history }: CheckInHistoryListProps) {
           </div>
           <div className={[
             'rounded-lg border px-3 py-2',
-            entry.agentAction === 'adjusted_next_step' ? 'border-amber-500/30 bg-amber-500/5' :
+            entry.agentAction === 'adjusted_next_step' ? 'border-gold/30 bg-gold/5' :
             'border-border bg-muted/40',
           ].join(' ')}>
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-1">
@@ -52,8 +52,8 @@ export function CheckInHistoryList({ history }: CheckInHistoryListProps) {
             </p>
 
             {entry.proposedChanges && entry.proposedChanges.length > 0 && (
-              <div className="mt-2 pt-2 border-t border-amber-500/20">
-                <p className="text-[10px] font-medium text-amber-700 dark:text-amber-400 mb-1">
+              <div className="mt-2 pt-2 border-t border-gold/20">
+                <p className="text-[10px] font-medium text-gold mb-1">
                   Proposed adjustments
                 </p>
                 <ul className="flex flex-col gap-1.5">

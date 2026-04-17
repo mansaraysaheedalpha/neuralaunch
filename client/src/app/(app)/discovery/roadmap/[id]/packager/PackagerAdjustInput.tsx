@@ -7,6 +7,7 @@
 
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import { MAX_ADJUSTMENT_ROUNDS } from '@/lib/roadmap/service-packager/constants';
 
 export interface PackagerAdjustInputProps {
@@ -43,7 +44,7 @@ export function PackagerAdjustInput({
           {adjustmentsUsed}/{MAX_ADJUSTMENT_ROUNDS} adjustments used
         </p>
       </div>
-      <textarea
+      <Textarea
         value={draft}
         onChange={e => setDraft(e.target.value)}
         rows={2}
@@ -51,7 +52,7 @@ export function PackagerAdjustInput({
           ? 'You\'ve used all three adjustments on this package.'
           : 'e.g. "make the premium tier include emergency same-day service"'}
         disabled={pending || exhausted}
-        className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/40 disabled:opacity-60"
+        className="min-h-0 resize-none py-2 text-xs"
       />
       <button
         type="button"

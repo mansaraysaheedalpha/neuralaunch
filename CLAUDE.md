@@ -148,6 +148,7 @@ Users are waiting. Every unnecessary millisecond is friction between a person an
 - `.max()` on Zod string fields in LLM output schemas (Anthropic doesn't enforce it — use `.transform()` post-clamp)
 - `as unknown as` casts on JSON columns (use `safeParseX()` helpers for reads, `toJsonValue()` for writes)
 - `findUnique({ id })` + manual `userId !==` check (use `findFirst({ id, userId })` — single-query ownership scope)
+- Raw brand hex in Tailwind classes (use tokenized utilities — `bg-navy-950`, `bg-navy-900`, `bg-navy-800`, `bg-primary`, `text-gold`, `bg-gold/5`, `border-success/30`, etc.). The design tokens are bound in [`client/tailwind.config.ts`](client/tailwind.config.ts) and the underlying CSS variables live in [`client/src/app/globals.css`](client/src/app/globals.css). Hardcoded hex like `bg-[#2563EB]`, `border-[#D4A843]/30`, or `from-[#070F1C]` is banned in review. The only legitimate raw-hex uses are (a) runtime JS string values for non-Tailwind surfaces like `viewport.themeColor` metadata and (b) `rgba(...)` inside arbitrary CSS-expression utilities like `bg-[radial-gradient(...)]` where tokenization adds no benefit. If a new state color is needed, add a CSS variable and bind a Tailwind utility for it — do not reach for Tailwind's `green-500` / `amber-500` / `emerald-500` defaults, they are not in the palette.
 
 ---
 

@@ -99,10 +99,10 @@ export function RoadmapView({
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 flex flex-col gap-3"
+          className="rounded-xl border border-gold/30 bg-gold/5 px-4 py-3 flex flex-col gap-3"
         >
           <div>
-            <p className="text-[10px] uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-1">
+            <p className="text-[10px] uppercase tracking-widest text-gold mb-1">
               Out of date
             </p>
             <p className="text-xs text-foreground leading-relaxed">
@@ -115,7 +115,7 @@ export function RoadmapView({
             type="button"
             onClick={() => { void regenerate(); }}
             disabled={regenerating}
-            className="self-start flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 transition-opacity hover:opacity-80 disabled:opacity-50"
+            className="self-start flex items-center gap-2 rounded-lg border border-gold/40 bg-gold/10 px-3 py-1.5 text-xs font-medium text-gold transition-opacity hover:opacity-80 disabled:opacity-50"
           >
             {regenerating ? <Loader2 className="size-3.5 animate-spin" /> : null}
             {regenerating ? 'Regenerating…' : 'Regenerate roadmap'}

@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { ArrowLeft, Loader2, Package } from 'lucide-react';
 import Link from 'next/link';
+import { Textarea } from '@/components/ui/textarea';
 import { PackagerContextView }    from '@/app/(app)/discovery/roadmap/[id]/packager/PackagerContextView';
 import { ServicePackageView }     from '@/app/(app)/discovery/roadmap/[id]/packager/ServicePackageView';
 import { PackagerAdjustInput }    from '@/app/(app)/discovery/roadmap/[id]/packager/PackagerAdjustInput';
@@ -158,9 +159,9 @@ export default function StandalonePackagerPage() {
       {stage === 'intro' && (
         <div className="flex flex-col gap-3">
           <p className="text-sm text-foreground">What service do you want to package? Describe what you&apos;d offer and who it&apos;s for.</p>
-          <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={4}
+          <Textarea value={draft} onChange={e => setDraft(e.target.value)} rows={4}
             placeholder="e.g. I want to package a tutoring service for high-school maths students in Lagos. Sessions are 1-on-1, in-person or online."
-            className="w-full resize-none rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40" />
+            className="resize-none" />
           <button type="button" onClick={() => { void sendInitialDescription(); }} disabled={draft.trim().length === 0}
             className="self-end inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60">Continue</button>
         </div>

@@ -63,7 +63,7 @@ export function CoachSessionReview({ session }: CoachSessionReviewProps) {
               </span>
             )}
             {debrief && (
-              <span className="flex items-center gap-1 text-[10px] text-green-600 dark:text-green-400">
+              <span className="flex items-center gap-1 text-[10px] text-success">
                 <CheckCircle2 className="size-3" />
                 Debriefed
               </span>

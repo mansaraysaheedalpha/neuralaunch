@@ -70,7 +70,7 @@ export function AccountInfoSection({
           <p className="text-xs text-foreground">Google</p>
           <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full ${
             hasGoogle
-              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+              ? 'bg-success/10 text-success'
               : 'bg-muted text-muted-foreground'
           }`}>
             {hasGoogle ? 'Connected' : 'Not connected'}
@@ -84,8 +84,8 @@ export function AccountInfoSection({
           <p className="text-xs text-foreground">GitHub</p>
           <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full ${
             hasGithub
-              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-              : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+              ? 'bg-success/10 text-success'
+              : 'bg-gold/10 text-gold'
           }`}>
             {hasGithub ? 'Connected' : 'Not connected'}
           </span>

@@ -13,10 +13,12 @@ export default function RevealOnScroll({
   children,
   delayMs = 0,
   className = "",
+  variant = "default",
 }: {
   children: ReactNode;
   delayMs?: number;
   className?: string;
+  variant?: "default" | "emphasis";
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const prefersReducedMotion =
@@ -50,7 +52,9 @@ export default function RevealOnScroll({
     <div
       ref={ref}
       style={{ transitionDelay: `${delayMs}ms` }}
-      className={`transition-all duration-700 ease-out ${
+      className={`transition-all ${
+        variant === "emphasis" ? "duration-slow ease-emphasis" : "duration-slow ease-standard"
+      } ${
         revealed
           ? "translate-y-0 opacity-100"
           : "translate-y-4 opacity-0"

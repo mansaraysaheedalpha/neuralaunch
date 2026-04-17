@@ -163,7 +163,7 @@ export function PushbackChat({
 
   if (alternativeReady) {
     return (
-      <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+      <div className="rounded-xl border border-gold/30 bg-gold/5 p-4">
         <p className="text-xs text-foreground leading-relaxed">
           The discussion is closed. An alternative recommendation has been generated based on
           what you argued for. Compare both above and accept the one you want to commit to.
@@ -220,7 +220,7 @@ export function PushbackChat({
 
       {/* Acceptance reminder when in chat after a prior accept */}
       {accepted && history.length > 0 && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-foreground/80">
+        <div className="rounded-lg border border-gold/30 bg-gold/10 px-3 py-2 text-[11px] text-foreground/80">
           Posting a new message will reopen the discussion and undo your earlier acceptance.
         </div>
       )}
@@ -264,7 +264,7 @@ export function PushbackChat({
       )}
 
       {capReached && !alternativeReady && (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-foreground/80">
+        <div className="rounded-lg border border-gold/30 bg-gold/5 px-3 py-2 text-[11px] text-foreground/80">
           You have reached the discussion cap. Generating the alternative path you argued for —
           it will appear above this conversation in a few minutes. Then you can compare both
           and accept the one you want.

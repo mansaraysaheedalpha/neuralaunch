@@ -3,6 +3,7 @@
 
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 
 const CHECKIN_CATEGORY_LABELS = {
   completed:  'Completed ✓',
@@ -93,7 +94,7 @@ export function CheckInForm({
                 </button>
               ))}
             </div>
-            <textarea
+            <Textarea
               value={freeText}
               onChange={e => onTextChange(e.target.value)}
               placeholder={
@@ -102,7 +103,7 @@ export function CheckInForm({
               }
               disabled={!category || submitting}
               rows={3}
-              className="resize-none rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/30"
+              className="min-h-0 resize-none py-2 text-xs"
             />
             {error && (
               <div className="rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1.5 text-[11px] text-red-700 dark:text-red-400">

@@ -34,7 +34,7 @@ export const metadata: Metadata = {
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-[#070F1C] text-[#F7F8FA] antialiased">
+    <div className="min-h-screen bg-navy-950 text-slate-50 antialiased">
       <MarketingHeader />
       <main id="main" className="pt-16">
         <Hero />
@@ -56,7 +56,7 @@ function Hero() {
   return (
     <section
       aria-labelledby="about-hero"
-      className="relative overflow-hidden border-b border-slate-800 bg-gradient-to-b from-[#070F1C] via-[#0A1628] to-[#0D1E38]"
+      className="relative overflow-hidden border-b border-slate-800 bg-gradient-to-b from-navy-950 via-navy-900 to-navy-800"
     >
       <div
         aria-hidden="true"
@@ -65,8 +65,8 @@ function Hero() {
       <div className="relative mx-auto max-w-4xl px-4 pb-20 pt-20 sm:px-6 sm:pb-28 sm:pt-28 lg:px-8 lg:pb-36 lg:pt-32">
         <div className="text-center">
           <RevealOnScroll>
-            <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-[#0D1E38]/80 px-3.5 py-1.5 text-xs font-medium text-slate-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#D4A843]" />
+            <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-navy-800/80 px-3.5 py-1.5 text-xs font-medium text-slate-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-gold" />
               About NeuraLaunch
             </p>
           </RevealOnScroll>
@@ -76,13 +76,13 @@ function Hero() {
               className="mx-auto max-w-3xl text-balance text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl md:text-6xl"
             >
               We&rsquo;re building the guide that{" "}
-              <span className="text-[#D4A843]">
+              <span className="text-gold">
                 should have always existed.
               </span>
             </h1>
           </RevealOnScroll>
           <RevealOnScroll delayMs={160}>
-            <p className="mx-auto mt-7 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
+            <p className="mx-auto mt-7 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
               The gap between <em className="text-slate-200 not-italic">where someone is</em>{" "}
               and <em className="text-slate-200 not-italic">where they could be</em>{" "}
               should not be decided by what they already have. Not their money,
@@ -103,11 +103,11 @@ function Story() {
   return (
     <section
       aria-labelledby="story-heading"
-      className="border-b border-slate-800 bg-[#070F1C]"
+      className="border-b border-slate-800 bg-navy-950"
     >
       <div className="mx-auto max-w-4xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
         <RevealOnScroll>
-          <p className="text-sm font-semibold uppercase tracking-wider text-[#2563EB]">
+          <p className="text-sm font-semibold uppercase tracking-wider text-primary">
             Why we built it
           </p>
           <h2
@@ -146,7 +146,7 @@ function Story() {
             </p>
           </RevealOnScroll>
           <RevealOnScroll delayMs={260}>
-            <div className="border-l-2 border-[#D4A843] pl-6 py-2">
+            <div className="border-l-2 border-gold pl-6 py-2">
               <p className="text-lg font-medium text-white sm:text-xl">
                 So we built it. Two engineers and an operator, working from
                 Freetown, Sierra Leone, with the conviction that the right
@@ -197,19 +197,19 @@ const BELIEFS: Array<{
 
 const ACCENT_STYLES = {
   blue: {
-    border: "ring-[#2563EB]/30",
-    bg: "bg-[#2563EB]/10",
-    text: "text-[#2563EB]",
+    border: "ring-primary/30",
+    bg: "bg-primary/10",
+    text: "text-primary",
   },
   gold: {
-    border: "ring-[#D4A843]/30",
-    bg: "bg-[#D4A843]/10",
-    text: "text-[#D4A843]",
+    border: "ring-gold/30",
+    bg: "bg-gold/10",
+    text: "text-gold",
   },
   emerald: {
-    border: "ring-[#10B981]/30",
-    bg: "bg-[#10B981]/10",
-    text: "text-[#10B981]",
+    border: "ring-success/30",
+    bg: "bg-success/10",
+    text: "text-success",
   },
 } as const;
 
@@ -217,12 +217,12 @@ function Beliefs() {
   return (
     <section
       aria-labelledby="beliefs-heading"
-      className="border-b border-slate-800 bg-[#0A1628]"
+      className="border-b border-slate-800 bg-navy-900"
     >
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
         <div className="mx-auto max-w-3xl text-center">
           <RevealOnScroll>
-            <p className="text-sm font-semibold uppercase tracking-wider text-[#2563EB]">
+            <p className="text-sm font-semibold uppercase tracking-wider text-primary">
               What we believe
             </p>
           </RevealOnScroll>
@@ -242,7 +242,7 @@ function Beliefs() {
             const accent = ACCENT_STYLES[belief.accent];
             return (
               <RevealOnScroll key={belief.title} delayMs={i * 80}>
-                <article className="h-full rounded-xl border border-slate-800 bg-[#070F1C] p-7 transition-colors hover:border-slate-700">
+                <article className="h-full rounded-xl border border-slate-800 bg-navy-950 p-7 transition-colors hover:border-slate-700">
                   <div
                     className={`flex h-11 w-11 items-center justify-center rounded-lg ring-1 ring-inset ${accent.bg} ${accent.border}`}
                   >
@@ -254,7 +254,7 @@ function Beliefs() {
                   <h3 className="mt-6 text-xl font-semibold text-white">
                     {belief.title}
                   </h3>
-                  <p className="mt-3 text-base leading-relaxed text-slate-400">
+                  <p className="mt-3 text-base leading-relaxed text-slate-300">
                     {belief.body}
                   </p>
                 </article>
@@ -307,12 +307,12 @@ function Team() {
   return (
     <section
       aria-labelledby="team-heading"
-      className="border-b border-slate-800 bg-[#070F1C]"
+      className="border-b border-slate-800 bg-navy-950"
     >
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
         <div className="mx-auto max-w-3xl text-center">
           <RevealOnScroll>
-            <p className="text-sm font-semibold uppercase tracking-wider text-[#2563EB]">
+            <p className="text-sm font-semibold uppercase tracking-wider text-primary">
               The team
             </p>
           </RevealOnScroll>
@@ -325,7 +325,7 @@ function Team() {
             </h2>
           </RevealOnScroll>
           <RevealOnScroll delayMs={120}>
-            <p className="mt-5 text-base leading-relaxed text-slate-400 sm:text-lg">
+            <p className="mt-5 text-base leading-relaxed text-slate-300 sm:text-lg">
               Not a corporation. Not a VC-backed team of fifty. A small group
               that decided the gap between lost and launched should not be
               decided by what someone already has.
@@ -338,7 +338,7 @@ function Team() {
             const accent = ACCENT_STYLES[member.accent];
             return (
               <RevealOnScroll key={member.name} delayMs={i * 100}>
-                <article className="h-full rounded-xl border border-slate-800 bg-[#0A1628] p-7 transition-colors hover:border-slate-700">
+                <article className="h-full rounded-xl border border-slate-800 bg-navy-900 p-7 transition-colors hover:border-slate-700">
                   <div className="flex items-center gap-4">
                     <div
                       className={`flex h-12 w-12 items-center justify-center rounded-full ring-1 ring-inset font-semibold text-sm tracking-wider ${accent.bg} ${accent.border} ${accent.text}`}
@@ -355,7 +355,7 @@ function Team() {
                       </p>
                     </div>
                   </div>
-                  <p className="mt-5 text-sm leading-relaxed text-slate-400">
+                  <p className="mt-5 text-sm leading-relaxed text-slate-300">
                     {member.blurb}
                   </p>
                 </article>
@@ -375,12 +375,12 @@ function Company() {
   return (
     <section
       aria-labelledby="company-heading"
-      className="border-b border-slate-800 bg-[#0A1628]"
+      className="border-b border-slate-800 bg-navy-900"
     >
       <div className="mx-auto max-w-5xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
-        <div className="rounded-2xl border border-slate-800 bg-[#070F1C] p-8 sm:p-12 lg:p-16">
+        <div className="rounded-2xl border border-slate-800 bg-navy-950 p-8 sm:p-12 lg:p-16">
           <RevealOnScroll>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#D4A843]">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gold">
               The company
             </p>
             <h2
@@ -440,14 +440,14 @@ function Stat({
 }) {
   const a = ACCENT_STYLES[accent];
   return (
-    <div className="flex items-center gap-4 bg-[#070F1C] p-6">
+    <div className="flex items-center gap-4 bg-navy-950 p-6">
       <div
         className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md ring-1 ring-inset ${a.bg} ${a.border}`}
       >
         <Icon className={`h-4 w-4 ${a.text}`} aria-hidden="true" />
       </div>
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">
           {label}
         </p>
         <p className="mt-1 text-base font-semibold text-white">{value}</p>
@@ -463,7 +463,7 @@ function FinalCTA() {
   return (
     <section
       aria-labelledby="about-cta-heading"
-      className="bg-gradient-to-b from-[#0A1628] to-[#070F1C]"
+      className="bg-gradient-to-b from-navy-900 to-navy-950"
     >
       <div className="mx-auto max-w-5xl px-4 py-24 sm:px-6 sm:py-28 lg:px-8 lg:py-36">
         <RevealOnScroll>
@@ -473,16 +473,16 @@ function FinalCTA() {
               className="text-balance text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl"
             >
               The best way to understand what we&rsquo;re building is to{" "}
-              <span className="text-[#D4A843]">use it.</span>
+              <span className="text-gold">use it.</span>
             </h2>
-            <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-400 sm:text-lg">
+            <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
               One honest interview. One clear direction. A partner with you
               through the work that follows.
             </p>
             <div className="mt-10 flex justify-center">
               <Link
                 href="/discovery"
-                className="group inline-flex items-center gap-2 rounded-md bg-[#2563EB] px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#2563EB]/20 transition-all hover:bg-[#1D4ED8] hover:shadow-xl hover:shadow-[#2563EB]/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:ring-offset-2 focus-visible:ring-offset-[#070F1C]"
+                className="group inline-flex items-center gap-2 rounded-md bg-primary px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-primary/20 transition-all hover:bg-blue-700 hover:shadow-xl hover:shadow-primary/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950"
               >
                 Start Your Discovery
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />

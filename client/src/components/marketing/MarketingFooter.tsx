@@ -10,7 +10,7 @@ export default function MarketingFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-slate-800 bg-[#070F1C]">
+    <footer className="border-t border-slate-800 bg-navy-950">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
         <div className="grid grid-cols-1 gap-10 md:grid-cols-12">
           {/* Brand block */}
@@ -31,11 +31,11 @@ export default function MarketingFooter() {
                 NeuraLaunch
               </span>
             </Link>
-            <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-400">
+            <p className="mt-4 max-w-sm text-sm leading-relaxed text-slate-300">
               From lost to launched. One honest conversation. One clear
               direction. A partner that stays through the work.
             </p>
-            <p className="mt-6 text-xs text-slate-500">
+            <p className="mt-6 text-xs text-slate-300">
               A product of Tabempa Engineering Limited.
             </p>
           </div>
@@ -126,7 +126,7 @@ export default function MarketingFooter() {
 
         {/* Bottom row — social + copyright */}
         <div className="mt-12 flex flex-col-reverse items-center justify-between gap-6 border-t border-slate-800 pt-8 sm:flex-row">
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-300">
             © {year} Tabempa Engineering Limited. All rights reserved.
           </p>
           <div className="flex items-center gap-5">
@@ -135,7 +135,7 @@ export default function MarketingFooter() {
               target="_blank"
               rel="noopener noreferrer"
               aria-label="NeuraLaunch on LinkedIn"
-              className="text-slate-500 transition-colors hover:text-white"
+              className="text-slate-400 transition-colors hover:text-white"
             >
               <FaLinkedin className="h-5 w-5" aria-hidden="true" />
             </a>
@@ -144,7 +144,7 @@ export default function MarketingFooter() {
               target="_blank"
               rel="noopener noreferrer"
               aria-label="NeuraLaunch on X"
-              className="text-slate-500 transition-colors hover:text-white"
+              className="text-slate-400 transition-colors hover:text-white"
             >
               <FaXTwitter className="h-5 w-5" aria-hidden="true" />
             </a>
@@ -153,7 +153,7 @@ export default function MarketingFooter() {
               target="_blank"
               rel="noopener noreferrer"
               aria-label="NeuraLaunch on GitHub"
-              className="text-slate-500 transition-colors hover:text-white"
+              className="text-slate-400 transition-colors hover:text-white"
             >
               <FaGithub className="h-5 w-5" aria-hidden="true" />
             </a>

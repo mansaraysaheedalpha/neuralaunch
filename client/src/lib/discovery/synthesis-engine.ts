@@ -131,6 +131,13 @@ export interface RunFinalSynthesisInput {
    * accumulator if omitted.
    */
   researchAccumulator?: ResearchLogEntry[];
+  /**
+   * Pre-rendered lifecycle context block (FounderProfile + Cycle
+   * Summaries for the venture). Injected into the volatile prompt
+   * suffix so the recommendation agent can reference prior cycles
+   * when relevant. Empty string when no lifecycle data exists.
+   */
+  lifecycleBlock?: string;
 }
 
 export async function runFinalSynthesis(
@@ -203,14 +210,20 @@ RULES — you must follow these precisely:
    Be honest about this classification — it drives downstream tooling and a wrong classification will surface tools the founder does not need.
 9. alternativeRejected MUST contain at least 2 entries. The STRATEGIC ANALYSIS above already identified the top 3 directions and explained why 2 of them do not fit. Those 2 rejected directions should map directly into your alternativeRejected array — do NOT invent new alternatives when the analysis already did the work. Each entry needs the specific alternative path AND why it does not fit THIS person (not a generic reason). If the analysis identified 3 clear directions and rejected 2, use both rejections. Do NOT always produce exactly 1.`;
 
-      // Volatile suffix: the founder's summary, analysis, and audience —
-      // different for every session.
+      // Lifecycle context (FounderProfile + prior Cycle Summaries for
+      // this venture). When present, the agent references prior cycles
+      // to avoid repeating what didn't work and to build on what did.
+      const lifecycleSuffix = input.lifecycleBlock
+        ? `\n${input.lifecycleBlock}\nWhen prior cycles exist in this venture, build on what worked and avoid repeating what didn't. Reference specific prior cycles when relevant.\n`
+        : '';
+
+      // Volatile suffix: the founder's summary, analysis, audience, and
+      // any lifecycle context — different for every session.
       const synthesisVolatile = `PERSON SUMMARY:
 ${renderUserContent(summary, 4000)}
 
 STRATEGIC ANALYSIS:
-${renderUserContent(analysis, 4000)}${audienceBlock}
-
+${renderUserContent(analysis, 4000)}${audienceBlock}${lifecycleSuffix}
 When you are ready, emit the structured recommendation as your final output.`;
 
       const result = await generateText({

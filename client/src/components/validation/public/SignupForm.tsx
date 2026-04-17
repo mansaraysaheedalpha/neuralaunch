@@ -2,6 +2,7 @@
 // src/components/validation/public/SignupForm.tsx
 
 import { useState } from 'react';
+import { Input } from '@/components/ui/input';
 
 interface SignupFormProps {
   ctaHeadline:    string;
@@ -68,13 +69,13 @@ export function SignupForm({
     <div className="w-full max-w-md mx-auto flex flex-col gap-4">
       <h2 className="text-lg font-semibold text-foreground text-center">{ctaHeadline}</h2>
       <form onSubmit={(e) => { void handleSubmit(e); }} className="flex flex-col gap-3">
-        <input
+        <Input
           type="email"
           value={email}
           onChange={e => setEmail(e.target.value)}
           placeholder={ctaPlaceholder}
           autoComplete="email"
-          className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          className="px-4"
         />
         {error && <p className="text-xs text-destructive">{error}</p>}
         <button

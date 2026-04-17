@@ -36,6 +36,22 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        // Warm gold — premium accent. Used sparingly on marketing moments,
+        // the committed-summary hero, and the fork picker.
+        gold: "hsl(var(--gold))",
+        // Emerald — success / confirmed state. Replaces scattered
+        // green-500 / emerald-500 Tailwind defaults in status UI.
+        success: {
+          DEFAULT: "hsl(var(--success))",
+          foreground: "hsl(var(--success-foreground))",
+        },
+        // Deep navy scale — brand surfaces for dark-mode background tiers.
+        // 950 = page, 900 = card, 800 = elevated card / hover.
+        navy: {
+          950: "#070F1C",
+          900: "#0A1628",
+          800: "#0D1E38",
+        },
       },
       borderRadius: {
         lg: "var(--radius-lg)",
@@ -50,6 +66,15 @@ const config: Config = {
         md: "var(--shadow-md)",
         lg: "var(--shadow-lg)",
         xl: "var(--shadow-xl)",
+      },
+      transitionDuration: {
+        fast: "150ms",
+        medium: "250ms",
+        slow: "400ms",
+      },
+      transitionTimingFunction: {
+        standard: "cubic-bezier(0, 0, 0.2, 1)",
+        emphasis: "cubic-bezier(0.22, 1, 0.36, 1)",
       },
       keyframes: {
         "gradient-x": {

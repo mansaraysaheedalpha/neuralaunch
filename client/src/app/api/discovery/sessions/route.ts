@@ -26,6 +26,24 @@ const CreateSessionSchema = z.object({
    * the first POST returned. Default false.
    */
   acknowledgePendingOutcome: z.boolean().optional().default(false),
+
+  // ----- Lifecycle memory scenario -----
+  //
+  // Determines which interview path to run and what context to load.
+  //   'first_interview'    — no prior profile, full belief state
+  //                          generation from scratch (today's default)
+  //   'fresh_start'        — has a FounderProfile, starting a new
+  //                          venture. Skips stable-context questions.
+  //   'fork_continuation'  — continuing an existing venture after
+  //                          picking a fork from a continuation brief.
+  //                          Loads full venture history.
+  //
+  // Defaults to 'first_interview' for backwards compatibility.
+  scenario: z.enum(['first_interview', 'fresh_start', 'fork_continuation']).optional().default('first_interview'),
+  /** Required when scenario is 'fork_continuation'. */
+  ventureId: z.string().optional(),
+  /** The fork description from the continuation brief. */
+  forkContext: z.string().max(2000).optional(),
 });
 
 /**
@@ -75,7 +93,7 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
-  const { firstMessage, acknowledgePendingOutcome } = parsed.data;
+  const { firstMessage, acknowledgePendingOutcome, scenario, ventureId, forkContext } = parsed.data;
   const title = firstMessage?.trim().slice(0, 80) || 'Discovery Interview';
 
   // Concern 5 trigger #3 — pending outcome check.
@@ -143,8 +161,13 @@ export async function POST(req: NextRequest) {
 
     log.debug('Created discovery session', { sessionId, conversationId });
 
-    // Seed Redis with the interview state
-    const interviewState = createInterviewState(sessionId, userId);
+    // Seed Redis with the interview state (lifecycle scenario persisted
+    // so the turn route can load the right context on each turn).
+    const interviewState = createInterviewState(sessionId, userId, {
+      scenario: scenario ?? 'first_interview',
+      ventureId: ventureId ?? undefined,
+      forkContext: forkContext ?? undefined,
+    });
     await saveSession(sessionId, interviewState);
 
     const response = NextResponse.json({ ok: true }, { status: 201 });

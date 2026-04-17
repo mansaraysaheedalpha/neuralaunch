@@ -11,6 +11,8 @@ import {
   runFinalSynthesis,
 } from '@/lib/discovery';
 import type { ResearchLogEntry } from '@/lib/research';
+import { loadRecommendationContext } from '@/lib/lifecycle';
+import { renderFounderProfileBlock, renderCycleSummariesBlock } from '@/lib/lifecycle/prompt-renderers';
 
 /**
  * discoverySessionFunction
@@ -74,6 +76,20 @@ export const discoverySessionFunction = inngest.createFunction(
     // The accumulator is captured as the step's return value (next
     // to the recommendation) so an Inngest replay reads it from the
     // serialised step state rather than re-running the research.
+    // Load lifecycle context (FounderProfile + Cycle Summaries) for
+    // the venture this interview belongs to. When no ventureId exists
+    // (first-ever interview, pre-lifecycle data), the block is empty
+    // and the synthesis runs identically to the pre-lifecycle flow.
+    const lifecycleBlock = await step.run('load-lifecycle-context', async () => {
+      const ventureId = interviewState.ventureId;
+      if (!ventureId) return '';
+      const ctx = await loadRecommendationContext(userId, ventureId);
+      return [
+        renderFounderProfileBlock(ctx.profile),
+        renderCycleSummariesBlock(ctx.cycleSummaries),
+      ].filter(b => b.length > 0).join('\n');
+    });
+
     const synthesisResult = await step.run('run-final-synthesis', async () => {
       try { await prisma.discoverySession.update({ where: { id: sessionId }, data: { synthesisStep: 'synthesising' }, select: { id: true } }); } catch { /* non-fatal */ }
       const accumulator: ResearchLogEntry[] = [];
@@ -83,6 +99,7 @@ export const discoverySessionFunction = inngest.createFunction(
         audienceType: interviewState.audienceType ?? null,
         contextId:    sessionId,
         researchAccumulator: accumulator,
+        lifecycleBlock: lifecycleBlock || undefined,
       });
       return { recommendation, researchLog: accumulator };
     });

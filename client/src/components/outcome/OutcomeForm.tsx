@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import {
   OUTCOME_COPY,
   OUTCOME_TYPE_VALUES,
@@ -209,12 +210,12 @@ export function OutcomeForm({
           <label className="text-[11px] uppercase tracking-widest text-muted-foreground/70">
             {copy.freeTextRequired ? 'Required' : 'Optional'}
           </label>
-          <textarea
+          <Textarea
             value={freeText}
             onChange={e => setFreeText(e.target.value)}
             placeholder={copy.freeTextPrompt}
             rows={4}
-            className="resize-none rounded-md border border-border bg-background px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground outline-none focus:ring-2 focus:ring-primary/30"
+            className="min-h-0 resize-none py-2 text-xs"
           />
         </div>
       )}
@@ -290,7 +291,7 @@ export function OutcomeForm({
       )}
 
       {consentLoadFailed && (
-        <p className="text-[10px] text-amber-600 dark:text-amber-400">
+        <p className="text-[10px] text-gold">
           Could not load your training-data preference. Your outcome will be saved without sharing.
         </p>
       )}

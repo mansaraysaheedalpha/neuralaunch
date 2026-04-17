@@ -11,6 +11,7 @@ import type { AudienceType } from '@/lib/discovery/constants';
 import { logger } from '@/lib/logger';
 import { renderUserContent, sanitizeForPrompt } from '@/lib/validation/server-helpers';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import type { FounderProfile } from '@/lib/lifecycle/schemas';
 
 // ---------------------------------------------------------------------------
 // Context builders
@@ -115,10 +116,22 @@ export async function generateRoadmap(
   audienceType:   AudienceType | null,
   sessionId:      string,
   calibration:    RoadmapCalibrationInputs | null = null,
+  founderProfile: FounderProfile | null = null,
 ): Promise<{ roadmap: Roadmap; weeklyHours: number; totalWeeks: number }> {
   const log = logger.child({ module: 'RoadmapEngine', sessionId });
 
-  const weeklyHours  = calibration?.overrideWeeklyHours ?? resolveWeeklyHours(context);
+  // Speed calibration from Founder Profile: when the profile shows the
+  // founder executes at X% of estimated pace, inflate time estimates
+  // by 1/X so the roadmap fits their actual rhythm. The explicit
+  // calibration param (from continuation forks) takes priority.
+  const profileSpeedMultiplier = founderProfile?.behaviouralCalibration?.realSpeedMultiplier ?? null;
+  const effectiveCalibrationNote = calibration?.paceCalibrationNote
+    ?? (profileSpeedMultiplier && profileSpeedMultiplier < 0.95
+      ? `Based on your prior execution history, you deliver at approximately ${Math.round(profileSpeedMultiplier * 100)}% of estimated pace. Time estimates in this roadmap have been adjusted to match your real rhythm — this is not a judgment, it is precision calibration so your deadlines are realistic.`
+      : null);
+  const effectiveHoursOverride = calibration?.overrideWeeklyHours
+    ?? (founderProfile?.currentSituation?.availableHoursPerWeek ?? null);
+  const weeklyHours  = effectiveHoursOverride ?? resolveWeeklyHours(context);
   const audienceRule = audienceType ? AUDIENCE_ROADMAP_RULES[audienceType] : '';
 
   const availableTime    = context.availableTimePerWeek?.value as string | undefined;
@@ -177,9 +190,9 @@ THEIR CONSTRAINTS:
 ${contextSummary}
 Available hours per week: ${weeklyHours}
 
-${audienceRule ? `AUDIENCE RULE — follow this precisely:\n${audienceRule}\n` : ''}${calibration?.paceCalibrationNote ? `
-SPEED CALIBRATION (this is a SECOND-CYCLE roadmap — the founder has executed once already):
-${calibration.paceCalibrationNote}
+${audienceRule ? `AUDIENCE RULE — follow this precisely:\n${audienceRule}\n` : ''}${effectiveCalibrationNote ? `
+SPEED CALIBRATION${calibration?.paceCalibrationNote ? ' (this is a SECOND-CYCLE roadmap — the founder has executed once already)' : ' (from Founder Profile execution history)'}:
+${effectiveCalibrationNote}
 You MUST honour this calibration in every task estimate and phase duration. If the calibration says the founder is operating slower than stated, the closingThought MUST acknowledge the calibration explicitly so it does not feel like a silent correction. Transparency over patronising silence.
 ` : ''}
 WHAT MAKES THIS WRONG (keep this in mind — don't build a plan that walks into these):

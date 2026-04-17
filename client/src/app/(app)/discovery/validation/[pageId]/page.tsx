@@ -136,8 +136,8 @@ export default async function ValidationPreviewPage({ params }: ValidationPrevie
           anything went wrong. */}
       {page.status === 'LIVE' && (!brief || brief.length === 0) && (
         <section className="border-b border-border px-6 py-8">
-          <div className="max-w-3xl mx-auto rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
-            <p className="text-[10px] uppercase tracking-widest text-amber-600 dark:text-amber-400 mb-2">
+          <div className="max-w-3xl mx-auto rounded-lg border border-gold/30 bg-gold/5 p-4">
+            <p className="text-[10px] uppercase tracking-widest text-gold mb-2">
               Distribution brief unavailable
             </p>
             <p className="text-xs text-foreground/80 leading-relaxed">

@@ -55,7 +55,7 @@ interface SectionProps {
 
 function Section({ index, label, body, accent }: SectionProps) {
   const accentClass = accent === 'amber'
-    ? 'border-amber-500/30 bg-amber-500/5'
+    ? 'border-gold/30 bg-gold/5'
     : 'border-border bg-card';
   return (
     <motion.section
