@@ -27,6 +27,12 @@ export {
 } from './venture';
 
 export {
+  renderFounderProfileBlock,
+  renderCycleSummariesBlock,
+  renderInterviewOpeningBlock,
+} from './prompt-renderers';
+
+export {
   loadInterviewContext,
   loadRecommendationContext,
   loadRoadmapContext,

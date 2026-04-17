@@ -46,6 +46,16 @@ export interface InterviewState {
    * unprompted. Consumed once by advance() then cleared.
    */
   pendingFollowUp:       { topic: string } | null;
+  /**
+   * Lifecycle memory fields — persisted in Redis so the turn route
+   * can load the right context on each turn without requiring the
+   * client to re-send scenario info. Only small strings are stored;
+   * the actual FounderProfile + CycleSummaries are loaded fresh from
+   * the DB on each turn via the context loaders.
+   */
+  lifecycleScenario?:    'fresh_start' | 'fork_continuation' | 'first_interview';
+  ventureId?:            string;
+  forkContext?:           string;
   createdAt:             string;
   updatedAt:             string;
 }
@@ -93,9 +103,19 @@ const PHASE_ORDER: InterviewPhase[] = [
 // ---------------------------------------------------------------------------
 
 /**
- * Creates a fresh interview state for a new session.
+ * Creates a fresh interview state for a new session. Accepts an
+ * optional lifecycle scenario so the turn route can load the right
+ * context (FounderProfile + CycleSummaries) on each subsequent turn.
  */
-export function createInterviewState(sessionId: string, userId: string): InterviewState {
+export function createInterviewState(
+  sessionId: string,
+  userId:    string,
+  lifecycle?: {
+    scenario:     'fresh_start' | 'fork_continuation' | 'first_interview';
+    ventureId?:   string;
+    forkContext?:  string;
+  },
+): InterviewState {
   const now = new Date().toISOString();
   return {
     sessionId,
@@ -112,6 +132,9 @@ export function createInterviewState(sessionId: string, userId: string): Intervi
     pricingProbed:         false,
     askedFields:           [],
     pendingFollowUp:       null,
+    lifecycleScenario:     lifecycle?.scenario,
+    ventureId:             lifecycle?.ventureId,
+    forkContext:            lifecycle?.forkContext,
     createdAt:             now,
     updatedAt:             now,
   };

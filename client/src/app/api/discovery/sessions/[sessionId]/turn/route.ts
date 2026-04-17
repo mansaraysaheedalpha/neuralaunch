@@ -24,6 +24,8 @@ import {
   safeParseResearchLog,
   type ResearchLogEntry,
 } from '@/lib/research';
+import { loadInterviewContext } from '@/lib/lifecycle';
+import { renderFounderProfileBlock, renderCycleSummariesBlock, renderInterviewOpeningBlock } from '@/lib/lifecycle/prompt-renderers';
 
 // Pro plan supports up to 300s. The fallback chain can take ~50s in
 // the worst case (Sonnet retries 0+2+8+30 = 40s, then Haiku first
@@ -166,6 +168,18 @@ export async function POST(
     }).catch(() => { /* non-fatal */ });
   }
 
+  // Lifecycle context — loaded fresh each turn from the DB. The
+  // scenario + ventureId are persisted in Redis (InterviewState); the
+  // actual profile + summaries are loaded here. For first_interview
+  // (no lifecycle data), this is a fast null-returning query.
+  const scenario = state.lifecycleScenario ?? 'first_interview';
+  const lifecycleCtx = await loadInterviewContext(userId, scenario === 'first_interview' ? 'fresh_start' : scenario, { ventureId: state.ventureId, forkContext: state.forkContext });
+  const lifecycleBlock = [
+    renderInterviewOpeningBlock(scenario, lifecycleCtx.profile, lifecycleCtx.forkContext),
+    renderFounderProfileBlock(lifecycleCtx.profile),
+    renderCycleSummariesBlock(lifecycleCtx.cycleSummaries),
+  ].filter(b => b.length > 0).join('\n');
+
   try {
     const t0          = Date.now();
     const rawField    = state.activeField ?? 'situation';
@@ -183,10 +197,10 @@ export async function POST(
         const skipped = { ...applyUpdate({ ...state, context: skipCtx }, {}), consecutiveMisses: 0 };
         await saveSession(sessionId, skipped);
         if (!skipped.activeField) return NextResponse.json({ status: 'synthesizing' });
-        return buildStreamResponse(generateQuestion(skipped.activeField, skipped.phase as never, skipped.context, {}, skipped.audienceType ?? undefined, history, skipped.askedFields), conversationId, skipped.phase, skipped.questionCount);
+        return buildStreamResponse(generateQuestion(skipped.activeField, skipped.phase as never, skipped.context, {}, skipped.audienceType ?? undefined, history, skipped.askedFields, lifecycleBlock || undefined), conversationId, skipped.phase, skipped.questionCount);
       }
       await saveSession(sessionId, { ...state, consecutiveMisses: 1 });
-      return buildStreamResponse(generateQuestion(rawField, state.phase as never, state.context, { unclear: true }, state.audienceType ?? undefined, history, state.askedFields), conversationId, state.phase, state.questionCount);
+      return buildStreamResponse(generateQuestion(rawField, state.phase as never, state.context, { unclear: true }, state.audienceType ?? undefined, history, state.askedFields, lifecycleBlock || undefined), conversationId, state.phase, state.questionCount);
     }
 
     let nextState = { ...applyUpdate(state, updates), consecutiveMisses: 0 };
@@ -303,13 +317,13 @@ export async function POST(
       const topic = nextState.pendingFollowUp.topic;
       await saveSession(sessionId, { ...nextState, pendingFollowUp: null });
       log.debug('Turn follow-up', { sessionId, topic });
-      return buildStreamResponse(generateQuestion('follow_up', nextState.phase as never, nextState.context, { followUpTopic: topic }, nextState.audienceType ?? undefined, history, nextState.askedFields), conversationId, nextState.phase, nextState.questionCount);
+      return buildStreamResponse(generateQuestion('follow_up', nextState.phase as never, nextState.context, { followUpTopic: topic }, nextState.audienceType ?? undefined, history, nextState.askedFields, lifecycleBlock || undefined), conversationId, nextState.phase, nextState.questionCount);
     }
 
     const insufficientSignal = nextState.questionCount >= 6 && computeOverallCompleteness(nextState.context) < 0.35;
     const phaseChanged = nextState.phase !== state.phase;
     log.debug('Turn stream start', { sessionId, totalToStreamMs: Date.now() - t0, inputType, phase: nextState.phase, phaseChanged, researchCalls: researchAccumulator.length });
-    return buildStreamResponse(generateQuestion(nextField, nextState.phase as never, nextState.context, { insufficientSignal, phaseChanged, researchFindings: research.findings || undefined }, nextState.audienceType ?? undefined, history, nextState.askedFields), conversationId, nextState.phase, nextState.questionCount);
+    return buildStreamResponse(generateQuestion(nextField, nextState.phase as never, nextState.context, { insufficientSignal, phaseChanged, researchFindings: research.findings || undefined }, nextState.audienceType ?? undefined, history, nextState.askedFields, lifecycleBlock || undefined), conversationId, nextState.phase, nextState.questionCount);
   } catch (error) {
     log.error('Turn processing failed', error instanceof Error ? error : undefined);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
