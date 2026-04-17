@@ -121,7 +121,7 @@ export function VoicePermissionPrompt({
           <Button
             type="button"
             size="sm"
-            onClick={requestPermission}
+            onClick={() => { void requestPermission(); }}
             disabled={requesting}
             className="gap-1.5"
           >

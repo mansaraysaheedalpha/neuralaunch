@@ -16,10 +16,12 @@ import 'server-only';
 
 export type VoiceTier = 'execute' | 'compound';
 
+// Why `async` on a stub with no await: the real implementation will read
+// the tier from the session / user row (an async DB or JWT decode). Keeping
+// the stub async keeps the call-site signature stable across the Paddle
+// merge — no call sites change when the stub is replaced.
+// eslint-disable-next-line @typescript-eslint/require-await
 export async function getVoiceTier(_userId: string): Promise<VoiceTier> {
-  // STUB — Paddle tier-in-JWT work has not merged yet. Returning
-  // 'compound' unconditionally allows the voice flow to be exercised
-  // end-to-end on feat/voice-mode. The delivery report flags this.
   return 'compound';
 }
 

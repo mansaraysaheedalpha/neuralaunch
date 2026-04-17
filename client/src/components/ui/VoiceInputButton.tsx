@@ -97,8 +97,8 @@ export function VoiceInputButton({
     });
 
     if (!res.ok) {
-      const payload = await res.json().catch(() => ({}));
-      const msg     = typeof payload?.error === 'string' ? payload.error : 'Transcription failed';
+      const payload = await res.json().catch(() => ({})) as { error?: unknown };
+      const msg     = typeof payload.error === 'string' ? payload.error : 'Transcription failed';
       throw new Error(msg);
     }
 
@@ -249,7 +249,7 @@ export function VoiceInputButton({
   return (
     <button
       type="button"
-      onClick={startRecording}
+      onClick={() => { void startRecording(); }}
       disabled={disabled}
       aria-label="Record voice input"
       className={cn(
