@@ -150,7 +150,7 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
         toast.success(voiceMessageCallout(content), { duration: 3000 });
       }
     }
-    void sendMessage(content);
+    void sendMessage(content, wasVoice ? 'voice' : undefined);
   }, [sendMessage]);
 
   const handleVoiceTranscription = useCallback((text: string) => {
