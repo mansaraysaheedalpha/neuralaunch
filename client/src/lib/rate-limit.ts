@@ -232,6 +232,15 @@ export const RATE_LIMITS = {
     maxRequests: 30,
     windowSeconds: 60, // 30 requests per minute
   },
+
+  // Voice mode transcription — 30 transcriptions per hour per user.
+  // Generous enough for voice on every interview response plus check-ins,
+  // but caps runaway client loops that could otherwise churn Deepgram /
+  // Whisper spend.
+  VOICE_TRANSCRIPTION: {
+    maxRequests: 30,
+    windowSeconds: 3600,
+  },
 } as const;
 
 /**
