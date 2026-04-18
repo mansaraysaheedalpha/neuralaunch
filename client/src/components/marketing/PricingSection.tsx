@@ -282,6 +282,14 @@ export function PricingSection({ execute, compound }: PricingSectionProps) {
                     )}
                   </>
                 )}
+                {isPaid && (
+                  <div className="mt-3 space-y-1 text-[11px] leading-relaxed text-slate-400">
+                    <p>Renews automatically. Cancel anytime in Settings.</p>
+                    {cycle === "annual" && (
+                      <p>14-day refund on annual plans. Monthly non-refundable.</p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <ul className="mt-6 space-y-2.5 text-sm">
