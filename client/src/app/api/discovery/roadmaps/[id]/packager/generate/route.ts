@@ -23,6 +23,7 @@ import { safeParseResearchLog, appendResearchLog, type ResearchLogEntry } from '
 import { loadPerTaskAgentContext } from '@/lib/lifecycle';
 import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
+import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
 
 export const maxDuration = 90;
 
@@ -45,6 +46,7 @@ export async function POST(
     enforceSameOrigin(request);
     const userId = await requireUserId();
     await requireTierOrThrow(userId, 'execute');
+    await enforceCycleQuota(userId, 'packager');
     await rateLimitByUser(userId, 'packager-standalone-generate', RATE_LIMITS.AI_GENERATION);
     const { id: roadmapId } = await params;
     const log = logger.child({ route: 'POST packager-standalone-generate', roadmapId, userId });

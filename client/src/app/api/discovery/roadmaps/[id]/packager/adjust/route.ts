@@ -17,6 +17,7 @@ import {
   MAX_ADJUSTMENT_ROUNDS, runPackagerAdjustment, safeParsePackagerSession,
 } from '@/lib/roadmap/service-packager';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
+import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
 
 export const maxDuration = 60;
 
@@ -40,6 +41,7 @@ export async function POST(
     enforceSameOrigin(request);
     const userId = await requireUserId();
     await requireTierOrThrow(userId, 'execute');
+    await enforceCycleQuota(userId, 'packager');
     await rateLimitByUser(userId, 'packager-standalone-adjust', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId } = await params;

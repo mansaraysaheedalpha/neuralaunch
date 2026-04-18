@@ -11,6 +11,7 @@ import {
   roadmapNudgeFunction,
   continuationBriefFunction,
   lifecycleTransitionFunction,
+  usageAnomalyDetectionFunction,
 } from '@/inngest/functions';
 
 export const { GET, POST, PUT } = serve({
@@ -25,5 +26,6 @@ export const { GET, POST, PUT } = serve({
     roadmapNudgeFunction,
     continuationBriefFunction,
     lifecycleTransitionFunction,
+    usageAnomalyDetectionFunction,
   ],
 });

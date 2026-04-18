@@ -29,6 +29,7 @@ import { safeParseResearchLog, appendResearchLog, type ResearchLogEntry } from '
 import { loadPerTaskAgentContext } from '@/lib/lifecycle';
 import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
+import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
 
 // Opus + research tools can take 30-60s
 export const maxDuration = 90;
@@ -47,6 +48,7 @@ export async function POST(
     enforceSameOrigin(request);
     const userId = await requireUserId();
     await requireTierOrThrow(userId, 'execute');
+    await enforceCycleQuota(userId, 'coach');
     await rateLimitByUser(userId, 'coach-prepare', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId, taskId } = await params;

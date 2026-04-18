@@ -243,6 +243,219 @@ export const RATE_LIMITS = {
   },
 } as const;
 
+// ==========================================
+// PER-BILLING-CYCLE LIMITS
+// ==========================================
+
+/**
+ * Per-billing-cycle caps on AI-heavy tools that cost real money per
+ * call. The tier names below are concatenations of {tool}_{tier}; the
+ * route resolves which key to use by reading the user's tier.
+ *
+ * Calibration rationale:
+ *
+ *   - Real-world usage data is not yet available; numbers below are
+ *     conservative defaults.
+ *   - Typical engaged user: 3-10 calls per tool per cycle (one tool
+ *     per active task on the roadmap, plus a handful of standalone
+ *     uses).
+ *   - Caps target ~3-5x typical engaged usage so 99% of legitimate
+ *     users never hit them.
+ *   - Compound tier always gets ~3x the Execute tier cap to make the
+ *     upgrade path feel meaningful for power users.
+ *
+ * Per-call cost reference (approximate, with prompt caching):
+ *
+ *   - Research Tool: $0.20-0.80 per query (Opus + Exa). Tightest cap.
+ *   - Service Packager: $0.10-0.30 per generation. Tight cap.
+ *   - Conversation Coach: $0.05-0.15 per session. Looser cap.
+ *   - Outreach Composer: $0.02-0.08 per draft. Loosest cap.
+ *
+ * At Compound caps, worst-case cycle COGS per user:
+ *   100 * $0.80 + 150 * $0.15 + 300 * $0.08 + 60 * $0.30 = $144.50
+ * vs $46.05 net revenue per Compound user — extreme but rare. The
+ * anomaly detection function flags this for human review, it does not
+ * auto-suspend.
+ */
+export const CYCLE_LIMITS = {
+  RESEARCH_TOOL_EXECUTE:  { limit: 30,  toolLabel: 'Research Tool',       tier: 'execute'  as const },
+  RESEARCH_TOOL_COMPOUND: { limit: 100, toolLabel: 'Research Tool',       tier: 'compound' as const },
+  COACH_EXECUTE:          { limit: 50,  toolLabel: 'Conversation Coach',  tier: 'execute'  as const },
+  COACH_COMPOUND:         { limit: 150, toolLabel: 'Conversation Coach',  tier: 'compound' as const },
+  COMPOSER_EXECUTE:       { limit: 100, toolLabel: 'Outreach Composer',   tier: 'execute'  as const },
+  COMPOSER_COMPOUND:      { limit: 300, toolLabel: 'Outreach Composer',   tier: 'compound' as const },
+  PACKAGER_EXECUTE:       { limit: 20,  toolLabel: 'Service Packager',    tier: 'execute'  as const },
+  PACKAGER_COMPOUND:      { limit: 60,  toolLabel: 'Service Packager',    tier: 'compound' as const },
+} as const;
+
+export type CycleLimitKey = keyof typeof CYCLE_LIMITS;
+
+/**
+ * Tool family identifier. Used by the UsageMeter and the anomaly
+ * detection function to query usage by tool regardless of tier.
+ */
+export type CycleTool = 'research' | 'coach' | 'composer' | 'packager';
+
+const TOOL_TO_KEYS: Record<CycleTool, { execute: CycleLimitKey; compound: CycleLimitKey }> = {
+  research: { execute: 'RESEARCH_TOOL_EXECUTE', compound: 'RESEARCH_TOOL_COMPOUND' },
+  coach:    { execute: 'COACH_EXECUTE',         compound: 'COACH_COMPOUND' },
+  composer: { execute: 'COMPOSER_EXECUTE',      compound: 'COMPOSER_COMPOUND' },
+  packager: { execute: 'PACKAGER_EXECUTE',      compound: 'PACKAGER_COMPOUND' },
+};
+
+export function cycleKeyFor(tool: CycleTool, tier: 'execute' | 'compound'): CycleLimitKey {
+  return TOOL_TO_KEYS[tool][tier];
+}
+
+const CYCLE_TTL_BUFFER_SECONDS = 7 * 24 * 60 * 60; // 7 days past cycle end
+
+/**
+ * Build the Redis key for a per-cycle usage counter. Includes the
+ * cycle end timestamp so a renewal naturally rolls the user onto a
+ * fresh key — no explicit reset logic required, no race during
+ * rollover. Old keys auto-expire via TTL.
+ */
+function cycleKey(key: CycleLimitKey, userId: string, cycleEndsAt: Date): string {
+  // Normalise to seconds since epoch — stable identifier regardless
+  // of millisecond drift between Paddle's webhook payload and our
+  // serialised representation.
+  const cycleStamp = Math.floor(cycleEndsAt.getTime() / 1000);
+  return `cycle:${key}:user:${userId}:end:${cycleStamp}`;
+}
+
+export interface CycleRateLimitResult {
+  /** True when the request is allowed; false when the cap is hit. */
+  success: boolean;
+  /** Per-tier maximum for this tool. */
+  limit: number;
+  /** Calls already made this cycle (after the increment if `success`). */
+  used: number;
+  /** Calls remaining this cycle. Zero when `success` is false. */
+  remaining: number;
+  /** ISO 8601 timestamp when the user's quota resets. */
+  resetsAt: string;
+  /** Human-readable tool name for the UI. */
+  toolLabel: string;
+}
+
+/**
+ * Atomic per-cycle rate-limit check. Increments the counter and
+ * returns success / failure.
+ *
+ * Why Redis-only (no in-memory fallback like checkRateLimit):
+ *   In-memory counters reset every serverless invocation, which would
+ *   give every user infinite cycle quota. Refusing the request when
+ *   Redis is unavailable would block legitimate users; allowing it
+ *   would defeat the whole point of cycle caps. We pick the lesser
+ *   evil — log a warning and allow the request — so a Redis outage
+ *   degrades cap enforcement but never blocks a paying customer.
+ */
+export async function checkCycleRateLimit(args: {
+  key:         CycleLimitKey;
+  userId:      string;
+  cycleEndsAt: Date;
+}): Promise<CycleRateLimitResult> {
+  const { key, userId, cycleEndsAt } = args;
+  const cfg = CYCLE_LIMITS[key];
+  const redis = getRedisClient();
+
+  if (!redis) {
+    logger.warn('Cycle rate-limit check skipped — Redis unavailable', { key, userId });
+    return {
+      success:   true,
+      limit:     cfg.limit,
+      used:      0,
+      remaining: cfg.limit,
+      resetsAt:  cycleEndsAt.toISOString(),
+      toolLabel: cfg.toolLabel,
+    };
+  }
+
+  const redisKey = cycleKey(key, userId, cycleEndsAt);
+  const ttlSeconds = Math.max(
+    Math.floor((cycleEndsAt.getTime() - Date.now()) / 1000) + CYCLE_TTL_BUFFER_SECONDS,
+    CYCLE_TTL_BUFFER_SECONDS,
+  );
+
+  try {
+    const count = await redis.incr(redisKey);
+    if (count === 1) {
+      // First write of the cycle — set TTL so the key cleans up on
+      // its own once the cycle has rolled over plus the grace buffer.
+      await redis.expire(redisKey, ttlSeconds);
+    }
+
+    if (count > cfg.limit) {
+      return {
+        success:   false,
+        limit:     cfg.limit,
+        used:      count,
+        remaining: 0,
+        resetsAt:  cycleEndsAt.toISOString(),
+        toolLabel: cfg.toolLabel,
+      };
+    }
+
+    return {
+      success:   true,
+      limit:     cfg.limit,
+      used:      count,
+      remaining: cfg.limit - count,
+      resetsAt:  cycleEndsAt.toISOString(),
+      toolLabel: cfg.toolLabel,
+    };
+  } catch (err) {
+    logger.error(
+      'Cycle rate-limit Redis check failed — allowing request',
+      err instanceof Error ? err : new Error(String(err)),
+      { key, userId },
+    );
+    return {
+      success:   true,
+      limit:     cfg.limit,
+      used:      0,
+      remaining: cfg.limit,
+      resetsAt:  cycleEndsAt.toISOString(),
+      toolLabel: cfg.toolLabel,
+    };
+  }
+}
+
+/**
+ * Read-only counterpart to `checkCycleRateLimit` — returns the
+ * current cycle usage without incrementing. Used by the UsageMeter
+ * component (via /api/usage) and the anomaly detection sweep.
+ */
+export async function getCycleUsage(args: {
+  key:         CycleLimitKey;
+  userId:      string;
+  cycleEndsAt: Date;
+}): Promise<{ used: number; limit: number; toolLabel: string; resetsAt: string }> {
+  const { key, userId, cycleEndsAt } = args;
+  const cfg = CYCLE_LIMITS[key];
+  const redis = getRedisClient();
+
+  const base = {
+    limit:     cfg.limit,
+    toolLabel: cfg.toolLabel,
+    resetsAt:  cycleEndsAt.toISOString(),
+  };
+
+  if (!redis) return { used: 0, ...base };
+
+  try {
+    const count = (await redis.get<number>(cycleKey(key, userId, cycleEndsAt))) ?? 0;
+    return { used: count, ...base };
+  } catch (err) {
+    logger.error(
+      'Cycle usage read failed',
+      err instanceof Error ? err : new Error(String(err)),
+      { key, userId },
+    );
+    return { used: 0, ...base };
+  }
+}
+
 /**
  * Helper to get identifier from request
  * Priority: User ID > IP Address

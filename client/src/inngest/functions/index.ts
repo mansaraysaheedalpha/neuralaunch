@@ -10,3 +10,4 @@ export { pushbackAlternativeFunction } from './pushback-alternative-function';
 export { roadmapNudgeFunction }        from './roadmap-nudge-function';
 export { continuationBriefFunction }   from './continuation-brief-function';
 export { lifecycleTransitionFunction } from './lifecycle-transition-function';
+export { usageAnomalyDetectionFunction } from './usage-anomaly-detection-function';

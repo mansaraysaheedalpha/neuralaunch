@@ -29,6 +29,7 @@ import {
   safeParseComposerSession,
 } from '@/lib/roadmap/composer';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
+import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
 
 export const maxDuration = 30;
 
@@ -52,6 +53,7 @@ export async function POST(
     enforceSameOrigin(request);
     const userId = await requireUserId();
     await requireTierOrThrow(userId, 'execute');
+    await enforceCycleQuota(userId, 'composer');
     await rateLimitByUser(userId, 'composer-task-regenerate', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId, taskId } = await params;
