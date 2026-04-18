@@ -46,6 +46,7 @@ export default async function SettingsPage() {
         isFoundingMember:  true,
         cancelAtPeriodEnd: true,
         currentPeriodEnd:  true,
+        paddleCustomerId:  true,
       },
     }),
   ]);
@@ -112,7 +113,7 @@ export default async function SettingsPage() {
           isFoundingMember={subscription?.isFoundingMember ?? false}
           cancelAtPeriodEnd={subscription?.cancelAtPeriodEnd ?? false}
           currentPeriodEnd={subscription?.currentPeriodEnd?.toISOString() ?? null}
-          hasBillingProfile={Boolean(user.paddleCustomerId)}
+          hasBillingProfile={Boolean(subscription?.paddleCustomerId)}
         />
       </section>
     </div>

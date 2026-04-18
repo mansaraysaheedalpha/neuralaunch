@@ -106,9 +106,14 @@ export function BillingSection({
           {isPending ? 'Opening portal…' : 'Manage billing'}
           <ExternalLink className="size-4" aria-hidden="true" />
         </button>
-        {!hasBillingProfile && (
+        {!hasBillingProfile && tier === 'free' && (
           <p className="text-[11px] text-muted-foreground">
             Complete a paid checkout to unlock billing management.
+          </p>
+        )}
+        {!hasBillingProfile && tier !== 'free' && (
+          <p className="text-[11px] text-amber-300">
+            Your billing profile couldn&apos;t be located. If you recently subscribed, please contact support at <a href="mailto:info@tabempa.com" className="underline">info@tabempa.com</a>. If you&apos;re testing with a dev-bypass subscription, this is expected.
           </p>
         )}
         {error && (

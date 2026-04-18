@@ -102,18 +102,29 @@ async function handleSubscriptionCreated(event: SubscriptionCreatedEvent): Promi
   const interval = data.billingCycle?.interval ?? 'month';
   const endDate = periodEnd(data.currentBillingPeriod?.endsAt);
 
+  // Upsert on userId (the natural unique key — Subscription.userId is
+  // @unique, one Subscription per user) rather than paddleSubscriptionId.
+  // The legacy backfill script writes sentinel rows with
+  // paddleSubscriptionId='legacy_free_<userId>' and tier='free'; keying
+  // the upsert on paddleSubscriptionId silently triggered the create
+  // branch when a real Paddle sub arrived, which then collided on the
+  // userId @unique constraint and bubbled a 500 into the webhook
+  // route's after() — the user was charged, Paddle saw a 200, and the
+  // Subscription row stayed stuck as 'free'. Keying on userId overwrites
+  // any prior row (legacy or real) with authoritative Paddle state.
   await prisma.$transaction(async (tx) => {
     await tx.subscription.upsert({
-      where: { paddleSubscriptionId: data.id },
+      where: { userId: internalUserId },
       update: {
-        userId:           internalUserId,
-        paddleCustomerId: data.customerId,
-        status:           data.status,
+        paddleSubscriptionId: data.id,
+        paddleCustomerId:     data.customerId,
+        status:               data.status,
         tier,
-        priceId:          priceId ?? undefined,
-        billingInterval:  interval,
-        isFoundingMember: isFounder,
-        currentPeriodEnd: endDate,
+        priceId:              priceId ?? undefined,
+        billingInterval:      interval,
+        isFoundingMember:     isFounder,
+        cancelAtPeriodEnd:    false,
+        currentPeriodEnd:     endDate,
       },
       create: {
         userId:               internalUserId,
