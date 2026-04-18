@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
+import { requireTier } from '@/lib/auth/require-tier';
+import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
 import { ContinuationView } from './ContinuationView';
 
 /**
@@ -34,6 +36,8 @@ export default async function ContinuationPage({
   });
   if (!roadmap) redirect('/discovery');
 
+  const isCompound = requireTier(session.user.tier ?? 'free', 'compound');
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex justify-between px-6 pt-4">
@@ -45,13 +49,24 @@ export default async function ContinuationPage({
         </Link>
       </div>
       <div className="flex-1 overflow-y-auto">
-        <Suspense fallback={
-          <div className="flex items-center justify-center py-24">
-            <span className="text-sm text-muted-foreground">Loading…</span>
+        {isCompound ? (
+          <Suspense fallback={
+            <div className="flex items-center justify-center py-24">
+              <span className="text-sm text-muted-foreground">Loading…</span>
+            </div>
+          }>
+            <ContinuationView roadmapId={roadmapId} />
+          </Suspense>
+        ) : (
+          <div className="max-w-2xl mx-auto px-6 py-10">
+            <UpgradePrompt
+              variant="hero"
+              requiredTier="compound"
+              heading="Continuation brief is a Compound feature"
+              description="Close the cycle with a personalised continuation brief built from your check-ins, blockers, and parking lot — plus fork selection into your next venture. Upgrade to Compound to unlock it."
+            />
           </div>
-        }>
-          <ContinuationView roadmapId={roadmapId} />
-        </Suspense>
+        )}
       </div>
     </div>
   );

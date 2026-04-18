@@ -41,7 +41,7 @@ export async function GET(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
-    await requireTierOrThrow(userId, 'execute');
+    await requireTierOrThrow(userId, 'compound');
     await rateLimitByUser(userId, 'roadmap-continuation-read', RATE_LIMITS.API_READ);
 
     const { id: roadmapId } = await params;

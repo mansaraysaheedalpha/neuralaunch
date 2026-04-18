@@ -53,7 +53,7 @@ export async function POST(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
-    await requireTierOrThrow(userId, 'execute');
+    await requireTierOrThrow(userId, 'compound');
     await rateLimitByUser(userId, 'roadmap-continuation-fork', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId } = await params;
