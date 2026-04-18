@@ -84,6 +84,14 @@ const envSchema = z.object({
   NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: z.string().optional(),
   NEXT_PUBLIC_PADDLE_ENV:          z.enum(['sandbox', 'production']).default('sandbox'),
 
+  // Usage-anomaly alert destination. Optional: when unset, anomalies
+  // fall through to logger.error (which Sentry captures). When set,
+  // the anomaly sweep POSTs a JSON payload to this URL — compatible
+  // with Slack / Discord / generic webhook receivers. Nothing is
+  // sent via email directly (the old email-service was removed in
+  // Stage 3 and not replaced).
+  USAGE_ANOMALY_WEBHOOK_URL: z.string().url().optional(),
+
   // Node environment
   NODE_ENV:   z.enum(['development', 'production', 'test']).default('development'),
   VERCEL_ENV: z.enum(['development', 'preview', 'production']).optional(),
