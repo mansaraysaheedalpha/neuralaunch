@@ -33,6 +33,7 @@ import {
 import { ROLEPLAY_HARD_CAP_TURNS } from '@/lib/roadmap/coach';
 import { runRolePlayTurn } from '@/lib/roadmap/coach/roleplay-engine';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
+import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
 
 export const maxDuration = 30;
 
@@ -56,6 +57,7 @@ export async function POST(
     enforceSameOrigin(request);
     const userId = await requireUserId();
     await requireTierOrThrow(userId, 'execute');
+    await enforceCycleQuota(userId, 'coach');
     await rateLimitByUser(userId, 'coach-roleplay', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId, taskId } = await params;

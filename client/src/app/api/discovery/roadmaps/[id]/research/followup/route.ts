@@ -24,6 +24,7 @@ import {
   runResearchFollowUp,
 } from '@/lib/roadmap/research-tool';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
+import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
 
 // Sonnet + 10 research steps
 export const maxDuration = 120;
@@ -47,6 +48,7 @@ export async function POST(
     enforceSameOrigin(request);
     const userId = await requireUserId();
     await requireTierOrThrow(userId, 'execute');
+    await enforceCycleQuota(userId, 'research');
     await rateLimitByUser(userId, 'research-standalone-followup', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId } = await params;
