@@ -38,9 +38,9 @@ const TIERS: Tier[] = [
     annual: 0,
     features: [
       "Complete discovery interview",
-      "One full recommendation, with reasoning",
-      "Push back up to seven rounds",
-      "See the alternatives the system rejected",
+      "One full recommendation with reasoning",
+      "See the alternatives rejected and why",
+      "Honest falsification — what would make this wrong",
     ],
     cta: "Start free",
     accent: "muted",
@@ -51,15 +51,18 @@ const TIERS: Tier[] = [
     monthly: 29,
     annual: 279,
     features: [
+      "Everything in Free",
+      "Push back up to seven rounds on recommendations",
       "Phased execution roadmap",
-      "Conversation Coach",
-      "Outreach Composer",
-      "Research Tool",
+      "Conversation Coach — prepare for high-stakes conversations",
+      "Outreach Composer — WhatsApp, email, LinkedIn drafts",
+      "Research Tool — deep market research",
+      "Service Packager — structure your service offering",
       "Task check-ins and diagnostic help",
-      "Parking lot for adjacent ideas",
+      "1 active venture at a time",
     ],
     cta: "Start with Execute",
-    badge: "Most popular",
+    badge: "Recommended",
     accent: "primary",
   },
   {
@@ -69,11 +72,13 @@ const TIERS: Tier[] = [
     annual: 479,
     features: [
       "Everything in Execute",
-      "Live validation landing page",
+      "Voice mode — speak answers instead of typing",
+      "Live validation landing pages",
       "Build brief from real market signal",
       "Continuation brief at cycle end",
       "Fork selection into next cycle",
       "Full cross-cycle memory",
+      "3 active ventures simultaneously",
     ],
     cta: "Start with Compound",
     badge: "Premium",
@@ -131,31 +136,50 @@ export function PricingSection({ execute, compound }: PricingSectionProps) {
         </div>
       )}
 
-      {/* Billing toggle */}
-      <div className="flex items-center justify-center gap-3 mb-10">
-        <button
-          type="button"
-          onClick={() => setCycle("monthly")}
-          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-            cycle === "monthly"
-              ? "bg-primary text-white"
-              : "text-slate-400 hover:text-white"
-          }`}
+      {/* Billing toggle — segmented switch so both options read as
+          mutually-exclusive choices, not a button + caption. */}
+      <div className="flex justify-center mb-10">
+        <div
+          role="radiogroup"
+          aria-label="Billing cycle"
+          className="inline-flex items-center gap-1 rounded-full border border-slate-700 bg-navy-900/80 p-1 shadow-sm"
         >
-          Monthly
-        </button>
-        <button
-          type="button"
-          onClick={() => setCycle("annual")}
-          className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-            cycle === "annual"
-              ? "bg-primary text-white"
-              : "text-slate-400 hover:text-white"
-          }`}
-        >
-          Annual
-          <span className="ml-1.5 text-xs text-success">Save up to 20%</span>
-        </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={cycle === "monthly"}
+            onClick={() => setCycle("monthly")}
+            className={`rounded-full px-5 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 ${
+              cycle === "monthly"
+                ? "bg-primary text-white shadow"
+                : "text-slate-300 hover:text-white"
+            }`}
+          >
+            Monthly
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={cycle === "annual"}
+            onClick={() => setCycle("annual")}
+            className={`inline-flex items-center gap-2 rounded-full px-5 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 ${
+              cycle === "annual"
+                ? "bg-primary text-white shadow"
+                : "text-slate-300 hover:text-white"
+            }`}
+          >
+            Annual
+            <span
+              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                cycle === "annual"
+                  ? "bg-white/20 text-white"
+                  : "bg-success/15 text-success"
+              }`}
+            >
+              Save 20%
+            </span>
+          </button>
+        </div>
       </div>
 
       {/* Tier cards */}
@@ -233,8 +257,11 @@ export function PricingSection({ execute, compound }: PricingSectionProps) {
                         /mo
                       </span>
                     </p>
-                    <p className="mt-1 text-xs text-gold">
-                      Founding member rate — ${tier.monthly}/mo after launch
+                    <p className="mt-1 text-xs font-medium text-gold">
+                      Locked in for life
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      Standard rate ${tier.monthly}/mo
                     </p>
                   </>
                 ) : (
