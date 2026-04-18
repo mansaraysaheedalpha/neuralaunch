@@ -33,7 +33,7 @@ To access the Platform, you must create an account using one of the supported au
 
 ### 3.2 Account Security
 
-You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. You agree to notify us immediately at [support email] if you become aware of any unauthorised use of your account. We are not liable for any loss or damage arising from your failure to maintain the security of your account.
+You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. You agree to notify us immediately at info@tabempa.com if you become aware of any unauthorised use of your account. We are not liable for any loss or damage arising from your failure to maintain the security of your account.
 
 ### 3.3 One Person, One Account
 
@@ -143,7 +143,7 @@ All prices are displayed in United States Dollars (USD). Paddle may display appr
 
 ### 7.1 Cancellation
 
-You may cancel your subscription at any time through the Paddle customer portal or by contacting us at [support email]. Upon cancellation:
+You may cancel your subscription at any time through the Paddle customer portal or by contacting us at info@tabempa.com. Upon cancellation:
 
 - **Monthly subscriptions:** Your access to paid features continues until the end of the current billing period. No further charges will be made.
 - **Annual subscriptions:** Your access to paid features continues until the end of the current annual term. No further charges will be made at renewal.
@@ -154,7 +154,7 @@ Cancellation does not delete your account or your data. Your account reverts to 
 
 **Monthly subscriptions:** Monthly subscriptions are non-refundable. You may cancel at any time to prevent future charges.
 
-**Annual subscriptions:** You may request a full refund within 14 days of your initial annual purchase or annual renewal. After 14 days, annual subscriptions are non-refundable. Refund requests should be directed to [support email] or processed through the Paddle customer portal.
+**Annual subscriptions:** You may request a full refund within 14 days of your initial annual purchase or annual renewal. After 14 days, annual subscriptions are non-refundable. Refund requests should be directed to info@tabempa.com or processed through the Paddle customer portal.
 
 **Founding member subscriptions:** Founding member subscriptions follow the same refund policy as standard subscriptions. However, if a founding member cancels and the founding member rate is forfeited, no refund of the rate difference will be provided upon resubscription at standard pricing.
 
@@ -243,7 +243,7 @@ Your data is retained for as long as your account is active. If you cancel your 
 
 ### 9.6 Data Deletion
 
-You may request complete deletion of your account and all associated data by contacting us at [support email]. Upon receiving a verified deletion request, we will:
+You may request complete deletion of your account and all associated data by contacting us at info@tabempa.com. Upon receiving a verified deletion request, we will:
 
 - Delete your account and all associated data from our primary database within 30 days
 - Remove your data from backup systems within 90 days
@@ -366,7 +366,7 @@ Upon termination, your access to the Platform ceases immediately. Your data will
 
 ### 14.3 Termination by You
 
-You may terminate your account at any time by contacting us at [support email]. Termination by you is equivalent to a data deletion request (see Section 9.6) unless you specify otherwise.
+You may terminate your account at any time by contacting us at info@tabempa.com. Termination by you is equivalent to a data deletion request (see Section 9.6) unless you specify otherwise.
 
 ---
 
@@ -378,7 +378,7 @@ These Terms are governed by and construed in accordance with the laws of the Rep
 
 ### 15.2 Informal Resolution
 
-Before initiating any formal dispute resolution, you agree to contact us at [support email] and attempt to resolve the dispute informally within 30 days.
+Before initiating any formal dispute resolution, you agree to contact us at info@tabempa.com and attempt to resolve the dispute informally within 30 days.
 
 ### 15.3 Jurisdiction
 
@@ -418,7 +418,7 @@ If you have questions about these Terms, please contact us:
 82 Devil Hole, Waterloo
 Freetown, Sierra Leone
 
-Email: [support email]
+Email: info@tabempa.com
 Website: tabempa.com
 
 ---
