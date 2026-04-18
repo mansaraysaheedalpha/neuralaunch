@@ -18,6 +18,7 @@ import { PackagerHandoffButtons } from '@/app/(app)/discovery/roadmap/[id]/packa
 import type { ServiceContext, ServicePackage } from '@/lib/roadmap/service-packager/schemas';
 import type { ResearchSession } from '@/lib/roadmap/research-tool/schemas';
 import { buildPackagerSeedFromResearch } from '@/app/(app)/tools/packager-handoff';
+import { UsageMeter } from '@/components/billing/UsageMeter';
 
 type Stage = 'loading' | 'no_roadmap' | 'intro' | 'loading_context' | 'context' | 'loading_generation' | 'output';
 
@@ -154,6 +155,9 @@ export default function StandalonePackagerPage() {
         <Link href="/tools" className="text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4 inline mr-1" />Tools</Link>
         <h1 className="text-lg font-bold text-foreground flex items-center gap-2"><Package className="size-4 text-primary" />Service Packager</h1>
       </div>
+
+      <UsageMeter tool="packager" />
+
       {error && <p className="text-xs text-red-500 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">{error}</p>}
 
       {stage === 'intro' && (

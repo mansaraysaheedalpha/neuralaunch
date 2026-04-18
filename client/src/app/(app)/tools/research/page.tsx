@@ -14,6 +14,7 @@ import {
   fetchPackagerHandoff,
   buildResearchQueryFromPackage,
 } from '@/app/(app)/tools/packager-handoff';
+import { UsageMeter } from '@/components/billing/UsageMeter';
 
 export default function StandaloneResearchPage() {
   const [roadmapId, setRoadmapId] = useState<string | null>(null);
@@ -73,6 +74,8 @@ export default function StandaloneResearchPage() {
         </Link>
         <h1 className="text-lg font-bold text-foreground">Research Tool</h1>
       </div>
+
+      <UsageMeter tool="research" />
 
       <ResearchFlow
         roadmapId={roadmapId}

@@ -20,6 +20,7 @@ import {
   fetchPackagerHandoff,
   buildCoachSeedMessage,
 } from '@/app/(app)/tools/packager-handoff';
+import { UsageMeter } from '@/components/billing/UsageMeter';
 
 type Stage = 'loading' | 'no_roadmap' | 'setup' | 'loading_preparation' | 'preparation' | 'roleplay' | 'loading_debrief' | 'debrief' | 'done';
 
@@ -131,6 +132,8 @@ export default function StandaloneCoachPage() {
         </Link>
         <h1 className="text-lg font-bold text-foreground">Conversation Coach</h1>
       </div>
+
+      <UsageMeter tool="coach" />
 
       {error && (
         <p className="text-xs text-red-500 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">{error}</p>

@@ -20,6 +20,7 @@ import {
   fetchPackagerHandoff,
   buildComposerSeedMessage,
 } from '@/app/(app)/tools/packager-handoff';
+import { UsageMeter } from '@/components/billing/UsageMeter';
 
 type Stage =
   | 'loading'
@@ -142,6 +143,8 @@ export default function StandaloneComposerPage() {
         </Link>
         <h1 className="text-lg font-bold text-foreground">Outreach Composer</h1>
       </div>
+
+      <UsageMeter tool="composer" />
 
       {error && (
         <p className="text-xs text-red-500 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">{error}</p>
