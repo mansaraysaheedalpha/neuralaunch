@@ -77,6 +77,28 @@ variation.
 
 **Critical engineering dependency:** Prompt caching must be implemented before launch. Without caching, COGS rises to $15-19 per active user, compressing margins to dangerous levels on the founding member rate. With caching (80% cache hit rate on belief state, recommendation, and roadmap context), input token costs drop from $15 to ~$4.20 per million tokens.
 
+### 1.5 App-wide Entitlements
+
+The capabilities below are available to every authenticated user
+regardless of tier. They are not gated — every user sees them — and
+they are classified here explicitly so a future reader of §1.3 does
+not mistake them for unassigned promises or dead code.
+
+| Capability | Where it lives | Notes |
+|---|---|---|
+| Account info display (name, email, connected OAuth providers) | `/settings` → AccountInfoSection | Read-only |
+| Training-consent toggle + timestamp | `/settings` → TrainingConsentSection | Privacy regulation requires equal control regardless of tier |
+| Aggregate-analytics-consent toggle + timestamp | `/settings` → AggregateAnalyticsConsentSection | Same reasoning |
+| Billing self-service (Paddle portal link, founding badge, status banners) | `/settings` → BillingSection | Surfaced for every user; Manage Billing is only actionable when a Paddle customer profile exists |
+| Past recommendations / ventures listing | `/discovery/recommendations` | Free users see their single recommendation; paid users see their venture-grouped history |
+| Session resumption (60–72h window) | Discovery empty-state card | Lets a user pick up an in-progress interview after a break |
+| Validation page public view (for visitors only) | `/lp/[slug]` | The *owner* must be Compound; *visitors* don't need accounts |
+| Legal / marketing pages | `/`, `/#pricing`, `/signin`, `/legal/*` | Unauthenticated — anyone on the internet |
+
+These are not in §1.3 because §1.3 is the tier-differentiated feature
+matrix — entries there are things a paid upgrade unlocks. App-wide
+capabilities should always be honoured independent of billing state.
+
 ---
 
 ## 2. Payment Infrastructure — Paddle as Merchant of Record
@@ -618,11 +640,13 @@ if (!requireTier(tier, 'execute')) {
 | All `/api/discovery/roadmaps/[id]/composer/*` routes | Execute | API route |
 | All `/api/discovery/roadmaps/[id]/research/*` routes | Execute | API route |
 | All `/api/discovery/roadmaps/[id]/packager/*` routes | Execute | API route |
-| `POST /api/discovery/roadmaps/[id]/continuation` | **Compound** | API route |
+| `GET /api/discovery/roadmaps/[id]/continuation` | **Compound** | API route |
 | `POST /api/discovery/roadmaps/[id]/continuation/fork` | **Compound** | API route |
 | Voice mode endpoints (`POST /api/voice/transcribe`) | Compound | API route + `assertCompoundTier` |
 | Cross-session memory loading | Compound | API route |
-| Validation page creation | Compound | API route |
+| `POST /api/discovery/recommendations/[id]/validation-page` (create / regenerate) | Compound | API route |
+| `GET /api/discovery/recommendations/[id]/validation-page` | Compound | API route |
+| `POST /api/discovery/validation/[pageId]/publish` | Compound | API route (defence-in-depth) |
 | Creating 2nd / 3rd concurrent venture | Compound | API route + `assertVentureLimitNotReached` |
 | `/tools` standalone tools page | Execute | Client component (mirrors per-route gates) |
 
