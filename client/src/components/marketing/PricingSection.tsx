@@ -37,7 +37,7 @@ const TIERS: Tier[] = [
     monthly: 0,
     annual: 0,
     features: [
-      "Complete discovery interview",
+      "Two discovery interviews",
       "One full recommendation with reasoning",
       "See the alternatives rejected and why",
       "Honest falsification — what would make this wrong",

@@ -13,7 +13,10 @@ import {
   createInterviewState,
   saveSession,
 } from '@/lib/discovery';
-import { assertVentureLimitNotReached } from '@/lib/lifecycle';
+import {
+  assertVentureLimitNotReached,
+  assertFreeDiscoverySessionLimit,
+} from '@/lib/lifecycle';
 
 const CreateSessionSchema = z.object({
   // Matches the per-turn cap in /sessions/[sessionId]/turn/route.ts so a
@@ -97,7 +100,19 @@ export async function POST(req: NextRequest) {
   const { firstMessage, acknowledgePendingOutcome, scenario, ventureId, forkContext } = parsed.data;
   const title = firstMessage?.trim().slice(0, 80) || 'Discovery Interview';
 
-  // Tier-based active-venture limit. `fresh_start` is the scenario
+  // Free-tier lifetime discovery cap. Free users don't create Ventures,
+  // so the venture-count check below never gates them — instead they
+  // get up to FREE_DISCOVERY_SESSION_LIMIT (2) lifetime discovery
+  // sessions. Runs on every scenario so the cap holds whether the
+  // client sends first_interview, fresh_start, or fork_continuation.
+  try {
+    await assertFreeDiscoverySessionLimit(userId);
+  } catch (err) {
+    if (err instanceof HttpError) return httpErrorToResponse(err);
+    throw err;
+  }
+
+  // Paid-tier active-venture limit. `fresh_start` is the scenario
   // where a founder with an existing FounderProfile is starting a
   // wholly new venture — the exact moment the active-venture count
   // is about to increase. `first_interview` is the founder's first
