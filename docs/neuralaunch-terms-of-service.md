@@ -277,6 +277,14 @@ You agree not to:
 
 Content you provide to the Platform must not include information that facilitates illegal activity, promotes violence or harm, contains child exploitation material, or violates the rights of others. We reserve the right to suspend or terminate accounts that violate these standards.
 
+### 10.4 Fair Use Policy — AI Tool Quotas
+
+Usage of AI-powered tools — the Research Tool, Conversation Coach, Outreach Composer, and Service Packager — is subject to monthly quota caps per subscription tier. Current cap numbers are documented on the Pricing page and surfaced in-app on each tool page. Quotas reset at the start of each billing cycle.
+
+These caps exist so that the flat-rate subscription model remains sustainable for all customers. They are calibrated generously to cover real-world usage by engaged founders. Caps are not absolute technical maximums — we may raise, lower, or restructure them with reasonable notice of at least 30 days via email or in-app notification.
+
+Attempts to circumvent quota caps, including but not limited to creating multiple accounts for the same individual or organisation, sharing account credentials across users, using automated scripts or bots to access AI tools, or any other conduct designed to exceed the fair use expectation of a single-person subscription, violate these Terms and §3.3 ("One Person, One Account"). We monitor usage patterns for anomalous activity and may suspend or terminate accounts engaged in such circumvention without prior notice.
+
 ---
 
 ## 11. Limitation of Liability
