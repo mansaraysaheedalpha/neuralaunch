@@ -247,9 +247,35 @@ async function handleSubscriptionCanceled(event: SubscriptionCanceledEvent): Pro
 
 async function handleSubscriptionPaused(event: SubscriptionPausedEvent): Promise<void> {
   const data = event.data;
-  await prisma.subscription.updateMany({
-    where: { paddleSubscriptionId: data.id },
-    data:  { status: 'paused' },
+
+  // Demote tier alongside the paused status. A paused subscription
+  // has stopped billing, so the user is not paying for paid features;
+  // leaving tier at 'compound' would let a paused subscriber keep
+  // unlimited access until Paddle eventually cancels. The paid tier
+  // snaps back when the user resumes (subscription.updated fires with
+  // an active status and resolveTier(priceId) restores the paid tier).
+  const existing = await prisma.subscription.findUnique({
+    where:  { paddleSubscriptionId: data.id },
+    select: { userId: true, tier: true },
+  });
+  if (!existing) {
+    logger.warn('Paddle subscription.paused for unknown subscription', {
+      paddleSubscriptionId: data.id,
+    });
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.subscription.update({
+      where: { paddleSubscriptionId: data.id },
+      data:  { status: 'paused', tier: 'free' },
+    });
+    if (existing.tier !== 'free') {
+      await tx.user.update({
+        where: { id: existing.userId },
+        data:  { tierUpdatedAt: new Date() },
+      });
+    }
   });
 }
 

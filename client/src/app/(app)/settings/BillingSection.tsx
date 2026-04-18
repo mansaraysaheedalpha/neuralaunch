@@ -90,6 +90,11 @@ export function BillingSection({
           Payment failed on your last renewal. Update your card in the portal to keep your subscription active.
         </p>
       )}
+      {status === 'paused' && (
+        <p className="mt-3 rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-300">
+          Your subscription is paused. Resume in the billing portal to restore access.
+        </p>
+      )}
       {cancelAtPeriodEnd && (
         <p className="mt-3 rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-slate-300">
           Your subscription is scheduled to end on {currentPeriodEnd ? new Date(currentPeriodEnd).toLocaleDateString() : 'the current period end'}. You can resume from the portal before then.
