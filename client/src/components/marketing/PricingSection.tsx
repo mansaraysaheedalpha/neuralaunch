@@ -77,7 +77,7 @@ const TIERS: Tier[] = [
       "Build brief from real market signal",
       "Continuation brief at cycle end",
       "Fork selection into next cycle",
-      "Full cross-cycle memory",
+      "Cross-venture memory across all 3 of your ventures",
       "3 active ventures simultaneously",
     ],
     cta: "Start with Compound",

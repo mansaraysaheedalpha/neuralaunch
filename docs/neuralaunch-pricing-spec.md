@@ -15,7 +15,7 @@ a regression.
 |---|---|---|---|
 | **Free** | $0 | $0 | Complete discovery interview, one full recommendation with reasoning, the alternatives the system rejected and why, and honest falsification (what would make this recommendation wrong). |
 | **Execute** | $29/month | $279/year | Everything in Free, plus push back up to seven rounds on recommendations, the phased execution roadmap, the four execution tools (Conversation Coach for high-stakes conversation prep, Outreach Composer for WhatsApp / email / LinkedIn drafts, Research Tool for deep market research, Service Packager for structuring a service offering), task-level check-ins and diagnostic help. One active venture at a time. |
-| **Compound** | $49/month | $479/year | Everything in Execute, plus voice mode (speak answers instead of typing across interview, check-ins, Coach role-play), live validation landing pages with build brief from real market signal, the continuation brief at cycle end, fork selection into the next cycle, and full cross-cycle memory. Up to three active ventures simultaneously. |
+| **Compound** | $49/month | $479/year | Everything in Execute, plus voice mode (speak answers instead of typing across interview, check-ins, Coach role-play), live validation landing pages with build brief from real market signal, the continuation brief at cycle end, fork selection into the next cycle, and cross-venture memory across all three of your ventures. Up to three active ventures simultaneously. |
 
 ### 1.2 Founding Member Rates
 
@@ -54,7 +54,7 @@ variation.
 | Continuation brief at cycle end | ✗ | ✗ | ✓ |
 | Fork selection into next cycle | ✗ | ✗ | ✓ |
 | Validation landing page + build brief | ✗ | ✗ | ✓ |
-| Full cross-cycle memory | ✗ | ✗ | ✓ |
+| Cross-venture memory (across all 3 ventures) | ✗ | ✗ | ✓ |
 | Active ventures at once | 0 (recommendation only) | 1 | 3 |
 
 ### 1.4 Unit Economics
