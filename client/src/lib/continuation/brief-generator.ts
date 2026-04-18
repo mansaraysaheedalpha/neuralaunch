@@ -40,6 +40,14 @@ import {
   renderParkingLot,
   renderDiagnosticHistory,
 } from './brief-renderers';
+import {
+  loadValidationSignal,
+  renderValidationSignalBlock,
+  type ValidationSignal,
+} from './validation-signal';
+
+export { loadValidationSignal };
+export type { ValidationSignal };
 
 export interface GenerateBriefInput {
   recommendation:    Recommendation;
@@ -84,6 +92,15 @@ export interface GenerateBriefInput {
    * Empty string when no lifecycle data exists yet.
    */
   lifecycleBlock?:   string;
+  /**
+   * Aggregated validation landing-page signal for this venture.
+   * Null when no ValidationPage exists under any Cycle in this
+   * Venture; the brief prompt then runs exactly as before and the
+   * "build brief from real market signal" bullet gracefully no-ops.
+   * When present, the prompt references the specific metrics and
+   * patterns to ground What the Evidence Says and What I Got Wrong.
+   */
+  validationSignal?: ValidationSignal | null;
 }
 
 /**
@@ -177,6 +194,7 @@ CRITICAL RULES:
 - Reference specific task titles, founder quotes, and parking-lot items by name. Generic statements are wasted bandwidth.
 - The pace calibration MUST be honoured in fork timeEstimate fields. If the pace label is slower_pace, state the calibration explicitly so the founder reads it as transparency, not silent correction.
 - Do not invent evidence the founder did not produce. If you cannot ground a claim in something above, do not make the claim.
+- When a VALIDATION SIGNAL block is present, reference the specific numbers ("your landing page received 847 visitors with 6% conversion") in What the Evidence Says and What I Got Wrong. If the signal is weak or negative, warn the founder explicitly — do not paper over it. If the signal is absent, do not invent market data.
 - Do not end with hedging or "let me know what you think". End with the closing thought as specified.`;
 
       // Volatile suffix: the per-roadmap evidence that changes with
@@ -210,7 +228,7 @@ EXECUTION METRICS (use the calibration note in your forks):
 PARKING LOT (adjacent ideas captured during execution):
 ${parkingLotBlock}
 
-${diagnosticBlock}
+${renderValidationSignalBlock(input.validationSignal)}${diagnosticBlock}
 
 ${(() => {
   const cov = input.checkinCoverage;

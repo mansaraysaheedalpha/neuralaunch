@@ -66,8 +66,8 @@ export { computeExecutionMetrics } from './speed-calibration';
 export type { RunDiagnosticTurnInput } from './diagnostic-engine';
 export { runDiagnosticTurn } from './diagnostic-engine';
 
-export type { GenerateBriefInput } from './brief-generator';
-export { generateContinuationBrief } from './brief-generator';
+export type { GenerateBriefInput, ValidationSignal } from './brief-generator';
+export { generateContinuationBrief, loadValidationSignal } from './brief-generator';
 
 export type {
   ContinuationEvidence,
