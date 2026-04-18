@@ -6,11 +6,16 @@
 
 ### 1.1 Tier Definitions
 
+These are the canonical tier descriptions. The marketing pricing
+section at `client/src/components/marketing/PricingSection.tsx` MUST
+match this table verbatim — drift between this spec and the cards is
+a regression.
+
 | Tier | Monthly | Annual | What's Included |
 |---|---|---|---|
-| **Free** | $0 | $0 | Full discovery interview + one committed recommendation with reasoning, assumptions, risks, and rejected alternatives. Can read and revisit the recommendation indefinitely. |
-| **Execute** | $29/month | $279/year | Everything in Free + pushback (up to 7 rounds), full execution roadmap, all four internal tools (Conversation Coach, Outreach Composer, Research Tool, Service Packager), task-level check-ins and diagnostic help, recalibration offers, continuation brief at end of cycle, fork picker for next cycle. One active cycle at a time. |
-| **Compound** | $49/month | $479/year | Everything in Execute + cross-session memory (Founding Memory), voice mode (interview, check-ins, Coach role-play), validation landing page with build brief, up to 3 concurrent roadmaps, priority research depth and synthesis quality (higher step budgets, Opus on more calls). |
+| **Free** | $0 | $0 | Complete discovery interview, one full recommendation with reasoning, the alternatives the system rejected and why, and honest falsification (what would make this recommendation wrong). |
+| **Execute** | $29/month | $279/year | Everything in Free, plus push back up to seven rounds on recommendations, the phased execution roadmap, the four execution tools (Conversation Coach for high-stakes conversation prep, Outreach Composer for WhatsApp / email / LinkedIn drafts, Research Tool for deep market research, Service Packager for structuring a service offering), task-level check-ins and diagnostic help. One active venture at a time. |
+| **Compound** | $49/month | $479/year | Everything in Execute, plus voice mode (speak answers instead of typing across interview, check-ins, Coach role-play), live validation landing pages with build brief from real market signal, the continuation brief at cycle end, fork selection into the next cycle, and full cross-cycle memory. Up to three active ventures simultaneously. |
 
 ### 1.2 Founding Member Rates
 
@@ -23,10 +28,19 @@ Founding member rates are permanently grandfathered for the lifetime of the cont
 
 ### 1.3 Tier Boundaries — What Each Tier Gates
 
+This table is the single source of truth for tier gating. Code
+changes that adjust which tier owns a feature MUST be paired with an
+update to this table in the same commit. Discrepancies between this
+table and runtime gating (`requireTierOrThrow` / `assertCompoundTier`
+/ `assertVentureLimitNotReached`) are bugs, not allowed product
+variation.
+
 | Feature | Free | Execute | Compound |
 |---|---|---|---|
 | Discovery interview | ✓ | ✓ | ✓ |
 | Recommendation with reasoning | ✓ | ✓ | ✓ |
+| Alternatives rejected (with rationale) | ✓ | ✓ | ✓ |
+| Honest falsification (`whatWouldMakeThisWrong`) | ✓ | ✓ | ✓ |
 | Pushback (up to 7 rounds) | ✗ | ✓ | ✓ |
 | Execution roadmap generation | ✗ | ✓ | ✓ |
 | Conversation Coach | ✗ | ✓ | ✓ |
@@ -35,15 +49,13 @@ Founding member rates are permanently grandfathered for the lifetime of the cont
 | Service Packager | ✗ | ✓ | ✓ |
 | Task-level check-ins | ✗ | ✓ | ✓ |
 | Diagnostic conversations | ✗ | ✓ | ✓ |
-| Recalibration offers | ✗ | ✓ | ✓ |
-| Continuation brief | ✗ | ✓ | ✓ |
-| Fork picker (next cycle) | ✗ | ✓ | ✓ |
-| Cross-session memory | ✗ | ✗ | ✓ |
-| Voice mode | ✗ | ✗ | ✓ |
-| Validation landing page | ✗ | ✗ | ✓ |
-| Multiple concurrent roadmaps (up to 3) | ✗ | ✗ | ✓ |
-| Priority synthesis quality | ✗ | ✗ | ✓ |
-| Active cycles at once | 0 (recommendation only) | 1 | 3 |
+| Recalibration offers (within check-ins) | ✗ | ✓ | ✓ |
+| Voice mode (speak instead of type) | ✗ | ✗ | ✓ |
+| Continuation brief at cycle end | ✗ | ✗ | ✓ |
+| Fork selection into next cycle | ✗ | ✗ | ✓ |
+| Validation landing page + build brief | ✗ | ✗ | ✓ |
+| Full cross-cycle memory | ✗ | ✗ | ✓ |
+| Active ventures at once | 0 (recommendation only) | 1 | 3 |
 
 ### 1.4 Unit Economics
 
@@ -606,18 +618,21 @@ if (!requireTier(tier, 'execute')) {
 | All `/api/discovery/roadmaps/[id]/composer/*` routes | Execute | API route |
 | All `/api/discovery/roadmaps/[id]/research/*` routes | Execute | API route |
 | All `/api/discovery/roadmaps/[id]/packager/*` routes | Execute | API route |
-| `POST /api/discovery/roadmaps/[id]/continuation` | Execute | API route |
-| Voice mode endpoints (all) | Compound | API route |
+| `POST /api/discovery/roadmaps/[id]/continuation` | **Compound** | API route |
+| `POST /api/discovery/roadmaps/[id]/continuation/fork` | **Compound** | API route |
+| Voice mode endpoints (`POST /api/voice/transcribe`) | Compound | API route + `assertCompoundTier` |
 | Cross-session memory loading | Compound | API route |
 | Validation page creation | Compound | API route |
-| Creating 2nd/3rd concurrent roadmap | Compound | API route + DB count check |
+| Creating 2nd / 3rd concurrent venture | Compound | API route + `assertVentureLimitNotReached` |
+| `/tools` standalone tools page | Execute | Client component (mirrors per-route gates) |
 
 ### 5.4 UI Gating
 
 On the frontend, use the session tier to:
-- Show/hide the upgrade prompt on the recommendation page (Free users see "Upgrade to Execute to generate your roadmap")
-- Show/hide tool buttons on task cards (only for Execute+ users)
-- Show/hide voice mode toggle (only for Compound users)
+- Show the upgrade prompt on the recommendation page (Free users see "Upgrade to Execute to generate your roadmap")
+- Show tool buttons on task cards (only for Execute+ users)
+- Show the standalone `/tools` tile list (only for Execute+ users; Free users see the Execute UpgradePrompt hero in its place)
+- Show the voice mode microphone button (only for Compound users — gated via `useVoiceTier()`)
 - Show the "Founding Member — $19/month forever" badge in account settings for founding members
 - Show "Cancel at period end" warning banner when `cancelAtPeriodEnd` is true
 - Show "Payment failed — update your card" banner when status is `past_due`
