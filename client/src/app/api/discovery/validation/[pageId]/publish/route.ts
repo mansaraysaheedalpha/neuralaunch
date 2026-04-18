@@ -14,6 +14,7 @@ import {
 import type { DiscoveryContext } from '@/lib/discovery/context-schema';
 import type { AudienceType }     from '@/lib/discovery/constants';
 import { env }                   from '@/lib/env';
+import { requireTierOrThrow }    from '@/lib/auth/require-tier';
 
 /**
  * POST /api/discovery/validation/[pageId]/publish
@@ -29,6 +30,7 @@ export async function POST(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
+    await requireTierOrThrow(userId, 'compound');
     await rateLimitByUser(userId, 'validation-publish', RATE_LIMITS.AI_GENERATION);
 
     const { pageId } = await params;
