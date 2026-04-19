@@ -24,6 +24,7 @@ import {
   runResearchFollowUp,
 } from '@/lib/roadmap/research-tool';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
+import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
 
 // Sonnet + 10 research steps
@@ -52,6 +53,7 @@ export async function POST(
     await rateLimitByUser(userId, 'research-standalone-followup', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId } = await params;
+    await assertVentureNotArchivedByRoadmap(userId, roadmapId);
     const log = logger.child({ route: 'POST research-standalone-followup', roadmapId, userId });
 
     let body: unknown;

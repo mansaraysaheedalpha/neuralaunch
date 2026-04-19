@@ -32,6 +32,7 @@ import {
   type ResearchLogEntry,
 } from '@/lib/research';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
+import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 
 // Pro plan: 90s gives headroom for the conditional research path
 // (trigger detector LLM call + up to 2 Tavily queries in parallel)
@@ -77,6 +78,7 @@ export async function POST(
     await rateLimitByUser(userId, 'roadmap-checkin', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId, taskId } = await params;
+    await assertVentureNotArchivedByRoadmap(userId, roadmapId);
     const log = logger.child({ route: 'POST roadmap-checkin', roadmapId, taskId, userId });
 
     let body: unknown;

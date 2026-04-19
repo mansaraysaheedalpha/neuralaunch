@@ -33,6 +33,7 @@ import {
 import { ROLEPLAY_HARD_CAP_TURNS } from '@/lib/roadmap/coach';
 import { runRolePlayTurn } from '@/lib/roadmap/coach/roleplay-engine';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
+import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
 
 export const maxDuration = 30;
@@ -61,6 +62,7 @@ export async function POST(
     await rateLimitByUser(userId, 'coach-roleplay', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId, taskId } = await params;
+    await assertVentureNotArchivedByRoadmap(userId, roadmapId);
     const log = logger.child({ route: 'POST coach-roleplay', roadmapId, taskId, userId });
 
     let body: unknown;
