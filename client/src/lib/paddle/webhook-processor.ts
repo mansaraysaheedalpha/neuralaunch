@@ -15,6 +15,7 @@ import {
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { resolveTier } from './tiers';
+import { checkFoundingOverflow } from './founding-members';
 
 /**
  * Webhook event dispatcher.
@@ -158,6 +159,13 @@ async function handleSubscriptionCreated(event: SubscriptionCreatedEvent): Promi
     tier,
     isFounder,
   });
+
+  if (isFounder) {
+    // Soft-cap observability for the accepted TOCTOU race in
+    // founding-members.ts. Logs an error if we've over-allocated
+    // past the alert threshold (default 55).
+    await checkFoundingOverflow();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -205,6 +213,13 @@ async function handleSubscriptionUpdated(event: SubscriptionUpdatedEvent): Promi
       });
     }
   });
+
+  if (isFounder) {
+    // Defensive: an updated event that flips a row into founding
+    // state (rare — typically only created sets this) still goes
+    // through the soft-cap check.
+    await checkFoundingOverflow();
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 // src/lib/paddle/founding-members.ts
 import 'server-only';
 import prisma from '@/lib/prisma';
+import { logger } from '@/lib/logger';
 import type { Tier } from './tiers';
 
 /**
@@ -10,6 +11,43 @@ import type { Tier } from './tiers';
  * (execute + compound share the same pool) per the spec §1.2.
  */
 const FOUNDING_MEMBER_LIMIT = 50;
+
+/**
+ * Soft over-allocation alert threshold. The slot allocation has an
+ * accepted TOCTOU race (see ACCEPTED RACE below) so we may mint a few
+ * extra founders past 50. Crossing this threshold means the race has
+ * leaked further than expected and warrants investigation — typically
+ * a sign that the pricing page is being slammed by automation, not
+ * that 5+ legitimate users hit the same second.
+ */
+const FOUNDING_OVERFLOW_ALERT = 55;
+
+/**
+ * ACCEPTED RACE — founding-member slot allocation is TOCTOU.
+ *
+ * `getPriceIds()` reads the live count at pricing-page render time and
+ * decides whether to issue the founding price id. The actual
+ * `isFoundingMember=true` flag is written by the webhook processor
+ * AFTER checkout completes. Two users hitting the pricing page within
+ * seconds of slot 49 both see "available" and both get founding pricing;
+ * both webhooks then write isFoundingMember=true for slots 50 AND 51.
+ *
+ * The system stays internally consistent (each row carries the price
+ * the user was actually charged at), but the "first 50" promise on the
+ * pricing page is enforced softly, not strictly.
+ *
+ * Why we accept it:
+ *   - Properly enforcing "exactly 50" requires reconciling Paddle-side
+ *     state with our side at webhook time: read count, if >= 50 then
+ *     update the Paddle subscription to the standard price via API and
+ *     prorate the difference. That's a non-trivial two-system saga.
+ *   - The dollar impact is small: even 10 extra founders at the $19/mo
+ *     vs $29/mo Execute delta is $100/mo of "lost" revenue forever.
+ *   - The race window is small (counted in seconds) — at sustainable
+ *     traffic levels we expect 0-2 over-allocations at most.
+ *   - A logger.error fires when the count crosses FOUNDING_OVERFLOW_ALERT
+ *     so we'll see if the leak grows unexpectedly.
+ */
 
 /** Currently-minted founding-member subscriptions (across all tiers). */
 export async function getFoundingMemberCount(): Promise<number> {
@@ -22,6 +60,34 @@ export async function getFoundingMemberCount(): Promise<number> {
 export async function isFoundingSlotAvailable(): Promise<boolean> {
   const used = await getFoundingMemberCount();
   return used < FOUNDING_MEMBER_LIMIT;
+}
+
+/**
+ * Called by the webhook processor immediately after writing a row
+ * with isFoundingMember=true. If the count crosses the soft alert
+ * threshold (55), emits a logger.error so the operator (or Sentry,
+ * once it's wired) gets paged. Pure observability — never blocks
+ * the webhook or refunds anyone.
+ */
+export async function checkFoundingOverflow(): Promise<void> {
+  let count: number;
+  try {
+    count = await getFoundingMemberCount();
+  } catch {
+    // Don't fail the webhook over an observability check.
+    return;
+  }
+  if (count >= FOUNDING_OVERFLOW_ALERT) {
+    logger.error(
+      'Founding-member soft cap exceeded',
+      new Error('founding-overflow'),
+      {
+        currentCount: count,
+        limit:        FOUNDING_MEMBER_LIMIT,
+        alertAt:      FOUNDING_OVERFLOW_ALERT,
+      },
+    );
+  }
 }
 
 export interface TierPriceIds {
