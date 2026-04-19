@@ -66,18 +66,35 @@ export async function generatePortalLink(): Promise<
     ? [user.subscription.paddleSubscriptionId]
     : [];
 
-  try {
-    const portal = await paddleClient.customerPortalSessions.create(
-      user.paddleCustomerId,
-      subscriptionIds,
-    );
-    return { ok: true, url: portal.urls.general.overview };
-  } catch (err) {
-    logger.error(
-      'Paddle customer portal session creation failed',
-      err instanceof Error ? err : new Error(String(err)),
-      { userId: session.user.id },
-    );
-    return { ok: false, reason: 'paddle-error' };
+  // Retry with exponential backoff so a single Paddle hiccup doesn't
+  // prevent dozens of users from canceling during an outage window.
+  // 3 attempts total: 0ms (first try), ~250ms, ~1000ms. Total worst-
+  // case ~1.3s which sits comfortably under the server-action timeout.
+  // Only retries on errors — not on HTTP-level 4xx responses which
+  // would indicate a permanent problem (bad customer id, etc).
+  const RETRY_DELAYS_MS = [0, 250, 1000];
+  let lastErr: unknown = null;
+  for (const delay of RETRY_DELAYS_MS) {
+    if (delay > 0) await new Promise(r => setTimeout(r, delay));
+    try {
+      const portal = await paddleClient.customerPortalSessions.create(
+        user.paddleCustomerId,
+        subscriptionIds,
+      );
+      return { ok: true, url: portal.urls.general.overview };
+    } catch (err) {
+      lastErr = err;
+      // Continue to next retry attempt. Paddle's SDK typing doesn't
+      // expose a clean status-code channel for the "don't retry"
+      // cases, so we retry uniformly — the cap of 3 attempts keeps
+      // the blast radius bounded even on permanent-failure shapes.
+    }
   }
+
+  logger.error(
+    'Paddle customer portal session creation failed after retries',
+    lastErr instanceof Error ? lastErr : new Error(String(lastErr)),
+    { userId: session.user.id, attempts: RETRY_DELAYS_MS.length },
+  );
+  return { ok: false, reason: 'paddle-error' };
 }

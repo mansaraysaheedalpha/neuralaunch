@@ -236,12 +236,74 @@ async function handleSubscriptionUpdated(event: SubscriptionUpdatedEvent): Promi
   });
 
   if (!existing) {
-    // Update before create is possible if events arrive out of order.
-    // Rather than silently dropping, log so operations can replay the
-    // created event from the Paddle dashboard if needed.
-    logger.warn('Paddle subscription.updated for unknown subscription', {
+    // Event-reordering recovery: if subscription.updated arrives before
+    // subscription.created (rare but real during Paddle outages), OR if
+    // the created event was permanently lost, we can synthesise the
+    // row from the update payload itself — SubscriptionUpdatedNotification
+    // carries the same customData shape that created uses. Gives us a
+    // single escape hatch for the "permanently lost created event" case
+    // rather than leaving the subscription orphan forever.
+    const internalUserId = readInternalUserId(data.customData);
+    if (!internalUserId) {
+      logger.warn('Paddle subscription.updated for unknown subscription, no customData.internalUserId — cannot synthesise', {
+        paddleSubscriptionId: data.id,
+      });
+      return;
+    }
+    logger.warn('Paddle subscription.updated for unknown subscription — synthesising created-equivalent row', {
       paddleSubscriptionId: data.id,
+      userId:               internalUserId,
     });
+
+    const interval = data.billingCycle?.interval ?? 'month';
+    const endDate  = periodEnd(data.currentBillingPeriod?.endsAt);
+    await prisma.$transaction(async (tx) => {
+      const prior = await tx.subscription.findUnique({
+        where:  { userId: internalUserId },
+        select: { tier: true },
+      });
+      await tx.subscription.upsert({
+        where: { userId: internalUserId },
+        update: {
+          paddleSubscriptionId: data.id,
+          paddleCustomerId:     data.customerId,
+          status:               data.status,
+          tier,
+          priceId:              priceId ?? undefined,
+          billingInterval:      interval,
+          isFoundingMember:     isFounder,
+          cancelAtPeriodEnd:    scheduledCancel,
+          currentPeriodEnd:     endDate,
+        },
+        create: {
+          userId:               internalUserId,
+          paddleSubscriptionId: data.id,
+          paddleCustomerId:     data.customerId,
+          status:               data.status,
+          tier,
+          priceId:              priceId ?? undefined,
+          billingInterval:      interval,
+          isFoundingMember:     isFounder,
+          cancelAtPeriodEnd:    scheduledCancel,
+          currentPeriodEnd:     endDate,
+        },
+      });
+      await tx.user.update({
+        where: { id: internalUserId },
+        data: {
+          paddleCustomerId: data.customerId,
+          tierUpdatedAt:    new Date(),
+        },
+      });
+      await recordTierTransition(tx, {
+        userId:          internalUserId,
+        fromTier:        prior?.tier ?? null,
+        toTier:          tier,
+        paddleEventType: event.eventType,
+        paddleEventId:   event.eventId,
+      });
+    });
+    if (isFounder) await checkFoundingOverflow();
     return;
   }
 
