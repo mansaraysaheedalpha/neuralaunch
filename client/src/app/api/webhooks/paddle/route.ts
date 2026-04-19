@@ -4,6 +4,8 @@ import { paddleClient } from '@/lib/paddle/client';
 import { handleWebhookEvent } from '@/lib/paddle/webhook-processor';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
+import { rateLimitByIp } from '@/lib/validation/server-helpers';
+import { HttpError } from '@/lib/validation/server-helpers';
 
 // Processor runs inline (see below) and the slowest handler is
 // handleSubscriptionCreated's single transaction — comfortably inside
@@ -30,6 +32,20 @@ export const maxDuration = 30;
  *      idempotent so Paddle-retry-after-partial-success is safe.
  */
 export async function POST(req: Request) {
+  // Rate limit BEFORE signature verification so a flood with bogus
+  // signatures cannot burn HMAC-verification CPU. Paddle's retries are
+  // bounded — legitimate bursts are 10s/min at most. 200/min/IP is two
+  // orders of magnitude over real traffic but tight enough to defang
+  // a script that learns the URL.
+  try {
+    await rateLimitByIp(req, 'paddle-webhook', { maxRequests: 200, windowSeconds: 60 });
+  } catch (err) {
+    if (err instanceof HttpError && err.status === 429) {
+      return NextResponse.json({ error: 'Rate limit' }, { status: 429 });
+    }
+    throw err;
+  }
+
   const signature = req.headers.get('paddle-signature');
 
   if (!signature) {
