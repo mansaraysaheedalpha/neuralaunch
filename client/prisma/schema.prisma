@@ -106,6 +106,7 @@ model User {
   paddleCustomerId String?       @unique
   subscription     Subscription?
   tierUpdatedAt    DateTime?
+  tierTransitions  TierTransition[]
 }
 
 /**
@@ -158,6 +159,42 @@ model Subscription {
 
   @@index([isFoundingMember])
   @@index([status])
+}
+
+/**
+ * TierTransition
+ *
+ * Append-only audit log of every billing-tier change. Written by the
+ * Paddle webhook processor whenever a tier mutation actually occurs
+ * (not on every event — only on transitions). Required for chargeback
+ * dispute evidence (Paddle expects to see when access was granted /
+ * revoked) and useful for any future cohort or churn analysis.
+ *
+ * Never updated, never deleted — appends only. Cascade-deleted when
+ * the User is deleted (post-Paddle-cancellation flow), since the audit
+ * is per-user and a deleted user has no disputes left to defend.
+ */
+model TierTransition {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Tier value before this transition. Null on the very first row
+  /// for a user (no prior tier known when the first webhook lands).
+  fromTier        String?
+  /// Tier value after this transition.
+  toTier          String
+
+  /// Paddle event that drove the change — e.g. 'subscription.updated',
+  /// 'transaction.payment_failed', 'adjustment.updated'. Null only for
+  /// transitions originating outside webhooks (manual operator action).
+  paddleEventType String?
+  /// Paddle event id for forensic correlation against the Paddle dashboard.
+  paddleEventId   String?
+
+  occurredAt      DateTime @default(now())
+
+  @@index([userId, occurredAt])
 }
 
 model PushToken {

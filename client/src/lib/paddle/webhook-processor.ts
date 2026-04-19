@@ -12,10 +12,45 @@ import {
   AdjustmentCreatedEvent,
   AdjustmentUpdatedEvent,
 } from '@paddle/paddle-node-sdk';
+import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { resolveTier } from './tiers';
 import { checkFoundingOverflow } from './founding-members';
+
+type Tx = Prisma.TransactionClient;
+
+/**
+ * Append a tier-transition row when fromTier !== toTier. Inside the
+ * caller's transaction so the audit row commits atomically with the
+ * mutation it describes — no orphan audits, no missing audits.
+ *
+ * Required for chargeback dispute evidence (Paddle expects to see
+ * when access was granted / revoked) and for any future churn
+ * analysis. Also pairs with the tierUpdatedAt bump so the
+ * session-tier cache invalidates the moment the audit row lands.
+ */
+async function recordTierTransition(
+  tx: Tx,
+  args: {
+    userId:          string;
+    fromTier:        string | null;
+    toTier:          string;
+    paddleEventType: string;
+    paddleEventId:   string;
+  },
+): Promise<void> {
+  if (args.fromTier === args.toTier) return;
+  await tx.tierTransition.create({
+    data: {
+      userId:          args.userId,
+      fromTier:        args.fromTier,
+      toTier:          args.toTier,
+      paddleEventType: args.paddleEventType,
+      paddleEventId:   args.paddleEventId,
+    },
+  });
+}
 
 /**
  * Webhook event dispatcher.
@@ -118,7 +153,16 @@ async function handleSubscriptionCreated(event: SubscriptionCreatedEvent): Promi
   // route's after() — the user was charged, Paddle saw a 200, and the
   // Subscription row stayed stuck as 'free'. Keying on userId overwrites
   // any prior row (legacy or real) with authoritative Paddle state.
+  //
+  // Capture the prior tier for the audit log (legacy backfill = 'free',
+  // no row at all = null). Read inside the transaction so concurrent
+  // webhooks see consistent prior-state.
   await prisma.$transaction(async (tx) => {
+    const prior = await tx.subscription.findUnique({
+      where:  { userId: internalUserId },
+      select: { tier: true },
+    });
+
     await tx.subscription.upsert({
       where: { userId: internalUserId },
       update: {
@@ -151,6 +195,14 @@ async function handleSubscriptionCreated(event: SubscriptionCreatedEvent): Promi
         paddleCustomerId: data.customerId,
         tierUpdatedAt:    new Date(),
       },
+    });
+
+    await recordTierTransition(tx, {
+      userId:          internalUserId,
+      fromTier:        prior?.tier ?? null,
+      toTier:          tier,
+      paddleEventType: event.eventType,
+      paddleEventId:   event.eventId,
     });
   });
 
@@ -211,6 +263,13 @@ async function handleSubscriptionUpdated(event: SubscriptionUpdatedEvent): Promi
         where: { id: existing.userId },
         data:  { tierUpdatedAt: new Date() },
       });
+      await recordTierTransition(tx, {
+        userId:          existing.userId,
+        fromTier:        existing.tier,
+        toTier:          tier,
+        paddleEventType: event.eventType,
+        paddleEventId:   event.eventId,
+      });
     }
   });
 
@@ -230,7 +289,7 @@ async function handleSubscriptionCanceled(event: SubscriptionCanceledEvent): Pro
   const data = event.data;
   const existing = await prisma.subscription.findUnique({
     where:  { paddleSubscriptionId: data.id },
-    select: { userId: true },
+    select: { userId: true, tier: true },
   });
 
   if (!existing) {
@@ -252,6 +311,13 @@ async function handleSubscriptionCanceled(event: SubscriptionCanceledEvent): Pro
     await tx.user.update({
       where: { id: existing.userId },
       data:  { tierUpdatedAt: new Date() },
+    });
+    await recordTierTransition(tx, {
+      userId:          existing.userId,
+      fromTier:        existing.tier,
+      toTier:          'free',
+      paddleEventType: event.eventType,
+      paddleEventId:   event.eventId,
     });
   });
 }
@@ -290,6 +356,13 @@ async function handleSubscriptionPaused(event: SubscriptionPausedEvent): Promise
         where: { id: existing.userId },
         data:  { tierUpdatedAt: new Date() },
       });
+      await recordTierTransition(tx, {
+        userId:          existing.userId,
+        fromTier:        existing.tier,
+        toTier:          'free',
+        paddleEventType: event.eventType,
+        paddleEventId:   event.eventId,
+      });
     }
   });
 }
@@ -327,6 +400,13 @@ async function handleTransactionCompleted(event: TransactionCompletedEvent): Pro
       await tx.user.update({
         where: { id: existing.userId },
         data:  { tierUpdatedAt: new Date() },
+      });
+      await recordTierTransition(tx, {
+        userId:          existing.userId,
+        fromTier:        existing.tier,
+        toTier:          restoredTier,
+        paddleEventType: event.eventType,
+        paddleEventId:   event.eventId,
       });
     }
   });
@@ -367,6 +447,13 @@ async function handlePaymentFailed(event: TransactionPaymentFailedEvent): Promis
       await tx.user.update({
         where: { id: existing.userId },
         data:  { tierUpdatedAt: new Date() },
+      });
+      await recordTierTransition(tx, {
+        userId:          existing.userId,
+        fromTier:        existing.tier,
+        toTier:          'free',
+        paddleEventType: event.eventType,
+        paddleEventId:   event.eventId,
       });
     }
   });
@@ -461,6 +548,13 @@ async function handleAdjustment(event: AdjustmentCreatedEvent | AdjustmentUpdate
     await tx.user.update({
       where: { id: existing.userId },
       data:  { tierUpdatedAt: new Date() },
+    });
+    await recordTierTransition(tx, {
+      userId:          existing.userId,
+      fromTier:        existing.tier,
+      toTier:          'free',
+      paddleEventType: event.eventType,
+      paddleEventId:   event.eventId,
     });
   });
 
