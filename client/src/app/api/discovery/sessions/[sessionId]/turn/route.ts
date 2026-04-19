@@ -67,6 +67,31 @@ function buildStreamResponse(
   r.headers.set('X-Question-Count', String(count));
   return r;
 }
+
+/**
+ * Fire the synthesis Inngest event and mark the DiscoverySession
+ * complete. Shared by every path that tells the client "we're
+ * synthesising" — the synthesis-transition stream path (handled
+ * inline in POST because it also emits a reflection stream) AND the
+ * JSON-only paths that were previously returning `{ status:
+ * 'synthesizing' }` without actually triggering anything.
+ *
+ * Both the Inngest send and the DB update are idempotent — duplicate
+ * events land on the same Inngest run (deduped by sessionId in the
+ * function's upsert patterns) and a repeated status=COMPLETE write
+ * is a no-op on rows already flagged.
+ */
+async function triggerSynthesis(args: { sessionId: string; userId: string }): Promise<void> {
+  await inngest.send({
+    name: 'discovery/synthesis.requested',
+    data: { sessionId: args.sessionId, userId: args.userId },
+  });
+  await prisma.discoverySession.update({
+    where:  { id: args.sessionId },
+    data:   { status: 'COMPLETE', completedAt: new Date() },
+    select: { id: true },
+  });
+}
 /** POST — process one discovery turn, stream the next question, or trigger synthesis. */
 export async function POST(
   req:     NextRequest,
@@ -207,7 +232,16 @@ export async function POST(
         const skipCtx = rawField !== 'psych_probe' ? { ...state.context, [activeField]: { ...state.context[activeField], confidence: MIN_FIELD_CONFIDENCE } } : state.context;
         const skipped = { ...applyUpdate({ ...state, context: skipCtx }, {}), consecutiveMisses: 0 };
         await saveSession(sessionId, skipped);
-        if (!skipped.activeField) return NextResponse.json({ status: 'synthesizing' });
+        if (!skipped.activeField) {
+          // All fields exhausted after a skip — fire synthesis and mark
+          // the session COMPLETE before responding. Previously this path
+          // returned { status: 'synthesizing' } without triggering the
+          // Inngest job, which left the session orphaned — the client
+          // spun on ThinkingPanel forever with no background work to
+          // resolve it.
+          await triggerSynthesis({ sessionId, userId });
+          return NextResponse.json({ status: 'synthesizing' });
+        }
         return buildStreamResponse(generateQuestion(skipped.activeField, skipped.phase as never, skipped.context, {}, skipped.audienceType ?? undefined, history, skipped.askedFields, lifecycleBlock || undefined), conversationId, skipped.phase, skipped.questionCount);
       }
       await saveSession(sessionId, { ...state, consecutiveMisses: 1 });
@@ -319,7 +353,17 @@ export async function POST(
       ref.headers.set('X-Synthesis-Transition', 'true'); return ref;
     }
     const nextField = nextState.activeField;
-    if (!nextField) return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
+    if (!nextField) {
+      // Interview ran out of scoreable fields but canSynthesise() above
+      // returned false (not yet at 80% readiness). Still no further
+      // question to ask — fire synthesis and mark COMPLETE so the
+      // Inngest job actually runs. The previous path returned
+      // { status: 'synthesizing' } without triggering anything, which
+      // is how the production-stuck session ended up with
+      // synthesisStep=null + status=ACTIVE forever.
+      await triggerSynthesis({ sessionId, userId });
+      return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
+    }
     if (detectsPricingChange(message) && !state.pricingProbed) { await saveSession(sessionId, { ...nextState, pricingProbed: true }); return buildStreamResponse(generatePricingFollowUp(message, history, nextState.audienceType ?? undefined), conversationId, nextState.phase, nextState.questionCount); }
 
     // If the next field is a follow-up slot, pass the topic and clear
