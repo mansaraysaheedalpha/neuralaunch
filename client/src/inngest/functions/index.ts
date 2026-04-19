@@ -11,3 +11,4 @@ export { roadmapNudgeFunction }        from './roadmap-nudge-function';
 export { continuationBriefFunction }   from './continuation-brief-function';
 export { lifecycleTransitionFunction } from './lifecycle-transition-function';
 export { usageAnomalyDetectionFunction } from './usage-anomaly-detection-function';
+export { paddleReconciliationFunction } from './paddle-reconciliation-function';
