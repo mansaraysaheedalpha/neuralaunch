@@ -5,7 +5,7 @@
 // and delegates to ResearchFlow with standalone=true. No duplicated
 // state machine — the flow component handles everything.
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { ResearchFlow } from '@/app/(app)/discovery/roadmap/[id]/research/ResearchFlow';
@@ -20,6 +20,11 @@ export default function StandaloneResearchPage() {
   const [roadmapId, setRoadmapId] = useState<string | null>(null);
   const [loading, setLoading]     = useState(true);
   const [seedQuery, setSeedQuery] = useState<string | undefined>(undefined);
+  const [meterRefreshKey, setMeterRefreshKey] = useState(0);
+
+  const handleToolCallComplete = useCallback(() => {
+    setMeterRefreshKey(k => k + 1);
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -75,7 +80,7 @@ export default function StandaloneResearchPage() {
         <h1 className="text-lg font-bold text-foreground">Research Tool</h1>
       </div>
 
-      <UsageMeter tool="research" />
+      <UsageMeter tool="research" refreshKey={meterRefreshKey} />
 
       <ResearchFlow
         roadmapId={roadmapId}
@@ -84,6 +89,7 @@ export default function StandaloneResearchPage() {
         onClose={() => { window.location.href = '/tools'; }}
         standalone
         prePopulatedQuery={seedQuery}
+        onToolCallComplete={handleToolCallComplete}
       />
     </div>
   );

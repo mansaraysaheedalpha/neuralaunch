@@ -39,6 +39,10 @@ export default function StandaloneComposerPage() {
   const [output,    setOutput]    = useState<ComposerOutput | null>(null);
   const [error,     setError]     = useState<string | null>(null);
   const [seedDraft, setSeedDraft] = useState<string | undefined>(undefined);
+  const [meterRefreshKey, setMeterRefreshKey] = useState(0);
+  const bumpMeter = useCallback(() => {
+    setMeterRefreshKey(k => k + 1);
+  }, []);
 
   // Auto-detect the most recent roadmap and any inbound packager handoff.
   useEffect(() => {
@@ -103,8 +107,10 @@ export default function StandaloneComposerPage() {
     } catch {
       setError('Network error — please try again.');
       setStage('context');
+    } finally {
+      bumpMeter();
     }
-  }, [roadmapId]);
+  }, [roadmapId, bumpMeter]);
 
   if (stage === 'loading') {
     return (
@@ -144,7 +150,7 @@ export default function StandaloneComposerPage() {
         <h1 className="text-lg font-bold text-foreground">Outreach Composer</h1>
       </div>
 
-      <UsageMeter tool="composer" />
+      <UsageMeter tool="composer" refreshKey={meterRefreshKey} />
 
       {error && (
         <p className="text-xs text-red-500 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">{error}</p>
@@ -182,6 +188,7 @@ export default function StandaloneComposerPage() {
           roadmapId={roadmapId}
           taskId="standalone"
           onDone={() => setStage('done')}
+          onToolCallComplete={bumpMeter}
         />
       )}
 

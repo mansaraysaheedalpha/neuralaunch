@@ -33,6 +33,10 @@ export default function StandalonePackagerPage() {
   const [adjustments,  setAdjustments]  = useState(0);
   const [pending,      setPending]      = useState(false);
   const [error,        setError]        = useState<string | null>(null);
+  const [meterRefreshKey, setMeterRefreshKey] = useState(0);
+  const bumpMeter = useCallback(() => {
+    setMeterRefreshKey(k => k + 1);
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -83,8 +87,10 @@ export default function StandalonePackagerPage() {
       setStage('context');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error'); setStage('intro');
+    } finally {
+      bumpMeter();
     }
-  }, [roadmapId, draft]);
+  }, [roadmapId, draft, bumpMeter]);
 
   const sendContextAdjustment = useCallback(async (message: string) => {
     if (!roadmapId || !sessionId) return;
@@ -99,8 +105,8 @@ export default function StandalonePackagerPage() {
       setContext(json.context); setAgentMessage(json.message);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');
-    } finally { setPending(false); }
-  }, [roadmapId, sessionId]);
+    } finally { setPending(false); bumpMeter(); }
+  }, [roadmapId, sessionId, bumpMeter]);
 
   const generatePackage = useCallback(async () => {
     if (!roadmapId || !sessionId || !context) return;
@@ -115,8 +121,10 @@ export default function StandalonePackagerPage() {
       setPkg(json.package); setStage('output');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error'); setStage('context');
+    } finally {
+      bumpMeter();
     }
-  }, [roadmapId, sessionId, context]);
+  }, [roadmapId, sessionId, context, bumpMeter]);
 
   const sendAdjustment = useCallback(async (request: string) => {
     if (!roadmapId || !sessionId) return;
@@ -134,8 +142,8 @@ export default function StandalonePackagerPage() {
       setPkg(json.package); setAdjustments(json.round);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');
-    } finally { setPending(false); }
-  }, [roadmapId, sessionId]);
+    } finally { setPending(false); bumpMeter(); }
+  }, [roadmapId, sessionId, bumpMeter]);
 
   if (stage === 'loading') {
     return <div className="flex items-center justify-center py-24"><Loader2 className="size-6 text-primary animate-spin" /></div>;
@@ -156,7 +164,7 @@ export default function StandalonePackagerPage() {
         <h1 className="text-lg font-bold text-foreground flex items-center gap-2"><Package className="size-4 text-primary" />Service Packager</h1>
       </div>
 
-      <UsageMeter tool="packager" />
+      <UsageMeter tool="packager" refreshKey={meterRefreshKey} />
 
       {error && <p className="text-xs text-red-500 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">{error}</p>}
 

@@ -17,6 +17,8 @@ export interface RolePlayChatProps {
   taskId:         string;
   otherPartyName: string;
   onEnd:          () => void;
+  /** Fired after every roleplay turn completes (success or error). */
+  onToolCallComplete?: () => void;
 }
 
 /** Rehearsal chat. Calls onEnd when capped or founder ends early. */
@@ -25,6 +27,7 @@ export function RolePlayChat({
   taskId,
   otherPartyName,
   onEnd,
+  onToolCallComplete,
 }: RolePlayChatProps) {
   const [history,    setHistory]    = useState<RolePlayTurn[]>([]);
   const [draft,      setDraft]      = useState('');
@@ -98,8 +101,9 @@ export function RolePlayChat({
       setHistory(prev => prev.slice(0, -1));
     } finally {
       setSubmitting(false);
+      onToolCallComplete?.();
     }
-  }, [draft, submitting, capped, history, roadmapId, taskId]);
+  }, [draft, submitting, capped, history, roadmapId, taskId, onToolCallComplete]);
 
   const turnDisplay = `Turn ${Math.max(currentTurn, 1)}/${ROLEPLAY_HARD_CAP_TURNS}`;
   const nearCap = currentTurn >= ROLEPLAY_WARNING_TURN && !capped;

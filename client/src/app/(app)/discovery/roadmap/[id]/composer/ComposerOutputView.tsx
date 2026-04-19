@@ -20,6 +20,8 @@ export interface ComposerOutputViewProps {
   roadmapId: string;
   taskId:    string;
   onDone:    () => void;
+  /** Fired after a regenerate call completes (success or error). */
+  onToolCallComplete?: () => void;
 }
 
 /**
@@ -36,6 +38,7 @@ export function ComposerOutputView({
   roadmapId,
   taskId,
   onDone,
+  onToolCallComplete,
 }: ComposerOutputViewProps) {
   const [messages, setMessages] = useState<ComposerMessage[]>(output.messages);
   const [sentIds,  setSentIds]  = useState<Set<string>>(new Set());
@@ -88,8 +91,10 @@ export function ComposerOutputView({
       }));
     } catch {
       setRegenErr('Network error — please try again.');
+    } finally {
+      onToolCallComplete?.();
     }
-  }, [roadmapId, taskId]);
+  }, [roadmapId, taskId, onToolCallComplete]);
 
   const handleCopyAll = useCallback(async () => {
     const allText = messages.map(m => m.body).join('\n\n---\n\n');
