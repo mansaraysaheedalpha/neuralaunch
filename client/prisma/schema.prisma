@@ -122,6 +122,13 @@ model User {
  * distinguishes founding-member rows from standard rows on the same
  * product. `isFoundingMember` is denormalised from priceId at write
  * time for fast aggregation in the founding-slot counter.
+ *
+ * IMPORTANT: when implementing any User-deletion flow, call
+ * `cancelPaddleSubscriptionsForUser()` from
+ * `lib/paddle/account-deletion.ts` BEFORE the User row is deleted.
+ * The onDelete: Cascade above wipes this row locally but Paddle
+ * keeps billing the customer's card forever otherwise. ToS §9.6
+ * promises Paddle-side deletion happens; the helper makes it true.
  */
 model Subscription {
   id                   String   @id @default(cuid())
