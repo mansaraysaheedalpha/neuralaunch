@@ -23,6 +23,7 @@ import {
   archiveExcessVenturesOnDowngrade,
   restoreArchivedVenturesOnUpgrade,
 } from '@/lib/lifecycle/tier-limits';
+import { sendPaymentFailedEmail } from '@/lib/email/templates/payment-failed';
 
 type Tx = Prisma.TransactionClient;
 
@@ -602,7 +603,11 @@ async function handlePaymentFailed(event: TransactionPaymentFailedEvent): Promis
   // and restore the paid tier the moment a retry succeeds.
   const existing = await prisma.subscription.findUnique({
     where:  { paddleSubscriptionId: data.subscriptionId },
-    select: { userId: true, tier: true },
+    select: {
+      userId: true,
+      tier:   true,
+      user:   { select: { email: true, name: true } },
+    },
   });
   if (!existing) {
     logger.warn('Paddle payment_failed for unknown subscription', {
@@ -635,6 +640,28 @@ async function handlePaymentFailed(event: TransactionPaymentFailedEvent): Promis
       await archiveExcessVenturesOnDowngrade(existing.userId, 'free', tx);
     }
   });
+
+  // Dunning email — fired AFTER the transaction commits so a failed
+  // email never rolls back the tier demotion. The send helper has its
+  // own 24h-per-user cooldown so Paddle's ~4-retry storm across 14 days
+  // doesn't trigger 4 separate emails. Try/catch wraps so transport
+  // failures never bubble up and 500 the webhook.
+  if (existing.tier !== 'free' && existing.user?.email) {
+    try {
+      await sendPaymentFailedEmail({
+        userId:    existing.userId,
+        email:     existing.user.email,
+        name:      existing.user.name,
+        priorTier: existing.tier,
+      });
+    } catch (err) {
+      logger.error(
+        'Dunning email dispatch failed — continuing webhook OK',
+        err instanceof Error ? err : new Error(String(err)),
+        { userId: existing.userId },
+      );
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
