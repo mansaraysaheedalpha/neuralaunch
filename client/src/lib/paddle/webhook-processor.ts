@@ -286,22 +286,74 @@ async function handleSubscriptionPaused(event: SubscriptionPausedEvent): Promise
 async function handleTransactionCompleted(event: TransactionCompletedEvent): Promise<void> {
   const data = event.data;
   if (!data.subscriptionId) return;
-  await prisma.subscription.updateMany({
-    where: { paddleSubscriptionId: data.subscriptionId },
-    data:  { status: 'active' },
+
+  // Scope the activation update to non-canceled rows so a late
+  // transaction.completed event arriving after subscription.canceled
+  // (rare event reordering during Paddle outages) cannot resurrect a
+  // terminated subscription. Also re-resolves and restores the tier
+  // from the row's existing priceId — this is the recovery path out
+  // of past_due, where handlePaymentFailed demoted tier='free' to
+  // suspend paid access during dunning. Once a renewal payment
+  // succeeds, the user's paid tier snaps back here.
+  const existing = await prisma.subscription.findFirst({
+    where:  { paddleSubscriptionId: data.subscriptionId, status: { not: 'canceled' } },
+    select: { userId: true, tier: true, priceId: true },
+  });
+  if (!existing) return;
+
+  const { tier: restoredTier } = resolveTier(existing.priceId);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.subscription.update({
+      where: { paddleSubscriptionId: data.subscriptionId! },
+      data:  { status: 'active', tier: restoredTier },
+    });
+    if (existing.tier !== restoredTier) {
+      await tx.user.update({
+        where: { id: existing.userId },
+        data:  { tierUpdatedAt: new Date() },
+      });
+    }
   });
 }
 
 // ---------------------------------------------------------------------------
-// transaction.payment_failed — triggers dunning UI
+// transaction.payment_failed — triggers dunning UI + suspends access
 // ---------------------------------------------------------------------------
 
 async function handlePaymentFailed(event: TransactionPaymentFailedEvent): Promise<void> {
   const data = event.data;
   if (!data.subscriptionId) return;
-  await prisma.subscription.updateMany({
-    where: { paddleSubscriptionId: data.subscriptionId },
-    data:  { status: 'past_due' },
+
+  // Demote tier to 'free' alongside status='past_due'. Paddle runs
+  // ~14 days of retry attempts; without the demotion the user keeps
+  // full paid access throughout, contradicting ToS §6.4 ("access to
+  // paid features may be temporarily suspended") and burning AI
+  // spend on a card that may never recover. The Subscription row
+  // KEEPS its priceId, so handleTransactionCompleted can re-derive
+  // and restore the paid tier the moment a retry succeeds.
+  const existing = await prisma.subscription.findUnique({
+    where:  { paddleSubscriptionId: data.subscriptionId },
+    select: { userId: true, tier: true },
+  });
+  if (!existing) {
+    logger.warn('Paddle payment_failed for unknown subscription', {
+      paddleSubscriptionId: data.subscriptionId,
+    });
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.subscription.update({
+      where: { paddleSubscriptionId: data.subscriptionId! },
+      data:  { status: 'past_due', tier: 'free' },
+    });
+    if (existing.tier !== 'free') {
+      await tx.user.update({
+        where: { id: existing.userId },
+        data:  { tierUpdatedAt: new Date() },
+      });
+    }
   });
 }
 

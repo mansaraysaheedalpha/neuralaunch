@@ -127,7 +127,7 @@ export function BillingSection({
       )}
       {status === 'past_due' && (
         <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
-          Payment failed on your last renewal. Update your card in the portal to keep your subscription active.
+          Payment failed on your last renewal — paid features are temporarily suspended while we retry. Update your card in the portal to restore access.
         </p>
       )}
       {status === 'paused' && (
