@@ -15,7 +15,7 @@ import {
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { resolveTier, type Tier } from '../tiers';
-import { checkFoundingOverflow } from '../founding-members';
+import { checkFoundingOverflow, invalidateFoundingCountCache } from '../founding-members';
 import {
   archiveExcessVenturesOnDowngrade,
   restoreArchivedVenturesOnUpgrade,
@@ -126,6 +126,7 @@ export async function handleSubscriptionCreated(event: SubscriptionCreatedEvent)
 
   if (isFounder) {
     await checkFoundingOverflow();
+    await invalidateFoundingCountCache();
   }
 }
 
@@ -217,7 +218,10 @@ export async function handleSubscriptionUpdated(
         paddleEventId:   event.eventId,
       });
     });
-    if (isFounder) await checkFoundingOverflow();
+    if (isFounder) {
+      await checkFoundingOverflow();
+      await invalidateFoundingCountCache();
+    }
     return;
   }
 
@@ -274,6 +278,7 @@ export async function handleSubscriptionUpdated(
 
   if (isFounder) {
     await checkFoundingOverflow();
+    await invalidateFoundingCountCache();
   }
 }
 

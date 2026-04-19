@@ -2,7 +2,11 @@
 import 'server-only';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { getRedisClient } from '@/lib/redis';
 import type { Tier } from './tiers';
+
+const FOUNDING_COUNT_CACHE_KEY    = 'founding-slots:v1';
+const FOUNDING_COUNT_CACHE_TTL_S  = 60;
 
 /**
  * Total founding slots across the launch. Hard-coded to match the
@@ -49,11 +53,68 @@ const FOUNDING_OVERFLOW_ALERT = 55;
  *     so we'll see if the leak grows unexpectedly.
  */
 
-/** Currently-minted founding-member subscriptions (across all tiers). */
+/**
+ * Currently-minted founding-member subscriptions (across all tiers).
+ *
+ * Cached in Redis (`founding-slots:v1`, 60s TTL) because the pricing
+ * page is the most-rendered page on the site and each render used
+ * to run a Postgres count() query. Invalidated from the webhook
+ * processor (see invalidateFoundingCountCache) when
+ * isFoundingMember=true is written. Fails open: Redis outage falls
+ * through to the direct DB count — no functional regression.
+ */
 export async function getFoundingMemberCount(): Promise<number> {
-  return prisma.subscription.count({
+  const redis = getRedisClient();
+
+  if (redis) {
+    try {
+      const cached = await redis.get<number | string>(FOUNDING_COUNT_CACHE_KEY);
+      if (cached !== null && cached !== undefined) {
+        const n = typeof cached === 'number' ? cached : parseInt(cached, 10);
+        if (Number.isFinite(n)) return n;
+      }
+    } catch (err) {
+      logger.warn('Redis read failed for founding-slots cache', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  const count = await prisma.subscription.count({
     where: { isFoundingMember: true },
   });
+
+  if (redis) {
+    try {
+      await redis.set(FOUNDING_COUNT_CACHE_KEY, count, { ex: FOUNDING_COUNT_CACHE_TTL_S });
+    } catch (err) {
+      logger.warn('Redis write failed for founding-slots cache', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  return count;
+}
+
+/**
+ * Invalidate the founding-slots Redis cache. Called by the webhook
+ * processor when a subscription flips to isFoundingMember=true so
+ * the next pricing-page render reflects the new slot count
+ * immediately instead of waiting out the 60s TTL.
+ */
+export async function invalidateFoundingCountCache(): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis) return;
+  try {
+    await redis.del(FOUNDING_COUNT_CACHE_KEY);
+  } catch (err) {
+    // Failure here is harmless — the next render gets stale data for
+    // up to 60s, not a correctness issue.
+    logger.warn('Redis cache invalidation failed for founding-slots', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 /** True if there is at least one unclaimed founding slot. */
