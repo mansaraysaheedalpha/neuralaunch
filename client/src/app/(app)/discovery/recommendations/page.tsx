@@ -3,7 +3,19 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
+import { TIER_VENTURE_LIMITS, type Tier } from '@/lib/paddle/tiers';
 import { VentureCard } from './VentureCard';
+import {
+  ArchivedVenturesSection,
+  type ArchivedVentureEntry,
+  type ActiveVentureEntry,
+} from './ArchivedVenturesSection';
+
+const TIER_LABELS: Record<Tier, 'Free' | 'Execute' | 'Compound'> = {
+  free:     'Free',
+  execute:  'Execute',
+  compound: 'Compound',
+};
 
 /**
  * RecommendationsPage — venture-aware Sessions tab.
@@ -18,13 +30,18 @@ export default async function RecommendationsPage() {
   if (!session?.user?.id) redirect('/signin');
   const userId = session.user.id;
 
-  // Load ventures with cycles + active roadmap progress
+  // Load ventures with cycles + active roadmap progress. `archivedAt`
+  // is pulled so the UI can split active/paused/completed (unarchived)
+  // from archived cards — the webhook processor sets archivedAt on
+  // tier-downgrade overflow, and the explicit-reactivate UI surfaces
+  // those rows in their own section.
   const ventures = await prisma.venture.findMany({
     where:   { userId },
     orderBy: { updatedAt: 'desc' },
     take:    50,
     select: {
       id: true, name: true, status: true, currentCycleId: true,
+      archivedAt: true,
       cycles: {
         orderBy: { cycleNumber: 'asc' },
         select: {
@@ -35,6 +52,20 @@ export default async function RecommendationsPage() {
       },
     },
   });
+
+  // Load tier + cap once so the archived section can show the right
+  // confirmation copy ("You can have N active on your Execute plan…")
+  // and the swap action on the server can be audited against the
+  // same cap. Defaults to 'free' when no Subscription row exists —
+  // matching assertVentureLimitNotReached's resolution logic.
+  const subscription = await prisma.subscription.findUnique({
+    where:  { userId },
+    select: { tier: true },
+  });
+  const tier: Tier = (subscription?.tier === 'execute' || subscription?.tier === 'compound')
+    ? subscription.tier
+    : 'free';
+  const cap = TIER_VENTURE_LIMITS[tier];
 
   // For active ventures, load the active roadmap's progress for the bar
   const progressMap = new Map<string, { completedTasks: number; totalTasks: number }>();
@@ -63,9 +94,29 @@ export default async function RecommendationsPage() {
     select:  { id: true, path: true, createdAt: true, roadmap: { select: { status: true } } },
   }) : [];
 
-  const active    = ventures.filter(v => v.status === 'active');
-  const paused    = ventures.filter(v => v.status === 'paused');
-  const completed = ventures.filter(v => v.status === 'completed');
+  // Archived ventures are rendered in their own dedicated section;
+  // exclude them from the active/paused/completed buckets so they
+  // don't appear twice. A venture keeps its original `status` when
+  // archived — only `archivedAt` toggles — so we filter here.
+  const unarchived = ventures.filter(v => v.archivedAt === null);
+  const active     = unarchived.filter(v => v.status === 'active');
+  const paused     = unarchived.filter(v => v.status === 'paused');
+  const completed  = unarchived.filter(v => v.status === 'completed');
+
+  const archived: ArchivedVentureEntry[] = ventures
+    .filter(v => v.archivedAt !== null)
+    .map(v => ({
+      id:         v.id,
+      name:       v.name,
+      // Non-null checked by the filter above.
+      archivedAt: v.archivedAt!.toISOString(),
+      cycleCount: v.cycles.length,
+    }));
+
+  const activeOptions: ActiveVentureEntry[] = active.map(v => ({
+    id:   v.id,
+    name: v.name,
+  }));
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-10 flex flex-col gap-8">
@@ -125,7 +176,19 @@ export default async function RecommendationsPage() {
             </section>
           )}
 
-          {active.length === 0 && paused.length === 0 && completed.length === 0 && (
+          {/* Archived ventures — tier-downgrade overflow, read-only with
+              an explicit "Make active" swap. Hidden when empty. */}
+          <ArchivedVenturesSection
+            archived={archived}
+            activeOptions={activeOptions}
+            cap={cap}
+            tierLabel={TIER_LABELS[tier]}
+          />
+
+          {active.length === 0
+            && paused.length === 0
+            && completed.length === 0
+            && archived.length === 0 && (
             <p className="text-sm text-muted-foreground">
               No ventures yet.{' '}
               <Link href="/discovery" className="underline underline-offset-2 hover:text-foreground">
