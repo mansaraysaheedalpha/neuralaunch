@@ -85,6 +85,17 @@ export interface DiscoverySessionState {
    */
   pendingOutcomeRecommendationId: string | null;
   dismissPendingOutcomeAndRetry:  () => Promise<void>;
+  /**
+   * Server-returned error message for cases where session creation
+   * was refused with 400 (validation failure — most commonly the
+   * firstMessage exceeded the 12k character cap) or 403 (tier-limit
+   * refusal — Free-tier lifetime cap). The chat UI renders this as
+   * a banner with an upgrade / retry CTA instead of leaving the
+   * screen blank. The server page at /discovery catches the 403
+   * pre-emptively; this surface is the defensive second layer.
+   */
+  sessionInitError:      string | null;
+  clearSessionInitError: () => void;
 }
 
 interface ResumeState {
@@ -119,6 +130,10 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
   // modal in front of the founder before the new session can be
   // created. Cleared by dismissPendingOutcomeAndRetry.
   const [pendingOutcomeRecommendationId, setPendingOutcomeRecommendationId] = useState<string | null>(null);
+  // Surfaces 400/403 responses from POST /api/discovery/sessions so the
+  // chat renders a clear banner instead of going blank. Cleared by the
+  // chat UI when the user edits their draft or navigates.
+  const [sessionInitError, setSessionInitError] = useState<string | null>(null);
 
   const sessionIdRef        = useRef<string | null>(resume?.sessionId ?? null);
   const conversationIdRef   = useRef<string | null>(resume?.conversationId ?? null);
@@ -162,7 +177,23 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ firstMessage, acknowledgePendingOutcome }),
       });
-      if (!res.ok) throw new Error(`Session create failed: ${res.status}`);
+      if (!res.ok) {
+        // 403 = tier-limit refusal (Free-tier lifetime cap).
+        // 400 = validation failure (most commonly firstMessage >12k chars).
+        // Both responses carry a human-readable error message on the
+        // body — surface it through sessionInitError so the chat renders
+        // a legible banner instead of a silent blank screen. Any other
+        // non-ok status falls through to the generic throw.
+        if (res.status === 403 || res.status === 400) {
+          const json = await res.json().catch(() => ({})) as { error?: string };
+          const fallback = res.status === 403
+            ? "You've reached the free-tier discovery limit. Upgrade to Execute to continue."
+            : 'We could not start your session. Please try again with a shorter message.';
+          setSessionInitError(json.error ?? fallback);
+          return null;
+        }
+        throw new Error(`Session create failed: ${res.status}`);
+      }
 
       // Concern 5 trigger #3 — server returned 200 without creating
       // the session. Surface the pending recommendation ID and let
@@ -471,5 +502,7 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
     retryRecommendation,
     pendingOutcomeRecommendationId,
     dismissPendingOutcomeAndRetry,
+    sessionInitError,
+    clearSessionInitError: () => setSessionInitError(null),
   };
 }

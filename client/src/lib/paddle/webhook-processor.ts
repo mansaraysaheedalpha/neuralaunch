@@ -17,8 +17,12 @@ import {
 import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
-import { resolveTier } from './tiers';
+import { resolveTier, type Tier } from './tiers';
 import { checkFoundingOverflow } from './founding-members';
+import {
+  archiveExcessVenturesOnDowngrade,
+  restoreArchivedVenturesOnUpgrade,
+} from '@/lib/lifecycle/tier-limits';
 
 type Tx = Prisma.TransactionClient;
 
@@ -252,6 +256,10 @@ async function handleSubscriptionCreated(event: SubscriptionCreatedEvent): Promi
       paddleEventType: event.eventType,
       paddleEventId:   event.eventId,
     });
+    // Re-subscription case: a previously-canceled user with archived
+    // ventures should have them restored up to the new cap.
+    // Fresh-signup case: no archived ventures to restore; no-op.
+    await restoreArchivedVenturesOnUpgrade(internalUserId, tier as Tier, tx);
   });
 
   logger.info('Paddle subscription.created processed', {
@@ -408,6 +416,12 @@ async function handleSubscriptionUpdated(
         paddleEventType: event.eventType,
         paddleEventId:   event.eventId,
       });
+      // Venture preservation across tier transitions:
+      //   downgrade (e.g. compound→execute) → archive excess
+      //   upgrade (e.g. execute→compound or return re-subscription) → restore archived up to new cap
+      // Both helpers are no-ops when there's nothing to do.
+      await archiveExcessVenturesOnDowngrade(existing.userId, tier as Tier, tx);
+      await restoreArchivedVenturesOnUpgrade(existing.userId, tier as Tier, tx);
     } else if (Object.keys(historyPatch).length > 0) {
       // Same-tier update that still advances user history (e.g. a
       // rare priceId-level flip to founding without changing tier).
@@ -464,6 +478,8 @@ async function handleSubscriptionCanceled(event: SubscriptionCanceledEvent): Pro
       paddleEventType: event.eventType,
       paddleEventId:   event.eventId,
     });
+    // Free tier has 0 venture slots — archive everything active.
+    await archiveExcessVenturesOnDowngrade(existing.userId, 'free', tx);
   });
 }
 
@@ -514,6 +530,9 @@ async function handleSubscriptionPaused(event: SubscriptionPausedEvent): Promise
         paddleEventType: event.eventType,
         paddleEventId:   event.eventId,
       });
+      // Pause demotes to Free — archive all active ventures. Resume
+      // will route through handleSubscriptionUpdated and restore.
+      await archiveExcessVenturesOnDowngrade(existing.userId, 'free', tx);
     }
   });
 }
@@ -559,6 +578,9 @@ async function handleTransactionCompleted(event: TransactionCompletedEvent): Pro
         paddleEventType: event.eventType,
         paddleEventId:   event.eventId,
       });
+      // Recovery from past_due: tier came back up, so restore any
+      // ventures that were archived during the dunning window.
+      await restoreArchivedVenturesOnUpgrade(existing.userId, restoredTier as Tier, tx);
     }
   });
 }
@@ -606,6 +628,11 @@ async function handlePaymentFailed(event: TransactionPaymentFailedEvent): Promis
         paddleEventType: event.eventType,
         paddleEventId:   event.eventId,
       });
+      // Dunning demotion: archive active ventures. If the renewal
+      // eventually succeeds, handleTransactionCompleted will call
+      // restoreArchivedVenturesOnUpgrade and the user picks up where
+      // they left off with no manual reactivation needed.
+      await archiveExcessVenturesOnDowngrade(existing.userId, 'free', tx);
     }
   });
 }
@@ -727,6 +754,8 @@ async function handleAdjustment(event: AdjustmentCreatedEvent | AdjustmentUpdate
       paddleEventType: event.eventType,
       paddleEventId:   event.eventId,
     });
+    // Full refund / chargeback → tier=free → archive active ventures.
+    await archiveExcessVenturesOnDowngrade(existing.userId, 'free', tx);
   });
 
   logger.info('Paddle adjustment processed — tier demoted to free', {

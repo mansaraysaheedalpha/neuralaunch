@@ -1163,6 +1163,19 @@ model Venture {
   /// the venture is paused or completed.
   currentCycleId String?
 
+  /// Soft-archive marker. Non-null when the venture has been
+  /// auto-archived due to a tier downgrade that took the user below
+  /// their active-venture count (Compound→Execute with 3 ventures
+  /// keeps the 1 most-recently-updated active and archives the
+  /// other 2). Archived ventures:
+  ///   - remain fully queryable at the data layer (reads never hide them)
+  ///   - are excluded from `assertVentureLimitNotReached` counts
+  ///   - 403 on new tool actions (coach/composer/research/packager)
+  ///     until unarchived via re-subscription bumping the cap
+  /// An upgrade (or re-subscription at or above the prior peak)
+  /// automatically unarchives up to the new cap, newest-archived first.
+  archivedAt DateTime?
+
   cycles   Cycle[]
   roadmaps Roadmap[]
 
@@ -1171,6 +1184,7 @@ model Venture {
 
   @@index([userId])
   @@index([userId, status])
+  @@index([userId, archivedAt])
 }
 
 /**
