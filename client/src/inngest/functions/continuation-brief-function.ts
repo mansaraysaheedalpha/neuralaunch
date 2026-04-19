@@ -8,6 +8,7 @@ import {
   computeExecutionMetrics,
   generateContinuationBrief,
   loadContinuationEvidence,
+  loadValidationSignal,
 } from '@/lib/continuation';
 import {
   appendResearchLog,
@@ -144,6 +145,19 @@ export const continuationBriefFunction = inngest.createFunction(
       ].filter(b => b.length > 0).join('\n');
     });
 
+    // Load aggregated validation-page signal for this venture so the
+    // brief generator can ground its interpretation in real market
+    // signal. Returns null when no landing page exists — the generator
+    // then runs exactly as before (backward compatible).
+    const validationSignal = await step.run('load-validation-signal', async () => {
+      const roadmap = await prisma.roadmap.findUnique({
+        where:  { id: roadmapId },
+        select: { ventureId: true },
+      });
+      if (!roadmap?.ventureId) return null;
+      return await loadValidationSignal(roadmap.ventureId);
+    });
+
     const briefStep = await step.run('generate-brief', async () => {
       const accumulator: ResearchLogEntry[] = [];
       const brief = await generateContinuationBrief({
@@ -158,6 +172,7 @@ export const continuationBriefFunction = inngest.createFunction(
         roadmapId,
         checkinCoverage:     loaded.checkinCoverage,
         lifecycleBlock:      lifecycleBlock || undefined,
+        validationSignal:    validationSignal ?? null,
       });
       return { brief, researchLog: accumulator };
     });

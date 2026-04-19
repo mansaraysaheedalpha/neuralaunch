@@ -5,6 +5,13 @@
 **Delivered:** 2026-04-17
 **Spec reference:** [docs/neuralaunch-pricing-spec.md](./neuralaunch-pricing-spec.md)
 
+> **Erratum (2026-04-18):** This report's §5.3 gating map is superseded.
+> The feature-gating table listed validation-page creation as Execute;
+> it is actually Compound and always was. Continuation and fork routes
+> have also moved to Compound per the fix/pre-launch-integrity branch.
+> See [docs/neuralaunch-pricing-spec.md §5.3](./neuralaunch-pricing-spec.md)
+> for the canonical tier gating map.
+
 ---
 
 ## 1. Summary

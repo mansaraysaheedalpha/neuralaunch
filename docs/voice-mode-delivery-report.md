@@ -4,6 +4,13 @@
 **Date:** 2026-04-17
 **Scope:** Web-only initial build per `docs/neuralaunch-voice-mode-spec.md`. Mobile integration is deliberately out of scope for this branch and follows after web validation.
 
+> **Erratum (2026-04-18):** The "STUBBED tier gate" references throughout
+> this report are resolved. Both stubs have been replaced with live
+> tier reads: [`voice/tier-gate.ts`](../client/src/lib/voice/tier-gate.ts)
+> reads `Subscription.tier` and [`voice/client-tier.ts`](../client/src/lib/voice/client-tier.ts)
+> reads `session.user.tier`. Treat this report as historical — the
+> current implementation is the source of truth.
+
 ---
 
 ## Summary

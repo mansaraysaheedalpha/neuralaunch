@@ -37,7 +37,7 @@ const TIERS: Tier[] = [
     monthly: 0,
     annual: 0,
     features: [
-      "Complete discovery interview",
+      "Two discovery interviews",
       "One full recommendation with reasoning",
       "See the alternatives rejected and why",
       "Honest falsification — what would make this wrong",
@@ -77,7 +77,7 @@ const TIERS: Tier[] = [
       "Build brief from real market signal",
       "Continuation brief at cycle end",
       "Fork selection into next cycle",
-      "Full cross-cycle memory",
+      "Cross-venture memory across all 3 of your ventures",
       "3 active ventures simultaneously",
     ],
     cta: "Start with Compound",
@@ -281,6 +281,14 @@ export function PricingSection({ execute, compound }: PricingSectionProps) {
                       </p>
                     )}
                   </>
+                )}
+                {isPaid && (
+                  <div className="mt-3 space-y-1 text-[11px] leading-relaxed text-slate-400">
+                    <p>Renews automatically. Cancel anytime in Settings.</p>
+                    {cycle === "annual" && (
+                      <p>14-day refund on annual plans. Monthly non-refundable.</p>
+                    )}
+                  </div>
                 )}
               </div>
 

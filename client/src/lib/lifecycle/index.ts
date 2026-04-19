@@ -28,6 +28,9 @@ export {
 
 export {
   assertVentureLimitNotReached,
+  assertFreeDiscoverySessionLimit,
+  countFreeDiscoverySessions,
+  FREE_DISCOVERY_SESSION_LIMIT,
 } from './tier-limits';
 
 export {

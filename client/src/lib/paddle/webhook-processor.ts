@@ -9,6 +9,8 @@ import {
   SubscriptionPausedEvent,
   TransactionCompletedEvent,
   TransactionPaymentFailedEvent,
+  AdjustmentCreatedEvent,
+  AdjustmentUpdatedEvent,
 } from '@paddle/paddle-node-sdk';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
@@ -37,6 +39,9 @@ export async function handleWebhookEvent(event: EventEntity): Promise<void> {
       return handleTransactionCompleted(event);
     case EventName.TransactionPaymentFailed:
       return handlePaymentFailed(event);
+    case EventName.AdjustmentCreated:
+    case EventName.AdjustmentUpdated:
+      return handleAdjustment(event);
     default:
       // Every other Paddle event is ignored. Logging at debug level so
       // production noise is contained but the full trail is available
@@ -102,18 +107,29 @@ async function handleSubscriptionCreated(event: SubscriptionCreatedEvent): Promi
   const interval = data.billingCycle?.interval ?? 'month';
   const endDate = periodEnd(data.currentBillingPeriod?.endsAt);
 
+  // Upsert on userId (the natural unique key — Subscription.userId is
+  // @unique, one Subscription per user) rather than paddleSubscriptionId.
+  // The legacy backfill script writes sentinel rows with
+  // paddleSubscriptionId='legacy_free_<userId>' and tier='free'; keying
+  // the upsert on paddleSubscriptionId silently triggered the create
+  // branch when a real Paddle sub arrived, which then collided on the
+  // userId @unique constraint and bubbled a 500 into the webhook
+  // route's after() — the user was charged, Paddle saw a 200, and the
+  // Subscription row stayed stuck as 'free'. Keying on userId overwrites
+  // any prior row (legacy or real) with authoritative Paddle state.
   await prisma.$transaction(async (tx) => {
     await tx.subscription.upsert({
-      where: { paddleSubscriptionId: data.id },
+      where: { userId: internalUserId },
       update: {
-        userId:           internalUserId,
-        paddleCustomerId: data.customerId,
-        status:           data.status,
+        paddleSubscriptionId: data.id,
+        paddleCustomerId:     data.customerId,
+        status:               data.status,
         tier,
-        priceId:          priceId ?? undefined,
-        billingInterval:  interval,
-        isFoundingMember: isFounder,
-        currentPeriodEnd: endDate,
+        priceId:              priceId ?? undefined,
+        billingInterval:      interval,
+        isFoundingMember:     isFounder,
+        cancelAtPeriodEnd:    false,
+        currentPeriodEnd:     endDate,
       },
       create: {
         userId:               internalUserId,
@@ -231,9 +247,35 @@ async function handleSubscriptionCanceled(event: SubscriptionCanceledEvent): Pro
 
 async function handleSubscriptionPaused(event: SubscriptionPausedEvent): Promise<void> {
   const data = event.data;
-  await prisma.subscription.updateMany({
-    where: { paddleSubscriptionId: data.id },
-    data:  { status: 'paused' },
+
+  // Demote tier alongside the paused status. A paused subscription
+  // has stopped billing, so the user is not paying for paid features;
+  // leaving tier at 'compound' would let a paused subscriber keep
+  // unlimited access until Paddle eventually cancels. The paid tier
+  // snaps back when the user resumes (subscription.updated fires with
+  // an active status and resolveTier(priceId) restores the paid tier).
+  const existing = await prisma.subscription.findUnique({
+    where:  { paddleSubscriptionId: data.id },
+    select: { userId: true, tier: true },
+  });
+  if (!existing) {
+    logger.warn('Paddle subscription.paused for unknown subscription', {
+      paddleSubscriptionId: data.id,
+    });
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.subscription.update({
+      where: { paddleSubscriptionId: data.id },
+      data:  { status: 'paused', tier: 'free' },
+    });
+    if (existing.tier !== 'free') {
+      await tx.user.update({
+        where: { id: existing.userId },
+        data:  { tierUpdatedAt: new Date() },
+      });
+    }
   });
 }
 
@@ -260,5 +302,105 @@ async function handlePaymentFailed(event: TransactionPaymentFailedEvent): Promis
   await prisma.subscription.updateMany({
     where: { paddleSubscriptionId: data.subscriptionId },
     data:  { status: 'past_due' },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// adjustment.created / adjustment.updated — refund handling
+// ---------------------------------------------------------------------------
+
+/**
+ * Paddle Billing routes refunds through the Adjustment entity — there
+ * is no dedicated `transaction.refunded` event. A full refund
+ * (action='refund', type='full', status='approved') demotes the user
+ * to Free immediately; a partial refund is logged but leaves the
+ * subscription intact because the user still has valid paid access.
+ *
+ * Idempotency is natural: if tier is already 'free' and status is
+ * already 'canceled' the update is a no-op on semantics. The
+ * updateMany guard on subscriptionId + tier != 'free' would block
+ * duplicate demotions but isn't strictly required — Prisma's update
+ * is itself idempotent for writes of the same shape.
+ */
+async function handleAdjustment(event: AdjustmentCreatedEvent | AdjustmentUpdatedEvent): Promise<void> {
+  const data = event.data;
+
+  // Only approved refunds invalidate access. Pending / rejected /
+  // reversed adjustments never demote — the refund hasn't actually
+  // completed. Chargebacks are handled separately by Paddle support
+  // workflows and intentionally not auto-demoted here.
+  if (data.action !== 'refund' || data.status !== 'approved') {
+    logger.debug('Paddle adjustment: ignored (not an approved refund)', {
+      adjustmentId: data.id,
+      action:       data.action,
+      status:       data.status,
+      type:         data.type,
+    });
+    return;
+  }
+
+  if (!data.subscriptionId) {
+    logger.info('Paddle refund adjustment has no subscriptionId — skipping tier demotion', {
+      adjustmentId: data.id,
+      transactionId: data.transactionId,
+    });
+    return;
+  }
+
+  // Partial refunds: the user still has valid paid access through
+  // currentPeriodEnd. We log for audit but do not demote tier.
+  if (data.type === 'partial') {
+    logger.info('Paddle partial refund — logged without tier demotion', {
+      adjustmentId:        data.id,
+      paddleSubscriptionId: data.subscriptionId,
+    });
+    return;
+  }
+
+  const existing = await prisma.subscription.findUnique({
+    where:  { paddleSubscriptionId: data.subscriptionId },
+    select: { userId: true, tier: true },
+  });
+  if (!existing) {
+    logger.warn('Paddle full refund for unknown subscription', {
+      paddleSubscriptionId: data.subscriptionId,
+      adjustmentId:         data.id,
+    });
+    return;
+  }
+
+  // Idempotency: if the subscription is already free + canceled, a
+  // duplicate webhook is a no-op. We still bump tierUpdatedAt only
+  // when tier actually transitions, so the session callback only
+  // invalidates once.
+  if (existing.tier === 'free') {
+    logger.info('Paddle full refund — tier already free, skipping demotion', {
+      paddleSubscriptionId: data.subscriptionId,
+      adjustmentId:         data.id,
+    });
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.subscription.update({
+      where: { paddleSubscriptionId: data.subscriptionId! },
+      data: {
+        status:            'canceled',
+        tier:              'free',
+        cancelAtPeriodEnd: false,
+        currentPeriodEnd:  new Date(),
+      },
+    });
+    await tx.user.update({
+      where: { id: existing.userId },
+      data:  { tierUpdatedAt: new Date() },
+    });
+  });
+
+  logger.info('Paddle full refund processed — tier demoted to free', {
+    userId:               existing.userId,
+    paddleSubscriptionId: data.subscriptionId,
+    adjustmentId:         data.id,
+    priorTier:            existing.tier,
   });
 }
