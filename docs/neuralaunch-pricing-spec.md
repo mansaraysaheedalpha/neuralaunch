@@ -143,7 +143,7 @@ Create the following entities in the Paddle dashboard:
 | `pri_exec_mo_01` | pro_execute_01 | $29.00 | Monthly | Public |
 | `pri_exec_yr_01` | pro_execute_01 | $279.00 | Annual | Public |
 | `pri_comp_mo_01` | pro_compound_01 | $49.00 | Monthly | Public |
-| `pri_comp_yr_01` | pro_compound_01 | $279.00 | Annual | Public |
+| `pri_comp_yr_01` | pro_compound_01 | $479.00 | Annual | Public |
 | `pri_exec_fnd_01` | pro_execute_01 | $19.00 | Monthly | Hidden |
 | `pri_comp_fnd_01` | pro_compound_01 | $29.00 | Monthly | Hidden |
 

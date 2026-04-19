@@ -106,6 +106,34 @@ model User {
   paddleCustomerId String?       @unique
   subscription     Subscription?
   tierUpdatedAt    DateTime?
+  tierTransitions  TierTransition[]
+
+  // ----- User-level tier history (returning-user personalization) -----
+  //
+  // Complementary to TierTransition (event-level, append-only). These
+  // fields are for fast lookup during hot paths like pricing-page
+  // personalization and welcome-back banners — rather than running a
+  // TierTransition query on every render.
+  //
+  //   lastPaidTier      — highest paid tier the user has ever held.
+  //                       Bumped on upgrade, never downgraded. Persists
+  //                       through cancellation, pause, refund, and
+  //                       chargeback so returning users can be welcomed
+  //                       back into their prior tier's UI.
+  //   wasFoundingMember — true if the user ever held a founding-rate
+  //                       subscription. Locks the founding rate for life
+  //                       on re-subscription (spec §1.2, "grandfathered
+  //                       for the lifetime of the continuous
+  //                       subscription"); we interpret "continuous" as
+  //                       "once a founder, always a founder on the same
+  //                       product" because cancel-and-return with founding
+  //                       pricing is the spirit of the promise.
+  //   firstSubscribedAt — absolute timestamp of first-ever paid
+  //                       subscription. Useful for longevity badges and
+  //                       any future "founding cohort" analytics.
+  lastPaidTier      String?
+  wasFoundingMember Boolean   @default(false)
+  firstSubscribedAt DateTime?
 }
 
 /**
@@ -122,6 +150,13 @@ model User {
  * distinguishes founding-member rows from standard rows on the same
  * product. `isFoundingMember` is denormalised from priceId at write
  * time for fast aggregation in the founding-slot counter.
+ *
+ * IMPORTANT: when implementing any User-deletion flow, call
+ * `cancelPaddleSubscriptionsForUser()` from
+ * `lib/paddle/account-deletion.ts` BEFORE the User row is deleted.
+ * The onDelete: Cascade above wipes this row locally but Paddle
+ * keeps billing the customer's card forever otherwise. ToS §9.6
+ * promises Paddle-side deletion happens; the helper makes it true.
  */
 model Subscription {
   id                   String   @id @default(cuid())
@@ -151,6 +186,42 @@ model Subscription {
 
   @@index([isFoundingMember])
   @@index([status])
+}
+
+/**
+ * TierTransition
+ *
+ * Append-only audit log of every billing-tier change. Written by the
+ * Paddle webhook processor whenever a tier mutation actually occurs
+ * (not on every event — only on transitions). Required for chargeback
+ * dispute evidence (Paddle expects to see when access was granted /
+ * revoked) and useful for any future cohort or churn analysis.
+ *
+ * Never updated, never deleted — appends only. Cascade-deleted when
+ * the User is deleted (post-Paddle-cancellation flow), since the audit
+ * is per-user and a deleted user has no disputes left to defend.
+ */
+model TierTransition {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Tier value before this transition. Null on the very first row
+  /// for a user (no prior tier known when the first webhook lands).
+  fromTier        String?
+  /// Tier value after this transition.
+  toTier          String
+
+  /// Paddle event that drove the change — e.g. 'subscription.updated',
+  /// 'transaction.payment_failed', 'adjustment.updated'. Null only for
+  /// transitions originating outside webhooks (manual operator action).
+  paddleEventType String?
+  /// Paddle event id for forensic correlation against the Paddle dashboard.
+  paddleEventId   String?
+
+  occurredAt      DateTime @default(now())
+
+  @@index([userId, occurredAt])
 }
 
 model PushToken {
@@ -1092,6 +1163,19 @@ model Venture {
   /// the venture is paused or completed.
   currentCycleId String?
 
+  /// Soft-archive marker. Non-null when the venture has been
+  /// auto-archived due to a tier downgrade that took the user below
+  /// their active-venture count (Compound→Execute with 3 ventures
+  /// keeps the 1 most-recently-updated active and archives the
+  /// other 2). Archived ventures:
+  ///   - remain fully queryable at the data layer (reads never hide them)
+  ///   - are excluded from `assertVentureLimitNotReached` counts
+  ///   - 403 on new tool actions (coach/composer/research/packager)
+  ///     until unarchived via re-subscription bumping the cap
+  /// An upgrade (or re-subscription at or above the prior peak)
+  /// automatically unarchives up to the new cap, newest-archived first.
+  archivedAt DateTime?
+
   cycles   Cycle[]
   roadmaps Roadmap[]
 
@@ -1100,6 +1184,7 @@ model Venture {
 
   @@index([userId])
   @@index([userId, status])
+  @@index([userId, archivedAt])
 }
 
 /**

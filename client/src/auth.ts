@@ -8,6 +8,7 @@ import prisma from "@/lib/prisma";
 import type { Adapter } from "next-auth/adapters";
 import { logger } from "./lib/logger";
 import { env } from "@/lib/env";
+import { readTierCache } from "@/lib/auth/tier-cache";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma) as Adapter,
@@ -56,24 +57,31 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (!session.user) return session;
       session.user.id = user.id;
 
-      // Billing tier is embedded in the session so API routes can
-      // gate on session.user.tier without a second database round
-      // trip per request. We are already inside the PrismaAdapter
-      // session callback (database strategy) — the user was fetched
-      // from Postgres milliseconds ago, so the extra findUnique is
-      // cheap and warm-cached.
+      // Billing tier is embedded in the session so API routes can gate
+      // on session.user.tier without a second database round trip per
+      // request. We were previously running findUnique on EVERY
+      // session() call, which fires on every authenticated request
+      // (page render, server action, API route via auth()). On a busy
+      // session this was 60+ identical Subscription queries per minute
+      // per user — the first thing to bottleneck under scale.
       //
-      // The Subscription table exists from migration
-      // 20260417160000_add_paddle_subscription onwards. Pre-migration
-      // sessions or users who have never checked out get null, and
-      // we default them to the free tier. The authoritative source
-      // is always the Subscription row; this is a session cache.
-      const subscription = await prisma.subscription.findUnique({
-        where:  { userId: user.id },
-        select: { tier: true, status: true },
-      });
-      session.user.tier               = (subscription?.tier ?? 'free') as 'free' | 'execute' | 'compound';
-      session.user.subscriptionStatus = subscription?.status ?? 'none';
+      // Now: cache the (tier, status) pair in-process for 30s per user.
+      // Invalidate immediately when User.tierUpdatedAt advances past
+      // the cache entry's snapshot — so a webhook-driven tier change
+      // propagates to the user's next navigation without waiting for
+      // the 30s window to elapse. The webhook processor bumps
+      // tierUpdatedAt inside the same transaction that mutates tier,
+      // so reading it here is consistent with the tier mutation.
+      //
+      // The 30s TTL is short enough that even a missed invalidation
+      // (e.g. edge-cached User row) self-heals in seconds. Authoritative
+      // source remains the Subscription row; this is purely a hot-path
+      // cache.
+      const cached = await readTierCache(user.id);
+      session.user.tier               = cached.tier;
+      session.user.subscriptionStatus = cached.status;
+      session.user.lastPaidTier       = cached.lastPaidTier;
+      session.user.wasFoundingMember  = cached.wasFoundingMember;
       return session;
     },
   },

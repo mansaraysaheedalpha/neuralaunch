@@ -6,6 +6,7 @@ import { TrainingConsentSection }          from './TrainingConsentSection';
 import { AggregateAnalyticsConsentSection } from './AggregateAnalyticsConsentSection';
 import { AccountInfoSection }              from './AccountInfoSection';
 import { BillingSection }                  from './BillingSection';
+import { TierHistorySection, type TierHistoryEntry } from './TierHistorySection';
 
 /**
  * SettingsPage
@@ -23,7 +24,7 @@ export default async function SettingsPage() {
   if (!session?.user?.id) redirect('/signin');
   const userId = session.user.id;
 
-  const [user, accounts, subscription] = await Promise.all([
+  const [user, accounts, subscription, transitions] = await Promise.all([
     prisma.user.findUnique({
       where:  { id: userId },
       select: {
@@ -32,6 +33,8 @@ export default async function SettingsPage() {
         aggregateAnalyticsConsent:   true,
         aggregateAnalyticsConsentAt: true,
         paddleCustomerId:           true,
+        lastPaidTier:               true,
+        wasFoundingMember:          true,
       },
     }),
     prisma.account.findMany({
@@ -49,7 +52,27 @@ export default async function SettingsPage() {
         paddleCustomerId:  true,
       },
     }),
+    prisma.tierTransition.findMany({
+      where:   { userId },
+      orderBy: { occurredAt: 'desc' },
+      take:    10,
+      select: {
+        id:              true,
+        fromTier:        true,
+        toTier:          true,
+        paddleEventType: true,
+        occurredAt:      true,
+      },
+    }),
   ]);
+
+  const tierHistory: TierHistoryEntry[] = transitions.map(t => ({
+    id:              t.id,
+    fromTier:        t.fromTier,
+    toTier:          t.toTier,
+    paddleEventType: t.paddleEventType,
+    occurredAt:      t.occurredAt.toISOString(),
+  }));
   if (!user) redirect('/signin');
 
   return (
@@ -114,6 +137,17 @@ export default async function SettingsPage() {
           cancelAtPeriodEnd={subscription?.cancelAtPeriodEnd ?? false}
           currentPeriodEnd={subscription?.currentPeriodEnd?.toISOString() ?? null}
           hasBillingProfile={Boolean(subscription?.paddleCustomerId)}
+          userName={session.user.name ?? null}
+          lastPaidTier={
+            user.lastPaidTier === 'execute' || user.lastPaidTier === 'compound'
+              ? user.lastPaidTier
+              : null
+          }
+          wasFoundingMember={Boolean(user.wasFoundingMember)}
+        />
+        <TierHistorySection
+          transitions={tierHistory}
+          wasFoundingMember={Boolean(user.wasFoundingMember)}
         />
       </section>
     </div>

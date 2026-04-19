@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Loader2 } from 'lucide-react';
 import { usePaddle } from './PaddleProvider';
 
 type SubscribeTierName = 'Execute' | 'Compound';
@@ -66,6 +66,11 @@ export function SubscribeButton({
   };
 
   const disabled = status === 'loading' || (!!session?.user?.id && !isReady);
+  // Distinguish "loading Paddle.js" from "no session yet" so the
+  // button gives feedback instead of looking inert during the
+  // 200-500ms before Paddle.js loads. NextAuth status='loading' uses
+  // the same affordance.
+  const isLoading = status === 'loading' || (!!session?.user?.id && !isReady);
   const buttonLabel = label ?? `Start with ${tierName}`;
 
   return (
@@ -78,8 +83,12 @@ export function SubscribeButton({
         'inline-flex w-full items-center justify-center gap-1.5 rounded-md px-4 py-2.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 bg-primary text-white hover:bg-blue-700 focus-visible:ring-primary disabled:opacity-60 disabled:cursor-not-allowed'
       }
     >
-      {buttonLabel}
-      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      {isLoading ? 'Loading…' : buttonLabel}
+      {isLoading ? (
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+      ) : (
+        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      )}
     </button>
   );
 }

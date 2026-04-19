@@ -33,8 +33,13 @@ import { renderFounderProfileBlock, renderCycleSummariesBlock, renderInterviewOp
 // give Gemini's first chunk a comfortable margin.
 export const maxDuration = 90;
 
+// Keep in sync with the opening-message cap in /api/discovery/sessions/route.ts.
+// 12k chars ≈ 3k tokens — generous enough for a detailed follow-up without
+// letting a runaway paste eat the LLM context window.
+const TURN_MESSAGE_MAX_CHARS = 12_000;
+
 const TurnRequestSchema = z.object({
-  message: z.string().min(1).max(4000),
+  message: z.string().min(1).max(TURN_MESSAGE_MAX_CHARS),
   history: z.string().max(8000).default(''),
   /**
    * Optional authorship signal. 'voice' marks the message as

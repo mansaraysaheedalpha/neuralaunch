@@ -21,6 +21,20 @@ declare module "next-auth" {
        * who have never checked out (no Subscription row).
        */
       subscriptionStatus: string;
+      /**
+       * Highest paid tier the user has ever held. Monotone-increment
+       * (only rises on upgrade, never decreases). Null for users who
+       * have never subscribed. Drives the welcome-back banner and
+       * returning-user pricing personalisation.
+       */
+      lastPaidTier: 'execute' | 'compound' | null;
+      /**
+       * True if the user ever held a founding-rate subscription. Used
+       * to re-issue the founding price on return subscription
+       * regardless of the 50-slot cap — honours the "rate for life"
+       * promise in the pricing spec.
+       */
+      wasFoundingMember: boolean;
     } & DefaultSession["user"];
   }
 }

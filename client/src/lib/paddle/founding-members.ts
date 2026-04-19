@@ -1,7 +1,12 @@
 // src/lib/paddle/founding-members.ts
 import 'server-only';
 import prisma from '@/lib/prisma';
+import { logger } from '@/lib/logger';
+import { getRedisClient } from '@/lib/redis';
 import type { Tier } from './tiers';
+
+const FOUNDING_COUNT_CACHE_KEY    = 'founding-slots:v1';
+const FOUNDING_COUNT_CACHE_TTL_S  = 60;
 
 /**
  * Total founding slots across the launch. Hard-coded to match the
@@ -11,17 +16,139 @@ import type { Tier } from './tiers';
  */
 const FOUNDING_MEMBER_LIMIT = 50;
 
-/** Currently-minted founding-member subscriptions (across all tiers). */
+/**
+ * Soft over-allocation alert threshold. The slot allocation has an
+ * accepted TOCTOU race (see ACCEPTED RACE below) so we may mint a few
+ * extra founders past 50. Crossing this threshold means the race has
+ * leaked further than expected and warrants investigation — typically
+ * a sign that the pricing page is being slammed by automation, not
+ * that 5+ legitimate users hit the same second.
+ */
+const FOUNDING_OVERFLOW_ALERT = 55;
+
+/**
+ * ACCEPTED RACE — founding-member slot allocation is TOCTOU.
+ *
+ * `getPriceIds()` reads the live count at pricing-page render time and
+ * decides whether to issue the founding price id. The actual
+ * `isFoundingMember=true` flag is written by the webhook processor
+ * AFTER checkout completes. Two users hitting the pricing page within
+ * seconds of slot 49 both see "available" and both get founding pricing;
+ * both webhooks then write isFoundingMember=true for slots 50 AND 51.
+ *
+ * The system stays internally consistent (each row carries the price
+ * the user was actually charged at), but the "first 50" promise on the
+ * pricing page is enforced softly, not strictly.
+ *
+ * Why we accept it:
+ *   - Properly enforcing "exactly 50" requires reconciling Paddle-side
+ *     state with our side at webhook time: read count, if >= 50 then
+ *     update the Paddle subscription to the standard price via API and
+ *     prorate the difference. That's a non-trivial two-system saga.
+ *   - The dollar impact is small: even 10 extra founders at the $19/mo
+ *     vs $29/mo Execute delta is $100/mo of "lost" revenue forever.
+ *   - The race window is small (counted in seconds) — at sustainable
+ *     traffic levels we expect 0-2 over-allocations at most.
+ *   - A logger.error fires when the count crosses FOUNDING_OVERFLOW_ALERT
+ *     so we'll see if the leak grows unexpectedly.
+ */
+
+/**
+ * Currently-minted founding-member subscriptions (across all tiers).
+ *
+ * Cached in Redis (`founding-slots:v1`, 60s TTL) because the pricing
+ * page is the most-rendered page on the site and each render used
+ * to run a Postgres count() query. Invalidated from the webhook
+ * processor (see invalidateFoundingCountCache) when
+ * isFoundingMember=true is written. Fails open: Redis outage falls
+ * through to the direct DB count — no functional regression.
+ */
 export async function getFoundingMemberCount(): Promise<number> {
-  return prisma.subscription.count({
+  const redis = getRedisClient();
+
+  if (redis) {
+    try {
+      const cached = await redis.get<number | string>(FOUNDING_COUNT_CACHE_KEY);
+      if (cached !== null && cached !== undefined) {
+        const n = typeof cached === 'number' ? cached : parseInt(cached, 10);
+        if (Number.isFinite(n)) return n;
+      }
+    } catch (err) {
+      logger.warn('Redis read failed for founding-slots cache', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  const count = await prisma.subscription.count({
     where: { isFoundingMember: true },
   });
+
+  if (redis) {
+    try {
+      await redis.set(FOUNDING_COUNT_CACHE_KEY, count, { ex: FOUNDING_COUNT_CACHE_TTL_S });
+    } catch (err) {
+      logger.warn('Redis write failed for founding-slots cache', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  return count;
+}
+
+/**
+ * Invalidate the founding-slots Redis cache. Called by the webhook
+ * processor when a subscription flips to isFoundingMember=true so
+ * the next pricing-page render reflects the new slot count
+ * immediately instead of waiting out the 60s TTL.
+ */
+export async function invalidateFoundingCountCache(): Promise<void> {
+  const redis = getRedisClient();
+  if (!redis) return;
+  try {
+    await redis.del(FOUNDING_COUNT_CACHE_KEY);
+  } catch (err) {
+    // Failure here is harmless — the next render gets stale data for
+    // up to 60s, not a correctness issue.
+    logger.warn('Redis cache invalidation failed for founding-slots', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 /** True if there is at least one unclaimed founding slot. */
 export async function isFoundingSlotAvailable(): Promise<boolean> {
   const used = await getFoundingMemberCount();
   return used < FOUNDING_MEMBER_LIMIT;
+}
+
+/**
+ * Called by the webhook processor immediately after writing a row
+ * with isFoundingMember=true. If the count crosses the soft alert
+ * threshold (55), emits a logger.error so the operator (or Sentry,
+ * once it's wired) gets paged. Pure observability — never blocks
+ * the webhook or refunds anyone.
+ */
+export async function checkFoundingOverflow(): Promise<void> {
+  let count: number;
+  try {
+    count = await getFoundingMemberCount();
+  } catch {
+    // Don't fail the webhook over an observability check.
+    return;
+  }
+  if (count >= FOUNDING_OVERFLOW_ALERT) {
+    logger.error(
+      'Founding-member soft cap exceeded',
+      new Error('founding-overflow'),
+      {
+        currentCount: count,
+        limit:        FOUNDING_MEMBER_LIMIT,
+        alertAt:      FOUNDING_OVERFLOW_ALERT,
+      },
+    );
+  }
 }
 
 export interface TierPriceIds {
@@ -40,6 +167,15 @@ export interface TierPriceIds {
   isFoundingRate: boolean;
   /** Remaining founding slots (across all tiers), or 0 when exhausted. */
   foundingSlotsRemaining: number;
+  /**
+   * Reserved founding-rate monthly id, always the hidden founding
+   * price regardless of slot availability. Used by the returning-user
+   * path so a founding member who cancels and resubscribes keeps
+   * their $19/$29 rate for life (spec §1.2). Intentionally separate
+   * from `monthly` so the public pricing display can't accidentally
+   * leak the founding price after slots are exhausted.
+   */
+  foundingMonthly: string;
 }
 
 // Product-tier → (founding monthly, standard monthly, standard annual)
@@ -62,6 +198,25 @@ const PRICE_IDS: Record<
     founding: 'pri_01kpdhwqxr35hmd4agqsdehv98', // $29/month founding (hidden)
   },
 };
+
+/**
+ * Returning-member path: always return the founding price id for
+ * `tier`, regardless of the 50-slot cap. Called by the SubscribeButton
+ * / checkout flow for users whose `wasFoundingMember` flag is true —
+ * honouring the spec §1.2 "rate for life" promise means a founding
+ * member who cancels and returns six months later still pays $19/$29
+ * even if all 50 public slots have been claimed by new users.
+ *
+ * The slot-counter logic in getPriceIds() continues to apply only to
+ * NEW (never-paid) users. We intentionally keep the two paths distinct
+ * so a returning founder never races with a new signup on the slot
+ * check.
+ */
+export function getFoundingPriceIdForReturningMember(
+  tier: 'execute' | 'compound',
+): string {
+  return PRICE_IDS[tier].founding;
+}
 
 /**
  * Resolve the price ids the pricing page should use for a given tier.
@@ -87,6 +242,7 @@ export async function getPriceIds(tier: 'execute' | 'compound'): Promise<TierPri
       annual:                 ids.annual,
       isFoundingRate:         false,
       foundingSlotsRemaining: 0,
+      foundingMonthly:        ids.founding,
     };
   }
   const available = used < FOUNDING_MEMBER_LIMIT;
@@ -95,5 +251,6 @@ export async function getPriceIds(tier: 'execute' | 'compound'): Promise<TierPri
     annual:                 ids.annual,
     isFoundingRate:         available,
     foundingSlotsRemaining: available ? Math.max(FOUNDING_MEMBER_LIMIT - used, 0) : 0,
+    foundingMonthly:        ids.founding,
   };
 }

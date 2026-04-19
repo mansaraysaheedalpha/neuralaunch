@@ -29,6 +29,7 @@ import { safeParseResearchSession, runResearchExecution } from '@/lib/roadmap/re
 import { loadPerTaskAgentContext } from '@/lib/lifecycle';
 import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
+import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
 
 // Opus + 25 research steps — can take 3-6 minutes
@@ -58,6 +59,7 @@ export async function POST(
     await rateLimitByUser(userId, 'research-task-execute', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId, taskId } = await params;
+    await assertVentureNotArchivedByRoadmap(userId, roadmapId);
     const log = logger.child({ route: 'POST research-task-execute', roadmapId, taskId, userId });
 
     let body: unknown;

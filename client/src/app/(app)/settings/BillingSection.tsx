@@ -1,8 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ExternalLink, Sparkles } from 'lucide-react';
+import { ExternalLink, Sparkles, ArrowRight } from 'lucide-react';
 import { generatePortalLink } from '@/app/actions/billing';
 
 interface BillingSectionProps {
@@ -12,6 +13,15 @@ interface BillingSectionProps {
   cancelAtPeriodEnd: boolean;
   currentPeriodEnd: string | null;
   hasBillingProfile: boolean;
+  /**
+   * Returning-user personalization — populated from the User model's
+   * tier-history fields (added in b4965b2). Drives the welcome-back
+   * banner rendered above the billing card for Free users whose
+   * `lastPaidTier` is set.
+   */
+  userName:          string | null;
+  lastPaidTier:      'execute' | 'compound' | null;
+  wasFoundingMember: boolean;
 }
 
 // SessionStorage key — cleared once we've rewritten the URL to include
@@ -43,6 +53,9 @@ export function BillingSection({
   cancelAtPeriodEnd,
   currentPeriodEnd,
   hasBillingProfile,
+  userName,
+  lastPaidTier,
+  wasFoundingMember,
 }: BillingSectionProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +96,8 @@ export function BillingSection({
         setError('No billing profile yet — complete a checkout to manage your subscription.');
       } else if (result.reason === 'unauthorised') {
         setError('Please sign in again.');
+      } else if (result.reason === 'rate-limited') {
+        setError('Too many requests — try again in a minute.');
       } else {
         setError('Could not open the billing portal. Try again in a moment.');
       }
@@ -92,7 +107,56 @@ export function BillingSection({
   const showReturnConfirmation =
     billingAction === 'canceled' && cancelAtPeriodEnd && tier !== 'free';
 
+  // Welcome-back banner: currently on Free, previously held a paid
+  // tier. Uses gold accent for a returning Compound founder, primary
+  // blue for Execute. Shown above the standard billing card so the
+  // path back to subscription is prominent without blocking status.
+  const showWelcomeBack = tier === 'free' && lastPaidTier !== null;
+  const welcomeAccentClasses = wasFoundingMember
+    ? 'border-gold/30 bg-gold/5'
+    : lastPaidTier === 'compound'
+      ? 'border-gold/30 bg-gold/5'
+      : 'border-primary/30 bg-primary/5';
+  const welcomeHeadingClasses = wasFoundingMember
+    ? 'text-gold'
+    : lastPaidTier === 'compound'
+      ? 'text-gold'
+      : 'text-primary';
+  const welcomePriorTierLabel = lastPaidTier
+    ? TIER_LABEL[lastPaidTier]
+    : '';
+  const welcomeFoundingRate = lastPaidTier === 'compound' ? '$29' : '$19';
+
   return (
+    <div className="flex flex-col gap-4">
+      {showWelcomeBack && (
+        <div className={`rounded-lg border px-5 py-4 ${welcomeAccentClasses}`}>
+          <p className={`text-sm font-semibold ${welcomeHeadingClasses}`}>
+            Welcome back{userName ? `, ${userName.split(' ')[0]}` : ''}
+          </p>
+          <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">
+            You were previously on {welcomePriorTierLabel}. Your ventures,
+            roadmaps, and progress are preserved. Resubscribe anytime to
+            continue where you left off.
+            {wasFoundingMember && (
+              <>
+                {' '}Your founding member rate (
+                <span className="text-gold font-semibold">
+                  {welcomeFoundingRate}/month
+                </span>
+                ) is preserved.
+              </>
+            )}
+          </p>
+          <Link
+            href="/#pricing"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-transparent px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-slate-500 hover:bg-slate-800"
+          >
+            View plans
+            <ArrowRight className="size-3.5" aria-hidden="true" />
+          </Link>
+        </div>
+      )}
     <div className="rounded-lg border border-border bg-card p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -127,7 +191,7 @@ export function BillingSection({
       )}
       {status === 'past_due' && (
         <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
-          Payment failed on your last renewal. Update your card in the portal to keep your subscription active.
+          Payment failed on your last renewal — paid features are temporarily suspended while we retry. Update your card in the portal to restore access.
         </p>
       )}
       {status === 'paused' && (
@@ -165,6 +229,7 @@ export function BillingSection({
           <p className="text-[11px] text-amber-300">{error}</p>
         )}
       </div>
+    </div>
     </div>
   );
 }

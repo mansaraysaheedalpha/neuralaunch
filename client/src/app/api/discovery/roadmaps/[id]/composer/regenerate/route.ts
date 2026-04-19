@@ -24,6 +24,7 @@ import {
   safeParseComposerSession,
 } from '@/lib/roadmap/composer';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
+import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
 
 export const maxDuration = 30;
@@ -53,6 +54,7 @@ export async function POST(
     await rateLimitByUser(userId, 'composer-standalone-regenerate', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId } = await params;
+    await assertVentureNotArchivedByRoadmap(userId, roadmapId);
     const log = logger.child({ route: 'POST composer-standalone-regenerate', roadmapId, userId });
 
     let body: unknown;

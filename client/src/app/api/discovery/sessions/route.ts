@@ -18,10 +18,15 @@ import {
   assertFreeDiscoverySessionLimit,
 } from '@/lib/lifecycle';
 
+// Keep in sync with the per-turn cap in /sessions/[sessionId]/turn/route.ts.
+// 12k characters ≈ 3k tokens — ample for a detailed opening prompt
+// (situation + goal + context + constraints) while still bounding the
+// request so a runaway paste doesn't drop a novel-sized payload into
+// the LLM pipeline.
+const FIRST_MESSAGE_MAX_CHARS = 12_000;
+
 const CreateSessionSchema = z.object({
-  // Matches the per-turn cap in /sessions/[sessionId]/turn/route.ts so a
-  // founder's long opening message does not silently fail session creation.
-  firstMessage: z.string().max(4000).optional(),
+  firstMessage: z.string().max(FIRST_MESSAGE_MAX_CHARS).optional(),
   /**
    * Concern 5 trigger #3: when set to true, bypass the
    * pending-outcome check and create the session unconditionally.
@@ -92,10 +97,17 @@ export async function POST(req: NextRequest) {
   const parsed = CreateSessionSchema.safeParse(body);
   if (!parsed.success) {
     log.warn('Invalid create-session body', { issues: parsed.error.issues });
-    return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 },
+    // Return a specific message for the common case — firstMessage too
+    // long. The generic "Invalid request body" leaves the client with
+    // nothing actionable to show; a user who pasted a detailed opening
+    // prompt deserves to know exactly why it was rejected.
+    const tooLong = parsed.error.issues.find(
+      (i) => i.path[0] === 'firstMessage' && i.code === 'too_big',
     );
+    const message = tooLong
+      ? `Your opening message is longer than our ${FIRST_MESSAGE_MAX_CHARS.toLocaleString()}-character limit. Please shorten it and try again — the system asks follow-up questions to capture detail across turns.`
+      : 'Invalid request body';
+    return NextResponse.json({ error: message }, { status: 400 });
   }
   const { firstMessage, acknowledgePendingOutcome, scenario, ventureId, forkContext } = parsed.data;
   const title = firstMessage?.trim().slice(0, 80) || 'Discovery Interview';

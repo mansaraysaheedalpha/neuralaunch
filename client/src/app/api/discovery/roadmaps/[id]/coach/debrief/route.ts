@@ -26,6 +26,7 @@ import {
 } from '@/lib/roadmap/coach/schemas';
 import { runDebrief } from '@/lib/roadmap/coach/debrief-engine';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
+import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 
 // Haiku is fast but allow headroom for a longer transcript
 export const maxDuration = 30;
@@ -52,6 +53,7 @@ export async function POST(
     await rateLimitByUser(userId, 'coach-standalone-debrief', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId } = await params;
+    await assertVentureNotArchivedByRoadmap(userId, roadmapId);
     const log = logger.child({ route: 'POST standalone-coach-debrief', roadmapId, userId });
 
     let body: unknown;

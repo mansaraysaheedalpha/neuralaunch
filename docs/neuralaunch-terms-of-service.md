@@ -1,7 +1,7 @@
 # NeuraLaunch — Terms of Service
 
-**Effective Date:** [Insert Date]
-**Last Updated:** [Insert Date]
+**Effective Date:** May 1, 2026
+**Last Updated:** April 19, 2026
 
 ---
 
@@ -423,5 +423,5 @@ Website: tabempa.com
 
 ---
 
-*These Terms of Service are effective as of [Next week Friday Date(You the agent do the calculution)].*
+*These Terms of Service are effective as of May 1, 2026.*
 *NeuraLaunch is a product of Tabempa Engineering Limited.*

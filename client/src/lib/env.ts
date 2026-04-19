@@ -58,11 +58,14 @@ const envSchema = z.object({
   TAVILY_API_KEY: z.string().optional(),
   EXA_API_KEY:    z.string().optional(),
 
-  // Note: RESEND_* variables were removed in Stage 7.1 because the
-  // email service (src/lib/email-service.ts) was deleted in Stage 3
-  // commit 4 along with its only call site. Leaving the env vars
-  // required would have prevented the app from starting in any
-  // environment that did not set them.
+  // Transactional email via Resend. Reintroduced for billing dunning
+  // (see src/lib/email/sender.ts — send attempts are gated by whether
+  // both keys are set). When unset the email send becomes a no-op
+  // log line so the app still boots and webhook processing still
+  // succeeds without email configured. Production must set both;
+  // local dev / CI can skip.
+  RESEND_API_KEY:    z.string().optional(),
+  RESEND_FROM_EMAIL: z.string().email().optional(),
 
   // Background jobs
   INNGEST_EVENT_KEY:   z.string().min(1),
@@ -97,11 +100,68 @@ const envSchema = z.object({
   VERCEL_ENV: z.enum(['development', 'preview', 'production']).optional(),
 });
 
+/**
+ * Cross-field validation: catch the misconfiguration where PADDLE_API_KEY
+ * is a live key but NEXT_PUBLIC_PADDLE_ENV is sandbox (or vice versa)
+ * BEFORE the first webhook delivery. Without this guard, signature
+ * verification would fail with a generic "Signature mismatch" error
+ * that gives no hint about the cross-env mismatch.
+ *
+ * Only enforced when the keys carry the recognisable Paddle prefixes;
+ * placeholder values (REPLACE_ME, dev sentinels) skip — local dev
+ * without configured Paddle still needs to boot.
+ */
+const envSchemaWithCrossValidation = envSchema.superRefine((data, ctx) => {
+  const apiKey  = data.PADDLE_API_KEY;
+  const isProd  = data.NEXT_PUBLIC_PADDLE_ENV === 'production';
+
+  const isLiveKey    = apiKey.startsWith('pdl_live_');
+  const isSandboxKey = apiKey.startsWith('pdl_sandbox_');
+
+  if (isLiveKey && !isProd) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['PADDLE_API_KEY'],
+      message: 'PADDLE_API_KEY is a live key but NEXT_PUBLIC_PADDLE_ENV is sandbox',
+    });
+  }
+  if (isSandboxKey && isProd) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['PADDLE_API_KEY'],
+      message: 'PADDLE_API_KEY is a sandbox key but NEXT_PUBLIC_PADDLE_ENV is production',
+    });
+  }
+
+  // Client token follows the same env convention: live_* in prod,
+  // test_* in sandbox. Only validate when present (it's optional for
+  // local dev without Paddle).
+  const clientToken = data.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;
+  if (clientToken) {
+    const isLiveToken = clientToken.startsWith('live_');
+    const isTestToken = clientToken.startsWith('test_');
+    if (isLiveToken && !isProd) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['NEXT_PUBLIC_PADDLE_CLIENT_TOKEN'],
+        message: 'Client token is a live token but NEXT_PUBLIC_PADDLE_ENV is sandbox',
+      });
+    }
+    if (isTestToken && isProd) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['NEXT_PUBLIC_PADDLE_CLIENT_TOKEN'],
+        message: 'Client token is a sandbox token but NEXT_PUBLIC_PADDLE_ENV is production',
+      });
+    }
+  }
+});
+
 export type Env = z.infer<typeof envSchema>;
 
 function validateEnv(): Env {
   try {
-    return envSchema.parse(process.env);
+    return envSchemaWithCrossValidation.parse(process.env);
   } catch (error) {
     if (error instanceof z.ZodError) {
       const missing = error.issues.map(e => `  - ${e.path.join('.')}: ${e.message}`).join('\n');
