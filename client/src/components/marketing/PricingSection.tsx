@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { ArrowRight, Check, Sparkles } from "lucide-react";
 import { SubscribeButton } from "@/components/SubscribeButton";
 
@@ -97,6 +98,15 @@ interface PricingSectionProps {
 
 export function PricingSection({ execute, compound }: PricingSectionProps) {
   const [cycle, setCycle] = useState<BillingCycle>("annual");
+  // Currently-signed-in user's tier (if any). Used to relabel the CTA
+  // for tiers the user is already on, and to swap the upgrade-link
+  // for a Settings-link when they're already on the highest tier.
+  const { data: viewerSession } = useSession();
+  const viewerTier = (viewerSession?.user?.tier ?? null) as
+    | "free"
+    | "execute"
+    | "compound"
+    | null;
 
   // Either tier having a founding slot keeps the banner visible. The
   // per-tier detail lives in each card's "Founding rate" line below.
@@ -308,19 +318,49 @@ export function PricingSection({ execute, compound }: PricingSectionProps) {
               </ul>
 
               <div className="mt-auto pt-8">
-                {isPaid && priceId ? (
-                  <SubscribeButton
-                    priceId={priceId}
-                    tierName={tier.name as "Execute" | "Compound"}
-                    label={tier.cta}
-                    className={ctaClass}
-                  />
-                ) : (
-                  <Link href="/signin" className={ctaClass}>
-                    {tier.cta}
-                    <ArrowRight className="h-4 w-4" />
-                  </Link>
-                )}
+                {(() => {
+                  // Already-subscribed user looking at the same tier they're
+                  // on: don't show a Subscribe button, link to Settings → Billing.
+                  // Same UX for a Compound user looking at the Execute card —
+                  // there's no downgrade-from-pricing-page flow, route them to
+                  // Settings if they want to change.
+                  const tierRank: Record<string, number> = {
+                    free: 0,
+                    execute: 1,
+                    compound: 2,
+                  };
+                  const cardRank = tierRank[tier.name.toLowerCase()] ?? 0;
+                  const userRank = viewerTier ? tierRank[viewerTier] ?? 0 : -1;
+                  const alreadyOnOrAbove = userRank >= cardRank && userRank >= 0 && cardRank > 0;
+                  const isCurrentTier = viewerTier && viewerTier === tier.name.toLowerCase();
+
+                  if (alreadyOnOrAbove) {
+                    return (
+                      <Link href="/settings" className={ctaClass}>
+                        {isCurrentTier ? "Manage in Settings" : "Manage in Settings"}
+                        <ArrowRight className="h-4 w-4" />
+                      </Link>
+                    );
+                  }
+
+                  if (isPaid && priceId) {
+                    return (
+                      <SubscribeButton
+                        priceId={priceId}
+                        tierName={tier.name as "Execute" | "Compound"}
+                        label={tier.cta}
+                        className={ctaClass}
+                      />
+                    );
+                  }
+
+                  return (
+                    <Link href="/signin" className={ctaClass}>
+                      {tier.cta}
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  );
+                })()}
               </div>
             </article>
           );

@@ -33,7 +33,6 @@ const CACHE_TTL_MS = 30 * 1000;
  * Wrapped in `if` so module reloads in dev don't pile up timers.
  */
 declare global {
-  // eslint-disable-next-line no-var
   var __tierCacheCleanupTimer: NodeJS.Timeout | undefined;
 }
 

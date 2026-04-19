@@ -5,6 +5,8 @@ import {
   EventName,
   SubscriptionCreatedEvent,
   SubscriptionUpdatedEvent,
+  SubscriptionActivatedEvent,
+  SubscriptionResumedEvent,
   SubscriptionCanceledEvent,
   SubscriptionPausedEvent,
   TransactionCompletedEvent,
@@ -66,6 +68,14 @@ export async function handleWebhookEvent(event: EventEntity): Promise<void> {
     case EventName.SubscriptionCreated:
       return handleSubscriptionCreated(event);
     case EventName.SubscriptionUpdated:
+    // subscription.activated and subscription.resumed share the same
+    // notification shape as subscription.updated. Route them through
+    // the same handler — the behaviour (re-derive tier from priceId,
+    // refresh the row) is identical. Defensive against Paddle ordering
+    // edge cases where a resume may not be accompanied by a paired
+    // updated event.
+    case EventName.SubscriptionActivated:
+    case EventName.SubscriptionResumed:
       return handleSubscriptionUpdated(event);
     case EventName.SubscriptionCanceled:
       return handleSubscriptionCanceled(event);
@@ -224,7 +234,9 @@ async function handleSubscriptionCreated(event: SubscriptionCreatedEvent): Promi
 // subscription.updated
 // ---------------------------------------------------------------------------
 
-async function handleSubscriptionUpdated(event: SubscriptionUpdatedEvent): Promise<void> {
+async function handleSubscriptionUpdated(
+  event: SubscriptionUpdatedEvent | SubscriptionActivatedEvent | SubscriptionResumedEvent,
+): Promise<void> {
   const data = event.data;
   const priceId = firstPriceId(data.items);
   const { tier, isFounder } = resolveTier(priceId);
