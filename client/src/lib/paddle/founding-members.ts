@@ -106,6 +106,15 @@ export interface TierPriceIds {
   isFoundingRate: boolean;
   /** Remaining founding slots (across all tiers), or 0 when exhausted. */
   foundingSlotsRemaining: number;
+  /**
+   * Reserved founding-rate monthly id, always the hidden founding
+   * price regardless of slot availability. Used by the returning-user
+   * path so a founding member who cancels and resubscribes keeps
+   * their $19/$29 rate for life (spec §1.2). Intentionally separate
+   * from `monthly` so the public pricing display can't accidentally
+   * leak the founding price after slots are exhausted.
+   */
+  foundingMonthly: string;
 }
 
 // Product-tier → (founding monthly, standard monthly, standard annual)
@@ -128,6 +137,25 @@ const PRICE_IDS: Record<
     founding: 'pri_01kpdhwqxr35hmd4agqsdehv98', // $29/month founding (hidden)
   },
 };
+
+/**
+ * Returning-member path: always return the founding price id for
+ * `tier`, regardless of the 50-slot cap. Called by the SubscribeButton
+ * / checkout flow for users whose `wasFoundingMember` flag is true —
+ * honouring the spec §1.2 "rate for life" promise means a founding
+ * member who cancels and returns six months later still pays $19/$29
+ * even if all 50 public slots have been claimed by new users.
+ *
+ * The slot-counter logic in getPriceIds() continues to apply only to
+ * NEW (never-paid) users. We intentionally keep the two paths distinct
+ * so a returning founder never races with a new signup on the slot
+ * check.
+ */
+export function getFoundingPriceIdForReturningMember(
+  tier: 'execute' | 'compound',
+): string {
+  return PRICE_IDS[tier].founding;
+}
 
 /**
  * Resolve the price ids the pricing page should use for a given tier.
@@ -153,6 +181,7 @@ export async function getPriceIds(tier: 'execute' | 'compound'): Promise<TierPri
       annual:                 ids.annual,
       isFoundingRate:         false,
       foundingSlotsRemaining: 0,
+      foundingMonthly:        ids.founding,
     };
   }
   const available = used < FOUNDING_MEMBER_LIMIT;
@@ -161,5 +190,6 @@ export async function getPriceIds(tier: 'execute' | 'compound'): Promise<TierPri
     annual:                 ids.annual,
     isFoundingRate:         available,
     foundingSlotsRemaining: available ? Math.max(FOUNDING_MEMBER_LIMIT - used, 0) : 0,
+    foundingMonthly:        ids.founding,
   };
 }
