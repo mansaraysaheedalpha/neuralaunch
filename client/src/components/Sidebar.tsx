@@ -7,12 +7,12 @@
 // conversation loading is replaced by useConversationsList (SWR).
 
 import { Fragment } from 'react';
-import Image from 'next/image';
 import { useSession } from 'next-auth/react';
 import { SidebarHeader } from './sidebar/SidebarHeader';
 import { SidebarNav } from './sidebar/SidebarNav';
 import { ConversationList } from './sidebar/ConversationList';
 import { CollapsedSidebar } from './sidebar/CollapsedSidebar';
+import { SidebarUserCard } from './sidebar/SidebarUserCard';
 import { useConversationsList } from './sidebar/useConversationsList';
 
 interface SidebarProps {
@@ -53,23 +53,9 @@ export default function Sidebar({
         />
       </div>
 
-      {/* Footer */}
+      {/* Footer — user identity + plan pill + Free-tier upgrade CTA. */}
       <div className="p-2 border-t border-border flex-shrink-0">
-        <div className="flex items-center space-x-2 p-2 rounded-xl">
-          <Image
-            src="/neuralaunch_logo.svg"
-            alt=""
-            width={40}
-            height={30}
-            className="h-8 w-auto"
-          />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-foreground truncate">
-              NeuraLaunch
-            </p>
-            <p className="text-xs text-muted-foreground">AI Assistant</p>
-          </div>
-        </div>
+        <SidebarUserCard />
       </div>
     </div>
   );

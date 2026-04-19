@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import Sidebar from "@/components/Sidebar";
+import { MobileUpgradePill } from "@/components/sidebar/MobileUpgradePill";
 import { Sparkles } from "lucide-react"; // Keep Sparkles icon
 
 // Renamed function to AppLayout for clarity
@@ -30,6 +31,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         >
           <Sparkles className="w-6 h-6" />
         </button>
+
+        {/* Mobile upgrade CTA — only renders for authenticated Free-tier
+            users, only on mobile. Keeps the path out of Free one tap
+            away even when the sidebar is closed. */}
+        <MobileUpgradePill />
 
         {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto pt-16 md:pt-0">
