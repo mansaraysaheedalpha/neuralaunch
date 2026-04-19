@@ -25,7 +25,7 @@
     "@neuralaunch/api-types": "workspace:*",
     "@neuralaunch/constants": "workspace:*",
     "@octokit/rest": "^22.0.0",
-    "@paddle/paddle-node-sdk": "^3.7.0",
+    "@paddle/paddle-node-sdk": "3.7.0",
     "@paralleldrive/cuid2": "^3.0.4",
     "@prisma/client": "6.19.0",
     "@radix-ui/react-avatar": "^1.1.11",

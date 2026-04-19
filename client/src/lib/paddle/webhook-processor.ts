@@ -332,9 +332,15 @@ async function handleSubscriptionPaused(event: SubscriptionPausedEvent): Promise
   // Demote tier alongside the paused status. A paused subscription
   // has stopped billing, so the user is not paying for paid features;
   // leaving tier at 'compound' would let a paused subscriber keep
-  // unlimited access until Paddle eventually cancels. The paid tier
-  // snaps back when the user resumes (subscription.updated fires with
-  // an active status and resolveTier(priceId) restores the paid tier).
+  // unlimited access until Paddle eventually cancels.
+  //
+  // Resume recovery depends on Paddle re-emitting subscription.updated
+  // with a recognised paid priceId on resume — current Paddle Billing
+  // behaviour does this, but it is not a contract we control. If
+  // resume ever arrives with a null or unrecognised priceId,
+  // resolveTier() falls back to 'free' and the user stays demoted
+  // until a subsequent event lands with valid data. Support would
+  // then need to investigate and manually restore tier.
   const existing = await prisma.subscription.findUnique({
     where:  { paddleSubscriptionId: data.id },
     select: { userId: true, tier: true },
