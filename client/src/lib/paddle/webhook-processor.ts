@@ -24,6 +24,7 @@ import {
   restoreArchivedVenturesOnUpgrade,
 } from '@/lib/lifecycle/tier-limits';
 import { sendPaymentFailedEmail } from '@/lib/email/templates/payment-failed';
+import { sendPushToUser } from '@/lib/push/send-push';
 
 type Tx = Prisma.TransactionClient;
 
@@ -641,11 +642,16 @@ async function handlePaymentFailed(event: TransactionPaymentFailedEvent): Promis
     }
   });
 
-  // Dunning email — fired AFTER the transaction commits so a failed
-  // email never rolls back the tier demotion. The send helper has its
-  // own 24h-per-user cooldown so Paddle's ~4-retry storm across 14 days
-  // doesn't trigger 4 separate emails. Try/catch wraps so transport
-  // failures never bubble up and 500 the webhook.
+  // Dunning notifications — fired AFTER the transaction commits so a
+  // failed notification never rolls back the tier demotion. Both
+  // channels are try/catch-wrapped so transport failures never bubble
+  // up and 500 the webhook.
+  //
+  // Email has its own Redis-backed 24h-per-user cooldown so Paddle's
+  // ~4-retry storm across 14 days doesn't trigger 4 emails. Push is
+  // best-effort via the existing sendPushToUser helper which respects
+  // the user's nudgesEnabled preference and silently no-ops when they
+  // have no registered devices.
   if (existing.tier !== 'free' && existing.user?.email) {
     try {
       await sendPaymentFailedEmail({
@@ -660,6 +666,24 @@ async function handlePaymentFailed(event: TransactionPaymentFailedEvent): Promis
         err instanceof Error ? err : new Error(String(err)),
         { userId: existing.userId },
       );
+    }
+  }
+
+  if (existing.tier !== 'free') {
+    try {
+      await sendPushToUser(
+        existing.userId,
+        'Payment failed',
+        'Update your card to restore NeuraLaunch access.',
+        // Deep link — mobile app reads `screen` from the tap payload
+        // and routes to the Settings/Billing tab.
+        { screen: 'settings', reason: 'payment_failed' },
+      );
+    } catch (err) {
+      logger.warn('Dunning push dispatch failed — continuing webhook OK', {
+        userId: existing.userId,
+        error:  err instanceof Error ? err.message : String(err),
+      });
     }
   }
 }
