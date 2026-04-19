@@ -3,6 +3,7 @@ import 'server-only';
 import { generateText, stepCountIs, Output } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { logger } from '@/lib/logger';
+import { withModelFallback } from '@/lib/ai/with-model-fallback';
 import { MODELS } from './constants';
 import { PUSHBACK_ACTIONS, PUSHBACK_CONFIG } from './constants';
 import { renderUserContent } from '@/lib/validation/server-helpers';
@@ -233,7 +234,6 @@ Produce your structured response now.`;
   // calls does not duplicate audit entries. Only the first call
   // exposes the tools — the second call (rewrite) operates on the
   // already-decided action and does not need fresh research.
-  accumulator.length = accumulatorBaseline;
   const tools = buildResearchTools({
     agent:       'pushback',
     contextId:   recommendationId,
@@ -241,14 +241,23 @@ Produce your structured response now.`;
   });
   let decision: PushbackResponse;
   try {
-    const result = await generateText({
-      model:    aiSdkAnthropic(MODELS.SYNTHESIS), // Opus
-      tools,
-      stopWhen: stepCountIs(RESEARCH_BUDGETS.pushback.steps),
-      output: Output.object({ schema: PushbackResponseSchema }),
-      messages: promptMessages,
-    });
-    decision = result.output;
+    decision = await withModelFallback(
+      'pushback:first-call',
+      { primary: MODELS.SYNTHESIS, fallback: MODELS.INTERVIEW },
+      async (modelId) => {
+        // Reset the accumulator on every attempt so a fallback rerun
+        // of the same research tools does not duplicate audit entries.
+        accumulator.length = accumulatorBaseline;
+        const result = await generateText({
+          model:    aiSdkAnthropic(modelId),
+          tools,
+          stopWhen: stepCountIs(RESEARCH_BUDGETS.pushback.steps),
+          output:   Output.object({ schema: PushbackResponseSchema }),
+          messages: promptMessages,
+        });
+        return result.output;
+      },
+    );
   } catch (err) {
     // Same cause-extraction shape as the second call. AI SDK wraps the
     // underlying Zod failure on err.cause; logging it lets us see
@@ -256,7 +265,7 @@ Produce your structured response now.`;
     const cause = err instanceof Error && 'cause' in err ? err.cause : undefined;
     const causeMessage = cause instanceof Error ? cause.message : String(cause ?? '');
     log.error(
-      '[Pushback] First call (PushbackResponseSchema) failed',
+      '[Pushback] First call (PushbackResponseSchema) failed after fallback',
       err instanceof Error ? err : new Error(String(err)),
       { cause: causeMessage, currentRound },
     );
@@ -338,12 +347,18 @@ YOUR DECISION FROM THE PRIOR STEP: ${decision.action === PUSHBACK_ACTIONS.REFINE
 
 Produce the updated recommendation now.`;
 
-      const { output: updated } = await generateText({
-        model:    aiSdkAnthropic(MODELS.SYNTHESIS),
-        output:   Output.object({ schema: RecommendationSchema }),
-        messages: cachedUserMessages(rewriteStable, rewriteVolatile),
-      });
-      patch = updated;
+      patch = await withModelFallback(
+        'pushback:rewrite',
+        { primary: MODELS.SYNTHESIS, fallback: MODELS.INTERVIEW },
+        async (modelId) => {
+          const { output: updated } = await generateText({
+            model:    aiSdkAnthropic(modelId),
+            output:   Output.object({ schema: RecommendationSchema }),
+            messages: cachedUserMessages(rewriteStable, rewriteVolatile),
+          });
+          return updated;
+        },
+      );
     } catch (err) {
       // The AI SDK wraps the underlying Zod failure inside a `cause`
       // property on AI_NoObjectGeneratedError. Surface it so we are
@@ -353,7 +368,7 @@ Produce the updated recommendation now.`;
       const cause = err instanceof Error && 'cause' in err ? err.cause : undefined;
       const causeMessage = cause instanceof Error ? cause.message : String(cause ?? '');
       log.error(
-        '[Pushback] Second call (RecommendationSchema) failed',
+        '[Pushback] Second call (RecommendationSchema) failed after fallback',
         err instanceof Error ? err : new Error(String(err)),
         { cause: causeMessage, action: decision.action },
       );
