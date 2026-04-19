@@ -1,7 +1,7 @@
 # NeuraLaunch — Cookie Policy
 
-**Effective Date:** [Insert Date]
-**Last Updated:** [Insert Date]
+**Effective Date:** May 1, 2026
+**Last Updated:** April 19, 2026
 
 ---
 
@@ -120,5 +120,5 @@ Website: tabempa.com
 
 ---
 
-*This Cookie Policy is effective as of [Insert Date].*
+*This Cookie Policy is effective as of May 1, 2026.*
 *NeuraLaunch is a product of Tabempa Engineering Limited.*
