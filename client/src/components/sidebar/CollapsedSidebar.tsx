@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Compass, Settings, Wrench } from 'lucide-react';
+import { Compass, Settings, Sparkles, Wrench } from 'lucide-react';
 import { useHasRoadmap } from './useHasRoadmap';
 
 export interface CollapsedSidebarProps {
@@ -18,11 +18,12 @@ export interface CollapsedSidebarProps {
  */
 export function CollapsedSidebar({ onExpand }: CollapsedSidebarProps) {
   const pathname = usePathname();
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const { hasRoadmap } = useHasRoadmap(status === 'authenticated');
   const isDiscoveryActive = pathname === '/discovery' || pathname?.startsWith('/discovery/');
   const isToolsActive     = pathname === '/tools' || pathname?.startsWith('/tools/');
   const isSettingsActive  = pathname === '/settings' || pathname?.startsWith('/settings/');
+  const tier = (session?.user?.tier ?? 'free') as 'free' | 'execute' | 'compound';
 
   return (
     <div className="flex flex-col h-full bg-card text-card-foreground border-r border-border p-2 pt-4 items-center">
@@ -65,6 +66,18 @@ export function CollapsedSidebar({ onExpand }: CollapsedSidebarProps) {
       >
         <Settings className="w-5 h-5" />
       </Link>
+
+      {/* Free-tier upgrade CTA — visible even when the sidebar is
+          collapsed so the path out of Free is always one click away. */}
+      {status === 'authenticated' && tier === 'free' && (
+        <Link
+          href="/#pricing"
+          className="mt-auto mb-2 flex items-center justify-center w-10 h-10 rounded-lg bg-primary text-primary-foreground transition-opacity hover:opacity-90"
+          title="Upgrade"
+        >
+          <Sparkles className="w-5 h-5" />
+        </Link>
+      )}
     </div>
   );
 }
