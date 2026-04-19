@@ -4,6 +4,8 @@ import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
 import { paddleClient } from '@/lib/paddle/client';
 import { logger } from '@/lib/logger';
+import { HttpError, rateLimitByUser } from '@/lib/validation/server-helpers';
+import { RATE_LIMITS } from '@/lib/rate-limit';
 
 /**
  * Generate a one-time authenticated link to the Paddle customer portal.
@@ -13,11 +15,14 @@ import { logger } from '@/lib/logger';
  * Regenerate on every click.
  *
  * Flow:
- *   1. Read the signed-in user's paddleCustomerId + paddleSubscriptionId
+ *   1. Rate-limit the calling user (60/min — one legitimate flow needs
+ *      one call; the cap blocks a console-loop attacker from burning
+ *      Paddle's API quota for everyone else on the merchant account).
+ *   2. Read the signed-in user's paddleCustomerId + paddleSubscriptionId
  *      from our database.
- *   2. Ask Paddle to mint a portal session scoped to that customer +
+ *   3. Ask Paddle to mint a portal session scoped to that customer +
  *      the subscription(s) they own.
- *   3. Return the overview URL for the caller to redirect to.
+ *   4. Return the overview URL for the caller to redirect to.
  *
  * Users who have never checked out have no paddleCustomerId and get a
  * friendly-error return value instead of a thrown exception; the UI
@@ -25,11 +30,24 @@ import { logger } from '@/lib/logger';
  */
 export async function generatePortalLink(): Promise<
   | { ok: true;  url: string }
-  | { ok: false; reason: 'unauthorised' | 'no-billing-profile' | 'paddle-error' }
+  | { ok: false; reason: 'unauthorised' | 'no-billing-profile' | 'paddle-error' | 'rate-limited' }
 > {
   const session = await auth();
   if (!session?.user?.id) {
     return { ok: false, reason: 'unauthorised' };
+  }
+
+  try {
+    await rateLimitByUser(
+      session.user.id,
+      'paddle-portal-link',
+      RATE_LIMITS.API_AUTHENTICATED,
+    );
+  } catch (err) {
+    if (err instanceof HttpError && err.status === 429) {
+      return { ok: false, reason: 'rate-limited' };
+    }
+    throw err;
   }
 
   const user = await prisma.user.findUnique({

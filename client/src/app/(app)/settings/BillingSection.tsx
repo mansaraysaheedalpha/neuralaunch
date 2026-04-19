@@ -83,6 +83,8 @@ export function BillingSection({
         setError('No billing profile yet — complete a checkout to manage your subscription.');
       } else if (result.reason === 'unauthorised') {
         setError('Please sign in again.');
+      } else if (result.reason === 'rate-limited') {
+        setError('Too many requests — try again in a minute.');
       } else {
         setError('Could not open the billing portal. Try again in a moment.');
       }
