@@ -32,6 +32,10 @@ export default function StandaloneCoachPage() {
   const [debrief, setDebrief]     = useState<Debrief | null>(null);
   const [error, setError]         = useState<string | null>(null);
   const [seedDraft, setSeedDraft] = useState<string | undefined>(undefined);
+  const [meterRefreshKey, setMeterRefreshKey] = useState(0);
+  const bumpMeter = useCallback(() => {
+    setMeterRefreshKey(k => k + 1);
+  }, []);
 
   // Auto-detect the most recent roadmap and any inbound packager handoff.
   useEffect(() => {
@@ -80,8 +84,10 @@ export default function StandaloneCoachPage() {
     } catch {
       setError('Network error.');
       setStage('setup');
+    } finally {
+      bumpMeter();
     }
-  }, [roadmapId]);
+  }, [roadmapId, bumpMeter]);
 
   const handleRolePlayEnd = useCallback(async () => {
     if (!roadmapId) return;
@@ -98,8 +104,10 @@ export default function StandaloneCoachPage() {
       setStage('debrief');
     } catch {
       setStage('roleplay');
+    } finally {
+      bumpMeter();
     }
-  }, [roadmapId]);
+  }, [roadmapId, bumpMeter]);
 
   if (stage === 'loading') {
     return (
@@ -133,7 +141,7 @@ export default function StandaloneCoachPage() {
         <h1 className="text-lg font-bold text-foreground">Conversation Coach</h1>
       </div>
 
-      <UsageMeter tool="coach" />
+      <UsageMeter tool="coach" refreshKey={meterRefreshKey} />
 
       {error && (
         <p className="text-xs text-red-500 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">{error}</p>
@@ -178,6 +186,7 @@ export default function StandaloneCoachPage() {
           taskId="standalone"
           otherPartyName={setup?.who ?? 'The other party'}
           onEnd={() => { void handleRolePlayEnd(); }}
+          onToolCallComplete={bumpMeter}
         />
       )}
 

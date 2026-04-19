@@ -38,8 +38,15 @@ export function useResearchFlow(input: {
   roadmapId:  string;
   taskId:     string;
   standalone?: boolean;
+  /**
+   * Fired after every quota-consuming call finishes — success OR
+   * error. The standalone page uses this to bump the UsageMeter's
+   * refreshKey so the cycle-usage count updates immediately, rather
+   * than forcing the founder to navigate away and back.
+   */
+  onToolCallComplete?: () => void;
 }): UseResearchFlowResult {
-  const { roadmapId, taskId, standalone } = input;
+  const { roadmapId, taskId, standalone, onToolCallComplete } = input;
 
   const [stage,        setStage]        = useState<Stage>('query');
   const [query,        setQuery]        = useState('');
@@ -78,8 +85,10 @@ export function useResearchFlow(input: {
     } catch {
       setError('Network error — please try again.');
       setStage('query');
+    } finally {
+      onToolCallComplete?.();
     }
-  }, [planUrl]);
+  }, [planUrl, onToolCallComplete]);
 
   const handlePlanApprove = useCallback(async (editedPlan: string) => {
     setStage('executing');
@@ -104,8 +113,10 @@ export function useResearchFlow(input: {
     } catch {
       setError('Network error — please try again.');
       setStage('plan_review');
+    } finally {
+      onToolCallComplete?.();
     }
-  }, [executeUrl, standalone, sessionId]);
+  }, [executeUrl, standalone, sessionId, onToolCallComplete]);
 
   const handleFollowUp = useCallback(async (followQuery: string) => {
     if (followUps.length >= FOLLOWUP_MAX_ROUNDS) return;
@@ -130,8 +141,9 @@ export function useResearchFlow(input: {
       setError('Network error — please try again.');
     } finally {
       setFollowUpLoading(false);
+      onToolCallComplete?.();
     }
-  }, [followupUrl, standalone, sessionId, followUps.length]);
+  }, [followupUrl, standalone, sessionId, followUps.length, onToolCallComplete]);
 
   const handleRevise = useCallback(() => setStage('query'), []);
 

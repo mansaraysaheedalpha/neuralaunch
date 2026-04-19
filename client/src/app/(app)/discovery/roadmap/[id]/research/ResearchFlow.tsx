@@ -22,12 +22,14 @@ export interface ResearchFlowProps {
   onClose:    () => void;
   standalone?: boolean;
   prePopulatedQuery?: string;
+  /** Fired after every quota-consuming call (success or error). */
+  onToolCallComplete?: () => void;
 }
 
 export function ResearchFlow({
-  roadmapId, taskId, open, onClose, standalone, prePopulatedQuery,
+  roadmapId, taskId, open, onClose, standalone, prePopulatedQuery, onToolCallComplete,
 }: ResearchFlowProps) {
-  const flow = useResearchFlow({ roadmapId, taskId, standalone });
+  const flow = useResearchFlow({ roadmapId, taskId, standalone, onToolCallComplete });
 
   return (
     <AnimatePresence>
