@@ -464,27 +464,43 @@ async function handlePaymentFailed(event: TransactionPaymentFailedEvent): Promis
 // ---------------------------------------------------------------------------
 
 /**
- * Paddle Billing routes refunds through the Adjustment entity — there
- * is no dedicated `transaction.refunded` event. A full refund
- * (action='refund', type='full', status='approved') demotes the user
- * to Free immediately; a partial refund is logged but leaves the
- * subscription intact because the user still has valid paid access.
+ * Paddle Billing routes refunds AND chargebacks through the Adjustment
+ * entity — there is no dedicated `transaction.refunded` or
+ * `transaction.chargeback` event.
+ *
+ * Demotion rules:
+ *   - Approved full refund (action='refund', type='full',
+ *     status='approved') → demote to Free immediately. Money returned;
+ *     paid access ends.
+ *   - Approved partial refund → log only; user still has valid paid
+ *     access through currentPeriodEnd.
+ *   - Approved chargeback (action='chargeback', status='approved') →
+ *     demote to Free immediately regardless of `type`. The bank already
+ *     pulled funds; continued paid access is unfunded. Partial
+ *     chargebacks are vanishingly rare in practice and we treat them
+ *     the same as full — disputed money invalidates trust.
+ *   - Anything else (pending / rejected / reversed, or
+ *     credit / credit_reverse actions) → log at debug, no state change.
  *
  * Idempotency is natural: if tier is already 'free' and status is
  * already 'canceled' the update is a no-op on semantics. The
- * updateMany guard on subscriptionId + tier != 'free' would block
- * duplicate demotions but isn't strictly required — Prisma's update
- * is itself idempotent for writes of the same shape.
+ * tier-already-free guard short-circuits duplicate webhooks before
+ * touching the database.
  */
 async function handleAdjustment(event: AdjustmentCreatedEvent | AdjustmentUpdatedEvent): Promise<void> {
   const data = event.data;
 
-  // Only approved refunds invalidate access. Pending / rejected /
-  // reversed adjustments never demote — the refund hasn't actually
-  // completed. Chargebacks are handled separately by Paddle support
-  // workflows and intentionally not auto-demoted here.
-  if (data.action !== 'refund' || data.status !== 'approved') {
-    logger.debug('Paddle adjustment: ignored (not an approved refund)', {
+  // Acceptable demoting actions: refund (we issued one) and chargeback
+  // (the bank pulled the money back). A chargeback is a STRONGER signal
+  // than a refund — if the bank already clawed the funds, the user's
+  // continued paid access is unfunded. Status must be 'approved' for
+  // either to take effect; pending/rejected/reversed never demote.
+  // Other actions (credit, credit_reverse) and unhandled statuses fall
+  // through to the no-op log path.
+  const isApprovedRefund    = data.action === 'refund'    && data.status === 'approved';
+  const isApprovedChargeback = data.action === 'chargeback' && data.status === 'approved';
+  if (!isApprovedRefund && !isApprovedChargeback) {
+    logger.debug('Paddle adjustment: ignored (not an approved refund or chargeback)', {
       adjustmentId: data.id,
       action:       data.action,
       status:       data.status,
@@ -503,7 +519,10 @@ async function handleAdjustment(event: AdjustmentCreatedEvent | AdjustmentUpdate
 
   // Partial refunds: the user still has valid paid access through
   // currentPeriodEnd. We log for audit but do not demote tier.
-  if (data.type === 'partial') {
+  // Chargebacks (any type) always demote — if the bank pulled funds
+  // we shouldn't be honouring continued paid access on disputed money,
+  // and partial chargebacks are vanishingly rare in practice.
+  if (isApprovedRefund && data.type === 'partial') {
     logger.info('Paddle partial refund — logged without tier demotion', {
       adjustmentId:        data.id,
       paddleSubscriptionId: data.subscriptionId,
@@ -528,9 +547,10 @@ async function handleAdjustment(event: AdjustmentCreatedEvent | AdjustmentUpdate
   // when tier actually transitions, so the session callback only
   // invalidates once.
   if (existing.tier === 'free') {
-    logger.info('Paddle full refund — tier already free, skipping demotion', {
+    logger.info('Paddle full refund/chargeback — tier already free, skipping demotion', {
       paddleSubscriptionId: data.subscriptionId,
       adjustmentId:         data.id,
+      action:               data.action,
     });
     return;
   }
@@ -558,10 +578,11 @@ async function handleAdjustment(event: AdjustmentCreatedEvent | AdjustmentUpdate
     });
   });
 
-  logger.info('Paddle full refund processed — tier demoted to free', {
+  logger.info('Paddle adjustment processed — tier demoted to free', {
     userId:               existing.userId,
     paddleSubscriptionId: data.subscriptionId,
     adjustmentId:         data.id,
+    action:               data.action,
     priorTier:            existing.tier,
   });
 }
