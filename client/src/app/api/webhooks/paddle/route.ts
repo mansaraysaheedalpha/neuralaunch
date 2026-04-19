@@ -1,9 +1,15 @@
 // src/app/api/webhooks/paddle/route.ts
-import { NextResponse, after } from 'next/server';
+import { NextResponse } from 'next/server';
 import { paddleClient } from '@/lib/paddle/client';
 import { handleWebhookEvent } from '@/lib/paddle/webhook-processor';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
+
+// Processor runs inline (see below) and the slowest handler is
+// handleSubscriptionCreated's single transaction — comfortably inside
+// Paddle's 5s delivery budget even on a cold start. maxDuration of 30s
+// gives generous headroom without letting a hung query sit forever.
+export const maxDuration = 30;
 
 /**
  * Paddle webhook receiver.
@@ -15,10 +21,13 @@ import { logger } from '@/lib/logger';
  *   2. unmarshal() performs signature verification + typed parsing in
  *      one step. If it throws, the payload is unauthenticated and we
  *      reject with 400.
- *   3. Schedule processing via after() — this decouples the database
- *      work from the HTTP response, ack'ing within Paddle's 5s budget
- *      even on cold starts. Idempotency in the processor covers the
- *      case where Paddle retries a delivery it believes timed out.
+ *   3. Run handleWebhookEvent INLINE and only 200 after it returns
+ *      successfully. If the handler throws (DB outage, constraint
+ *      violation, transient Prisma issue), we respond 500 so Paddle
+ *      enters its retry schedule. The prior after()-based fire-and-
+ *      forget path silently lost state on DB errors because Paddle
+ *      never saw a non-2xx to retry against. Handlers are already
+ *      idempotent so Paddle-retry-after-partial-success is safe.
  */
 export async function POST(req: Request) {
   const signature = req.headers.get('paddle-signature');
@@ -48,21 +57,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Empty event' }, { status: 400 });
   }
 
-  // Hand the work to the platform's post-response scheduler so we can
-  // return 200 immediately. Any processor failure is logged but never
-  // fails the response — Paddle retries on non-2xx, but re-delivery of
-  // a successfully-acked-but-partially-processed event is the
-  // processor's job to handle idempotently.
-  after(async () => {
-    try {
-      await handleWebhookEvent(event);
-    } catch (err) {
-      logger.error(
-        'Paddle webhook processing failed',
-        err instanceof Error ? err : new Error(String(err)),
-      );
-    }
-  });
+  try {
+    await handleWebhookEvent(event);
+  } catch (err) {
+    logger.error(
+      'Paddle webhook processing failed',
+      err instanceof Error ? err : new Error(String(err)),
+      { eventType: event.eventType },
+    );
+    // 500 so Paddle retries. Handlers are idempotent — a retry after
+    // a partially-applied transaction is safe.
+    return NextResponse.json({ error: 'Processing failed' }, { status: 500 });
+  }
 
   return NextResponse.json({ status: 'ok' }, { status: 200 });
 }
