@@ -107,6 +107,33 @@ model User {
   subscription     Subscription?
   tierUpdatedAt    DateTime?
   tierTransitions  TierTransition[]
+
+  // ----- User-level tier history (returning-user personalization) -----
+  //
+  // Complementary to TierTransition (event-level, append-only). These
+  // fields are for fast lookup during hot paths like pricing-page
+  // personalization and welcome-back banners — rather than running a
+  // TierTransition query on every render.
+  //
+  //   lastPaidTier      — highest paid tier the user has ever held.
+  //                       Bumped on upgrade, never downgraded. Persists
+  //                       through cancellation, pause, refund, and
+  //                       chargeback so returning users can be welcomed
+  //                       back into their prior tier's UI.
+  //   wasFoundingMember — true if the user ever held a founding-rate
+  //                       subscription. Locks the founding rate for life
+  //                       on re-subscription (spec §1.2, "grandfathered
+  //                       for the lifetime of the continuous
+  //                       subscription"); we interpret "continuous" as
+  //                       "once a founder, always a founder on the same
+  //                       product" because cancel-and-return with founding
+  //                       pricing is the spirit of the promise.
+  //   firstSubscribedAt — absolute timestamp of first-ever paid
+  //                       subscription. Useful for longevity badges and
+  //                       any future "founding cohort" analytics.
+  lastPaidTier      String?
+  wasFoundingMember Boolean   @default(false)
+  firstSubscribedAt DateTime?
 }
 
 /**
