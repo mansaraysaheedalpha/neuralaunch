@@ -32,6 +32,8 @@ export default async function SettingsPage() {
         aggregateAnalyticsConsent:   true,
         aggregateAnalyticsConsentAt: true,
         paddleCustomerId:           true,
+        lastPaidTier:               true,
+        wasFoundingMember:          true,
       },
     }),
     prisma.account.findMany({
@@ -114,6 +116,13 @@ export default async function SettingsPage() {
           cancelAtPeriodEnd={subscription?.cancelAtPeriodEnd ?? false}
           currentPeriodEnd={subscription?.currentPeriodEnd?.toISOString() ?? null}
           hasBillingProfile={Boolean(subscription?.paddleCustomerId)}
+          userName={session.user.name ?? null}
+          lastPaidTier={
+            user.lastPaidTier === 'execute' || user.lastPaidTier === 'compound'
+              ? user.lastPaidTier
+              : null
+          }
+          wasFoundingMember={Boolean(user.wasFoundingMember)}
         />
       </section>
     </div>
