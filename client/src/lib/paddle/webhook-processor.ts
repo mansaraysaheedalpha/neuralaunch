@@ -131,6 +131,29 @@ function periodEnd(endsAt: string | null | undefined): Date {
   return new Date('2099-12-31T00:00:00Z');
 }
 
+/**
+ * Tier rank for User.lastPaidTier monotone-increment logic.
+ * The field tracks the PEAK paid tier a user ever held — bumps on
+ * upgrade, never decreases on downgrade / cancel / refund.
+ */
+const TIER_RANK: Record<string, number> = {
+  free:     0,
+  execute:  1,
+  compound: 2,
+};
+
+/**
+ * Returns the higher of the existing lastPaidTier and the newly-resolved
+ * tier, or null if neither is a paid tier. Free is never written to
+ * lastPaidTier — the field is only meaningful once a user has paid.
+ */
+function nextLastPaidTier(existing: string | null, candidate: string): string | null {
+  if (candidate === 'free') return existing;
+  const existingRank = existing ? TIER_RANK[existing] ?? 0 : -1;
+  const candidateRank = TIER_RANK[candidate] ?? 0;
+  return candidateRank > existingRank ? candidate : existing;
+}
+
 // ---------------------------------------------------------------------------
 // subscription.created
 // ---------------------------------------------------------------------------
@@ -173,6 +196,15 @@ async function handleSubscriptionCreated(event: SubscriptionCreatedEvent): Promi
       select: { tier: true },
     });
 
+    // Read user-level tier history to compute monotone-peak lastPaidTier
+    // and once-true wasFoundingMember. firstSubscribedAt is only set if
+    // null (this is the first paid subscription ever).
+    const priorUser = await tx.user.findUnique({
+      where:  { id: internalUserId },
+      select: { lastPaidTier: true, wasFoundingMember: true, firstSubscribedAt: true },
+    });
+    const nextPeak = nextLastPaidTier(priorUser?.lastPaidTier ?? null, tier);
+
     await tx.subscription.upsert({
       where: { userId: internalUserId },
       update: {
@@ -204,6 +236,12 @@ async function handleSubscriptionCreated(event: SubscriptionCreatedEvent): Promi
       data: {
         paddleCustomerId: data.customerId,
         tierUpdatedAt:    new Date(),
+        // Tier history — monotone-increment only, never decrease here.
+        // The fields track the user's LIFETIME relationship with paid
+        // tiers, independent of their current subscription state.
+        lastPaidTier:       nextPeak ?? undefined,
+        wasFoundingMember:  isFounder || priorUser?.wasFoundingMember ? true : undefined,
+        firstSubscribedAt:  priorUser?.firstSubscribedAt ?? (tier !== 'free' ? new Date() : undefined),
       },
     });
 
@@ -274,6 +312,11 @@ async function handleSubscriptionUpdated(
         where:  { userId: internalUserId },
         select: { tier: true },
       });
+      const priorUser = await tx.user.findUnique({
+        where:  { id: internalUserId },
+        select: { lastPaidTier: true, wasFoundingMember: true, firstSubscribedAt: true },
+      });
+      const nextPeak = nextLastPaidTier(priorUser?.lastPaidTier ?? null, tier);
       await tx.subscription.upsert({
         where: { userId: internalUserId },
         update: {
@@ -305,6 +348,9 @@ async function handleSubscriptionUpdated(
         data: {
           paddleCustomerId: data.customerId,
           tierUpdatedAt:    new Date(),
+          lastPaidTier:       nextPeak ?? undefined,
+          wasFoundingMember:  isFounder || priorUser?.wasFoundingMember ? true : undefined,
+          firstSubscribedAt:  priorUser?.firstSubscribedAt ?? (tier !== 'free' ? new Date() : undefined),
         },
       });
       await recordTierTransition(tx, {
@@ -332,10 +378,28 @@ async function handleSubscriptionUpdated(
       },
     });
 
+    // Always run the user-history bump — even on same-tier updates
+    // isFounder can flip true (an update that promoted someone to the
+    // founding price), and nextLastPaidTier is monotone (no-op when
+    // the new tier isn't higher).
+    const priorUser = await tx.user.findUnique({
+      where:  { id: existing.userId },
+      select: { lastPaidTier: true, wasFoundingMember: true, firstSubscribedAt: true },
+    });
+    const nextPeak = nextLastPaidTier(priorUser?.lastPaidTier ?? null, tier);
+    const historyPatch: {
+      lastPaidTier?: string;
+      wasFoundingMember?: boolean;
+      firstSubscribedAt?: Date;
+    } = {};
+    if (nextPeak && nextPeak !== priorUser?.lastPaidTier) historyPatch.lastPaidTier = nextPeak;
+    if (isFounder && !priorUser?.wasFoundingMember) historyPatch.wasFoundingMember = true;
+    if (!priorUser?.firstSubscribedAt && tier !== 'free') historyPatch.firstSubscribedAt = new Date();
+
     if (existing.tier !== tier) {
       await tx.user.update({
         where: { id: existing.userId },
-        data:  { tierUpdatedAt: new Date() },
+        data:  { tierUpdatedAt: new Date(), ...historyPatch },
       });
       await recordTierTransition(tx, {
         userId:          existing.userId,
@@ -343,6 +407,13 @@ async function handleSubscriptionUpdated(
         toTier:          tier,
         paddleEventType: event.eventType,
         paddleEventId:   event.eventId,
+      });
+    } else if (Object.keys(historyPatch).length > 0) {
+      // Same-tier update that still advances user history (e.g. a
+      // rare priceId-level flip to founding without changing tier).
+      await tx.user.update({
+        where: { id: existing.userId },
+        data:  historyPatch,
       });
     }
   });
