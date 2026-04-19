@@ -4,19 +4,27 @@ import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 
 export type CachedTier = 'free' | 'execute' | 'compound';
+export type PaidTier   = 'execute' | 'compound';
 
 interface CacheEntry {
-  tier:           CachedTier;
-  status:         string;
+  tier:              CachedTier;
+  status:            string;
+  lastPaidTier:      PaidTier | null;
+  wasFoundingMember: boolean;
   /** When this entry was written. Drives the TTL window. */
-  cachedAt:       number;
+  cachedAt:          number;
   /**
    * Snapshot of User.tierUpdatedAt at the time the cache was written.
    * If the live DB value advances past this, the entry is stale and
    * we re-read tier from Subscription. Lets a webhook-driven tier
    * change propagate immediately instead of waiting for the TTL.
+   *
+   * tierUpdatedAt also bumps when lastPaidTier / wasFoundingMember
+   * change (the webhook handler writes them in the same update as
+   * tierUpdatedAt), so reusing this key for cache invalidation
+   * covers all three fields without needing separate snapshots.
    */
-  tierUpdatedAt:  number | null;
+  tierUpdatedAt:     number | null;
 }
 
 const TIER_CACHE = new Map<string, CacheEntry>();
@@ -65,16 +73,32 @@ if (!globalThis.__tierCacheCleanupTimer) {
  * cached value if we have one, otherwise to 'free'. The session
  * callback never blocks on a transient DB issue.
  */
-export async function readTierCache(userId: string): Promise<{
-  tier:   CachedTier;
-  status: string;
-}> {
+export interface TierCacheResult {
+  tier:              CachedTier;
+  status:            string;
+  lastPaidTier:      PaidTier | null;
+  wasFoundingMember: boolean;
+}
+
+const EMPTY: TierCacheResult = {
+  tier:              'free',
+  status:            'none',
+  lastPaidTier:      null,
+  wasFoundingMember: false,
+};
+
+export async function readTierCache(userId: string): Promise<TierCacheResult> {
   const entry = TIER_CACHE.get(userId);
   const now   = Date.now();
 
   // Cache hit AND inside TTL → return without any DB call.
   if (entry && now - entry.cachedAt < CACHE_TTL_MS) {
-    return { tier: entry.tier, status: entry.status };
+    return {
+      tier:              entry.tier,
+      status:            entry.status,
+      lastPaidTier:      entry.lastPaidTier,
+      wasFoundingMember: entry.wasFoundingMember,
+    };
   }
 
   // Read tierUpdatedAt FIRST. If the cache entry exists and
@@ -92,37 +116,76 @@ export async function readTierCache(userId: string): Promise<{
       userId,
       error: err instanceof Error ? err.message : String(err),
     });
-    if (entry) return { tier: entry.tier, status: entry.status };
-    return { tier: 'free', status: 'none' };
+    if (entry) {
+      return {
+        tier:              entry.tier,
+        status:            entry.status,
+        lastPaidTier:      entry.lastPaidTier,
+        wasFoundingMember: entry.wasFoundingMember,
+      };
+    }
+    return EMPTY;
   }
 
   if (entry && entry.tierUpdatedAt === tierUpdatedAt) {
     // Tier hasn't changed since we cached. Slide the TTL window.
     entry.cachedAt = now;
-    return { tier: entry.tier, status: entry.status };
+    return {
+      tier:              entry.tier,
+      status:            entry.status,
+      lastPaidTier:      entry.lastPaidTier,
+      wasFoundingMember: entry.wasFoundingMember,
+    };
   }
 
   // Cold cache, expired TTL with stale entry, or tier mutation
-  // detected — re-derive from Subscription.
+  // detected — re-derive from Subscription + User. Both rows are
+  // co-mutated by the webhook transaction so reading them together
+  // here is consistent.
   let tier: CachedTier = 'free';
   let status = 'none';
+  let lastPaidTier: PaidTier | null = null;
+  let wasFoundingMember = false;
   try {
-    const subscription = await prisma.subscription.findUnique({
-      where:  { userId },
-      select: { tier: true, status: true },
-    });
+    const [subscription, userRow] = await Promise.all([
+      prisma.subscription.findUnique({
+        where:  { userId },
+        select: { tier: true, status: true },
+      }),
+      prisma.user.findUnique({
+        where:  { id: userId },
+        select: { lastPaidTier: true, wasFoundingMember: true },
+      }),
+    ]);
     tier   = (subscription?.tier ?? 'free') as CachedTier;
     status = subscription?.status ?? 'none';
+    const lpt = userRow?.lastPaidTier;
+    lastPaidTier = lpt === 'execute' || lpt === 'compound' ? lpt : null;
+    wasFoundingMember = Boolean(userRow?.wasFoundingMember);
   } catch (err) {
-    logger.warn('tier cache: Subscription read failed; using cached or default', {
+    logger.warn('tier cache: Subscription/User read failed; using cached or default', {
       userId,
       error: err instanceof Error ? err.message : String(err),
     });
-    if (entry) return { tier: entry.tier, status: entry.status };
+    if (entry) {
+      return {
+        tier:              entry.tier,
+        status:            entry.status,
+        lastPaidTier:      entry.lastPaidTier,
+        wasFoundingMember: entry.wasFoundingMember,
+      };
+    }
   }
 
-  TIER_CACHE.set(userId, { tier, status, cachedAt: now, tierUpdatedAt });
-  return { tier, status };
+  TIER_CACHE.set(userId, {
+    tier,
+    status,
+    lastPaidTier,
+    wasFoundingMember,
+    cachedAt:       now,
+    tierUpdatedAt,
+  });
+  return { tier, status, lastPaidTier, wasFoundingMember };
 }
 
 /**

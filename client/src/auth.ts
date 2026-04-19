@@ -80,6 +80,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const cached = await readTierCache(user.id);
       session.user.tier               = cached.tier;
       session.user.subscriptionStatus = cached.status;
+      session.user.lastPaidTier       = cached.lastPaidTier;
+      session.user.wasFoundingMember  = cached.wasFoundingMember;
       return session;
     },
   },
