@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect, type FormEvent } from 'react';
+import Link from 'next/link';
 import toast from 'react-hot-toast';
 import TextareaAutosize from 'react-textarea-autosize';
 import { BookOpen, SendHorizontal } from 'lucide-react';
@@ -111,6 +112,7 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
     retryRecommendation,
     pendingOutcomeRecommendationId,
     dismissPendingOutcomeAndRetry,
+    sessionInitError,
   } = useDiscoverySession({ onComplete, resume });
 
   // The stepper stays visible during a stepper-surface failure so the
@@ -261,6 +263,17 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
               <SendHorizontal className="size-4" />
             </Button>
           </form>
+          {sessionInitError && (
+            <div className="w-full max-w-2xl rounded-lg border border-gold/30 bg-gold/5 px-4 py-3 flex flex-col gap-2">
+              <p className="text-xs text-gold font-medium leading-relaxed">{sessionInitError}</p>
+              <Link
+                href="/#pricing"
+                className="inline-flex items-center self-start rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                See upgrade options →
+              </Link>
+            </div>
+          )}
         </div>
       )}
 

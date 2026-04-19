@@ -1,10 +1,16 @@
 // src/app/(app)/discovery/page.tsx
 import { Suspense } from 'react';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
 import { DiscoveryChatClient } from './DiscoveryChatClient';
 import { SessionResumption } from './SessionResumption';
+import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
+import {
+  countFreeDiscoverySessions,
+  FREE_DISCOVERY_SESSION_LIMIT,
+} from '@/lib/lifecycle';
 
 const INCOMPLETE_MIN_AGE_MS  = 60  * 1000;        //  60 seconds — ignore very recent sessions
 const INCOMPLETE_MAX_AGE_MS  = 72  * 60 * 60 * 1000; // 72 hours  — discard abandoned sessions
@@ -13,7 +19,16 @@ const INCOMPLETE_MAX_AGE_MS  = 72  * 60 * 60 * 1000; // 72 hours  — discard ab
  * DiscoveryPage
  *
  * Server Component — guards auth, checks for an incomplete session,
- * and renders either the resumption UI or the normal welcome/chat layer.
+ * and renders either the resumption UI, the normal welcome/chat layer,
+ * or a cap-reached UpgradePrompt for Free users who have already used
+ * their lifetime discovery allowance.
+ *
+ * The cap-reached branch matters: before this branch existed, a Free
+ * user who hit their 3rd attempt would see the chat input, type a
+ * long prompt, submit it, and get a blank screen because the server
+ * 403'd with no client-side rendering for that shape. Pre-emptively
+ * replacing the chat with a clear upgrade CTA means the user never
+ * types a message they can't send.
  */
 export default async function DiscoveryPage() {
   const session = await auth();
@@ -21,10 +36,16 @@ export default async function DiscoveryPage() {
 
   const userId    = session.user.id;
   const firstName = session.user.name?.split(' ')[0] ?? '';
+  const tier      = session.user.tier ?? 'free';
   // eslint-disable-next-line react-hooks/purity -- async server component, runs once per request
   const now       = Date.now();
 
-  const [incomplete, completedCount] = await Promise.all([
+  // For Free users we need BOTH the completed count (for the
+  // isFirstSession guide-pulse flag) AND the lifetime count (for the
+  // cap check — includes ACTIVE and abandoned sessions, not just
+  // COMPLETE). Paid users skip the lifetime count since the cap
+  // doesn't apply.
+  const [incomplete, completedCount, lifetimeCount] = await Promise.all([
     prisma.discoverySession.findFirst({
       where: {
         userId,
@@ -43,9 +64,44 @@ export default async function DiscoveryPage() {
     prisma.discoverySession.count({
       where: { userId, status: 'COMPLETE' },
     }),
+    tier === 'free' ? countFreeDiscoverySessions(userId) : Promise.resolve(0),
   ]);
 
   const isFirstSession = completedCount === 0;
+  const freeCapReached =
+    tier === 'free' && lifetimeCount >= FREE_DISCOVERY_SESSION_LIMIT;
+
+  // Free-cap branch takes priority even over a resumable in-flight
+  // session — if the user is at cap, their in-flight session is
+  // already one of the two counted against the cap, and they won't
+  // be able to start a new one after finishing it. Show the upgrade
+  // prompt so the path forward is obvious. If they DO want to resume
+  // the in-flight one, the sidebar link to /discovery/recommendations
+  // is still one click away.
+  if (freeCapReached) {
+    return (
+      <div className="flex flex-col h-full bg-background">
+        <div className="flex-1 flex items-center justify-center px-4 py-12">
+          <div className="max-w-xl w-full">
+            <UpgradePrompt
+              requiredTier="execute"
+              variant="hero"
+              heading="You've used both of your free discovery interviews"
+              description={`Free accounts include ${FREE_DISCOVERY_SESSION_LIMIT} discovery interviews so you can try the system twice with different framing. Upgrade to Execute to run unlimited interviews, push back on recommendations, generate execution roadmaps, and unlock the four tools.`}
+              primaryLabel="Upgrade to Execute"
+            />
+            <p className="mt-6 text-center text-xs text-muted-foreground">
+              Your existing recommendations are always accessible from{' '}
+              <Link href="/discovery/recommendations" className="underline underline-offset-2 hover:text-foreground">
+                Past recommendations
+              </Link>
+              .
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-background">
