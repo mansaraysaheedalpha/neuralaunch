@@ -770,6 +770,13 @@ model Roadmap {
   ventureId String?
   venture   Venture? @relation(fields: [ventureId], references: [id], onDelete: SetNull)
 
+  /// Back-reference to task-bound validation pages. A single roadmap
+  /// can have multiple validation pages when different tasks bind to
+  /// their own page (e.g. one per cohort / feature hypothesis). The
+  /// (roadmapId, taskId) composite unique on ValidationPage prevents
+  /// two pages binding to the same task.
+  validationPages ValidationPage[]
+
   @@index([userId])
   @@index([recommendationId])
   @@index([parentRoadmapId])
@@ -965,8 +972,24 @@ model ValidationPage {
   id               String         @id @default(cuid())
   userId           String
   user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  recommendationId String         @unique
-  recommendation   Recommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+
+  /// Optional recommendation binding — set for pages created via
+  /// the legacy recommendation-page CTA OR the standalone /tools
+  /// flow when the user picks a recommendation to tie against. Null
+  /// for truly-standalone pages (no recommendation chosen) and for
+  /// task-bound pages that live under roadmapId + taskId instead.
+  recommendationId String?
+  recommendation   Recommendation? @relation(fields: [recommendationId], references: [id], onDelete: SetNull)
+
+  /// Task binding — set for pages created from a task card via the
+  /// task-scoped POST route. roadmapId is the Prisma Roadmap.id;
+  /// taskId is the stable engine-minted task id within
+  /// Roadmap.phases JSON (see RoadmapTaskSchema.id in
+  /// packages/api-types/src/roadmap.ts). Null for recommendation-
+  /// bound or truly-standalone pages.
+  taskId    String?
+  roadmapId String?
+  roadmap   Roadmap? @relation(fields: [roadmapId], references: [id], onDelete: SetNull)
 
   // Phase 3 coordination preparatory data — see Concern 3 in
   // AGENT_ARCHITECTURE_REVIEW.md. Pure metadata, no behaviour today.
@@ -995,10 +1018,21 @@ model ValidationPage {
   report    ValidationReport?
   events    ValidationEvent[]
 
+  /// One validation page per recommendation when recommendationId
+  /// is set. Postgres treats NULLs as distinct, so multiple task-
+  /// bound or truly-standalone pages coexist under null
+  /// recommendationId without violating the constraint.
+  @@unique([recommendationId])
+  /// One validation page per (roadmap, task) tuple. Same NULL
+  /// semantics — truly-standalone pages (both null) are unrestricted.
+  @@unique([roadmapId, taskId])
+
   @@index([userId])
   @@index([slug])
   @@index([status])
   @@index([recommendationId])
+  @@index([taskId])
+  @@index([roadmapId])
 }
 
 /**

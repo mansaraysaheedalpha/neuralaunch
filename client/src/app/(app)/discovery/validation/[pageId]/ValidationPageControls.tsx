@@ -7,7 +7,13 @@ import { usePreviewFrameReload } from './PreviewFrame';
 
 interface ValidationPageControlsProps {
   pageId:          string;
-  recommendationId: string;
+  /**
+   * Null for task-bound pages and truly-standalone pages; the
+   * Regenerate button is hidden when null because regeneration goes
+   * through the recommendation-scoped route which requires a
+   * recommendation binding.
+   */
+  recommendationId: string | null;
   slug:            string;
   status:          'DRAFT' | 'LIVE' | 'ARCHIVED';
   pageUrl:         string;
@@ -35,6 +41,7 @@ export function ValidationPageControls({
   const [error,        setError]        = useState('');
 
   async function handleRegenerate() {
+    if (!recommendationId) return; // Should never happen — button is hidden
     setRegenerating(true);
     setError('');
     try {
@@ -132,14 +139,19 @@ export function ValidationPageControls({
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={() => { void handleRegenerate(); }}
-          disabled={regenerating || publishing || isLive}
-          className="w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-40"
-        >
-          {regenerating ? 'Regenerating…' : 'Regenerate content'}
-        </button>
+        {/* Regenerate is only available for recommendation-bound pages —
+            task-bound and truly-standalone pages regenerate via their
+            own flows (or simply don't, until feature parity lands). */}
+        {recommendationId && (
+          <button
+            type="button"
+            onClick={() => { void handleRegenerate(); }}
+            disabled={regenerating || publishing || isLive}
+            className="w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-40"
+          >
+            {regenerating ? 'Regenerating…' : 'Regenerate content'}
+          </button>
+        )}
 
         {isLive && (
           <p className="text-center text-xs text-muted-foreground">
