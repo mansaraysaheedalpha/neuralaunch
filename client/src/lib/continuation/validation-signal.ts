@@ -37,8 +37,18 @@ export interface ValidationSignal {
  * the brief generator then falls through to pre-signal behaviour.
  */
 export async function loadValidationSignal(ventureId: string): Promise<ValidationSignal | null> {
+  // OR arm: task-bound pages have recommendationId=null (the task-scoped
+  // route sets roadmapId+taskId and leaves recommendationId null so the
+  // @@unique([recommendationId]) constraint doesn't collide with the
+  // recommendation-scoped page). Walk through the roadmap relation so
+  // those pages still count toward the venture's aggregate signal.
   const pages = await prisma.validationPage.findMany({
-    where:  { recommendation: { cycle: { ventureId } } },
+    where: {
+      OR: [
+        { recommendation: { cycle: { ventureId } } },
+        { roadmap:        { recommendation: { cycle: { ventureId } } } },
+      ],
+    },
     select: {
       id:     true,
       status: true,
