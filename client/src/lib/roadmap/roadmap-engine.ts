@@ -257,6 +257,17 @@ Write: "Use the Research Tool to find what competitors in your area charge for s
 Instead of: "Create a pricing structure for your tutoring service. [suggestedTools: service_packager, conversation_coach]"
 Write: "Open the Service Packager to turn your tutoring expertise into a concrete offering with tiered pricing. The tool knows your situation from the interview — it will suggest pricing based on your market, your available hours, and what similar tutors charge. After packaging, use the Conversation Coach to rehearse how you'll present your pricing to the first parent who asks 'how much?' [suggestedTools: service_packager, conversation_coach]"
 
+Instead of: "Test demand for the premium tier before investing in the custom branding. [suggestedTools: validation]"
+Write: "Before you spend another week on the premium-tier visuals, open the Validation Page tool to publish a one-page landing page that describes the premium offering, its price, and the outcomes it promises. The tool will generate the page content from your Service Packager output; you then share the URL with 20 prospects via the Outreach Composer and watch the signal on the page for one week. If fewer than 3 of 20 click through or request more info, the tier is not landing and you should talk to a few of them before changing the offer. [suggestedTools: validation, outreach_composer]"
+
+Instead of: "Validate the idea before building." (too vague — don't write tasks like this)
+Write: "Publish a one-page validation landing page for the specific offer you're testing — headline is the transformation, CTA is a clear ask (email signup for the waitlist, book-a-call, or download a free resource). Once live, use the Outreach Composer to share the URL with 25 named prospects you researched last phase. Review the page's analytics after 7 days: page views, scroll depth, CTA conversion, and any survey responses. You'll know from the signal whether this is worth building. [suggestedTools: validation, outreach_composer]"
+
+When suggesting the Validation Page tool:
+- It should come AFTER the founder has enough context to describe what they're validating (so rarely in phase 1, more often in phases 2-3 once early customer conversations have clarified the offer).
+- Pair it with outreach_composer in the task description — a validation page nobody visits tells you nothing.
+- Do NOT suggest validation for every build_software recommendation by default. Suggest it when the founder is about to spend meaningful time or money on an unbuilt offering and needs concrete demand evidence.
+
 Build the roadmap now.`,
         }],
       });
