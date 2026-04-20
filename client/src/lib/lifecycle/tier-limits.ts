@@ -39,11 +39,15 @@ const TIER_COPY: Record<Tier, { heading: string; upgrade: string }> = {
   },
   execute: {
     heading: 'Execute supports one active venture at a time.',
-    upgrade: 'Pause or complete your current venture to start a new one, or upgrade to Compound for up to three concurrent ventures.',
+    // Copy names the surface that actually lets the user act on the
+    // instruction — "Your ventures" in the sidebar → expand the active
+    // venture → Pause / Mark complete buttons. Previously this
+    // promised pause/complete actions that did not exist in the UI.
+    upgrade: 'Open Your ventures in the sidebar and pause or complete your current venture, or upgrade to Compound for up to three concurrent ventures.',
   },
   compound: {
     heading: 'Compound supports up to three active ventures simultaneously.',
-    upgrade: 'Pause or complete one of your existing ventures to start a new one.',
+    upgrade: 'Open Your ventures in the sidebar and pause or complete one of your existing ventures to start a new one.',
   },
 };
 

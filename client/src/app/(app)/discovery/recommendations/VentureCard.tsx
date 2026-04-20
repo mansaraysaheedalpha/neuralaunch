@@ -3,13 +3,16 @@
 //
 // Renders a single venture with nested cycles. Expandable — collapsed
 // by default shows venture name, status badge, current cycle indicator,
-// and roadmap progress bar. Expanded shows all prior cycles with links.
-// Venture name is inline-editable via pencil icon → text input → check/x.
+// and roadmap progress bar. Expanded shows all prior cycles with links
+// and the lifecycle action buttons (pause / resume / complete) that
+// matter when the user has hit the venture cap and needs to free a
+// slot without finishing the whole cycle flow.
 
 import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import Link from 'next/link';
-import { Check, ChevronDown, Pencil, X } from 'lucide-react';
+import { Check, ChevronDown, Loader2, Pencil, Pause, Play, X } from 'lucide-react';
 
 const STATUS_CLASSES: Record<string, string> = {
   active:    'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
@@ -39,12 +42,21 @@ export interface VentureCardProps {
   progress: { completedTasks: number; totalTasks: number } | null;
 }
 
+type ActionState =
+  | { kind: 'idle' }
+  | { kind: 'saving' }
+  | { kind: 'confirming-complete' }
+  | { kind: 'error'; message: string };
+
 export function VentureCard({ venture, progress }: VentureCardProps) {
+  const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing]   = useState(false);
   const [draft, setDraft]       = useState(venture.name);
   const [name, setName]         = useState(venture.name);
   const [saving, setSaving]     = useState(false);
+  const [status, setStatus]     = useState(venture.status);
+  const [action, setAction]     = useState<ActionState>({ kind: 'idle' });
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -74,14 +86,54 @@ export function VentureCard({ venture, progress }: VentureCardProps) {
     setEditing(false);
   }
 
+  /**
+   * Send a venture-status transition to the server. Optimistically
+   * updates local state, reverts on non-ok response, and surfaces the
+   * server error message (most importantly the cap-hit 403 when
+   * resuming a paused venture would exceed the tier limit).
+   */
+  async function mutateStatus(next: 'active' | 'paused' | 'completed') {
+    const prev = status;
+    setAction({ kind: 'saving' });
+    setStatus(next); // optimistic
+    try {
+      const res = await fetch(`/api/discovery/ventures/${venture.id}`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ status: next }),
+      });
+      if (!res.ok) {
+        setStatus(prev);
+        const json = await res.json().catch(() => ({})) as { error?: string };
+        setAction({
+          kind:    'error',
+          message: json.error ?? 'Could not update the venture. Please try again.',
+        });
+        return;
+      }
+      setAction({ kind: 'idle' });
+      // Refresh the server component so the active/paused/completed
+      // sections on /discovery/recommendations re-sort immediately.
+      router.refresh();
+    } catch {
+      setStatus(prev);
+      setAction({ kind: 'error', message: 'Network error — please try again.' });
+    }
+  }
+
   const activeCycle = venture.cycles.find(c => c.status === 'in_progress');
   const completedCycles = venture.cycles.filter(c => c.status === 'completed');
   const totalCycles = venture.cycles.length;
-  const statusLabel = venture.status.charAt(0).toUpperCase() + venture.status.slice(1);
+  const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
 
   const pct = progress && progress.totalTasks > 0
     ? Math.round((progress.completedTasks / progress.totalTasks) * 100)
     : null;
+
+  const canPause    = status === 'active';
+  const canResume   = status === 'paused';
+  const canComplete = status === 'active' || status === 'paused';
+  const isSaving    = action.kind === 'saving';
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -124,7 +176,7 @@ export function VentureCard({ venture, progress }: VentureCardProps) {
                 </button>
               </div>
             )}
-            <span className={`shrink-0 text-[9px] uppercase tracking-wider font-semibold rounded-full px-2 py-0.5 ${STATUS_CLASSES[venture.status] ?? STATUS_CLASSES.completed}`}>
+            <span className={`shrink-0 text-[9px] uppercase tracking-wider font-semibold rounded-full px-2 py-0.5 ${STATUS_CLASSES[status] ?? STATUS_CLASSES.completed}`}>
               {statusLabel}
             </span>
           </div>
@@ -190,6 +242,85 @@ export function VentureCard({ venture, progress }: VentureCardProps) {
                 <p className="text-[11px] text-muted-foreground italic">No cycles yet.</p>
               )}
             </div>
+
+            {/* Lifecycle actions — pause / resume / complete. Hidden
+                when the venture is terminal. */}
+            {status !== 'completed' && (
+              <div className="border-t border-border px-4 py-3 flex flex-col gap-2">
+                {action.kind === 'confirming-complete' ? (
+                  <div className="flex flex-col gap-2">
+                    <p className="text-[11px] text-foreground leading-relaxed">
+                      Mark this venture as <span className="font-semibold">completed</span>?
+                      Completed ventures cannot be reopened and stop consuming an active slot.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { void mutateStatus('completed'); }}
+                        disabled={isSaving}
+                        className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/40 px-3 py-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors disabled:opacity-60"
+                      >
+                        {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                        Confirm complete
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAction({ kind: 'idle' })}
+                        disabled={isSaving}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center flex-wrap gap-2">
+                    {canPause && (
+                      <button
+                        type="button"
+                        onClick={() => { void mutateStatus('paused'); }}
+                        disabled={isSaving}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-foreground hover:border-slate-500 hover:bg-muted transition-colors disabled:opacity-60"
+                        title="Pause to free an active-venture slot without finishing this venture."
+                      >
+                        {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Pause className="size-3" />}
+                        Pause venture
+                      </button>
+                    )}
+                    {canResume && (
+                      <button
+                        type="button"
+                        onClick={() => { void mutateStatus('active'); }}
+                        disabled={isSaving}
+                        className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 border border-primary/30 px-3 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/20 transition-colors disabled:opacity-60"
+                        title="Resume — consumes an active-venture slot."
+                      >
+                        {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Play className="size-3" />}
+                        Resume venture
+                      </button>
+                    )}
+                    {canComplete && (
+                      <button
+                        type="button"
+                        onClick={() => setAction({ kind: 'confirming-complete' })}
+                        disabled={isSaving}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                        title="Mark this venture as done. Terminal — cannot be reopened."
+                      >
+                        <Check className="size-3" />
+                        Mark complete
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {action.kind === 'error' && (
+                  <p className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-700 dark:text-red-400">
+                    {action.message}
+                  </p>
+                )}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
