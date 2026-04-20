@@ -31,7 +31,8 @@ export default async function RoadmapPage({
   const recommendation = await prisma.recommendation.findFirst({
     where:  { id: recommendationId, userId },
     select: {
-      id: true,
+      id:         true,
+      acceptedAt: true,
       session: {
         select: { beliefState: true },
       },
@@ -40,6 +41,18 @@ export default async function RoadmapPage({
 
   if (!recommendation) {
     redirect('/discovery');
+  }
+
+  // Acceptance gate — the speculative roadmap warm-up fires as soon as
+  // synthesis completes, so a pre-warmed roadmap always exists in the
+  // database by the time the founder opens the recommendation. Without
+  // this gate, direct-navigating to /discovery/roadmap/[id] (or clicking
+  // any accidentally-rendered link) exposes the warmed-up roadmap before
+  // the founder has explicitly committed via the "This is my path —
+  // build my roadmap" button. Redirect them back to the recommendation
+  // so the commit moment still means something.
+  if (!recommendation.acceptedAt) {
+    redirect(`/discovery/recommendations/${recommendationId}`);
   }
 
   // Best-effort extraction of the founder's primary goal for the

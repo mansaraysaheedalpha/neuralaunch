@@ -91,7 +91,7 @@ export default async function RecommendationsPage() {
     where:   { userId },
     orderBy: { createdAt: 'desc' },
     take:    50,
-    select:  { id: true, path: true, createdAt: true, roadmap: { select: { status: true } } },
+    select:  { id: true, path: true, createdAt: true, acceptedAt: true, roadmap: { select: { status: true } } },
   }) : [];
 
   // Archived ventures are rendered in their own dedicated section;
@@ -209,7 +209,15 @@ export default async function RecommendationsPage() {
         ) : (
           <ul className="flex flex-col gap-3">
             {recommendations.map(rec => {
-              const hasRoadmap = rec.roadmap?.status === 'READY';
+              // The speculative warm-up fires a background roadmap build
+              // immediately after synthesis completes, so status flips
+              // to READY long before the founder has read the
+              // recommendation — let alone accepted it. We only want to
+              // expose the "View execution roadmap" affordance once the
+              // founder has actually committed via the acceptance click.
+              // Without the acceptedAt gate the warmed-up roadmap leaks
+              // to the founder and the acceptance moment becomes cosmetic.
+              const hasRoadmap = rec.roadmap?.status === 'READY' && rec.acceptedAt !== null;
               return (
                 <li key={rec.id} className="flex flex-col gap-0 rounded-lg border border-border overflow-hidden">
                   <Link href={`/discovery/recommendations/${rec.id}`} className="flex flex-col gap-1 p-4 hover:bg-muted/50 transition-colors">
