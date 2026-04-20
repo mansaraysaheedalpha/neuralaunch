@@ -60,7 +60,7 @@ const TIERS: Tier[] = [
     annual: 279,
     features: [
       "Everything in Free",
-      "Push back up to seven rounds on recommendations",
+      "Push back up to ten rounds on recommendations",
       "Phased execution roadmap",
       "Conversation Coach — prepare for high-stakes conversations",
       "Outreach Composer — WhatsApp, email, LinkedIn drafts",
@@ -82,6 +82,7 @@ const TIERS: Tier[] = [
     features: [
       "Everything in Execute",
       "Voice mode — speak answers instead of typing",
+      "Extended pushback — up to 15 rounds for deeper convergence",
       "Continuation brief built from real market signal",
       "Fork selection into next cycle",
       "Cross-venture memory across all 3 of your ventures",

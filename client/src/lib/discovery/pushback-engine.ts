@@ -60,6 +60,13 @@ export interface RunPushbackInput {
   currentRound:   number;
   recommendationId: string;
   /**
+   * Per-tier hard cap (Execute = 10, Compound = 15). Threaded from
+   * the route via hardCapForTier() so the prompt can correctly tell
+   * the model how many rounds remain. Optional for back-compat —
+   * defaults to hardCap (the Execute cap).
+   */
+  hardCap?: number;
+  /**
    * Per-call research accumulator. The route owns this array — passes
    * an empty array in, reads the populated entries after the call,
    * and appends to Recommendation.researchLog. The agent's tool
@@ -88,6 +95,7 @@ export async function runPushbackTurn(
   const log = logger.child({ module: 'PushbackEngine', recommendationId: input.recommendationId });
 
   const { recommendation, context, history, userMessage, currentRound, recommendationId } = input;
+  const hardCap = input.hardCap ?? PUSHBACK_CONFIG.HARD_CAP_ROUND;
   const accumulator = input.researchAccumulator ?? [];
   const accumulatorBaseline = accumulator.length;
 
@@ -125,7 +133,7 @@ export async function runPushbackTurn(
     currentRound,
     historyLen: history.length,
     softWarnRound: PUSHBACK_CONFIG.SOFT_WARN_ROUND,
-    hardCap:       PUSHBACK_CONFIG.HARD_CAP_ROUND,
+    hardCap:       hardCap,
   });
 
   // Rules, belief state, and the current recommendation are stable
@@ -207,12 +215,12 @@ When you decide to refine or replace, signal it explicitly in your message: "I t
   const volatileSuffix = `THE CONVERSATION SO FAR:
 ${historyBlock}
 
-THE FOUNDER'S NEW MESSAGE (round ${currentRound} of up to ${PUSHBACK_CONFIG.HARD_CAP_ROUND}):
+THE FOUNDER'S NEW MESSAGE (round ${currentRound} of up to ${hardCap}):
 ${renderUserContent(userMessage, 2000)}
 
 ROUND-AWARE GUIDANCE:
 
-You are currently on round ${currentRound} of up to ${PUSHBACK_CONFIG.HARD_CAP_ROUND}.
+You are currently on round ${currentRound} of up to ${hardCap}.
 
 ${currentRound >= PUSHBACK_CONFIG.SOFT_WARN_ROUND
   ? `IMPORTANT — round ${currentRound}: If you sense the dialogue has stalled (you are about to say something you have already said, or new objections keep appearing without earlier ones being settled), explicitly name what is happening in your message: "We have been going back and forth on this for a few rounds and I want to make sure I am actually helping you rather than just defending a position. What would it take for you to feel confident enough to move forward — either with this recommendation or a different one?" Set converging to false in this case. If the conversation is genuinely progressing toward commit, ignore this guidance and continue normally — set converging to true.`
@@ -484,7 +492,7 @@ Produce the updated recommendation now.`;
   // this is the guarantee.
   if (
     currentRound >= PUSHBACK_CONFIG.SOFT_WARN_ROUND
-    && currentRound < PUSHBACK_CONFIG.HARD_CAP_ROUND
+    && currentRound < hardCap
     && object.converging === false
     && object.action === PUSHBACK_ACTIONS.CONTINUE_DIALOGUE
   ) {

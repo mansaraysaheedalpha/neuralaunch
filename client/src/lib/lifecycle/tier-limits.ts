@@ -57,7 +57,7 @@ const TIER_COPY: Record<Tier, { heading: string; upgrade: string }> = {
  * `requireTierOrThrow` because this helper needs the tier value
  * itself, not a boolean gate check.
  */
-async function getUserTier(userId: string): Promise<Tier> {
+export async function getUserTier(userId: string): Promise<Tier> {
   const sub = await prisma.subscription.findUnique({
     where:  { userId },
     select: { tier: true },

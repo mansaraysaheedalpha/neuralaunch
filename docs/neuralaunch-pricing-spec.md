@@ -14,8 +14,8 @@ a regression.
 | Tier | Monthly | Annual | What's Included |
 |---|---|---|---|
 | **Free** | $0 | $0 | Up to two discovery interviews (so a founder who dislikes their first recommendation can try again with different framing), one full recommendation with reasoning, the alternatives the system rejected and why, and honest falsification (what would make this recommendation wrong). Free tier holds zero active ventures — recommendation view only. |
-| **Execute** | $29/month | $279/year | Everything in Free, plus push back up to seven rounds on recommendations, the phased execution roadmap, the five execution tools (Conversation Coach for high-stakes conversation prep, Outreach Composer for WhatsApp / email / LinkedIn drafts, Research Tool for deep market research, Service Packager for structuring a service offering, Validation Page for live landing pages that test real demand), task-level check-ins and diagnostic help. One active venture at a time. |
-| **Compound** | $49/month | $479/year | Everything in Execute, plus voice mode (speak answers instead of typing across interview, check-ins, Coach role-play), the continuation brief at cycle end built from real market signal, fork selection into the next cycle, and cross-venture memory across all three of your ventures. Up to three active ventures simultaneously. |
+| **Execute** | $29/month | $279/year | Everything in Free, plus push back up to ten rounds on recommendations, the phased execution roadmap, the five execution tools (Conversation Coach for high-stakes conversation prep, Outreach Composer for WhatsApp / email / LinkedIn drafts, Research Tool for deep market research, Service Packager for structuring a service offering, Validation Page for live landing pages that test real demand), task-level check-ins and diagnostic help. One active venture at a time. |
+| **Compound** | $49/month | $479/year | Everything in Execute, plus voice mode (speak answers instead of typing across interview, check-ins, Coach role-play), extended pushback up to fifteen rounds for deeper convergence on complex recommendations, the continuation brief at cycle end built from real market signal, fork selection into the next cycle, and cross-venture memory across all three of your ventures. Up to three active ventures simultaneously. |
 
 ### 1.2 Founding Member Rates
 
@@ -41,7 +41,7 @@ variation.
 | Recommendation with reasoning | ✓ | ✓ | ✓ |
 | Alternatives rejected (with rationale) | ✓ | ✓ | ✓ |
 | Honest falsification (`whatWouldMakeThisWrong`) | ✓ | ✓ | ✓ |
-| Pushback (up to 7 rounds) | ✗ | ✓ | ✓ |
+| Pushback rounds | ✗ | ✓ up to 10 | ✓ up to 15 |
 | Execution roadmap generation | ✗ | ✓ | ✓ |
 | Conversation Coach | ✗ | ✓ | ✓ |
 | Outreach Composer | ✗ | ✓ | ✓ |

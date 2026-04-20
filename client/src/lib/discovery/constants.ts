@@ -15,6 +15,7 @@ export {
   RECOMMENDATION_TYPES,
   type RecommendationType,
   PUSHBACK_CONFIG,
+  hardCapForTier,
   PUSHBACK_ACTIONS,
   type PushbackAction,
   PUSHBACK_MODES,

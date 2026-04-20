@@ -30,6 +30,7 @@ export {
   assertVentureLimitNotReached,
   assertFreeDiscoverySessionLimit,
   countFreeDiscoverySessions,
+  getUserTier,
   FREE_DISCOVERY_SESSION_LIMIT,
 } from './tier-limits';
 

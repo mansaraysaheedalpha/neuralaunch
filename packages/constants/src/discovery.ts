@@ -88,9 +88,40 @@ export type RecommendationType = typeof RECOMMENDATION_TYPES[keyof typeof RECOMM
 export const PUSHBACK_CONFIG = {
   /** Round at which the agent should consider injecting a re-frame, IF stalled. */
   SOFT_WARN_ROUND: 4,
-  /** Final user round. The agent's response on this round is the closing move. */
-  HARD_CAP_ROUND:  7,
+  /**
+   * Final user round — the agent's response on this round is the
+   * closing move. Per-tier because paying users deserve more room
+   * to converge on a complex recommendation; free users don't reach
+   * pushback at all.
+   *
+   *   execute:  10 rounds — production feedback showed 7 frequently
+   *             cut off productive conversations mid-convergence
+   *             (2026-04-21 testing incident).
+   *   compound: 15 rounds — higher cap for the power tier; matches
+   *             the "the system gets smarter" positioning.
+   *
+   * HARD_CAP_ROUND is preserved as a default for back-compat with
+   * pre-tier-aware call sites (e.g. server-only defaults). Route
+   * handlers should prefer `hardCapForTier(tier)` going forward.
+   */
+  HARD_CAP_ROUND:  10,
+  HARD_CAP_BY_TIER: {
+    execute:  10,
+    compound: 15,
+  },
 } as const;
+
+/**
+ * Resolve the pushback hard cap for a given billing tier. Returns
+ * HARD_CAP_BY_TIER.execute for any unknown / free tier — the server
+ * route gates pushback to paid tiers anyway, so this never lies to
+ * a real caller; it just prevents a bad tier string from crashing
+ * the cap arithmetic.
+ */
+export function hardCapForTier(tier: string): number {
+  if (tier === 'compound') return PUSHBACK_CONFIG.HARD_CAP_BY_TIER.compound;
+  return PUSHBACK_CONFIG.HARD_CAP_BY_TIER.execute;
+}
 
 /** Action labels emitted by the pushback agent in its structured response. */
 export const PUSHBACK_ACTIONS = {

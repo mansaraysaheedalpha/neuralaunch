@@ -21,9 +21,9 @@ import {
   RATE_LIMITS,
 } from '@/lib/validation/server-helpers';
 import {
-  PUSHBACK_CONFIG,
   PUSHBACK_ACTIONS,
   PUSHBACK_ALTERNATIVE_EVENT,
+  hardCapForTier,
 } from '@/lib/discovery/constants';
 import {
   runPushbackTurn,
@@ -41,6 +41,7 @@ import {
   type ResearchLogEntry,
 } from '@/lib/research';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
+import { getUserTier } from '@/lib/lifecycle';
 
 const BodySchema = z.object({
   message: z.string().min(1).max(4000),
@@ -50,7 +51,7 @@ const BodySchema = z.object({
  * POST /api/discovery/recommendations/[id]/pushback
  *
  * One round of the pushback conversation. Hard cap enforced server-side
- * — clients cannot post past PUSHBACK_CONFIG.HARD_CAP_ROUND. The HARD_CAP
+ * — clients cannot post past hardCap. The HARD_CAP
  * round itself triggers the closing-move and queues an alternative
  * synthesis via Inngest; no eighth attempt is accepted.
  *
@@ -119,11 +120,19 @@ export async function POST(
     const currentRound   = priorUserTurns + 1;
     const prevVersion    = rec.pushbackVersion;
 
-    // Hard cap. The HARD_CAP_ROUND turn IS the closing move — the cap is
-    // not "no more turns after 7", it's "the 7th is the last and it
-    // delivers the closing message + queues the alternative synthesis".
-    // Anything past 7 returns 409.
-    if (currentRound > PUSHBACK_CONFIG.HARD_CAP_ROUND) {
+    // Resolve the caller's pushback cap per tier. Execute: 10 rounds.
+    // Compound: 15. A non-paid caller never reaches this line because
+    // requireTierOrThrow('execute') above threw; hardCapForTier falls
+    // back to the Execute cap for any unexpected tier string (defence
+    // in depth — a bad tier should never crash the cap arithmetic).
+    const tier    = await getUserTier(userId);
+    const hardCap = hardCapForTier(tier);
+
+    // Hard cap. The hardCap turn IS the closing move — not "no more
+    // turns after N", it's "the Nth is the last and it delivers the
+    // closing message + queues the alternative synthesis". Anything
+    // past the cap returns 409.
+    if (currentRound > hardCap) {
       throw new HttpError(409, `Pushback cap reached. Take a day, then either accept this recommendation or start a new discovery session.`);
     }
 
@@ -140,7 +149,7 @@ export async function POST(
     // the worker fire and produce an alternative that links to an
     // accepted parent. (M4 fix: cheaper and more honest than checking
     // acceptedAt inside the worker.)
-    if (currentRound === PUSHBACK_CONFIG.HARD_CAP_ROUND && rec.acceptedAt) {
+    if (currentRound === hardCap && rec.acceptedAt) {
       throw new HttpError(409, 'You have already accepted this recommendation. Reopen the discussion via "Reopen the discussion" first if you want to push back further.');
     }
 
@@ -156,7 +165,7 @@ export async function POST(
     // Opus for this turn; the closing message is templated and the
     // expensive synthesis runs in the background via Inngest.
     // -----------------------------------------------------------------
-    if (currentRound === PUSHBACK_CONFIG.HARD_CAP_ROUND) {
+    if (currentRound === hardCap) {
       const agentTurn: PushbackTurnAgent = {
         role:       'agent',
         content:    buildClosingMessage(),
@@ -240,6 +249,7 @@ export async function POST(
       history,
       userMessage:     parsed.data.message,
       currentRound,
+      hardCap,
       researchAccumulator,
     });
 

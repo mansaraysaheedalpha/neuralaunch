@@ -8,7 +8,7 @@ import { useSession } from 'next-auth/react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, ArrowRight, Loader2 } from 'lucide-react';
 import { AssumptionRow } from './AssumptionRow';
-import { PUSHBACK_CONFIG } from '@/lib/discovery/constants';
+import { hardCapForTier } from '@/lib/discovery/constants';
 import { PushbackChat } from './PushbackChat';
 import { VersionHistoryPanel } from './VersionHistoryPanel';
 import type { PushbackTurn } from '@/lib/discovery/pushback-types';
@@ -347,7 +347,7 @@ export function RecommendationReveal({
               <PushbackChat
                 recommendationId={r.id}
                 initialHistory={r.pushbackHistory}
-                hardCapRound={PUSHBACK_CONFIG.HARD_CAP_ROUND}
+                hardCapRound={hardCapForTier(tier)}
                 alternativeReady={alternativeReady}
                 accepted={isAccepted}
                 onCommit={handlePushbackCommit}
