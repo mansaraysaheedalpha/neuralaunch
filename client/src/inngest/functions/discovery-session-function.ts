@@ -113,7 +113,11 @@ export const discoverySessionFunction = inngest.createFunction(
     // branch overwrites with the same shape we would have created,
     // which is the correct semantic for an idempotent retry.
     // Stage 7.2 idempotency fix.
-    const { recommendationId } = await step.run('persist-recommendation', async () => {
+    // recommendationId is returned for observability / future use
+    // (e.g. re-introducing a warm-up behind a flag). It is no longer
+    // consumed inside this function now that the warm-up trigger has
+    // been removed — acceptance fires the roadmap job instead.
+    const { recommendationId: _recommendationId } = await step.run('persist-recommendation', async () => {
       const data = {
         userId,
         sessionId,
@@ -147,15 +151,23 @@ export const discoverySessionFunction = inngest.createFunction(
       return { recommendationId: rec.id };
     });
 
-    // Step 7: Warm up roadmap generation immediately — it runs in the background
-    // while the user reads their recommendation, so it may be ready when they click.
-    // step.sendEvent is idempotent — safe to retry without duplicate events.
-    await step.sendEvent('trigger-roadmap-generation', {
-      name: 'discovery/roadmap.requested',
-      data: { recommendationId, userId },
-    });
+    // Roadmap warm-up removed. Previously we fired the roadmap
+    // generation event here as a speculative pre-build so "This is my
+    // path — build my roadmap" felt instant. That optimisation saved
+    // 30-60s only for users who accepted on first read; any pushback
+    // commit (refine/replace) invalidated the warmed artefact and the
+    // regeneration wait still happened on accept. The warm-up also
+    // created a class of UX leaks — a built-but-stale roadmap could
+    // resurface in the past-recommendations list or via direct URL
+    // navigation, and a pre-warmed roadmap built from the pre-pushback
+    // recommendation could briefly show through before the STALE→
+    // GENERATING flip settled. Roadmap generation is now triggered
+    // exclusively by POST /api/discovery/recommendations/[id]/roadmap,
+    // which the accept flow fires on the explicit "build my roadmap"
+    // click. The roadmap is always built from the recommendation as
+    // committed at acceptance time.
 
-    // Step 8: Clean up Redis — session state is now in DB
+    // Clean up Redis — session state is now in DB
     await step.run('cleanup-redis-session', async () => {
       await deleteSession(sessionId);
     });

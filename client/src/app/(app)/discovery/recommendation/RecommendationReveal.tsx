@@ -298,24 +298,22 @@ export function RecommendationReveal({
           transition={{ delay: 1.0 }}
           className="pt-4 border-t border-border flex flex-col gap-6"
         >
-          {/* Roadmap CTA — three states. The gate is acceptance, NOT
-              roadmap readiness. Roadmap generation runs as a speculative
-              warm-up the moment synthesis completes (see
-              inngest/client.ts → discovery/roadmap.requested), so a
-              roadmapReady check would let the founder skip the
-              ceremonial accept step entirely.
+          {/* Roadmap CTA — three states. The gate is acceptance AND
+              roadmap readiness is a separate concern. The roadmap
+              warm-up was removed in the prod-readiness fixes — the
+              roadmap now only starts building after the founder
+              clicks "This is my path — build my roadmap" so the
+              artefact always reflects the recommendation as committed
+              at acceptance time (post-pushback refinements included).
 
               State A — !isAccepted: show the explicit accept-and-build
-                       button. Clicking it commits acceptedAt and
-                       navigates to the roadmap viewer. The warm-up
-                       roadmap, if it has finished, is picked up by the
-                       viewer transparently.
-              State B — isAccepted && roadmapReady: show the View link.
-                       Only reachable on a page refresh after acceptance.
-              State C — isAccepted && !roadmapReady: warm-up has not
-                       finished AND the explicit POST has not been
-                       fired yet (e.g. acceptance happened on a
-                       different device). Show a building placeholder. */}
+                       button. Clicking it commits acceptedAt and fires
+                       the roadmap POST (which triggers Inngest).
+              State B — isAccepted && roadmapReady: roadmap has finished
+                       building (typically 30–60s after acceptance);
+                       show the View link.
+              State C — isAccepted && !roadmapReady: Inngest is still
+                       building the roadmap. Show a building placeholder. */}
           <div>
             {isFreeTier && !isAccepted ? (
               <UpgradePrompt
@@ -432,15 +430,12 @@ export function RecommendationReveal({
           </div>
 
           {/* Pushback chat — available until the founder has explicitly
-              accepted the recommendation. Note: we deliberately do NOT
-              gate on roadmapReady, because the synthesis function fires
-              a speculative roadmap warm-up the moment it completes
-              (see inngest/client.ts → discovery/roadmap.requested). The
-              warm-up flips roadmapReady to true within seconds, long
-              before the founder has read the recommendation. Gating
-              pushback on roadmapReady would silently kill the feature
-              for almost every user. Acceptance is the only real
-              "discussion is closed" signal. */}
+              accepted the recommendation. The warm-up roadmap no
+              longer exists (removed as part of the prod-readiness
+              fixes), so roadmapReady will only be true post-accept-
+              and-regen. Gating pushback on roadmapReady would be
+              redundant — acceptance is the canonical "discussion is
+              closed" signal. */}
           {!isAccepted && !isFreeTier && (
             <div>
               <PushbackChat
