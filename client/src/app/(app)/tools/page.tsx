@@ -14,7 +14,7 @@
 
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { MessageSquare, Mail, Search, Package } from 'lucide-react';
+import { MessageSquare, Mail, Search, Package, Globe } from 'lucide-react';
 import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
 
 const TOOLS = [
@@ -50,6 +50,14 @@ const TOOLS = [
     href:        '/tools/service-packager',
     status:      'available' as const,
   },
+  {
+    id:          'validation',
+    name:        'Validation Page',
+    description: 'Publish a live landing page for a specific offer — product, service tier, or value proposition — with a CTA, feature-interest tracking, and a short interest survey. Share it with prospects and see real demand signal before investing more time.',
+    icon:        Globe,
+    href:        '/tools/validation',
+    status:      'available' as const,
+  },
 ];
 
 export default function ToolsPage() {
@@ -77,7 +85,7 @@ export default function ToolsPage() {
           requiredTier="execute"
           variant="hero"
           heading="Unlock the execution tools"
-          description="Conversation Coach, Outreach Composer, Research Tool, and Service Packager are part of Execute. Upgrade to use them on any task in your roadmap — or open them standalone from this page."
+          description="Conversation Coach, Outreach Composer, Research Tool, Service Packager, and Validation Page are part of Execute. Upgrade to use them on any task in your roadmap — or open them standalone from this page."
         />
       ) : (
         <div className="flex flex-col gap-3">
