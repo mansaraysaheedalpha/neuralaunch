@@ -8,6 +8,7 @@ export { ScreenContainer } from './ScreenContainer';
 export { Separator } from './Separator';
 export { ChatBubble } from './ChatBubble';
 export { ChatInput } from './ChatInput';
+export { ScrollToBottomButton } from './ScrollToBottomButton';
 export { TypingIndicator } from './TypingIndicator';
 export { CollapsibleSection } from './CollapsibleSection';
 export { Skeleton, CardSkeleton, ListSkeleton } from './Skeleton';

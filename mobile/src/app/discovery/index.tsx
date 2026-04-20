@@ -11,10 +11,12 @@ import { HelpCircle } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/useTheme';
 import { useDiscovery, fetchIncompleteSession, type ChatMessage } from '@/hooks/useDiscovery';
+import { useScrollToBottom } from '@/hooks/useScrollToBottom';
 import {
   Text,
   ChatBubble,
   ChatInput,
+  ScrollToBottomButton,
   TypingIndicator,
   Card,
   Button,
@@ -29,6 +31,8 @@ export default function DiscoveryScreen() {
   const { colors: c } = useTheme();
   const router = useRouter();
   const flatListRef = useRef<FlatList>(null);
+  const { onScroll, visible: fabVisible, scrollToBottom, atBottomRef } =
+    useScrollToBottom(flatListRef);
   const [guideVisible, setGuideVisible] = useState(false);
   const [initPhase, setInitPhase] = useState<InitPhase>('checking');
   const [incomplete, setIncomplete] = useState<{ sessionId: string; questionCount: number } | null>(null);
@@ -77,14 +81,16 @@ export default function DiscoveryScreen() {
     setInitPhase('chat');
   }
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom on new messages — but only if the founder was
+  // already at the bottom. If they scrolled up to re-read earlier messages,
+  // a new arrival must not yank them away; the FAB offers a manual jump.
   useEffect(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0 && atBottomRef.current) {
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
-  }, [messages.length]);
+  }, [messages.length, atBottomRef]);
 
   // Navigate to recommendation when synthesis completes
   useEffect(() => {
@@ -176,6 +182,8 @@ export default function DiscoveryScreen() {
           keyExtractor={item => item.id}
           contentContainerStyle={styles.messageList}
           showsVerticalScrollIndicator={false}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           ListFooterComponent={
             <>
               {isLoading && !isStreaming && <TypingIndicator />}
@@ -184,6 +192,12 @@ export default function DiscoveryScreen() {
               )}
             </>
           }
+        />
+
+        {/* Scroll-to-latest FAB — appears when the user is reading history */}
+        <ScrollToBottomButton
+          visible={fabVisible}
+          onPress={() => scrollToBottom(true)}
         />
 
         {/* Input */}
