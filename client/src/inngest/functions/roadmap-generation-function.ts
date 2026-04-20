@@ -153,10 +153,25 @@ export const roadmapGenerationFunction = inngest.createFunction(
       };
     });
 
+    // Resolve the user's tier so the roadmap engine can compose its
+    // `Available tools:` prompt from the tier-aware registry. Execute
+    // and Compound share the full 5-tool roster (Coach, Composer,
+    // Research, Packager, Validation); Free defaults through with no
+    // tools (though Free doesn't typically reach this path — venture
+    // cap blocks them at session creation).
+    const tier = await step.run('resolve-tier', async () => {
+      const sub = await prisma.subscription.findUnique({
+        where:  { userId },
+        select: { tier: true },
+      });
+      const resolved = sub?.tier ?? 'free';
+      return resolved === 'execute' || resolved === 'compound' ? resolved : 'free';
+    });
+
     // Step 3: Generate the roadmap
     const { roadmap, weeklyHours, totalWeeks } = await step.run(
       'generate-roadmap',
-      async () => generateRoadmap(recommendation, context, audienceType, sessionId, calibration),
+      async () => generateRoadmap(recommendation, context, audienceType, sessionId, calibration, null, tier),
     );
 
     // Step 4: Persist the completed roadmap

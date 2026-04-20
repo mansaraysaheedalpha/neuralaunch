@@ -12,6 +12,8 @@ import { logger } from '@/lib/logger';
 import { renderUserContent, sanitizeForPrompt } from '@/lib/validation/server-helpers';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
 import type { FounderProfile } from '@/lib/lifecycle/schemas';
+import type { Tier } from '@/lib/paddle/tiers';
+import { tierAvailableTools, type ToolMeta } from './available-tools';
 
 // ---------------------------------------------------------------------------
 // Context builders
@@ -117,6 +119,12 @@ export async function generateRoadmap(
   sessionId:      string,
   calibration:    RoadmapCalibrationInputs | null = null,
   founderProfile: FounderProfile | null = null,
+  // Tier is threaded through so the prompt's Available tools block
+  // can be composed at runtime from tierAvailableTools(). Defaulted
+  // to 'execute' so pre-existing callers (the Inngest roadmap-
+  // generation function passes an explicit tier; standalone callers
+  // and tests default) still see the expected full tool roster.
+  tier:           Tier = 'execute',
 ): Promise<{ roadmap: Roadmap; weeklyHours: number; totalWeeks: number }> {
   const log = logger.child({ module: 'RoadmapEngine', sessionId });
 
@@ -163,7 +171,17 @@ export async function generateRoadmap(
     .map((s: string, i: number) => `${i + 1}. ${sanitizeForPrompt(s, 500)}`)
     .join('\n');
 
-  log.debug('Generating roadmap', { weeklyHours, audienceType });
+  // Compose the `Available tools:` prompt block from the tier-aware
+  // registry. For paid tiers this is the full five-tool roster
+  // (Coach, Composer, Research, Packager, Validation); for Free it
+  // would be empty, but Free doesn't generally reach the roadmap
+  // generator (venture-cap blocks them).
+  const availableTools = tierAvailableTools(tier);
+  const toolsBlock = availableTools.length === 0
+    ? ''
+    : availableTools.map((t: ToolMeta) => `- ${t.id}: ${t.prompt}`).join('\n');
+
+  log.debug('Generating roadmap', { weeklyHours, audienceType, tier, toolCount: availableTools.length });
 
   const object = await withModelFallback(
     'roadmap:generateRoadmap',
@@ -212,10 +230,7 @@ INTERNAL TOOLS AVAILABLE TO THE FOUNDER:
 When generating tasks, you may suggest internal tools that help the founder execute. Attach a suggestedTools array to any task where tools would materially help. CRITICAL: Do not just list tools — write explicit instructions in the task description telling the founder HOW to use them and in what ORDER. The founder should never have to figure out the workflow themselves.
 
 Available tools:
-- research_tool: Helps founders research their market, find potential customers or businesses, investigate competitors, check regulations, find pricing benchmarks, and answer any factual question about their business context. Suggest this for any task that requires the founder to find information they don't currently have.
-- conversation_coach: Helps founders prepare for and rehearse high-stakes one-on-one conversations. Generates scripts, objection handling, fallback positions, and offers role-play rehearsal. Suggest this for any task involving pitching, negotiating, asking for something, confronting someone, or having a difficult conversation.
-- outreach_composer: Generates ready-to-send outreach messages for WhatsApp, email, and LinkedIn. Three modes: single message, batch messages, and follow-up sequences. Suggest this for any task involving sending messages, following up, or reaching out to multiple people.
-- service_packager: Helps founders define, scope, and price their service offering. Produces a named service package with tiered pricing, revenue scenarios, and a shareable one-page brief. Suggest this for any task that involves defining what the founder is selling, setting prices, creating service tiers, or producing a document that describes the offering to prospects. Especially relevant for build_service recommendations.
+${toolsBlock}
 
 TOOL CHOREOGRAPHY RULES:
 1. When multiple tools are suggested on a single task, the task description MUST specify the order and how each tool's output feeds into the next.
