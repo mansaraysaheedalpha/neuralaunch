@@ -53,6 +53,13 @@ export default function RootLayout() {
           screenOptions={{
             headerShown: false,
             contentStyle: { backgroundColor: c.background },
+            // Slide-from-right with a slightly faster duration than the
+            // native-stack default — gives cross-screen navigation the
+            // premium snap of Superhuman / Things 3 without feeling
+            // abrupt. Reanimated handles intra-screen entering (cards,
+            // fork picker) so the content "flows in" as the screen slides.
+            animation: 'slide_from_right',
+            animationDuration: 260,
           }}
         />
       </SafeAreaProvider>

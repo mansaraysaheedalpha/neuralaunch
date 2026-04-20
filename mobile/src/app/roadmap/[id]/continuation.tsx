@@ -12,7 +12,7 @@ import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
 import { useContinuation, type ContinuationFork } from '@/hooks/useContinuation';
 import { api, ApiError } from '@/services/api-client';
-import { Text, Card, Button, Badge, ScreenContainer, Separator } from '@/components/ui';
+import { Text, Card, Button, Badge, ScreenContainer, Separator, FadeInView } from '@/components/ui';
 import { spacing } from '@/constants/theme';
 
 export default function ContinuationScreen() {
@@ -135,12 +135,12 @@ export default function ContinuationScreen() {
             </Text>
 
             <View style={styles.forkList}>
-              {brief.forks.map((fork) => {
+              {brief.forks.map((fork, idx) => {
                 const isSelected = selectedFork === fork.id;
                 const isDimmed = selectedFork !== null && !isSelected;
                 return (
+                  <FadeInView key={fork.id} delay={120 + idx * 100} translateY={12}>
                   <Pressable
-                    key={fork.id}
                     onPress={() => handleForkSelection(fork)}
                     disabled={forking}
                     style={isDimmed ? styles.forkDimmed : undefined}
@@ -182,6 +182,7 @@ export default function ContinuationScreen() {
                       )}
                     </Card>
                   </Pressable>
+                  </FadeInView>
                 );
               })}
             </View>

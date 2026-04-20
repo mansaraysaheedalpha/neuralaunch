@@ -22,6 +22,7 @@ import {
   CollapsibleSection,
   ListSkeleton,
   ErrorState,
+  FadeInView,
 } from '@/components/ui';
 import { PushbackChat } from '@/components/recommendation/PushbackChat';
 import { AssumptionRow } from '@/components/recommendation/AssumptionRow';
@@ -102,8 +103,10 @@ export default function RecommendationScreen() {
 
       <ScreenContainer>
         {/* Summary card — always visible. Gold border + gold-tinted background
-            mark this as the product's "moment" colour, not a blog-post callout. */}
-        <View>
+            mark this as the product's "moment" colour, not a blog-post callout.
+            Fades in first; supporting sections follow on a staggered delay so
+            the reveal reads as a sequence, not a flash. */}
+        <FadeInView delay={0}>
           <Card
             noPadding
             style={{
@@ -120,27 +123,32 @@ export default function RecommendationScreen() {
               {r.summary}
             </Text>
           </Card>
-        </View>
+        </FadeInView>
 
         {/* What would make this wrong — regular weight, full foreground colour.
             This statement is equal in weight to the summary; italic would read
             as a whisper. */}
-        <View style={styles.section}>
-          <Text variant="overline" color={c.mutedForeground}>
-            What Would Make This Wrong
-          </Text>
-          <Text variant="body" color={c.foreground}>
-            {r.whatWouldMakeThisWrong}
-          </Text>
-        </View>
+        <FadeInView delay={80}>
+          <View style={styles.section}>
+            <Text variant="overline" color={c.mutedForeground}>
+              What Would Make This Wrong
+            </Text>
+            <Text variant="body" color={c.foreground}>
+              {r.whatWouldMakeThisWrong}
+            </Text>
+          </View>
+        </FadeInView>
 
         {/* Your Path */}
-        <CollapsibleSection label="Your Path">
-          <Text variant="title">{r.path}</Text>
-        </CollapsibleSection>
+        <FadeInView delay={160}>
+          <CollapsibleSection label="Your Path">
+            <Text variant="title">{r.path}</Text>
+          </CollapsibleSection>
+        </FadeInView>
 
         {/* First Three Steps */}
-        <CollapsibleSection label="First Three Steps">
+        <FadeInView delay={220}>
+          <CollapsibleSection label="First Three Steps">
           <View style={styles.stepsList}>
             {r.firstThreeSteps.map((step, i) => (
               <View key={i} style={styles.stepRow}>
@@ -152,6 +160,7 @@ export default function RecommendationScreen() {
             ))}
           </View>
         </CollapsibleSection>
+        </FadeInView>
 
         {/* Supporting sections — collapsed by default on mobile to keep the
             reveal a moment instead of a document. */}
