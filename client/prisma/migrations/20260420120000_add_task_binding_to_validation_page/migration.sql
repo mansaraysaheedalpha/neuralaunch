@@ -1,7 +1,19 @@
 -- Drop the existing FK + single-column unique on recommendationId so we can
--- relax the field to nullable and SetNull-on-delete.
-ALTER TABLE "ValidationPage" DROP CONSTRAINT "ValidationPage_recommendationId_fkey";
-ALTER TABLE "ValidationPage" DROP CONSTRAINT "ValidationPage_recommendationId_key";
+-- relax the field to nullable and SetNull-on-delete. The unique is dropped
+-- defensively: older Prisma eras created @unique as a unique index, newer
+-- eras as a table-level constraint. Prod had it as an index; shadow DB
+-- had it as a constraint — hence a plain DROP CONSTRAINT failed in prod.
+-- Handle either shape.
+ALTER TABLE "ValidationPage" DROP CONSTRAINT IF EXISTS "ValidationPage_recommendationId_fkey";
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ValidationPage_recommendationId_key') THEN
+    EXECUTE 'ALTER TABLE "ValidationPage" DROP CONSTRAINT "ValidationPage_recommendationId_key"';
+  ELSIF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'ValidationPage_recommendationId_key') THEN
+    EXECUTE 'DROP INDEX "ValidationPage_recommendationId_key"';
+  END IF;
+END $$;
 
 -- Relax recommendationId to optional. Existing rows all have a non-null
 -- value so this is a type-widening, not a data rewrite.
