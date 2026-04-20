@@ -239,10 +239,35 @@ Produce your structured response now.`;
     contextId:   recommendationId,
     accumulator,
   });
-  let decision: PushbackResponse;
+
+  // ---------------------------------------------------------------------------
+  // Pushback is a two-phase call, mirroring the pattern synthesis uses
+  // reliably. Combining tools + Output.object in a single generateText
+  // call is fragile under dense round-4+ context: the model either
+  // runs out of step budget mid-tool-loop (leaving no room for the
+  // structured emission) or truncates the emission itself under the
+  // default maxOutputTokens=4096. Splitting the work makes each call
+  // single-purpose and eliminates the competing concerns.
+  //
+  //   Phase 1A: research + reasoning. Tools attached, free-form text
+  //             output, generous step budget. The model researches as
+  //             needed and emits plain-language reasoning covering
+  //             mode / action / converging / message.
+  //   Phase 1B: structured emission. No tools, no competing work,
+  //             just the Output.object schema. Consumes phase 1A's
+  //             reasoning and produces a valid PushbackResponse JSON.
+  //
+  // Cost is slightly higher (two model calls vs one) but the phase-1B
+  // call is short (≤ 2000 output tokens typical) and structured-only,
+  // so it's cheap. Reliability is materially better — a production
+  // incident at round 4 (2026-04-20) motivated this split.
+  // ---------------------------------------------------------------------------
+
+  // Phase 1A — research + free-form reasoning.
+  let reasoning: string;
   try {
-    decision = await withModelFallback(
-      'pushback:first-call',
+    reasoning = await withModelFallback(
+      'pushback:reasoning',
       { primary: MODELS.SYNTHESIS, fallback: MODELS.INTERVIEW },
       async (modelId) => {
         // Reset the accumulator on every attempt so a fallback rerun
@@ -252,22 +277,73 @@ Produce your structured response now.`;
           model:    aiSdkAnthropic(modelId),
           tools,
           stopWhen: stepCountIs(RESEARCH_BUDGETS.pushback.steps),
+          maxOutputTokens: 16_384,
+          messages: [
+            ...promptMessages,
+            {
+              role: 'user',
+              content:
+                'Do your research if needed, then emit your full reasoning as plain text. ' +
+                'State explicitly:\n' +
+                '  1. The mode (analytical | fear | lack_of_belief)\n' +
+                "  2. The action (continue_dialogue | defend | refine | replace)\n" +
+                '  3. Whether the conversation is converging (true | false)\n' +
+                "  4. The full rebuttal message you want the founder to read — in the founder's register, " +
+                'grounded in their belief state, 600-1500 characters aimed for.\n' +
+                'No JSON yet — just the reasoning. A follow-up call will format it.',
+            },
+          ],
+        });
+        return result.text;
+      },
+    );
+  } catch (err) {
+    const cause = err instanceof Error && 'cause' in err ? err.cause : undefined;
+    const causeMessage = cause instanceof Error ? cause.message : String(cause ?? '');
+    log.error(
+      '[Pushback] Phase 1A (reasoning + research) failed after fallback',
+      err instanceof Error ? err : new Error(String(err)),
+      { cause: causeMessage, currentRound },
+    );
+    throw err;
+  }
+
+  // Phase 1B — structured emission only. No tools, no step budget
+  // constraint, single concern. Uses a lower-latency model by default
+  // (Sonnet) because the job is just formatting, not reasoning — Opus
+  // remains the fallback in the rare case Sonnet rejects the schema.
+  let decision: PushbackResponse;
+  try {
+    decision = await withModelFallback(
+      'pushback:emit',
+      { primary: MODELS.INTERVIEW, fallback: MODELS.SYNTHESIS },
+      async (modelId) => {
+        const result = await generateText({
+          model:    aiSdkAnthropic(modelId),
           output:   Output.object({ schema: PushbackResponseSchema }),
-          messages: promptMessages,
+          maxOutputTokens: 16_384,
+          messages: [
+            {
+              role: 'user',
+              content:
+                'Convert the following reasoning into the structured PushbackResponse JSON. ' +
+                'Preserve the message text verbatim (do not shorten or rephrase). ' +
+                'Pick mode / action / converging exactly as stated in the reasoning.\n\n' +
+                'REASONING:\n' +
+                reasoning,
+            },
+          ],
         });
         return result.output;
       },
     );
   } catch (err) {
-    // Same cause-extraction shape as the second call. AI SDK wraps the
-    // underlying Zod failure on err.cause; logging it lets us see
-    // exactly which field validation failed instead of guessing.
     const cause = err instanceof Error && 'cause' in err ? err.cause : undefined;
     const causeMessage = cause instanceof Error ? cause.message : String(cause ?? '');
     log.error(
-      '[Pushback] First call (PushbackResponseSchema) failed after fallback',
+      '[Pushback] Phase 1B (structured emission) failed after fallback',
       err instanceof Error ? err : new Error(String(err)),
-      { cause: causeMessage, currentRound },
+      { cause: causeMessage, currentRound, reasoningLength: reasoning.length },
     );
     throw err;
   }
@@ -354,6 +430,12 @@ Produce the updated recommendation now.`;
           const { output: updated } = await generateText({
             model:    aiSdkAnthropic(modelId),
             output:   Output.object({ schema: RecommendationSchema }),
+            // A full Recommendation (summary + path + reasoning +
+            // firstThreeSteps + risks + assumptions +
+            // whatWouldMakeThisWrong + alternativeRejected) runs 3-5k
+            // tokens comfortably; 16k gives ample headroom while
+            // still catching pathological hallucination spirals.
+            maxOutputTokens: 16_384,
             messages: cachedUserMessages(rewriteStable, rewriteVolatile),
           });
           return updated;

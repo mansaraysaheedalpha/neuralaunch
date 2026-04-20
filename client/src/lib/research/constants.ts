@@ -74,10 +74,17 @@ export const RESEARCH_BUDGETS: Record<ResearchAgent, { steps: number; descriptio
     description: 'Competitive landscape, tools, pricing benchmarks, regulatory context. Always runs.',
   },
   pushback: {
-    // Spec: 1-3 research calls per round. Budget = 5 so the
-    // worst case (3 calls + structured PushbackResponse emission)
-    // has explicit headroom.
-    steps:       5,
+    // Spec: 1-3 research calls per round. Budget = 15 because late
+    // rounds (4-7) land a much denser context on the model — 3 prior
+    // user+agent exchanges, a mutated recommendation, and a long
+    // round-N message that may name new companies and URLs. Opus in
+    // that state can reasonably want 4-6 research calls. Two steps per
+    // research call (invocation + result processing) means a
+    // realistic ceiling of 12 steps; 15 gives comfortable headroom
+    // for the structured emission step. Prior 5-step budget caused
+    // round-4+ pushbacks to starve and emit truncated JSON
+    // (production incident 2026-04-20).
+    steps:       15,
     description: 'Verify founder-named alternatives, market challenges, alternative approaches.',
   },
   checkin: {
