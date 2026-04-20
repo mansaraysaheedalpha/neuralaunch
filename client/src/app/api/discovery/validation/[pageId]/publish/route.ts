@@ -30,7 +30,7 @@ export async function POST(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
-    await requireTierOrThrow(userId, 'compound');
+    await requireTierOrThrow(userId, 'execute');
     await rateLimitByUser(userId, 'validation-publish', RATE_LIMITS.AI_GENERATION);
 
     const { pageId } = await params;

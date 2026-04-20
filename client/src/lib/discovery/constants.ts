@@ -92,22 +92,6 @@ export const MODELS = {
 export const QUESTION_MAX_TOKENS = 1000;
 
 // ---------------------------------------------------------------------------
-// Validation-page eligibility — server-only (the Set is consumed by the
-// recommendation route's UI gating + the validation page generator,
-// neither of which run on mobile)
-// ---------------------------------------------------------------------------
-
-/**
- * The set of recommendation types for which the validation landing page
- * mechanic is applicable. Used by UI gating in RecommendationReveal.
- *
- * Currently restricted to BUILD_SOFTWARE only. BUILD_SERVICE may be
- * added later when we have a service-specific validation page variant.
- */
-export const VALIDATION_PAGE_ELIGIBLE_TYPES: ReadonlySet<RecommendationType> =
-  new Set([RECOMMENDATION_TYPES.BUILD_SOFTWARE]);
-
-// ---------------------------------------------------------------------------
 // Inngest event name — server-only
 // ---------------------------------------------------------------------------
 

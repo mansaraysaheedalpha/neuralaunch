@@ -12,11 +12,7 @@ import {
   RATE_LIMITS,
 } from '@/lib/validation/server-helpers';
 import type { DiscoveryContext } from '@/lib/discovery/context-schema';
-import {
-  VALIDATION_PAGE_ELIGIBLE_TYPES,
-  type AudienceType,
-  type RecommendationType,
-} from '@/lib/discovery/constants';
+import { type AudienceType } from '@/lib/discovery/constants';
 import type { Roadmap }          from '@/lib/roadmap/roadmap-schema';
 import { buildPhaseContext, PHASES } from '@/lib/phase-context';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
@@ -35,7 +31,7 @@ export async function POST(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
-    await requireTierOrThrow(userId, 'compound');
+    await requireTierOrThrow(userId, 'execute');
     await rateLimitByUser(userId, 'validation-page-generate', RATE_LIMITS.AI_GENERATION);
 
     const { id: recommendationId } = await params;
@@ -45,7 +41,6 @@ export async function POST(
       where:  { id: recommendationId, userId },
       select: {
         id:                 true,
-        recommendationType: true,
         path:               true,
         summary:            true,
         validationPage: {
@@ -65,15 +60,6 @@ export async function POST(
 
     if (!recommendation) {
       throw new HttpError(404, 'Not found');
-    }
-
-    // Server-side defense in depth — even if a malicious client posts
-    // here directly, the validation page is only generated for action
-    // shapes the mechanic actually applies to. Mirrors the UI gating
-    // in RecommendationReveal.
-    const recType = recommendation.recommendationType as RecommendationType | null;
-    if (!recType || !VALIDATION_PAGE_ELIGIBLE_TYPES.has(recType)) {
-      throw new HttpError(409, 'A validation landing page is not applicable to this recommendation');
     }
 
     if (recommendation.validationPage?.report?.signalStrength === 'negative') {
@@ -183,7 +169,7 @@ export async function GET(
 ) {
   try {
     const userId = await requireUserId();
-    await requireTierOrThrow(userId, 'compound');
+    await requireTierOrThrow(userId, 'execute');
     const { id: recommendationId } = await params;
 
     const recommendation = await prisma.recommendation.findFirst({
