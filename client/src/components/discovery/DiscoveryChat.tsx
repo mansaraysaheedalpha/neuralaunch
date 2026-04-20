@@ -3,9 +3,10 @@
 
 import { useState, useRef, useCallback, useEffect, type FormEvent } from 'react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import toast from 'react-hot-toast';
 import TextareaAutosize from 'react-textarea-autosize';
-import { BookOpen, SendHorizontal } from 'lucide-react';
+import { BookOpen, SendHorizontal, ArrowRight, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
 import { canUseVoiceMode, useVoiceTier } from '@/lib/voice/client-tier';
@@ -71,6 +72,14 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
 
   const voiceTier = useVoiceTier();
   const voiceEnabled = canUseVoiceMode(voiceTier);
+
+  // Tier drives the cap-hit banner's CTAs: paid users whose block is
+  // almost always the venture cap should land on /discovery/recommendations
+  // to resolve it ("pause / complete an existing venture"); Free users
+  // whose block is the lifetime discovery cap get sent to /#pricing.
+  const { data: authSession } = useSession();
+  const viewerTier: 'free' | 'execute' | 'compound' =
+    authSession?.user?.tier ?? 'free';
 
   // Persist every keystroke. Debouncing is unnecessary — localStorage writes
   // are synchronous but fast, and text-input events are already throttled
@@ -264,14 +273,45 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
             </Button>
           </form>
           {sessionInitError && (
-            <div className="w-full max-w-2xl rounded-lg border border-gold/30 bg-gold/5 px-4 py-3 flex flex-col gap-2">
+            <div className="w-full max-w-2xl rounded-lg border border-gold/30 bg-gold/5 px-4 py-3 flex flex-col gap-3">
               <p className="text-xs text-gold font-medium leading-relaxed">{sessionInitError}</p>
-              <Link
-                href="/#pricing"
-                className="inline-flex items-center self-start rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
-              >
-                See upgrade options →
-              </Link>
+              {/* Paid users whose block is the venture cap get a primary
+                  CTA to find the venture that's blocking them. The error
+                  message itself tells them to "pause or complete your
+                  current venture" — the button has to deliver on that
+                  instruction, not just suggest upgrading. Free users
+                  whose block is the lifetime discovery cap see only the
+                  upgrade CTA (there are no ventures to find). */}
+              <div className="flex flex-wrap items-center gap-2">
+                {viewerTier === 'free' ? (
+                  <Link
+                    href="/#pricing"
+                    className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                  >
+                    <Sparkles className="size-3" aria-hidden="true" />
+                    See upgrade options
+                  </Link>
+                ) : (
+                  <>
+                    <Link
+                      href="/discovery/recommendations"
+                      className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                    >
+                      See your ventures
+                      <ArrowRight className="size-3" aria-hidden="true" />
+                    </Link>
+                    {viewerTier === 'execute' && (
+                      <Link
+                        href="/#pricing"
+                        className="inline-flex items-center gap-1.5 rounded-md border border-gold/40 bg-transparent px-3 py-1.5 text-xs font-semibold text-gold hover:bg-gold/10 transition-colors"
+                      >
+                        <Sparkles className="size-3" aria-hidden="true" />
+                        Upgrade to Compound
+                      </Link>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>
