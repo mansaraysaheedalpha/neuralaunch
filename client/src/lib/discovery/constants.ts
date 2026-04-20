@@ -4,9 +4,8 @@
 // workspace package — re-exported here so existing client imports
 // (`import { RECOMMENDATION_TYPES } from '@/lib/discovery/constants'`)
 // keep working without touching dozens of call sites. Server-only
-// constants (model IDs, Inngest event names, Redis prefixes,
-// validation-page eligibility) stay defined here because they have
-// no place in the mobile bundle.
+// constants (model IDs, Inngest event names, Redis prefixes) stay
+// defined here because they have no place in the mobile bundle.
 
 export {
   INTERVIEW_PHASES,
@@ -20,11 +19,6 @@ export {
   type PushbackAction,
   PUSHBACK_MODES,
   type PushbackMode,
-} from '@neuralaunch/constants';
-
-import {
-  RECOMMENDATION_TYPES,
-  type RecommendationType,
 } from '@neuralaunch/constants';
 
 // ---------------------------------------------------------------------------

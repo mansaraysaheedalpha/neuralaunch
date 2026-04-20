@@ -14,8 +14,8 @@ a regression.
 | Tier | Monthly | Annual | What's Included |
 |---|---|---|---|
 | **Free** | $0 | $0 | Up to two discovery interviews (so a founder who dislikes their first recommendation can try again with different framing), one full recommendation with reasoning, the alternatives the system rejected and why, and honest falsification (what would make this recommendation wrong). Free tier holds zero active ventures — recommendation view only. |
-| **Execute** | $29/month | $279/year | Everything in Free, plus push back up to seven rounds on recommendations, the phased execution roadmap, the four execution tools (Conversation Coach for high-stakes conversation prep, Outreach Composer for WhatsApp / email / LinkedIn drafts, Research Tool for deep market research, Service Packager for structuring a service offering), task-level check-ins and diagnostic help. One active venture at a time. |
-| **Compound** | $49/month | $479/year | Everything in Execute, plus voice mode (speak answers instead of typing across interview, check-ins, Coach role-play), live validation landing pages with build brief from real market signal, the continuation brief at cycle end, fork selection into the next cycle, and cross-venture memory across all three of your ventures. Up to three active ventures simultaneously. |
+| **Execute** | $29/month | $279/year | Everything in Free, plus push back up to seven rounds on recommendations, the phased execution roadmap, the five execution tools (Conversation Coach for high-stakes conversation prep, Outreach Composer for WhatsApp / email / LinkedIn drafts, Research Tool for deep market research, Service Packager for structuring a service offering, Validation Page for live landing pages that test real demand), task-level check-ins and diagnostic help. One active venture at a time. |
+| **Compound** | $49/month | $479/year | Everything in Execute, plus voice mode (speak answers instead of typing across interview, check-ins, Coach role-play), the continuation brief at cycle end built from real market signal, fork selection into the next cycle, and cross-venture memory across all three of your ventures. Up to three active ventures simultaneously. |
 
 ### 1.2 Founding Member Rates
 
@@ -50,10 +50,10 @@ variation.
 | Task-level check-ins | ✗ | ✓ | ✓ |
 | Diagnostic conversations | ✗ | ✓ | ✓ |
 | Recalibration offers (within check-ins) | ✗ | ✓ | ✓ |
+| Validation Page (live landing pages + build brief) | ✗ | ✓ | ✓ |
 | Voice mode (speak instead of type) | ✗ | ✗ | ✓ |
 | Continuation brief at cycle end | ✗ | ✗ | ✓ |
 | Fork selection into next cycle | ✗ | ✗ | ✓ |
-| Validation landing page + build brief | ✗ | ✗ | ✓ |
 | Cross-venture memory (across all 3 ventures) | ✗ | ✗ | ✓ |
 | Active ventures at once | 0 (recommendation only) | 1 | 3 |
 
@@ -92,7 +92,7 @@ not mistake them for unassigned promises or dead code.
 | Billing self-service (Paddle portal link, founding badge, status banners) | `/settings` → BillingSection | Surfaced for every user; Manage Billing is only actionable when a Paddle customer profile exists |
 | Past recommendations / ventures listing | `/discovery/recommendations` | Free users see their single recommendation; paid users see their venture-grouped history |
 | Session resumption (60–72h window) | Discovery empty-state card | Lets a user pick up an in-progress interview after a break |
-| Validation page public view (for visitors only) | `/lp/[slug]` | The *owner* must be Compound; *visitors* don't need accounts |
+| Validation page public view (for visitors only) | `/lp/[slug]` | The *owner* must be Execute; *visitors* don't need accounts |
 | Legal / marketing pages | `/`, `/#pricing`, `/signin`, `/legal/*` | Unauthenticated — anyone on the internet |
 
 These are not in §1.3 because §1.3 is the tier-differentiated feature
@@ -644,9 +644,12 @@ if (!requireTier(tier, 'execute')) {
 | `POST /api/discovery/roadmaps/[id]/continuation/fork` | **Compound** | API route |
 | Voice mode endpoints (`POST /api/voice/transcribe`) | Compound | API route + `assertCompoundTier` |
 | Cross-session memory loading | Compound | API route |
-| `POST /api/discovery/recommendations/[id]/validation-page` (create / regenerate) | Compound | API route |
-| `GET /api/discovery/recommendations/[id]/validation-page` | Compound | API route |
-| `POST /api/discovery/validation/[pageId]/publish` | Compound | API route (defence-in-depth) |
+| `POST /api/discovery/recommendations/[id]/validation-page` (create / regenerate) | Execute | API route |
+| `GET /api/discovery/recommendations/[id]/validation-page` | Execute | API route |
+| `POST /api/discovery/roadmaps/[id]/tasks/[taskId]/validation-page` (task-scoped) | Execute | API route |
+| `GET /api/discovery/roadmaps/[id]/tasks/[taskId]/validation-page` | Execute | API route |
+| `POST /api/tools/validation/generate` (standalone) | Execute | API route |
+| `POST /api/discovery/validation/[pageId]/publish` | Execute | API route (defence-in-depth) |
 | Creating 2nd / 3rd concurrent venture | Compound | API route + `assertVentureLimitNotReached` |
 | `/tools` standalone tools page | Execute | Client component (mirrors per-route gates) |
 

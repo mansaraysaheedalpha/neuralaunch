@@ -66,6 +66,7 @@ const TIERS: Tier[] = [
       "Outreach Composer — WhatsApp, email, LinkedIn drafts",
       "Research Tool — deep market research",
       "Service Packager — structure your service offering",
+      "Validation Page — live landing pages to test real demand",
       "Task check-ins and diagnostic help",
       "1 active venture at a time",
     ],
@@ -81,9 +82,7 @@ const TIERS: Tier[] = [
     features: [
       "Everything in Execute",
       "Voice mode — speak answers instead of typing",
-      "Live validation landing pages",
-      "Build brief from real market signal",
-      "Continuation brief at cycle end",
+      "Continuation brief built from real market signal",
       "Fork selection into next cycle",
       "Cross-venture memory across all 3 of your ventures",
       "3 active ventures simultaneously",

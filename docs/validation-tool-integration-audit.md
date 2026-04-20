@@ -1,9 +1,9 @@
 # Validation Tool — Architectural Integration Audit
 
 **Date:** 2026-04-20
-**Branch:** `audit/validation-tool-integration`
+**Branch:** `audit/validation-tool-integration` (design) → `feat/validation-tool-integration` (implementation)
 **Scope:** Map how the four roadmap-integrated tools work, contrast with the Validation Tool, and produce a concrete implementation plan to bring validation into the same model.
-**Status:** Audit + design only — no code changes.
+**Status:** Implementation complete on `feat/validation-tool-integration` (2026-04-20). All 12 steps executed with the Execute-tier adjustment applied throughout. Validation now mirrors the other four tools (task-bound via `suggestedTools`, task-scoped API, standalone entry under `/tools/validation`) and has been moved from Compound to Execute tier in the pricing surface.
 
 This document is the spec for a follow-up implementation prompt. It is written to be self-sufficient: every claim carries a `file:line` reference, every recommendation is paired with concrete file changes, and the implementation plan is decomposed into commit-sized steps.
 

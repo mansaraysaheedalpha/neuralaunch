@@ -73,7 +73,7 @@ export function TaskToolLaunchers({ roadmapId, taskId, task }: TaskToolLaunchers
   useEffect(() => {
     if (!validationSuggested) return;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const res = await fetch(
           `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/validation-page`,
