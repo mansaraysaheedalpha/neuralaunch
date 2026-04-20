@@ -5,15 +5,16 @@
 // and gets a structured AI response. This is the daily-driver
 // interaction for every founder executing their roadmap.
 
-import { useState } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { View, StyleSheet, ScrollView, Pressable, KeyboardAvoidingView, Platform, Animated, Easing } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { CheckCircle2 } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/useTheme';
 import { api, ApiError } from '@/services/api-client';
-import { Text, Card, Button, ScreenContainer, Badge } from '@/components/ui';
-import { spacing, radius, typography } from '@/constants/theme';
+import { Text, Card, Button } from '@/components/ui';
+import { spacing, radius, typography, animation } from '@/constants/theme';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -148,14 +149,10 @@ export default function CheckInScreen() {
             <View style={styles.responseContainer}>
               {/* Completion moment */}
               {category === 'completed' && (
-                <Card variant="primary" style={styles.completionCard}>
-                  <Text variant="title" color={c.primary} align="center">
-                    Step complete
-                  </Text>
-                  <Text variant="caption" color={c.mutedForeground} align="center" style={{ marginTop: spacing[1] }}>
-                    {response.progress.completedTasks}/{response.progress.totalTasks} tasks done
-                  </Text>
-                </Card>
+                <CompletionCard
+                  completedTasks={response.progress.completedTasks}
+                  totalTasks={response.progress.totalTasks}
+                />
               )}
 
               {/* Agent response */}
@@ -307,6 +304,68 @@ export default function CheckInScreen() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// CompletionCard — the reward moment when a task is marked complete.
+// Scales in with a checkmark icon, uses success-green tokens rather than
+// the generic primary-blue card.
+// ---------------------------------------------------------------------------
+
+function CompletionCard({
+  completedTasks,
+  totalTasks,
+}: {
+  completedTasks: number;
+  totalTasks: number;
+}) {
+  const { colors: c } = useTheme();
+  const scale = useRef(new Animated.Value(0.6)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scale, {
+        toValue: 1,
+        useNativeDriver: true,
+        friction: 6,
+        tension: 140,
+      }),
+      Animated.timing(opacity, {
+        toValue: 1,
+        duration: animation.normal,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [scale, opacity]);
+
+  return (
+    <Animated.View
+      style={[
+        styles.completionCard,
+        {
+          backgroundColor: c.successMuted,
+          borderColor: c.success,
+          opacity,
+          transform: [{ scale }],
+        },
+      ]}
+    >
+      <CheckCircle2 size={40} color={c.success} strokeWidth={2} />
+      <Text variant="title" color={c.success} align="center" style={{ marginTop: spacing[2] }}>
+        Step complete
+      </Text>
+      <Text
+        variant="caption"
+        color={c.mutedForeground}
+        align="center"
+        style={{ marginTop: spacing[1] }}
+      >
+        {completedTasks}/{totalTasks} tasks done
+      </Text>
+    </Animated.View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     padding: spacing[5],
@@ -342,6 +401,9 @@ const styles = StyleSheet.create({
   completionCard: {
     alignItems: 'center',
     paddingVertical: spacing[6],
+    paddingHorizontal: spacing[4],
+    borderRadius: radius.xl,
+    borderWidth: 1,
   },
   responseCard: {
     gap: spacing[2],
