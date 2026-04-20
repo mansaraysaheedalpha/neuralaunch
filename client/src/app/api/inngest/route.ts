@@ -13,6 +13,7 @@ import {
   lifecycleTransitionFunction,
   usageAnomalyDetectionFunction,
   paddleReconciliationFunction,
+  backfillRoadmapTaskIdsFunction,
 } from '@/inngest/functions';
 
 export const { GET, POST, PUT } = serve({
@@ -29,5 +30,6 @@ export const { GET, POST, PUT } = serve({
     lifecycleTransitionFunction,
     usageAnomalyDetectionFunction,
     paddleReconciliationFunction,
+    backfillRoadmapTaskIdsFunction,
   ],
 });

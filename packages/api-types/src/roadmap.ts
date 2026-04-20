@@ -11,6 +11,21 @@ import { z } from 'zod';
  */
 
 export const RoadmapTaskSchema = z.object({
+  /**
+   * Stable task identifier within the roadmap. Optional on the
+   * emission schema because the model does NOT generate this — the
+   * engine mints it deterministically post-parse (pattern:
+   * `phase{N}-task{M}`). Consumed by features that need to reference
+   * a specific task across time — notably the task-bound
+   * ValidationPage (schema.prisma → ValidationPage.taskId) and any
+   * future task-bound tooling.
+   *
+   * Legacy roadmaps generated before this field existed carry no id
+   * until the one-shot backfillRoadmapTaskIds Inngest function mints
+   * deterministic ids for their tasks; until backfill runs, readers
+   * MUST tolerate id being absent on older rows.
+   */
+  id:              z.string().optional().describe('Stable task id — engine-minted after model emission, optional in payloads'),
   title:           z.string().describe('Short action-oriented task title (verb-first, e.g. "Identify 10 potential customers")'),
   description:     z.string().describe('2-3 sentences: what to do, how to do it, and what to produce'),
   rationale:       z.string().describe('One sentence explaining why this task at this point in the journey'),

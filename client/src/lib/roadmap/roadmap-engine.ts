@@ -251,7 +251,28 @@ Build the roadmap now.`,
 
   const totalWeeks = object.phases.reduce((sum, p) => sum + p.durationWeeks, 0);
 
+  // Stable task ids. The model does NOT mint these — we do it
+  // deterministically post-parse (pattern: `phase{N}-task{M}`) so a
+  // re-run of the same roadmap produces the same ids and so
+  // downstream task-bound references (ValidationPage.taskId, future
+  // task-bound tools) stay valid across persistence round-trips.
+  for (const phase of object.phases) {
+    phase.tasks.forEach((task, idx) => {
+      if (!task.id) task.id = mintTaskId(phase.phase, idx);
+    });
+  }
+
   log.debug('Roadmap generated', { phases: object.phases.length, totalWeeks });
 
   return { roadmap: object, weeklyHours, totalWeeks };
+}
+
+/**
+ * Deterministic task-id pattern shared between the engine (where new
+ * roadmaps get ids minted) and the backfill Inngest function (where
+ * legacy roadmaps get ids minted retroactively). Keep both callers
+ * aligned on this exact format so re-runs are idempotent.
+ */
+export function mintTaskId(phaseNumber: number, taskIndex: number): string {
+  return `phase${phaseNumber}-task${taskIndex}`;
 }

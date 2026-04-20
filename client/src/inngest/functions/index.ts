@@ -12,3 +12,4 @@ export { continuationBriefFunction }   from './continuation-brief-function';
 export { lifecycleTransitionFunction } from './lifecycle-transition-function';
 export { usageAnomalyDetectionFunction } from './usage-anomaly-detection-function';
 export { paddleReconciliationFunction } from './paddle-reconciliation-function';
+export { backfillRoadmapTaskIdsFunction } from './backfill-roadmap-task-ids-function';
