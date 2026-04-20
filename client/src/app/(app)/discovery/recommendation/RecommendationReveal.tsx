@@ -14,9 +14,17 @@ import {
   type RecommendationType,
 } from '@/lib/discovery/constants';
 import { PushbackChat } from './PushbackChat';
+import { VersionHistoryPanel } from './VersionHistoryPanel';
 import type { PushbackTurn } from '@/lib/discovery/pushback-types';
 import { safeParseAlternatives } from '@/lib/discovery/recommendation-schema';
 import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
+
+interface VersionSnapshot {
+  round:     number;
+  action:    'refine' | 'replace';
+  timestamp: string;
+  snapshot:  Record<string, unknown>;
+}
 
 interface Props {
   recommendation: {
@@ -36,6 +44,12 @@ interface Props {
     acceptedAt:             string | null;
     /** The pushback transcript so far — empty array when no rounds yet */
     pushbackHistory:        PushbackTurn[];
+    /**
+     * Prior pre-update snapshots of this recommendation. One row per
+     * refine / replace committed during pushback. Empty when the
+     * recommendation has never been mutated.
+     */
+    versions:               VersionSnapshot[];
     /** When set, the round-7 alternative recommendation has been generated */
     alternativeRecommendationId: string | null;
   };
@@ -438,6 +452,14 @@ export function RecommendationReveal({
                 onCommit={handlePushbackCommit}
               />
             </div>
+          )}
+
+          {/* Prior versions — only rendered when the recommendation has
+              actually been mutated by a refine/replace. The panel is a
+              single collapsed row by default so it never dominates the
+              page; founders who want to see what changed click in. */}
+          {r.versions.length > 0 && !isFreeTier && (
+            <VersionHistoryPanel versions={r.versions} />
           )}
 
           {/* Alternative recommendation surfacing — when the round-7

@@ -3,13 +3,44 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, SendHorizontal } from 'lucide-react';
+import { Loader2, SendHorizontal, RefreshCw, Replace, Shield, MessageCircleMore } from 'lucide-react';
 import TextareaAutosize from 'react-textarea-autosize';
 import type {
   PushbackTurn,
   PushbackTurnUser,
   PushbackTurnAgent,
 } from '@/lib/discovery/pushback-types';
+
+/**
+ * Action label + styling for the pill that sits above every agent
+ * bubble. The founder needs to know at a glance whether the agent
+ * defended, refined, or replaced — otherwise a "refine" looks like
+ * a paragraph of explanation rather than a structural change.
+ *
+ * Ordered by severity. Refined / Replaced are the ones that mutated
+ * the recommendation above the chat.
+ */
+const ACTION_META: Record<
+  PushbackTurnAgent['action'],
+  { label: string; icon: React.ComponentType<{ className?: string }>; cls: string }
+> = {
+  continue_dialogue: { label: 'Asked for more', icon: MessageCircleMore, cls: 'text-muted-foreground bg-muted border-border' },
+  defend:            { label: 'Held position',  icon: Shield,            cls: 'text-muted-foreground bg-muted border-border' },
+  refine:            { label: 'Refined above',  icon: RefreshCw,         cls: 'text-primary bg-primary/10 border-primary/30' },
+  replace:           { label: 'Replaced above', icon: Replace,           cls: 'text-gold bg-gold/10 border-gold/30' },
+  closing:           { label: 'Closing',        icon: MessageCircleMore, cls: 'text-muted-foreground bg-muted border-border' },
+};
+
+function ActionBadge({ action }: { action: PushbackTurnAgent['action'] }) {
+  const meta = ACTION_META[action];
+  const Icon = meta.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${meta.cls}`}>
+      <Icon className="size-2.5" aria-hidden="true" />
+      {meta.label}
+    </span>
+  );
+}
 
 interface PushbackChatProps {
   recommendationId: string;
@@ -193,19 +224,43 @@ export function PushbackChat({
           ref={scrollRef}
           className="flex flex-col gap-3 max-h-80 overflow-y-auto pr-1"
         >
-          {history.map((turn, i) => (
-            <div
-              key={`${turn.round}-${i}`}
-              className={[
-                'rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed max-w-[88%] whitespace-pre-wrap',
-                turn.role === 'user'
-                  ? 'self-end bg-primary text-primary-foreground'
-                  : 'self-start bg-muted text-foreground',
-              ].join(' ')}
-            >
-              {turn.content}
-            </div>
-          ))}
+          {history.map((turn, i) => {
+            if (turn.role === 'user') {
+              return (
+                <div
+                  key={`${turn.round}-${i}`}
+                  className="rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed max-w-[88%] whitespace-pre-wrap self-end bg-primary text-primary-foreground"
+                >
+                  {turn.content}
+                </div>
+              );
+            }
+            // Agent turn — show the action badge above the bubble, and
+            // a prominent "updated" callout for refine/replace so the
+            // founder scrolls up to re-read the (changed) recommendation.
+            const isCommit = turn.action === 'refine' || turn.action === 'replace';
+            return (
+              <div key={`${turn.round}-${i}`} className="flex flex-col gap-1 max-w-[88%] self-start">
+                <ActionBadge action={turn.action} />
+                <div className="rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed whitespace-pre-wrap bg-muted text-foreground">
+                  {turn.content}
+                </div>
+                {isCommit && (
+                  <div className={[
+                    'mt-1 rounded-md border px-3 py-2 text-[11px] leading-relaxed',
+                    turn.action === 'replace'
+                      ? 'border-gold/30 bg-gold/5 text-gold'
+                      : 'border-primary/30 bg-primary/5 text-primary',
+                  ].join(' ')}>
+                    <span className="font-semibold">
+                      The recommendation above was {turn.action === 'replace' ? 'replaced' : 'refined'}.
+                    </span>{' '}
+                    Scroll up to see the updated version. Prior versions stay accessible below.
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 

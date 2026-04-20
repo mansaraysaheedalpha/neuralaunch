@@ -44,6 +44,7 @@ export default async function RecommendationPage({
       createdAt:                   true,
       acceptedAt:                  true,
       pushbackHistory:             true,
+      versions:                    true,
       alternativeRecommendationId: true,
       roadmap:                     { select: { status: true } },
       validationPage: {
@@ -65,11 +66,29 @@ export default async function RecommendationPage({
   const validationPageId = recommendation.validationPage?.id ?? null;
   const validationSignalStrength = recommendation.validationPage?.report?.signalStrength ?? null;
 
-  // Serialize Date and JSON fields for the client component
+  // Serialize Date and JSON fields for the client component. The
+  // versions column is a raw JSONB array of pre-update snapshots —
+  // the VersionHistoryPanel safely narrows each entry's shape, so we
+  // pass the parsed array through without a strict schema here
+  // (a single bad row should not hide the rest of the history).
+  const versionsRaw = Array.isArray(recommendation.versions)
+    ? (recommendation.versions as unknown[])
+    : [];
+  const versions = versionsRaw.filter(
+    (v): v is { snapshot: Record<string, unknown>; round: number; action: 'refine' | 'replace'; timestamp: string } =>
+      typeof v === 'object'
+      && v !== null
+      && 'snapshot' in v
+      && 'round'    in v
+      && 'action'   in v
+      && 'timestamp' in v
+      && ((v as { action: unknown }).action === 'refine' || (v as { action: unknown }).action === 'replace'),
+  );
   const recForClient = {
     ...recommendation,
     acceptedAt:      recommendation.acceptedAt ? recommendation.acceptedAt.toISOString() : null,
     pushbackHistory: safeParsePushbackHistory(recommendation.pushbackHistory),
+    versions,
   };
 
   return (

@@ -41,6 +41,7 @@ export default async function RecommendationDetailPage({
       createdAt:                   true,
       acceptedAt:                  true,
       pushbackHistory:             true,
+      versions:                    true,
       alternativeRecommendationId: true,
       roadmap:                     { select: { status: true } },
       validationPage: {
@@ -63,10 +64,27 @@ export default async function RecommendationDetailPage({
   const validationPageId         = recommendation.validationPage?.id ?? null;
   const validationSignalStrength = recommendation.validationPage?.report?.signalStrength ?? null;
 
+  // Same versions-array normalisation as the live recommendation page —
+  // keep the two shapes identical so RecommendationReveal doesn't care
+  // which route fed it.
+  const versionsRaw = Array.isArray(recommendation.versions)
+    ? (recommendation.versions as unknown[])
+    : [];
+  const versions = versionsRaw.filter(
+    (v): v is { snapshot: Record<string, unknown>; round: number; action: 'refine' | 'replace'; timestamp: string } =>
+      typeof v === 'object'
+      && v !== null
+      && 'snapshot' in v
+      && 'round'    in v
+      && 'action'   in v
+      && 'timestamp' in v
+      && ((v as { action: unknown }).action === 'refine' || (v as { action: unknown }).action === 'replace'),
+  );
   const recForClient = {
     ...recommendation,
     acceptedAt:      recommendation.acceptedAt ? recommendation.acceptedAt.toISOString() : null,
     pushbackHistory: safeParsePushbackHistory(recommendation.pushbackHistory),
+    versions,
   };
 
   return (
