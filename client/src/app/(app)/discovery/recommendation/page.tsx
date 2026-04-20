@@ -47,12 +47,6 @@ export default async function RecommendationPage({
       versions:                    true,
       alternativeRecommendationId: true,
       roadmap:                     { select: { status: true } },
-      validationPage: {
-        select: {
-          id:     true,
-          report: { select: { signalStrength: true } },
-        },
-      },
     },
   });
 
@@ -63,8 +57,6 @@ export default async function RecommendationPage({
   // RoadmapView prompts them to regenerate.
   const roadmapReady = recommendation.roadmap?.status === 'READY'
                     || recommendation.roadmap?.status === 'STALE';
-  const validationPageId = recommendation.validationPage?.id ?? null;
-  const validationSignalStrength = recommendation.validationPage?.report?.signalStrength ?? null;
 
   // Serialize Date and JSON fields for the client component. The
   // versions column is a raw JSONB array of pre-update snapshots —
@@ -113,8 +105,6 @@ export default async function RecommendationPage({
         <RecommendationReveal
           recommendation={recForClient}
           roadmapReady={roadmapReady}
-          validationPageId={validationPageId}
-          validationSignalStrength={validationSignalStrength}
         />
       </Suspense>
     </div>

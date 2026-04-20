@@ -44,12 +44,6 @@ export default async function RecommendationDetailPage({
       versions:                    true,
       alternativeRecommendationId: true,
       roadmap:                     { select: { status: true } },
-      validationPage: {
-        select: {
-          id:     true,
-          report: { select: { signalStrength: true } },
-        },
-      },
       session:                     { select: { conversationId: true } },
     },
   });
@@ -61,8 +55,6 @@ export default async function RecommendationDetailPage({
   // /discovery/recommendation/page.tsx for context.
   const roadmapReady             = recommendation.roadmap?.status === 'READY'
                                 || recommendation.roadmap?.status === 'STALE';
-  const validationPageId         = recommendation.validationPage?.id ?? null;
-  const validationSignalStrength = recommendation.validationPage?.report?.signalStrength ?? null;
 
   // Same versions-array normalisation as the live recommendation page —
   // keep the two shapes identical so RecommendationReveal doesn't care
@@ -113,8 +105,6 @@ export default async function RecommendationDetailPage({
         <RecommendationReveal
           recommendation={recForClient}
           roadmapReady={roadmapReady}
-          validationPageId={validationPageId}
-          validationSignalStrength={validationSignalStrength}
         />
       </Suspense>
     </div>

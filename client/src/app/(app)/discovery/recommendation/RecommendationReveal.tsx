@@ -8,11 +8,7 @@ import { useSession } from 'next-auth/react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, ArrowRight, Loader2 } from 'lucide-react';
 import { AssumptionRow } from './AssumptionRow';
-import {
-  VALIDATION_PAGE_ELIGIBLE_TYPES,
-  PUSHBACK_CONFIG,
-  type RecommendationType,
-} from '@/lib/discovery/constants';
+import { PUSHBACK_CONFIG } from '@/lib/discovery/constants';
 import { PushbackChat } from './PushbackChat';
 import { VersionHistoryPanel } from './VersionHistoryPanel';
 import type { PushbackTurn } from '@/lib/discovery/pushback-types';
@@ -55,15 +51,6 @@ interface Props {
   };
   /** True when a READY roadmap already exists for this recommendation */
   roadmapReady?: boolean;
-  /** Set when a validation page has been generated — pageId for navigation */
-  validationPageId?: string | null;
-  /**
-   * Signal strength of any prior validation report. When 'negative', the
-   * "Build Validation Page" CTA must stay hidden — the market already
-   * answered this recommendation and we do not let the founder rebuild a
-   * landing page for a discredited direction.
-   */
-  validationSignalStrength?: string | null;
 }
 
 type RiskRow = { risk: string; mitigation: string };
@@ -108,8 +95,6 @@ function Section({ label, delay = 0, children }: { label: string; delay?: number
 export function RecommendationReveal({
   recommendation: r,
   roadmapReady = false,
-  validationPageId = null,
-  validationSignalStrength = null,
 }: Props) {
   const router      = useRouter();
   const { data: session } = useSession();
@@ -119,25 +104,13 @@ export function RecommendationReveal({
   const risks       = r.risks as RiskRow[];
   const assumptions = r.assumptions as string[];
   const alts = safeParseAlternatives(r.alternativeRejected);
-  const [generating,         setGenerating]         = useState(false);
-  const [creatingValidation, setCreatingValidation] = useState(false);
-  const [accepting,          setAccepting]          = useState(false);
-  const [unaccepting,        setUnaccepting]        = useState(false);
-  const [acceptError,        setAcceptError]        = useState<string | null>(null);
+  const [generating,  setGenerating]  = useState(false);
+  const [accepting,   setAccepting]   = useState(false);
+  const [unaccepting, setUnaccepting] = useState(false);
+  const [acceptError, setAcceptError] = useState<string | null>(null);
 
   const isAccepted       = !!r.acceptedAt;
   const alternativeReady = !!r.alternativeRecommendationId;
-
-  // Validation page eligibility — gated on:
-  //   1. The recommendation's action shape is one we have a validation
-  //      page mechanic for (currently only build_software)
-  //   2. There is no prior validation report for this recommendation that
-  //      came back as a negative signal — once the market has said no, we
-  //      do not let the founder rebuild a landing page for that direction
-  const validationPageApplicable =
-    r.recommendationType !== null
-    && VALIDATION_PAGE_ELIGIBLE_TYPES.has(r.recommendationType as RecommendationType)
-    && validationSignalStrength !== 'negative';
 
   async function handleAcceptAndGenerateRoadmap() {
     setAccepting(true);
@@ -165,16 +138,6 @@ export function RecommendationReveal({
         return;
       }
 
-      // Refresh the page in place rather than navigating away. The
-      // recommendation page is the HUB for everything downstream of
-      // acceptance — execution roadmap, validation page (when the
-      // recommendation is build_software), un-accept, etc. A redirect
-      // here would whisk the founder away to the roadmap viewer and
-      // make the validation page CTA undiscoverable. Instead, the
-      // post-accept render shows BOTH "View My Execution Roadmap"
-      // and "Build Validation Page" side-by-side so the founder can
-      // pick which downstream action to take next — or do both, in
-      // either order.
       router.refresh();
     } catch {
       setAcceptError('Network error. Please check your connection and try again.');
@@ -199,24 +162,6 @@ export function RecommendationReveal({
   // Refresh hook called by the pushback chat after a refine/replace commit
   function handlePushbackCommit() {
     router.refresh();
-  }
-
-  async function handleCreateValidationPage() {
-    setCreatingValidation(true);
-    try {
-      const res = await fetch(`/api/discovery/recommendations/${r.id}/validation-page`, { method: 'POST' });
-      if (res.ok) {
-        // Same hub principle as handleAcceptAndGenerateRoadmap — do
-        // not redirect, refresh in place. After this call succeeds
-        // the page rerenders with a "View Validation Page" link
-        // alongside "View My Execution Roadmap", so the founder can
-        // navigate to either downstream destination from the same
-        // recommendation hub.
-        router.refresh();
-      }
-    } finally {
-      setCreatingValidation(false);
-    }
   }
 
   return (
@@ -356,52 +301,13 @@ export function RecommendationReveal({
                 <p className="text-xs text-muted-foreground mb-3">
                   You committed to this path. Your downstream tools are ready below.
                 </p>
-                <div className="flex flex-col gap-3">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground/70 mb-1.5">
-                      Execution
-                    </p>
-                    <Link
-                      href={`/discovery/roadmap/${r.id}`}
-                      className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
-                    >
-                      <ArrowRight className="size-4" />
-                      View My Execution Roadmap
-                    </Link>
-                  </div>
-                  {validationPageApplicable && (
-                    <div>
-                      <p className="text-[10px] uppercase tracking-widest text-muted-foreground/70 mb-1.5">
-                        Validation
-                      </p>
-                      {validationPageId ? (
-                        <Link
-                          href={`/discovery/validation/${validationPageId}`}
-                          className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm font-medium text-primary transition-opacity hover:opacity-80"
-                        >
-                          <ArrowRight className="size-4" />
-                          View Validation Page
-                        </Link>
-                      ) : (
-                        <button
-                          onClick={() => { void handleCreateValidationPage(); }}
-                          disabled={creatingValidation}
-                          className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2.5 text-sm font-medium text-primary transition-opacity hover:opacity-80 disabled:opacity-50"
-                        >
-                          {creatingValidation ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : (
-                            <ArrowRight className="size-4" />
-                          )}
-                          {creatingValidation ? 'Building…' : 'Build Validation Page to test demand'}
-                        </button>
-                      )}
-                      <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
-                        Test if real users want this before you spend on the build.
-                      </p>
-                    </div>
-                  )}
-                </div>
+                <Link
+                  href={`/discovery/roadmap/${r.id}`}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                >
+                  <ArrowRight className="size-4" />
+                  View My Execution Roadmap
+                </Link>
                 <button
                   type="button"
                   onClick={() => { void handleUnaccept(); }}
