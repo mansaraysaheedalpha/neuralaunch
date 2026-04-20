@@ -130,12 +130,27 @@ export function RolePlayChat({ roadmapId, taskId, otherParty, channel, onComplet
         ref={flatListRef}
         data={history}
         keyExtractor={(_, i) => `${i}`}
-        renderItem={({ item }) => (
-          <ChatBubble
-            content={item.message}
-            role={item.role === 'founder' ? 'user' : 'assistant'}
-          />
-        )}
+        renderItem={({ item }) => {
+          const isOtherParty = item.role === 'other_party';
+          return (
+            <View style={isOtherParty ? styles.otherPartyRow : undefined}>
+              {isOtherParty && (
+                <Text
+                  variant="caption"
+                  color={c.secondary}
+                  style={styles.inCharacterLabel}
+                >
+                  {otherParty} — in character
+                </Text>
+              )}
+              <ChatBubble
+                content={item.message}
+                role={isOtherParty ? 'assistant' : 'user'}
+                variant="roleplay"
+              />
+            </View>
+          );
+        }}
         contentContainerStyle={styles.messageList}
         showsVerticalScrollIndicator={false}
         style={styles.messageListContainer}
@@ -200,6 +215,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[4],
     gap: spacing[3],
     paddingVertical: spacing[4],
+  },
+  otherPartyRow: {
+    gap: spacing[1],
+    alignItems: 'flex-start',
+  },
+  inCharacterLabel: {
+    marginLeft: spacing[3],
+    letterSpacing: 0.3,
   },
   messageListContainer: {
     flex: 1,
