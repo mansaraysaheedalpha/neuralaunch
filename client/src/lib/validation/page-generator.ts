@@ -97,6 +97,16 @@ export interface PageGenerationInput {
   /** Existing slug to reuse — when provided, we do NOT rotate the slug. */
   existingSlug?:  string;
   sessionId:      string;
+  /**
+   * Task-bound creation path: when the caller launched validation
+   * from a task card, these carry the specific task's title and
+   * description + user-typed target. Threaded into the prompt as a
+   * TASK CONTEXT block so the page speaks to THIS specific offer,
+   * not the generic recommendation. Omitted for recommendation-
+   * scoped or standalone-with-recommendation creation.
+   */
+  taskTitle?:    string;
+  taskContext?:  string;
 }
 
 export interface PageGenerationResult {
@@ -121,7 +131,7 @@ export async function generateValidationPage(
 ): Promise<PageGenerationResult> {
   const log = logger.child({ module: 'PageGenerator', sessionId });
 
-  const { recommendation, context, audienceType, roadmap, existingSlug } = input;
+  const { recommendation, context, audienceType, roadmap, existingSlug, taskTitle, taskContext } = input;
 
   const layoutVariant = selectLayoutVariant(recommendation.path, audienceType);
   const slug          = existingSlug ?? await reserveFreshSlug(recommendation.path);
@@ -177,7 +187,11 @@ ${renderUserContent(recommendation.path)}
 
 RECOMMENDATION SUMMARY:
 ${renderUserContent(recommendation.summary, 1000)}
-
+${taskTitle || taskContext ? `
+TASK CONTEXT (the founder launched validation from a specific task in their execution roadmap — the page should speak to THIS specific offer, not the generic recommendation above):
+${taskTitle ? `Task: ${renderUserContent(taskTitle, 300)}` : ''}
+${taskContext ? `What they are validating:\n${renderUserContent(taskContext, 2500)}` : ''}
+` : ''}
 FOUNDER CONTEXT:
 ${contextFacts}
 
