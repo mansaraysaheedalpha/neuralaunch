@@ -4,6 +4,7 @@ export { Button } from './Button';
 export { Card } from './Card';
 export { TextInput } from './TextInput';
 export { Badge } from './Badge';
+export { BottomSheet } from './BottomSheet';
 export { ScreenContainer } from './ScreenContainer';
 export { Separator } from './Separator';
 export { ChatBubble } from './ChatBubble';

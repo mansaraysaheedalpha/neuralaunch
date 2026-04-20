@@ -95,7 +95,12 @@ export function TaskCard({
         </Pressable>
       </View>
 
-      {pickerOpen && <TaskStatusPicker value={status} onChange={handleStatusChange} />}
+      <TaskStatusPicker
+        visible={pickerOpen}
+        value={status}
+        onChange={handleStatusChange}
+        onClose={() => setPickerOpen(false)}
+      />
 
       {/*
         Description IS the tool choreography — the roadmap generator
