@@ -24,8 +24,20 @@ export interface SidebarNavProps {
  */
 export function SidebarNav({ onNavigate }: SidebarNavProps) {
   const pathname = usePathname();
-  const { status } = useSession();
+  const { status, data: session } = useSession();
   const { hasRoadmap } = useHasRoadmap(status === 'authenticated');
+
+  // Label the recommendations/ventures link for what the page actually
+  // contains: "Your ventures" for paid users (Execute/Compound — the
+  // page renders active/paused/completed/archived venture cards with
+  // progress bars), "Past recommendations" for Free users whose list
+  // is a single recommendation. Matches the page's own dynamic heading
+  // so the door-label and the room-label agree.
+  const tier = session?.user?.tier ?? 'free';
+  const recommendationsLinkLabel =
+    tier === 'execute' || tier === 'compound'
+      ? 'Your ventures'
+      : 'Past recommendations';
 
   const isDiscoveryActive  = pathname === '/discovery' || pathname?.startsWith('/discovery/');
   const isPastRecsActive   = pathname === '/discovery/recommendations' || pathname?.startsWith('/discovery/recommendations/');
@@ -76,7 +88,7 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
               ? 'text-primary font-semibold'
               : 'text-muted-foreground group-hover:text-foreground'
           }`}>
-            Past recommendations
+            {recommendationsLinkLabel}
           </p>
         </div>
       </Link>
