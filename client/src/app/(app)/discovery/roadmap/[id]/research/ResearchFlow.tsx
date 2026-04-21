@@ -79,7 +79,6 @@ export function ResearchFlow({
                 plan={flow.plan}
                 estimatedTime={flow.estimatedTime}
                 onApprove={(editedPlan) => { void flow.handlePlanApprove(editedPlan); }}
-                onRevise={flow.handleRevise}
                 loading={false}
               />
             )}

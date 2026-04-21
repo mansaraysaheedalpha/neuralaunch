@@ -7,14 +7,13 @@
 // a new plan).
 
 import { useState } from 'react';
-import { Clock, Pencil, Play } from 'lucide-react';
+import { Clock, Play } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 
 export interface ResearchPlanEditorProps {
   plan:          string;
   estimatedTime: string;
   onApprove:     (editedPlan: string) => void;
-  onRevise:      () => void;
   loading:       boolean;
 }
 
@@ -22,16 +21,20 @@ export interface ResearchPlanEditorProps {
  * ResearchPlanEditor
  *
  * Renders the agent's research plan in an editable textarea. The
- * founder can modify the plan before approving execution. "Start
- * research" fires `onApprove` with the (possibly edited) plan text.
- * "Revise plan" fires `onRevise` so the parent can send edits back
- * to the plan route for a new plan.
+ * founder modifies the plan inline — the textarea IS the revision
+ * surface — and "Start research" fires onApprove with the (possibly
+ * edited) plan text.
+ *
+ * An earlier "Revise plan" button that flipped the stage back to the
+ * query step was removed on 2026-04-21: it destroyed the entire plan
+ * on click instead of letting the founder refine it. Inline editing
+ * in the textarea already covers the revision use case — the extra
+ * button only created a footgun.
  */
 export function ResearchPlanEditor({
   plan,
   estimatedTime,
   onApprove,
-  onRevise,
   loading,
 }: ResearchPlanEditorProps) {
   const [editedPlan, setEditedPlan] = useState(plan);
@@ -41,7 +44,7 @@ export function ResearchPlanEditor({
       <div className="flex flex-col gap-1">
         <p className="text-[11px] font-medium text-foreground">Research plan</p>
         <p className="text-[10px] text-muted-foreground">
-          Review and edit before research begins. Add angles, narrow scope, or redirect focus.
+          Edit the plan directly — add angles, narrow scope, redirect focus. When ready, click Start research.
         </p>
       </div>
 
@@ -67,16 +70,6 @@ export function ResearchPlanEditor({
         >
           <Play className="size-3 shrink-0" />
           Start research
-        </button>
-
-        <button
-          type="button"
-          onClick={onRevise}
-          disabled={loading}
-          className="flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-[11px] font-medium text-foreground hover:bg-muted disabled:opacity-50 transition-colors"
-        >
-          <Pencil className="size-3 shrink-0" />
-          Revise plan
         </button>
       </div>
     </div>

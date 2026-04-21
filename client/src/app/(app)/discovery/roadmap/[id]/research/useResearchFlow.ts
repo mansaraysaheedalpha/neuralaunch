@@ -31,7 +31,6 @@ export interface UseResearchFlowResult {
   handleQuerySubmit: (q: string) => Promise<void>;
   handlePlanApprove: (editedPlan: string) => Promise<void>;
   handleFollowUp:    (q: string) => Promise<void>;
-  handleRevise:      () => void;
 }
 
 export function useResearchFlow(input: {
@@ -145,11 +144,9 @@ export function useResearchFlow(input: {
     }
   }, [followupUrl, standalone, sessionId, followUps.length, onToolCallComplete]);
 
-  const handleRevise = useCallback(() => setStage('query'), []);
-
   return {
     stage, query, plan, estimatedTime, report, sessionId, followUps,
     error, followUpLoading,
-    handleQuerySubmit, handlePlanApprove, handleFollowUp, handleRevise,
+    handleQuerySubmit, handlePlanApprove, handleFollowUp,
   };
 }
