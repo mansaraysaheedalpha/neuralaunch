@@ -6,7 +6,7 @@
 // under the 200-line cap.
 
 import { useState, useCallback } from 'react';
-import type { ResearchReport, ResearchFinding } from '@/lib/roadmap/research-tool/schemas';
+import type { ResearchReport, ResearchFinding, ResearchSession } from '@/lib/roadmap/research-tool/schemas';
 import { FOLLOWUP_MAX_ROUNDS } from '@/lib/roadmap/research-tool/constants';
 
 type Stage = 'query' | 'planning' | 'plan_review' | 'executing' | 'report';
@@ -31,6 +31,19 @@ export interface UseResearchFlowResult {
   handleQuerySubmit: (q: string) => Promise<void>;
   handlePlanApprove: (editedPlan: string) => Promise<void>;
   handleFollowUp:    (q: string) => Promise<void>;
+  /**
+   * Load a previously-completed session back into the flow so the
+   * founder can re-read the report (and ask further follow-ups). Used
+   * by the standalone page's recent-research panel — no history UI on
+   * the task-launched flow.
+   */
+  handleLoadSession: (sessionId: string) => Promise<void>;
+  /**
+   * Reset the flow back to the blank query stage. Used by the
+   * standalone page's "New research" button after a session has been
+   * loaded or completed.
+   */
+  resetToQuery:      () => void;
 }
 
 export function useResearchFlow(input: {
@@ -60,6 +73,7 @@ export function useResearchFlow(input: {
   const planUrl     = standalone ? `/api/discovery/roadmaps/${roadmapId}/research/plan`     : `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/research/plan`;
   const executeUrl  = standalone ? `/api/discovery/roadmaps/${roadmapId}/research/execute`  : `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/research/execute`;
   const followupUrl = standalone ? `/api/discovery/roadmaps/${roadmapId}/research/followup` : `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/research/followup`;
+  const sessionUrl  = (sid: string) => `/api/discovery/roadmaps/${roadmapId}/research/sessions/${sid}`;
 
   const handleQuerySubmit = useCallback(async (submittedQuery: string) => {
     setQuery(submittedQuery);
@@ -144,9 +158,47 @@ export function useResearchFlow(input: {
     }
   }, [followupUrl, standalone, sessionId, followUps.length, onToolCallComplete]);
 
+  const handleLoadSession = useCallback(async (sid: string) => {
+    setError(null);
+    setFollowUpLoading(false);
+    try {
+      const res = await fetch(sessionUrl(sid));
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: string };
+        setError(json.error ?? 'Could not load that research session.');
+        return;
+      }
+      const json = await res.json() as { session: ResearchSession };
+      const s = json.session;
+      setSessionId(s.id);
+      setQuery(s.query);
+      setPlan(s.plan ?? '');
+      setReport(s.report ?? null);
+      setFollowUps(s.followUps ?? []);
+      // If the session has a report, jump to the report stage. If it
+      // was abandoned at plan review, drop the founder back there.
+      if (s.report)      setStage('report');
+      else if (s.plan)   setStage('plan_review');
+      else               setStage('query');
+    } catch {
+      setError('Network error — please try again.');
+    }
+  }, [roadmapId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const resetToQuery = useCallback(() => {
+    setStage('query');
+    setQuery('');
+    setPlan('');
+    setReport(null);
+    setFollowUps([]);
+    setSessionId(null);
+    setError(null);
+  }, []);
+
   return {
     stage, query, plan, estimatedTime, report, sessionId, followUps,
     error, followUpLoading,
     handleQuerySubmit, handlePlanApprove, handleFollowUp,
+    handleLoadSession, resetToQuery,
   };
 }

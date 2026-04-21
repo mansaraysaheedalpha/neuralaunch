@@ -13,7 +13,7 @@ import { ResearchProgressIndicator } from './ResearchProgressIndicator';
 import { ResearchReportView }        from './ResearchReportView';
 import { ResearchFollowUpInput }     from './ResearchFollowUpInput';
 import { ResearchFindingCard }       from './ResearchFindingCard';
-import { useResearchFlow }           from './useResearchFlow';
+import { useResearchFlow, type UseResearchFlowResult } from './useResearchFlow';
 
 export interface ResearchFlowProps {
   roadmapId:  string;
@@ -24,12 +24,23 @@ export interface ResearchFlowProps {
   prePopulatedQuery?: string;
   /** Fired after every quota-consuming call (success or error). */
   onToolCallComplete?: () => void;
+  /**
+   * Optional pre-instantiated flow. When passed, the standalone page
+   * owns the hook so it can also wire a sidebar (recent-research
+   * history) against the same state. Task-launched callers don't pass
+   * this — the component calls useResearchFlow internally as before.
+   */
+  flow?: UseResearchFlowResult;
 }
 
 export function ResearchFlow({
   roadmapId, taskId, open, onClose, standalone, prePopulatedQuery, onToolCallComplete,
+  flow: externalFlow,
 }: ResearchFlowProps) {
-  const flow = useResearchFlow({ roadmapId, taskId, standalone, onToolCallComplete });
+  const internalFlow = useResearchFlow({
+    roadmapId, taskId, standalone, onToolCallComplete,
+  });
+  const flow = externalFlow ?? internalFlow;
 
   return (
     <AnimatePresence>
