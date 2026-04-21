@@ -27,8 +27,13 @@ import { requireTierOrThrow } from '@/lib/auth/require-tier';
 import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
 
-// Sonnet + 10 research steps
-export const maxDuration = 120;
+// Sonnet + 10 research steps. 120s was too tight — Tavily/Exa
+// provider latency stacked with the two-phase emission blew the
+// ceiling during a 2026-04-21 follow-up. Bumped to 300 to match the
+// execute route; legitimately deep follow-ups need the same headroom.
+// B8 (backlog) — moving both calls into Inngest removes the ceiling
+// entirely.
+export const maxDuration = 300;
 
 const BodySchema = z.object({
   sessionId: z.string().min(1),
