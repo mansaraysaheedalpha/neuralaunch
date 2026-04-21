@@ -114,6 +114,12 @@ export const RESEARCH_BUDGETS: Record<ResearchAgent, { steps: number; descriptio
     // largest budget in the system. Simple queries use 5-8, complex
     // prospect discovery uses 15-25. The agent plans multi-step
     // searches, evaluates results, fires follow-ups to fill gaps.
+    //
+    // Fits inside the route's 300s Vercel ceiling because the
+    // two-phase split (39c2cd0) runs the tool loop as free-form text
+    // — no competing structured-output emission eats step budget.
+    // If deep multi-round queries start brushing the ceiling, the
+    // architectural move is Inngest (backlog B8), not another cap.
     steps:       25,
     description: 'Deep multi-round research: market, competitors, prospects, regulations, pricing.',
   },

@@ -233,8 +233,99 @@ Add `maxOutputTokens: 16_384` (or schema-appropriate) to every site above. Match
 
 ---
 
+## B8 — Move research-execute into Inngest
+
+**Status:** Backlog (proactive — current route works but operates close to the 300s ceiling)
+**Category:** Reliability / product capability
+**Size:** Medium (~1 day)
+**Owner:** —
+
+### Why
+
+`POST /api/discovery/roadmaps/[id]/research/execute` runs the deep Opus research tool loop + Phase 2 structured emission. Current shape with the full 25-step budget succeeds reliably after the two-phase split landed in [`39c2cd0`](../client/src/lib/roadmap/research-tool/execution-engine.ts), but an Opus tool step can cost 15-25s wall clock (inference + search provider latency), so a full 25-step session lands in the 4-6 minute range — comfortably under the route's `maxDuration = 300` ceiling in typical runs, brushing it in the worst case.
+
+The architectural answer for any research session that legitimately needs to exceed the serverless ceiling is to stop running long LLM tool loops inside a serverless request handler. Inngest functions have no serverless-timeout ceiling, are durable across step boundaries, auto-retry on transient failures, and let us surface progress to the client via event streams. Moving research-execute to Inngest unlocks:
+
+1. Freedom to raise the spec's top-end (25 → 40+ steps) for genuinely deep competitive analysis without risking timeouts.
+2. Graceful handling of Anthropic rate limits and transient errors via `step.run`.
+3. A progress-streaming UX (findings arrive as they're discovered, not as a single "done" blob).
+4. Shared function infrastructure with synthesis / continuation / roadmap-generation, which are already Inngest-backed for the same reasons.
+
+### Scope
+
+1. New Inngest function `researchExecutionFunction` in `src/inngest/functions/research/execution.ts`, listening on `discovery/research.execution.requested`.
+2. Split the existing `runResearchExecution` engine into Inngest-composable steps:
+   - `step.run('research:phase1-loop', ...)` — the tool loop (bounded but larger budget).
+   - `step.run('research:phase2-emit', ...)` — structured emission.
+   - `step.run('research:persist', ...)` — Prisma upsert of the report.
+3. The existing execute route becomes a thin event-firer: validate the request, fire `discovery/research.execution.requested`, return `202 Accepted` with a `jobId`.
+4. New polling route `GET /api/discovery/roadmaps/[id]/research/execute/status?jobId=...` the client polls for progress. Events: `queued → researching → emitting → complete | failed`.
+5. Client flow update in `useResearchFlow.ts`: on submit, store `jobId`, poll every 2s, render incremental progress (finding count) until `complete`, then fetch the final report.
+6. Raise `RESEARCH_BUDGETS['research-execution'].steps` back to 25 once the Inngest migration is live.
+
+### Non-goals
+
+- No change to the Research Tool's schema, prompt, or findings shape.
+- No change to the follow-up route. Follow-up is scoped narrower and fits comfortably in 300s on its own.
+
+### Risks to manage
+
+- **Client UX regression during the deploy window.** The route shape changes from "synchronous 1-5 minute wait" to "fire-and-poll". Feature-flag the new path via `env.INNGEST_RESEARCH_ENABLED` so we can toggle back if the polling UX has a bug.
+- **Inngest step token budget.** Each `step.run` captures its input in Inngest's state store. The full research transcript is large (2-5k tokens of prompt + 25 steps of tool output). Confirm the state store can hold it without truncation; if not, write intermediate state to Redis and pass only keys through `step.run`.
+- **Idempotency.** Inngest auto-retries on failure. Keep the persistence `step.run` idempotent by keying on `{ roadmapId, sessionId }` and using `upsert`.
+
+### Dependencies
+
+- Nothing architecturally blocking. Existing Inngest infrastructure (synthesis, continuation, roadmap-gen) is the template.
+
+---
+
+## B9 — Raise Prisma connection pool ceiling for Vercel serverless
+
+**Status:** Backlog (flagged during 2026-04-21 production timeout)
+**Category:** Reliability
+**Size:** Tiny (~10 minutes — env change + Vercel redeploy)
+**Owner:** —
+
+### Why
+
+Production logs on 2026-04-21 surfaced:
+
+```
+[prisma] Database connection failed: Timed out fetching a new connection from the connection pool.
+(Current connection pool timeout: 10, connection limit: 5)
+```
+
+Prisma's default pool size per serverless instance is `num_physical_cpus * 2 + 1` — on Vercel's serverless runtime that resolves to ~5 connections. When many concurrent requests hit long-running routes (research-execute, pushback, synthesis — all of which hold short-lived Prisma connections during setup/tier-check/persistence while a long AI call runs in between), the pool exhausts and subsequent queries time out at the 10s default.
+
+This is an env-variable tuning change, not a code change. The fix is to append `?connection_limit=20&pool_timeout=30` (or Neon-pooler-appropriate values) to the `DATABASE_URL` on Vercel.
+
+### Scope
+
+1. On Vercel (production + preview env):
+   - If using Neon's direct URL: append `?connection_limit=20&pool_timeout=30`.
+   - If using Neon's pooled URL (PgBouncer `-pooler`): append `?connection_limit=50&pool_timeout=30&pgbouncer=true`. The higher limit is safe because PgBouncer multiplexes client connections onto a smaller pool of server connections.
+2. Redeploy — Vercel rebuilds serverless functions with the new URL.
+3. Verify in Neon dashboard that the peak concurrent connection count stays well under the account's ceiling.
+
+### Non-goals
+
+- No code change to `src/lib/prisma.ts`. Prisma reads connection-pool config from URL query params, not from client options.
+- No separate Prisma client for long-running jobs. Neon pooler + a higher `connection_limit` fixes both short and long routes uniformly.
+
+### Risks to manage
+
+- **Account-level ceiling.** Neon's free tier caps total concurrent connections per project. If we set client-side `connection_limit=50` × many concurrent serverless instances, we can blow the account cap and start getting Neon-level 429s. Confirm the account tier's connection ceiling before picking a value.
+- **Prisma's `pgbouncer=true` mode.** Disables prepared statements (required under PgBouncer transaction pooling). This is already the correct shape for serverless; just document it.
+
+### Dependencies
+
+- None. Purely an env-var change on Vercel.
+
+---
+
 ## Review cadence
 
 Scan this document monthly or when a production incident adds a new item. Items can be deleted outright if they've been superseded; items that ship should be rewritten in the delivery report format instead of left here stale.
 
-*Last reviewed: 2026-04-21 (B6 + B7 added after production testing uncovered both classes of issue)*
+*Last reviewed: 2026-04-21 (B8 + B9 added after the research-execute timeout + Prisma pool-exhaustion incident)*
