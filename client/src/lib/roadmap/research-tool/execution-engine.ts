@@ -162,6 +162,14 @@ Execute the research plan now and produce the structured ResearchReport.`;
         tools,
         stopWhen: stepCountIs(RESEARCH_BUDGETS['research-execution'].steps),
         output: Output.object({ schema: ResearchReportSchema }),
+        // Research reports are the largest structured output in the
+        // system — a full ResearchReport with 8-15 findings + sources
+        // + next-steps can run 6-10k tokens. The default 4096 caused
+        // AI_NoObjectGeneratedError ("Text: .") in production on
+        // research-execute (2026-04-21). 16k gives ample headroom
+        // for any realistic report while still bounding pathological
+        // hallucination spirals.
+        maxOutputTokens: 16_384,
         messages: cachedSingleMessage(promptContent),
       });
 

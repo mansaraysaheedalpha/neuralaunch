@@ -138,7 +138,14 @@ export function RecommendationReveal({
         return;
       }
 
-      router.refresh();
+      // Step 3 — navigate to the roadmap viewer. The viewer polls the
+      // GET endpoint and renders its own build-in-progress UI that
+      // flips to the full roadmap when status transitions to READY.
+      // Previously we did router.refresh() here, which re-rendered the
+      // recommendation page with a frozen "Building your roadmap…"
+      // placeholder — no polling, no auto-navigation, forcing the
+      // founder to manually browse to My Ventures and click through.
+      router.push(`/discovery/roadmap/${r.id}`);
     } catch {
       setAcceptError('Network error. Please check your connection and try again.');
     } finally {

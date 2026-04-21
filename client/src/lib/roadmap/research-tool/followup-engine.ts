@@ -110,6 +110,11 @@ export async function runResearchFollowUp(
         tools,
         stopWhen: stepCountIs(RESEARCH_BUDGETS['research-followup'].steps),
         output: Output.object({ schema: FollowUpResponseSchema }),
+        // Same treatment as research-execute — a follow-up response
+        // can carry 3-6 new findings + updated sources, well beyond
+        // the 4096 default. Matches the 16k ceiling we use anywhere
+        // structured output competes with a tool loop.
+        maxOutputTokens: 16_384,
         messages: [{
           role: 'user',
           content: `You are NeuraLaunch's Founder Research Tool handling a follow-up question. The founder has already received an initial research report and is now asking for more. Your job is to conduct TARGETED additional research that builds on what is already known — do NOT start over.
