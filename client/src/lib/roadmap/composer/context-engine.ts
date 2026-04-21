@@ -112,6 +112,7 @@ export async function runComposerContext(
       const { output } = await generateText({
         model:  aiSdkAnthropic(modelId),
         output: Output.object({ schema: ContextResponseSchema }),
+        maxOutputTokens: 16_384,
         messages: [{
         role: 'user',
         content: `You are the context-collection stage of NeuraLaunch's Outreach Composer. Your job is to understand who the founder is reaching out to, the goal, the channel, and the right mode before generating messages.

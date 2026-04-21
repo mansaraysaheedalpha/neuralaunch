@@ -70,6 +70,7 @@ export async function runDebrief(
       const { output } = await generateText({
         model:  aiSdkAnthropic(modelId),
         output: Output.object({ schema: DebriefSchema }),
+        maxOutputTokens: 16_384,
         messages: [{
       role: 'user',
       content: `You are reviewing a conversation rehearsal for NeuraLaunch's Conversation Coach. The founder has just completed a role-play of a high-stakes conversation. Your job is to produce a concise, honest debrief that helps them perform better in the real conversation.

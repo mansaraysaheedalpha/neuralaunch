@@ -95,6 +95,7 @@ export async function runPackagerAdjustment(
       const { output } = await generateText({
         model:  aiSdkAnthropic(modelId),
         output: Output.object({ schema: ServicePackageSchema }),
+        maxOutputTokens: 16_384,
         messages: [{
           role: 'user',
           content: `You are NeuraLaunch's Service Packager, modifying an existing service package per the founder's adjustment request. The package was generated in a prior step; the founder is now refining it.

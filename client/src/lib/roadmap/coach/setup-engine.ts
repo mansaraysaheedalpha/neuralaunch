@@ -99,6 +99,7 @@ export async function runCoachSetup(
       const { output } = await generateText({
         model:  aiSdkAnthropic(modelId),
         output: Output.object({ schema: SetupResponseSchema }),
+        maxOutputTokens: 16_384,
         messages: [{
         role: 'user',
         content: `You are the setup stage of NeuraLaunch's Conversation Coach. Your job is to understand the founder's upcoming high-stakes conversation so you can prepare them for it.

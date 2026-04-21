@@ -259,6 +259,7 @@ Produce your structured response now.`;
         tools,
         stopWhen: stepCountIs(RESEARCH_BUDGETS.checkin.steps),
         output: Output.object({ schema: CheckInResponseSchema }),
+        maxOutputTokens: 16_384,
         messages: cachedUserMessages(stable, volatile),
       });
       return result.output;

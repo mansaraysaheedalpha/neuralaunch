@@ -165,6 +165,7 @@ Produce the structured ServicePackage now.`;
         tools,
         stopWhen: stepCountIs(RESEARCH_BUDGETS['service-packager'].steps),
         output: Output.object({ schema: ServicePackageSchema }),
+        maxOutputTokens: 16_384,
         messages: cachedSingleMessage(promptContent),
       });
       if (!result.output) {

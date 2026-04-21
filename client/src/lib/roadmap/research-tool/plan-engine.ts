@@ -82,6 +82,7 @@ export async function runResearchPlan(
       const { output } = await generateText({
         model:  aiSdkAnthropic(modelId),
         output: Output.object({ schema: ResearchPlanResponseSchema }),
+        maxOutputTokens: 16_384,
         messages: [{
         role: 'user',
         content: `You are the planning stage of NeuraLaunch's Founder Research Tool. The founder has asked a research question. Your job is to produce a brief, clear research plan they can read and approve before the research begins.

@@ -187,6 +187,7 @@ Produce the structured ComposerOutput now.`;
         tools,
         stopWhen: stepCountIs(RESEARCH_BUDGETS.composer.steps),
         output: Output.object({ schema: ComposerOutputSchema }),
+        maxOutputTokens: 16_384,
         messages: cachedSingleMessage(promptContent),
       });
       if (!result.output) {

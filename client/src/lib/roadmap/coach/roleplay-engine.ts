@@ -98,6 +98,7 @@ export async function runRolePlayTurn(
       const { output } = await generateText({
         model:  aiSdkAnthropic(modelId),
         output: Output.object({ schema: RolePlayResponseSchema }),
+        maxOutputTokens: 16_384,
         messages: [{
         role: 'user',
         content: `You are running a conversation rehearsal for NeuraLaunch's Conversation Coach. You are playing the OTHER PARTY in this rehearsal — not the founder, not a narrator.

@@ -151,6 +151,7 @@ Produce the structured preparation package now.`;
         tools,
         stopWhen: stepCountIs(RESEARCH_BUDGETS.recommendation.steps),
         output: Output.object({ schema: PreparationPackageSchema }),
+        maxOutputTokens: 16_384,
         messages: cachedSingleMessage(promptContent),
       });
       if (!result.output) {

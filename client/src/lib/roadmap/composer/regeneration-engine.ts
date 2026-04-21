@@ -63,6 +63,7 @@ export async function runComposerRegeneration(
       const { output } = await generateText({
         model:  aiSdkAnthropic(modelId),
         output: Output.object({ schema: RegenerationResponseSchema }),
+        maxOutputTokens: 16_384,
         messages: [{
         role: 'user',
         content: `You are NeuraLaunch's Outreach Composer, producing a variation of an outreach message.
