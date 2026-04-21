@@ -151,8 +151,90 @@ Current Execute badge reads "Recommended" (editorial, defensible pre-data). When
 
 ---
 
+## B6 — Structured pushback cycles (multi-cycle conversation on a single recommendation)
+
+**Status:** Backlog (conditional — revisit only if raised caps in `15aa427` still produce cap-hits mid-convergence)
+**Category:** Product capability
+**Size:** Medium (~1 day)
+**Owner:** —
+
+### Why
+
+Commit `15aa427` raised the pushback round cap to 10 (Execute) / 15 (Compound) after a production test showed the old 7-round cap cutting off productive conversations mid-convergence. The bumped caps likely resolve the typical "long productive back-and-forth" case.
+
+If the new cap is ALSO hit mid-convergence, the architectural answer isn't "raise the cap again" — it's structured cycles. Each cycle caps at N rounds, and when a cycle ends the founder can choose: accept the current refined version, wait for the alternative synthesis, OR start a new cycle with the current refined version as the baseline. Converging conversations keep going; stuck conversations still cap.
+
+### Scope
+
+1. **Schema:** new `pushbackCycles Json @default("[]")` on `Recommendation`, shape `{ cycleNumber, turns, completedAt }[]`. Keep `pushbackHistory` as the current-cycle working set (cleared on cycle rollover). Add `currentPushbackCycle Int @default(1)`.
+2. **Route:** new `POST /api/discovery/recommendations/[id]/pushback/new-cycle` — snapshots `pushbackHistory` into `pushbackCycles`, clears `pushbackHistory`, increments `currentPushbackCycle`. Idempotent via `currentPushbackCycle` optimistic concurrency.
+3. **UI:** `PushbackChat` at cap shows a "Continue in cycle 2" button alongside the existing "accept" and "wait for alternative" options. New button posts to the new-cycle endpoint and refetches history.
+4. **Version panel:** existing `VersionHistoryPanel` (from `c28dd52`) reads `pushbackCycles` so the founder sees the full arc — *"Cycle 1: 10 rounds → refined to v2. Cycle 2: 3 rounds so far."*
+5. **Cap on cycles:** Execute = 2 cycles (effective 20 rounds), Compound = 3 cycles (effective 45 rounds). Alternative-synthesis triggers on the final cycle's cap, not the first.
+
+### Non-goals
+
+- No microtransaction "buy more cycles" — economics don't work at micropayment prices (see the analysis in commit `15aa427`'s thread).
+- No per-cycle research accumulator partitioning — the existing research log is append-only and works across cycles.
+
+### Risks to manage
+
+- **Complexity vs. just raising the cap.** Only ship this if the 10/15 caps land users mid-convergence repeatedly. Feature bloat otherwise.
+- **Cost ceiling.** Execute's effective 20-round worst case ≈ $20 of AI spend per recommendation. Compound's 45-round worst case ≈ $45. Still within tier margins, but worth monitoring.
+
+### Dependencies
+
+- `15aa427` (tier-aware caps) must be live long enough to collect signal on whether 10/15 is sufficient before this item's scope is worth the complexity.
+
+---
+
+## B7 — Sweep `maxOutputTokens` across all `generateText + Output.object` sites
+
+**Status:** Backlog
+**Category:** Reliability
+**Size:** Small (~1 hour)
+**Owner:** —
+
+### Why
+
+The AI SDK's default `maxOutputTokens` is 4096. Every `generateText` call that emits a structured object via `Output.object` is at risk of mid-JSON truncation when the output (plus the model's chain-of-thought) exceeds this limit. Production 500s from pushback (`6dea256`) and research-execute (`e90845c`) both fell to this class of failure.
+
+The remaining call sites with the same pattern, none of which have an explicit `maxOutputTokens`:
+
+| Engine | File | Risk |
+|---|---|---|
+| `coach:debrief` | [debrief-engine.ts:70](../client/src/lib/roadmap/coach/debrief-engine.ts#L70) | Low — small schema |
+| `coach:preparation` | [preparation-engine.ts:149](../client/src/lib/roadmap/coach/preparation-engine.ts#L149) | **Medium** — multi-step prep package, uses research tools |
+| `coach:roleplay` | [roleplay-engine.ts:98](../client/src/lib/roadmap/coach/roleplay-engine.ts#L98) | Low |
+| `coach:setup` | [setup-engine.ts:99](../client/src/lib/roadmap/coach/setup-engine.ts#L99) | Low |
+| `composer:context` | [context-engine.ts:112](../client/src/lib/roadmap/composer/context-engine.ts#L112) | Low |
+| `composer:generate` | [generation-engine.ts:185](../client/src/lib/roadmap/composer/generation-engine.ts#L185) | **Medium** — multi-mode drafts, uses research tools |
+| `composer:regenerate` | [regeneration-engine.ts:63](../client/src/lib/roadmap/composer/regeneration-engine.ts#L63) | Low |
+| `service-packager:*` | `src/lib/roadmap/service-packager/*` | **Medium** — long structured output, uses research tools |
+| `checkin-agent` | `src/lib/roadmap/checkin-agent.ts` | Medium |
+| `continuation:brief-generator` | `src/lib/continuation/*` | **High** — largest structured output in the system |
+
+### Scope
+
+Add `maxOutputTokens: 16_384` (or schema-appropriate) to every site above. Match the pattern used in the research-execute fix (`e90845c`): inline with a short comment explaining why the explicit cap exists.
+
+### Non-goals
+
+- No architectural refactor (two-phase tool-loop + emit). That belongs in a separate backlog item if any specific site shows the failure class after this sweep.
+- No schema changes. The output sizes are what they are — we just need to give the models room to emit them.
+
+### Risks to manage
+
+- **Cost ceiling vs. hallucination spirals.** 16k output tokens at Opus rates ≈ $0.80 per call in the worst case. Bounds the blast radius of a truly broken model output without inviting unbounded spend.
+
+### Dependencies
+
+- Nothing. Pure additive change across 10 files.
+
+---
+
 ## Review cadence
 
 Scan this document monthly or when a production incident adds a new item. Items can be deleted outright if they've been superseded; items that ship should be rewritten in the delivery report format instead of left here stale.
 
-*Last reviewed: 2026-04-20*
+*Last reviewed: 2026-04-21 (B6 + B7 added after production testing uncovered both classes of issue)*
