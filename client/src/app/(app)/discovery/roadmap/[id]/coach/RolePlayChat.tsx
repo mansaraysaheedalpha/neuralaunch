@@ -6,7 +6,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, Send, Swords, X } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import type { RolePlayTurn } from '@/lib/roadmap/coach/schemas';
 // Import directly from constants, not the barrel — the barrel
 // re-exports server-only engine modules that webpack traces.
@@ -179,10 +179,11 @@ export function RolePlayChat({
 
       {!capped && (
         <div className="flex gap-2">
-          <Input value={draft} onChange={e => setDraft(e.target.value)}
+          <Textarea value={draft} onChange={e => setDraft(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}
             placeholder="Type what you would say…" disabled={submitting}
-            className="flex-1 border-gold/30 px-2 py-1.5 text-xs focus-visible:ring-gold/30 focus-visible:border-gold/50"
+            rows={3}
+            className="min-h-0 flex-1 resize-none border-gold/30 py-2 text-xs leading-relaxed focus-visible:ring-gold/30 focus-visible:border-gold/50"
           />
           <button type="button" onClick={() => { void handleSend(); }} disabled={draft.trim().length === 0 || submitting}
             className="shrink-0 rounded-md bg-gold px-2.5 py-1.5 text-[11px] font-medium text-white hover:opacity-90 disabled:opacity-50">

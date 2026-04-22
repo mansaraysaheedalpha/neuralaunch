@@ -10,7 +10,7 @@
 import { useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, Send, HelpCircle } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 interface DiagnosticExchange {
   id:      string;
@@ -162,13 +162,14 @@ export function TaskDiagnosticChat({
 
             {!resolved && !escalate && !inconclusive && (
               <div className="flex gap-2">
-                <Input
+                <Textarea
                   value={draft}
                   onChange={e => setDraft(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}
                   placeholder="What do you need help with?"
                   disabled={submitting}
-                  className="flex-1 px-2 py-1.5 text-xs"
+                  rows={3}
+                  className="min-h-0 flex-1 resize-none py-2 text-xs leading-relaxed"
                 />
                 <button
                   type="button"

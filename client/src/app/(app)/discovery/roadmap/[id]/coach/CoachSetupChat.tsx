@@ -10,7 +10,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, Send } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
 import { canUseVoiceMode, useVoiceTier } from '@/lib/voice/client-tier';
 import { trackVoiceEvent } from '@/lib/voice/analytics';
@@ -166,7 +166,7 @@ export function CoachSetupChat({
       )}
 
       <div className="flex gap-2">
-        <Input
+        <Textarea
           value={draft}
           onChange={e => setDraft(e.target.value)}
           onKeyDown={e => {
@@ -177,7 +177,8 @@ export function CoachSetupChat({
           }}
           placeholder="Describe the conversation you need to have…"
           disabled={submitting}
-          className="flex-1 px-2 py-1.5 text-xs"
+          rows={3}
+          className="min-h-0 flex-1 resize-none py-2 text-xs leading-relaxed"
         />
         {voiceEnabled && (
           <VoiceInputButton

@@ -7,7 +7,7 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { Send } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 // Import directly from constants for the max cap.
 import { FOLLOWUP_MAX_ROUNDS } from '@/lib/roadmap/research-tool/constants';
 import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
@@ -73,7 +73,7 @@ export function ResearchFollowUpInput({
         </p>
       ) : (
         <div className="flex gap-2 items-center">
-          <Input
+          <Textarea
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => {
@@ -84,7 +84,8 @@ export function ResearchFollowUpInput({
             }}
             disabled={disabled || capped}
             placeholder="Ask a follow-up question…"
-            className="flex-1 px-2.5 py-1.5 text-xs"
+            rows={3}
+            className="min-h-0 flex-1 resize-none py-2 text-xs leading-relaxed"
           />
           {voiceEnabled && (
             <VoiceInputButton
