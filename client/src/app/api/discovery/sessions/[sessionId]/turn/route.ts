@@ -26,6 +26,11 @@ import {
 } from '@/lib/research';
 import { loadInterviewContext } from '@/lib/lifecycle';
 import { renderFounderProfileBlock, renderCycleSummariesBlock, renderInterviewOpeningBlock } from '@/lib/lifecycle/prompt-renderers';
+import {
+  topicSimilarity,
+  FOLLOW_UP_DUPLICATE_THRESHOLD,
+  FOLLOW_UP_COOLDOWN_QUESTIONS,
+} from '@/lib/discovery/topic-similarity';
 
 // Pro plan supports up to 300s. The fallback chain can take ~50s in
 // the worst case (Sonnet retries 0+2+8+30 = 40s, then Haiku first
@@ -222,7 +227,16 @@ export async function POST(
     const activeField = (rawField === 'psych_probe' || rawField === 'follow_up') ? 'biggestConcern' : rawField;
     const { updates, inputType, contradicts, followUp } = await extractContext(message, activeField, history, state.context[activeField]);
     if (inputType === 'offtopic') { await saveSession(sessionId, state); return buildStreamResponse(generateMetaResponse(message, state.phase, state.questionCount, history), conversationId, state.phase, state.questionCount); }
-    if (inputType === 'frustrated') { await saveSession(sessionId, state); return buildStreamResponse(generateFrustrationResponse(message, activeField, history), conversationId, state.phase, state.questionCount); }
+    if (inputType === 'frustrated') {
+      // The founder just told us something is going wrong from their
+      // seat. Clear pendingFollowUp so the NEXT turn doesn't come back
+      // with the same thread that frustrated them — combined with the
+      // cooldown + dedup, this is how we honor a "I already answered
+      // this / stop asking this" signal without needing the user to
+      // repeat themselves three times.
+      await saveSession(sessionId, { ...state, pendingFollowUp: null });
+      return buildStreamResponse(generateFrustrationResponse(message, activeField, history), conversationId, state.phase, state.questionCount);
+    }
     if (inputType === 'clarification') { const lq = history.split('\n').filter(l => l.startsWith('assistant:')).pop()?.replace(/^assistant:\s*/, '') ?? ''; await saveSession(sessionId, state); return buildStreamResponse(generateClarificationConfirmation(message, lq, activeField, history, state.audienceType ?? undefined), conversationId, state.phase, state.questionCount); }
     if (inputType === 'synthesis_request') { await saveSession(sessionId, { ...state, isComplete: true }); await inngest.send({ name: 'discovery/synthesis.requested', data: { sessionId, userId } }); await prisma.discoverySession.update({ where: { id: sessionId }, data: { status: 'COMPLETE', completedAt: new Date() }, select: { id: true } }); const sr = buildStreamResponse(generateReflection(state.context, state.audienceType, history), conversationId, 'SYNTHESIS', state.questionCount); sr.headers.set('X-Synthesis-Transition', 'true'); return sr; }
     if (contradicts) { await saveSession(sessionId, state); return buildStreamResponse(generateClarificationResponse(message, activeField, state.context[activeField], history), conversationId, state.phase, state.questionCount); }
@@ -259,10 +273,32 @@ export async function POST(
     }
 
     let nextState = { ...applyUpdate(state, updates), consecutiveMisses: 0 };
-    // Set pendingFollowUp from the extraction result so advance() can
-    // inject a follow-up slot before the next scored field.
+    // Arm pendingFollowUp from the extraction — but only when the
+    // topic is both fresh (not too similar to a recent one) and the
+    // cooldown since the last follow-up has elapsed. Without these
+    // guards the extractor flags emotionally-rich answers every
+    // turn and the engine loops on the same thread (2026-04-22
+    // Amara incident: same "what's your deeper fear" question asked
+    // three times in a row).
     if (followUp.detected) {
-      nextState = { ...nextState, pendingFollowUp: { topic: followUp.topic } };
+      const lastAt = nextState.lastFollowUpAtQuestion ?? -Infinity;
+      const turnsSince = nextState.questionCount - lastAt;
+      const cooldownOk = turnsSince >= FOLLOW_UP_COOLDOWN_QUESTIONS;
+
+      const isDuplicate = nextState.recentFollowUpTopics.some(
+        prev => topicSimilarity(prev, followUp.topic) >= FOLLOW_UP_DUPLICATE_THRESHOLD,
+      );
+
+      if (cooldownOk && !isDuplicate) {
+        nextState = { ...nextState, pendingFollowUp: { topic: followUp.topic } };
+      } else {
+        log.debug('Follow-up suppressed', {
+          sessionId,
+          reason: !cooldownOk ? 'cooldown' : 'duplicate_topic',
+          topic: followUp.topic,
+          turnsSince,
+        });
+      }
     }
     // Audience detection — delayed to exchange 4 (enough context for
     // accurate classification). Allows reclassification at exchange 7
@@ -385,11 +421,19 @@ export async function POST(
     if (detectsPricingChange(message) && !state.pricingProbed) { await saveSession(sessionId, { ...nextState, pricingProbed: true }); return buildStreamResponse(generatePricingFollowUp(message, history, nextState.audienceType ?? undefined), conversationId, nextState.phase, nextState.questionCount); }
 
     // If the next field is a follow-up slot, pass the topic and clear
-    // the pending so it doesn't fire again next turn.
+    // the pending so it doesn't fire again next turn. Track the fire
+    // event so cooldown + dedup can enforce "at least N questions and
+    // no duplicate topic before the next follow-up."
     if (nextField === 'follow_up' && nextState.pendingFollowUp) {
       const topic = nextState.pendingFollowUp.topic;
-      await saveSession(sessionId, { ...nextState, pendingFollowUp: null });
-      log.debug('Turn follow-up', { sessionId, topic });
+      const nextRecentTopics = [topic, ...nextState.recentFollowUpTopics].slice(0, 3);
+      await saveSession(sessionId, {
+        ...nextState,
+        pendingFollowUp:        null,
+        lastFollowUpAtQuestion: nextState.questionCount,
+        recentFollowUpTopics:   nextRecentTopics,
+      });
+      log.debug('Turn follow-up', { sessionId, topic, questionCount: nextState.questionCount });
       return buildStreamResponse(generateQuestion('follow_up', nextState.phase as never, nextState.context, { followUpTopic: topic }, nextState.audienceType ?? undefined, history, nextState.askedFields, lifecycleBlock || undefined), conversationId, nextState.phase, nextState.questionCount);
     }
 
