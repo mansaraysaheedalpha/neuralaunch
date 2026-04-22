@@ -67,9 +67,21 @@ const envSchema = z.object({
   RESEND_API_KEY:    z.string().optional(),
   RESEND_FROM_EMAIL: z.string().email().optional(),
 
-  // Background jobs
-  INNGEST_EVENT_KEY:   z.string().min(1),
-  INNGEST_SIGNING_KEY: z.string().min(1),
+  // Background jobs.
+  //
+  // INNGEST_SIGNING_KEY_FALLBACK is optional and is only present while
+  // a signing-key rotation is in progress. During rotation, set
+  // INNGEST_SIGNING_KEY to the NEW key and INNGEST_SIGNING_KEY_FALLBACK
+  // to the OLD key so the SDK can verify in-flight requests signed by
+  // either key. Delete INNGEST_SIGNING_KEY_FALLBACK after the rotation
+  // is confirmed on the Inngest dashboard ("Rotate key" button).
+  // The Inngest TypeScript SDK (v3.18.0+) automatically picks up the
+  // fallback env var when present — no client-side code change
+  // required. Validating the name here just catches env-var typos
+  // during deploy rather than silently leaving the fallback unused.
+  INNGEST_EVENT_KEY:            z.string().min(1),
+  INNGEST_SIGNING_KEY:          z.string().min(1),
+  INNGEST_SIGNING_KEY_FALLBACK: z.string().min(1).optional(),
 
   // Public app URL
   NEXT_PUBLIC_APP_URL:  z.string().url().optional(),
