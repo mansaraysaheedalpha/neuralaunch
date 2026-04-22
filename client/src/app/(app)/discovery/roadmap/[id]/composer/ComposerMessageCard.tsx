@@ -16,6 +16,14 @@ export interface ComposerMessageCardProps {
   message:      ComposerMessage;
   roadmapId:    string;
   taskId:       string;
+  /**
+   * When present, the "Prepare for this conversation →" link carries
+   * a Composer → Coach handoff (?fromComposer=<sessionId>&messageId=…)
+   * so the Coach lands pre-populated with recipient + goal + message
+   * body instead of empty. Task-launched callers that don't thread a
+   * sessionId keep the old plain link behaviour.
+   */
+  sessionId?:   string;
   isSent:       boolean;
   onMarkSent:   (id: string) => void;
   onRegenerate: (id: string, instruction: string) => void;
@@ -32,6 +40,8 @@ const QUICK_PICKS = ['more casual', 'shorter', 'different opening hook', 'more d
 
 export function ComposerMessageCard({
   message,
+  roadmapId,
+  sessionId,
   isSent,
   onMarkSent,
   onRegenerate,
@@ -173,7 +183,11 @@ export function ComposerMessageCard({
 
         {message.suggestedTool === 'conversation_coach' && (
           <a
-            href="/tools/conversation-coach"
+            href={
+              sessionId
+                ? `/tools/conversation-coach?fromComposer=${encodeURIComponent(sessionId)}&messageId=${encodeURIComponent(message.id)}&roadmapId=${encodeURIComponent(roadmapId)}`
+                : '/tools/conversation-coach'
+            }
             className="flex items-center gap-1 text-[11px] text-primary hover:underline"
           >
             <Link2 className="size-3" />

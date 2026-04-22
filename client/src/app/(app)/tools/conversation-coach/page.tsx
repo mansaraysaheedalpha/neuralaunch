@@ -20,6 +20,11 @@ import {
   fetchPackagerHandoff,
   buildCoachSeedMessage,
 } from '@/app/(app)/tools/packager-handoff';
+import {
+  readComposerHandoffParams,
+  fetchComposerHandoff,
+  buildCoachSeedFromComposerMessage,
+} from '@/app/(app)/tools/composer-handoff';
 import { UsageMeter } from '@/components/billing/UsageMeter';
 
 type Stage = 'loading' | 'no_roadmap' | 'setup' | 'loading_preparation' | 'preparation' | 'roleplay' | 'loading_debrief' | 'debrief' | 'done';
@@ -86,11 +91,28 @@ export default function StandaloneCoachPage() {
           }
         }
 
-        // Packager → Coach handoff.
-        const handoffParams = readPackagerHandoffParams();
-        if (handoffParams) {
-          const handoff = await fetchPackagerHandoff(handoffParams.roadmapId, handoffParams.sessionId);
-          if (handoff) setSeedDraft(buildCoachSeedMessage(handoff));
+        // Composer → Coach handoff takes priority over Packager →
+        // Coach: if the founder clicked "Prepare for this conversation"
+        // on a drafted outreach message, the rehearsal should anchor
+        // on THAT specific message and its recipient, not on whatever
+        // service package they packaged earlier.
+        const composerHandoffParams = readComposerHandoffParams();
+        if (composerHandoffParams) {
+          const handoff = await fetchComposerHandoff(
+            composerHandoffParams.roadmapId,
+            composerHandoffParams.sessionId,
+            composerHandoffParams.messageId,
+          );
+          if (handoff) {
+            setSeedDraft(buildCoachSeedFromComposerMessage(handoff));
+          }
+        } else {
+          // Packager → Coach handoff (unchanged legacy path).
+          const handoffParams = readPackagerHandoffParams();
+          if (handoffParams) {
+            const handoff = await fetchPackagerHandoff(handoffParams.roadmapId, handoffParams.sessionId);
+            if (handoff) setSeedDraft(buildCoachSeedMessage(handoff));
+          }
         }
 
         setStage('setup');

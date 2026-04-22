@@ -162,6 +162,7 @@ export function ComposerOutputView({
               message={msg}
               roadmapId={roadmapId}
               taskId={taskId}
+              sessionId={sessionId}
               isSent={sentIds.has(msg.id)}
               onMarkSent={(id) => { void handleMarkSent(id); }}
               onRegenerate={(id, instruction) => { void handleRegenerate(id, instruction); }}
