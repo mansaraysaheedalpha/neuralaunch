@@ -215,6 +215,13 @@ export async function getSession(sessionId: string): Promise<InterviewState | nu
     pricingProbed:         record.pricingProbed         ?? false,
     askedFields:           (Array.isArray(record.askedFields) ? record.askedFields : []) as DiscoveryContextField[],
     pendingFollowUp:       null, // Transient — consumed within one turn, safe to reset on rehydration
+    // Follow-up cooldown + dedup state is not persisted to Postgres —
+    // it lives in the Redis InterviewState and is only needed within
+    // an active session. On DB rehydration (Redis miss), we accept a
+    // clean slate; the worst case is one bonus follow-up fires
+    // immediately after a cache warmup, which is acceptable.
+    lastFollowUpAtQuestion: null,
+    recentFollowUpTopics:   [],
     createdAt:         record.createdAt.toISOString(),
     updatedAt:         record.updatedAt.toISOString(),
   };

@@ -51,6 +51,23 @@ export interface InterviewState {
    */
   pendingFollowUp:       { topic: string } | null;
   /**
+   * questionCount at which the most recent follow-up fired. Used by
+   * the turn route to enforce a cooldown before arming another
+   * follow-up — without this, emotionally-rich answers keep flagging
+   * follow-up-worthy topics every turn and the engine loops on the
+   * same emotional thread (2026-04-22 Amara test: same "what's your
+   * deeper fear" question surfaced three times in a row because each
+   * rich answer re-armed pendingFollowUp).
+   */
+  lastFollowUpAtQuestion: number | null;
+  /**
+   * Topics from the last N follow-ups (newest first). Used by the
+   * turn route to deduplicate — if the extractor flags a new topic
+   * that overlaps significantly with one already probed, we skip
+   * arming pendingFollowUp. Cap at 3 entries; older topics roll off.
+   */
+  recentFollowUpTopics:   string[];
+  /**
    * Lifecycle memory fields — persisted in Redis so the turn route
    * can load the right context on each turn without requiring the
    * client to re-send scenario info. Only small strings are stored;
@@ -136,6 +153,8 @@ export function createInterviewState(
     pricingProbed:         false,
     askedFields:           [],
     pendingFollowUp:       null,
+    lastFollowUpAtQuestion: null,
+    recentFollowUpTopics:   [],
     lifecycleScenario:     lifecycle?.scenario,
     ventureId:             lifecycle?.ventureId,
     forkContext:            lifecycle?.forkContext,
@@ -285,9 +304,17 @@ export function applyUpdate(
     });
 
   let askedFields = [...state.askedFields];
-  // Add the active field (if real and not already tracked)
-  if (!wasPsychProbe && state.activeField) {
-    const af = state.activeField as DiscoveryContextField;
+  // Add the active field (if real and not already tracked). Skip
+  // 'psych_probe' and 'follow_up' — they are pseudo-fields, not real
+  // DiscoveryContextField values, and pushing the literal string
+  // would pollute askedFields with a value that never matches any
+  // real field when advance() filters candidates.
+  if (
+    state.activeField &&
+    state.activeField !== 'psych_probe' &&
+    state.activeField !== 'follow_up'
+  ) {
+    const af = state.activeField;
     if (!askedFields.includes(af)) askedFields.push(af);
   }
   // Add all fields that were extracted from this message
