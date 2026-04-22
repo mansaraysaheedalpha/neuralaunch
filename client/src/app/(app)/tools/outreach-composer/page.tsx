@@ -37,6 +37,7 @@ export default function StandaloneComposerPage() {
   const [mode,      setMode]      = useState<ComposerMode | null>(null);
   const [channel,   setChannel]   = useState<ComposerChannel | null>(null);
   const [output,    setOutput]    = useState<ComposerOutput | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [error,     setError]     = useState<string | null>(null);
   const [seedDraft, setSeedDraft] = useState<string | undefined>(undefined);
   const [meterRefreshKey, setMeterRefreshKey] = useState(0);
@@ -101,8 +102,9 @@ export default function StandaloneComposerPage() {
         return;
       }
 
-      const json = await res.json() as { output: ComposerOutput };
+      const json = await res.json() as { output: ComposerOutput; sessionId: string };
       setOutput(json.output);
+      setSessionId(json.sessionId);
       setStage('output');
     } catch {
       setError('Network error — please try again.');
@@ -180,13 +182,14 @@ export default function StandaloneComposerPage() {
         </motion.div>
       )}
 
-      {stage === 'output' && output && channel && mode && roadmapId && (
+      {stage === 'output' && output && channel && mode && roadmapId && sessionId && (
         <ComposerOutputView
           output={output}
           channel={channel}
           mode={mode}
           roadmapId={roadmapId}
           taskId="standalone"
+          sessionId={sessionId}
           onDone={() => setStage('done')}
           onToolCallComplete={bumpMeter}
         />

@@ -19,6 +19,15 @@ export interface ComposerOutputViewProps {
   mode:      ComposerMode;
   roadmapId: string;
   taskId:    string;
+  /**
+   * Present when the component is rendered inside the standalone
+   * /tools/outreach-composer page. Causes regenerate + mark-sent to
+   * hit the session-id-based standalone routes (which read/write
+   * roadmap.toolSessions) instead of the task-launched routes (which
+   * read/write roadmap.phases[*].tasks[*].composerSession). Task-
+   * launched callers leave this undefined and still work as before.
+   */
+  sessionId?: string;
   onDone:    () => void;
   /** Fired after a regenerate call completes (success or error). */
   onToolCallComplete?: () => void;
@@ -37,6 +46,7 @@ export function ComposerOutputView({
   mode,
   roadmapId,
   taskId,
+  sessionId,
   onDone,
   onToolCallComplete,
 }: ComposerOutputViewProps) {
@@ -44,32 +54,42 @@ export function ComposerOutputView({
   const [sentIds,  setSentIds]  = useState<Set<string>>(new Set());
   const [regenErr, setRegenErr] = useState<string | null>(null);
 
+  // Standalone mode uses the session-id-based routes; task-launched
+  // mode uses the taskId-scoped routes. The two routes read/write
+  // different places (toolSessions vs phases[*].tasks[*]), so the
+  // endpoint has to match the session shape.
+  const standalone       = Boolean(sessionId);
+  const regenerateUrl    = standalone
+    ? `/api/discovery/roadmaps/${roadmapId}/composer/regenerate`
+    : `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/composer/regenerate`;
+  const markSentUrl      = standalone
+    ? `/api/discovery/roadmaps/${roadmapId}/composer/mark-sent`
+    : `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/composer/mark-sent`;
+
   const handleMarkSent = useCallback(async (id: string) => {
     if (sentIds.has(id)) return;
     setSentIds(prev => new Set([...prev, id]));
     try {
-      await fetch(
-        `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/composer/mark-sent`,
-        {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ messageId: id }),
-        },
-      );
+      await fetch(markSentUrl, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(standalone
+          ? { sessionId, messageId: id }
+          : { messageId: id }),
+      });
     } catch { /* optimistic — already shown as sent */ }
-  }, [sentIds, roadmapId, taskId]);
+  }, [sentIds, markSentUrl, standalone, sessionId]);
 
   const handleRegenerate = useCallback(async (id: string, instruction: string) => {
     setRegenErr(null);
     try {
-      const res = await fetch(
-        `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/composer/regenerate`,
-        {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ messageId: id, variationInstruction: instruction }),
-        },
-      );
+      const res = await fetch(regenerateUrl, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(standalone
+          ? { sessionId, messageId: id, instruction }
+          : { messageId: id, instruction }),
+      });
       if (!res.ok) {
         const json = await res.json().catch(() => ({})) as { error?: string };
         setRegenErr(json.error ?? 'Could not regenerate. Please try again.');
@@ -94,7 +114,7 @@ export function ComposerOutputView({
     } finally {
       onToolCallComplete?.();
     }
-  }, [roadmapId, taskId, onToolCallComplete]);
+  }, [regenerateUrl, standalone, sessionId, onToolCallComplete]);
 
   const handleCopyAll = useCallback(async () => {
     const allText = messages.map(m => m.body).join('\n\n---\n\n');
