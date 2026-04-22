@@ -22,6 +22,7 @@ import { useAuth } from '@/services/auth';
 import { useTheme } from '@/hooks/useTheme';
 import { api } from '@/services/api-client';
 import { Text, Button, Card, Separator, ScreenContainer } from '@/components/ui';
+import { BillingSection, useBillingOverview } from '@/components/billing/BillingSection';
 import { TierHistorySection } from '@/components/billing/TierHistorySection';
 import { spacing, iconSize } from '@/constants/theme';
 
@@ -38,6 +39,7 @@ export default function SettingsScreen() {
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [nudgeEnabled, setNudgeEnabled] = useState(true);
   const [linkedProviders, setLinkedProviders] = useState<string[]>([]);
+  const billingOverview = useBillingOverview();
 
   // Load current consent state + linked OAuth providers on mount.
   useEffect(() => {
@@ -261,11 +263,11 @@ export default function SettingsScreen() {
         </Card>
       </View>
 
-      {/* Billing — section currently surfaces subscription history only.
-          Tier label + renewal date + Manage billing CTA land in a later
-          item on feat/mobile-web-parity. */}
+      {/* Billing — current tier + status + Manage billing handoff,
+          plus the collapsible subscription history panel below it. */}
       <View style={styles.section}>
         <Text variant="overline" color={c.mutedForeground}>Billing</Text>
+        <BillingSection overview={billingOverview} />
         <TierHistorySection />
       </View>
 
