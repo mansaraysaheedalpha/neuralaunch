@@ -14,7 +14,7 @@ import { CoachSetupChat } from '@/app/(app)/discovery/roadmap/[id]/coach/CoachSe
 import { PreparationView } from '@/app/(app)/discovery/roadmap/[id]/coach/PreparationView';
 import { RolePlayChat } from '@/app/(app)/discovery/roadmap/[id]/coach/RolePlayChat';
 import { DebriefView } from '@/app/(app)/discovery/roadmap/[id]/coach/DebriefView';
-import type { ConversationSetup, PreparationPackage, Debrief } from '@/lib/roadmap/coach';
+import type { ConversationSetup, PreparationPackage, Debrief, CoachSession } from '@/lib/roadmap/coach';
 import {
   readPackagerHandoffParams,
   fetchPackagerHandoff,
@@ -28,6 +28,7 @@ export default function StandaloneCoachPage() {
   const [roadmapId, setRoadmapId] = useState<string | null>(null);
   const [stage, setStage]         = useState<Stage>('loading');
   const [setup, setSetup]         = useState<ConversationSetup | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [preparation, setPrep]    = useState<PreparationPackage | null>(null);
   const [debrief, setDebrief]     = useState<Debrief | null>(null);
   const [error, setError]         = useState<string | null>(null);
@@ -37,7 +38,9 @@ export default function StandaloneCoachPage() {
     setMeterRefreshKey(k => k + 1);
   }, []);
 
-  // Auto-detect the most recent roadmap and any inbound packager handoff.
+  // Auto-detect the most recent roadmap, any inbound packager handoff,
+  // and (on refresh) a sessionId query param for restoring a prior
+  // setup → preparation → roleplay → debrief progression.
   useEffect(() => {
     void (async () => {
       try {
@@ -46,6 +49,42 @@ export default function StandaloneCoachPage() {
         const json = await res.json() as { hasRoadmap: boolean; roadmapId?: string };
         if (!json.hasRoadmap || !json.roadmapId) { setStage('no_roadmap'); return; }
         setRoadmapId(json.roadmapId);
+
+        if (typeof window !== 'undefined') {
+          const urlSessionId = new URLSearchParams(window.location.search).get('sessionId');
+          if (urlSessionId) {
+            try {
+              const sRes = await fetch(
+                `/api/discovery/roadmaps/${json.roadmapId}/coach/sessions/${urlSessionId}`,
+              );
+              if (sRes.ok) {
+                const sJson = await sRes.json() as { session: CoachSession };
+                setSessionId(urlSessionId);
+                setSetup(sJson.session.setup);
+                if (sJson.session.debrief) {
+                  setDebrief(sJson.session.debrief);
+                  setStage('debrief');
+                  return;
+                }
+                if (sJson.session.rolePlayHistory && sJson.session.rolePlayHistory.length > 0) {
+                  if (sJson.session.preparation) setPrep(sJson.session.preparation);
+                  setStage('roleplay');
+                  return;
+                }
+                if (sJson.session.preparation) {
+                  setPrep(sJson.session.preparation);
+                  setStage('preparation');
+                  return;
+                }
+                // Setup present but nothing else yet — jump the
+                // founder back to the preparation loading view so
+                // the next click resumes cleanly.
+                setStage('setup');
+                return;
+              }
+            } catch { /* fall through to fresh start */ }
+          }
+        }
 
         // Packager → Coach handoff.
         const handoffParams = readPackagerHandoffParams();
@@ -61,16 +100,36 @@ export default function StandaloneCoachPage() {
     })();
   }, []);
 
-  const handleSetupComplete = useCallback(async (completed: ConversationSetup) => {
-    if (!roadmapId) return;
+  const handleSetupComplete = useCallback(async (
+    completed: ConversationSetup,
+    setupSessionId?: string,
+  ) => {
+    if (!roadmapId || !setupSessionId) {
+      // Without a sessionId the standalone prepare/debrief routes
+      // have no way to address the coach session that setup just
+      // persisted — surfacing this explicitly beats a silent 400.
+      setError('Setup completed but no session was returned.');
+      return;
+    }
     setSetup(completed);
+    setSessionId(setupSessionId);
     setStage('loading_preparation');
     setError(null);
+
+    // Push sessionId into the URL so a refresh during preparation
+    // or roleplay lands back on the right stage via the restore
+    // branch in useEffect above.
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('sessionId', setupSessionId);
+      window.history.replaceState({}, '', url.toString());
+    }
+
     try {
       const res = await fetch(`/api/discovery/roadmaps/${roadmapId}/coach/prepare`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: '{}',
+        body: JSON.stringify({ sessionId: setupSessionId }),
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({})) as { error?: string };
@@ -90,13 +149,13 @@ export default function StandaloneCoachPage() {
   }, [roadmapId, bumpMeter]);
 
   const handleRolePlayEnd = useCallback(async () => {
-    if (!roadmapId) return;
+    if (!roadmapId || !sessionId) return;
     setStage('loading_debrief');
     try {
       const res = await fetch(`/api/discovery/roadmaps/${roadmapId}/coach/debrief`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: '{}',
+        body: JSON.stringify({ sessionId }),
       });
       if (!res.ok) { setStage('roleplay'); return; }
       const json = await res.json() as { debrief: Debrief };
@@ -107,7 +166,7 @@ export default function StandaloneCoachPage() {
     } finally {
       bumpMeter();
     }
-  }, [roadmapId, bumpMeter]);
+  }, [roadmapId, sessionId, bumpMeter]);
 
   if (stage === 'loading') {
     return (
@@ -151,8 +210,9 @@ export default function StandaloneCoachPage() {
         <CoachSetupChat
           roadmapId={roadmapId}
           taskId="standalone"
+          standalone
           initialDraft={seedDraft}
-          onSetupComplete={(completed) => { void handleSetupComplete(completed); }}
+          onSetupComplete={(completed, sid) => { void handleSetupComplete(completed, sid); }}
           onCancel={() => { window.location.href = '/tools'; }}
         />
       )}
@@ -180,10 +240,12 @@ export default function StandaloneCoachPage() {
         />
       )}
 
-      {stage === 'roleplay' && roadmapId && (
+      {stage === 'roleplay' && roadmapId && sessionId && (
         <RolePlayChat
           roadmapId={roadmapId}
           taskId="standalone"
+          standalone
+          sessionId={sessionId}
           otherPartyName={setup?.who ?? 'The other party'}
           onEnd={() => { void handleRolePlayEnd(); }}
           onToolCallComplete={bumpMeter}

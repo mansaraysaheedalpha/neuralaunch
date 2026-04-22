@@ -16,6 +16,13 @@ export interface RolePlayChatProps {
   roadmapId:      string;
   taskId:         string;
   otherPartyName: string;
+  /**
+   * Standalone mode — routes to the session-id-based coach/roleplay
+   * endpoint instead of the taskId-scoped one. sessionId is required
+   * when standalone is true.
+   */
+  standalone?:    boolean;
+  sessionId?:     string;
   onEnd:          () => void;
   /** Fired after every roleplay turn completes (success or error). */
   onToolCallComplete?: () => void;
@@ -26,6 +33,8 @@ export function RolePlayChat({
   roadmapId,
   taskId,
   otherPartyName,
+  standalone,
+  sessionId,
   onEnd,
   onToolCallComplete,
 }: RolePlayChatProps) {
@@ -60,17 +69,21 @@ export function RolePlayChat({
     setError(null);
 
     try {
-      const res = await fetch(
-        `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/coach/roleplay`,
-        {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({
-            message: trimmed,
-            history: history.map(t => ({ role: t.role, message: t.message, turn: t.turn })),
-          }),
-        },
-      );
+      const roleplayUrl = standalone
+        ? `/api/discovery/roadmaps/${roadmapId}/coach/roleplay`
+        : `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/coach/roleplay`;
+      const res = await fetch(roleplayUrl, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(
+          standalone
+            ? { message: trimmed, sessionId }
+            : {
+                message: trimmed,
+                history: history.map(t => ({ role: t.role, message: t.message, turn: t.turn })),
+              },
+        ),
+      });
 
       if (!res.ok) {
         const json = await res.json().catch(() => ({})) as { error?: string };
@@ -103,7 +116,7 @@ export function RolePlayChat({
       setSubmitting(false);
       onToolCallComplete?.();
     }
-  }, [draft, submitting, capped, history, roadmapId, taskId, onToolCallComplete]);
+  }, [draft, submitting, capped, history, roadmapId, taskId, standalone, sessionId, onToolCallComplete]);
 
   const turnDisplay = `Turn ${Math.max(currentTurn, 1)}/${ROLEPLAY_HARD_CAP_TURNS}`;
   const nearCap = currentTurn >= ROLEPLAY_WARNING_TURN && !capped;

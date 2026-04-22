@@ -31,7 +31,22 @@ export interface CoachSetupChatProps {
    * the agent's response.
    */
   initialDraft?:   string;
-  onSetupComplete: (setup: ConversationSetup) => void;
+  /**
+   * When true, POSTs to the session-id-based standalone route and
+   * threads the returned sessionId through every subsequent call so
+   * the server can address the right entry in roadmap.toolSessions.
+   * Task-launched callers leave this undefined — their server routes
+   * address the session via the taskId in the URL, not a sessionId
+   * in the body.
+   */
+  standalone?:     boolean;
+  /**
+   * Callback fired when status: 'ready'. The second argument is
+   * populated only in standalone mode — it's the sessionId the
+   * standalone setup route assigned on the first exchange. Parents
+   * running the task-launched flow can ignore it.
+   */
+  onSetupComplete: (setup: ConversationSetup, sessionId?: string) => void;
   onCancel:        () => void;
 }
 
@@ -47,6 +62,7 @@ export function CoachSetupChat({
   roadmapId,
   taskId,
   initialDraft,
+  standalone,
   onSetupComplete,
   onCancel,
 }: CoachSetupChatProps) {
@@ -54,6 +70,11 @@ export function CoachSetupChat({
   const [draft,      setDraft]      = useState(initialDraft ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [error,      setError]      = useState<string | null>(null);
+  const [sessionId,  setSessionId]  = useState<string | null>(null);
+
+  const setupUrl = standalone
+    ? `/api/discovery/roadmaps/${roadmapId}/coach/setup`
+    : `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/coach/setup`;
 
   const voiceTier    = useVoiceTier();
   const voiceEnabled = canUseVoiceMode(voiceTier);
@@ -80,14 +101,15 @@ export function CoachSetupChat({
     setError(null);
 
     try {
-      const res = await fetch(
-        `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/coach/setup`,
-        {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ message: trimmed }),
-        },
-      );
+      const res = await fetch(setupUrl, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(
+          standalone
+            ? { message: trimmed, ...(sessionId ? { sessionId } : {}) }
+            : { message: trimmed },
+        ),
+      });
 
       if (!res.ok) {
         const json = await res.json().catch(() => ({})) as { error?: string };
@@ -97,15 +119,29 @@ export function CoachSetupChat({
       }
 
       const json = await res.json() as {
-        status:  'gathering' | 'ready';
-        message: string;
-        setup?:  ConversationSetup;
+        status:    'gathering' | 'ready';
+        message:   string;
+        setup?:    ConversationSetup;
+        sessionId?: string;
       };
+
+      // Standalone setup assigns a sessionId on the first exchange
+      // and echoes it on every subsequent one. Capture it so the
+      // next turn can be scoped to the same session.
+      if (standalone && json.sessionId && !sessionId) {
+        setSessionId(json.sessionId);
+      }
 
       setExchanges(prev => [...prev, { role: 'agent', message: json.message }]);
 
       if (json.status === 'ready' && json.setup) {
-        onSetupComplete(json.setup);
+        // Pass the freshly-returned id when standalone so the parent
+        // doesn't need a separate source of truth. Fall through to the
+        // captured state if the server echoed the old id instead.
+        const finalSessionId = standalone
+          ? (json.sessionId ?? sessionId ?? undefined)
+          : undefined;
+        onSetupComplete(json.setup, finalSessionId);
       }
     } catch {
       setError('Network error — please try again.');
@@ -113,7 +149,7 @@ export function CoachSetupChat({
     } finally {
       setSubmitting(false);
     }
-  }, [draft, submitting, roadmapId, taskId, onSetupComplete]);
+  }, [draft, submitting, setupUrl, sessionId, standalone, onSetupComplete]);
 
   // Auto-submit a pre-populated draft once on mount. Used by cross-tool
   // handoffs (Packager → Coach). Guarded by a ref so React 18 strict-mode
