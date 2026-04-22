@@ -83,10 +83,22 @@ export function proxy(_request: NextRequest) {
   // Referrer Policy - don't leak referrer information
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
 
-  // Permissions Policy - restrict browser features
+  // Permissions Policy — restrict browser features.
+  //
+  // microphone=(self) is REQUIRED: voice mode (Compound tier) calls
+  // navigator.mediaDevices.getUserMedia({ audio: true }) to capture
+  // interview answers. An empty allowlist "()" blocks mic access
+  // site-wide at the header level — the browser enforces it silently,
+  // so getUserMedia throws NotAllowedError with no prompt and
+  // navigator.permissions.query returns "denied" even on fresh
+  // devices. That combination is impossible to recover from via OS
+  // or browser settings, so the header must explicitly allow our
+  // own origin.
+  //
+  // camera / geolocation stay locked — we don't use them.
   response.headers.set(
     "Permissions-Policy",
-    "camera=(), microphone=(), geolocation=()"
+    "camera=(), microphone=(self), geolocation=()"
   );
 
   // Strict Transport Security (HSTS) - force HTTPS
