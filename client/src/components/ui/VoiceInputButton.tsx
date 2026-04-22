@@ -1,9 +1,10 @@
 'use client';
 
 import * as React from 'react';
-import { Loader2, Mic, X } from 'lucide-react';
+import { Loader2, Mic, MicOff, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { trackVoiceEvent } from '@/lib/voice/analytics';
+import { MicPermissionHelp } from './MicPermissionHelp';
 
 /**
  * VoiceInputButton — microphone primitive that captures audio via
@@ -22,6 +23,21 @@ import { trackVoiceEvent } from '@/lib/voice/analytics';
  */
 
 type VoiceState = 'idle' | 'recording' | 'processing';
+
+/**
+ * Microphone permission state surfaced to the UI.
+ *
+ *   unknown — the Permissions API is unavailable; we fall through to
+ *             treating the first tap as the permission request.
+ *   prompt  — browser will surface a native dialog on the next tap.
+ *   granted — no prompt needed; the tap starts recording immediately.
+ *   denied  — the browser silently refuses getUserMedia. Without this
+ *             pre-check, the bare "Microphone permission denied" error
+ *             left founders with no actionable path forward, especially
+ *             on Android Chrome where the native prompt never re-fires
+ *             once a site or the global default is in the blocked state.
+ */
+type MicPermission = 'unknown' | 'prompt' | 'granted' | 'denied';
 
 export interface VoiceInputButtonProps {
   onTranscription: (text: string, meta: { duration: number; confidence: number }) => void;
@@ -62,6 +78,8 @@ export function VoiceInputButton({
 }: VoiceInputButtonProps) {
   const [state, setState]     = React.useState<VoiceState>('idle');
   const [elapsed, setElapsed] = React.useState(0);
+  const [permission, setPermission] = React.useState<MicPermission>('unknown');
+  const [helpOpen, setHelpOpen]     = React.useState(false);
 
   const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
   const streamRef        = React.useRef<MediaStream | null>(null);
@@ -69,6 +87,35 @@ export function VoiceInputButton({
   const tickRef          = React.useRef<number | null>(null);
   const cancelledRef     = React.useRef(false);
   const startedAtRef     = React.useRef<number>(0);
+
+  // Pre-check permission state on mount. Keeps the UI in sync when the
+  // founder later fixes the permission in browser settings — no page
+  // reload required. The Permissions API is unavailable in older
+  // Safari and some Android WebViews; when missing we stay in 'unknown'
+  // and fall back to the legacy tap-and-see-what-happens flow.
+  React.useEffect(() => {
+    let cancelled = false;
+    if (typeof navigator === 'undefined' || !navigator.permissions?.query) {
+      setPermission('prompt');
+      return;
+    }
+    let status: PermissionStatus | null = null;
+    navigator.permissions
+      .query({ name: 'microphone' as PermissionName })
+      .then(s => {
+        if (cancelled) return;
+        status = s;
+        setPermission(mapPermissionState(s.state));
+        s.onchange = () => setPermission(mapPermissionState(s.state));
+      })
+      .catch(() => {
+        if (!cancelled) setPermission('prompt');
+      });
+    return () => {
+      cancelled = true;
+      if (status) status.onchange = null;
+    };
+  }, []);
 
   const cleanupStream = React.useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -117,12 +164,24 @@ export function VoiceInputButton({
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (err) {
-      const message = err instanceof Error && err.name === 'NotAllowedError'
+      const isDenied = err instanceof Error && err.name === 'NotAllowedError';
+      if (isDenied) {
+        // Flip into the denied UI so the help panel becomes reachable
+        // from the next render — bare error toasts offered no recovery
+        // path on Android Chrome, where the native dialog never re-fires
+        // after a prior denial.
+        setPermission('denied');
+        setHelpOpen(true);
+      }
+      const message = isDenied
         ? 'Microphone permission denied'
         : 'Could not access microphone';
       onError?.(message);
       return;
     }
+    // Successful getUserMedia grant — sync the local state so the
+    // Permissions API 'onchange' is not the only way to leave denied.
+    if (permission !== 'granted') setPermission('granted');
 
     streamRef.current = stream;
     cancelledRef.current = false;
@@ -175,7 +234,7 @@ export function VoiceInputButton({
         recorder.stop();
       }
     }, 250);
-  }, [state, disabled, onError, onTranscription, uploadAndTranscribe, cleanupStream, maxDurationSec]);
+  }, [state, disabled, onError, onTranscription, uploadAndTranscribe, cleanupStream, maxDurationSec, permission]);
 
   const stopRecording = React.useCallback(() => {
     const recorder = mediaRecorderRef.current;
@@ -246,6 +305,31 @@ export function VoiceInputButton({
     );
   }
 
+  if (permission === 'denied') {
+    return (
+      <div className={cn('relative inline-flex', className)}>
+        <button
+          type="button"
+          onClick={() => setHelpOpen(v => !v)}
+          aria-label="Microphone blocked — show help"
+          aria-expanded={helpOpen}
+          className={cn(
+            'inline-flex size-9 items-center justify-center rounded-full text-red-500',
+            'hover:bg-red-500/10 transition-colors duration-fast',
+            'outline-none focus-visible:ring-[3px] focus-visible:ring-red-500/30',
+          )}
+        >
+          <MicOff className="size-4" aria-hidden />
+        </button>
+        {helpOpen && (
+          <div className="absolute right-0 top-full z-20 mt-2 w-72 sm:w-80 max-w-[calc(100vw-2rem)]">
+            <MicPermissionHelp />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <button
       type="button"
@@ -263,4 +347,12 @@ export function VoiceInputButton({
       <Mic className="size-4" aria-hidden />
     </button>
   );
+}
+
+function mapPermissionState(state: PermissionState): MicPermission {
+  switch (state) {
+    case 'granted': return 'granted';
+    case 'denied':  return 'denied';
+    default:        return 'prompt';
+  }
 }
