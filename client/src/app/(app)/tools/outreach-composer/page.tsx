@@ -13,7 +13,7 @@ import Link from 'next/link';
 import { ComposerContextChat } from '@/app/(app)/discovery/roadmap/[id]/composer/ComposerContextChat';
 import { ComposerOutputView }  from '@/app/(app)/discovery/roadmap/[id]/composer/ComposerOutputView';
 import { ComposerSessionReview } from '@/app/(app)/discovery/roadmap/[id]/composer/ComposerSessionReview';
-import type { OutreachContext, ComposerOutput } from '@/lib/roadmap/composer/schemas';
+import type { OutreachContext, ComposerOutput, ComposerSession } from '@/lib/roadmap/composer/schemas';
 import type { ComposerChannel, ComposerMode } from '@/lib/roadmap/composer/constants';
 import {
   readPackagerHandoffParams,
@@ -45,7 +45,12 @@ export default function StandaloneComposerPage() {
     setMeterRefreshKey(k => k + 1);
   }, []);
 
-  // Auto-detect the most recent roadmap and any inbound packager handoff.
+  // Auto-detect the most recent roadmap, any inbound packager handoff,
+  // and (on refresh) a sessionId query param for restoring a prior
+  // generation. Without the sessionId-restore branch, a browser refresh
+  // on the output view wiped every piece of state and forced the
+  // founder to run context collection + generation again from zero —
+  // even though the server had already persisted the session.
   useEffect(() => {
     void (async () => {
       try {
@@ -54,6 +59,30 @@ export default function StandaloneComposerPage() {
         const json = await res.json() as { hasRoadmap: boolean; roadmapId?: string };
         if (!json.hasRoadmap || !json.roadmapId) { setStage('no_roadmap'); return; }
         setRoadmapId(json.roadmapId);
+
+        // Refresh-restore: if the URL carries ?sessionId=, fetch the
+        // session and jump straight to the output view.
+        const url = new URL(window.location.href);
+        const urlSessionId = url.searchParams.get('sessionId');
+        if (urlSessionId) {
+          try {
+            const sRes = await fetch(
+              `/api/discovery/roadmaps/${json.roadmapId}/composer/sessions/${urlSessionId}`,
+            );
+            if (sRes.ok) {
+              const sJson = await sRes.json() as { session: ComposerSession };
+              if (sJson.session.output) {
+                setContext(sJson.session.context);
+                setMode(sJson.session.mode);
+                setChannel(sJson.session.channel);
+                setOutput(sJson.session.output);
+                setSessionId(sJson.session.id);
+                setStage('output');
+                return;
+              }
+            }
+          } catch { /* fall through to fresh start */ }
+        }
 
         // Packager → Composer handoff.
         const handoffParams = readPackagerHandoffParams();
@@ -106,6 +135,14 @@ export default function StandaloneComposerPage() {
       setOutput(json.output);
       setSessionId(json.sessionId);
       setStage('output');
+
+      // Push the sessionId into the URL so a browser refresh restores
+      // state via the sessionId-restore branch above. replaceState is
+      // deliberate — we don't want a new history entry, just a URL
+      // that survives a reload.
+      const url = new URL(window.location.href);
+      url.searchParams.set('sessionId', json.sessionId);
+      window.history.replaceState({}, '', url.toString());
     } catch {
       setError('Network error — please try again.');
       setStage('context');

@@ -47,14 +47,33 @@ export default function StandalonePackagerPage() {
         if (!json.hasRoadmap || !json.roadmapId) { setStage('no_roadmap'); return; }
         setRoadmapId(json.roadmapId);
 
-        // Research → Packager inbound handoff. When the URL carries
-        // ?fromResearch=<sessionId>, fetch that research session and
-        // pre-populate the intro textarea with a description that
-        // surfaces the findings (competitors, data points). The agent's
-        // context confirmation step then turns this into the structured
-        // ServiceContext for generation.
         if (typeof window !== 'undefined') {
           const params = new URLSearchParams(window.location.search);
+
+          // Refresh-restore: if ?sessionId= is in the URL, rehydrate
+          // the output view from the persisted session so a browser
+          // refresh doesn't wipe the generated package.
+          const restoreSessionId = params.get('sessionId');
+          if (restoreSessionId) {
+            try {
+              const r = await fetch(`/api/discovery/roadmaps/${json.roadmapId}/packager/sessions/${restoreSessionId}`);
+              if (r.ok) {
+                const rj = await r.json() as { package: ServicePackage; context: ServiceContext };
+                setSessionId(restoreSessionId);
+                setContext(rj.context);
+                setPkg(rj.package);
+                setStage('output');
+                return;
+              }
+            } catch { /* fall through to fresh intro */ }
+          }
+
+          // Research → Packager inbound handoff. When the URL carries
+          // ?fromResearch=<sessionId>, fetch that research session and
+          // pre-populate the intro textarea with a description that
+          // surfaces the findings (competitors, data points). The agent's
+          // context confirmation step then turns this into the structured
+          // ServiceContext for generation.
           const researchSessionId = params.get('fromResearch');
           const researchRoadmapId = params.get('roadmapId') ?? json.roadmapId;
           if (researchSessionId) {
@@ -119,6 +138,16 @@ export default function StandalonePackagerPage() {
       if (!res.ok) throw new Error('Could not generate package');
       const json = await res.json() as { package: ServicePackage; sessionId: string };
       setPkg(json.package); setStage('output');
+
+      // Push the sessionId into the URL so a browser refresh restores
+      // state via the sessionId-restore branch above.
+      if (typeof window !== 'undefined' && sessionId) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('sessionId', sessionId);
+        url.searchParams.delete('fromResearch');
+        url.searchParams.delete('roadmapId');
+        window.history.replaceState({}, '', url.toString());
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error'); setStage('context');
     } finally {
