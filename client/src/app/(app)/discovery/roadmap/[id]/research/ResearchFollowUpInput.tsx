@@ -5,10 +5,14 @@
 // ("1/5 follow-ups used") and disables when the max is reached.
 
 import { useState } from 'react';
+import toast from 'react-hot-toast';
 import { Send } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 // Import directly from constants for the max cap.
 import { FOLLOWUP_MAX_ROUNDS } from '@/lib/roadmap/research-tool/constants';
+import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
+import { canUseVoiceMode, useVoiceTier } from '@/lib/voice/client-tier';
+import { trackVoiceEvent } from '@/lib/voice/analytics';
 
 export interface ResearchFollowUpInputProps {
   round:    number;
@@ -33,6 +37,20 @@ export function ResearchFollowUpInput({
   const [query, setQuery] = useState('');
   const capped            = round >= maxRounds;
 
+  const voiceTier    = useVoiceTier();
+  const voiceEnabled = canUseVoiceMode(voiceTier);
+
+  const handleVoiceTranscription = (text: string) => {
+    if (!text.trim()) return;
+    setQuery(prev => prev.trim().length > 0 ? `${prev.trim()} ${text}` : text);
+    trackVoiceEvent('voice_transcribed', { surface: 'research' });
+  };
+
+  const handleVoiceError = (message: string) => {
+    trackVoiceEvent('voice_error', { surface: 'research', errorMessage: message });
+    toast.error(message);
+  };
+
   function handleSubmit() {
     const trimmed = query.trim();
     if (trimmed.length === 0 || disabled || capped) return;
@@ -54,7 +72,7 @@ export function ResearchFollowUpInput({
           You have used all {maxRounds} follow-up rounds. Start a new research session to continue.
         </p>
       ) : (
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <Input
             value={query}
             onChange={e => setQuery(e.target.value)}
@@ -68,6 +86,14 @@ export function ResearchFollowUpInput({
             placeholder="Ask a follow-up question…"
             className="flex-1 px-2.5 py-1.5 text-xs"
           />
+          {voiceEnabled && (
+            <VoiceInputButton
+              onTranscription={handleVoiceTranscription}
+              onError={handleVoiceError}
+              disabled={disabled || capped}
+              className="shrink-0"
+            />
+          )}
           <button
             type="button"
             onClick={handleSubmit}

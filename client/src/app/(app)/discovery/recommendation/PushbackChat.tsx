@@ -3,6 +3,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import { Loader2, SendHorizontal, RefreshCw, Replace, Shield, MessageCircleMore } from 'lucide-react';
 import TextareaAutosize from 'react-textarea-autosize';
 import type {
@@ -10,6 +11,9 @@ import type {
   PushbackTurnUser,
   PushbackTurnAgent,
 } from '@/lib/discovery/pushback-types';
+import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
+import { canUseVoiceMode, useVoiceTier } from '@/lib/voice/client-tier';
+import { trackVoiceEvent } from '@/lib/voice/analytics';
 
 /**
  * Action label + styling for the pill that sits above every agent
@@ -86,6 +90,20 @@ export function PushbackChat({
   const [error,   setError]   = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const voiceTier    = useVoiceTier();
+  const voiceEnabled = canUseVoiceMode(voiceTier);
+
+  const handleVoiceTranscription = (text: string) => {
+    if (!text.trim()) return;
+    setInput(prev => prev.trim().length > 0 ? `${prev.trim()} ${text}` : text);
+    trackVoiceEvent('voice_transcribed', { surface: 'pushback' });
+  };
+
+  const handleVoiceError = (message: string) => {
+    trackVoiceEvent('voice_error', { surface: 'pushback', errorMessage: message });
+    toast.error(message);
+  };
   // Saved selection range from the most recent send attempt — restored
   // on rollback so a long pushback message keeps the cursor where the
   // founder left it. Cosmetic but important on long messages.
@@ -306,6 +324,14 @@ export function PushbackChat({
               }
             }}
           />
+          {voiceEnabled && (
+            <VoiceInputButton
+              onTranscription={handleVoiceTranscription}
+              onError={handleVoiceError}
+              disabled={pending}
+              className="shrink-0"
+            />
+          )}
           <button
             type="button"
             onClick={() => { void handleSend(); }}

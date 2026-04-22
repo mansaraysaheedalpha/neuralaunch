@@ -40,6 +40,7 @@ export function voiceMessageCallout(text: string): string {
 
 export type VoiceSurface =
   | 'discovery_interview'
+  | 'pushback'
   | 'checkin'
   | 'coach_setup'
   | 'composer'

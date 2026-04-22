@@ -2,9 +2,13 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import toast from 'react-hot-toast';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowRight, RotateCcw, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
+import { canUseVoiceMode, useVoiceTier } from '@/lib/voice/client-tier';
+import { trackVoiceEvent } from '@/lib/voice/analytics';
 
 interface QuestionStepperProps {
   /** Current question text streamed from the server */
@@ -47,6 +51,20 @@ export function QuestionStepper({
 }: QuestionStepperProps) {
   const [answer,       setAnswer]       = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const voiceTier    = useVoiceTier();
+  const voiceEnabled = canUseVoiceMode(voiceTier);
+
+  const handleVoiceTranscription = (text: string) => {
+    if (!text.trim()) return;
+    setAnswer(prev => prev.trim().length > 0 ? `${prev.trim()} ${text}` : text);
+    trackVoiceEvent('voice_transcribed', { surface: 'discovery_interview' });
+  };
+
+  const handleVoiceError = (message: string) => {
+    trackVoiceEvent('voice_error', { surface: 'discovery_interview', errorMessage: message });
+    toast.error(message);
+  };
 
   // Clear and refocus when question advances
   useEffect(() => {
@@ -158,6 +176,13 @@ export function QuestionStepper({
                   }}
                   className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none py-1.5 min-h-[2rem]"
                 />
+                {voiceEnabled && (
+                  <VoiceInputButton
+                    onTranscription={handleVoiceTranscription}
+                    onError={handleVoiceError}
+                    className="shrink-0"
+                  />
+                )}
                 <button
                   type="button"
                   disabled={!canSubmit}
