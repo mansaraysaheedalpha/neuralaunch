@@ -1,6 +1,6 @@
 // src/lib/discovery/assumption-guard.ts
 import { DiscoveryContext, DiscoveryContextField } from './context-schema';
-import { SYNTHESIS_READINESS_RATIO } from './constants';
+import { SYNTHESIS_READINESS_RATIO, CRITICAL_WEIGHT_THRESHOLD } from './constants';
 import { computeOverallCompleteness, FIELD_WEIGHTS } from './question-selector';
 
 // ---------------------------------------------------------------------------
@@ -32,8 +32,9 @@ import { computeOverallCompleteness, FIELD_WEIGHTS } from './question-selector';
  *
  * The fix: the ratio is necessary but not sufficient. No field with
  * weight >= CRITICAL_WEIGHT_THRESHOLD can be at zero confidence.
+ * CRITICAL_WEIGHT_THRESHOLD lives in constants.ts (shared with the
+ * fallback field selector in question-selector.ts).
  */
-const CRITICAL_WEIGHT_THRESHOLD = 0.8;
 
 // ---------------------------------------------------------------------------
 // Guard logic

@@ -32,6 +32,24 @@ export const MIN_FIELD_CONFIDENCE = 0.65;
 /** Fraction of required fields that must be "known" before synthesis is allowed */
 export const SYNTHESIS_READINESS_RATIO = 0.80;
 
+/**
+ * Field weight at/above which a field is considered "critical" for
+ * synthesis quality. canSynthesise() blocks on critical fields at
+ * zero confidence; the fallback field selector re-probes critical
+ * fields whose confidence is below STRONG_CONFIDENCE.
+ */
+export const CRITICAL_WEIGHT_THRESHOLD = 0.8;
+
+/**
+ * Higher confidence bar used by the fallback field selector. A
+ * critical field below this bar can be re-probed even if it was
+ * already auto-marked as asked via multi-field extraction — explicit
+ * answers carry more weight than ones inferred from an opening
+ * monologue, and synthesis quality depends on the engine actually
+ * probing critical ground rather than trusting soft extraction.
+ */
+export const STRONG_CONFIDENCE = 0.75;
+
 /** Expected information gain threshold below which we stop asking and synthesise */
 export const MIN_EXPECTED_GAIN_TO_CONTINUE = 0.05;
 

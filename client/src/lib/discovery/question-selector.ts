@@ -1,6 +1,11 @@
 // src/lib/discovery/question-selector.ts
 import { DiscoveryContext, DiscoveryContextField } from './context-schema';
-import { AudienceType, MIN_FIELD_CONFIDENCE } from './constants';
+import {
+  AudienceType,
+  MIN_FIELD_CONFIDENCE,
+  CRITICAL_WEIGHT_THRESHOLD,
+  STRONG_CONFIDENCE,
+} from './constants';
 
 // ---------------------------------------------------------------------------
 // Field importance weights
@@ -118,6 +123,76 @@ export function selectNextField(
   }
 
   return bestField; // null if all candidates are sufficiently known
+}
+
+/**
+ * selectFallbackField
+ *
+ * Second-chance selector used by advance() when the normal
+ * phase-driven selectNextField has run out of candidates but the
+ * synthesis-readiness guard has NOT yet passed. This is the
+ * "rich-opener drained the question pool while missing a critical
+ * probe" case: the founder's opening monologue extracted so many
+ * fields at MIN_FIELD_CONFIDENCE+ that the phase selector sees
+ * nothing left to ask — yet critical fields (weight >= 0.8) may
+ * still be inferred rather than explicitly answered.
+ *
+ * Strategy:
+ *  1. Prefer critical fields (weight >= CRITICAL_WEIGHT_THRESHOLD)
+ *     whose confidence is below STRONG_CONFIDENCE. These deserve an
+ *     explicit question because synthesis rides on them.
+ *  2. Fall back to ANY field below STRONG_CONFIDENCE, scored by
+ *     information gain. Less critical but still useful.
+ *  3. Return null only when every field is at or above
+ *     STRONG_CONFIDENCE — then the engine has genuinely nothing
+ *     useful left to ask and should let canSynthesise() decide
+ *     whether to synthesise or let the hard MAX_TOTAL_QUESTIONS
+ *     ceiling catch it.
+ *
+ * Deliberately does NOT filter by askedFields. A field that was
+ * auto-marked "asked" because multi-field extraction pulled it from
+ * the opening message at 0.6 confidence may still benefit from an
+ * explicit question. The consecutive-miss logic on the turn route
+ * handles the (rare) case where the founder genuinely can't answer
+ * better on the second ask — after two misses, the field is
+ * force-skipped and we move on.
+ */
+export function selectFallbackField(
+  context:       DiscoveryContext,
+  audienceType?: AudienceType,
+): DiscoveryContextField | null {
+  const allFields = Object.keys(FIELD_WEIGHTS) as DiscoveryContextField[];
+
+  const critical = allFields.filter(f =>
+    FIELD_WEIGHTS[f] >= CRITICAL_WEIGHT_THRESHOLD &&
+    context[f].confidence < STRONG_CONFIDENCE,
+  );
+  if (critical.length > 0) return rankByGain(critical, context, audienceType);
+
+  const underprobed = allFields.filter(f =>
+    context[f].confidence < STRONG_CONFIDENCE,
+  );
+  if (underprobed.length > 0) return rankByGain(underprobed, context, audienceType);
+
+  return null;
+}
+
+function rankByGain(
+  candidates:   DiscoveryContextField[],
+  context:      DiscoveryContext,
+  audienceType?: AudienceType,
+): DiscoveryContextField | null {
+  let best: DiscoveryContextField | null = null;
+  let bestScore = -1;
+  for (const field of candidates) {
+    const boost = audienceType ? (AUDIENCE_FIELD_BOOST[audienceType]?.[field] ?? 1.0) : 1.0;
+    const score = FIELD_WEIGHTS[field] * boost * (1 - context[field].confidence);
+    if (score > bestScore) {
+      bestScore = score;
+      best = field;
+    }
+  }
+  return best;
 }
 
 // ---------------------------------------------------------------------------

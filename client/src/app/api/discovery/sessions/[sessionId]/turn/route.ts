@@ -233,14 +233,24 @@ export async function POST(
         const skipped = { ...applyUpdate({ ...state, context: skipCtx }, {}), consecutiveMisses: 0 };
         await saveSession(sessionId, skipped);
         if (!skipped.activeField) {
-          // All fields exhausted after a skip — fire synthesis and mark
-          // the session COMPLETE before responding. Previously this path
-          // returned { status: 'synthesizing' } without triggering the
-          // Inngest job, which left the session orphaned — the client
-          // spun on ThinkingPanel forever with no background work to
-          // resolve it.
+          // All fields exhausted after a skip AND the fallback selector
+          // in advance() returned null — quality guard cannot be
+          // satisfied and there is nothing left to probe. Fire
+          // synthesis and stream the reflection (same shape as the
+          // main canSynthesise happy path) so the founder sees the
+          // transition screen, not a stark jump to "Synthesizing…".
+          // Previously this path returned { status: 'synthesizing' }
+          // without the reflection, which was the missing-transition
+          // regression described in the 2026-04-21 test session.
           await triggerSynthesis({ sessionId, userId });
-          return NextResponse.json({ status: 'synthesizing' });
+          const ref = buildStreamResponse(
+            generateReflection(skipped.context, skipped.audienceType, history),
+            conversationId,
+            'SYNTHESIS',
+            skipped.questionCount,
+          );
+          ref.headers.set('X-Synthesis-Transition', 'true');
+          return ref;
         }
         return buildStreamResponse(generateQuestion(skipped.activeField, skipped.phase as never, skipped.context, {}, skipped.audienceType ?? undefined, history, skipped.askedFields, lifecycleBlock || undefined), conversationId, skipped.phase, skipped.questionCount);
       }
@@ -354,15 +364,23 @@ export async function POST(
     }
     const nextField = nextState.activeField;
     if (!nextField) {
-      // Interview ran out of scoreable fields but canSynthesise() above
-      // returned false (not yet at 80% readiness). Still no further
-      // question to ask — fire synthesis and mark COMPLETE so the
-      // Inngest job actually runs. The previous path returned
-      // { status: 'synthesizing' } without triggering anything, which
-      // is how the production-stuck session ended up with
-      // synthesisStep=null + status=ACTIVE forever.
+      // advance() returned no nextField AND readyForSynthesis was
+      // false (so canSynthesise didn't match the happy path above,
+      // and the fallback selector in advance() also returned null).
+      // Genuinely no more fields to ask and the quality guard never
+      // passed. Fire synthesis and stream the reflection, same shape
+      // as the main canSynthesise path, so the founder sees the
+      // transition screen instead of a stark jump. Rare edge case
+      // after the advance() fallback fix; kept as a safety net.
       await triggerSynthesis({ sessionId, userId });
-      return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
+      const ref = buildStreamResponse(
+        generateReflection(nextState.context, nextState.audienceType, history),
+        conversationId,
+        'SYNTHESIS',
+        nextState.questionCount,
+      );
+      ref.headers.set('X-Synthesis-Transition', 'true');
+      return ref;
     }
     if (detectsPricingChange(message) && !state.pricingProbed) { await saveSession(sessionId, { ...nextState, pricingProbed: true }); return buildStreamResponse(generatePricingFollowUp(message, history, nextState.audienceType ?? undefined), conversationId, nextState.phase, nextState.questionCount); }
 

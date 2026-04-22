@@ -10,7 +10,11 @@ import {
   DiscoveryContextField,
   createEmptyContext,
 } from './context-schema';
-import { detectsPsychBlocker, selectNextField } from './question-selector';
+import {
+  detectsPsychBlocker,
+  selectNextField,
+  selectFallbackField,
+} from './question-selector';
 import { canSynthesise } from './assumption-guard';
 
 // ---------------------------------------------------------------------------
@@ -199,20 +203,38 @@ export function advance(state: InterviewState): {
   }
 
   // Current phase is done (all fields asked OR all above confidence threshold) — advance
-  const currentIndex = PHASE_ORDER.indexOf(currentPhase);
-  const nextPhase    = PHASE_ORDER[currentIndex + 1] ?? INTERVIEW_PHASES.SYNTHESIS;
+  const currentIndex      = PHASE_ORDER.indexOf(currentPhase);
+  const nextPhaseCandidate = PHASE_ORDER[currentIndex + 1];
 
-  if (nextPhase === INTERVIEW_PHASES.SYNTHESIS) {
-    return { nextField: null, nextPhase, readyForSynthesis: true };
+  if (nextPhaseCandidate && nextPhaseCandidate !== INTERVIEW_PHASES.SYNTHESIS) {
+    const nextPhaseFields  = PHASE_FIELDS[nextPhaseCandidate];
+    const unaskedNextPhase = nextPhaseFields.filter(f => !state.askedFields.includes(f));
+    const firstField       = selectNextField(
+      state.context, unaskedNextPhase, state.audienceType ?? undefined,
+    );
+    if (firstField !== null) {
+      return { nextField: firstField, nextPhase: nextPhaseCandidate, readyForSynthesis: false };
+    }
   }
 
-  const nextPhaseFields  = PHASE_FIELDS[nextPhase];
-  const unaskedNextPhase = nextPhaseFields.filter(f => !state.askedFields.includes(f));
-  const firstField       = selectNextField(
-    state.context, unaskedNextPhase, state.audienceType ?? undefined,
-  );
+  // Normal phase-driven selection found nothing to ask AND canSynthesise()
+  // above returned false. This happens most often when a rich opening
+  // monologue extracts many fields at 0.5-0.7 confidence — the phase
+  // selector skips them (auto-asked) but the synthesis guard still fails
+  // (critical fields under-probed, or overall completeness too low).
+  //
+  // Falling back into synthesis here is the bug that shipped short
+  // interviews with sparse recommendations. Instead, pull the
+  // lowest-confidence critical field across any phase and ask it
+  // explicitly. Only commit to synthesis when selectFallbackField also
+  // returns null — meaning every field is at or above STRONG_CONFIDENCE
+  // and there is genuinely nothing left to probe.
+  const fallback = selectFallbackField(state.context, state.audienceType ?? undefined);
+  if (fallback !== null) {
+    return { nextField: fallback, nextPhase: currentPhase, readyForSynthesis: false };
+  }
 
-  return { nextField: firstField, nextPhase, readyForSynthesis: false };
+  return { nextField: null, nextPhase: INTERVIEW_PHASES.SYNTHESIS, readyForSynthesis: true };
 }
 
 /**
