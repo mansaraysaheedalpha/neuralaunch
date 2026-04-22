@@ -7,11 +7,12 @@
 // This file orchestrates. Specialised sub-views (status picker,
 // check-in history) live alongside in their own files.
 
-import { useState } from 'react';
-import { View, Pressable, StyleSheet } from 'react-native';
+import { useRef, useState } from 'react';
+import { View, Pressable, StyleSheet, Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { MessageSquare, Send, Search, CheckSquare, Package } from 'lucide-react-native';
+import { Swipeable } from 'react-native-gesture-handler';
+import { MessageSquare, Send, Search, CheckSquare, Package, CheckCircle2 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { api } from '@/services/api-client';
 import type { RoadmapTask, TaskStatus } from '@/hooks/useRoadmap';
@@ -42,6 +43,7 @@ export function TaskCard({
   const { colors: c } = useTheme();
   const router = useRouter();
   const taskId = buildTaskId(phaseNumber, index);
+  const swipeableRef = useRef<Swipeable>(null);
 
   const [status, setStatus]       = useState<TaskStatus>(task.status ?? 'not_started');
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -75,8 +77,41 @@ export function TaskCard({
   }
 
   const statusLabel = STATUS_OPTIONS.find(s => s.value === status)?.label ?? status;
+  const canSwipeComplete = status !== 'completed';
 
-  return (
+  function handleSwipeComplete() {
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    swipeableRef.current?.close();
+    void handleStatusChange('completed');
+  }
+
+  function renderCompleteAction(
+    _progress: Animated.AnimatedInterpolation<number>,
+    dragX: Animated.AnimatedInterpolation<number>,
+  ) {
+    const opacity = dragX.interpolate({
+      inputRange: [0, 80],
+      outputRange: [0, 1],
+      extrapolate: 'clamp',
+    });
+    const scale = dragX.interpolate({
+      inputRange: [0, 80, 160],
+      outputRange: [0.6, 1, 1.05],
+      extrapolate: 'clamp',
+    });
+    return (
+      <View style={[styles.swipeAction, { backgroundColor: c.success }]}>
+        <Animated.View style={{ opacity, transform: [{ scale }], alignItems: 'center' }}>
+          <CheckCircle2 size={28} color="#FFFFFF" strokeWidth={2.5} />
+          <Text variant="caption" color="#FFFFFF" style={styles.swipeLabel}>
+            Complete
+          </Text>
+        </Animated.View>
+      </View>
+    );
+  }
+
+  const cardContent = (
     <Card style={styles.card}>
       {/* Header: title + status picker trigger */}
       <View style={styles.header}>
@@ -95,7 +130,12 @@ export function TaskCard({
         </Pressable>
       </View>
 
-      {pickerOpen && <TaskStatusPicker value={status} onChange={handleStatusChange} />}
+      <TaskStatusPicker
+        visible={pickerOpen}
+        value={status}
+        onChange={handleStatusChange}
+        onClose={() => setPickerOpen(false)}
+      />
 
       {/*
         Description IS the tool choreography — the roadmap generator
@@ -188,6 +228,23 @@ export function TaskCard({
       </View>
     </Card>
   );
+
+  if (!canSwipeComplete) return cardContent;
+
+  return (
+    <Swipeable
+      ref={swipeableRef}
+      friction={2}
+      leftThreshold={80}
+      overshootLeft={false}
+      renderLeftActions={renderCompleteAction}
+      onSwipeableOpen={(direction) => {
+        if (direction === 'left') handleSwipeComplete();
+      }}
+    >
+      {cardContent}
+    </Swipeable>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -221,5 +278,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing[2],
     marginTop: spacing[1],
+  },
+  swipeAction: {
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    paddingLeft: spacing[5],
+    paddingRight: spacing[4],
+    marginVertical: 0,
+    borderTopLeftRadius: radius.xl,
+    borderBottomLeftRadius: radius.xl,
+  },
+  swipeLabel: {
+    marginTop: spacing[1],
+    fontWeight: '600',
   },
 });

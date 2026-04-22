@@ -85,6 +85,43 @@ export class ApiError extends Error {
   }
 }
 
+// Request timeout — matches the typical p99 for the slowest endpoints
+// (synthesis routes take ~25s; anything beyond 30s means the request is
+// hung, not slow). On 3G the app would otherwise spin forever.
+const REQUEST_TIMEOUT_MS = 30_000;
+
+// Retry config — two retries (three total attempts) with exponential
+// backoff on 5xx responses and network errors. 4xx never retries; an
+// AbortError from the caller's signal never retries.
+const MAX_RETRIES = 2;
+const RETRY_DELAYS_MS = [500, 1500] as const;
+
+function shouldRetry(err: unknown): boolean {
+  if (err instanceof ApiError) return err.status >= 500;
+  // Network failures thrown by fetch show up as TypeError with a
+  // platform-specific message ("Network request failed" on iOS/Android).
+  if (err instanceof TypeError) return true;
+  return false;
+}
+
+function linkSignals(
+  userSignal: AbortSignal | undefined,
+  timeoutController: AbortController,
+): () => void {
+  if (!userSignal) return () => {};
+  if (userSignal.aborted) {
+    timeoutController.abort();
+    return () => {};
+  }
+  const onAbort = () => timeoutController.abort();
+  userSignal.addEventListener('abort', onAbort);
+  return () => userSignal.removeEventListener('abort', onAbort);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: unknown;
@@ -129,34 +166,70 @@ export async function api<T = unknown>(
 
   const url = `${API_BASE_URL}${path}`;
 
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-    signal,
-  });
+  let attempt = 0;
+  for (;;) {
+    // Each attempt gets its own controller so the 30s timeout is fresh.
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(
+      () => timeoutController.abort(),
+      REQUEST_TIMEOUT_MS,
+    );
+    const unlink = linkSignals(signal, timeoutController);
 
-  // 204 No Content — return empty
-  if (res.status === 204) return undefined as T;
+    try {
+      const res = await fetch(url, {
+        method,
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal: timeoutController.signal,
+      });
 
-  let json: unknown;
-  try {
-    json = await res.json();
-  } catch {
-    if (!res.ok) {
-      throw new ApiError(res.status, `Request failed: ${res.status}`);
+      // 204 No Content — return empty
+      if (res.status === 204) return undefined as T;
+
+      let json: unknown;
+      try {
+        json = await res.json();
+      } catch {
+        if (!res.ok) {
+          throw new ApiError(res.status, `Request failed: ${res.status}`);
+        }
+        return undefined as T;
+      }
+
+      if (!res.ok) {
+        const message =
+          (json as { error?: string })?.error ??
+          `Request failed: ${res.status}`;
+        throw new ApiError(res.status, message, json);
+      }
+
+      return json as T;
+    } catch (err) {
+      // A caller-initiated abort propagates untouched — no retry, no
+      // transformation. Timeout-induced aborts surface as a clear error.
+      if (signal?.aborted) throw err;
+      if (
+        err instanceof Error &&
+        err.name === 'AbortError' &&
+        timeoutController.signal.aborted
+      ) {
+        throw new ApiError(
+          0,
+          `Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`,
+        );
+      }
+
+      if (attempt >= MAX_RETRIES || !shouldRetry(err)) throw err;
+
+      await delay(RETRY_DELAYS_MS[attempt]!);
+      attempt += 1;
+      continue;
+    } finally {
+      clearTimeout(timeoutId);
+      unlink();
     }
-    return undefined as T;
   }
-
-  if (!res.ok) {
-    const message =
-      (json as { error?: string })?.error ??
-      `Request failed: ${res.status}`;
-    throw new ApiError(res.status, message, json);
-  }
-
-  return json as T;
 }
 
 /**

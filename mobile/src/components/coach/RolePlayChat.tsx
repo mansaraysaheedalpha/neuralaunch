@@ -8,8 +8,9 @@ import { useState, useRef, useEffect } from 'react';
 import { View, FlatList, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
+import { useScrollToBottom } from '@/hooks/useScrollToBottom';
 import { api, ApiError } from '@/services/api-client';
-import { Text, ChatBubble, ChatInput, Badge, Card } from '@/components/ui';
+import { Text, ChatBubble, ChatInput, ScrollToBottomButton, Badge, Card } from '@/components/ui';
 import { spacing, radius } from '@/constants/theme';
 
 interface RolePlayTurn {
@@ -35,16 +36,18 @@ export function RolePlayChat({ roadmapId, taskId, otherParty, channel, onComplet
   const [pending, setPending] = useState(false);
   const [error, setError]     = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
+  const { onScroll, visible: fabVisible, scrollToBottom, atBottomRef } =
+    useScrollToBottom(flatListRef);
 
   const founderTurns = history.filter(t => t.role === 'founder').length;
   const remaining = MAX_TURNS - founderTurns;
   const capReached = founderTurns >= MAX_TURNS;
 
   useEffect(() => {
-    if (history.length > 0) {
+    if (history.length > 0 && atBottomRef.current) {
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     }
-  }, [history.length]);
+  }, [history.length, atBottomRef]);
 
   async function handleSend(text: string) {
     if (!text.trim() || pending || capReached) return;
@@ -130,15 +133,37 @@ export function RolePlayChat({ roadmapId, taskId, otherParty, channel, onComplet
         ref={flatListRef}
         data={history}
         keyExtractor={(_, i) => `${i}`}
-        renderItem={({ item }) => (
-          <ChatBubble
-            content={item.message}
-            role={item.role === 'founder' ? 'user' : 'assistant'}
-          />
-        )}
+        renderItem={({ item }) => {
+          const isOtherParty = item.role === 'other_party';
+          return (
+            <View style={isOtherParty ? styles.otherPartyRow : undefined}>
+              {isOtherParty && (
+                <Text
+                  variant="caption"
+                  color={c.secondary}
+                  style={styles.inCharacterLabel}
+                >
+                  {otherParty} — in character
+                </Text>
+              )}
+              <ChatBubble
+                content={item.message}
+                role={isOtherParty ? 'assistant' : 'user'}
+                variant="roleplay"
+              />
+            </View>
+          );
+        }}
         contentContainerStyle={styles.messageList}
         showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         style={styles.messageListContainer}
+      />
+
+      <ScrollToBottomButton
+        visible={fabVisible}
+        onPress={() => scrollToBottom(true)}
       />
 
       {error && (
@@ -200,6 +225,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing[4],
     gap: spacing[3],
     paddingVertical: spacing[4],
+  },
+  otherPartyRow: {
+    gap: spacing[1],
+    alignItems: 'flex-start',
+  },
+  inCharacterLabel: {
+    marginLeft: spacing[3],
+    letterSpacing: 0.3,
   },
   messageListContainer: {
     flex: 1,

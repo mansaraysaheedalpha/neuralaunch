@@ -5,95 +5,36 @@
 //   planning     → POST /research/plan; brief loading state
 //   plan-review  → editable plan textarea; founder approves or revises
 //   executing    → POST /research/execute; long-running, progress UI
-//   report       → ResearchReport renders with findings + follow-up input
+//   report       → ReportView renders with findings + follow-up input
 //
 // Same routes as web (POST .../tasks/[taskId]/research/{plan,execute,
 // followup}) — backend already exists.
+//
+// Presentational concerns (ReportView, FindingCard) live in
+// @/components/research/* so this file stays focused on the state
+// machine and API surface.
 
 import { useState, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
   TextInput as RNTextInput,
-  Pressable,
   ActivityIndicator,
-  Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
-import {
-  Search,
-  Edit3,
-  ExternalLink,
-  Copy,
-  Check,
-  ArrowRight,
-  ChevronDown,
-  ChevronUp,
-} from 'lucide-react-native';
+import { Search, Edit3 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { api, ApiError } from '@/services/api-client';
-import {
-  Text,
-  Card,
-  Button,
-  Badge,
-  ScreenContainer,
-} from '@/components/ui';
+import { Text, Button, ScreenContainer } from '@/components/ui';
 import { spacing, radius, typography, iconSize } from '@/constants/theme';
-
-// ---------------------------------------------------------------------------
-// Types — mirror the backend ResearchReport schema
-// ---------------------------------------------------------------------------
-
-type FindingType = 'business' | 'person' | 'competitor' | 'datapoint' | 'regulation' | 'tool' | 'insight';
-type Confidence  = 'verified' | 'likely' | 'unverified';
-type SuggestedTool = 'conversation_coach' | 'outreach_composer' | 'service_packager';
-
-interface SocialMedia {
-  platform: string;
-  handle:   string;
-  url:      string;
-}
-
-interface ContactInfo {
-  website?:         string;
-  phone?:           string;
-  email?:           string;
-  socialMedia?:     SocialMedia[];
-  physicalAddress?: string;
-}
-
-interface Finding {
-  title:        string;
-  description:  string;
-  type:         FindingType;
-  location?:    string;
-  contactInfo?: ContactInfo;
-  sourceUrl:    string;
-  confidence:   Confidence;
-}
-
-interface Source {
-  title:     string;
-  url:       string;
-  relevance: string;
-}
-
-interface NextStep {
-  action:         string;
-  suggestedTool?: SuggestedTool;
-  toolContext?:   string;
-}
-
-interface ResearchReport {
-  summary:             string;
-  findings:            Finding[];
-  sources:             Source[];
-  roadmapConnections?: string;
-  suggestedNextSteps?: NextStep[];
-}
+import {
+  ReportView,
+  type Finding,
+  type FollowUpRound,
+  type NextStep,
+  type ResearchReport,
+} from '@/components/research';
 
 type Stage = 'input' | 'planning' | 'plan-review' | 'executing' | 'report';
 
@@ -106,15 +47,11 @@ const PROGRESS_MESSAGES = [
   'Compiling the report…',
 ];
 
-// ---------------------------------------------------------------------------
-// Screen
-// ---------------------------------------------------------------------------
-
 export default function ResearchToolScreen() {
   const { id: roadmapId, taskId, q } = useLocalSearchParams<{
     id: string;
     taskId?: string;
-    q?: string; // optional pre-populated suggested query
+    q?: string;
   }>();
   const { colors: c } = useTheme();
   const router = useRouter();
@@ -124,7 +61,7 @@ export default function ResearchToolScreen() {
   const [plan, setPlan]         = useState('');
   const [eta, setEta]           = useState('');
   const [report, setReport]     = useState<ResearchReport | null>(null);
-  const [followUps, setFollowUps] = useState<Array<{ query: string; findings: Finding[]; round: number }>>([]);
+  const [followUps, setFollowUps] = useState<FollowUpRound[]>([]);
   const [followUpQuery, setFollowUpQuery] = useState('');
   const [progressIdx, setProgressIdx] = useState(0);
   const [elapsed, setElapsed] = useState(0);
@@ -246,7 +183,6 @@ export default function ResearchToolScreen() {
         }}
       />
       <ScreenContainer keyboardAvoid>
-        {/* Stage: input */}
         {stage === 'input' && (
           <>
             <Text variant="title">What do you need to know?</Text>
@@ -281,7 +217,6 @@ export default function ResearchToolScreen() {
           </>
         )}
 
-        {/* Stage: planning */}
         {stage === 'planning' && (
           <View style={styles.centered}>
             <ActivityIndicator size="large" color={c.primary} />
@@ -291,7 +226,6 @@ export default function ResearchToolScreen() {
           </View>
         )}
 
-        {/* Stage: plan-review */}
         {stage === 'plan-review' && (
           <>
             <Text variant="title">Here's the plan</Text>
@@ -338,7 +272,6 @@ export default function ResearchToolScreen() {
           </>
         )}
 
-        {/* Stage: executing */}
         {stage === 'executing' && (
           <View style={styles.centered}>
             <ActivityIndicator size="large" color={c.primary} />
@@ -351,7 +284,6 @@ export default function ResearchToolScreen() {
           </View>
         )}
 
-        {/* Stage: report */}
         {stage === 'report' && report && (
           <ReportView
             report={report}
@@ -368,284 +300,6 @@ export default function ResearchToolScreen() {
     </>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Report view — extracted to keep the orchestrator small
-// ---------------------------------------------------------------------------
-
-interface ReportProps {
-  report:          ResearchReport;
-  followUps:       Array<{ query: string; findings: Finding[]; round: number }>;
-  followUpQuery:   string;
-  setFollowUpQuery: (s: string) => void;
-  onFollowUp:      () => void;
-  onNextStep:      (s: NextStep) => void;
-  busy:            boolean;
-  error:           string | null;
-}
-
-function ReportView({
-  report,
-  followUps,
-  followUpQuery,
-  setFollowUpQuery,
-  onFollowUp,
-  onNextStep,
-  busy,
-  error,
-}: ReportProps) {
-  const { colors: c } = useTheme();
-  const [sourcesOpen, setSourcesOpen] = useState(false);
-  const followUpsRemaining = 5 - followUps.length;
-
-  return (
-    <>
-      {/* Summary */}
-      <Card variant="primary" style={{ marginBottom: spacing[4] }}>
-        <Text variant="overline" color={c.primary}>Summary</Text>
-        <Text variant="body" style={{ marginTop: spacing[2] }}>{report.summary}</Text>
-      </Card>
-
-      {/* Findings */}
-      <Text variant="title" style={{ marginBottom: spacing[3] }}>
-        Findings ({report.findings.length})
-      </Text>
-      <View style={{ gap: spacing[3] }}>
-        {report.findings.map((f, i) => <FindingCard key={i} finding={f} />)}
-      </View>
-
-      {/* Roadmap connections — gold callout */}
-      {report.roadmapConnections && (
-        <Card style={[styles.connectionsCallout, { backgroundColor: c.secondaryAlpha10, borderColor: c.secondary }]}>
-          <Text variant="overline" color={c.secondary}>Connections to your roadmap</Text>
-          <Text variant="body" style={{ marginTop: spacing[2] }}>
-            {report.roadmapConnections}
-          </Text>
-        </Card>
-      )}
-
-      {/* Suggested next steps */}
-      {report.suggestedNextSteps && report.suggestedNextSteps.length > 0 && (
-        <View style={{ marginTop: spacing[6] }}>
-          <Text variant="title" style={{ marginBottom: spacing[3] }}>Next steps</Text>
-          <View style={{ gap: spacing[2] }}>
-            {report.suggestedNextSteps.map((s, i) => (
-              <Pressable
-                key={i}
-                accessibilityRole="button"
-                accessibilityLabel={s.action}
-                onPress={() => onNextStep(s)}
-                disabled={!s.suggestedTool}
-              >
-                <Card>
-                  <View style={styles.nextStepRow}>
-                    <Text variant="body" style={{ flex: 1 }}>{s.action}</Text>
-                    {s.suggestedTool && <ArrowRight size={iconSize.sm} color={c.primary} />}
-                  </View>
-                  {s.suggestedTool && (
-                    <Text variant="caption" color={c.primary} style={{ marginTop: spacing[1] }}>
-                      Open {s.suggestedTool === 'conversation_coach' ? 'Conversation Coach' : s.suggestedTool === 'outreach_composer' ? 'Outreach Composer' : s.suggestedTool === 'service_packager' ? 'Service Packager' : s.suggestedTool}
-                    </Text>
-                  )}
-                </Card>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      )}
-
-      {/* Sources — collapsible */}
-      <View style={{ marginTop: spacing[6] }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={sourcesOpen ? 'Hide sources' : `Show sources (${report.sources.length})`}
-          onPress={() => setSourcesOpen(v => !v)}
-          style={styles.sourcesToggle}
-        >
-          {sourcesOpen
-            ? <ChevronUp size={iconSize.sm} color={c.mutedForeground} />
-            : <ChevronDown size={iconSize.sm} color={c.mutedForeground} />}
-          <Text variant="label" color={c.mutedForeground}>
-            {sourcesOpen ? 'Hide' : 'Show'} sources ({report.sources.length})
-          </Text>
-        </Pressable>
-        {sourcesOpen && (
-          <View style={styles.sourcesList}>
-            {report.sources.map((s, i) => (
-              <Pressable
-                key={i}
-                accessibilityRole="link"
-                accessibilityLabel={`Open source: ${s.title}`}
-                onPress={() => void Linking.openURL(s.url)}
-                style={styles.sourceRow}
-              >
-                <ExternalLink size={iconSize.xs} color={c.primary} />
-                <View style={{ flex: 1 }}>
-                  <Text variant="caption" color={c.primary}>{s.title}</Text>
-                  <Text variant="caption" color={c.mutedForeground} numberOfLines={1}>
-                    {s.relevance}
-                  </Text>
-                </View>
-              </Pressable>
-            ))}
-          </View>
-        )}
-      </View>
-
-      {/* Follow-ups */}
-      {followUps.length > 0 && (
-        <View style={{ marginTop: spacing[6] }}>
-          <Text variant="title">Follow-ups</Text>
-          {followUps.map((fu, i) => (
-            <View key={i} style={{ marginTop: spacing[3] }}>
-              <Text variant="caption" color={c.mutedForeground}>
-                Round {fu.round}: <Text color={c.foreground} variant="caption">{fu.query}</Text>
-              </Text>
-              <View style={{ marginTop: spacing[2], gap: spacing[2] }}>
-                {fu.findings.map((f, j) => <FindingCard key={j} finding={f} />)}
-              </View>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {/* Follow-up input */}
-      <View style={{ marginTop: spacing[6] }}>
-        <Text variant="overline" color={c.mutedForeground}>
-          Ask a follow-up · {followUps.length}/5 used
-        </Text>
-        {followUpsRemaining > 0 ? (
-          <>
-            <View style={[styles.textArea, { backgroundColor: c.card, borderColor: c.border, marginTop: spacing[2] }]}>
-              <RNTextInput
-                value={followUpQuery}
-                onChangeText={setFollowUpQuery}
-                placeholder="e.g. Tell me more about the third one"
-                placeholderTextColor={c.placeholder}
-                multiline
-                maxLength={3000}
-                style={[styles.input, { color: c.foreground }]}
-              />
-            </View>
-            <Button
-              title={busy ? 'Researching…' : 'Ask'}
-              onPress={onFollowUp}
-              loading={busy}
-              disabled={!followUpQuery.trim() || busy}
-              size="md"
-              fullWidth
-              style={{ marginTop: spacing[2] }}
-            />
-            {error && (
-              <Text variant="caption" color={c.destructive} style={{ marginTop: spacing[2] }}>
-                {error}
-              </Text>
-            )}
-          </>
-        ) : (
-          <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[2] }}>
-            You've used all 5 follow-ups for this session. Start a new research session for deeper investigation.
-          </Text>
-        )}
-      </View>
-    </>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Finding card — adapts to the finding type
-// ---------------------------------------------------------------------------
-
-const CONFIDENCE_VARIANT: Record<Confidence, 'success' | 'warning' | 'destructive'> = {
-  verified:   'success',
-  likely:     'warning',
-  unverified: 'destructive',
-};
-
-function FindingCard({ finding: f }: { finding: Finding }) {
-  const { colors: c } = useTheme();
-  const [copied, setCopied] = useState(false);
-
-  const contactStrings: string[] = [];
-  if (f.contactInfo?.website)         contactStrings.push(f.contactInfo.website);
-  if (f.contactInfo?.phone)           contactStrings.push(f.contactInfo.phone);
-  if (f.contactInfo?.email)           contactStrings.push(f.contactInfo.email);
-  if (f.contactInfo?.physicalAddress) contactStrings.push(f.contactInfo.physicalAddress);
-
-  async function copyContacts() {
-    if (contactStrings.length === 0) return;
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    await Clipboard.setStringAsync(contactStrings.join('\n'));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  return (
-    <Card>
-      <View style={styles.findingHeader}>
-        <Badge label={f.type} variant="muted" />
-        <Badge label={f.confidence} variant={CONFIDENCE_VARIANT[f.confidence]} />
-      </View>
-      <Text variant="label" style={{ marginTop: spacing[2] }}>{f.title}</Text>
-      {f.location && (
-        <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[0.5] }}>
-          {f.location}
-        </Text>
-      )}
-      <Text variant="body" style={{ marginTop: spacing[2] }}>{f.description}</Text>
-
-      {/* Contact info */}
-      {contactStrings.length > 0 && (
-        <View style={[styles.contactBox, { backgroundColor: c.muted }]}>
-          {f.contactInfo?.website && (
-            <Pressable onPress={() => void Linking.openURL(f.contactInfo!.website!)}>
-              <Text variant="caption" color={c.primary}>{f.contactInfo.website}</Text>
-            </Pressable>
-          )}
-          {f.contactInfo?.phone && (
-            <Text variant="caption" color={c.foreground}>{f.contactInfo.phone}</Text>
-          )}
-          {f.contactInfo?.email && (
-            <Text variant="caption" color={c.foreground}>{f.contactInfo.email}</Text>
-          )}
-          {f.contactInfo?.physicalAddress && (
-            <Text variant="caption" color={c.foreground}>{f.contactInfo.physicalAddress}</Text>
-          )}
-          {f.contactInfo?.socialMedia?.map((s, i) => (
-            <Pressable key={i} onPress={() => void Linking.openURL(s.url)}>
-              <Text variant="caption" color={c.primary}>{s.platform}: {s.handle}</Text>
-            </Pressable>
-          ))}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={copied ? 'Copied contact info' : 'Copy contact info'}
-            onPress={() => { void copyContacts(); }}
-            style={styles.copyChip}
-          >
-            {copied ? <Check size={iconSize.xs} color={c.success} /> : <Copy size={iconSize.xs} color={c.mutedForeground} />}
-            <Text variant="caption" color={c.mutedForeground}>
-              {copied ? 'Copied' : 'Copy contact'}
-            </Text>
-          </Pressable>
-        </View>
-      )}
-
-      <Pressable
-        accessibilityRole="link"
-        accessibilityLabel="Open source"
-        onPress={() => void Linking.openURL(f.sourceUrl)}
-        style={styles.sourceLink}
-      >
-        <ExternalLink size={iconSize.xs} color={c.primary} />
-        <Text variant="caption" color={c.primary}>Source</Text>
-      </Pressable>
-    </Card>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Styles
-// ---------------------------------------------------------------------------
 
 const styles = StyleSheet.create({
   centered: {
@@ -672,52 +326,4 @@ const styles = StyleSheet.create({
     gap: spacing[1],
     marginTop: spacing[2],
   },
-  findingHeader: {
-    flexDirection: 'row',
-    gap: spacing[2],
-  },
-  contactBox: {
-    marginTop: spacing[3],
-    padding: spacing[3],
-    borderRadius: radius.md,
-    gap: spacing[1],
-  },
-  copyChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[1],
-    marginTop: spacing[2],
-  },
-  sourceLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[1],
-    marginTop: spacing[3],
-  },
-  connectionsCallout: {
-    marginTop: spacing[6],
-    borderWidth: 1,
-  },
-  nextStepRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[2],
-  },
-  sourcesToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[1],
-    paddingVertical: spacing[2],
-  },
-  sourcesList: {
-    gap: spacing[2],
-    marginTop: spacing[1],
-  },
-  sourceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[2],
-    paddingVertical: spacing[1.5],
-  },
 });
-
