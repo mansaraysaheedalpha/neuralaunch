@@ -33,7 +33,7 @@ import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
 
 // Opus + research tools can take 30-60s
-export const maxDuration = 90;
+export const maxDuration = 300;
 
 /**
  * POST /api/discovery/roadmaps/[id]/tasks/[taskId]/coach/prepare

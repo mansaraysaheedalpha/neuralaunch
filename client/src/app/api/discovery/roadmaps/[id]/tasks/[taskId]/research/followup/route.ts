@@ -35,7 +35,7 @@ import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
 
 // Sonnet + 10 research steps
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const BodySchema = z.object({
   query: z.string().min(1).max(3000),

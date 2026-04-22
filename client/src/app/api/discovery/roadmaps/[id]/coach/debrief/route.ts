@@ -29,7 +29,7 @@ import { requireTierOrThrow } from '@/lib/auth/require-tier';
 import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 
 // Haiku is fast but allow headroom for a longer transcript
-export const maxDuration = 30;
+export const maxDuration = 300;
 
 const BodySchema = z.object({
   sessionId: z.string().min(1),

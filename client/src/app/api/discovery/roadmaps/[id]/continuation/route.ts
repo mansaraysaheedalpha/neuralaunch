@@ -16,7 +16,7 @@ import {
 } from '@/lib/continuation';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
-export const maxDuration = 30;
+export const maxDuration = 300;
 
 /**
  * GET /api/discovery/roadmaps/[id]/continuation

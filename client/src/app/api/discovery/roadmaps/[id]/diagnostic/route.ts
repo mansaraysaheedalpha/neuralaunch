@@ -27,7 +27,7 @@ import { renderUserContent } from '@/lib/validation/server-helpers';
 import Anthropic from '@anthropic-ai/sdk';
 import { MODELS } from '@/lib/discovery/constants';
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const BodySchema = z.object({
   message: z.string().min(1).max(3000),

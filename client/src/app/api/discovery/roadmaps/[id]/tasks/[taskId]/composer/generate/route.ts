@@ -25,7 +25,7 @@ import { requireTierOrThrow } from '@/lib/auth/require-tier';
 import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const ContextBodySchema  = z.object({ message: z.string().min(1).max(3000) });
 const GenerateBodySchema = z.object({ context: OutreachContextSchema, mode: z.enum(COMPOSER_MODES), channel: z.enum(COMPOSER_CHANNELS) });

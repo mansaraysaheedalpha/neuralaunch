@@ -30,7 +30,7 @@ import { runCoachSetup } from '@/lib/roadmap/coach/setup-engine';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
 import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 
-export const maxDuration = 30;
+export const maxDuration = 300;
 
 const BodySchema = z.object({
   message: z.string().min(1).max(3000),

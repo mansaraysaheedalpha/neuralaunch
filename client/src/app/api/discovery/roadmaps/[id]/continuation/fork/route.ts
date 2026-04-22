@@ -21,7 +21,7 @@ import {
 import { ROADMAP_EVENT } from '@/lib/roadmap';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
-export const maxDuration = 30;
+export const maxDuration = 300;
 
 const BodySchema = z.object({
   forkId: z.string().min(1),

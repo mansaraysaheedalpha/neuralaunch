@@ -40,7 +40,7 @@ import { runTaskDiagnosticTurn } from '@/lib/roadmap/task-diagnostic-engine';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
 import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const TASK_DIAGNOSTIC_TURN_CAP = 10;
 
