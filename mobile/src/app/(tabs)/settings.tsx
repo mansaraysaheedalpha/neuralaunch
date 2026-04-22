@@ -22,6 +22,7 @@ import { useAuth } from '@/services/auth';
 import { useTheme } from '@/hooks/useTheme';
 import { api } from '@/services/api-client';
 import { Text, Button, Card, Separator, ScreenContainer } from '@/components/ui';
+import { TierHistorySection } from '@/components/billing/TierHistorySection';
 import { spacing, iconSize } from '@/constants/theme';
 
 const LEGAL_BASE_URL = 'https://startupvalidator.app/legal';
@@ -258,6 +259,14 @@ export default function SettingsScreen() {
             />
           </View>
         </Card>
+      </View>
+
+      {/* Billing — section currently surfaces subscription history only.
+          Tier label + renewal date + Manage billing CTA land in a later
+          item on feat/mobile-web-parity. */}
+      <View style={styles.section}>
+        <Text variant="overline" color={c.mutedForeground}>Billing</Text>
+        <TierHistorySection />
       </View>
 
       {/* About & legal — opens web pages in the system browser */}
