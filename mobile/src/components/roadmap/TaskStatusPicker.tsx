@@ -1,54 +1,78 @@
 // src/components/roadmap/TaskStatusPicker.tsx
 //
-// Inline dropdown that lets the founder change a task's status by
-// tapping one of four options. Rendered below the status Badge when
-// the badge is tapped. Owns no state of its own — the parent controls
-// open/closed and selected value.
+// Status picker — presents the four status options inside a BottomSheet
+// anchored to the thumb zone. Replaces the prior inline dropdown, which
+// caused a layout shift on long task cards and wasn't the platform
+// convention. Parent owns open/closed state and the current value.
 
-import { View, Pressable, StyleSheet } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { Badge } from '@/components/ui';
+import { Badge, BottomSheet, Text } from '@/components/ui';
 import { radius, spacing } from '@/constants/theme';
 import type { TaskStatus } from '@/hooks/useRoadmap';
 import { STATUS_OPTIONS, STATUS_VARIANTS } from './task-constants';
 
 interface Props {
-  value:    TaskStatus;
+  visible: boolean;
+  value:   TaskStatus;
   onChange: (status: TaskStatus) => void;
+  onClose:  () => void;
 }
 
-export function TaskStatusPicker({ value, onChange }: Props) {
+export function TaskStatusPicker({ visible, value, onChange, onClose }: Props) {
   const { colors: c } = useTheme();
 
   return (
-    <View style={[styles.container, { backgroundColor: c.card, borderColor: c.border }]}>
-      {STATUS_OPTIONS.map(opt => (
-        <Pressable
-          key={opt.value}
-          accessibilityRole="button"
-          accessibilityLabel={`Set status to ${opt.label}`}
-          accessibilityState={{ selected: opt.value === value }}
-          onPress={() => onChange(opt.value)}
-          style={[
-            styles.option,
-            opt.value === value && { backgroundColor: c.primaryAlpha5 },
-          ]}
-        >
-          <Badge label={opt.label} variant={STATUS_VARIANTS[opt.value]} />
-        </Pressable>
-      ))}
-    </View>
+    <BottomSheet visible={visible} onClose={onClose} title="Set task status">
+      <View style={styles.list}>
+        {STATUS_OPTIONS.map(opt => {
+          const isSelected = opt.value === value;
+          return (
+            <Pressable
+              key={opt.value}
+              accessibilityRole="button"
+              accessibilityLabel={`Set status to ${opt.label}`}
+              accessibilityState={{ selected: isSelected }}
+              onPress={() => onChange(opt.value)}
+              style={({ pressed }) => [
+                styles.option,
+                {
+                  backgroundColor: isSelected
+                    ? c.primaryAlpha10
+                    : pressed
+                      ? c.muted
+                      : 'transparent',
+                  borderColor: isSelected ? c.primary : c.border,
+                },
+              ]}
+            >
+              <Badge label={opt.label} variant={STATUS_VARIANTS[opt.value]} />
+              {isSelected && (
+                <Text variant="caption" color={c.primary}>
+                  Current
+                </Text>
+              )}
+            </Pressable>
+          );
+        })}
+      </View>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    borderWidth: 1,
-    borderRadius: radius.lg,
-    overflow: 'hidden',
+  list: {
+    gap: spacing[2],
+    paddingTop: spacing[2],
   },
   option: {
-    paddingHorizontal: spacing[3],
-    paddingVertical: spacing[2],
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[3],
+    minHeight: 52,
   },
 });

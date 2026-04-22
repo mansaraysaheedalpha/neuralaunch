@@ -12,7 +12,7 @@ import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
 import { useContinuation, type ContinuationFork } from '@/hooks/useContinuation';
 import { api, ApiError } from '@/services/api-client';
-import { Text, Card, Button, Badge, ScreenContainer, Separator } from '@/components/ui';
+import { Text, Card, Button, Badge, ScreenContainer, Separator, FadeInView } from '@/components/ui';
 import { spacing } from '@/constants/theme';
 
 export default function ContinuationScreen() {
@@ -121,21 +121,13 @@ export default function ContinuationScreen() {
       />
 
       <ScreenContainer>
-        {/* Closing reflection */}
-        {brief?.closingReflection && (
-          <Card variant="primary">
-            <Text variant="overline" color={c.primary}>
-              How far you've come
-            </Text>
-            <Text variant="body" style={{ marginTop: spacing[2] }}>
-              {brief.closingReflection}
-            </Text>
-          </Card>
-        )}
-
-        {/* Forks */}
+        {/* Forks — the decision moment. Placed above the closing reflection
+            on mobile so the actionable content is immediately visible. */}
         {brief && brief.forks.length > 0 && (
-          <View style={styles.section}>
+          <View>
+            <Text variant="overline" color={c.secondary} style={styles.decisionOverline}>
+              The decision
+            </Text>
             <Text variant="title">What could come next</Text>
             <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1], marginBottom: spacing[4] }}>
               Three paths forward based on what you've learned. Pick the
@@ -143,21 +135,30 @@ export default function ContinuationScreen() {
             </Text>
 
             <View style={styles.forkList}>
-              {brief.forks.map((fork) => {
+              {brief.forks.map((fork, idx) => {
                 const isSelected = selectedFork === fork.id;
+                const isDimmed = selectedFork !== null && !isSelected;
                 return (
+                  <FadeInView key={fork.id} delay={120 + idx * 100} translateY={12}>
                   <Pressable
-                    key={fork.id}
                     onPress={() => handleForkSelection(fork)}
                     disabled={forking}
+                    style={isDimmed ? styles.forkDimmed : undefined}
                   >
                     <Card
+                      noPadding
                       style={[
                         styles.forkCard,
-                        isSelected && { borderColor: c.primary, borderWidth: 2 },
+                        {
+                          backgroundColor: isSelected ? c.secondaryAlpha10 : c.card,
+                          borderColor: isSelected ? c.secondary : c.border,
+                          borderWidth: isSelected ? 2 : 1,
+                        },
                       ]}
                     >
-                      <Text variant="label">{fork.title}</Text>
+                      <Text variant="label" color={isSelected ? c.secondary : c.foreground}>
+                        {fork.title}
+                      </Text>
                       <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1] }}>
                         {fork.summary}
                       </Text>
@@ -166,21 +167,22 @@ export default function ContinuationScreen() {
                         <Text variant="overline" color={c.mutedForeground}>
                           Why this one
                         </Text>
-                        <Text variant="caption" color={c.foreground} style={{ marginTop: spacing[1], fontStyle: 'italic' }}>
+                        <Text variant="caption" color={c.foreground} style={{ marginTop: spacing[1] }}>
                           {fork.whyThisOne}
                         </Text>
                       </View>
 
                       {forking && isSelected && (
                         <View style={styles.forkLoading}>
-                          <ActivityIndicator size="small" color={c.primary} />
-                          <Text variant="caption" color={c.primary} style={{ marginLeft: spacing[2] }}>
+                          <ActivityIndicator size="small" color={c.secondary} />
+                          <Text variant="caption" color={c.secondary} style={{ marginLeft: spacing[2] }}>
                             Building your next recommendation…
                           </Text>
                         </View>
                       )}
                     </Card>
                   </Pressable>
+                  </FadeInView>
                 );
               })}
             </View>
@@ -191,6 +193,19 @@ export default function ContinuationScreen() {
               </Text>
             )}
           </View>
+        )}
+
+        {/* Closing reflection — retrospective context, placed below the
+            forks so the actionable decision leads. */}
+        {brief?.closingReflection && (
+          <Card variant="primary" style={styles.reflectionCard}>
+            <Text variant="overline" color={c.primary}>
+              How far you've come
+            </Text>
+            <Text variant="body" style={{ marginTop: spacing[2] }}>
+              {brief.closingReflection}
+            </Text>
+          </Card>
         )}
 
         {/* Parking lot */}
@@ -236,11 +251,19 @@ const styles = StyleSheet.create({
   section: {
     marginTop: spacing[4],
   },
+  decisionOverline: {
+    marginBottom: spacing[1],
+    letterSpacing: 1,
+  },
   forkList: {
     gap: spacing[3],
   },
   forkCard: {
     gap: spacing[1],
+    padding: spacing[5],
+  },
+  forkDimmed: {
+    opacity: 0.45,
   },
   whySection: {
     marginTop: spacing[3],
@@ -251,6 +274,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: spacing[3],
+  },
+  reflectionCard: {
+    marginTop: spacing[6],
   },
   parkingList: {
     gap: spacing[2],

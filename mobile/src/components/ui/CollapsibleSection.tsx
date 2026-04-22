@@ -1,14 +1,39 @@
 // src/components/ui/CollapsibleSection.tsx
 //
-// Collapsible section — plain RN Animated for Expo Go compatibility.
+// Collapsible section — plain RN Animated for the chevron rotation;
+// LayoutAnimation for the content height transition. Expo Go compatible,
+// no external gesture/animation libraries.
 
 import { useState, useCallback, useRef } from 'react';
-import { Pressable, View, Animated, StyleSheet } from 'react-native';
+import {
+  Pressable,
+  View,
+  Animated,
+  StyleSheet,
+  LayoutAnimation,
+  Platform,
+  UIManager,
+} from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { ChevronDown } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { Text } from './Text';
 import { spacing, animation } from '@/constants/theme';
+
+// Android requires an explicit opt-in before LayoutAnimation works.
+// iOS supports it natively with no setup.
+if (
+  Platform.OS === 'android' &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const COLLAPSE_LAYOUT = LayoutAnimation.create(
+  animation.fast,
+  LayoutAnimation.Types.easeInEaseOut,
+  LayoutAnimation.Properties.opacity,
+);
 
 interface Props {
   label: string;
@@ -28,6 +53,7 @@ export function CollapsibleSection({
 
   const toggle = useCallback(() => {
     void Haptics.selectionAsync();
+    LayoutAnimation.configureNext(COLLAPSE_LAYOUT);
     const next = !open;
     setOpen(next);
     Animated.timing(progress, {

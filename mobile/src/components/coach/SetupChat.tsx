@@ -8,8 +8,9 @@ import { useState, useRef, useEffect } from 'react';
 import { View, FlatList, StyleSheet } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/hooks/useTheme';
+import { useScrollToBottom } from '@/hooks/useScrollToBottom';
 import { api, ApiError } from '@/services/api-client';
-import { Text, ChatBubble, ChatInput, TypingIndicator } from '@/components/ui';
+import { Text, ChatBubble, ChatInput, ScrollToBottomButton, TypingIndicator } from '@/components/ui';
 import { spacing } from '@/constants/theme';
 
 interface SetupData {
@@ -37,13 +38,15 @@ export function SetupChat({ roadmapId, taskId, onSetupComplete }: Props) {
   const [pending, setPending]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
+  const { onScroll, visible: fabVisible, scrollToBottom, atBottomRef } =
+    useScrollToBottom(flatListRef);
 
-  // Auto-scroll
+  // Auto-scroll, but only when the founder is already at the bottom.
   useEffect(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0 && atBottomRef.current) {
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     }
-  }, [messages.length]);
+  }, [messages.length, atBottomRef]);
 
   async function handleSend(text: string) {
     if (!text.trim() || pending) return;
@@ -116,7 +119,14 @@ export function SetupChat({ roadmapId, taskId, onSetupComplete }: Props) {
         )}
         contentContainerStyle={styles.messageList}
         showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         ListFooterComponent={pending ? <TypingIndicator /> : null}
+      />
+
+      <ScrollToBottomButton
+        visible={fabVisible}
+        onPress={() => scrollToBottom(true)}
       />
 
       {error && (
