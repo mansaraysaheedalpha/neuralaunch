@@ -8,8 +8,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, Loader2, Package } from 'lucide-react';
+import { ArrowLeft, Loader2, Package, Plus } from 'lucide-react';
 import Link from 'next/link';
+import { PackagerHistoryPanel } from './PackagerHistoryPanel';
 import { Textarea } from '@/components/ui/textarea';
 import { PackagerContextView }    from '@/app/(app)/discovery/roadmap/[id]/packager/PackagerContextView';
 import { ServicePackageView }     from '@/app/(app)/discovery/roadmap/[id]/packager/ServicePackageView';
@@ -34,8 +35,45 @@ export default function StandalonePackagerPage() {
   const [pending,      setPending]      = useState(false);
   const [error,        setError]        = useState<string | null>(null);
   const [meterRefreshKey, setMeterRefreshKey] = useState(0);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const bumpMeter = useCallback(() => {
     setMeterRefreshKey(k => k + 1);
+    setHistoryRefreshKey(k => k + 1);
+  }, []);
+
+  const handleSelectSession = useCallback(async (targetSessionId: string) => {
+    if (!roadmapId) return;
+    try {
+      const res = await fetch(
+        `/api/discovery/roadmaps/${roadmapId}/packager/sessions/${targetSessionId}`,
+      );
+      if (!res.ok) return;
+      const json = await res.json() as { package: ServicePackage; context: ServiceContext };
+      setSessionId(targetSessionId);
+      setContext(json.context);
+      setPkg(json.package);
+      setAgentMessage(null);
+      setStage('output');
+      const url = new URL(window.location.href);
+      url.searchParams.set('sessionId', targetSessionId);
+      url.searchParams.delete('fromResearch');
+      url.searchParams.delete('roadmapId');
+      window.history.replaceState({}, '', url.toString());
+    } catch { /* silent — user can retry click */ }
+  }, [roadmapId]);
+
+  const handleNewSession = useCallback(() => {
+    setDraft('');
+    setSessionId(null);
+    setContext(null);
+    setAgentMessage(null);
+    setPkg(null);
+    setAdjustments(0);
+    setError(null);
+    setStage('intro');
+    const url = new URL(window.location.href);
+    url.searchParams.delete('sessionId');
+    window.history.replaceState({}, '', url.toString());
   }, []);
 
   useEffect(() => {
@@ -187,16 +225,37 @@ export default function StandalonePackagerPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-10 flex flex-col gap-6">
+    <div className="max-w-5xl mx-auto px-6 py-10 flex flex-col gap-6">
       <div className="flex items-center gap-3">
         <Link href="/tools" className="text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4 inline mr-1" />Tools</Link>
         <h1 className="text-lg font-bold text-foreground flex items-center gap-2"><Package className="size-4 text-primary" />Service Packager</h1>
+        <button
+          type="button"
+          onClick={handleNewSession}
+          className="ml-auto flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-foreground hover:bg-muted transition-colors"
+        >
+          <Plus className="size-3 shrink-0" />
+          New package
+        </button>
       </div>
 
       <UsageMeter tool="packager" refreshKey={meterRefreshKey} />
 
       {error && <p className="text-xs text-red-500 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">{error}</p>}
 
+      <div className="flex flex-col lg:flex-row gap-6">
+        <aside className="lg:w-72 lg:shrink-0 flex flex-col gap-4">
+          {roadmapId && (
+            <PackagerHistoryPanel
+              roadmapId={roadmapId}
+              activeSessionId={sessionId}
+              onSelect={(sid) => { void handleSelectSession(sid); }}
+              refreshKey={historyRefreshKey}
+            />
+          )}
+        </aside>
+
+        <div className="flex-1 min-w-0 flex flex-col gap-6">
       {stage === 'intro' && (
         <div className="flex flex-col gap-3">
           <p className="text-sm text-foreground">What service do you want to package? Describe what you&apos;d offer and who it&apos;s for.</p>
@@ -229,6 +288,8 @@ export default function StandalonePackagerPage() {
           <PackagerHandoffButtons roadmapId={roadmapId} packagerSessionId={sessionId} />
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 }

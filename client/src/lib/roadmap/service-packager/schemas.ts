@@ -72,7 +72,17 @@ const PackageRevenueScenarioSchema = z.object({
   /** Label: conservative | moderate | ambitious. */
   label:          z.string().transform(clampString(50)),
   /** Number of clients at this scenario. */
-  clients:        z.number().int().min(0),
+  /**
+   * Gemini's structured-output validator rejects `minimum` / `maximum`
+   * on integer types outright — same class of provider divergence
+   * CLAUDE.md flags for `.max()` on strings. Leave the type as an
+   * int, put the non-negativity intent in .describe(), and clamp the
+   * parsed value post-parse so a misbehaving model never leaves a
+   * negative count in the database.
+   */
+  clients:        z.number().int()
+                    .describe('Number of clients at this scenario — must be a non-negative integer.')
+                    .transform(n => Math.max(n, 0)),
   /** Which tier(s) these clients are on, e.g. "2 Basic + 1 Standard". */
   tierMix:        z.string().transform(clampString(200)),
   /** Monthly revenue at this volume. */
