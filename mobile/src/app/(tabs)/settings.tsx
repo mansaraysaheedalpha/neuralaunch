@@ -24,6 +24,7 @@ import { api } from '@/services/api-client';
 import { Text, Button, Card, Separator, ScreenContainer } from '@/components/ui';
 import { BillingSection, useBillingOverview } from '@/components/billing/BillingSection';
 import { TierHistorySection } from '@/components/billing/TierHistorySection';
+import { WelcomeBackBanner } from '@/components/billing/WelcomeBackBanner';
 import { spacing, iconSize } from '@/constants/theme';
 
 const LEGAL_BASE_URL = 'https://startupvalidator.app/legal';
@@ -263,10 +264,12 @@ export default function SettingsScreen() {
         </Card>
       </View>
 
-      {/* Billing — current tier + status + Manage billing handoff,
-          plus the collapsible subscription history panel below it. */}
+      {/* Billing — welcome-back banner (if applicable), then current
+          tier + status + Manage billing handoff, then the collapsible
+          subscription history panel. */}
       <View style={styles.section}>
         <Text variant="overline" color={c.mutedForeground}>Billing</Text>
+        <WelcomeBackBanner overview={billingOverview} />
         <BillingSection overview={billingOverview} />
         <TierHistorySection />
       </View>
