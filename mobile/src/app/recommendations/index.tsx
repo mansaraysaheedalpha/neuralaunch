@@ -1,47 +1,37 @@
 // src/app/recommendations/index.tsx
 //
-// Past recommendations list — shows all recommendations for the
-// current user, newest first, with status and path.
+// Ventures dashboard — grouped list of the founder's ventures with
+// their cycles and progress. Mirrors the web's venture-aware
+// Recommendations page. When no ventures exist yet (pre-venture users
+// or brand-new founders) falls through to a "Start Discovery" empty
+// state.
 
-import { useState, useCallback } from 'react';
-import { View, FlatList, Pressable, StyleSheet, RefreshControl } from 'react-native';
+import { useCallback, useState } from 'react';
+import { ScrollView, StyleSheet, View, RefreshControl } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import useSWR from 'swr';
 import { Sparkles } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { api, ApiError } from '@/services/api-client';
+import { ApiError } from '@/services/api-client';
+import { groupVentures, useVentures } from '@/hooks/useVentures';
 import {
   Text,
-  Card,
-  Badge,
   ScreenContainer,
   ListSkeleton,
   ErrorState,
   EmptyState,
 } from '@/components/ui';
+import { VentureCard } from '@/components/ventures/VentureCard';
+import { ArchivedVenturesSection } from '@/components/ventures/ArchivedVenturesSection';
 import { spacing } from '@/constants/theme';
 
-interface RecommendationSummary {
-  id:                 string;
-  path:               string;
-  summary:            string;
-  acceptedAt:         string | null;
-  recommendationType: string | null;
-  createdAt:          string;
-}
-
-export default function RecommendationsListScreen() {
+export default function VenturesListScreen() {
   const { colors: c } = useTheme();
   const router = useRouter();
 
-  const { data: recommendations, isLoading, error, mutate } = useSWR<RecommendationSummary[]>(
-    '/api/discovery/recommendations',
-    (url: string) => api<RecommendationSummary[]>(url),
-    { revalidateOnFocus: true },
-  );
-
+  const { data, isLoading, error, mutate } = useVentures();
   const [refreshing, setRefreshing] = useState(false);
+
   const onRefresh = useCallback(async () => {
     void Haptics.selectionAsync();
     setRefreshing(true);
@@ -53,7 +43,7 @@ export default function RecommendationsListScreen() {
     <Stack.Screen
       options={{
         headerShown: true,
-        headerTitle: 'Past Recommendations',
+        headerTitle: 'Your ventures',
         headerTintColor: c.foreground,
         headerStyle: { backgroundColor: c.background },
         headerShadowVisible: false,
@@ -61,7 +51,7 @@ export default function RecommendationsListScreen() {
     />
   );
 
-  if (error && !recommendations) {
+  if (error && !data) {
     const kind = error instanceof ApiError && error.status === 401 ? 'auth'
       : error instanceof ApiError && error.status === 0 ? 'network'
       : 'generic';
@@ -75,7 +65,7 @@ export default function RecommendationsListScreen() {
     );
   }
 
-  if (isLoading && !recommendations) {
+  if (isLoading && !data) {
     return (
       <>
         {headerOpts}
@@ -86,15 +76,15 @@ export default function RecommendationsListScreen() {
     );
   }
 
-  if (!recommendations || recommendations.length === 0) {
+  if (!data || data.ventures.length === 0) {
     return (
       <>
         {headerOpts}
         <ScreenContainer scroll={false}>
           <EmptyState
             icon={Sparkles}
-            title="No recommendations yet"
-            message="Start a discovery session to get your first personalised recommendation."
+            title="No ventures yet"
+            message="Start a discovery session to get your first personalised recommendation. Each venture groups the recommendations, roadmaps, and cycles that belong to one idea."
             actionLabel="Start Discovery"
             onAction={() => router.push('/discovery')}
           />
@@ -103,14 +93,14 @@ export default function RecommendationsListScreen() {
     );
   }
 
+  const { active, paused, completed, archived } = groupVentures(data.ventures);
+
   return (
     <>
       {headerOpts}
       <ScreenContainer scroll={false}>
-        <FlatList
-          data={recommendations}
-          keyExtractor={item => item.id}
-          contentContainerStyle={styles.list}
+        <ScrollView
+          contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -120,48 +110,83 @@ export default function RecommendationsListScreen() {
               colors={[c.primary]}
             />
           }
-          renderItem={({ item }) => (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`View recommendation: ${item.path}`}
-              onPress={() => {
-                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push(`/recommendation/${item.id}`);
-              }}
-            >
-              <Card>
-                <View style={styles.recHeader}>
-                  <Badge
-                    label={item.acceptedAt ? 'Accepted' : 'Pending'}
-                    variant={item.acceptedAt ? 'success' : 'warning'}
-                  />
-                  <Text variant="caption" color={c.mutedForeground}>
-                    {new Date(item.createdAt).toLocaleDateString()}
-                  </Text>
-                </View>
-                <Text variant="label" numberOfLines={2} style={{ marginTop: spacing[2] }}>
-                  {item.path}
-                </Text>
-                <Text variant="caption" color={c.mutedForeground} numberOfLines={2} style={{ marginTop: spacing[1] }}>
-                  {item.summary}
-                </Text>
-              </Card>
-            </Pressable>
+        >
+          {/* Tier cap reminder — helps the founder read the grouping */}
+          <View style={styles.capRow}>
+            <Text variant="caption" color={c.mutedForeground}>
+              {data.tier === 'free'
+                ? 'Free plan — discovery only. Upgrade to activate ventures.'
+                : `${data.tier === 'compound' ? 'Compound' : 'Execute'} plan — up to ${data.cap} active venture${data.cap === 1 ? '' : 's'}.`}
+            </Text>
+          </View>
+
+          {active.length > 0 && (
+            <Group label="Active" colors={c}>
+              {active.map(v => <VentureCard key={v.id} venture={v} />)}
+            </Group>
           )}
-        />
+
+          {paused.length > 0 && (
+            <Group label="Paused" colors={c}>
+              {paused.map(v => <VentureCard key={v.id} venture={v} />)}
+            </Group>
+          )}
+
+          {completed.length > 0 && (
+            <Group label="Completed" colors={c}>
+              {completed.map(v => <VentureCard key={v.id} venture={v} />)}
+            </Group>
+          )}
+
+          {archived.length > 0 && (
+            <ArchivedVenturesSection
+              archived={archived}
+              activeVentures={active}
+              tier={data.tier}
+              cap={data.cap}
+              onAfterSwap={() => { void mutate(); }}
+            />
+          )}
+        </ScrollView>
       </ScreenContainer>
     </>
   );
 }
 
+function Group({
+  label,
+  colors: c,
+  children,
+}: {
+  label: string;
+  colors: { mutedForeground: string };
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.group}>
+      <Text variant="overline" color={c.mutedForeground} style={styles.groupLabel}>
+        {label}
+      </Text>
+      <View style={styles.groupList}>{children}</View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  list: {
-    paddingVertical: spacing[5],
-    gap: spacing[3],
+  scroll: {
+    paddingVertical: spacing[4],
+    gap: spacing[4],
   },
-  recHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  capRow: {
+    marginBottom: spacing[1],
+  },
+  group: {
+    gap: spacing[2],
+  },
+  groupLabel: {
+    letterSpacing: 1,
+  },
+  groupList: {
+    gap: spacing[3],
   },
 });
