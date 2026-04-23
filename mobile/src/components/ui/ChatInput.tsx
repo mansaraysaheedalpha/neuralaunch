@@ -24,6 +24,21 @@ interface Props {
   placeholder?: string;
   disabled?: boolean;
   style?: ViewStyle;
+  /**
+   * Optional controlled props. When both `value` and `onChangeText`
+   * are provided, ChatInput reads/writes through the parent; this
+   * enables voice input (parent inserts transcribed text) and any
+   * other imperative insertion. When either is omitted, the
+   * component keeps its internal state (back-compat default).
+   */
+  value?: string;
+  onChangeText?: (text: string) => void;
+  /**
+   * Rendered to the left of the text field, inside the input row.
+   * Used by discovery chat to plug in a VoiceInputButton for
+   * Compound-tier founders.
+   */
+  leftSlot?: React.ReactNode;
 }
 
 export function ChatInput({
@@ -31,11 +46,18 @@ export function ChatInput({
   placeholder = 'Share your thoughts…',
   disabled = false,
   style,
+  value,
+  onChangeText,
+  leftSlot,
 }: Props) {
   const { colors: c } = useTheme();
   const insets = useSafeAreaInsets();
-  const [text, setText] = useState('');
+  const [internalText, setInternalText] = useState('');
   const inputRef = useRef<TextInput>(null);
+
+  const isControlled = value !== undefined && onChangeText !== undefined;
+  const text = isControlled ? value : internalText;
+  const setText = isControlled ? onChangeText : setInternalText;
 
   const canSend = text.trim().length > 0 && !disabled;
 
@@ -59,7 +81,19 @@ export function ChatInput({
         style,
       ]}
     >
-      <View style={[styles.inputRow, { borderColor: c.border, backgroundColor: c.background }]}>
+      <View
+        style={[
+          styles.inputRow,
+          {
+            borderColor: c.border,
+            backgroundColor: c.background,
+            // When a leftSlot is rendered, mirror the send button's
+            // right padding so the row stays visually symmetric.
+            paddingLeft: leftSlot ? spacing[1.5] : spacing[4],
+          },
+        ]}
+      >
+        {leftSlot}
         <TextInput
           ref={inputRef}
           value={text}
