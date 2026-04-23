@@ -5,18 +5,19 @@
 // This is the screen the discovery chat redirects to after synthesis.
 
 import { useState } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
-import { useLocalSearchParams, useRouter, Stack, Link } from 'expo-router';
+import { View, StyleSheet } from 'react-native';
+import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { hardCapForTier } from '@neuralaunch/constants';
 
 import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/services/auth';
 import { useRecommendation } from '@/hooks/useRecommendation';
 import { api, ApiError } from '@/services/api-client';
 import {
   Text,
   Card,
   Button,
-  Badge,
   Separator,
   ScreenContainer,
   CollapsibleSection,
@@ -28,14 +29,20 @@ import { PushbackChat } from '@/components/recommendation/PushbackChat';
 import { AssumptionRow } from '@/components/recommendation/AssumptionRow';
 import { spacing } from '@/constants/theme';
 
-// Pushback hard cap — matches the web app's PUSHBACK_CONFIG.HARD_CAP_ROUND
-const HARD_CAP_ROUND = 7;
-
 export default function RecommendationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors: c } = useTheme();
   const router = useRouter();
+  const user = useAuth(s => s.user);
   const { recommendation: r, isLoading, error, refresh } = useRecommendation(id ?? null);
+
+  // Pushback hard cap comes from the shared @neuralaunch/constants
+  // source of truth, resolved per-tier:
+  //   - execute:  10 rounds
+  //   - compound: 15 rounds
+  //   - free:     server gates pushback before it reaches here, but
+  //               we resolve to the execute cap as a safe default.
+  const hardCapRound = hardCapForTier(user?.tier ?? 'free');
 
   const [accepting, setAccepting]   = useState(false);
   const [acceptError, setAcceptError] = useState<string | null>(null);
@@ -264,7 +271,7 @@ export default function RecommendationScreen() {
             <PushbackChat
               recommendationId={r.id}
               initialHistory={r.pushbackHistory}
-              hardCapRound={HARD_CAP_ROUND}
+              hardCapRound={hardCapRound}
               alternativeReady={alternativeReady}
               accepted={isAccepted}
               onCommit={() => { void refresh(); }}

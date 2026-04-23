@@ -24,6 +24,24 @@ interface Props {
   placeholder?: string;
   disabled?: boolean;
   style?: ViewStyle;
+  /**
+   * Optional controlled props. **Provide both or neither.** When both
+   * `value` and `onChangeText` are provided, ChatInput reads/writes
+   * through the parent — this enables voice input (parent inserts
+   * transcribed text) and any other imperative insertion. When
+   * neither is provided, ChatInput keeps its own internal state
+   * (back-compat default). A one-of-two configuration falls back to
+   * uncontrolled, which would produce a read-only input from the
+   * parent's perspective — a dev warning fires in that case.
+   */
+  value?: string;
+  onChangeText?: (text: string) => void;
+  /**
+   * Rendered to the left of the text field, inside the input row.
+   * Used by discovery chat to plug in a VoiceInputButton for
+   * Compound-tier founders.
+   */
+  leftSlot?: React.ReactNode;
 }
 
 export function ChatInput({
@@ -31,11 +49,35 @@ export function ChatInput({
   placeholder = 'Share your thoughts…',
   disabled = false,
   style,
+  value,
+  onChangeText,
+  leftSlot,
 }: Props) {
   const { colors: c } = useTheme();
   const insets = useSafeAreaInsets();
-  const [text, setText] = useState('');
+  const [internalText, setInternalText] = useState('');
   const inputRef = useRef<TextInput>(null);
+
+  const isControlled = value !== undefined && onChangeText !== undefined;
+  const text = isControlled ? value : internalText;
+  const setText = isControlled ? onChangeText : setInternalText;
+
+  // Dev warning for the half-controlled configuration — supplying one
+  // of {value, onChangeText} but not the other silently falls back to
+  // uncontrolled, producing a read-only input from the parent's
+  // perspective. Fires once per mount via the warn dedup below.
+  if (__DEV__) {
+    const hasValue = value !== undefined;
+    const hasSetter = onChangeText !== undefined;
+    if (hasValue !== hasSetter) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        '[ChatInput] `value` and `onChangeText` must be provided together. ' +
+        'Supplying only one falls back to uncontrolled state and your ' +
+        'prop will be ignored.',
+      );
+    }
+  }
 
   const canSend = text.trim().length > 0 && !disabled;
 
@@ -59,7 +101,19 @@ export function ChatInput({
         style,
       ]}
     >
-      <View style={[styles.inputRow, { borderColor: c.border, backgroundColor: c.background }]}>
+      <View
+        style={[
+          styles.inputRow,
+          {
+            borderColor: c.border,
+            backgroundColor: c.background,
+            // When a leftSlot is rendered, mirror the send button's
+            // right padding so the row stays visually symmetric.
+            paddingLeft: leftSlot ? spacing[1.5] : spacing[4],
+          },
+        ]}
+      >
+        {leftSlot}
         <TextInput
           ref={inputRef}
           value={text}

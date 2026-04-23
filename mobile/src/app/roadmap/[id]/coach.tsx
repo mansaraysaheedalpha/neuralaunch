@@ -67,9 +67,11 @@ interface Debrief {
 // ---------------------------------------------------------------------------
 
 export default function CoachScreen() {
-  const { id: roadmapId, taskId } = useLocalSearchParams<{
+  const { id: roadmapId, taskId, coachSeed } = useLocalSearchParams<{
     id: string;
     taskId?: string;
+    /** Pre-populated setup draft from the Composer → Coach handoff. */
+    coachSeed?: string;
   }>();
   const { colors: c } = useTheme();
   const router = useRouter();
@@ -120,7 +122,7 @@ export default function CoachScreen() {
     try {
       const basePath = taskId
         ? `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/coach/debrief`
-        : `/api/discovery/roadmapId/${roadmapId}/coach/debrief`;
+        : `/api/discovery/roadmaps/${roadmapId}/coach/debrief`;
 
       const result = await api<{ debrief: Debrief }>(basePath, {
         method: 'POST',
@@ -165,6 +167,7 @@ export default function CoachScreen() {
             roadmapId={roadmapId ?? ''}
             taskId={taskId}
             onSetupComplete={(data) => { void handleSetupComplete(data); }}
+            initialDraft={coachSeed}
           />
         )}
 

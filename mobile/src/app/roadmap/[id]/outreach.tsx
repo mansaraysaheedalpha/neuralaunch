@@ -35,6 +35,7 @@ import {
   type ComposerMessage,
   type ComposerVariation,
 } from '@/components/outreach/ComposerMessageCard';
+import { buildCoachSeedFromComposerMessage } from '@/components/outreach/buildCoachSeed';
 import { spacing, radius, typography, iconSize } from '@/constants/theme';
 
 type Channel = 'whatsapp' | 'email' | 'linkedin';
@@ -167,14 +168,23 @@ export default function OutreachComposerScreen() {
     [roadmapId, taskId],
   );
 
-  function handleCoachHandoff(_m: ComposerMessage) {
-    // Open the Coach on the same task (or standalone). The backend
-    // embeds coachContext separately; the client just navigates and
-    // trusts the Coach to pick up context via taskId.
+  function handleCoachHandoff(m: ComposerMessage) {
+    // Mirrors the web's composer→coach handoff: pass the drafted
+    // message's context into Coach setup so the founder doesn't
+    // retype it. Seed is built client-side from data we already
+    // have (message + channel + goal + targetDescription) so no
+    // standalone-sessions endpoint is required on mobile.
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push(taskId
-      ? `/roadmap/${roadmapId}/coach?taskId=${taskId}`
-      : `/roadmap/${roadmapId}/coach`);
+    const seed = buildCoachSeedFromComposerMessage({
+      message: m,
+      channel: channel ?? '',
+      context: { goal, targetDescription: target },
+    });
+    const encodedSeed = encodeURIComponent(seed);
+    const query = taskId
+      ? `taskId=${taskId}&coachSeed=${encodedSeed}`
+      : `coachSeed=${encodedSeed}`;
+    router.push(`/roadmap/${roadmapId}/coach?${query}`);
   }
 
   return (

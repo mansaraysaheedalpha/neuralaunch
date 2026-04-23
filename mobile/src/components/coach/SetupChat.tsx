@@ -24,6 +24,13 @@ interface Props {
   roadmapId: string;
   taskId?:   string;
   onSetupComplete: (setup: SetupData) => void;
+  /**
+   * Optional pre-populated draft — used by the Composer→Coach handoff
+   * to land the founder in the setup chat with their outreach context
+   * already typed out instead of blank. The draft is inserted into
+   * the input once, where the founder can edit before submitting.
+   */
+  initialDraft?: string;
 }
 
 interface Message {
@@ -32,11 +39,17 @@ interface Message {
   content: string;
 }
 
-export function SetupChat({ roadmapId, taskId, onSetupComplete }: Props) {
+export function SetupChat({
+  roadmapId,
+  taskId,
+  onSetupComplete,
+  initialDraft,
+}: Props) {
   const { colors: c } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
   const [pending, setPending]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
+  const [inputText, setInputText] = useState(initialDraft ?? '');
   const flatListRef = useRef<FlatList>(null);
   const { onScroll, visible: fabVisible, scrollToBottom, atBottomRef } =
     useScrollToBottom(flatListRef);
@@ -136,9 +149,14 @@ export function SetupChat({ roadmapId, taskId, onSetupComplete }: Props) {
       )}
 
       <ChatInput
-        onSend={handleSend}
+        onSend={(msg) => {
+          setInputText('');
+          void handleSend(msg);
+        }}
         disabled={pending}
         placeholder="Describe the conversation…"
+        value={inputText}
+        onChangeText={setInputText}
       />
     </View>
   );

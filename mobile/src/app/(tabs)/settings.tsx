@@ -22,6 +22,9 @@ import { useAuth } from '@/services/auth';
 import { useTheme } from '@/hooks/useTheme';
 import { api } from '@/services/api-client';
 import { Text, Button, Card, Separator, ScreenContainer } from '@/components/ui';
+import { BillingSection, useBillingOverview } from '@/components/billing/BillingSection';
+import { TierHistorySection } from '@/components/billing/TierHistorySection';
+import { WelcomeBackBanner } from '@/components/billing/WelcomeBackBanner';
 import { spacing, iconSize } from '@/constants/theme';
 
 const LEGAL_BASE_URL = 'https://startupvalidator.app/legal';
@@ -33,8 +36,11 @@ export default function SettingsScreen() {
 
   const [consent, setConsent]       = useState(false);
   const [consentLoading, setConsentLoading] = useState(true);
+  const [analyticsConsent, setAnalyticsConsent] = useState(false);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [nudgeEnabled, setNudgeEnabled] = useState(true);
   const [linkedProviders, setLinkedProviders] = useState<string[]>([]);
+  const billingOverview = useBillingOverview();
 
   // Load current consent state + linked OAuth providers on mount.
   useEffect(() => {
@@ -44,6 +50,12 @@ export default function SettingsScreen() {
         setConsent(data.consent);
       } catch { /* default false */ }
       setConsentLoading(false);
+
+      try {
+        const data = await api<{ consent: boolean }>('/api/user/aggregate-analytics-consent');
+        setAnalyticsConsent(data.consent);
+      } catch { /* default false */ }
+      setAnalyticsLoading(false);
 
       try {
         const providers = await api<{ providers: string[] }>('/api/user/linked-providers');
@@ -67,6 +79,21 @@ export default function SettingsScreen() {
       }
     } catch {
       setConsent(previous);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  }
+
+  async function handleAnalyticsConsentToggle(value: boolean) {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const previous = analyticsConsent;
+    setAnalyticsConsent(value);
+    try {
+      await api('/api/user/aggregate-analytics-consent', {
+        method: 'PATCH',
+        body: { consent: value },
+      });
+    } catch {
+      setAnalyticsConsent(previous);
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   }
@@ -131,7 +158,7 @@ export default function SettingsScreen() {
         <Card noPadding>
           <NavRow
             icon={Sparkles}
-            label="Past recommendations"
+            label="Your ventures"
             onPress={() => router.push('/recommendations')}
             colors={c}
           />
@@ -193,9 +220,9 @@ export default function SettingsScreen() {
         </Card>
       </View>
 
-      {/* Privacy / training consent */}
+      {/* Privacy — training consent + aggregate analytics consent */}
       <View style={styles.section}>
-        <Text variant="overline" color={c.mutedForeground}>Privacy</Text>
+        <Text variant="overline" color={c.mutedForeground}>Privacy and data</Text>
         <Card>
           <View style={styles.toggleRow}>
             <View style={{ flex: 1 }}>
@@ -215,6 +242,36 @@ export default function SettingsScreen() {
             />
           </View>
         </Card>
+        <Card style={{ marginTop: spacing[2] }}>
+          <View style={styles.toggleRow}>
+            <View style={{ flex: 1 }}>
+              <Text variant="label">Include my data in aggregate analytics</Text>
+              <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1] }}>
+                Counts and percentages across all founders — never
+                individual records. Turning this off excludes you from
+                future computations, but cannot retroactively remove
+                your contribution to past totals.
+              </Text>
+            </View>
+            <Switch
+              value={analyticsConsent}
+              onValueChange={handleAnalyticsConsentToggle}
+              disabled={analyticsLoading}
+              trackColor={{ false: c.muted, true: c.primaryAlpha20 }}
+              thumbColor={analyticsConsent ? c.primary : c.mutedForeground}
+            />
+          </View>
+        </Card>
+      </View>
+
+      {/* Billing — welcome-back banner (if applicable), then current
+          tier + status + Manage billing handoff, then the collapsible
+          subscription history panel. */}
+      <View style={styles.section}>
+        <Text variant="overline" color={c.mutedForeground}>Billing</Text>
+        <WelcomeBackBanner overview={billingOverview} />
+        <BillingSection overview={billingOverview} />
+        <TierHistorySection />
       </View>
 
       {/* About & legal — opens web pages in the system browser */}
