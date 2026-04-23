@@ -21,6 +21,8 @@ import {
   buildComposerSeedMessage,
 } from '@/app/(app)/tools/packager-handoff';
 import { UsageMeter } from '@/components/billing/UsageMeter';
+import { ComposerHistoryPanel } from './ComposerHistoryPanel';
+import { Plus } from 'lucide-react';
 
 type Stage =
   | 'loading'
@@ -41,8 +43,47 @@ export default function StandaloneComposerPage() {
   const [error,     setError]     = useState<string | null>(null);
   const [seedDraft, setSeedDraft] = useState<string | undefined>(undefined);
   const [meterRefreshKey, setMeterRefreshKey] = useState(0);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const bumpMeter = useCallback(() => {
     setMeterRefreshKey(k => k + 1);
+    // Also refresh the sidebar list so a just-completed session shows
+    // up immediately without a page reload.
+    setHistoryRefreshKey(k => k + 1);
+  }, []);
+
+  const handleSelectSession = useCallback(async (targetSessionId: string) => {
+    if (!roadmapId) return;
+    try {
+      const res = await fetch(
+        `/api/discovery/roadmaps/${roadmapId}/composer/sessions/${targetSessionId}`,
+      );
+      if (!res.ok) return;
+      const json = await res.json() as { session: ComposerSession };
+      if (!json.session.output) return; // nothing to show yet
+      setContext(json.session.context);
+      setMode(json.session.mode);
+      setChannel(json.session.channel);
+      setOutput(json.session.output);
+      setSessionId(json.session.id);
+      setStage('output');
+      const url = new URL(window.location.href);
+      url.searchParams.set('sessionId', json.session.id);
+      window.history.replaceState({}, '', url.toString());
+    } catch { /* swallow — user can retry the click */ }
+  }, [roadmapId]);
+
+  const handleNewSession = useCallback(() => {
+    setContext(null);
+    setMode(null);
+    setChannel(null);
+    setOutput(null);
+    setSessionId(null);
+    setSeedDraft(undefined);
+    setError(null);
+    setStage('context');
+    const url = new URL(window.location.href);
+    url.searchParams.delete('sessionId');
+    window.history.replaceState({}, '', url.toString());
   }, []);
 
   // Auto-detect the most recent roadmap, any inbound packager handoff,
@@ -180,13 +221,21 @@ export default function StandaloneComposerPage() {
       : null;
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-10 flex flex-col gap-6">
+    <div className="max-w-5xl mx-auto px-6 py-10 flex flex-col gap-6">
       <div className="flex items-center gap-3">
         <Link href="/tools" className="text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-4 inline mr-1" />
           Tools
         </Link>
         <h1 className="text-lg font-bold text-foreground">Outreach Composer</h1>
+        <button
+          type="button"
+          onClick={handleNewSession}
+          className="ml-auto flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-foreground hover:bg-muted transition-colors"
+        >
+          <Plus className="size-3 shrink-0" />
+          New outreach
+        </button>
       </div>
 
       <UsageMeter tool="composer" refreshKey={meterRefreshKey} />
@@ -195,6 +244,19 @@ export default function StandaloneComposerPage() {
         <p className="text-xs text-red-500 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">{error}</p>
       )}
 
+      <div className="flex flex-col lg:flex-row gap-6">
+        <aside className="lg:w-72 lg:shrink-0 flex flex-col gap-4">
+          {roadmapId && (
+            <ComposerHistoryPanel
+              roadmapId={roadmapId}
+              activeSessionId={sessionId}
+              onSelect={(sid) => { void handleSelectSession(sid); }}
+              refreshKey={historyRefreshKey}
+            />
+          )}
+        </aside>
+
+        <div className="flex-1 min-w-0 flex flex-col gap-6">
       {stage === 'context' && roadmapId && (
         <ComposerContextChat
           roadmapId={roadmapId}
@@ -240,6 +302,8 @@ export default function StandaloneComposerPage() {
           </Link>
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -324,6 +324,74 @@ This is an env-variable tuning change, not a code change. The fix is to append `
 
 ---
 
+## B10 — Composer "Mark as sent" → follow-up reply-chase nudge
+
+**Status:** Backlog (conditional — revisit after founder-usage data confirms they actually mark messages sent)
+**Category:** Product capability
+**Size:** Medium (~1-2 days)
+**Owner:** —
+
+### Why
+
+The "Mark as sent" button on every Composer message card exists today but has **zero downstream effect**. Clicking it appends `{ messageId, sentAt }` to `session.sentMessages` and flips the UI. Nothing else in the product reads that array. No follow-up nudges, no reply tracking, no dashboard. The founder gets a checkbox for their own feelings — which is a fine placebo but not a feature.
+
+The value of knowing a message was sent is reply-chasing: "You sent 'X' to Sarah on Monday — did she reply? If not, here's the follow-up angle to try." Without this, founders send once and drift away from the thread; our roadmap says "the first reply is worth more than the pitch" and we leave that value on the floor.
+
+### Scope
+
+1. **Daily Inngest cron** `composer-reply-chase-sweep`, runs alongside the existing nudge function. Scans `roadmap.toolSessions` for composer sessions where `sentMessages[*].sentAt` is >= 3 days ago AND no follow-up has been sent for that message yet.
+2. **New field** `composerSession.sentMessages[*].followedUpAt: string | null`. Lets the sweep mark a message as already-chased so it doesn't nudge twice.
+3. **In-app banner** on the standalone Composer page when any session has a sent-but-unfollowed-up message. Copy: "You sent 'Hi Sarah…' to Sarah Wanjiru 3 days ago. Want to draft a follow-up?" One button: "Draft a follow-up →" which opens a new Composer generation seeded with the original message + "following up 3 days later" instruction.
+4. **Respect the existing nudge cadence** — `nudgesEnabled: false` users don't get the banner. Reuse the same User preference.
+
+### Non-goals
+
+- No automatic follow-up send. Founder-initiated only.
+- No inbound-reply parsing. We don't have an email / WhatsApp integration for reads or replies, so this nudge is time-based, not state-based.
+
+### Dependencies
+
+- B11 (outreach tracker) overlaps with this work. If we build B11 first, this nudge piggybacks on the tracker's data model for almost free.
+
+---
+
+## B11 — Outreach tracker (sent messages + reply capture + conversion view)
+
+**Status:** Backlog
+**Category:** Product capability
+**Size:** Large (~1 week)
+**Owner:** —
+
+### Why
+
+Composer generates dozens of messages per founder per month at Execute scale — and every message disappears into WhatsApp / email / LinkedIn with zero product-side tracking. Founders have no view of "I sent 14 messages this week, got 4 replies, 2 turned into meetings." That's the fundamental metric of outreach-driven growth and we offer no surface for it.
+
+An outreach tracker closes the loop: `draft → sent → reply? → outcome → insight`. Combined with the B10 reply-chase nudge, it turns the Composer from a one-shot drafting tool into a sales pipeline for pre-revenue founders.
+
+### Scope
+
+1. **Schema:** extend `composerSession.sentMessages[*]` with `repliedAt`, `replyCategory` ('positive' | 'neutral' | 'negative' | 'no_reply'), `outcome` ('meeting_booked' | 'pilot_agreed' | 'declined' | 'pending'), `notes`.
+2. **Mark-as-sent UI:** stays. After clicking sent, a new lightweight "Got a reply?" prompt appears after 24 hours prompting the founder to log the reply status (one click from the Composer page).
+3. **Outreach dashboard:** new page at `/tools/outreach-composer/tracker`. Lists all sent messages across all sessions, grouped by status, sortable by date. Each row: recipient, channel, sent date, reply category (if any), outcome. Conversion rates at the top: "27 sent · 11 replies · 4 meetings · 15% meeting conversion."
+4. **Handoff to Coach** from any tracked message: "Prepare for the follow-up conversation →" (uses the existing Composer → Coach handoff, enhanced with reply context: "they replied with X, objected about Y, help me close").
+5. **Privacy:** per-session retention rules stay — the tracker doesn't create a separate long-lived table. All data lives on `roadmap.toolSessions` as today.
+
+### Non-goals
+
+- No email / WhatsApp / LinkedIn integration for real reply parsing. Founder manually logs the reply. That stays the case until we have a proper CRM-level integration, which is a much bigger scope.
+- No prospect CRM. The tracker is scoped to messages the founder drafted in OUR Composer; it doesn't ingest external conversations.
+
+### Risks to manage
+
+- **Abandonment risk** — founders who stop logging replies break the data model. Make the reply-logging truly one-click ("replied? y/n/no-reply") and let founders skip without penalty.
+- **Privacy optics** — tracker displays recipient names and message bodies. Scope every read strictly to the founder's own userId; no cross-founder visibility ever.
+
+### Dependencies
+
+- B10 slots in naturally as Stage 1 of this tracker. If B11 goes first, B10 is a ~1-day addition on top.
+
+---
+
 ## Review cadence
 
 Scan this document monthly or when a production incident adds a new item. Items can be deleted outright if they've been superseded; items that ship should be rewritten in the delivery report format instead of left here stale.
