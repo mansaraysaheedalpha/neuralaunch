@@ -14,9 +14,11 @@ import { useRouter } from 'expo-router';
 import { Swipeable } from 'react-native-gesture-handler';
 import { MessageSquare, Send, Search, CheckSquare, Package, CheckCircle2 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/services/auth';
 import { api } from '@/services/api-client';
 import type { RoadmapTask, TaskStatus } from '@/hooks/useRoadmap';
 import { Text, Card, Badge, Button } from '@/components/ui';
+import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
 import { radius, spacing, iconSize } from '@/constants/theme';
 import { STATUS_OPTIONS, STATUS_VARIANTS, buildTaskId } from './task-constants';
 import { TaskStatusPicker } from './TaskStatusPicker';
@@ -49,11 +51,18 @@ export function TaskCard({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
 
+  const tier = useAuth(s => s.user?.tier ?? 'free');
+  const isFreeTier = tier === 'free';
+
   const checkInCount = task.checkInHistory?.length ?? 0;
   const hasCoach    = task.suggestedTools?.includes('conversation_coach');
   const hasComposer = task.suggestedTools?.includes('outreach_composer');
   const hasResearch = task.suggestedTools?.includes('research_tool');
   const hasPackager = task.suggestedTools?.includes('service_packager');
+  // Mirrors the web's free-tier gate: only show the upgrade banner when
+  // the task actually suggests one or more paid tools. Generic to-do
+  // tasks with no suggestedTools render the check-in-only actions row.
+  const anyToolSuggested = hasCoach || hasComposer || hasResearch || hasPackager;
 
   async function handleStatusChange(next: TaskStatus) {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -178,6 +187,12 @@ export function TaskCard({
         onToggle={() => setHistoryOpen(v => !v)}
       />
 
+      {/* Free-tier upgrade banner — replaces the tool row when the task
+          suggests paid tools. Check-in stays available regardless of tier. */}
+      {isFreeTier && anyToolSuggested && (
+        <UpgradePrompt requiredTier="execute" variant="compact" />
+      )}
+
       {/* Actions */}
       <View style={styles.actions}>
         <Button
@@ -189,7 +204,7 @@ export function TaskCard({
           size="sm"
           icon={<CheckSquare size={iconSize.sm} color={c.foreground} />}
         />
-        {hasCoach && (
+        {!isFreeTier && hasCoach && (
           <Button
             title="Coach"
             onPress={() => navigate(`/roadmap/${roadmapId}/coach?taskId=${taskId}`)}
@@ -198,7 +213,7 @@ export function TaskCard({
             icon={<MessageSquare size={iconSize.sm} color={c.primary} />}
           />
         )}
-        {hasComposer && (
+        {!isFreeTier && hasComposer && (
           <Button
             title="Outreach"
             onPress={() => navigate(`/roadmap/${roadmapId}/outreach?taskId=${taskId}`)}
@@ -207,7 +222,7 @@ export function TaskCard({
             icon={<Send size={iconSize.sm} color={c.primary} />}
           />
         )}
-        {hasResearch && (
+        {!isFreeTier && hasResearch && (
           <Button
             title="Research"
             onPress={() => navigate(`/roadmap/${roadmapId}/research?taskId=${taskId}`)}
@@ -216,7 +231,7 @@ export function TaskCard({
             icon={<Search size={iconSize.sm} color={c.primary} />}
           />
         )}
-        {hasPackager && (
+        {!isFreeTier && hasPackager && (
           <Button
             title="Package"
             onPress={() => navigate(`/roadmap/${roadmapId}/packager?taskId=${taskId}`)}

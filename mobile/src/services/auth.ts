@@ -21,6 +21,9 @@ export interface User {
   name:  string | null;
   email: string | null;
   image: string | null;
+  /** Billing tier — 'free' | 'execute' | 'compound'. Used to gate tools and set pushback caps. */
+  tier:  string;
+  isFoundingMember: boolean;
 }
 
 interface AuthState {

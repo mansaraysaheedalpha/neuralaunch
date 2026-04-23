@@ -10,6 +10,7 @@ import { useRouter, Stack } from 'expo-router';
 import { HelpCircle } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/services/auth';
 import { useDiscovery, fetchIncompleteSession, type ChatMessage } from '@/hooks/useDiscovery';
 import { useScrollToBottom } from '@/hooks/useScrollToBottom';
 import {
@@ -21,6 +22,7 @@ import {
   Card,
   Button,
 } from '@/components/ui';
+import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
 import { InterviewGuide } from '@/components/discovery/InterviewGuide';
 import { SessionResumption } from '@/components/discovery/SessionResumption';
 import { spacing } from '@/constants/theme';
@@ -33,6 +35,9 @@ export default function DiscoveryScreen() {
   const flatListRef = useRef<FlatList>(null);
   const { onScroll, visible: fabVisible, scrollToBottom, atBottomRef } =
     useScrollToBottom(flatListRef);
+  const tier = useAuth(s => s.user?.tier ?? 'free');
+  const [inputText, setInputText] = useState('');
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const [guideVisible, setGuideVisible] = useState(false);
   const [initPhase, setInitPhase] = useState<InitPhase>('checking');
   const [incomplete, setIncomplete] = useState<{ sessionId: string; questionCount: number } | null>(null);
@@ -200,17 +205,39 @@ export default function DiscoveryScreen() {
           onPress={() => scrollToBottom(true)}
         />
 
-        {/* Input */}
+        {/* Input — the VoiceInputButton only renders for Compound-tier
+            founders (the transcribe endpoint gates there anyway). Non-
+            Compound users see the input exactly as before. */}
         {!isSynthesizing && (
           <ChatInput
-            onSend={sendMessage}
+            onSend={(msg) => {
+              setInputText('');
+              sendMessage(msg);
+            }}
             disabled={!canSend}
             placeholder={
               !sessionReady
                 ? 'Setting up your session…'
                 : 'Share your thoughts…'
             }
+            value={inputText}
+            onChangeText={setInputText}
+            leftSlot={tier === 'compound' ? (
+              <VoiceInputButton
+                onTranscription={(text) => setInputText(prev => prev ? `${prev} ${text}` : text)}
+                onError={setVoiceError}
+                disabled={!canSend}
+              />
+            ) : undefined}
           />
+        )}
+
+        {voiceError && (
+          <View style={[styles.voiceError, { backgroundColor: c.destructiveMuted }]}>
+            <Text variant="caption" color={c.destructive}>
+              {voiceError}
+            </Text>
+          </View>
         )}
       </KeyboardAvoidingView>
       )}
@@ -269,5 +296,12 @@ const styles = StyleSheet.create({
   synthesisCard: {
     marginHorizontal: spacing[4],
     marginTop: spacing[4],
+  },
+  voiceError: {
+    marginHorizontal: spacing[4],
+    marginBottom: spacing[2],
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[2],
+    borderRadius: 8,
   },
 });

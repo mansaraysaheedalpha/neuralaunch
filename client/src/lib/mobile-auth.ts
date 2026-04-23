@@ -64,9 +64,24 @@ export async function createMobileSession(userId: string): Promise<string> {
  * Returns null if the token is invalid, expired, or the user
  * doesn't exist. Never throws — callers check the return value.
  */
+/**
+ * Shape returned to mobile clients. Tier is derived from the
+ * Subscription row — free when no subscription exists. The mobile
+ * app uses tier to gate features and to select the right pushback
+ * round cap per tier.
+ */
+export interface MobileUser {
+  id:    string;
+  name:  string | null;
+  email: string | null;
+  image: string | null;
+  tier:  string;              // 'free' | 'execute' | 'compound'
+  isFoundingMember: boolean;
+}
+
 export async function resolveUserFromToken(
   token: string,
-): Promise<{ id: string; name: string | null; email: string | null; image: string | null } | null> {
+): Promise<MobileUser | null> {
   if (!token || token.length < 10) return null;
 
   try {
@@ -80,6 +95,12 @@ export async function resolveUserFromToken(
             name:  true,
             email: true,
             image: true,
+            subscription: {
+              select: {
+                tier:             true,
+                isFoundingMember: true,
+              },
+            },
           },
         },
       },
@@ -96,7 +117,12 @@ export async function resolveUserFromToken(
       return null;
     }
 
-    return session.user;
+    const { subscription, ...user } = session.user;
+    return {
+      ...user,
+      tier:             subscription?.tier ?? 'free',
+      isFoundingMember: subscription?.isFoundingMember ?? false,
+    };
   } catch {
     return null;
   }
