@@ -158,7 +158,7 @@ export default function SettingsScreen() {
         <Card noPadding>
           <NavRow
             icon={Sparkles}
-            label="Past recommendations"
+            label="Your ventures"
             onPress={() => router.push('/recommendations')}
             colors={c}
           />

@@ -7,7 +7,7 @@
 // state.
 
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, View, RefreshControl } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Sparkles } from 'lucide-react-native';
@@ -98,56 +98,43 @@ export default function VenturesListScreen() {
   return (
     <>
       {headerOpts}
-      <ScreenContainer scroll={false}>
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={c.primary}
-              colors={[c.primary]}
-            />
-          }
-        >
-          {/* Tier cap reminder — helps the founder read the grouping */}
-          <View style={styles.capRow}>
-            <Text variant="caption" color={c.mutedForeground}>
-              {data.tier === 'free'
-                ? 'Free plan — discovery only. Upgrade to activate ventures.'
-                : `${data.tier === 'compound' ? 'Compound' : 'Execute'} plan — up to ${data.cap} active venture${data.cap === 1 ? '' : 's'}.`}
-            </Text>
-          </View>
+      <ScreenContainer refreshing={refreshing} onRefresh={onRefresh}>
+        {/* Tier cap reminder — helps the founder read the grouping */}
+        <View style={styles.capRow}>
+          <Text variant="caption" color={c.mutedForeground}>
+            {data.tier === 'free'
+              ? 'Free plan — discovery only. Upgrade to activate ventures.'
+              : `${data.tier === 'compound' ? 'Compound' : 'Execute'} plan — up to ${data.cap} active venture${data.cap === 1 ? '' : 's'}.`}
+          </Text>
+        </View>
 
-          {active.length > 0 && (
-            <Group label="Active" colors={c}>
-              {active.map(v => <VentureCard key={v.id} venture={v} />)}
-            </Group>
-          )}
+        {active.length > 0 && (
+          <Group label="Active" colors={c}>
+            {active.map(v => <VentureCard key={v.id} venture={v} />)}
+          </Group>
+        )}
 
-          {paused.length > 0 && (
-            <Group label="Paused" colors={c}>
-              {paused.map(v => <VentureCard key={v.id} venture={v} />)}
-            </Group>
-          )}
+        {paused.length > 0 && (
+          <Group label="Paused" colors={c}>
+            {paused.map(v => <VentureCard key={v.id} venture={v} />)}
+          </Group>
+        )}
 
-          {completed.length > 0 && (
-            <Group label="Completed" colors={c}>
-              {completed.map(v => <VentureCard key={v.id} venture={v} />)}
-            </Group>
-          )}
+        {completed.length > 0 && (
+          <Group label="Completed" colors={c}>
+            {completed.map(v => <VentureCard key={v.id} venture={v} />)}
+          </Group>
+        )}
 
-          {archived.length > 0 && (
-            <ArchivedVenturesSection
-              archived={archived}
-              activeVentures={active}
-              tier={data.tier}
-              cap={data.cap}
-              onAfterSwap={() => { void mutate(); }}
-            />
-          )}
-        </ScrollView>
+        {archived.length > 0 && (
+          <ArchivedVenturesSection
+            archived={archived}
+            activeVentures={active}
+            tier={data.tier}
+            cap={data.cap}
+            onAfterSwap={() => { void mutate(); }}
+          />
+        )}
       </ScreenContainer>
     </>
   );
@@ -173,14 +160,12 @@ function Group({
 }
 
 const styles = StyleSheet.create({
-  scroll: {
-    paddingVertical: spacing[4],
-    gap: spacing[4],
-  },
   capRow: {
-    marginBottom: spacing[1],
+    marginTop: spacing[4],
+    marginBottom: spacing[2],
   },
   group: {
+    marginTop: spacing[4],
     gap: spacing[2],
   },
   groupLabel: {

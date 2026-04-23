@@ -8,7 +8,7 @@
 //
 // Built on the BottomSheet primitive from feat/mobile-polish-phase-2.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Check, Circle } from 'lucide-react-native';
@@ -48,6 +48,13 @@ export function ReactivateDialog({
 }: Props) {
   const { colors: c } = useTheme();
   const [selected, setSelected] = useState<string | null>(null);
+
+  // Reset the radio-selection whenever the sheet closes, so a cancel +
+  // reopen against a different archived venture never inherits the
+  // prior choice.
+  useEffect(() => {
+    if (!visible) setSelected(null);
+  }, [visible]);
 
   function handleConfirm() {
     if (!selected) return;

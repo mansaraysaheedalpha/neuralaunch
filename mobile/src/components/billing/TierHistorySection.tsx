@@ -107,7 +107,11 @@ export function TierHistorySection() {
 
   return (
     <View style={styles.wrapper}>
-      <Card>
+      {/* noPadding — CollapsibleSection owns its own header padding, so
+          stacking Card's default 16pt on top of it doubles the vertical
+          whitespace around the chevron. Apply the horizontal padding
+          inline so the content still indents consistently. */}
+      <Card noPadding style={styles.card}>
         <CollapsibleSection
           label={`Subscription history · ${data.transitions.length} ${data.transitions.length === 1 ? 'change' : 'changes'}`}
           defaultOpen={false}
@@ -149,9 +153,13 @@ const styles = StyleSheet.create({
   wrapper: {
     gap: spacing[2],
   },
+  card: {
+    paddingHorizontal: spacing[4],
+  },
   list: {
     gap: spacing[3],
     paddingTop: spacing[2],
+    paddingBottom: spacing[3],
   },
   entry: {
     borderLeftWidth: 2,

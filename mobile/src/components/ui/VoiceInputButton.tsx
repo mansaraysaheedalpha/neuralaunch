@@ -11,7 +11,7 @@
 // component handles only: permission prompt, recording lifecycle,
 // upload, and surfacing errors.
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, type ViewStyle } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Mic, Square, X } from 'lucide-react-native';
@@ -43,6 +43,27 @@ export function VoiceInputButton({ onTranscription, onError, disabled, style }: 
   const [state, setState] = useState<State>('idle');
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const pulse = useRef(new Animated.Value(0)).current;
+  const recordingRef = useRef(false);
+  // Mirror `recorder` into a ref so the unmount effect can reach the
+  // current instance without having to list `recorder` in its dep
+  // array. Including a hook-returned instance in effect deps risks a
+  // re-run loop if the hook ever returns non-stable references.
+  const recorderRef = useRef(recorder);
+  recorderRef.current = recorder;
+
+  // If the user navigates away mid-recording, stop the pulse loop and
+  // release the recorder so we don't leak the mic session or a JS-side
+  // animation timer. The recordingRef is set inside startRecording so
+  // unmount after a completed transcription is a no-op.
+  useEffect(() => {
+    return () => {
+      pulse.stopAnimation();
+      if (recordingRef.current) {
+        recorderRef.current.stop().catch(() => { /* ignore teardown errors */ });
+        recordingRef.current = false;
+      }
+    };
+  }, [pulse]);
 
   function runPulse() {
     Animated.loop(
@@ -76,6 +97,7 @@ export function VoiceInputButton({ onTranscription, onError, disabled, style }: 
       });
       await recorder.prepareToRecordAsync();
       recorder.record();
+      recordingRef.current = true;
       setState('recording');
       runPulse();
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -90,6 +112,7 @@ export function VoiceInputButton({ onTranscription, onError, disabled, style }: 
     stopPulse();
     try {
       await recorder.stop();
+      recordingRef.current = false;
       const uri = recorder.uri;
       if (!uri) {
         throw new Error('No audio captured');
@@ -114,6 +137,7 @@ export function VoiceInputButton({ onTranscription, onError, disabled, style }: 
 
   async function cancelRecording() {
     try { await recorder.stop(); } catch { /* ignore */ }
+    recordingRef.current = false;
     stopPulse();
     setState('idle');
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -126,9 +150,12 @@ export function VoiceInputButton({ onTranscription, onError, disabled, style }: 
     // disabled until the response arrives.
   }
 
+  // Pulse the recording circle between full destructive and the
+  // destructiveMuted token so we never depend on string-concatenating
+  // an alpha suffix onto whatever format the theme happens to use.
   const recordingBg = pulse.interpolate({
     inputRange: [0, 1],
-    outputRange: [c.destructive, c.destructive + '66'] as [string, string],
+    outputRange: [c.destructive, c.destructiveMuted],
   });
 
   return (
