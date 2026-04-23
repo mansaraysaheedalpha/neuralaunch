@@ -8,8 +8,9 @@ import { View, StyleSheet, Pressable, Share } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+import * as WebBrowser from 'expo-web-browser';
 import useSWR from 'swr';
-import { Share2 } from 'lucide-react-native';
+import { Share2, Eye, Check, Copy } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { api, ApiError, API_BASE_URL } from '@/services/api-client';
 import {
@@ -70,7 +71,9 @@ export default function ValidationDetailScreen() {
   );
 
   const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [markingMvp, setMarkingMvp] = useState(false);
 
   if (error && !page) {
     const kind = error instanceof ApiError && error.status === 401 ? 'auth'
@@ -98,12 +101,25 @@ export default function ValidationDetailScreen() {
 
   async function handlePublish() {
     setPublishing(true);
+    setPublishError(null);
     try {
       await api(`/api/discovery/validation/${pageId}/publish`, { method: 'POST' });
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       void mutate();
-    } catch { /* error handling */ }
+    } catch (err) {
+      setPublishError(
+        err instanceof ApiError ? err.message : 'Could not publish. Try again.',
+      );
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
     setPublishing(false);
+  }
+
+  async function handlePreview() {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await WebBrowser.openBrowserAsync(pageUrl);
+    } catch { /* user dismissal is not an error */ }
   }
 
   async function handleCopyLink() {
@@ -167,22 +183,41 @@ export default function ValidationDetailScreen() {
         {/* Actions */}
         <View style={styles.actions}>
           {!isLive && page.status === 'DRAFT' && (
-            <Button
-              title={publishing ? 'Publishing…' : 'Publish page'}
-              onPress={handlePublish}
-              loading={publishing}
-              size="lg"
-              fullWidth
-            />
+            <>
+              <Button
+                title={publishing ? 'Publishing…' : 'Publish page'}
+                onPress={handlePublish}
+                loading={publishing}
+                size="lg"
+                fullWidth
+              />
+              {publishError && (
+                <Text variant="caption" color={c.destructive}>
+                  {publishError}
+                </Text>
+              )}
+            </>
           )}
           {isLive && (
             <>
               <Button
-                title={copied ? '✓ Link copied' : 'Copy link'}
+                title="Preview live page"
+                onPress={() => { void handlePreview(); }}
+                size="lg"
+                fullWidth
+                icon={<Eye size={iconSize.sm} color={c.primaryForeground} />}
+              />
+              <Button
+                title={copied ? 'Link copied' : 'Copy link'}
                 onPress={() => { void handleCopyLink(); }}
                 variant="secondary"
                 size="lg"
                 fullWidth
+                icon={
+                  copied
+                    ? <Check size={iconSize.sm} color={c.success} />
+                    : <Copy size={iconSize.sm} color={c.foreground} />
+                }
               />
               <Button
                 title="Share page"
@@ -196,15 +231,24 @@ export default function ValidationDetailScreen() {
           )}
         </View>
 
-        {/* Preview hint */}
-        <Card variant="muted">
-          <Text variant="caption" color={c.mutedForeground}>
-            Preview your page in a browser at:
-          </Text>
-          <Text variant="label" color={c.primary} style={{ marginTop: spacing[1] }}>
-            /lp/{page.slug}
-          </Text>
-        </Card>
+        {/* Preview hint — card is tappable on LIVE pages so the URL line
+            becomes a direct entry point into the in-app browser. */}
+        <Pressable
+          onPress={isLive ? () => { void handlePreview(); } : undefined}
+          disabled={!isLive}
+          accessibilityRole={isLive ? 'link' : undefined}
+          accessibilityLabel={isLive ? `Open ${pageUrl}` : undefined}
+          style={({ pressed }) => [pressed && isLive && { opacity: 0.85 }]}
+        >
+          <Card variant="muted">
+            <Text variant="caption" color={c.mutedForeground}>
+              {isLive ? 'Tap to preview your page:' : 'Preview your page in a browser at:'}
+            </Text>
+            <Text variant="label" color={c.primary} style={{ marginTop: spacing[1] }}>
+              /lp/{page.slug}
+            </Text>
+          </Card>
+        </Pressable>
 
         {/* Distribution tracker */}
         {isLive && page.distributionBrief && page.distributionBrief.length > 0 && (
@@ -232,6 +276,10 @@ export default function ValidationDetailScreen() {
                         </Text>
                       </View>
                       <Pressable
+                        accessibilityRole="checkbox"
+                        accessibilityLabel={`${ch.channel} — ${isDone ? 'shared' : 'not shared'}`}
+                        accessibilityState={{ checked: isDone }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         onPress={() => { void handleToggleChannel(ch.channel, !isDone); }}
                         style={[
                           styles.checkbox,
@@ -241,7 +289,7 @@ export default function ValidationDetailScreen() {
                           },
                         ]}
                       >
-                        {isDone && <Text variant="caption" color={c.primaryForeground}>✓</Text>}
+                        {isDone && <Check size={14} color={c.primaryForeground} strokeWidth={3} />}
                       </Pressable>
                     </View>
 
@@ -363,14 +411,22 @@ export default function ValidationDetailScreen() {
               </Card>
             ) : (
               <Button
-                title="Use as my MVP spec"
+                title={markingMvp ? 'Saving…' : 'Use as my MVP spec'}
+                loading={markingMvp}
                 onPress={async () => {
-                  await api(`/api/discovery/validation/${pageId}/report`, {
-                    method: 'POST',
-                    body: { usedForMvp: true },
-                  });
-                  void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  void mutate();
+                  setMarkingMvp(true);
+                  try {
+                    await api(`/api/discovery/validation/${pageId}/report`, {
+                      method: 'POST',
+                      body: { usedForMvp: true },
+                    });
+                    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                    void mutate();
+                  } catch {
+                    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                  } finally {
+                    setMarkingMvp(false);
+                  }
                 }}
                 size="lg"
                 fullWidth
