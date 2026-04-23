@@ -293,7 +293,19 @@ function findStaleInProgressTask(
         : lastActivityAt.getTime();
       const elapsedMs = now - startAnchor;
 
-      if (elapsedMs > estimateMs) {
+      // Grace floor: a 2-hour task overrun by 1 hour is not stale.
+      // Multiply the parsed estimate by 1.5x and require at least
+      // THREE_DAYS_MS of elapsed time before flagging. Prevents the
+      // "marked in_progress yesterday, nudged today" failure mode for
+      // hour-scale tasks whose wall-clock intent was longer (e.g.
+      // "4-5 hours across 3 evenings this week" — the 5-hour effort
+      // bound is meaningless once we also parse "this week" as a
+      // 7-day wall-clock bound, but the floor catches the residual
+      // cases where the wall-clock phrase is missing entirely).
+      const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+      const threshold = Math.max(estimateMs * 1.5, THREE_DAYS_MS);
+
+      if (elapsedMs > threshold) {
         return { taskTitle: task.title };
       }
     }
@@ -301,6 +313,13 @@ function findStaleInProgressTask(
   return null;
 }
 
+// Numeric time-unit patterns. Each expects "<digits> <unit>" (e.g.
+// "3 weeks", "2.5 hours"). Matched greedily — parseTimeEstimateToMs
+// scans ALL patterns and returns the LARGEST match so "4-5 hours
+// across 3 evenings this week" correctly ends up at 7 days, not 5
+// hours. The old first-match-wins behaviour was the root cause of
+// premature nudge firing (a "5 hours ... this week" task was parsed
+// as 5 hours and flagged the next day).
 const TIME_UNIT_PATTERNS: Array<{ regex: RegExp; ms: number }> = [
   { regex: /(\d+(?:\.\d+)?)\s*(?:weeks?|wks?)\b/i,    ms: 7  * 24 * 60 * 60 * 1000 },
   { regex: /(\d+(?:\.\d+)?)\s*(?:days?)\b/i,           ms:      24 * 60 * 60 * 1000 },
@@ -308,13 +327,37 @@ const TIME_UNIT_PATTERNS: Array<{ regex: RegExp; ms: number }> = [
   { regex: /(\d+(?:\.\d+)?)\s*(?:minutes?|mins?)\b/i, ms:                60 * 1000 },
 ];
 
+// Digit-free wall-clock phrases the roadmap generator commonly emits
+// ("4-5 hours across 3 evenings this week"). Without these, the
+// parser only sees the hour-scale effort estimate and flags as stale
+// within a day — even though the task was explicitly scoped to a
+// full week of wall-clock time.
+const WALL_CLOCK_PHRASE_PATTERNS: Array<{ regex: RegExp; ms: number }> = [
+  { regex: /\bthis\s+month\b/i,     ms: 30 * 24 * 60 * 60 * 1000 },
+  { regex: /\bnext\s+month\b/i,     ms: 30 * 24 * 60 * 60 * 1000 },
+  { regex: /\bthis\s+weekend\b/i,   ms:  3 * 24 * 60 * 60 * 1000 },
+  { regex: /\bthis\s+week\b/i,      ms:  7 * 24 * 60 * 60 * 1000 },
+  { regex: /\bnext\s+week\b/i,      ms:  7 * 24 * 60 * 60 * 1000 },
+  { regex: /\bover\s+the\s+week\b/i, ms: 7 * 24 * 60 * 60 * 1000 },
+  { regex: /\bby\s+(?:end\s+of\s+)?(?:this\s+|next\s+)?week\b/i, ms: 7 * 24 * 60 * 60 * 1000 },
+];
+
 function parseTimeEstimateToMs(text: string): number | null {
+  let max = 0;
   for (const { regex, ms } of TIME_UNIT_PATTERNS) {
     const m = text.match(regex);
     if (m) {
       const value = parseFloat(m[1]);
-      if (Number.isFinite(value)) return value * ms;
+      if (Number.isFinite(value)) {
+        const total = value * ms;
+        if (total > max) max = total;
+      }
     }
   }
-  return null;
+  for (const { regex, ms } of WALL_CLOCK_PHRASE_PATTERNS) {
+    if (regex.test(text)) {
+      if (ms > max) max = ms;
+    }
+  }
+  return max > 0 ? max : null;
 }
