@@ -26,6 +26,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import useSWR from 'swr';
 import { Send } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { api, ApiError } from '@/services/api-client';
@@ -36,7 +37,33 @@ import {
   type ComposerVariation,
 } from '@/components/outreach/ComposerMessageCard';
 import { buildCoachSeedFromComposerMessage } from '@/components/outreach/buildCoachSeed';
+import { ToolSessionHistoryButton, type ToolSessionRow } from '@/components/tools/ToolSessionHistoryButton';
 import { spacing, radius, typography, iconSize } from '@/constants/theme';
+
+interface ComposerSessionListRow {
+  id:                string;
+  targetDescription: string;
+  mode:              string;
+  channel:           string;
+  createdAt:         string;
+  updatedAt:         string;
+  hasOutput:         boolean;
+  messageCount:      number;
+}
+
+interface ComposerSessionDetail {
+  id:           string;
+  context: {
+    targetDescription: string;
+    relationship:      string;
+    goal:              string;
+    priorInteraction?: string | null;
+  };
+  mode:     Mode;
+  channel:  Channel;
+  output?:  ComposerOutput;
+  sentMessages?: Array<{ messageId: string; sentAt: string }>;
+}
 
 type Channel = 'whatsapp' | 'email' | 'linkedin';
 type Mode    = 'single' | 'batch' | 'sequence';
@@ -75,6 +102,50 @@ export default function OutreachComposerScreen() {
   const [sentIds, setSentIds]     = useState<Set<string>>(new Set());
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
+
+  // Session history — standalone entry only. Task-scoped composer
+  // sessions live on the task and don't need a picker.
+  const sessionsSwr = useSWR<{ sessions: ComposerSessionListRow[] }>(
+    !taskId ? `/api/discovery/roadmaps/${roadmapId}/composer/sessions` : null,
+    (url: string) => api<{ sessions: ComposerSessionListRow[] }>(url),
+  );
+  const historyRows: ToolSessionRow[] | null = sessionsSwr.data
+    ? sessionsSwr.data.sessions.map(s => ({
+        id:        s.id,
+        title:     s.targetDescription,
+        subtitle:  `${s.mode} · ${s.channel}${s.hasOutput ? ` · ${s.messageCount} msg${s.messageCount === 1 ? '' : 's'}` : ' · draft'}`,
+        updatedAt: s.updatedAt,
+      }))
+    : null;
+
+  async function handleRestoreSession(restoreId: string) {
+    setRestoring(true);
+    setError(null);
+    try {
+      const data = await api<{ session: ComposerSessionDetail }>(
+        `/api/discovery/roadmaps/${roadmapId}/composer/sessions/${restoreId}`,
+      );
+      const s = data.session;
+      // Re-hydrate the whole form + output in one go. If the session
+      // hasn't produced output yet (hasOutput === false on the list
+      // row) we still land on the form view, just prefilled.
+      setChannel(s.channel);
+      setMode(s.mode);
+      setTarget(s.context.targetDescription);
+      setRelationship(s.context.relationship);
+      setGoal(s.context.goal);
+      setPriorInteraction(s.context.priorInteraction ?? '');
+      setOutput(s.output ?? null);
+      setSentIds(new Set(s.sentMessages?.map(m => m.messageId) ?? []));
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not restore that session.');
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setRestoring(false);
+    }
+  }
 
   const canGenerate =
     channel !== null &&
@@ -196,6 +267,14 @@ export default function OutreachComposerScreen() {
           headerTintColor: c.foreground,
           headerStyle: { backgroundColor: c.background },
           headerShadowVisible: false,
+          headerRight: () => (
+            <ToolSessionHistoryButton
+              rows={historyRows}
+              title="Recent outreach"
+              onSelect={(id) => { void handleRestoreSession(id); }}
+              restoring={restoring}
+            />
+          ),
         }}
       />
       <ScreenContainer keyboardAvoid>

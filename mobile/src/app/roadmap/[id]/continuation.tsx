@@ -73,7 +73,7 @@ export default function ContinuationScreen() {
           {isGenerating && (
             <Text variant="caption" color={c.mutedForeground} align="center" style={{ marginTop: spacing[1], paddingHorizontal: spacing[8] }}>
               Looking at what you've completed, what you've learned,
-              and what the next step could be. Takes about 30 seconds.
+              and what the next step could be.
             </Text>
           )}
         </View>
