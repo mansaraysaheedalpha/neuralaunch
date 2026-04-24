@@ -227,7 +227,7 @@ export function WhatsNextPanel({ roadmapId }: { roadmapId: string }) {
       {flow.phase === 'brief_polling' && (
         <p className="text-[11px] text-muted-foreground leading-relaxed flex items-start gap-1.5">
           <MessageCircle className="size-3 shrink-0 mt-0.5" />
-          The brief takes about 30 seconds. I&apos;m reading every check-in, every blocked task, and your parking lot to write something specific to where you are right now.
+          I&apos;m reading every check-in, every blocked task, and your parking lot to write something specific to where you are right now.
         </p>
       )}
     </motion.div>

@@ -45,8 +45,19 @@ export interface UseConversationsListResult {
  * SWR gives us:
  *   - Cache + dedup so multiple sidebar mounts (mobile + desktop)
  *     do not double-fetch
- *   - Automatic revalidation on focus / reconnect
  *   - Optimistic delete via mutate() instead of a manual store sync
+ *
+ * Defaults overrides:
+ *   - revalidateOnFocus: false. The sidebar lives on every page; with
+ *     SWR's default focus-revalidation, navigating between tools and
+ *     bouncing back from the Vercel logs tab fired a refetch every
+ *     few seconds. Combined with the API_READ rate limit (120/min),
+ *     a heavy testing session would 429 the conversations endpoint.
+ *     The conversation list is not time-sensitive enough to justify
+ *     refetching every focus event — manual reload (or the explicit
+ *     mutate path used by delete) is enough.
+ *   - revalidateOnReconnect: stays default (true) — coming back from
+ *     offline IS a meaningful trigger to rehydrate.
  *
  * The 'authenticated' guard is the responsibility of the consumer —
  * this hook is unconditional. Pass a null key (`undefined`) when
@@ -56,6 +67,7 @@ export function useConversationsList(enabled: boolean): UseConversationsListResu
   const { data, error: rawError, isLoading, mutate } = useSWR<SidebarConversation[], Error>(
     enabled ? '/api/conversations' : null,
     fetcher,
+    { revalidateOnFocus: false },
   );
   const error = rawError instanceof Error ? rawError : null;
 

@@ -54,7 +54,7 @@ export function RoadmapView({
       <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
         <div className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
         <p className="text-sm text-muted-foreground">Building your execution roadmap…</p>
-        <p className="text-xs text-muted-foreground/60">This takes about 20–30 seconds</p>
+        
       </div>
     );
   }

@@ -139,7 +139,7 @@ export function ComposerFlow({ roadmapId, taskId, open, onClose }: ComposerFlowP
               <div className="flex flex-col items-center gap-3 py-8 text-center">
                 <Loader2 className="size-6 animate-spin text-primary" />
                 <p className="text-sm font-medium text-foreground">Drafting your messages…</p>
-                <p className="text-[11px] text-muted-foreground">This takes about 20 seconds.</p>
+                
               </div>
             )}
 

@@ -151,7 +151,7 @@ export function PackagerFlow({ roadmapId, taskId, open, onClose }: PackagerFlowP
               <div className="flex flex-col items-center gap-3 py-8 text-center">
                 <Loader2 className="size-6 animate-spin text-primary" />
                 <p className="text-sm font-medium text-foreground">Building your service package…</p>
-                <p className="text-[11px] text-muted-foreground">Pricing, tiers, scenarios, and brief — about 30 seconds.</p>
+                <p className="text-[11px] text-muted-foreground">Pricing, tiers, scenarios, and brief.</p>
               </div>
             )}
             {stage === 'output' && pkg && sessionId && (

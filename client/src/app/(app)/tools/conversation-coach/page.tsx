@@ -313,7 +313,7 @@ export default function StandaloneCoachPage() {
           <Loader2 className="size-6 text-primary animate-spin" />
           <p className="text-sm text-muted-foreground">
             {stage === 'loading_preparation'
-              ? 'Generating your preparation package... This takes about 30 seconds.'
+              ? 'Generating your preparation package…'
               : 'Generating your debrief...'}
           </p>
         </motion.div>

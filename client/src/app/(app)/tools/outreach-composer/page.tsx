@@ -276,7 +276,7 @@ export default function StandaloneComposerPage() {
         >
           <Loader2 className="size-6 text-primary animate-spin" />
           <p className="text-sm text-muted-foreground">
-            Drafting your messages… This takes about 20 seconds.
+            Drafting your messages…
           </p>
         </motion.div>
       )}

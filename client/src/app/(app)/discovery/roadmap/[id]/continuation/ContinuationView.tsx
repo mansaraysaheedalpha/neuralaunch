@@ -142,7 +142,7 @@ export function ContinuationView({ roadmapId }: { roadmapId: string }) {
       <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
         <Loader2 className="size-6 text-primary animate-spin" />
         <p className="text-sm text-muted-foreground">Reading your execution evidence…</p>
-        <p className="text-xs text-muted-foreground/60">This takes about 30 seconds.</p>
+        
       </div>
     );
   }

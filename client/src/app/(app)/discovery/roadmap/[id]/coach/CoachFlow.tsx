@@ -143,7 +143,7 @@ export function CoachFlow({ roadmapId, taskId, open, onClose }: CoachFlowProps) 
               <div className="flex flex-col items-center gap-3 py-8 text-center">
                 <Loader2 className="size-6 animate-spin text-primary" />
                 <p className="text-sm font-medium text-foreground">Generating your preparation package…</p>
-                <p className="text-[11px] text-muted-foreground">This takes about 30 seconds.</p>
+                
               </div>
             )}
 

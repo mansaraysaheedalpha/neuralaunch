@@ -278,7 +278,7 @@ export default function StandalonePackagerPage() {
       {stage === 'loading_generation' && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-3 py-16">
           <Loader2 className="size-6 text-primary animate-spin" />
-          <p className="text-sm text-muted-foreground">Building your service package… about 30 seconds.</p>
+          <p className="text-sm text-muted-foreground">Building your service package…</p>
         </motion.div>
       )}
       {stage === 'output' && pkg && roadmapId && sessionId && (
