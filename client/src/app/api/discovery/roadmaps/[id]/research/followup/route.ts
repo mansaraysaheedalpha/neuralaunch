@@ -1,13 +1,17 @@
 // src/app/api/discovery/roadmaps/[id]/research/followup/route.ts
 //
-// Step 3+ of the standalone Research Tool: follow-up research round.
-// Reads the session from roadmap.toolSessions, enforces the
-// FOLLOWUP_MAX_ROUNDS cap, and appends new findings to followUps.
+// Step 3+ of the standalone Research Tool: queue a follow-up round.
+//
+// Post-Inngest-migration shape (2026-04-24): the LLM follow-up call
+// now runs in `researchFollowupJobFunction`. This route validates,
+// creates a ToolJob, fires the event, returns 202 immediately. See
+// docs/inngest-tools-migration-plan-2026-04-24.md.
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import prisma, { toJsonValue } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { inngest } from '@/inngest/client';
 import {
   HttpError,
   httpErrorToResponse,
@@ -16,24 +20,16 @@ import {
   rateLimitByUser,
   RATE_LIMITS,
 } from '@/lib/validation/server-helpers';
-import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
-import { safeParseResearchLog, appendResearchLog, type ResearchLogEntry } from '@/lib/research';
 import {
   FOLLOWUP_MAX_ROUNDS,
   safeParseResearchSession,
-  runResearchFollowUp,
 } from '@/lib/roadmap/research-tool';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
 import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
+import { createToolJob } from '@/lib/tool-jobs';
 
-// Sonnet + 10 research steps. 120s was too tight — Tavily/Exa
-// provider latency stacked with the two-phase emission blew the
-// ceiling during a 2026-04-21 follow-up. Bumped to 300 to match the
-// execute route; legitimately deep follow-ups need the same headroom.
-// B8 (backlog) — moving both calls into Inngest removes the ceiling
-// entirely.
-export const maxDuration = 300;
+export const maxDuration = 30;
 
 const BodySchema = z.object({
   sessionId: z.string().min(1),
@@ -43,8 +39,10 @@ const BodySchema = z.object({
 /**
  * POST /api/discovery/roadmaps/[id]/research/followup
  *
- * Appends a targeted follow-up research round to an existing standalone
- * session. Enforces FOLLOWUP_MAX_ROUNDS (5). Returns { findings, round }.
+ * Queues a follow-up round on an existing standalone research session.
+ * Returns 202 with { jobId, sessionId }. The Inngest worker enforces
+ * the FOLLOWUP_MAX_ROUNDS cap again at execution time so the route
+ * does the same gate here for fast failure on cap hits.
  */
 export async function POST(
   request: Request,
@@ -66,84 +64,57 @@ export async function POST(
     const parsed = BodySchema.safeParse(body);
     if (!parsed.success) throw new HttpError(400, 'Invalid body');
 
+    // Verify session exists, has a report, and isn't already at the
+    // follow-up cap. Fast-fail before queuing a doomed job.
     const roadmap = await prisma.roadmap.findFirst({
       where:  { id: roadmapId, userId },
-      select: {
-        id:           true,
-        toolSessions: true,
-        researchLog:  true,
-        recommendation: {
-          select: {
-            session: { select: { beliefState: true } },
-          },
-        },
-      },
+      select: { id: true, toolSessions: true },
     });
     if (!roadmap) throw new HttpError(404, 'Not found');
 
     const rawSessions: Array<Record<string, unknown>> = Array.isArray(roadmap.toolSessions)
       ? (roadmap.toolSessions as Array<Record<string, unknown>>)
       : [];
-
     const rawSession = rawSessions.find(s => s['id'] === parsed.data.sessionId);
     if (!rawSession) throw new HttpError(404, 'Session not found');
-
     const existingSession = safeParseResearchSession(rawSession);
     if (!existingSession?.report) {
       throw new HttpError(409, 'Research has not been executed. Run the execute stage first.');
     }
-
     const currentRounds = existingSession.followUps?.length ?? 0;
     if (currentRounds >= FOLLOWUP_MAX_ROUNDS) {
       throw new HttpError(409, `Follow-up round limit of ${FOLLOWUP_MAX_ROUNDS} reached. Start a new research session.`);
     }
 
-    const bsRaw = roadmap.recommendation?.session?.beliefState;
-    const bs    = bsRaw ? safeParseDiscoveryContext(bsRaw) : null;
-    const round = currentRounds + 1;
-    const accumulator: ResearchLogEntry[] = [];
-
-    const result = await runResearchFollowUp({
-      followUpQuery:    parsed.data.query,
-      originalQuery:    existingSession.query,
-      existingFindings: existingSession.report.findings,
-      existingReport:   existingSession.report,
-      beliefState: {
-        geographicMarket: bs?.geographicMarket?.value ?? null,
-        primaryGoal:      bs?.primaryGoal?.value ?? null,
-        situation:        bs?.situation?.value ?? null,
-      },
+    const job = await createToolJob({
+      userId,
       roadmapId,
-      researchAccumulator: accumulator,
-      followUpRound:    round,
+      toolType:  'research_followup',
+      sessionId: parsed.data.sessionId,
     });
 
-    const newFollowUp    = { query: parsed.data.query, findings: result.findings, round };
-    const updatedSession = {
-      ...rawSession,
-      followUps: [...(existingSession.followUps ?? []), newFollowUp],
-      updatedAt: new Date().toISOString(),
-    };
-    const otherSessions = rawSessions.filter(s => s['id'] !== parsed.data.sessionId);
-    const nextLog = accumulator.length > 0
-      ? appendResearchLog(safeParseResearchLog(roadmap.researchLog), accumulator)
-      : null;
-
-    await prisma.roadmap.update({
-      where: { id: roadmapId },
-      data:  {
-        toolSessions: toJsonValue([...otherSessions, updatedSession]),
-        ...(nextLog ? { researchLog: toJsonValue(nextLog) } : {}),
+    await inngest.send({
+      name: 'tool/research-followup.requested',
+      data: {
+        jobId:     job.id,
+        userId,
+        roadmapId,
+        sessionId: parsed.data.sessionId,
+        taskId:    null,
+        query:     parsed.data.query,
       },
     });
 
-    log.info('[ResearchStandaloneFollowUp] Follow-up persisted', {
+    log.info('[ResearchStandaloneFollowUp] Job queued', {
+      jobId:     job.id,
       sessionId: parsed.data.sessionId,
-      round,
-      findings:  result.findings.length,
+      round:     currentRounds + 1,
     });
 
-    return NextResponse.json({ findings: result.findings, round });
+    return NextResponse.json(
+      { jobId: job.id, sessionId: parsed.data.sessionId },
+      { status: 202 },
+    );
   } catch (err) {
     return httpErrorToResponse(err);
   }

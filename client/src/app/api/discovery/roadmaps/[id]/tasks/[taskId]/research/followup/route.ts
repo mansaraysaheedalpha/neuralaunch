@@ -1,14 +1,16 @@
 // src/app/api/discovery/roadmaps/[id]/tasks/[taskId]/research/followup/route.ts
 //
-// Step 3+ of the task-level Research Tool: follow-up research round.
-// Reads the existing session and report, enforces the FOLLOWUP_MAX_ROUNDS
-// cap, runs a targeted Sonnet search, and appends the new findings to
-// the session's followUps array.
+// Step 3+ of the task-launched Research Tool: queue a follow-up round.
+//
+// Post-Inngest-migration shape (2026-04-24): same accept-and-queue
+// pattern as the standalone variant. The Inngest worker addresses
+// the right task via the taskId in the event payload.
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import prisma, { toJsonValue } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { inngest } from '@/inngest/client';
 import {
   HttpError,
   httpErrorToResponse,
@@ -20,22 +22,17 @@ import {
 import {
   StoredPhasesArraySchema,
   readTask,
-  patchTask,
-  type StoredRoadmapPhase,
 } from '@/lib/roadmap/checkin-types';
-import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
-import { safeParseResearchLog, appendResearchLog, type ResearchLogEntry } from '@/lib/research';
 import {
   FOLLOWUP_MAX_ROUNDS,
   safeParseResearchSession,
-  runResearchFollowUp,
 } from '@/lib/roadmap/research-tool';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
 import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
+import { createToolJob } from '@/lib/tool-jobs';
 
-// Sonnet + 10 research steps
-export const maxDuration = 300;
+export const maxDuration = 30;
 
 const BodySchema = z.object({
   query: z.string().min(1).max(3000),
@@ -44,8 +41,8 @@ const BodySchema = z.object({
 /**
  * POST /api/discovery/roadmaps/[id]/tasks/[taskId]/research/followup
  *
- * Appends a targeted follow-up research round to an existing session.
- * Enforces FOLLOWUP_MAX_ROUNDS (5). Returns { findings, round }.
+ * Queues a follow-up round on a task-bound research session. Returns
+ * 202 with { jobId, sessionId }.
  */
 export async function POST(
   request: Request,
@@ -69,85 +66,54 @@ export async function POST(
 
     const roadmap = await prisma.roadmap.findFirst({
       where:  { id: roadmapId, userId },
-      select: {
-        id:          true,
-        phases:      true,
-        researchLog: true,
-        recommendation: {
-          select: {
-            session: { select: { beliefState: true } },
-          },
-        },
-      },
+      select: { id: true, phases: true },
     });
     if (!roadmap) throw new HttpError(404, 'Not found');
 
     const phasesParsed = StoredPhasesArraySchema.safeParse(roadmap.phases);
     if (!phasesParsed.success) throw new HttpError(409, 'Roadmap content is malformed');
-    const phases: StoredRoadmapPhase[] = phasesParsed.data;
-
-    const found = readTask(phases, taskId);
+    const found = readTask(phasesParsed.data, taskId);
     if (!found) throw new HttpError(404, 'Task not found');
 
     const existingSession = safeParseResearchSession(found.task.researchSession);
     if (!existingSession?.report) {
       throw new HttpError(409, 'Research has not been executed. Run the execute stage first.');
     }
-
     const currentRounds = existingSession.followUps?.length ?? 0;
     if (currentRounds >= FOLLOWUP_MAX_ROUNDS) {
       throw new HttpError(409, `Follow-up round limit of ${FOLLOWUP_MAX_ROUNDS} reached. Start a new research session.`);
     }
 
-    const bsRaw = roadmap.recommendation?.session?.beliefState;
-    const bs    = bsRaw ? safeParseDiscoveryContext(bsRaw) : null;
-    const round = currentRounds + 1;
-    const accumulator: ResearchLogEntry[] = [];
-
-    const result = await runResearchFollowUp({
-      followUpQuery:    parsed.data.query,
-      originalQuery:    existingSession.query,
-      existingFindings: existingSession.report.findings,
-      existingReport:   existingSession.report,
-      beliefState: {
-        geographicMarket: bs?.geographicMarket?.value ?? null,
-        primaryGoal:      bs?.primaryGoal?.value ?? null,
-        situation:        bs?.situation?.value ?? null,
-      },
+    const job = await createToolJob({
+      userId,
       roadmapId,
-      researchAccumulator: accumulator,
-      followUpRound:    round,
+      toolType:  'research_followup',
+      sessionId: existingSession.id,
+      taskId,
     });
 
-    const newFollowUp = { query: parsed.data.query, findings: result.findings, round };
-    const updatedSession = {
-      ...existingSession,
-      followUps: [...(existingSession.followUps ?? []), newFollowUp],
-      updatedAt: new Date().toISOString(),
-    };
-
-    const next = patchTask(phases, taskId, t => ({ ...t, researchSession: updatedSession }));
-    if (!next) throw new HttpError(404, 'Task not found post-merge');
-
-    const nextLog = accumulator.length > 0
-      ? appendResearchLog(safeParseResearchLog(roadmap.researchLog), accumulator)
-      : null;
-
-    await prisma.roadmap.update({
-      where: { id: roadmapId },
-      data:  {
-        phases: toJsonValue(next),
-        ...(nextLog ? { researchLog: toJsonValue(nextLog) } : {}),
+    await inngest.send({
+      name: 'tool/research-followup.requested',
+      data: {
+        jobId:     job.id,
+        userId,
+        roadmapId,
+        sessionId: existingSession.id,
+        taskId,
+        query:     parsed.data.query,
       },
     });
 
-    log.info('[ResearchTaskFollowUp] Follow-up persisted', {
-      taskId,
-      round,
-      findings: result.findings.length,
+    log.info('[ResearchTaskFollowUp] Job queued', {
+      jobId:     job.id,
+      sessionId: existingSession.id,
+      round:     currentRounds + 1,
     });
 
-    return NextResponse.json({ findings: result.findings, round });
+    return NextResponse.json(
+      { jobId: job.id, sessionId: existingSession.id },
+      { status: 202 },
+    );
   } catch (err) {
     return httpErrorToResponse(err);
   }

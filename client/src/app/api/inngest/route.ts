@@ -14,6 +14,8 @@ import {
   usageAnomalyDetectionFunction,
   paddleReconciliationFunction,
   backfillRoadmapTaskIdsFunction,
+  researchExecuteJobFunction,
+  researchFollowupJobFunction,
 } from '@/inngest/functions';
 
 export const { GET, POST, PUT } = serve({
@@ -31,5 +33,7 @@ export const { GET, POST, PUT } = serve({
     usageAnomalyDetectionFunction,
     paddleReconciliationFunction,
     backfillRoadmapTaskIdsFunction,
+    researchExecuteJobFunction,
+    researchFollowupJobFunction,
   ],
 });

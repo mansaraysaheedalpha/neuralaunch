@@ -13,3 +13,8 @@ export { lifecycleTransitionFunction } from './lifecycle-transition-function';
 export { usageAnomalyDetectionFunction } from './usage-anomaly-detection-function';
 export { paddleReconciliationFunction } from './paddle-reconciliation-function';
 export { backfillRoadmapTaskIdsFunction } from './backfill-roadmap-task-ids-function';
+
+// Tool-job durable executions. See
+// docs/inngest-tools-migration-plan-2026-04-24.md.
+export { researchExecuteJobFunction }     from './tools/research-execute-job';
+export { researchFollowupJobFunction }    from './tools/research-followup-job';

@@ -1,13 +1,24 @@
 // src/app/api/discovery/roadmaps/[id]/research/execute/route.ts
 //
-// Step 2 of the standalone Research Tool: deep research execution.
-// Reads the session from roadmap.toolSessions via sessionId, runs the
-// full Opus research execution, and persists the report back.
+// Step 2 of the standalone Research Tool: kick off deep research.
+//
+// Post-Inngest-migration shape (2026-04-24): this route no longer runs
+// the LLM tool loop synchronously. Instead it validates the request,
+// creates a ToolJob row in 'queued' state, fires a
+// `tool/research-execute.requested` Inngest event, and returns 202
+// with the jobId immediately. The actual work runs in
+// `researchExecuteJobFunction` and writes the report into
+// roadmap.toolSessions on completion. The client polls
+// /tool-jobs/[jobId]/status and renders the step-progress ladder.
+//
+// See docs/inngest-tools-migration-plan-2026-04-24.md for the full
+// migration plan.
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import prisma, { toJsonValue } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { inngest } from '@/inngest/client';
 import {
   HttpError,
   httpErrorToResponse,
@@ -16,17 +27,15 @@ import {
   rateLimitByUser,
   RATE_LIMITS,
 } from '@/lib/validation/server-helpers';
-import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
-import { safeParseResearchLog, appendResearchLog, type ResearchLogEntry } from '@/lib/research';
-import { safeParseResearchSession, runResearchExecution } from '@/lib/roadmap/research-tool';
-import { loadPerTaskAgentContext } from '@/lib/lifecycle';
-import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
+import { safeParseResearchSession } from '@/lib/roadmap/research-tool';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
 import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
+import { createToolJob } from '@/lib/tool-jobs';
 
-// Opus + 25 research steps — can take 3-6 minutes
-export const maxDuration = 300;
+// Accept-and-queue route — under a second of work. The Inngest worker
+// owns the long-running execution and is not bounded by this ceiling.
+export const maxDuration = 30;
 
 const BodySchema = z.object({
   sessionId: z.string().min(1),
@@ -36,9 +45,9 @@ const BodySchema = z.object({
 /**
  * POST /api/discovery/roadmaps/[id]/research/execute
  *
- * Reads the session from roadmap.toolSessions, runs the full research
- * execution with the approved plan, and persists the ResearchReport.
- * Returns { report }.
+ * Kicks off a research execution job. Returns 202 with
+ * { jobId, sessionId } so the client can poll status and render
+ * progress while the Inngest worker does the actual research.
  */
 export async function POST(
   request: Request,
@@ -60,77 +69,53 @@ export async function POST(
     const parsed = BodySchema.safeParse(body);
     if (!parsed.success) throw new HttpError(400, 'Invalid body');
 
+    // Verify the session exists (so we fail fast with a 404 rather than
+    // queuing a job that will fail in stage 1) and pull the query — the
+    // Inngest job needs the original query the founder asked, which
+    // lives on the existing toolSessions entry.
     const roadmap = await prisma.roadmap.findFirst({
       where:  { id: roadmapId, userId },
-      select: {
-        id:           true,
-        toolSessions: true,
-        researchLog:  true,
-        recommendation: {
-          select: {
-            path:    true,
-            summary: true,
-            session: { select: { beliefState: true } },
-          },
-        },
-      },
+      select: { id: true, toolSessions: true },
     });
     if (!roadmap) throw new HttpError(404, 'Not found');
 
     const rawSessions: Array<Record<string, unknown>> = Array.isArray(roadmap.toolSessions)
       ? (roadmap.toolSessions as Array<Record<string, unknown>>)
       : [];
-
     const rawSession = rawSessions.find(s => s['id'] === parsed.data.sessionId);
     if (!rawSession) throw new HttpError(404, 'Session not found');
-
     const existingSession = safeParseResearchSession(rawSession);
     if (!existingSession) throw new HttpError(409, 'Session data is malformed. Re-run the plan stage.');
 
-    const bsRaw = roadmap.recommendation?.session?.beliefState;
-    const bs    = bsRaw ? safeParseDiscoveryContext(bsRaw) : null;
-
-    const { profile } = await loadPerTaskAgentContext(userId);
-    const founderProfileBlock = renderFounderProfileBlock(profile);
-
-    const accumulator: ResearchLogEntry[] = [];
-
-    const report = await runResearchExecution({
-      founderProfileBlock: founderProfileBlock || undefined,
-      query:                 existingSession.query,
-      plan:                  parsed.data.plan,
-      beliefState: {
-        geographicMarket:    bs?.geographicMarket?.value ?? null,
-        primaryGoal:         bs?.primaryGoal?.value ?? null,
-        situation:           bs?.situation?.value ?? null,
-      },
-      recommendationPath:    roadmap.recommendation?.path ?? null,
-      recommendationSummary: roadmap.recommendation?.summary ?? null,
+    const job = await createToolJob({
+      userId,
       roadmapId,
-      researchAccumulator:   accumulator,
+      toolType:  'research_execute',
+      sessionId: parsed.data.sessionId,
     });
 
-    const updatedSession = { ...rawSession, plan: parsed.data.plan, report, updatedAt: new Date().toISOString() };
-    const otherSessions  = rawSessions.filter(s => s['id'] !== parsed.data.sessionId);
-    const nextLog = accumulator.length > 0
-      ? appendResearchLog(safeParseResearchLog(roadmap.researchLog), accumulator)
-      : null;
-
-    await prisma.roadmap.update({
-      where: { id: roadmapId },
-      data:  {
-        toolSessions: toJsonValue([...otherSessions, updatedSession]),
-        ...(nextLog ? { researchLog: toJsonValue(nextLog) } : {}),
+    await inngest.send({
+      name: 'tool/research-execute.requested',
+      data: {
+        jobId:     job.id,
+        userId,
+        roadmapId,
+        sessionId: parsed.data.sessionId,
+        taskId:    null,
+        planText:  parsed.data.plan,
+        query:     existingSession.query,
       },
     });
 
-    log.info('[ResearchStandaloneExecute] Report persisted', {
-      sessionId:     parsed.data.sessionId,
-      findings:      report.findings.length,
-      researchCalls: accumulator.length,
+    log.info('[ResearchStandaloneExecute] Job queued', {
+      jobId:     job.id,
+      sessionId: parsed.data.sessionId,
     });
 
-    return NextResponse.json({ report });
+    return NextResponse.json(
+      { jobId: job.id, sessionId: parsed.data.sessionId },
+      { status: 202 },
+    );
   } catch (err) {
     return httpErrorToResponse(err);
   }
