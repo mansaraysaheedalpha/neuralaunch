@@ -272,7 +272,7 @@ function SynthesisProgress({ error }: { error: boolean }) {
       </Text>
       <Text variant="caption" color={c.mutedForeground} align="center" style={{ marginTop: spacing[1] }}>
         Analysing your context, researching your market, and crafting
-        one honest recommendation. This takes about 30 seconds.
+        one honest recommendation.
       </Text>
     </Card>
   );

@@ -279,7 +279,7 @@ export default function PackagerScreen() {
               {PROGRESS_MESSAGES[progressIdx]}
             </Text>
             <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[2] }}>
-              Elapsed {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')} · This takes about 60–90 seconds.
+              Elapsed {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}
             </Text>
           </View>
         )}
