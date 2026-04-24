@@ -71,18 +71,23 @@ const PackageTierSchema = z.object({
 const PackageRevenueScenarioSchema = z.object({
   /** Label: conservative | moderate | ambitious. */
   label:          z.string().transform(clampString(50)),
-  /** Number of clients at this scenario. */
   /**
-   * Gemini's structured-output validator rejects `minimum` / `maximum`
-   * on integer types outright — same class of provider divergence
-   * CLAUDE.md flags for `.max()` on strings. Leave the type as an
-   * int, put the non-negativity intent in .describe(), and clamp the
-   * parsed value post-parse so a misbehaving model never leaves a
-   * negative count in the database.
+   * Anthropic's structured-output validator rejects EVERY form of
+   * integer-type constraint: `minimum`, `maximum`, and (empirically)
+   * `multipleOf: 1` that Zod v4 emits for `.int()`. Even a bare
+   * `z.number().int()` without bounds can trigger the same
+   * "output_config.format.schema: For 'integer' type, properties ...
+   * not supported" error once combined with tool loops that fight
+   * the validator's shape expectations.
+   *
+   * Remediation: keep the JSON Schema type as `number` (not integer),
+   * put the non-negative integer intent in .describe(), and enforce
+   * the shape in the .transform() post-parse. The TS type stays
+   * `number` which is exactly what downstream code already expects.
    */
-  clients:        z.number().int()
-                    .describe('Number of clients at this scenario — must be a non-negative integer.')
-                    .transform(n => Math.max(n, 0)),
+  clients:        z.number()
+                    .describe('Number of clients at this scenario. Must be a non-negative integer — emit a whole number like 10 or 25, never a decimal.')
+                    .transform(n => Math.max(Math.floor(n), 0)),
   /** Which tier(s) these clients are on, e.g. "2 Basic + 1 Standard". */
   tierMix:        z.string().transform(clampString(200)),
   /** Monthly revenue at this volume. */
