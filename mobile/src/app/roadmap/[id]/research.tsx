@@ -23,6 +23,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import useSWR from 'swr';
 import { Search, Edit3 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { api, ApiError } from '@/services/api-client';
@@ -35,6 +36,24 @@ import {
   type NextStep,
   type ResearchReport,
 } from '@/components/research';
+import { ToolSessionHistoryButton, type ToolSessionRow } from '@/components/tools/ToolSessionHistoryButton';
+
+interface ResearchSessionListRow {
+  id:            string;
+  query:         string;
+  createdAt:     string;
+  updatedAt:     string;
+  hasReport:     boolean;
+  followUpCount: number;
+}
+
+interface ResearchSessionDetail {
+  id:        string;
+  query:     string;
+  plan?:     string;
+  report?:   ResearchReport;
+  followUps?: FollowUpRound[];
+}
 
 type Stage = 'input' | 'planning' | 'plan-review' | 'executing' | 'report';
 
@@ -67,7 +86,52 @@ export default function ResearchToolScreen() {
   const [elapsed, setElapsed] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
   const startedAt = useRef<number | null>(null);
+
+  // Session history — standalone entry only.
+  const sessionsSwr = useSWR<{ sessions: ResearchSessionListRow[] }>(
+    !taskId ? `/api/discovery/roadmaps/${roadmapId}/research/sessions` : null,
+    (url: string) => api<{ sessions: ResearchSessionListRow[] }>(url),
+  );
+  const historyRows: ToolSessionRow[] | null = sessionsSwr.data
+    ? sessionsSwr.data.sessions.map(s => ({
+        id:        s.id,
+        title:     s.query,
+        subtitle:  s.hasReport
+          ? `Report ready${s.followUpCount > 0 ? ` · ${s.followUpCount} follow-up${s.followUpCount === 1 ? '' : 's'}` : ''}`
+          : 'Plan only',
+        updatedAt: s.updatedAt,
+      }))
+    : null;
+
+  async function handleRestoreSession(restoreId: string) {
+    setRestoring(true);
+    setError(null);
+    try {
+      const data = await api<{ session: ResearchSessionDetail }>(
+        `/api/discovery/roadmaps/${roadmapId}/research/sessions/${restoreId}`,
+      );
+      const s = data.session;
+      setQuery(s.query);
+      setPlan(s.plan ?? '');
+      setReport(s.report ?? null);
+      setFollowUps(s.followUps ?? []);
+      // Land on the furthest stage the persisted session reached.
+      const nextStage: Stage = s.report
+        ? 'report'
+        : s.plan
+          ? 'plan-review'
+          : 'input';
+      setStage(nextStage);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not restore that research.');
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setRestoring(false);
+    }
+  }
 
   // Live "what the agent is doing" indicator while executing
   useEffect(() => {
@@ -180,6 +244,14 @@ export default function ResearchToolScreen() {
           headerTintColor: c.foreground,
           headerStyle: { backgroundColor: c.background },
           headerShadowVisible: false,
+          headerRight: () => (
+            <ToolSessionHistoryButton
+              rows={historyRows}
+              title="Recent research"
+              onSelect={(id) => { void handleRestoreSession(id); }}
+              restoring={restoring}
+            />
+          ),
         }}
       />
       <ScreenContainer keyboardAvoid>
