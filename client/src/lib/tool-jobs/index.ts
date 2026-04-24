@@ -1,6 +1,13 @@
 // src/lib/tool-jobs/index.ts
 //
-// Public barrel for the ToolJob durable-execution helpers.
+// Public barrel for ToolJob TYPES + SCHEMAS only. Safe to import from
+// client components.
+//
+// Server-only helpers (`helpers.ts`, `notifications.ts`) intentionally
+// do NOT live in this barrel — re-exporting them here would pull
+// `import 'server-only'` into the client bundle every time a UI
+// component touched a ToolJob type. Server consumers must import
+// directly from `./helpers` and `./notifications`.
 
 export {
   TOOL_JOB_STAGES,
@@ -14,15 +21,3 @@ export {
   type ToolJobType,
   type ToolJobStatus,
 } from './schemas';
-
-export {
-  createToolJob,
-  updateToolJobStage,
-  completeToolJob,
-  failToolJob,
-} from './helpers';
-
-export {
-  notifyToolJobComplete,
-  notifyToolJobFailed,
-} from './notifications';

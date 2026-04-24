@@ -30,9 +30,11 @@ import {
   updateToolJobStage,
   completeToolJob,
   failToolJob,
+} from '@/lib/tool-jobs/helpers';
+import {
   notifyToolJobComplete,
   notifyToolJobFailed,
-} from '@/lib/tool-jobs';
+} from '@/lib/tool-jobs/notifications';
 
 export const researchFollowupJobFunction = inngest.createFunction(
   {

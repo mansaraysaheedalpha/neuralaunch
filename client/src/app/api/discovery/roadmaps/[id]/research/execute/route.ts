@@ -31,7 +31,7 @@ import { safeParseResearchSession } from '@/lib/roadmap/research-tool';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
 import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
-import { createToolJob } from '@/lib/tool-jobs';
+import { createToolJob } from '@/lib/tool-jobs/helpers';
 
 // Accept-and-queue route — under a second of work. The Inngest worker
 // owns the long-running execution and is not bounded by this ceiling.
