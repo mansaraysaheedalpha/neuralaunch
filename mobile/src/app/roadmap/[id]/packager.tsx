@@ -30,6 +30,7 @@ import { View, StyleSheet, ActivityIndicator, Share } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+import useSWR from 'swr';
 import { useTheme } from '@/hooks/useTheme';
 import { api, ApiError } from '@/services/api-client';
 import { Text, ScreenContainer } from '@/components/ui';
@@ -40,6 +41,17 @@ import {
   type ServicePackage,
   type ServiceContext,
 } from '@/components/packager';
+import { ToolSessionHistoryButton, type ToolSessionRow } from '@/components/tools/ToolSessionHistoryButton';
+
+interface PackagerSessionListRow {
+  id:               string;
+  serviceName:      string;
+  targetClient:     string;
+  createdAt:        string;
+  updatedAt:        string;
+  tierCount:        number;
+  adjustmentRounds: number;
+}
 
 type Stage = 'confirm-context' | 'generating' | 'package' | 'adjusting';
 
@@ -71,6 +83,23 @@ export default function PackagerScreen() {
 
   const [error, setError]       = useState<string | null>(null);
   const [busy, setBusy]         = useState(false);
+  const [restoring, setRestoring] = useState(false);
+
+  // Session history — standalone entry only (task-scoped has one session
+  // per task). List endpoint returns the founder's recent packages for
+  // this roadmap so output doesn't vanish on navigation.
+  const sessionsSwr = useSWR<{ sessions: PackagerSessionListRow[] }>(
+    !taskId ? `/api/discovery/roadmaps/${roadmapId}/packager/sessions` : null,
+    (url: string) => api<{ sessions: PackagerSessionListRow[] }>(url),
+  );
+  const historyRows: ToolSessionRow[] | null = sessionsSwr.data
+    ? sessionsSwr.data.sessions.map(s => ({
+        id:        s.id,
+        title:     s.serviceName,
+        subtitle:  `${s.targetClient} · ${s.tierCount} tier${s.tierCount === 1 ? '' : 's'}`,
+        updatedAt: s.updatedAt,
+      }))
+    : null;
 
   // Rotate progress messages during long-running generation
   useEffect(() => {
@@ -93,6 +122,31 @@ export default function PackagerScreen() {
     return taskId
       ? `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/packager/${suffix}`
       : `/api/discovery/roadmaps/${roadmapId}/packager/${suffix}`;
+  }
+
+  async function handleRestoreSession(restoreId: string) {
+    setRestoring(true);
+    setError(null);
+    try {
+      const data = await api<{ package: ServicePackage; context: ServiceContext }>(
+        `/api/discovery/roadmaps/${roadmapId}/packager/sessions/${restoreId}`,
+      );
+      // Re-hydrate the state machine as if generation had just
+      // completed: sessionId is the restored one so refine still works,
+      // adjustments reset to 0 because the endpoint doesn't surface the
+      // count (the server still enforces MAX_ADJUSTMENTS on the
+      // persisted session).
+      setContext(data.context);
+      setPackage(data.package);
+      setSessionId(restoreId);
+      setStage('package');
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not restore that package.');
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setRestoring(false);
+    }
   }
 
   async function initialContextFetch() {
@@ -196,6 +250,14 @@ export default function PackagerScreen() {
           headerTintColor: c.foreground,
           headerStyle: { backgroundColor: c.background },
           headerShadowVisible: false,
+          headerRight: () => (
+            <ToolSessionHistoryButton
+              rows={historyRows}
+              title="Recent packages"
+              onSelect={(id) => { void handleRestoreSession(id); }}
+              restoring={restoring}
+            />
+          ),
         }}
       />
       <ScreenContainer keyboardAvoid>
