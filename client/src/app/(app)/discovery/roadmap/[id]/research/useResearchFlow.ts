@@ -4,10 +4,19 @@
 // Custom hook encapsulating the Research Tool's server interaction
 // logic. Extracted from ResearchFlow.tsx to keep the component
 // under the 200-line cap.
+//
+// Post-Inngest-migration shape (2026-04-24): execute + followup are
+// async — the route returns 202 with a jobId, the hook polls a
+// status endpoint via useToolJob, and on terminal-stage 'complete'
+// fetches the persisted session via the existing single-session GET
+// to load the result. The 'executing' stage and the followUpLoading
+// flag now both correlate with an in-flight ToolJob.
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { ResearchReport, ResearchFinding, ResearchSession } from '@/lib/roadmap/research-tool/schemas';
 import { FOLLOWUP_MAX_ROUNDS } from '@/lib/roadmap/research-tool/constants';
+import { useToolJob } from '@/lib/tool-jobs/use-tool-job';
+import type { ToolJobStatus } from '@/lib/tool-jobs';
 
 type Stage = 'query' | 'planning' | 'plan_review' | 'executing' | 'report';
 
@@ -28,6 +37,13 @@ export interface UseResearchFlowResult {
   followUps:       Array<{ query: string; findings: ResearchFinding[]; round: number }>;
   error:           string | null;
   followUpLoading: boolean;
+  /** In-flight execute job (null when no job is running). Drives the
+   *  ToolJobProgress ladder rendered while stage === 'executing'. */
+  executeJob:      ToolJobStatus | null;
+  /** In-flight follow-up job (null when no job is running). Drives the
+   *  inline ladder shown beneath the existing report while a follow-up
+   *  is still running. */
+  followupJob:     ToolJobStatus | null;
   handleQuerySubmit: (q: string) => Promise<void>;
   handlePlanApprove: (editedPlan: string) => Promise<void>;
   handleFollowUp:    (q: string) => Promise<void>;
@@ -69,11 +85,74 @@ export function useResearchFlow(input: {
   const [followUps,    setFollowUps]    = useState<Array<{ query: string; findings: ResearchFinding[]; round: number }>>([]);
   const [error,        setError]        = useState<string | null>(null);
   const [followUpLoading, setFollowUpLoading] = useState(false);
+  const [executeJobId,  setExecuteJobId]  = useState<string | null>(null);
+  const [followupJobId, setFollowupJobId] = useState<string | null>(null);
 
   const planUrl     = standalone ? `/api/discovery/roadmaps/${roadmapId}/research/plan`     : `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/research/plan`;
   const executeUrl  = standalone ? `/api/discovery/roadmaps/${roadmapId}/research/execute`  : `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/research/execute`;
   const followupUrl = standalone ? `/api/discovery/roadmaps/${roadmapId}/research/followup` : `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/research/followup`;
   const sessionUrl  = (sid: string) => `/api/discovery/roadmaps/${roadmapId}/research/sessions/${sid}`;
+
+  // Polling hooks for the two long-running operations. Both hooks no-op
+  // when their jobId is null (idle state).
+  const { job: executeJob } = useToolJob({ jobId: executeJobId, roadmapId });
+  const { job: followupJob } = useToolJob({ jobId: followupJobId, roadmapId });
+
+  // When the execute job hits 'complete', fetch the session to load
+  // the report into local state and transition the UI to 'report'.
+  // 'failed' surfaces the error and bounces back to plan_review.
+  useEffect(() => {
+    if (!executeJob || !sessionId) return;
+    if (executeJob.stage === 'complete') {
+      void (async () => {
+        try {
+          const res = await fetch(sessionUrl(sessionId));
+          if (res.ok) {
+            const json = await res.json() as { session: ResearchSession };
+            if (json.session.report) {
+              setReport(json.session.report);
+              setFollowUps(json.session.followUps ?? []);
+              setStage('report');
+            }
+          }
+        } catch { /* swallow — UI stays on executing, founder can refresh */ }
+        setExecuteJobId(null);
+        onToolCallComplete?.();
+      })();
+    } else if (executeJob.stage === 'failed') {
+      setError(executeJob.errorMessage ?? 'Research execution failed.');
+      setStage('plan_review');
+      setExecuteJobId(null);
+      onToolCallComplete?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [executeJob?.stage, sessionId]);
+
+  // Same shape for follow-up: refresh the whole session on complete so
+  // the followUps array reflects the new round.
+  useEffect(() => {
+    if (!followupJob || !sessionId) return;
+    if (followupJob.stage === 'complete') {
+      void (async () => {
+        try {
+          const res = await fetch(sessionUrl(sessionId));
+          if (res.ok) {
+            const json = await res.json() as { session: ResearchSession };
+            setFollowUps(json.session.followUps ?? []);
+          }
+        } catch { /* swallow */ }
+        setFollowupJobId(null);
+        setFollowUpLoading(false);
+        onToolCallComplete?.();
+      })();
+    } else if (followupJob.stage === 'failed') {
+      setError(followupJob.errorMessage ?? 'Follow-up failed.');
+      setFollowupJobId(null);
+      setFollowUpLoading(false);
+      onToolCallComplete?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [followupJob?.stage, sessionId]);
 
   const handleQuerySubmit = useCallback(async (submittedQuery: string) => {
     setQuery(submittedQuery);
@@ -116,17 +195,24 @@ export function useResearchFlow(input: {
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({})) as { error?: string };
-        setError(json.error ?? 'Research execution failed.');
+        setError(json.error ?? 'Could not queue research execution.');
         setStage('plan_review');
+        onToolCallComplete?.();
         return;
       }
-      const json = await res.json() as { report: ResearchReport };
-      setReport(json.report);
-      setStage('report');
+      // 202 — queued. The Inngest worker takes over from here. The
+      // useToolJob effect above flips us to 'report' on completion
+      // (or back to plan_review with an error message on failure).
+      const json = await res.json() as { jobId: string; sessionId: string };
+      setSessionId(json.sessionId);
+      setExecuteJobId(json.jobId);
+      // Note: do NOT call onToolCallComplete here — the meter bumps on
+      // job completion via the effect above so the UsageMeter reflects
+      // actual quota consumption (the route enforced quota on accept,
+      // but the UX matches the perceived "work happened" moment).
     } catch {
       setError('Network error — please try again.');
       setStage('plan_review');
-    } finally {
       onToolCallComplete?.();
     }
   }, [executeUrl, standalone, sessionId, onToolCallComplete]);
@@ -145,14 +231,18 @@ export function useResearchFlow(input: {
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({})) as { error?: string };
-        setError(json.error ?? 'Follow-up failed.');
+        setError(json.error ?? 'Could not queue follow-up.');
+        setFollowUpLoading(false);
+        onToolCallComplete?.();
         return;
       }
-      const json = await res.json() as { findings: ResearchFinding[] };
-      setFollowUps(prev => [...prev, { query: followQuery, findings: json.findings, round: prev.length + 1 }]);
+      // 202 — queued. The useToolJob effect above takes over from
+      // here, refreshing followUps when the job completes.
+      const json = await res.json() as { jobId: string; sessionId: string };
+      if (!sessionId) setSessionId(json.sessionId);
+      setFollowupJobId(json.jobId);
     } catch {
       setError('Network error — please try again.');
-    } finally {
       setFollowUpLoading(false);
       onToolCallComplete?.();
     }
@@ -198,6 +288,7 @@ export function useResearchFlow(input: {
   return {
     stage, query, plan, estimatedTime, report, sessionId, followUps,
     error, followUpLoading,
+    executeJob, followupJob,
     handleQuerySubmit, handlePlanApprove, handleFollowUp,
     handleLoadSession, resetToQuery,
   };

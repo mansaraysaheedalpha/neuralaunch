@@ -25,6 +25,7 @@ model User {
   recommendations   Recommendation[]
   roadmaps          Roadmap[]
   validationPages   ValidationPage[]
+  toolJobs          ToolJob[]
 
   // ----- Concern 5: outcome capture + training-data consent -----
   //
@@ -70,8 +71,8 @@ model User {
   // is the master toggle from the mobile Settings screen — when false
   // we still keep the tokens (so re-enabling is instant) but skip
   // sending.
-  pushTokens        PushToken[]
-  nudgesEnabled     Boolean                 @default(true)
+  pushTokens    PushToken[]
+  nudgesEnabled Boolean     @default(true)
 
   // ----- Lifecycle memory architecture -----
   //
@@ -87,8 +88,8 @@ model User {
   // Interview → Recommendation → Roadmap → Execute → Continuation
   // loop). A founder can have multiple ventures in parallel; tier
   // constraints gate active count (Execute: 1, Compound: 3).
-  founderProfile   FounderProfile?
-  ventures         Venture[]
+  founderProfile FounderProfile?
+  ventures       Venture[]
 
   // ----- Billing (Paddle) -----
   //
@@ -103,7 +104,7 @@ model User {
   // when it is newer than the session snapshot, re-fetches the tier
   // from Postgres so a webhook-driven upgrade propagates to the user's
   // next navigation without waiting for re-authentication.
-  paddleCustomerId String?       @unique
+  paddleCustomerId String?          @unique
   subscription     Subscription?
   tierUpdatedAt    DateTime?
   tierTransitions  TierTransition[]
@@ -138,19 +139,16 @@ model User {
 
 /**
  * Subscription
- *
  * Mirrors the Paddle subscription entity for the user. One row per user
  * when the user has ever checked out. Created/updated by the webhook
  * processor at lib/paddle/webhook-processor.ts on subscription.* and
  * transaction.* events. Never written by the client — Paddle is the
  * source of truth, webhooks reconcile to Postgres.
- *
  * `tier` is the derived product tier (free/execute/compound) used for
  * feature gating. `priceId` is the specific Paddle Price, which
  * distinguishes founding-member rows from standard rows on the same
  * product. `isFoundingMember` is denormalised from priceId at write
  * time for fast aggregation in the founding-slot counter.
- *
  * IMPORTANT: when implementing any User-deletion flow, call
  * `cancelPaddleSubscriptionsForUser()` from
  * `lib/paddle/account-deletion.ts` BEFORE the User row is deleted.
@@ -159,30 +157,30 @@ model User {
  * promises Paddle-side deletion happens; the helper makes it true.
  */
 model Subscription {
-  id                   String   @id @default(cuid())
-  userId               String   @unique
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  paddleSubscriptionId String   @unique
+  paddleSubscriptionId String @unique
   paddleCustomerId     String
 
   /// 'active' | 'past_due' | 'paused' | 'canceled'
-  status               String
+  status String
   /// 'free' | 'execute' | 'compound' — derived from priceId via tiers.ts
-  tier                 String   @default("free")
+  tier   String @default("free")
 
   /// Paddle Price entity id — null for legacy free-tier backfill rows.
-  priceId              String?
+  priceId         String?
   /// 'month' | 'year' — mirrored from Paddle's billing_cycle.interval.
-  billingInterval      String?
+  billingInterval String?
 
-  cancelAtPeriodEnd    Boolean  @default(false)
-  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd Boolean  @default(false)
+  currentPeriodEnd  DateTime
 
-  isFoundingMember     Boolean  @default(false)
+  isFoundingMember Boolean @default(false)
 
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([isFoundingMember])
   @@index([status])
@@ -190,27 +188,25 @@ model Subscription {
 
 /**
  * TierTransition
- *
  * Append-only audit log of every billing-tier change. Written by the
  * Paddle webhook processor whenever a tier mutation actually occurs
  * (not on every event — only on transitions). Required for chargeback
  * dispute evidence (Paddle expects to see when access was granted /
  * revoked) and useful for any future cohort or churn analysis.
- *
  * Never updated, never deleted — appends only. Cascade-deleted when
  * the User is deleted (post-Paddle-cancellation flow), since the audit
  * is per-user and a deleted user has no disputes left to defend.
  */
 model TierTransition {
-  id              String   @id @default(cuid())
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   /// Tier value before this transition. Null on the very first row
   /// for a user (no prior tier known when the first webhook lands).
-  fromTier        String?
+  fromTier String?
   /// Tier value after this transition.
-  toTier          String
+  toTier   String
 
   /// Paddle event that drove the change — e.g. 'subscription.updated',
   /// 'transaction.payment_failed', 'adjustment.updated'. Null only for
@@ -219,19 +215,19 @@ model TierTransition {
   /// Paddle event id for forensic correlation against the Paddle dashboard.
   paddleEventId   String?
 
-  occurredAt      DateTime @default(now())
+  occurredAt DateTime @default(now())
 
   @@index([userId, occurredAt])
 }
 
 model PushToken {
-  id           String   @id @default(cuid())
-  userId       String
-  token        String   @unique
-  platform     String   // 'ios' | 'android' | 'web'
-  createdAt    DateTime @default(now())
-  lastUsedAt   DateTime @default(now())
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  userId     String
+  token      String   @unique
+  platform   String // 'ios' | 'android' | 'web'
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -385,7 +381,6 @@ model DiscoverySession {
    * name, a regulation, a market claim, a tool reference). Read by
    * the admin debug surface and used as training data for refining
    * the trigger detector and the per-agent query builders.
-   *
    * Shape validated by ResearchLogArraySchema in
    * src/lib/research/types.ts. Capped at MAX_RESEARCH_LOG_ENTRIES
    * by the appendResearchLog helper to bound JSONB size.
@@ -624,14 +619,12 @@ model Roadmap {
    * Parking lot — adjacent ideas the founder mentioned during execution
    * that did not belong on the active roadmap. Surfaced in section 5 of
    * the continuation brief at "What's Next?" time.
-   *
    * Populated from two sources:
-   *   1. The check-in agent, which can attach a parkingLotItem to its
-   *      structured response when it detects an adjacent opportunity
-   *      in the founder's free-text update. Auto-capture.
-   *   2. The manual "Park this idea" route, which the founder hits
-   *      explicitly from the roadmap UI.
-   *
+   * 1. The check-in agent, which can attach a parkingLotItem to its
+   * structured response when it detects an adjacent opportunity
+   * in the founder's free-text update. Auto-capture.
+   * 2. The manual "Park this idea" route, which the founder hits
+   * explicitly from the roadmap UI.
    * Shape validated by ParkingLotArraySchema in
    * src/lib/continuation/parking-lot-schema.ts. Capped at
    * PARKING_LOT_MAX_ITEMS to bound JSONB size.
@@ -644,7 +637,6 @@ model Roadmap {
    * conversation (≤ DIAGNOSTIC_HARD_CAP_TURNS rounds) to identify the
    * blocker before deciding whether to release the founder to the
    * continuation brief or to a re-anchored task adjustment.
-   *
    * Append-only array of turns; the runtime shape is enforced via the
    * Zod schemas in src/lib/continuation/diagnostic-schema.ts (Phase 3).
    * Empty when no diagnostic has been run for this roadmap.
@@ -656,7 +648,6 @@ model Roadmap {
    * by the continuation engine when "What's Next?" is invoked on a
    * sufficiently-progressed roadmap (Scenario C or D). Generated by
    * Opus, validated against ContinuationBriefSchema before write.
-   *
    * NULL until the founder triggers continuation; populated once and
    * read by the continuation reveal page. Regeneration is allowed and
    * overwrites the prior brief — there is no version history at this
@@ -670,7 +661,6 @@ model Roadmap {
    * availability, ratio of estimated-vs-actual durations per task,
    * blocked-task counts, etc. The next-cycle roadmap engine reads
    * this to honestly recalibrate timelines on the next pass.
-   *
    * Computed fresh by the continuation engine from RoadmapProgress +
    * checkInHistory; stored on the Roadmap row so the next-cycle
    * generator does not have to re-derive it.
@@ -684,7 +674,6 @@ model Roadmap {
    * Agent (when the brief generator runs unconditional research
    * before producing forks). Same shape as DiscoverySession.researchLog
    * and Recommendation.researchLog — one safeParse helper covers all.
-   *
    * Capped at MAX_RESEARCH_LOG_ENTRIES by the appendResearchLog
    * helper to bound JSONB size on long-running multi-cycle roadmaps.
    */
@@ -694,11 +683,11 @@ model Roadmap {
    * Continuation lifecycle status. NULL when "What's Next?" has never
    * been invoked. Allowed values declared in
    * src/lib/continuation/constants.ts (CONTINUATION_STATUSES):
-   *   'CHECKING'         — checkpoint POST in flight
-   *   'DIAGNOSING'       — Scenario A or B chat in progress
-   *   'GENERATING_BRIEF' — Inngest function generating the brief
-   *   'BRIEF_READY'      — brief persisted, awaiting fork pick
-   *   'FORK_SELECTED'    — founder picked a fork; next-cycle roadmap is generating
+   * 'CHECKING'         — checkpoint POST in flight
+   * 'DIAGNOSING'       — Scenario A or B chat in progress
+   * 'GENERATING_BRIEF' — Inngest function generating the brief
+   * 'BRIEF_READY'      — brief persisted, awaiting fork pick
+   * 'FORK_SELECTED'    — founder picked a fork; next-cycle roadmap is generating
    */
   continuationStatus String?
 
@@ -708,7 +697,6 @@ model Roadmap {
    * here. The cycle is open-ended — a roadmap can have arbitrarily
    * many descendants over time, and walking the chain backward gives
    * the full execution history of one founder's strategic journey.
-   *
    * ON DELETE SET NULL because deleting an old roadmap must not
    * cascade-delete the new one — the new roadmap carries its own
    * execution evidence and that evidence outlives the parent.
@@ -726,7 +714,6 @@ model Roadmap {
    * failure) reads this column, looks up the existing Recommendation,
    * re-fires the event, and returns the existing id rather than
    * creating a duplicate.
-   *
    * @unique because exactly one fork can be picked per parent
    * roadmap (the picked-fork state is terminal), so the column
    * doubles as a row-level guard against double-creates.
@@ -833,7 +820,6 @@ model RoadmapProgress {
    * the phases — which could name a different task than the one the
    * cron actually flagged. Persisting the exact title here means the
    * banner reads ground truth.
-   *
    * Cleared by the check-in route alongside nudgePending whenever the
    * founder submits any check-in. Falls back to null on legacy rows
    * flagged before this column was added; the banner handles null by
@@ -969,9 +955,9 @@ enum ValidationStatus {
  * One-to-one with Recommendation. Served at /lp/[slug].
  */
 model ValidationPage {
-  id               String         @id @default(cuid())
-  userId           String
-  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   /// Optional recommendation binding — set for pages created via
   /// the legacy recommendation-page CTA OR the standalone /tools
@@ -1026,7 +1012,6 @@ model ValidationPage {
   /// One validation page per (roadmap, task) tuple. Same NULL
   /// semantics — truly-standalone pages (both null) are unrestricted.
   @@unique([roadmapId, taskId])
-
   @@index([userId])
   @@index([slug])
   @@index([status])
@@ -1145,12 +1130,10 @@ model ValidationEvent {
 
 /**
  * FounderProfile
- *
  * One row per user. The system's current understanding of who the
  * founder is. Updated at every cycle boundary by the Lifecycle
  * Transition Engine (Inngest). Always loaded into every agent call —
  * this is the L1 memory layer.
- *
  * The profile JSON column stores a FounderProfileSchema-validated
  * document with four sections: stableContext, currentSituation,
  * behaviouralCalibration, journeyOverview. Size-bounded; never grows
@@ -1175,12 +1158,10 @@ model FounderProfile {
 
 /**
  * Venture
- *
  * A distinct business direction the founder is pursuing. Contains a
  * sequence of Cycles. A founder can have multiple ventures; the
  * tier gate limits how many can be `active` simultaneously (Execute:
  * 1, Compound: 3).
- *
  * Name is auto-generated from the first recommendation in the
  * venture's first cycle; the founder can rename from Sessions tab.
  */
@@ -1223,12 +1204,10 @@ model Venture {
 
 /**
  * Cycle
- *
  * One execution loop within a Venture. Sequential — cycleNumber 1,
  * 2, 3… The cycle links the existing Recommendation and Roadmap
  * models. On completion the Lifecycle Transition Engine writes a
  * compressed CycleSummary into the `summary` field (L2 memory).
- *
  * A cycle ends with the founder picking a fork from the continuation
  * brief; the fork selection is recorded here so the next cycle's
  * interview agent can reference it.
@@ -1246,7 +1225,7 @@ model Cycle {
   recommendation Recommendation?
   /// Denormalised roadmapId for query convenience (also findable via
   /// recommendation → roadmap). Nullable until the roadmap is generated.
-  roadmapId String?
+  roadmapId      String?
 
   /// CycleSummarySchema-validated JSON. See lib/lifecycle/schemas.ts.
   /// Populated by the Lifecycle Transition Engine after the
@@ -1264,4 +1243,61 @@ model Cycle {
 
   @@index([ventureId])
   @@index([ventureId, cycleNumber])
+}
+
+// ---------------------------------------------------------------------------
+// ToolJob — durable execution row for long-running LLM tool calls.
+//
+// Every long-running tool route (Research execute / followup, Composer
+// generate / regenerate, Coach prepare / debrief, Packager generate /
+// adjust) creates a ToolJob row when the founder clicks "go," fires an
+// Inngest event, and returns 202 immediately. The Inngest function
+// updates `stage` as it progresses through its pipeline; the client
+// polls a status endpoint and renders a step-progress ladder. On
+// completion the function fires a push notification and writes the
+// result into roadmap.toolSessions.
+//
+// See docs/inngest-tools-migration-plan-2026-04-24.md for the full
+// migration plan and stage definitions.
+// ---------------------------------------------------------------------------
+
+model ToolJob {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The roadmap whose toolSessions this job will write into.
+  roadmapId String
+
+  /// Discriminator. One of: 'research_execute' | 'research_followup' |
+  /// 'composer_generate' | 'composer_regenerate' | 'coach_prepare' |
+  /// 'coach_debrief' | 'packager_generate' | 'packager_adjust'.
+  toolType String
+
+  /// The roadmap.toolSessions entry id this job is building.
+  /// Pre-allocated by the route so the client knows where the result
+  /// will land before the worker has finished.
+  sessionId String
+
+  /// Set when the job was launched from a task card (vs standalone
+  /// /tools/* page). Null for standalone jobs.
+  taskId String?
+
+  /// Pipeline stage. Written by the Inngest function before each
+  /// step.run. Terminal states are 'complete' and 'failed'.
+  /// 'queued' | 'context_loaded' | 'researching' | 'emitting' |
+  /// 'persisting' | 'complete' | 'failed'.
+  stage String @default("queued")
+
+  /// Populated when stage transitions to 'failed'. Surfaces in the
+  /// progress UI so the founder sees what went wrong.
+  errorMessage String?
+
+  startedAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  @@index([userId, stage])
+  @@index([roadmapId])
+  @@index([sessionId])
 }

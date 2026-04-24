@@ -144,6 +144,50 @@ export type NeuraLaunchEvents = {
       userId:    string;
     };
   };
+
+  /**
+   * Fired when a founder kicks off a standalone or task-launched
+   * research execution. The route returns 202 immediately; this
+   * event drives the Inngest worker that runs the Opus tool loop +
+   * Sonnet structured emission, persists the report into
+   * roadmap.toolSessions, and fires a push notification on
+   * completion.
+   *
+   * Consumer: `researchExecuteJobFunction` in
+   * `src/inngest/functions/tools/research-execute-job.ts`
+   */
+  'tool/research-execute.requested': {
+    data: {
+      jobId:        string;
+      userId:       string;
+      roadmapId:    string;
+      sessionId:    string;
+      taskId:       string | null;
+      planText:     string;
+      query:        string;
+    };
+  };
+
+  /**
+   * Fired when a founder asks a follow-up question on an existing
+   * research report. Same pattern as research-execute — the route
+   * returns 202 immediately, the Inngest worker runs the targeted
+   * Sonnet tool loop, appends new findings to the session, and
+   * pushes on completion.
+   *
+   * Consumer: `researchFollowupJobFunction` in
+   * `src/inngest/functions/tools/research-followup-job.ts`
+   */
+  'tool/research-followup.requested': {
+    data: {
+      jobId:     string;
+      userId:    string;
+      roadmapId: string;
+      sessionId: string;
+      taskId:    string | null;
+      query:     string;
+    };
+  };
 };
 
 /**

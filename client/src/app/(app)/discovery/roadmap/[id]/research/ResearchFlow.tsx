@@ -14,6 +14,7 @@ import { ResearchReportView }        from './ResearchReportView';
 import { ResearchFollowUpInput }     from './ResearchFollowUpInput';
 import { ResearchFindingCard }       from './ResearchFindingCard';
 import { useResearchFlow, type UseResearchFlowResult } from './useResearchFlow';
+import { ToolJobProgress }           from '@/components/tool-jobs/ToolJobProgress';
 
 export interface ResearchFlowProps {
   roadmapId:  string;
@@ -95,7 +96,11 @@ export function ResearchFlow({
             )}
 
             {flow.stage === 'executing' && (
-              <ResearchProgressIndicator active />
+              <ToolJobProgress
+                title="Running your research"
+                stage={flow.executeJob?.stage ?? 'queued'}
+                errorMessage={flow.executeJob?.errorMessage}
+              />
             )}
 
             {flow.stage === 'report' && flow.report && (
@@ -117,7 +122,13 @@ export function ResearchFlow({
                   </div>
                 ))}
 
-                {flow.followUpLoading && <ResearchProgressIndicator active />}
+                {flow.followUpLoading && (
+                  <ToolJobProgress
+                    title="Running your follow-up"
+                    stage={flow.followupJob?.stage ?? 'queued'}
+                    errorMessage={flow.followupJob?.errorMessage}
+                  />
+                )}
 
                 <ResearchFollowUpInput
                   round={flow.followUps.length}
