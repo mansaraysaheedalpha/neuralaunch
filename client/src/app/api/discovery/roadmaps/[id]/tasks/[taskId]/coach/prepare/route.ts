@@ -10,7 +10,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
-import { inngest } from '@/inngest/client';
+import { sendToolJobEvent } from '@/lib/tool-jobs/queue';
 import {
   HttpError,
   httpErrorToResponse,
@@ -89,7 +89,7 @@ export async function POST(
       taskId,
     });
 
-    await inngest.send({
+    await sendToolJobEvent(job.id, {
       name: 'tool/coach-prepare.requested',
       data: {
         jobId:     job.id,

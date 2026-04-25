@@ -19,24 +19,16 @@
 // progress bar.
 
 import { inngest } from '../../client';
-import prisma, { toJsonValue } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
-import {
-  safeParseResearchLog,
-  appendResearchLog,
-  type ResearchLogEntry,
-} from '@/lib/research';
-import {
-  safeParseResearchSession,
-  runResearchExecution,
-} from '@/lib/roadmap/research-tool';
+import { type ResearchLogEntry } from '@/lib/research';
+import { runResearchExecution } from '@/lib/roadmap/research-tool';
 import { loadPerTaskAgentContext } from '@/lib/lifecycle';
 import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
 import {
   StoredPhasesArraySchema,
   readTask,
-  patchTask,
 } from '@/lib/roadmap/checkin-types';
 import {
   updateToolJobStage,
@@ -47,6 +39,7 @@ import {
   notifyToolJobComplete,
   notifyToolJobFailed,
 } from '@/lib/tool-jobs/notifications';
+import { persistToolJobResult } from '@/lib/tool-jobs/persistence';
 
 export const researchExecuteJobFunction = inngest.createFunction(
   {
@@ -158,93 +151,28 @@ export const researchExecuteJobFunction = inngest.createFunction(
       });
 
       // -------------------------------------------------------------------
-      // Stage 3 — persist into roadmap.toolSessions (standalone) OR
-      // into the matching task.researchSession (task-launched). The
-      // single Inngest function handles both shapes so we don't need
-      // two separate workers.
+      // Stage 3 — persist via the shared helper. Routes both
+      // standalone (toolSessions[]) and task-launched (task.researchSession)
+      // shapes through one entry point. See lib/tool-jobs/persistence.ts.
       // -------------------------------------------------------------------
       await step.run('persisting', async () => {
         await updateToolJobStage(jobId, 'persisting');
 
         const updatedAt = new Date().toISOString();
-
-        if (taskId) {
-          // Task-launched: read fresh phases, patch the matching task.
-          const fresh = await prisma.roadmap.findFirst({
-            where:  { id: roadmapId, userId },
-            select: { phases: true, researchLog: true },
-          });
-          if (!fresh) throw new Error('Roadmap disappeared mid-execution');
-          const phasesParsed = StoredPhasesArraySchema.safeParse(fresh.phases);
-          if (!phasesParsed.success) throw new Error('Phases failed schema parse');
-          const found = readTask(phasesParsed.data, taskId);
-          if (!found) throw new Error('Task not found mid-execution');
-
-          const existingResearchSession = (found.task.researchSession ?? {}) as Record<string, unknown>;
-          const updatedResearchSession = {
-            ...existingResearchSession,
-            id: sessionId,
-            tool: 'research',
+        await persistToolJobResult({
+          roadmapId, userId, sessionId, taskId,
+          taskField: 'researchSession',
+          buildSession: (existing) => ({
+            ...(existing ?? {}),
+            id:    sessionId,
+            tool:  'research',
             query,
-            plan: planText,
+            plan:  planText,
             report,
             updatedAt,
-          };
-          const next = patchTask(phasesParsed.data, taskId, t => ({
-            ...t,
-            researchSession: updatedResearchSession,
-          }));
-          if (!next) throw new Error('patchTask returned null mid-execution');
-
-          const nextLog = accumulatorEntries.length > 0
-            ? appendResearchLog(safeParseResearchLog(fresh.researchLog), accumulatorEntries)
-            : null;
-
-          await prisma.roadmap.update({
-            where: { id: roadmapId },
-            data:  {
-              phases: toJsonValue(next),
-              ...(nextLog ? { researchLog: toJsonValue(nextLog) } : {}),
-            },
-          });
-        } else {
-          // Standalone: read fresh sessions, replace the matching one.
-          const fresh = await prisma.roadmap.findFirst({
-            where:  { id: roadmapId, userId },
-            select: { toolSessions: true, researchLog: true },
-          });
-          if (!fresh) throw new Error('Roadmap disappeared mid-execution');
-          const rawSessions: Array<Record<string, unknown>> = Array.isArray(fresh.toolSessions)
-            ? (fresh.toolSessions as Array<Record<string, unknown>>)
-            : [];
-          const existingSession = rawSessions.find(s => s['id'] === sessionId);
-          if (!existingSession) {
-            throw new Error('Session disappeared from toolSessions mid-execution');
-          }
-          const parsedExisting = safeParseResearchSession(existingSession);
-          if (!parsedExisting) {
-            throw new Error('Session shape no longer parses — concurrent edit?');
-          }
-
-          const updatedSession = {
-            ...existingSession,
-            plan: planText,
-            report,
-            updatedAt,
-          };
-          const otherSessions = rawSessions.filter(s => s['id'] !== sessionId);
-          const nextLog = accumulatorEntries.length > 0
-            ? appendResearchLog(safeParseResearchLog(fresh.researchLog), accumulatorEntries)
-            : null;
-
-          await prisma.roadmap.update({
-            where: { id: roadmapId },
-            data:  {
-              toolSessions: toJsonValue([...otherSessions, updatedSession]),
-              ...(nextLog ? { researchLog: toJsonValue(nextLog) } : {}),
-            },
-          });
-        }
+          }),
+          researchAccumulator: accumulatorEntries,
+        });
       });
 
       // -------------------------------------------------------------------

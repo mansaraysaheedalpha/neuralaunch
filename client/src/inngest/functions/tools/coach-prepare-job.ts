@@ -13,14 +13,10 @@
 //   5. notify-and-complete
 
 import { inngest } from '../../client';
-import prisma, { toJsonValue } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
-import {
-  safeParseResearchLog,
-  appendResearchLog,
-  type ResearchLogEntry,
-} from '@/lib/research';
+import { type ResearchLogEntry } from '@/lib/research';
 import {
   ConversationSetupSchema,
   safeParseToolSessions,
@@ -31,7 +27,6 @@ import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
 import {
   StoredPhasesArraySchema,
   readTask,
-  patchTask,
 } from '@/lib/roadmap/checkin-types';
 import {
   updateToolJobStage,
@@ -42,6 +37,7 @@ import {
   notifyToolJobComplete,
   notifyToolJobFailed,
 } from '@/lib/tool-jobs/notifications';
+import { persistToolJobResult } from '@/lib/tool-jobs/persistence';
 
 export const coachPrepareJobFunction = inngest.createFunction(
   {
@@ -158,68 +154,16 @@ export const coachPrepareJobFunction = inngest.createFunction(
         await updateToolJobStage(jobId, 'persisting');
 
         const updatedAt = new Date().toISOString();
-
-        if (taskId) {
-          const fresh = await prisma.roadmap.findFirst({
-            where:  { id: roadmapId, userId },
-            select: { phases: true, researchLog: true },
-          });
-          if (!fresh) throw new Error('Roadmap disappeared mid-execution');
-          const phasesParsed = StoredPhasesArraySchema.safeParse(fresh.phases);
-          if (!phasesParsed.success) throw new Error('Phases failed schema parse');
-          const found = readTask(phasesParsed.data, taskId);
-          if (!found) throw new Error('Task not found mid-execution');
-
-          const existing = (found.task.coachSession ?? {}) as Record<string, unknown>;
-          const updatedSession = {
-            ...existing,
+        await persistToolJobResult({
+          roadmapId, userId, sessionId, taskId,
+          taskField: 'coachSession',
+          buildSession: (existing) => ({
+            ...(existing ?? {}),
             preparation,
             updatedAt,
-          };
-          const next = patchTask(phasesParsed.data, taskId, t => ({
-            ...t,
-            coachSession: updatedSession,
-          }));
-          if (!next) throw new Error('patchTask returned null mid-execution');
-
-          const nextLog = accumulatorEntries.length > 0
-            ? appendResearchLog(safeParseResearchLog(fresh.researchLog), accumulatorEntries)
-            : null;
-
-          await prisma.roadmap.update({
-            where: { id: roadmapId },
-            data:  {
-              phases: toJsonValue(next),
-              ...(nextLog ? { researchLog: toJsonValue(nextLog) } : {}),
-            },
-          });
-        } else {
-          const fresh = await prisma.roadmap.findFirst({
-            where:  { id: roadmapId, userId },
-            select: { toolSessions: true, researchLog: true },
-          });
-          if (!fresh) throw new Error('Roadmap disappeared mid-execution');
-          const sessions = safeParseToolSessions(fresh.toolSessions);
-          const session  = sessions.find(s => s.id === sessionId);
-          if (!session) throw new Error('Coach session disappeared mid-execution');
-
-          const updatedSession = { ...session, preparation, updatedAt };
-          const nextSessions = sessions.map(s =>
-            s.id === sessionId ? updatedSession : s,
-          );
-
-          const nextLog = accumulatorEntries.length > 0
-            ? appendResearchLog(safeParseResearchLog(fresh.researchLog), accumulatorEntries)
-            : null;
-
-          await prisma.roadmap.update({
-            where: { id: roadmapId },
-            data:  {
-              toolSessions: toJsonValue(nextSessions),
-              ...(nextLog ? { researchLog: toJsonValue(nextLog) } : {}),
-            },
-          });
-        }
+          }),
+          researchAccumulator: accumulatorEntries,
+        });
       });
 
       await step.run('notify-and-complete', async () => {

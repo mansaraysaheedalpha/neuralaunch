@@ -12,7 +12,7 @@
 //   4. notify-and-complete
 
 import { inngest } from '../../client';
-import prisma, { toJsonValue } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import {
@@ -23,7 +23,6 @@ import {
 import {
   StoredPhasesArraySchema,
   readTask,
-  patchTask,
 } from '@/lib/roadmap/checkin-types';
 import {
   updateToolJobStage,
@@ -34,6 +33,7 @@ import {
   notifyToolJobComplete,
   notifyToolJobFailed,
 } from '@/lib/tool-jobs/notifications';
+import { persistToolJobResult } from '@/lib/tool-jobs/persistence';
 
 export const packagerAdjustJobFunction = inngest.createFunction(
   {
@@ -143,59 +143,16 @@ export const packagerAdjustJobFunction = inngest.createFunction(
           { request: adjustmentRequest, round: ctx.round },
         ];
 
-        if (taskId) {
-          const fresh = await prisma.roadmap.findFirst({
-            where:  { id: roadmapId, userId },
-            select: { phases: true },
-          });
-          if (!fresh) throw new Error('Roadmap disappeared mid-execution');
-          const phasesParsed = StoredPhasesArraySchema.safeParse(fresh.phases);
-          if (!phasesParsed.success) throw new Error('Phases failed schema parse');
-          const found = readTask(phasesParsed.data, taskId);
-          if (!found) throw new Error('Task not found mid-execution');
-
-          const existing = (found.task.packagerSession ?? {}) as Record<string, unknown>;
-          const updatedSession = {
-            ...existing,
+        await persistToolJobResult({
+          roadmapId, userId, sessionId, taskId,
+          taskField: 'packagerSession',
+          buildSession: (existing) => ({
+            ...(existing ?? {}),
             package: updatedPackage,
             adjustments,
             updatedAt,
-          };
-          const next = patchTask(phasesParsed.data, taskId, t => ({
-            ...t,
-            packagerSession: updatedSession,
-          }));
-          if (!next) throw new Error('patchTask returned null mid-execution');
-
-          await prisma.roadmap.update({
-            where: { id: roadmapId },
-            data:  { phases: toJsonValue(next) },
-          });
-        } else {
-          const fresh = await prisma.roadmap.findFirst({
-            where:  { id: roadmapId, userId },
-            select: { toolSessions: true },
-          });
-          if (!fresh) throw new Error('Roadmap disappeared mid-execution');
-          const rawSessions: Array<Record<string, unknown>> = Array.isArray(fresh.toolSessions)
-            ? (fresh.toolSessions as Array<Record<string, unknown>>)
-            : [];
-          const existing = rawSessions.find(s => s['id'] === sessionId);
-          if (!existing) throw new Error('Session disappeared mid-execution');
-
-          const updatedSession = {
-            ...existing,
-            package: updatedPackage,
-            adjustments,
-            updatedAt,
-          };
-          const others = rawSessions.filter(s => s['id'] !== sessionId);
-
-          await prisma.roadmap.update({
-            where: { id: roadmapId },
-            data:  { toolSessions: toJsonValue([...others, updatedSession]) },
-          });
-        }
+          }),
+        });
       });
 
       // ---------------------------------------------------------------

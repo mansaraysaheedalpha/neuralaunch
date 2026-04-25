@@ -8,14 +8,10 @@
 // production too.
 
 import { inngest } from '../../client';
-import prisma, { toJsonValue } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
-import {
-  safeParseResearchLog,
-  appendResearchLog,
-  type ResearchLogEntry,
-} from '@/lib/research';
+import { type ResearchLogEntry } from '@/lib/research';
 import {
   FOLLOWUP_MAX_ROUNDS,
   safeParseResearchSession,
@@ -24,7 +20,6 @@ import {
 import {
   StoredPhasesArraySchema,
   readTask,
-  patchTask,
 } from '@/lib/roadmap/checkin-types';
 import {
   updateToolJobStage,
@@ -35,6 +30,7 @@ import {
   notifyToolJobComplete,
   notifyToolJobFailed,
 } from '@/lib/tool-jobs/notifications';
+import { persistToolJobResult } from '@/lib/tool-jobs/persistence';
 
 export const researchFollowupJobFunction = inngest.createFunction(
   {
@@ -149,90 +145,30 @@ export const researchFollowupJobFunction = inngest.createFunction(
       });
 
       // -------------------------------------------------------------------
-      // Stage 3 — persist the new follow-up round.
+      // Stage 3 — append the new follow-up round to the session.
       // -------------------------------------------------------------------
       await step.run('persisting', async () => {
         await updateToolJobStage(jobId, 'persisting');
 
         const updatedAt = new Date().toISOString();
-        const newFollowUp = {
-          query,
-          findings: result.findings,
-          round,
-        };
+        const newFollowUp = { query, findings: result.findings, round };
 
-        if (taskId) {
-          const fresh = await prisma.roadmap.findFirst({
-            where:  { id: roadmapId, userId },
-            select: { phases: true, researchLog: true },
-          });
-          if (!fresh) throw new Error('Roadmap disappeared mid-execution');
-          const phasesParsed = StoredPhasesArraySchema.safeParse(fresh.phases);
-          if (!phasesParsed.success) throw new Error('Phases failed schema parse');
-          const found = readTask(phasesParsed.data, taskId);
-          if (!found) throw new Error('Task not found mid-execution');
-
-          const existingResearchSession = (found.task.researchSession ?? {}) as Record<string, unknown>;
-          const existingFollowUps = Array.isArray(existingResearchSession['followUps'])
-            ? (existingResearchSession['followUps'] as Array<Record<string, unknown>>)
-            : [];
-          const updatedResearchSession = {
-            ...existingResearchSession,
-            followUps: [...existingFollowUps, newFollowUp],
-            updatedAt,
-          };
-          const next = patchTask(phasesParsed.data, taskId, t => ({
-            ...t,
-            researchSession: updatedResearchSession,
-          }));
-          if (!next) throw new Error('patchTask returned null mid-execution');
-
-          const nextLog = accumulatorEntries.length > 0
-            ? appendResearchLog(safeParseResearchLog(fresh.researchLog), accumulatorEntries)
-            : null;
-
-          await prisma.roadmap.update({
-            where: { id: roadmapId },
-            data:  {
-              phases: toJsonValue(next),
-              ...(nextLog ? { researchLog: toJsonValue(nextLog) } : {}),
-            },
-          });
-        } else {
-          const fresh = await prisma.roadmap.findFirst({
-            where:  { id: roadmapId, userId },
-            select: { toolSessions: true, researchLog: true },
-          });
-          if (!fresh) throw new Error('Roadmap disappeared mid-execution');
-          const rawSessions: Array<Record<string, unknown>> = Array.isArray(fresh.toolSessions)
-            ? (fresh.toolSessions as Array<Record<string, unknown>>)
-            : [];
-          const existingSession = rawSessions.find(s => s['id'] === sessionId);
-          if (!existingSession) {
-            throw new Error('Session disappeared from toolSessions mid-execution');
-          }
-          const existingFollowUps = Array.isArray(existingSession['followUps'])
-            ? (existingSession['followUps'] as Array<Record<string, unknown>>)
-            : [];
-          const updatedSession = {
-            ...existingSession,
-            followUps: [...existingFollowUps, newFollowUp],
-            updatedAt,
-          };
-          const otherSessions = rawSessions.filter(s => s['id'] !== sessionId);
-
-          const nextLog = accumulatorEntries.length > 0
-            ? appendResearchLog(safeParseResearchLog(fresh.researchLog), accumulatorEntries)
-            : null;
-
-          await prisma.roadmap.update({
-            where: { id: roadmapId },
-            data:  {
-              toolSessions: toJsonValue([...otherSessions, updatedSession]),
-              ...(nextLog ? { researchLog: toJsonValue(nextLog) } : {}),
-            },
-          });
-        }
+        await persistToolJobResult({
+          roadmapId, userId, sessionId, taskId,
+          taskField: 'researchSession',
+          buildSession: (existing) => {
+            const base = existing ?? {};
+            const existingFollowUps = Array.isArray(base['followUps'])
+              ? (base['followUps'] as Array<Record<string, unknown>>)
+              : [];
+            return {
+              ...base,
+              followUps: [...existingFollowUps, newFollowUp],
+              updatedAt,
+            };
+          },
+          researchAccumulator: accumulatorEntries,
+        });
       });
 
       await step.run('notify-and-complete', async () => {
