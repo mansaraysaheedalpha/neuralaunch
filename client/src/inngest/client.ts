@@ -188,6 +188,89 @@ export type NeuraLaunchEvents = {
       query:     string;
     };
   };
+
+  /**
+   * Fired when a founder confirms the packager context and triggers
+   * package generation. The route returns 202 immediately; this event
+   * drives the Inngest worker that runs the Opus tool loop, persists
+   * the package into roadmap.toolSessions (standalone) or
+   * task.packagerSession (task-launched), and pushes on completion.
+   *
+   * Consumer: `packagerGenerateJobFunction` in
+   * `src/inngest/functions/tools/packager-generate-job.ts`
+   */
+  'tool/packager-generate.requested': {
+    data: {
+      jobId:     string;
+      userId:    string;
+      roadmapId: string;
+      sessionId: string;
+      taskId:    string | null;
+      // Stringified ServiceContext — the worker zod-parses it before
+      // passing it to runPackagerGeneration. Stringify keeps the event
+      // payload schema flat (Inngest's TS map prefers primitive shapes).
+      contextJson: string;
+    };
+  };
+
+  /**
+   * Fired when a founder asks the packager to adjust an existing
+   * package. Same accept-and-queue pattern as generate.
+   *
+   * Consumer: `packagerAdjustJobFunction` in
+   * `src/inngest/functions/tools/packager-adjust-job.ts`
+   */
+  'tool/packager-adjust.requested': {
+    data: {
+      jobId:             string;
+      userId:            string;
+      roadmapId:         string;
+      sessionId:         string;
+      taskId:            string | null;
+      adjustmentRequest: string;
+    };
+  };
+
+  /**
+   * Fired when the founder confirms the composer context and triggers
+   * full message generation. Same accept-and-queue pattern as packager.
+   *
+   * Consumer: `composerGenerateJobFunction` in
+   * `src/inngest/functions/tools/composer-generate-job.ts`
+   */
+  'tool/composer-generate.requested': {
+    data: {
+      jobId:       string;
+      userId:      string;
+      roadmapId:   string;
+      sessionId:   string;
+      taskId:      string | null;
+      // Stringified ComposerContext + the chosen mode + channel. The
+      // worker zod-parses contextJson before passing to the engine.
+      contextJson: string;
+      mode:        string;
+      channel:     string;
+    };
+  };
+
+  /**
+   * Fired when the founder kicks off conversation preparation. The
+   * Opus call (with exa/tavily research tools, 30-90s) is the longest
+   * single LLM call in the product after Research; durable execution
+   * is the right fit.
+   *
+   * Consumer: `coachPrepareJobFunction` in
+   * `src/inngest/functions/tools/coach-prepare-job.ts`
+   */
+  'tool/coach-prepare.requested': {
+    data: {
+      jobId:     string;
+      userId:    string;
+      roadmapId: string;
+      sessionId: string;
+      taskId:    string | null;
+    };
+  };
 };
 
 /**

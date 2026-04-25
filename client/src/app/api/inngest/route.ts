@@ -16,6 +16,10 @@ import {
   backfillRoadmapTaskIdsFunction,
   researchExecuteJobFunction,
   researchFollowupJobFunction,
+  packagerGenerateJobFunction,
+  packagerAdjustJobFunction,
+  composerGenerateJobFunction,
+  coachPrepareJobFunction,
 } from '@/inngest/functions';
 
 export const { GET, POST, PUT } = serve({
@@ -35,5 +39,9 @@ export const { GET, POST, PUT } = serve({
     backfillRoadmapTaskIdsFunction,
     researchExecuteJobFunction,
     researchFollowupJobFunction,
+    packagerGenerateJobFunction,
+    packagerAdjustJobFunction,
+    composerGenerateJobFunction,
+    coachPrepareJobFunction,
   ],
 });

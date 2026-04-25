@@ -18,3 +18,7 @@ export { backfillRoadmapTaskIdsFunction } from './backfill-roadmap-task-ids-func
 // docs/inngest-tools-migration-plan-2026-04-24.md.
 export { researchExecuteJobFunction }     from './tools/research-execute-job';
 export { researchFollowupJobFunction }    from './tools/research-followup-job';
+export { packagerGenerateJobFunction }    from './tools/packager-generate-job';
+export { packagerAdjustJobFunction }      from './tools/packager-adjust-job';
+export { composerGenerateJobFunction }    from './tools/composer-generate-job';
+export { coachPrepareJobFunction }        from './tools/coach-prepare-job';

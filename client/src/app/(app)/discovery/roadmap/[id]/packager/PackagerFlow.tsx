@@ -16,6 +16,8 @@ import { PackagerContextView }    from './PackagerContextView';
 import { ServicePackageView }     from './ServicePackageView';
 import { PackagerAdjustInput }    from './PackagerAdjustInput';
 import { PackagerHandoffButtons } from './PackagerHandoffButtons';
+import { useToolJob } from '@/lib/tool-jobs/use-tool-job';
+import { ToolJobProgress } from '@/components/tool-jobs/ToolJobProgress';
 
 type Stage = 'loading_context' | 'context' | 'loading_generation' | 'output';
 
@@ -35,6 +37,12 @@ export function PackagerFlow({ roadmapId, taskId, open, onClose }: PackagerFlowP
   const [adjustments,  setAdjustments]  = useState(0);
   const [pending,      setPending]      = useState(false);
   const [loadError,    setLoadError]    = useState<string | null>(null);
+  const [generateJobId, setGenerateJobId] = useState<string | null>(null);
+  const [adjustJobId,   setAdjustJobId]   = useState<string | null>(null);
+
+  // Polling hooks for the two long-running operations.
+  const { job: generateJob } = useToolJob({ jobId: generateJobId, roadmapId });
+  const { job: adjustJob }   = useToolJob({ jobId: adjustJobId,   roadmapId });
 
   // First open: kick off a context exchange with an empty message so
   // the agent returns the pre-populated context (status: ready when
@@ -86,13 +94,13 @@ export function PackagerFlow({ roadmapId, taskId, open, onClose }: PackagerFlowP
       );
       if (!res.ok) {
         const j = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(j.error ?? 'Could not generate package');
+        throw new Error(j.error ?? 'Could not queue generation');
       }
-      const json = await res.json() as { package: ServicePackage; sessionId?: string };
-      setPkg(json.package);
-      if (json.sessionId) setSessionId(json.sessionId);
-      else setSessionId(`pkg_${Date.now()}`);
-      setStage('output');
+      // 202 — queued. The completion useEffect below loads the
+      // persisted package via the task GET and flips us to 'output'.
+      const json = await res.json() as { jobId: string; sessionId: string };
+      setSessionId(json.sessionId);
+      setGenerateJobId(json.jobId);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Network error');
       setStage('context');
@@ -108,14 +116,72 @@ export function PackagerFlow({ roadmapId, taskId, open, onClose }: PackagerFlowP
       );
       if (!res.ok) {
         const j = await res.json().catch(() => ({})) as { error?: string };
-        throw new Error(j.error ?? 'Could not apply adjustment');
+        setPending(false);
+        throw new Error(j.error ?? 'Could not queue adjustment');
       }
-      const json = await res.json() as { package: ServicePackage; round: number };
-      setPkg(json.package); setAdjustments(json.round);
+      // 202 — queued.
+      const json = await res.json() as { jobId: string };
+      setAdjustJobId(json.jobId);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : 'Network error');
-    } finally { setPending(false); }
+      setPending(false);
+    }
   }, [roadmapId, taskId]);
+
+  // Job completion: refetch the task's packagerSession from the
+  // roadmap so the package + adjustments hydrate from the persisted
+  // source of truth. Falls back to keeping the loading_generation
+  // stage on fetch failure so a refresh recovers.
+  const refetchTaskPackager = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/packager`);
+      if (!res.ok) return null;
+      const json = await res.json() as {
+        task: { packagerSession?: { id?: string; package?: ServicePackage; adjustments?: Array<{ round: number }> } | null };
+      };
+      return json.task.packagerSession ?? null;
+    } catch { return null; }
+  }, [roadmapId, taskId]);
+
+  useEffect(() => {
+    if (!generateJob) return;
+    if (generateJob.stage === 'complete') {
+      void (async () => {
+        const session = await refetchTaskPackager();
+        if (session?.package) {
+          setPkg(session.package);
+          if (session.id) setSessionId(session.id);
+          setStage('output');
+        }
+        setGenerateJobId(null);
+      })();
+    } else if (generateJob.stage === 'failed') {
+      setLoadError(generateJob.errorMessage ?? 'Package generation failed.');
+      setStage('context');
+      setGenerateJobId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generateJob?.stage]);
+
+  useEffect(() => {
+    if (!adjustJob) return;
+    if (adjustJob.stage === 'complete') {
+      void (async () => {
+        const session = await refetchTaskPackager();
+        if (session?.package) {
+          setPkg(session.package);
+          if (Array.isArray(session.adjustments)) setAdjustments(session.adjustments.length);
+        }
+        setAdjustJobId(null);
+        setPending(false);
+      })();
+    } else if (adjustJob.stage === 'failed') {
+      setLoadError(adjustJob.errorMessage ?? 'Adjustment failed.');
+      setAdjustJobId(null);
+      setPending(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adjustJob?.stage]);
 
   return (
     <AnimatePresence>
@@ -148,15 +214,24 @@ export function PackagerFlow({ roadmapId, taskId, open, onClose }: PackagerFlowP
               />
             )}
             {stage === 'loading_generation' && (
-              <div className="flex flex-col items-center gap-3 py-8 text-center">
-                <Loader2 className="size-6 animate-spin text-primary" />
-                <p className="text-sm font-medium text-foreground">Building your service package…</p>
-                <p className="text-[11px] text-muted-foreground">Pricing, tiers, scenarios, and brief.</p>
-              </div>
+              <ToolJobProgress
+                title="Building your service package"
+                stage={generateJob?.stage ?? 'queued'}
+                errorMessage={generateJob?.errorMessage}
+                toolType="packager_generate"
+              />
             )}
             {stage === 'output' && pkg && sessionId && (
               <div className="flex flex-col gap-5">
                 <ServicePackageView pkg={pkg} />
+                {pending && (
+                  <ToolJobProgress
+                    title="Applying your adjustment"
+                    stage={adjustJob?.stage ?? 'queued'}
+                    errorMessage={adjustJob?.errorMessage}
+                    toolType="packager_adjust"
+                  />
+                )}
                 <PackagerAdjustInput adjustmentsUsed={adjustments} pending={pending} onAdjust={(r) => { void sendAdjustment(r); }} />
                 <PackagerHandoffButtons roadmapId={roadmapId} packagerSessionId={sessionId} />
               </div>

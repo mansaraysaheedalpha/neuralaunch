@@ -7,7 +7,6 @@
 // conversation from scratch — no task context.
 
 import { useCallback, useEffect, useState } from 'react';
-import { motion } from 'motion/react';
 import { ArrowLeft, Loader2, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { CoachHistoryPanel } from './CoachHistoryPanel';
@@ -27,6 +26,8 @@ import {
   buildCoachSeedFromComposerMessage,
 } from '@/app/(app)/tools/composer-handoff';
 import { UsageMeter } from '@/components/billing/UsageMeter';
+import { useToolJob } from '@/lib/tool-jobs/use-tool-job';
+import { ToolJobProgress } from '@/components/tool-jobs/ToolJobProgress';
 
 type Stage = 'loading' | 'no_roadmap' | 'setup' | 'loading_preparation' | 'preparation' | 'roleplay' | 'loading_debrief' | 'debrief' | 'done';
 
@@ -41,10 +42,13 @@ export default function StandaloneCoachPage() {
   const [seedDraft, setSeedDraft] = useState<string | undefined>(undefined);
   const [meterRefreshKey, setMeterRefreshKey] = useState(0);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [prepareJobId, setPrepareJobId] = useState<string | null>(null);
   const bumpMeter = useCallback(() => {
     setMeterRefreshKey(k => k + 1);
     setHistoryRefreshKey(k => k + 1);
   }, []);
+
+  const { job: prepareJob } = useToolJob({ jobId: prepareJobId, roadmapId });
 
   const handleSelectSession = useCallback(async (targetSessionId: string) => {
     if (!roadmapId) return;
@@ -125,9 +129,6 @@ export default function StandaloneCoachPage() {
                   setStage('preparation');
                   return;
                 }
-                // Setup present but nothing else yet — jump the
-                // founder back to the preparation loading view so
-                // the next click resumes cleanly.
                 setStage('setup');
                 return;
               }
@@ -135,11 +136,7 @@ export default function StandaloneCoachPage() {
           }
         }
 
-        // Composer → Coach handoff takes priority over Packager →
-        // Coach: if the founder clicked "Prepare for this conversation"
-        // on a drafted outreach message, the rehearsal should anchor
-        // on THAT specific message and its recipient, not on whatever
-        // service package they packaged earlier.
+        // Composer → Coach handoff takes priority over Packager → Coach.
         const composerHandoffParams = readComposerHandoffParams();
         if (composerHandoffParams) {
           const handoff = await fetchComposerHandoff(
@@ -151,7 +148,6 @@ export default function StandaloneCoachPage() {
             setSeedDraft(buildCoachSeedFromComposerMessage(handoff));
           }
         } else {
-          // Packager → Coach handoff (unchanged legacy path).
           const handoffParams = readPackagerHandoffParams();
           if (handoffParams) {
             const handoff = await fetchPackagerHandoff(handoffParams.roadmapId, handoffParams.sessionId);
@@ -171,9 +167,6 @@ export default function StandaloneCoachPage() {
     setupSessionId?: string,
   ) => {
     if (!roadmapId || !setupSessionId) {
-      // Without a sessionId the standalone prepare/debrief routes
-      // have no way to address the coach session that setup just
-      // persisted — surfacing this explicitly beats a silent 400.
       setError('Setup completed but no session was returned.');
       return;
     }
@@ -182,9 +175,6 @@ export default function StandaloneCoachPage() {
     setStage('loading_preparation');
     setError(null);
 
-    // Push sessionId into the URL so a refresh during preparation
-    // or roleplay lands back on the right stage via the restore
-    // branch in useEffect above.
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       url.searchParams.set('sessionId', setupSessionId);
@@ -199,20 +189,47 @@ export default function StandaloneCoachPage() {
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({})) as { error?: string };
-        setError(json.error ?? 'Could not generate preparation.');
+        setError(json.error ?? 'Could not queue preparation.');
         setStage('setup');
+        bumpMeter();
         return;
       }
-      const json = await res.json() as { preparation: PreparationPackage };
-      setPrep(json.preparation);
-      setStage('preparation');
+      // 202 — queued. Completion useEffect handles loading the prep.
+      const json = await res.json() as { jobId: string; sessionId: string };
+      setPrepareJobId(json.jobId);
     } catch {
       setError('Network error.');
       setStage('setup');
-    } finally {
       bumpMeter();
     }
   }, [roadmapId, bumpMeter]);
+
+  // Job completion: refetch the persisted session to load the prep.
+  useEffect(() => {
+    if (!prepareJob || !roadmapId || !sessionId) return;
+    if (prepareJob.stage === 'complete') {
+      void (async () => {
+        try {
+          const res = await fetch(`/api/discovery/roadmaps/${roadmapId}/coach/sessions/${sessionId}`);
+          if (res.ok) {
+            const json = await res.json() as { session: CoachSession };
+            if (json.session.preparation) {
+              setPrep(json.session.preparation);
+              setStage('preparation');
+            }
+          }
+        } catch { /* swallow — refresh recovers */ }
+        setPrepareJobId(null);
+        bumpMeter();
+      })();
+    } else if (prepareJob.stage === 'failed') {
+      setError(prepareJob.errorMessage ?? 'Preparation failed.');
+      setStage('setup');
+      setPrepareJobId(null);
+      bumpMeter();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prepareJob?.stage, roadmapId, sessionId]);
 
   const handleRolePlayEnd = useCallback(async () => {
     if (!roadmapId || !sessionId) return;
@@ -304,19 +321,20 @@ export default function StandaloneCoachPage() {
         />
       )}
 
-      {(stage === 'loading_preparation' || stage === 'loading_debrief') && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex flex-col items-center gap-3 py-16"
-        >
+      {stage === 'loading_preparation' && (
+        <ToolJobProgress
+          title="Generating your preparation package"
+          stage={prepareJob?.stage ?? 'queued'}
+          errorMessage={prepareJob?.errorMessage}
+          toolType="coach_prepare"
+        />
+      )}
+
+      {stage === 'loading_debrief' && (
+        <div className="flex flex-col items-center gap-3 py-16">
           <Loader2 className="size-6 text-primary animate-spin" />
-          <p className="text-sm text-muted-foreground">
-            {stage === 'loading_preparation'
-              ? 'Generating your preparation package…'
-              : 'Generating your debrief...'}
-          </p>
-        </motion.div>
+          <p className="text-sm text-muted-foreground">Generating your debrief…</p>
+        </div>
       )}
 
       {stage === 'preparation' && preparation && (

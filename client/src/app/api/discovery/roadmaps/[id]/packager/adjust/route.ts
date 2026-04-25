@@ -1,26 +1,31 @@
 // src/app/api/discovery/roadmaps/[id]/packager/adjust/route.ts
 //
-// Standalone Service Packager — adjust route. Operates on a session
-// inside roadmap.toolSessions identified by sessionId. Same MAX_ADJUSTMENT_ROUNDS
-// cap and same engine as the task-level adjust route.
+// Standalone Service Packager — adjust route.
+//
+// Post-Inngest-migration shape (2026-04-24): accept-and-queue. Validates
+// the request (auth, tier, quota, ownership, MAX_ADJUSTMENT_ROUNDS),
+// queues `tool/packager-adjust.requested`, returns 202 with the jobId.
+// The Inngest worker runs runPackagerAdjustment and persists the
+// updated package; the client polls /tool-jobs/[jobId]/status.
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import prisma, { toJsonValue } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { inngest } from '@/inngest/client';
 import {
   HttpError, httpErrorToResponse, requireUserId,
   enforceSameOrigin, rateLimitByUser, RATE_LIMITS,
 } from '@/lib/validation/server-helpers';
-import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import {
-  MAX_ADJUSTMENT_ROUNDS, runPackagerAdjustment, safeParsePackagerSession,
+  MAX_ADJUSTMENT_ROUNDS, safeParsePackagerSession,
 } from '@/lib/roadmap/service-packager';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
 import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
+import { createToolJob } from '@/lib/tool-jobs/helpers';
 
-export const maxDuration = 300;
+export const maxDuration = 30;
 
 const BodySchema = z.object({
   sessionId:         z.string().min(1),
@@ -30,9 +35,10 @@ const BodySchema = z.object({
 /**
  * POST /api/discovery/roadmaps/[id]/packager/adjust
  *
- * Applies one adjustment to a standalone packager session (resolved
- * by sessionId from roadmap.toolSessions). Rejects with 409 once
- * MAX_ADJUSTMENT_ROUNDS is reached.
+ * Queues a single adjustment on a standalone packager session. Returns
+ * 202 with { jobId, sessionId }. Pre-checks the round cap and the
+ * session existence so the founder gets immediate 4xx feedback when a
+ * job CAN'T be queued.
  */
 export async function POST(
   request: Request,
@@ -56,7 +62,7 @@ export async function POST(
 
     const roadmap = await prisma.roadmap.findFirst({
       where:  { id: roadmapId, userId },
-      select: { id: true, toolSessions: true, recommendation: { select: { session: { select: { beliefState: true } } } } },
+      select: { id: true, toolSessions: true },
     });
     if (!roadmap) throw new HttpError(404, 'Not found');
 
@@ -72,38 +78,30 @@ export async function POST(
     if (priorAdjustments.length >= MAX_ADJUSTMENT_ROUNDS) {
       throw new HttpError(409, `Adjustment limit reached (${MAX_ADJUSTMENT_ROUNDS} adjustments maximum).`);
     }
-    const round = priorAdjustments.length + 1;
 
-    const bsRaw = roadmap.recommendation?.session?.beliefState;
-    const bs    = bsRaw ? safeParseDiscoveryContext(bsRaw) : null;
+    const job = await createToolJob({
+      userId, roadmapId,
+      toolType:  'packager_adjust',
+      sessionId: parsed.data.sessionId,
+    });
 
-    const updatedPackage = await runPackagerAdjustment({
-      existingPackage:    session.package,
-      context:            session.context,
-      priorAdjustments,
-      adjustmentRequest:  parsed.data.adjustmentRequest,
-      round,
-      beliefState: {
-        geographicMarket:     bs?.geographicMarket?.value as string | null ?? null,
-        availableTimePerWeek: bs?.availableTimePerWeek?.value as string | null ?? null,
+    await inngest.send({
+      name: 'tool/packager-adjust.requested',
+      data: {
+        jobId:             job.id,
+        userId,
+        roadmapId,
+        sessionId:         parsed.data.sessionId,
+        taskId:            null,
+        adjustmentRequest: parsed.data.adjustmentRequest,
       },
     });
 
-    const updatedSession = {
-      ...existing,
-      package:     updatedPackage,
-      adjustments: [...priorAdjustments, { request: parsed.data.adjustmentRequest, round }],
-      updatedAt:   new Date().toISOString(),
-    };
-    const others = rawSessions.filter(s => s['id'] !== parsed.data.sessionId);
-
-    await prisma.roadmap.update({
-      where: { id: roadmapId },
-      data:  { toolSessions: toJsonValue([...others, updatedSession]) },
-    });
-
-    log.info('[StandalonePackager] Adjustment persisted', { sessionId: parsed.data.sessionId, round });
-    return NextResponse.json({ package: updatedPackage, round, adjustmentsRemaining: MAX_ADJUSTMENT_ROUNDS - round });
+    log.info('[StandalonePackager] Adjust job queued', { jobId: job.id, sessionId: parsed.data.sessionId });
+    return NextResponse.json(
+      { jobId: job.id, sessionId: parsed.data.sessionId },
+      { status: 202 },
+    );
   } catch (err) {
     return httpErrorToResponse(err);
   }

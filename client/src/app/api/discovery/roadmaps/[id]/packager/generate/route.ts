@@ -2,13 +2,24 @@
 //
 // Standalone Service Packager — generate route. Sessions persist in
 // roadmap.toolSessions. Omit sessionId on the first call; the route
-// mints one and returns it. Pass { message } for context confirmation;
-// pass { context } to trigger generation.
+// mints one and returns it.
+//
+// Two branches:
+//   { message } → context confirmation (Sonnet, ~2s, stays SYNC because
+//                 the founder is actively chatting and needs an immediate
+//                 reply for the conversational UX)
+//   { context } → package generation (Opus + research, 20-30s, runs ASYNC
+//                 via Inngest. Route returns 202 + jobId; client polls
+//                 the ToolJob status endpoint and renders the progress
+//                 ladder until completion)
+//
+// See docs/inngest-tools-migration-plan-2026-04-24.md for the migration.
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import prisma, { toJsonValue } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { inngest } from '@/inngest/client';
 import {
   HttpError, httpErrorToResponse, requireUserId,
   enforceSameOrigin, rateLimitByUser, RATE_LIMITS,
@@ -16,17 +27,17 @@ import {
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import {
   PACKAGER_TOOL_ID, ServiceContextSchema,
-  runPackagerContext, runPackagerGeneration,
+  runPackagerContext,
   buildPrePopulatedContextStandalone,
 } from '@/lib/roadmap/service-packager';
-import { safeParseResearchLog, appendResearchLog, type ResearchLogEntry } from '@/lib/research';
-import { loadPerTaskAgentContext } from '@/lib/lifecycle';
-import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
 import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
+import { createToolJob } from '@/lib/tool-jobs/helpers';
 
-export const maxDuration = 300;
+// Generation runs async; the route only handles validation + the cheap
+// Sonnet context-confirmation. 30s is plenty for both code paths.
+export const maxDuration = 30;
 
 const ContextBodySchema  = z.object({ message: z.string().min(1).max(3000), sessionId: z.string().optional() });
 const GenerateBodySchema = z.object({ context: ServiceContextSchema, sessionId: z.string().optional() });
@@ -35,9 +46,8 @@ const BodySchema         = z.union([ContextBodySchema, GenerateBodySchema]);
 /**
  * POST /api/discovery/roadmaps/[id]/packager/generate
  *
- * Standalone packager session. Pass { message, sessionId? } for context
- * confirmation or { context, sessionId? } for generation. Returns
- * sessionId on every call so the client can pass it back.
+ * Pass { message, sessionId? } for context confirmation (sync 200) or
+ * { context, sessionId? } for generation (async 202 with jobId).
  */
 export async function POST(
   request: Request,
@@ -60,7 +70,7 @@ export async function POST(
 
     const roadmap = await prisma.roadmap.findFirst({
       where:  { id: roadmapId, userId },
-      select: { id: true, toolSessions: true, researchLog: true, recommendation: { select: { path: true, summary: true, session: { select: { beliefState: true } } } } },
+      select: { id: true, toolSessions: true, recommendation: { select: { path: true, summary: true, session: { select: { beliefState: true } } } } },
     });
     if (!roadmap) throw new HttpError(404, 'Not found');
 
@@ -73,6 +83,9 @@ export async function POST(
     const bsRaw = roadmap.recommendation?.session?.beliefState;
     const bs    = bsRaw ? safeParseDiscoveryContext(bsRaw) : null;
 
+    // -----------------------------------------------------------------
+    // Branch A — context confirmation (stays sync; chat-like UX)
+    // -----------------------------------------------------------------
     if ('message' in parsed.data) {
       const history: Array<{ role: 'founder' | 'agent'; message: string }> =
         ((existing?.contextHistory ?? []) as Array<{ role: string; message: string }>)
@@ -102,27 +115,43 @@ export async function POST(
       return NextResponse.json({ status: response.status, message: response.message, context: response.context ?? prePopulated, sessionId });
     }
 
-    const { profile } = await loadPerTaskAgentContext(userId);
-    const founderProfileBlock = renderFounderProfileBlock(profile);
-
-    const accumulator: ResearchLogEntry[] = [];
-    const pkg = await runPackagerGeneration({
-      founderProfileBlock: founderProfileBlock || undefined,
-      context: parsed.data.context,
-      beliefState: { primaryGoal: bs?.primaryGoal?.value as string | null ?? null, geographicMarket: bs?.geographicMarket?.value as string | null ?? null, situation: bs?.situation?.value as string | null ?? null, availableBudget: bs?.availableBudget?.value as string | null ?? null, technicalAbility: bs?.technicalAbility?.value as string | null ?? null, availableTimePerWeek: bs?.availableTimePerWeek?.value as string | null ?? null },
-      recommendationPath: roadmap.recommendation?.path ?? null, recommendationSummary: roadmap.recommendation?.summary ?? null,
-      roadmapId, researchAccumulator: accumulator,
-    });
+    // -----------------------------------------------------------------
+    // Branch B — generation (accept-and-queue; async via Inngest)
+    // -----------------------------------------------------------------
+    // Persist the confirmed context onto the session row first so the
+    // worker has it available even if the founder closes the tab and
+    // the in-flight job state is lost from React.
     const sessionData = {
       ...(existing ?? {}), id: sessionId, tool: PACKAGER_TOOL_ID,
-      context: parsed.data.context, package: pkg,
+      context: parsed.data.context,
       createdAt: existing?.createdAt ?? now, updatedAt: now,
     };
     const others = rawSessions.filter(s => s['id'] !== sessionId);
-    const nextLog = accumulator.length > 0 ? appendResearchLog(safeParseResearchLog(roadmap.researchLog), accumulator) : null;
-    await prisma.roadmap.update({ where: { id: roadmapId }, data: { toolSessions: toJsonValue([...others, sessionData]), ...(nextLog ? { researchLog: toJsonValue(nextLog) } : {}) } });
-    log.info('[StandalonePackager] Generation persisted', { sessionId, serviceName: pkg.serviceName });
-    return NextResponse.json({ package: pkg, sessionId });
+    await prisma.roadmap.update({
+      where: { id: roadmapId },
+      data:  { toolSessions: toJsonValue([...others, sessionData]) },
+    });
+
+    const job = await createToolJob({
+      userId, roadmapId,
+      toolType: 'packager_generate',
+      sessionId,
+    });
+
+    await inngest.send({
+      name: 'tool/packager-generate.requested',
+      data: {
+        jobId:       job.id,
+        userId,
+        roadmapId,
+        sessionId,
+        taskId:      null,
+        contextJson: JSON.stringify(parsed.data.context),
+      },
+    });
+
+    log.info('[StandalonePackager] Generate job queued', { jobId: job.id, sessionId });
+    return NextResponse.json({ jobId: job.id, sessionId }, { status: 202 });
   } catch (err) {
     return httpErrorToResponse(err);
   }

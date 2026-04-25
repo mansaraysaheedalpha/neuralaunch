@@ -2,7 +2,7 @@
 // src/app/(app)/discovery/roadmap/[id]/coach/CoachFlow.tsx
 // Flow orchestrator: setup → loading_preparation → preparation → roleplay → debrief → done
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, X } from 'lucide-react';
 import type { ConversationSetup, PreparationPackage, Debrief } from '@/lib/roadmap/coach';
@@ -11,6 +11,8 @@ import { PreparationView }    from './PreparationView';
 import { RolePlayChat }       from './RolePlayChat';
 import { DebriefView }        from './DebriefView';
 import { CoachSessionReview } from './CoachSessionReview';
+import { useToolJob } from '@/lib/tool-jobs/use-tool-job';
+import { ToolJobProgress } from '@/components/tool-jobs/ToolJobProgress';
 
 type Stage =
   | 'setup'
@@ -35,6 +37,9 @@ export function CoachFlow({ roadmapId, taskId, open, onClose }: CoachFlowProps) 
   const [preparation, setPreparation] = useState<PreparationPackage | null>(null);
   const [debrief,     setDebrief]     = useState<Debrief | null>(null);
   const [loadError,   setLoadError]   = useState<string | null>(null);
+  const [prepareJobId, setPrepareJobId] = useState<string | null>(null);
+
+  const { job: prepareJob } = useToolJob({ jobId: prepareJobId, roadmapId });
 
   const handleSetupComplete = useCallback(async (completed: ConversationSetup) => {
     setSetup(completed);
@@ -53,19 +58,42 @@ export function CoachFlow({ roadmapId, taskId, open, onClose }: CoachFlowProps) 
 
       if (!res.ok) {
         const json = await res.json().catch(() => ({})) as { error?: string };
-        setLoadError(json.error ?? 'Could not generate preparation. Please try again.');
+        setLoadError(json.error ?? 'Could not queue preparation.');
         setStage('setup');
         return;
       }
-
-      const json = await res.json() as { preparation: PreparationPackage };
-      setPreparation(json.preparation);
-      setStage('preparation');
+      // 202 — queued. Completion useEffect handles loading the prep.
+      const json = await res.json() as { jobId: string; sessionId: string };
+      setPrepareJobId(json.jobId);
     } catch {
       setLoadError('Network error — please try again.');
       setStage('setup');
     }
   }, [roadmapId, taskId]);
+
+  useEffect(() => {
+    if (!prepareJob) return;
+    if (prepareJob.stage === 'complete') {
+      void (async () => {
+        try {
+          const res = await fetch(`/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/coach`);
+          if (res.ok) {
+            const json = await res.json() as { task: { coachSession?: { preparation?: PreparationPackage } | null } };
+            if (json.task.coachSession?.preparation) {
+              setPreparation(json.task.coachSession.preparation);
+              setStage('preparation');
+            }
+          }
+        } catch { /* swallow — refresh recovers */ }
+        setPrepareJobId(null);
+      })();
+    } else if (prepareJob.stage === 'failed') {
+      setLoadError(prepareJob.errorMessage ?? 'Preparation failed.');
+      setStage('setup');
+      setPrepareJobId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prepareJob?.stage]);
 
   const handleRolePlayEnd = useCallback(async () => {
     setStage('loading_debrief');
@@ -140,11 +168,12 @@ export function CoachFlow({ roadmapId, taskId, open, onClose }: CoachFlowProps) 
 
             {/* Stage: loading_preparation */}
             {stage === 'loading_preparation' && (
-              <div className="flex flex-col items-center gap-3 py-8 text-center">
-                <Loader2 className="size-6 animate-spin text-primary" />
-                <p className="text-sm font-medium text-foreground">Generating your preparation package…</p>
-                
-              </div>
+              <ToolJobProgress
+                title="Generating your preparation package"
+                stage={prepareJob?.stage ?? 'queued'}
+                errorMessage={prepareJob?.errorMessage}
+                toolType="coach_prepare"
+              />
             )}
 
             {/* Stage: preparation */}

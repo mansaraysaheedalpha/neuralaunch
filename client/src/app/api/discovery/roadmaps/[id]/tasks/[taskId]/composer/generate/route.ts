@@ -1,13 +1,16 @@
 // src/app/api/discovery/roadmaps/[id]/tasks/[taskId]/composer/generate/route.ts
 //
-// Task-level Outreach Composer — generate route.
-// Pass `message` for context-collection exchanges; pass `context + mode +
-// channel` to trigger full message generation. Persists to task.composerSession.
+// Task-launched Outreach Composer — generate route.
+//
+// Two branches (post-Inngest-migration 2026-04-24):
+//   { message } → context collection (Sonnet, stays SYNC; chat-like UX)
+//   { context, mode, channel } → generation (async via Inngest, 202)
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import prisma, { toJsonValue } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { inngest } from '@/inngest/client';
 import {
   HttpError, httpErrorToResponse, requireUserId,
   enforceSameOrigin, rateLimitByUser, RATE_LIMITS,
@@ -16,16 +19,14 @@ import { StoredPhasesArraySchema, readTask, patchTask, type StoredRoadmapPhase }
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import {
   COMPOSER_TOOL_ID, COMPOSER_CHANNELS, COMPOSER_MODES,
-  runComposerContext, runComposerGeneration, OutreachContextSchema,
+  runComposerContext, OutreachContextSchema,
 } from '@/lib/roadmap/composer';
-import { safeParseResearchLog, appendResearchLog, type ResearchLogEntry } from '@/lib/research';
-import { loadPerTaskAgentContext } from '@/lib/lifecycle';
-import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
 import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
+import { createToolJob } from '@/lib/tool-jobs/helpers';
 
-export const maxDuration = 300;
+export const maxDuration = 30;
 
 const ContextBodySchema  = z.object({ message: z.string().min(1).max(3000) });
 const GenerateBodySchema = z.object({ context: OutreachContextSchema, mode: z.enum(COMPOSER_MODES), channel: z.enum(COMPOSER_CHANNELS) });
@@ -34,8 +35,8 @@ const BodySchema         = z.union([ContextBodySchema, GenerateBodySchema]);
 /**
  * POST /api/discovery/roadmaps/[id]/tasks/[taskId]/composer/generate
  *
- * Pass { message } for context-collection exchanges, or { context, mode,
- * channel } for full message generation. Persists to task.composerSession.
+ * Pass { message } for context collection (sync 200), or
+ * { context, mode, channel } for generation (async 202).
  */
 export async function POST(
   request: Request,
@@ -58,7 +59,7 @@ export async function POST(
 
     const roadmap = await prisma.roadmap.findFirst({
       where:  { id: roadmapId, userId },
-      select: { id: true, phases: true, researchLog: true, recommendation: { select: { path: true, summary: true, session: { select: { beliefState: true } } } } },
+      select: { id: true, phases: true, recommendation: { select: { path: true, summary: true, session: { select: { beliefState: true } } } } },
     });
     if (!roadmap) throw new HttpError(404, 'Not found');
 
@@ -74,6 +75,9 @@ export async function POST(
     const now      = new Date().toISOString();
     const sid      = (existing?.id as string | undefined) ?? `cmp_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
 
+    // -----------------------------------------------------------------
+    // Branch A — context collection (stays sync)
+    // -----------------------------------------------------------------
     if ('message' in parsed.data) {
       const history: Array<{ role: 'founder' | 'agent'; message: string }> =
         ((existing?.contextHistory ?? []) as Array<{ role: string; message: string }>)
@@ -98,28 +102,41 @@ export async function POST(
       return NextResponse.json({ status: response.status, message: response.message, context: response.context ?? null, mode: response.mode ?? null, channel: response.channel ?? null });
     }
 
-    const { profile } = await loadPerTaskAgentContext(userId);
-    const founderProfileBlock = renderFounderProfileBlock(profile);
-
-    const accumulator: ResearchLogEntry[] = [];
-    const output = await runComposerGeneration({
-      founderProfileBlock: founderProfileBlock || undefined,
-      context: parsed.data.context, mode: parsed.data.mode, channel: parsed.data.channel,
-      beliefState: { primaryGoal: bs?.primaryGoal?.value ?? null, geographicMarket: bs?.geographicMarket?.value ?? null, situation: bs?.situation?.value ?? null, availableBudget: bs?.availableBudget?.value ?? null, technicalAbility: bs?.technicalAbility?.value ?? null, availableTimePerWeek: bs?.availableTimePerWeek?.value ?? null },
-      recommendationPath: roadmap.recommendation?.path ?? null, recommendationSummary: roadmap.recommendation?.summary ?? null,
-      roadmapId, researchAccumulator: accumulator,
-    });
+    // -----------------------------------------------------------------
+    // Branch B — generation (accept-and-queue; async via Inngest)
+    // -----------------------------------------------------------------
     const sessionData: Record<string, unknown> = {
       ...(existing ?? {}), id: sid, tool: COMPOSER_TOOL_ID,
-      context: parsed.data.context, mode: parsed.data.mode, channel: parsed.data.channel, output,
+      context: parsed.data.context, mode: parsed.data.mode, channel: parsed.data.channel,
       createdAt: existing?.createdAt ?? now, updatedAt: now,
     };
     const next = patchTask(phases, taskId, t => ({ ...t, composerSession: sessionData }));
     if (!next) throw new HttpError(404, 'Task not found post-merge');
-    const nextLog = accumulator.length > 0 ? appendResearchLog(safeParseResearchLog(roadmap.researchLog), accumulator) : null;
-    await prisma.roadmap.update({ where: { id: roadmapId }, data: { phases: toJsonValue(next), ...(nextLog ? { researchLog: toJsonValue(nextLog) } : {}) } });
-    log.info('[ComposerTask] Generation persisted', { taskId, messageCount: output.messages.length, researchCalls: accumulator.length });
-    return NextResponse.json({ output });
+    await prisma.roadmap.update({ where: { id: roadmapId }, data: { phases: toJsonValue(next) } });
+
+    const job = await createToolJob({
+      userId, roadmapId,
+      toolType:  'composer_generate',
+      sessionId: sid,
+      taskId,
+    });
+
+    await inngest.send({
+      name: 'tool/composer-generate.requested',
+      data: {
+        jobId:       job.id,
+        userId,
+        roadmapId,
+        sessionId:   sid,
+        taskId,
+        contextJson: JSON.stringify(parsed.data.context),
+        mode:        parsed.data.mode,
+        channel:     parsed.data.channel,
+      },
+    });
+
+    log.info('[ComposerTask] Generate job queued', { jobId: job.id, taskId, sessionId: sid });
+    return NextResponse.json({ jobId: job.id, sessionId: sid }, { status: 202 });
   } catch (err) {
     return httpErrorToResponse(err);
   }

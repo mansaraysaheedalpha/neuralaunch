@@ -20,6 +20,8 @@ import type { ServiceContext, ServicePackage } from '@/lib/roadmap/service-packa
 import type { ResearchSession } from '@/lib/roadmap/research-tool/schemas';
 import { buildPackagerSeedFromResearch } from '@/app/(app)/tools/packager-handoff';
 import { UsageMeter } from '@/components/billing/UsageMeter';
+import { useToolJob } from '@/lib/tool-jobs/use-tool-job';
+import { ToolJobProgress } from '@/components/tool-jobs/ToolJobProgress';
 
 type Stage = 'loading' | 'no_roadmap' | 'intro' | 'loading_context' | 'context' | 'loading_generation' | 'output';
 
@@ -36,10 +38,18 @@ export default function StandalonePackagerPage() {
   const [error,        setError]        = useState<string | null>(null);
   const [meterRefreshKey, setMeterRefreshKey] = useState(0);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [generateJobId, setGenerateJobId] = useState<string | null>(null);
+  const [adjustJobId,   setAdjustJobId]   = useState<string | null>(null);
   const bumpMeter = useCallback(() => {
     setMeterRefreshKey(k => k + 1);
     setHistoryRefreshKey(k => k + 1);
   }, []);
+
+  // Polling hooks for the two long-running operations. Both no-op when
+  // their jobId is null. The completion useEffects below refetch the
+  // session so the package + adjustments hydrate into local state.
+  const { job: generateJob } = useToolJob({ jobId: generateJobId, roadmapId });
+  const { job: adjustJob }   = useToolJob({ jobId: adjustJobId,   roadmapId });
 
   const handleSelectSession = useCallback(async (targetSessionId: string) => {
     if (!roadmapId) return;
@@ -173,22 +183,25 @@ export default function StandalonePackagerPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ context, sessionId }),
       });
-      if (!res.ok) throw new Error('Could not generate package');
-      const json = await res.json() as { package: ServicePackage; sessionId: string };
-      setPkg(json.package); setStage('output');
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(j.error ?? 'Could not queue generation');
+      }
+      // 202 — queued. The useToolJob effect below takes over from here,
+      // refetches the session on complete, and flips us to the output
+      // stage with the rendered package.
+      const json = await res.json() as { jobId: string; sessionId: string };
+      setGenerateJobId(json.jobId);
 
-      // Push the sessionId into the URL so a browser refresh restores
-      // state via the sessionId-restore branch above.
-      if (typeof window !== 'undefined' && sessionId) {
+      if (typeof window !== 'undefined') {
         const url = new URL(window.location.href);
-        url.searchParams.set('sessionId', sessionId);
+        url.searchParams.set('sessionId', json.sessionId);
         url.searchParams.delete('fromResearch');
         url.searchParams.delete('roadmapId');
         window.history.replaceState({}, '', url.toString());
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error'); setStage('context');
-    } finally {
       bumpMeter();
     }
   }, [roadmapId, sessionId, context, bumpMeter]);
@@ -203,14 +216,72 @@ export default function StandalonePackagerPage() {
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({})) as { error?: string };
+        setPending(false);
         throw new Error(j.error ?? 'Could not apply adjustment');
       }
-      const json = await res.json() as { package: ServicePackage; round: number };
-      setPkg(json.package); setAdjustments(json.round);
+      // 202 — queued. The useToolJob effect handles completion.
+      const json = await res.json() as { jobId: string };
+      setAdjustJobId(json.jobId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');
-    } finally { setPending(false); bumpMeter(); }
+      setPending(false);
+      bumpMeter();
+    }
   }, [roadmapId, sessionId, bumpMeter]);
+
+  // -------------------------------------------------------------------
+  // Job completion effects. Both refetch the session via the existing
+  // single-session GET so the package, adjustments, and round count
+  // hydrate into local state from the persisted source of truth.
+  // -------------------------------------------------------------------
+  useEffect(() => {
+    if (!generateJob || !roadmapId || !sessionId) return;
+    if (generateJob.stage === 'complete') {
+      void (async () => {
+        try {
+          const res = await fetch(`/api/discovery/roadmaps/${roadmapId}/packager/sessions/${sessionId}`);
+          if (res.ok) {
+            const json = await res.json() as { package: ServicePackage; context: ServiceContext };
+            setPkg(json.package);
+            setStage('output');
+          }
+        } catch { /* swallow — UI stays on loading_generation, founder can refresh */ }
+        setGenerateJobId(null);
+        bumpMeter();
+      })();
+    } else if (generateJob.stage === 'failed') {
+      setError(generateJob.errorMessage ?? 'Package generation failed.');
+      setStage('context');
+      setGenerateJobId(null);
+      bumpMeter();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generateJob?.stage, roadmapId, sessionId]);
+
+  useEffect(() => {
+    if (!adjustJob || !roadmapId || !sessionId) return;
+    if (adjustJob.stage === 'complete') {
+      void (async () => {
+        try {
+          const res = await fetch(`/api/discovery/roadmaps/${roadmapId}/packager/sessions/${sessionId}`);
+          if (res.ok) {
+            const json = await res.json() as { package: ServicePackage; context: ServiceContext; adjustments?: Array<{ round: number }> };
+            setPkg(json.package);
+            if (Array.isArray(json.adjustments)) setAdjustments(json.adjustments.length);
+          }
+        } catch { /* swallow */ }
+        setAdjustJobId(null);
+        setPending(false);
+        bumpMeter();
+      })();
+    } else if (adjustJob.stage === 'failed') {
+      setError(adjustJob.errorMessage ?? 'Adjustment failed.');
+      setAdjustJobId(null);
+      setPending(false);
+      bumpMeter();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adjustJob?.stage, roadmapId, sessionId]);
 
   if (stage === 'loading') {
     return <div className="flex items-center justify-center py-24"><Loader2 className="size-6 text-primary animate-spin" /></div>;
@@ -276,14 +347,24 @@ export default function StandalonePackagerPage() {
           onConfirm={() => { void generatePackage(); }} onAdjust={(m) => { void sendContextAdjustment(m); }} />
       )}
       {stage === 'loading_generation' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center gap-3 py-16">
-          <Loader2 className="size-6 text-primary animate-spin" />
-          <p className="text-sm text-muted-foreground">Building your service package…</p>
-        </motion.div>
+        <ToolJobProgress
+          title="Building your service package"
+          stage={generateJob?.stage ?? 'queued'}
+          errorMessage={generateJob?.errorMessage}
+          toolType="packager_generate"
+        />
       )}
       {stage === 'output' && pkg && roadmapId && sessionId && (
         <div className="flex flex-col gap-5">
           <ServicePackageView pkg={pkg} />
+          {pending && (
+            <ToolJobProgress
+              title="Applying your adjustment"
+              stage={adjustJob?.stage ?? 'queued'}
+              errorMessage={adjustJob?.errorMessage}
+              toolType="packager_adjust"
+            />
+          )}
           <PackagerAdjustInput adjustmentsUsed={adjustments} pending={pending} onAdjust={(r) => { void sendAdjustment(r); }} />
           <PackagerHandoffButtons roadmapId={roadmapId} packagerSessionId={sessionId} />
         </div>
