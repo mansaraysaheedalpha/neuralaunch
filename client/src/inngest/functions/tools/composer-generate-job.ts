@@ -6,14 +6,10 @@
 // path so a heavy research session never times out at 300s.
 
 import { inngest } from '../../client';
-import prisma, { toJsonValue } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
-import {
-  safeParseResearchLog,
-  appendResearchLog,
-  type ResearchLogEntry,
-} from '@/lib/research';
+import { type ResearchLogEntry } from '@/lib/research';
 import { z } from 'zod';
 import {
   COMPOSER_TOOL_ID,
@@ -25,11 +21,6 @@ import {
 import { loadPerTaskAgentContext } from '@/lib/lifecycle';
 import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
 import {
-  StoredPhasesArraySchema,
-  readTask,
-  patchTask,
-} from '@/lib/roadmap/checkin-types';
-import {
   updateToolJobStage,
   completeToolJob,
   failToolJob,
@@ -38,6 +29,7 @@ import {
   notifyToolJobComplete,
   notifyToolJobFailed,
 } from '@/lib/tool-jobs/notifications';
+import { persistToolJobResult } from '@/lib/tool-jobs/persistence';
 
 export const composerGenerateJobFunction = inngest.createFunction(
   {
@@ -142,83 +134,25 @@ export const composerGenerateJobFunction = inngest.createFunction(
         await updateToolJobStage(jobId, 'persisting');
 
         const updatedAt = new Date().toISOString();
-
-        if (taskId) {
-          const fresh = await prisma.roadmap.findFirst({
-            where:  { id: roadmapId, userId },
-            select: { phases: true, researchLog: true },
-          });
-          if (!fresh) throw new Error('Roadmap disappeared mid-execution');
-          const phasesParsed = StoredPhasesArraySchema.safeParse(fresh.phases);
-          if (!phasesParsed.success) throw new Error('Phases failed schema parse');
-          const found = readTask(phasesParsed.data, taskId);
-          if (!found) throw new Error('Task not found mid-execution');
-
-          const existingSession = (found.task.composerSession ?? {}) as Record<string, unknown>;
-          const updatedSession = {
-            ...existingSession,
-            id:        sessionId,
-            tool:      COMPOSER_TOOL_ID,
-            context:   ctx.context,
-            mode,
-            channel,
-            output,
-            createdAt: existingSession['createdAt'] ?? updatedAt,
-            updatedAt,
-          };
-          const next = patchTask(phasesParsed.data, taskId, t => ({
-            ...t,
-            composerSession: updatedSession,
-          }));
-          if (!next) throw new Error('patchTask returned null mid-execution');
-
-          const nextLog = accumulatorEntries.length > 0
-            ? appendResearchLog(safeParseResearchLog(fresh.researchLog), accumulatorEntries)
-            : null;
-
-          await prisma.roadmap.update({
-            where: { id: roadmapId },
-            data:  {
-              phases: toJsonValue(next),
-              ...(nextLog ? { researchLog: toJsonValue(nextLog) } : {}),
-            },
-          });
-        } else {
-          const fresh = await prisma.roadmap.findFirst({
-            where:  { id: roadmapId, userId },
-            select: { toolSessions: true, researchLog: true },
-          });
-          if (!fresh) throw new Error('Roadmap disappeared mid-execution');
-          const rawSessions: Array<Record<string, unknown>> = Array.isArray(fresh.toolSessions)
-            ? (fresh.toolSessions as Array<Record<string, unknown>>)
-            : [];
-          const existingSession = rawSessions.find(s => s['id'] === sessionId);
-          const baseSession = existingSession ?? {
-            id:        sessionId,
-            tool:      COMPOSER_TOOL_ID,
-            createdAt: updatedAt,
-          };
-          const updatedSession = {
-            ...baseSession,
+        await persistToolJobResult({
+          roadmapId, userId, sessionId, taskId,
+          taskField: 'composerSession',
+          buildSession: (existing) => ({
+            ...(existing ?? {
+              id:        sessionId,
+              tool:      COMPOSER_TOOL_ID,
+              createdAt: updatedAt,
+            }),
+            id:      sessionId,
+            tool:    COMPOSER_TOOL_ID,
             context: ctx.context,
-            mode,
-            channel,
+            mode:    ctx.mode,
+            channel: ctx.channel,
             output,
             updatedAt,
-          };
-          const others = rawSessions.filter(s => s['id'] !== sessionId);
-          const nextLog = accumulatorEntries.length > 0
-            ? appendResearchLog(safeParseResearchLog(fresh.researchLog), accumulatorEntries)
-            : null;
-
-          await prisma.roadmap.update({
-            where: { id: roadmapId },
-            data:  {
-              toolSessions: toJsonValue([...others, updatedSession]),
-              ...(nextLog ? { researchLog: toJsonValue(nextLog) } : {}),
-            },
-          });
-        }
+          }),
+          researchAccumulator: accumulatorEntries,
+        });
       });
 
       await step.run('notify-and-complete', async () => {

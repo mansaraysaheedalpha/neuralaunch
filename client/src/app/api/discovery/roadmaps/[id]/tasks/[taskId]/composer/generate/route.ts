@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import prisma, { toJsonValue } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
-import { inngest } from '@/inngest/client';
+import { sendToolJobEvent } from '@/lib/tool-jobs/queue';
 import {
   HttpError, httpErrorToResponse, requireUserId,
   enforceSameOrigin, rateLimitByUser, RATE_LIMITS,
@@ -121,7 +121,7 @@ export async function POST(
       taskId,
     });
 
-    await inngest.send({
+    await sendToolJobEvent(job.id, {
       name: 'tool/composer-generate.requested',
       data: {
         jobId:       job.id,

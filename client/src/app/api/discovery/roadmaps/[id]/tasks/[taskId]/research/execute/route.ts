@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
-import { inngest } from '@/inngest/client';
+import { sendToolJobEvent } from '@/lib/tool-jobs/queue';
 import {
   HttpError,
   httpErrorToResponse,
@@ -87,7 +87,7 @@ export async function POST(
       taskId,
     });
 
-    await inngest.send({
+    await sendToolJobEvent(job.id, {
       name: 'tool/research-execute.requested',
       data: {
         jobId:     job.id,
