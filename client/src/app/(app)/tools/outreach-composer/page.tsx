@@ -7,7 +7,6 @@
 // outreach need from scratch — no task context.
 
 import { useCallback, useEffect, useState } from 'react';
-import { motion } from 'motion/react';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { ComposerContextChat } from '@/app/(app)/discovery/roadmap/[id]/composer/ComposerContextChat';
@@ -23,6 +22,8 @@ import {
 import { UsageMeter } from '@/components/billing/UsageMeter';
 import { ComposerHistoryPanel } from './ComposerHistoryPanel';
 import { Plus } from 'lucide-react';
+import { useToolJob } from '@/lib/tool-jobs/use-tool-job';
+import { ToolJobProgress } from '@/components/tool-jobs/ToolJobProgress';
 
 type Stage =
   | 'loading'
@@ -44,12 +45,15 @@ export default function StandaloneComposerPage() {
   const [seedDraft, setSeedDraft] = useState<string | undefined>(undefined);
   const [meterRefreshKey, setMeterRefreshKey] = useState(0);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [generateJobId, setGenerateJobId] = useState<string | null>(null);
   const bumpMeter = useCallback(() => {
     setMeterRefreshKey(k => k + 1);
     // Also refresh the sidebar list so a just-completed session shows
     // up immediately without a page reload.
     setHistoryRefreshKey(k => k + 1);
   }, []);
+
+  const { job: generateJob } = useToolJob({ jobId: generateJobId, roadmapId });
 
   const handleSelectSession = useCallback(async (targetSessionId: string) => {
     if (!roadmapId) return;
@@ -167,30 +171,54 @@ export default function StandaloneComposerPage() {
 
       if (!res.ok) {
         const json = await res.json().catch(() => ({})) as { error?: string };
-        setError(json.error ?? 'Could not generate messages. Please try again.');
+        setError(json.error ?? 'Could not queue generation.');
         setStage('context');
+        bumpMeter();
         return;
       }
-
-      const json = await res.json() as { output: ComposerOutput; sessionId: string };
-      setOutput(json.output);
+      // 202 — queued. Completion useEffect handles loading the output.
+      const json = await res.json() as { jobId: string; sessionId: string };
       setSessionId(json.sessionId);
-      setStage('output');
+      setGenerateJobId(json.jobId);
 
       // Push the sessionId into the URL so a browser refresh restores
-      // state via the sessionId-restore branch above. replaceState is
-      // deliberate — we don't want a new history entry, just a URL
-      // that survives a reload.
+      // state via the sessionId-restore branch above.
       const url = new URL(window.location.href);
       url.searchParams.set('sessionId', json.sessionId);
       window.history.replaceState({}, '', url.toString());
     } catch {
       setError('Network error — please try again.');
       setStage('context');
-    } finally {
       bumpMeter();
     }
   }, [roadmapId, bumpMeter]);
+
+  // Job completion: refetch the persisted session to load the output.
+  useEffect(() => {
+    if (!generateJob || !roadmapId || !sessionId) return;
+    if (generateJob.stage === 'complete') {
+      void (async () => {
+        try {
+          const res = await fetch(`/api/discovery/roadmaps/${roadmapId}/composer/sessions/${sessionId}`);
+          if (res.ok) {
+            const json = await res.json() as { session: ComposerSession };
+            if (json.session.output) {
+              setOutput(json.session.output);
+              setStage('output');
+            }
+          }
+        } catch { /* swallow — refresh recovers */ }
+        setGenerateJobId(null);
+        bumpMeter();
+      })();
+    } else if (generateJob.stage === 'failed') {
+      setError(generateJob.errorMessage ?? 'Generation failed.');
+      setStage('context');
+      setGenerateJobId(null);
+      bumpMeter();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generateJob?.stage, roadmapId, sessionId]);
 
   if (stage === 'loading') {
     return (
@@ -269,16 +297,12 @@ export default function StandaloneComposerPage() {
       )}
 
       {stage === 'loading_generation' && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex flex-col items-center gap-3 py-16"
-        >
-          <Loader2 className="size-6 text-primary animate-spin" />
-          <p className="text-sm text-muted-foreground">
-            Drafting your messages…
-          </p>
-        </motion.div>
+        <ToolJobProgress
+          title="Drafting your messages"
+          stage={generateJob?.stage ?? 'queued'}
+          errorMessage={generateJob?.errorMessage}
+          toolType="composer_generate"
+        />
       )}
 
       {stage === 'output' && output && channel && mode && roadmapId && sessionId && (

@@ -1,13 +1,16 @@
 // src/app/api/discovery/roadmaps/[id]/tasks/[taskId]/coach/prepare/route.ts
 //
-// Stage 2 route: generates the full PreparationPackage. Single Opus
-// call with research tools. Takes the completed setup from the task's
-// coachSession and returns the preparation. Persists the result back
-// to the coachSession on the task.
+// Task-launched Conversation Coach — Stage 2: Preparation.
+//
+// Post-Inngest-migration shape (2026-04-24): accept-and-queue. Returns
+// 202 with { jobId, sessionId }. The Inngest worker reads the setup
+// from task.coachSession, runs runCoachPreparation, and persists the
+// preparation back into the same place.
 
 import { NextResponse } from 'next/server';
-import prisma, { toJsonValue } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { inngest } from '@/inngest/client';
 import {
   HttpError,
   httpErrorToResponse,
@@ -19,27 +22,22 @@ import {
 import {
   StoredPhasesArraySchema,
   readTask,
-  patchTask,
   type StoredRoadmapPhase,
 } from '@/lib/roadmap/checkin-types';
-import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import { ConversationSetupSchema } from '@/lib/roadmap/coach/schemas';
-import { runCoachPreparation } from '@/lib/roadmap/coach/preparation-engine';
-import { safeParseResearchLog, appendResearchLog, type ResearchLogEntry } from '@/lib/research';
-import { loadPerTaskAgentContext } from '@/lib/lifecycle';
-import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
 import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
 import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
+import { createToolJob } from '@/lib/tool-jobs/helpers';
 
-// Opus + research tools can take 30-60s
-export const maxDuration = 300;
+export const maxDuration = 30;
 
 /**
  * POST /api/discovery/roadmaps/[id]/tasks/[taskId]/coach/prepare
  *
- * Generates the preparation package from the completed setup.
- * No request body needed — reads setup from the task's coachSession.
+ * Queues task-launched coach preparation. No request body — reads
+ * setup from the task's coachSession. Returns 202 with { jobId,
+ * sessionId }.
  */
 export async function POST(
   request: Request,
@@ -58,18 +56,7 @@ export async function POST(
 
     const roadmap = await prisma.roadmap.findFirst({
       where:  { id: roadmapId, userId },
-      select: {
-        id:          true,
-        phases:      true,
-        researchLog: true,
-        recommendation: {
-          select: {
-            path:    true,
-            summary: true,
-            session: { select: { beliefState: true } },
-          },
-        },
-      },
+      select: { id: true, phases: true },
     });
     if (!roadmap) throw new HttpError(404, 'Not found');
 
@@ -80,7 +67,6 @@ export async function POST(
     const found = readTask(phases, taskId);
     if (!found) throw new HttpError(404, 'Task not found');
 
-    // Read the completed setup from coachSession
     const session = found.task.coachSession as Record<string, unknown> | undefined;
     if (!session?.setup) {
       throw new HttpError(409, 'Coach setup has not been completed. Run the setup stage first.');
@@ -90,63 +76,28 @@ export async function POST(
       throw new HttpError(409, 'Coach setup data is malformed.');
     }
 
-    const context = roadmap.recommendation?.session?.beliefState
-      ? safeParseDiscoveryContext(roadmap.recommendation.session.beliefState)
-      : null;
+    const sessionId = (session['id'] as string | undefined) ?? `cs_${Date.now()}`;
 
-    const { profile } = await loadPerTaskAgentContext(userId);
-    const founderProfileBlock = renderFounderProfileBlock(profile);
-    const accumulator: ResearchLogEntry[] = [];
-
-    const preparation = await runCoachPreparation({
-      setup:                setupParsed.data,
-      beliefState: {
-        primaryGoal:         context?.primaryGoal?.value ?? null,
-        geographicMarket:    context?.geographicMarket?.value ?? null,
-        situation:           context?.situation?.value ?? null,
-        availableBudget:     context?.availableBudget?.value ?? null,
-        technicalAbility:    context?.technicalAbility?.value ?? null,
-        availableTimePerWeek: context?.availableTimePerWeek?.value ?? null,
-      },
-      recommendationPath:    roadmap.recommendation?.path ?? null,
-      recommendationSummary: roadmap.recommendation?.summary ?? null,
-      roadmapId,
-      researchAccumulator:   accumulator,
-      founderProfileBlock:   founderProfileBlock || undefined,
-    });
-
-    // Persist preparation + research log
-    const updatedSession = {
-      ...session,
-      preparation,
-      updatedAt: new Date().toISOString(),
-    };
-
-    const next = patchTask(phases, taskId, t => ({
-      ...t,
-      coachSession: updatedSession,
-    }));
-    if (!next) throw new HttpError(404, 'Task not found post-merge');
-
-    const nextResearchLog = accumulator.length > 0
-      ? appendResearchLog(safeParseResearchLog(roadmap.researchLog), accumulator)
-      : null;
-
-    await prisma.roadmap.update({
-      where: { id: roadmapId },
-      data:  {
-        phases: toJsonValue(next),
-        ...(nextResearchLog ? { researchLog: toJsonValue(nextResearchLog) } : {}),
-      },
-    });
-
-    log.info('[CoachPrepare] Package persisted', {
+    const job = await createToolJob({
+      userId, roadmapId,
+      toolType:  'coach_prepare',
+      sessionId,
       taskId,
-      objections:    preparation.objections.length,
-      researchCalls: accumulator.length,
     });
 
-    return NextResponse.json({ preparation });
+    await inngest.send({
+      name: 'tool/coach-prepare.requested',
+      data: {
+        jobId:     job.id,
+        userId,
+        roadmapId,
+        sessionId,
+        taskId,
+      },
+    });
+
+    log.info('[CoachPrepare] Job queued', { jobId: job.id, taskId, sessionId });
+    return NextResponse.json({ jobId: job.id, sessionId }, { status: 202 });
   } catch (err) {
     return httpErrorToResponse(err);
   }

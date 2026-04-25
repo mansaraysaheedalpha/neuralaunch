@@ -15,6 +15,7 @@ export {
   TERMINAL_STAGES,
   TOOL_JOB_STAGE_ORDER,
   STAGE_LABELS,
+  EMITTING_LABEL_BY_TOOL,
   TOOL_DISPLAY_LABELS,
   ToolJobStatusSchema,
   type ToolJobStage,

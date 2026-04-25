@@ -11,8 +11,10 @@
 import { Loader2, Check, AlertCircle } from 'lucide-react';
 import {
   STAGE_LABELS,
+  EMITTING_LABEL_BY_TOOL,
   TOOL_JOB_STAGE_ORDER,
   type ToolJobStage,
+  type ToolJobType,
 } from '@/lib/tool-jobs';
 import { cn } from '@/lib/utils';
 
@@ -25,6 +27,10 @@ export interface ToolJobProgressProps {
   /** Optional title shown above the ladder, e.g. "Running your
    *  research" or "Generating your service package". */
   title?:       string;
+  /** When provided, overrides the 'emitting' stage label with a
+   *  per-tool variant from EMITTING_LABEL_BY_TOOL ("Building package"
+   *  for the packager, "Drafting messages" for the composer, etc.). */
+  toolType?:    ToolJobType;
 }
 
 export function ToolJobProgress({
@@ -32,6 +38,7 @@ export function ToolJobProgress({
   errorMessage,
   onRetry,
   title,
+  toolType,
 }: ToolJobProgressProps) {
   if (stage === 'failed') {
     return (
@@ -92,7 +99,9 @@ export function ToolJobProgress({
                   pending && 'text-muted-foreground/60',
                 )}
               >
-                {STAGE_LABELS[s]}
+                {s === 'emitting' && toolType
+                  ? EMITTING_LABEL_BY_TOOL[toolType]
+                  : STAGE_LABELS[s]}
               </span>
             </li>
           );

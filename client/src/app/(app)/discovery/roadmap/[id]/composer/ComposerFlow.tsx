@@ -4,14 +4,16 @@
 // Full flow orchestrator for the Outreach Composer:
 //   context → loading_generation → output → done
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Loader2, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import type { OutreachContext, ComposerOutput } from '@/lib/roadmap/composer/schemas';
 import type { ComposerChannel, ComposerMode } from '@/lib/roadmap/composer/constants';
 import { ComposerContextChat } from './ComposerContextChat';
 import { ComposerOutputView }  from './ComposerOutputView';
 import { ComposerSessionReview } from './ComposerSessionReview';
+import { useToolJob } from '@/lib/tool-jobs/use-tool-job';
+import { ToolJobProgress } from '@/components/tool-jobs/ToolJobProgress';
 
 type Stage =
   | 'context'
@@ -40,6 +42,9 @@ export function ComposerFlow({ roadmapId, taskId, open, onClose }: ComposerFlowP
   const [channel,   setChannel]   = useState<ComposerChannel | null>(null);
   const [output,    setOutput]    = useState<ComposerOutput | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [generateJobId, setGenerateJobId] = useState<string | null>(null);
+
+  const { job: generateJob } = useToolJob({ jobId: generateJobId, roadmapId });
 
   const handleContextComplete = useCallback(async (
     completedContext: OutreachContext,
@@ -68,19 +73,42 @@ export function ComposerFlow({ roadmapId, taskId, open, onClose }: ComposerFlowP
 
       if (!res.ok) {
         const json = await res.json().catch(() => ({})) as { error?: string };
-        setLoadError(json.error ?? 'Could not generate messages. Please try again.');
+        setLoadError(json.error ?? 'Could not queue generation.');
         setStage('context');
         return;
       }
-
-      const json = await res.json() as { output: ComposerOutput };
-      setOutput(json.output);
-      setStage('output');
+      // 202 — queued. Completion useEffect handles loading the output.
+      const json = await res.json() as { jobId: string; sessionId: string };
+      setGenerateJobId(json.jobId);
     } catch {
       setLoadError('Network error — please try again.');
       setStage('context');
     }
   }, [roadmapId, taskId]);
+
+  useEffect(() => {
+    if (!generateJob) return;
+    if (generateJob.stage === 'complete') {
+      void (async () => {
+        try {
+          const res = await fetch(`/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/composer`);
+          if (res.ok) {
+            const json = await res.json() as { task: { composerSession?: { output?: ComposerOutput } | null } };
+            if (json.task.composerSession?.output) {
+              setOutput(json.task.composerSession.output);
+              setStage('output');
+            }
+          }
+        } catch { /* swallow — refresh recovers */ }
+        setGenerateJobId(null);
+      })();
+    } else if (generateJob.stage === 'failed') {
+      setLoadError(generateJob.errorMessage ?? 'Generation failed.');
+      setStage('context');
+      setGenerateJobId(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [generateJob?.stage]);
 
   const completedSession =
     context && mode && channel && output
@@ -136,11 +164,12 @@ export function ComposerFlow({ roadmapId, taskId, open, onClose }: ComposerFlowP
 
             {/* Stage: loading_generation */}
             {stage === 'loading_generation' && (
-              <div className="flex flex-col items-center gap-3 py-8 text-center">
-                <Loader2 className="size-6 animate-spin text-primary" />
-                <p className="text-sm font-medium text-foreground">Drafting your messages…</p>
-                
-              </div>
+              <ToolJobProgress
+                title="Drafting your messages"
+                stage={generateJob?.stage ?? 'queued'}
+                errorMessage={generateJob?.errorMessage}
+                toolType="composer_generate"
+              />
             )}
 
             {/* Stage: output */}

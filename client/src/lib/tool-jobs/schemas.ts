@@ -79,6 +79,24 @@ export const STAGE_LABELS: Record<ToolJobStage, string> = {
 };
 
 /**
+ * Per-tool override for the `emitting` stage label. The default
+ * "Writing report" reads naturally for Research but feels off for
+ * Packager / Composer / Coach. ToolJobProgress reads from this map
+ * when a `toolType` prop is provided; falls back to STAGE_LABELS
+ * otherwise.
+ */
+export const EMITTING_LABEL_BY_TOOL: Record<ToolJobType, string> = {
+  research_execute:    'Writing report',
+  research_followup:   'Writing report',
+  packager_generate:   'Building package',
+  packager_adjust:     'Applying adjustment',
+  composer_generate:   'Drafting messages',
+  composer_regenerate: 'Drafting variation',
+  coach_prepare:       'Preparing rehearsal',
+  coach_debrief:       'Writing debrief',
+};
+
+/**
  * Per-tool labels for the push-notification title. Composed in
  * notifications.ts when the job completes.
  */
