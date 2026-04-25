@@ -249,14 +249,18 @@ export default function StandalonePackagerPage() {
         setGenerateJobId(null);
         bumpMeter();
       })();
-    } else if (generateJob.stage === 'failed') {
-      setError(generateJob.errorMessage ?? 'Package generation failed.');
-      setStage('context');
-      setGenerateJobId(null);
-      bumpMeter();
     }
+    // 'failed' keeps the founder on loading_generation; the failed
+    // ladder + retry button stays visible so they can retry without
+    // re-confirming context.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generateJob?.stage, roadmapId, sessionId]);
+
+  const handleRetryGenerate = useCallback(() => {
+    setGenerateJobId(null);
+    setError(null);
+    void generatePackage();
+  }, [generatePackage]);
 
   useEffect(() => {
     if (!adjustJob || !roadmapId || !sessionId) return;
@@ -352,6 +356,7 @@ export default function StandalonePackagerPage() {
           stage={generateJob?.stage ?? 'queued'}
           errorMessage={generateJob?.errorMessage}
           toolType="packager_generate"
+          onRetry={handleRetryGenerate}
         />
       )}
       {stage === 'output' && pkg && roadmapId && sessionId && (

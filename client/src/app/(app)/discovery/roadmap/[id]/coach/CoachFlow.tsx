@@ -87,13 +87,18 @@ export function CoachFlow({ roadmapId, taskId, open, onClose }: CoachFlowProps) 
         } catch { /* swallow — refresh recovers */ }
         setPrepareJobId(null);
       })();
-    } else if (prepareJob.stage === 'failed') {
-      setLoadError(prepareJob.errorMessage ?? 'Preparation failed.');
-      setStage('setup');
-      setPrepareJobId(null);
     }
+    // 'failed' keeps founder on loading_preparation; failed ladder +
+    // retry button is the recovery path.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prepareJob?.stage]);
+
+  const handleRetryPrepare = useCallback(() => {
+    if (!setup) return;
+    setPrepareJobId(null);
+    setLoadError(null);
+    void handleSetupComplete(setup);
+  }, [setup, handleSetupComplete]);
 
   const handleRolePlayEnd = useCallback(async () => {
     setStage('loading_debrief');
@@ -173,6 +178,7 @@ export function CoachFlow({ roadmapId, taskId, open, onClose }: CoachFlowProps) 
                 stage={prepareJob?.stage ?? 'queued'}
                 errorMessage={prepareJob?.errorMessage}
                 toolType="coach_prepare"
+                onRetry={handleRetryPrepare}
               />
             )}
 

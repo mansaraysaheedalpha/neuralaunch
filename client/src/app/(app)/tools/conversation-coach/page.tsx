@@ -222,14 +222,18 @@ export default function StandaloneCoachPage() {
         setPrepareJobId(null);
         bumpMeter();
       })();
-    } else if (prepareJob.stage === 'failed') {
-      setError(prepareJob.errorMessage ?? 'Preparation failed.');
-      setStage('setup');
-      setPrepareJobId(null);
-      bumpMeter();
     }
+    // 'failed' keeps founder on loading_preparation; failed ladder +
+    // retry button is the recovery path.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prepareJob?.stage, roadmapId, sessionId]);
+
+  const handleRetryPrepare = useCallback(() => {
+    if (!setup || !sessionId) return;
+    setPrepareJobId(null);
+    setError(null);
+    void handleSetupComplete(setup, sessionId);
+  }, [setup, sessionId, handleSetupComplete]);
 
   const handleRolePlayEnd = useCallback(async () => {
     if (!roadmapId || !sessionId) return;
@@ -327,6 +331,7 @@ export default function StandaloneCoachPage() {
           stage={prepareJob?.stage ?? 'queued'}
           errorMessage={prepareJob?.errorMessage}
           toolType="coach_prepare"
+          onRetry={handleRetryPrepare}
         />
       )}
 

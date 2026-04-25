@@ -4,6 +4,7 @@
 import { useState } from "react";
 import Sidebar from "@/components/Sidebar";
 import { MobileUpgradePill } from "@/components/sidebar/MobileUpgradePill";
+import { BackgroundJobsBanner } from "@/components/tool-jobs/BackgroundJobsBanner";
 import { Sparkles } from "lucide-react"; // Keep Sparkles icon
 
 // Renamed function to AppLayout for clarity
@@ -43,6 +44,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {/* Always add pt-16 on mobile, remove on md+ */}
           {children}
         </main>
+
+        {/* Floating background-jobs banner. Polls /tool-jobs/active
+            and surfaces in-flight ToolJob rows so the founder always
+            knows what's running, even after navigating away from the
+            tool page. Auto-hides when no jobs are in flight. */}
+        <BackgroundJobsBanner />
       </div>
     </div>
   );

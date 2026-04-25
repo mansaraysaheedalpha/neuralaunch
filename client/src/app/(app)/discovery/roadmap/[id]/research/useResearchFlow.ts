@@ -48,6 +48,13 @@ export interface UseResearchFlowResult {
   handlePlanApprove: (editedPlan: string) => Promise<void>;
   handleFollowUp:    (q: string) => Promise<void>;
   /**
+   * Retry the in-flight execute job after it failed. Clears the dead
+   * jobId, then re-fires handlePlanApprove(plan) to queue a fresh
+   * Inngest run with the same plan. Wired to the retry button on the
+   * failed-state ToolJobProgress.
+   */
+  handleRetryExecute: () => void;
+  /**
    * Load a previously-completed session back into the flow so the
    * founder can re-read the report (and ask further follow-ups). Used
    * by the standalone page's recent-research panel — no history UI on
@@ -100,7 +107,12 @@ export function useResearchFlow(input: {
 
   // When the execute job hits 'complete', fetch the session to load
   // the report into local state and transition the UI to 'report'.
-  // 'failed' surfaces the error and bounces back to plan_review.
+  // 'failed' keeps the founder on the executing stage with the failed
+  // progress ladder visible — they can hit "Try again" via the retry
+  // button on ToolJobProgress, which re-fires handlePlanApprove(plan).
+  // We deliberately do NOT clear executeJobId on failure: the SWR
+  // hook stops polling on terminal stages anyway, and keeping the id
+  // set lets ToolJobProgress keep rendering the failed ladder.
   useEffect(() => {
     if (!executeJob || !sessionId) return;
     if (executeJob.stage === 'complete') {
@@ -120,9 +132,9 @@ export function useResearchFlow(input: {
         onToolCallComplete?.();
       })();
     } else if (executeJob.stage === 'failed') {
-      setError(executeJob.errorMessage ?? 'Research execution failed.');
-      setStage('plan_review');
-      setExecuteJobId(null);
+      // Stay on 'executing' so the failed ladder + retry button stays
+      // visible. The founder retries via the button (which calls
+      // handlePlanApprove(plan) again) or closes the panel to abandon.
       onToolCallComplete?.();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -275,6 +287,12 @@ export function useResearchFlow(input: {
     }
   }, [roadmapId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const handleRetryExecute = useCallback(() => {
+    setExecuteJobId(null);
+    setError(null);
+    void handlePlanApprove(plan);
+  }, [handlePlanApprove, plan]);
+
   const resetToQuery = useCallback(() => {
     setStage('query');
     setQuery('');
@@ -290,6 +308,7 @@ export function useResearchFlow(input: {
     error, followUpLoading,
     executeJob, followupJob,
     handleQuerySubmit, handlePlanApprove, handleFollowUp,
+    handleRetryExecute,
     handleLoadSession, resetToQuery,
   };
 }
