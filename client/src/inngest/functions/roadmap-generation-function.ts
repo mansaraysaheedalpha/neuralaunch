@@ -50,7 +50,7 @@ export const roadmapGenerationFunction = inngest.createFunction(
     });
 
     // Step 1: Load recommendation + linked belief state
-    const { recommendation, context, audienceType, sessionId } = await step.run(
+    const { recommendation, context, audienceType, sessionId, cycleId, ventureId } = await step.run(
       'load-recommendation',
       async () => {
         const rec = await prisma.recommendation.findUnique({
@@ -69,6 +69,15 @@ export const roadmapGenerationFunction = inngest.createFunction(
             assumptions:           true,
             whatWouldMakeThisWrong: true,
             alternativeRejected:   true,
+            // Lifecycle linkage — the accept route (first-cycle path)
+            // and persistForkRecommendation (fork path) both populate
+            // cycleId before this function fires. The fork path is
+            // particularly load-bearing here: it never hits the HTTP
+            // roadmap trigger route, so this function is the ONLY
+            // chance to stamp Roadmap.ventureId + Cycle.roadmapId
+            // for the next-cycle roadmap.
+            cycleId: true,
+            cycle:   { select: { id: true, ventureId: true } },
             session: {
               select: {
                 beliefState:  true,
@@ -108,6 +117,8 @@ export const roadmapGenerationFunction = inngest.createFunction(
           context:        ctx,
           audienceType:   audType,
           sessionId:      rec.sessionId,
+          cycleId:        rec.cycle?.id ?? null,
+          ventureId:      rec.cycle?.ventureId ?? null,
         };
       },
     );
@@ -115,17 +126,42 @@ export const roadmapGenerationFunction = inngest.createFunction(
     // Step 2: Create a GENERATING placeholder so the UI can show a loading state.
     // The parentRoadmapId is set here on first creation so the cycle linkage is
     // correct from the start; updates to the placeholder do NOT touch it.
+    //
+    // Also stamps Roadmap.ventureId and Cycle.roadmapId in a single
+    // transaction so the ventures-list query reads consistent linkage
+    // immediately after this step commits. Idempotent — re-running the
+    // step re-applies the same writes with no observable side effect.
     await step.run('create-roadmap-placeholder', async () => {
-      await prisma.roadmap.upsert({
-        where:  { recommendationId },
-        create: {
-          userId,
-          recommendationId,
-          status: 'GENERATING',
-          phases: [],
-          ...(parentRoadmapId ? { parentRoadmapId } : {}),
-        },
-        update: { status: 'GENERATING', phases: [] },
+      await prisma.$transaction(async (tx) => {
+        const roadmap = await tx.roadmap.upsert({
+          where:  { recommendationId },
+          create: {
+            userId,
+            recommendationId,
+            status: 'GENERATING',
+            phases: [],
+            ...(parentRoadmapId ? { parentRoadmapId } : {}),
+            ...(ventureId       ? { ventureId }       : {}),
+          },
+          update: {
+            status: 'GENERATING',
+            phases: [],
+            // Only stamp ventureId when we have one AND the row does
+            // not already carry it. This protects the HTTP-trigger
+            // path from silently blanking a ventureId the route set
+            // first and also lets legacy rows pick up the link on
+            // next regeneration.
+            ...(ventureId ? { ventureId } : {}),
+          },
+          select: { id: true },
+        });
+
+        if (cycleId) {
+          await tx.cycle.update({
+            where: { id: cycleId },
+            data:  { roadmapId: roadmap.id },
+          });
+        }
       });
     });
 

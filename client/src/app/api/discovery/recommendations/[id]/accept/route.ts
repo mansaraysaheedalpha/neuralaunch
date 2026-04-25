@@ -12,6 +12,10 @@ import {
 } from '@/lib/validation/server-helpers';
 import { safeParsePushbackHistory } from '@/lib/discovery/pushback-engine';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
+import {
+  assertVentureLimitNotReached,
+  bootstrapVentureAndCycleForRecommendation,
+} from '@/lib/lifecycle';
 
 /**
  * POST /api/discovery/recommendations/[id]/accept
@@ -36,7 +40,7 @@ export async function POST(
 
     const rec = await prisma.recommendation.findFirst({
       where:  { id: recommendationId, userId },
-      select: { id: true, acceptedAt: true, pushbackHistory: true },
+      select: { id: true, acceptedAt: true, pushbackHistory: true, cycleId: true, path: true },
     });
     if (!rec) throw new HttpError(404, 'Not found');
     if (rec.acceptedAt) {
@@ -48,29 +52,71 @@ export async function POST(
     const history = safeParsePushbackHistory(rec.pushbackHistory);
     const userTurns = history.filter(t => t.role === 'user').length;
 
-    // Idempotent write: only set acceptedAt if it is still null. A
-    // double-click that fires two POSTs in parallel will see the
-    // first acceptedAt = null and update; the second will see
-    // acceptedAt = null in its read but updateMany will affect 0 rows
-    // because the first request already set the column. Both clients
-    // get a success response — the second falls into the
-    // alreadyAccepted branch on the next read.
-    const updateResult = await prisma.recommendation.updateMany({
-      where: { id: recommendationId, acceptedAt: null },
-      data:  {
-        acceptedAt:      new Date(),
-        acceptedAtRound: userTurns,
-      },
-    });
-
-    if (updateResult.count === 0) {
-      // Concurrent request beat us to it — that's fine, the
-      // recommendation is still accepted as the founder intended.
-      log.info('Recommendation accept raced — already accepted by concurrent request');
-      return NextResponse.json({ ok: true, alreadyAccepted: true });
+    // When the recommendation is not yet linked to a Cycle (first
+    // acceptance from a fresh discovery — not the fork flow, which
+    // pre-links before this route is hit), check the venture cap
+    // BEFORE opening the transaction. The cap helper uses non-tx
+    // reads; opening a tx, discovering the cap is hit, and then
+    // rolling back wastes round-trips.
+    if (!rec.cycleId) {
+      await assertVentureLimitNotReached(userId);
     }
 
-    log.info('Recommendation accepted', { acceptedAtRound: userTurns });
+    // Single transaction: bootstrap venture+cycle if needed, then
+    // apply the acceptedAt guard. The guard is a compare-and-swap
+    // on `acceptedAt: null`, so parallel accept POSTs race safely —
+    // only the winning tx's update affects a row, and the loser
+    // throws RACE_LOST to roll back the bootstrapped venture+cycle
+    // so no orphan rows survive.
+    const RACE_LOST = 'neuralaunch.accept.race-lost';
+    let txResult: { cycleId: string; bootstrapped: boolean };
+    try {
+      txResult = await prisma.$transaction(async (tx) => {
+        let cycleIdToLink = rec.cycleId;
+        const bootstrapped = !cycleIdToLink;
+        if (!cycleIdToLink) {
+          const bootstrap = await bootstrapVentureAndCycleForRecommendation(tx, {
+            userId,
+            recommendationId,
+            recommendationPath: rec.path,
+          });
+          cycleIdToLink = bootstrap.cycleId;
+        }
+
+        const updated = await tx.recommendation.updateMany({
+          where: { id: recommendationId, acceptedAt: null },
+          data:  {
+            acceptedAt:      new Date(),
+            acceptedAtRound: userTurns,
+            // Only writes when we bootstrapped — the pre-fork path
+            // set cycleId at fork-pick time and we do not overwrite.
+            ...(rec.cycleId ? {} : { cycleId: cycleIdToLink }),
+          },
+        });
+
+        if (updated.count === 0) {
+          // Lost the race. Throw so the tx rolls back, discarding
+          // any freshly-bootstrapped venture+cycle rows the loser
+          // just created. Caught below and mapped to the
+          // alreadyAccepted success response.
+          throw new Error(RACE_LOST);
+        }
+
+        return { cycleId: cycleIdToLink, bootstrapped };
+      });
+    } catch (err) {
+      if (err instanceof Error && err.message === RACE_LOST) {
+        log.info('Recommendation accept raced — already accepted by concurrent request');
+        return NextResponse.json({ ok: true, alreadyAccepted: true });
+      }
+      throw err;
+    }
+
+    log.info('Recommendation accepted', {
+      acceptedAtRound: userTurns,
+      cycleId:         txResult.cycleId,
+      bootstrapped:    txResult.bootstrapped,
+    });
     return NextResponse.json({ ok: true, acceptedAtRound: userTurns });
   } catch (err) {
     return httpErrorToResponse(err);

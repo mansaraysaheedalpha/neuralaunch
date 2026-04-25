@@ -55,10 +55,17 @@ export async function POST(
     throw err;
   }
 
-  // Single query for ownership + roadmap status — no existence-leak.
+  // Single query for ownership + roadmap status + cycle linkage so
+  // the roadmap row can be stamped with the ventureId the accept
+  // route populated. Reading cycleId + cycle.ventureId here is
+  // cheaper than making the Inngest function re-derive it later.
   const recommendation = await prisma.recommendation.findFirst({
     where:  { id: recommendationId, userId },
-    select: { roadmap: { select: { status: true } } },
+    select: {
+      roadmap: { select: { status: true } },
+      cycleId: true,
+      cycle:   { select: { id: true, ventureId: true } },
+    },
   });
 
   if (!recommendation) {
@@ -68,12 +75,43 @@ export async function POST(
     return NextResponse.json({ status: 'ready' }, { status: 200 });
   }
 
-  // Reset to GENERATING synchronously before firing Inngest so the polling
-  // client never sees a stale FAILED status from a previous attempt.
-  await prisma.roadmap.upsert({
-    where:  { recommendationId },
-    create: { userId, recommendationId, status: 'GENERATING', phases: [] },
-    update: { status: 'GENERATING', phases: [] },
+  const ventureId = recommendation.cycle?.ventureId ?? null;
+  const cycleId   = recommendation.cycle?.id        ?? null;
+
+  // Reset to GENERATING synchronously before firing Inngest so the
+  // polling client never sees a stale FAILED status from a previous
+  // attempt. Roadmap.ventureId + Cycle.roadmapId are populated in the
+  // same transaction so the denormalised links land atomically with
+  // the row upsert — the ventures list query reads Roadmap.ventureId
+  // and would misreport the new cycle otherwise.
+  await prisma.$transaction(async (tx) => {
+    const roadmap = await tx.roadmap.upsert({
+      where:  { recommendationId },
+      create: {
+        userId,
+        recommendationId,
+        status: 'GENERATING',
+        phases: [],
+        ...(ventureId ? { ventureId } : {}),
+      },
+      update: {
+        status: 'GENERATING',
+        phases: [],
+        // Only overwrite ventureId when the link was previously null
+        // — legacy roadmaps with a set ventureId keep theirs, and
+        // we avoid re-writing the same value when a regeneration
+        // fires on an already-linked roadmap.
+        ...(ventureId ? { ventureId } : {}),
+      },
+      select: { id: true },
+    });
+
+    if (cycleId) {
+      await tx.cycle.update({
+        where: { id: cycleId },
+        data:  { roadmapId: roadmap.id },
+      });
+    }
   });
 
   await inngest.send({
