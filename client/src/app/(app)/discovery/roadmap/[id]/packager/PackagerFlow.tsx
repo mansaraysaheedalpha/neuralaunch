@@ -155,13 +155,19 @@ export function PackagerFlow({ roadmapId, taskId, open, onClose }: PackagerFlowP
         }
         setGenerateJobId(null);
       })();
-    } else if (generateJob.stage === 'failed') {
-      setLoadError(generateJob.errorMessage ?? 'Package generation failed.');
-      setStage('context');
-      setGenerateJobId(null);
     }
+    // 'failed' deliberately keeps the founder on loading_generation so
+    // ToolJobProgress shows the failed ladder + retry button. They
+    // retry via the button (re-fires generatePackage) or close the
+    // panel to abandon.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generateJob?.stage]);
+
+  const handleRetryGenerate = useCallback(() => {
+    setGenerateJobId(null);
+    setLoadError(null);
+    void generatePackage();
+  }, [generatePackage]);
 
   useEffect(() => {
     if (!adjustJob) return;
@@ -219,6 +225,7 @@ export function PackagerFlow({ roadmapId, taskId, open, onClose }: PackagerFlowP
                 stage={generateJob?.stage ?? 'queued'}
                 errorMessage={generateJob?.errorMessage}
                 toolType="packager_generate"
+                onRetry={handleRetryGenerate}
               />
             )}
             {stage === 'output' && pkg && sessionId && (

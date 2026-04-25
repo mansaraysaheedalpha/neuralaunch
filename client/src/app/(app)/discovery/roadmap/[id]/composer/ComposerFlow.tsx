@@ -102,13 +102,18 @@ export function ComposerFlow({ roadmapId, taskId, open, onClose }: ComposerFlowP
         } catch { /* swallow — refresh recovers */ }
         setGenerateJobId(null);
       })();
-    } else if (generateJob.stage === 'failed') {
-      setLoadError(generateJob.errorMessage ?? 'Generation failed.');
-      setStage('context');
-      setGenerateJobId(null);
     }
+    // 'failed' keeps founder on loading_generation; failed ladder +
+    // retry button in ToolJobProgress is the recovery path.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generateJob?.stage]);
+
+  const handleRetryGenerate = useCallback(() => {
+    if (!context || !mode || !channel) return;
+    setGenerateJobId(null);
+    setLoadError(null);
+    void handleContextComplete(context, mode, channel);
+  }, [context, mode, channel, handleContextComplete]);
 
   const completedSession =
     context && mode && channel && output
@@ -169,6 +174,7 @@ export function ComposerFlow({ roadmapId, taskId, open, onClose }: ComposerFlowP
                 stage={generateJob?.stage ?? 'queued'}
                 errorMessage={generateJob?.errorMessage}
                 toolType="composer_generate"
+                onRetry={handleRetryGenerate}
               />
             )}
 

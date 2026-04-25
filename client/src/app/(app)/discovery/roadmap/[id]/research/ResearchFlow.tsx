@@ -100,6 +100,8 @@ export function ResearchFlow({
                 title="Running your research"
                 stage={flow.executeJob?.stage ?? 'queued'}
                 errorMessage={flow.executeJob?.errorMessage}
+                toolType="research_execute"
+                onRetry={flow.handleRetryExecute}
               />
             )}
 
@@ -127,6 +129,7 @@ export function ResearchFlow({
                     title="Running your follow-up"
                     stage={flow.followupJob?.stage ?? 'queued'}
                     errorMessage={flow.followupJob?.errorMessage}
+                    toolType="research_followup"
                   />
                 )}
 

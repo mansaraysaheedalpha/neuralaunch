@@ -211,14 +211,18 @@ export default function StandaloneComposerPage() {
         setGenerateJobId(null);
         bumpMeter();
       })();
-    } else if (generateJob.stage === 'failed') {
-      setError(generateJob.errorMessage ?? 'Generation failed.');
-      setStage('context');
-      setGenerateJobId(null);
-      bumpMeter();
     }
+    // 'failed' keeps founder on loading_generation; failed ladder +
+    // retry button is the recovery path.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generateJob?.stage, roadmapId, sessionId]);
+
+  const handleRetryGenerate = useCallback(() => {
+    if (!context || !mode || !channel) return;
+    setGenerateJobId(null);
+    setError(null);
+    void handleContextComplete(context, mode, channel);
+  }, [context, mode, channel, handleContextComplete]);
 
   if (stage === 'loading') {
     return (
@@ -302,6 +306,7 @@ export default function StandaloneComposerPage() {
           stage={generateJob?.stage ?? 'queued'}
           errorMessage={generateJob?.errorMessage}
           toolType="composer_generate"
+          onRetry={handleRetryGenerate}
         />
       )}
 
