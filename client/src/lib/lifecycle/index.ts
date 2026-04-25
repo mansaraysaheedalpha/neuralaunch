@@ -22,6 +22,9 @@ export {
   createVenture,
   createCycle,
   getAllVentures,
+  deriveVentureName,
+  bootstrapVentureAndCycleForRecommendation,
+  createNextCycleForVenture,
   type Venture,
   type Cycle,
 } from './venture';

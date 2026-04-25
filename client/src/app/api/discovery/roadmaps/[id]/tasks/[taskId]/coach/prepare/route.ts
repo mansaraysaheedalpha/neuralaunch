@@ -76,7 +76,11 @@ export async function POST(
       throw new HttpError(409, 'Coach setup data is malformed.');
     }
 
-    const sessionId = (session['id'] as string | undefined) ?? `cs_${Date.now()}`;
+    // Setup is the only writer of session.id; if it's missing the row
+    // is malformed, not "needs a fresh id." Throw rather than mint a
+    // new id that would never match what the worker expects to find.
+    const sessionId = session['id'] as string | undefined;
+    if (!sessionId) throw new HttpError(409, 'Coach session is malformed (missing id). Re-run setup.');
 
     const job = await createToolJob({
       userId, roadmapId,

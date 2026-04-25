@@ -14,12 +14,13 @@ import {
   appendResearchLog,
   type ResearchLogEntry,
 } from '@/lib/research';
+import { z } from 'zod';
 import {
   COMPOSER_TOOL_ID,
+  COMPOSER_CHANNELS,
+  COMPOSER_MODES,
   OutreachContextSchema,
   runComposerGeneration,
-  type ComposerChannel,
-  type ComposerMode,
 } from '@/lib/roadmap/composer';
 import { loadPerTaskAgentContext } from '@/lib/lifecycle';
 import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
@@ -71,6 +72,15 @@ export const composerGenerateJobFunction = inngest.createFunction(
         if (!parsedContext.success) {
           throw new Error('Composer context payload failed schema parse');
         }
+        // Validate mode + channel against the Zod enums at the worker
+        // boundary — Inngest's TS event map carries them as `string`,
+        // but the engine takes the narrow ComposerMode/ComposerChannel
+        // literals. Throwing here surfaces a malformed event before
+        // the LLM call, which is cheaper than a 30s Sonnet timeout.
+        const modeParsed    = z.enum(COMPOSER_MODES).safeParse(mode);
+        const channelParsed = z.enum(COMPOSER_CHANNELS).safeParse(channel);
+        if (!modeParsed.success)    throw new Error(`Invalid composer mode: ${mode}`);
+        if (!channelParsed.success) throw new Error(`Invalid composer channel: ${channel}`);
 
         const roadmap = await prisma.roadmap.findFirst({
           where:  { id: roadmapId, userId },
@@ -93,6 +103,8 @@ export const composerGenerateJobFunction = inngest.createFunction(
 
         return {
           context: parsedContext.data,
+          mode:    modeParsed.data,
+          channel: channelParsed.data,
           founderProfileBlock: renderFounderProfileBlock(profile) || undefined,
           beliefState: {
             primaryGoal:          bs?.primaryGoal?.value ?? null,
@@ -114,8 +126,8 @@ export const composerGenerateJobFunction = inngest.createFunction(
         const result = await runComposerGeneration({
           founderProfileBlock:   ctx.founderProfileBlock,
           context:               ctx.context,
-          mode:                  mode as ComposerMode,
-          channel:               channel as ComposerChannel,
+          mode:                  ctx.mode,
+          channel:               ctx.channel,
           beliefState:           ctx.beliefState,
           recommendationPath:    ctx.recommendationPath,
           recommendationSummary: ctx.recommendationSummary,

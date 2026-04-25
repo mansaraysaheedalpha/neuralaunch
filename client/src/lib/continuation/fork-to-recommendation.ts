@@ -12,6 +12,7 @@
 import 'server-only';
 import prisma, { toJsonValue } from '@/lib/prisma';
 import { buildPhaseContext, PHASES } from '@/lib/phase-context';
+import { createNextCycleForVenture } from '@/lib/lifecycle';
 import { CONTINUATION_STATUSES } from './constants';
 import type { ContinuationBrief, ContinuationFork } from './brief-schema';
 
@@ -105,8 +106,26 @@ export async function persistForkRecommendation(input: {
   parentRecommendationType: string | null;
   userId:             string;
   payload:            ForkRecommendationPayload;
-}): Promise<{ newRecommendationId: string }> {
-  const newRecommendationId = await prisma.$transaction(async (tx) => {
+}): Promise<{ newRecommendationId: string; newCycleId: string | null }> {
+  const result = await prisma.$transaction(async (tx) => {
+    // Look up the parent recommendation's cycle so the next cycle
+    // lands in the same venture. A parent without a cycleId is a
+    // legacy recommendation from before the venture/cycle wiring
+    // shipped; we still accept the fork pick and create the new
+    // recommendation, but skip cycle creation so legacy data
+    // continues to flow without the continuation chain hard-depending
+    // on retrofitted columns.
+    const parent = await tx.recommendation.findUnique({
+      where:  { id: input.parentRecommendationId },
+      select: { cycleId: true, cycle: { select: { ventureId: true } } },
+    });
+
+    let newCycleId: string | null = null;
+    if (parent?.cycle?.ventureId) {
+      const next = await createNextCycleForVenture(tx, parent.cycle.ventureId);
+      newCycleId = next.cycleId;
+    }
+
     const newRec = await tx.recommendation.create({
       data: {
         userId:                 input.userId,
@@ -125,6 +144,7 @@ export async function persistForkRecommendation(input: {
         // The acceptance round is 0 because there was no pushback.
         acceptedAt:             new Date(),
         acceptedAtRound:        0,
+        ...(newCycleId ? { cycleId: newCycleId } : {}),
         phaseContext: toJsonValue(buildPhaseContext(PHASES.RECOMMENDATION, {
           discoverySessionId: input.parentSessionId,
           recommendationId:   input.parentRecommendationId,
@@ -141,8 +161,8 @@ export async function persistForkRecommendation(input: {
       },
     });
 
-    return newRec.id;
+    return { id: newRec.id, newCycleId };
   });
 
-  return { newRecommendationId };
+  return { newRecommendationId: result.id, newCycleId: result.newCycleId };
 }
