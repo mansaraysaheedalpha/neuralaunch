@@ -178,6 +178,36 @@ export function patchTask(
 }
 
 /**
+ * Whether a completed task still owes the founder an outcome-capture
+ * check-in. The two-option completion surface (TaskCompletionMoment)
+ * writes a CheckInEntry whenever the founder resolves it — either
+ * "It went as planned" (source='success_criteria_confirmed') or
+ * "Tell us how it went" (source='founder'). Before this helper
+ * existed the surface lived only in client state, so refreshing the
+ * page after toggling complete dropped the prompt and the task could
+ * stay completed with zero outcome data. Deriving pending state from
+ * (status, completedAt, checkInHistory) lets the hook re-seed the
+ * banner on mount so the A12 invariant — every completion carries
+ * outcome data — actually holds across refreshes.
+ *
+ * Rule: any entry with timestamp >= completedAt satisfies the
+ * invariant. Re-completing a task does NOT bump completedAt (see
+ * tasks/[taskId]/status/route.ts), so an attestation from the
+ * task's first completion continues to count.
+ */
+export function isCompletionOutcomePending(task: StoredRoadmapTask): boolean {
+  if (task.status !== 'completed') return false;
+  if (!task.completedAt) return false;
+  const completedAtMs = Date.parse(task.completedAt);
+  if (Number.isNaN(completedAtMs)) return false;
+  const history = task.checkInHistory ?? [];
+  return !history.some(entry => {
+    const entryMs = Date.parse(entry.timestamp);
+    return !Number.isNaN(entryMs) && entryMs >= completedAtMs;
+  });
+}
+
+/**
  * Compute summary counts from a phases array. Used to refresh the
  * RoadmapProgress row whenever the JSON changes.
  */

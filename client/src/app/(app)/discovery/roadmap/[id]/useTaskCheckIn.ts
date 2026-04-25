@@ -17,6 +17,7 @@ import type {
   StoredRoadmapTask,
   TaskStatus,
 } from '@/lib/roadmap/checkin-types';
+import { isCompletionOutcomePending } from '@/lib/roadmap/checkin-types';
 import type { CheckInCategory } from './CheckInForm';
 
 export interface UseTaskCheckInInput {
@@ -67,8 +68,15 @@ export function useTaskCheckIn(input: UseTaskCheckInInput): UseTaskCheckInResult
   const [freeText,    setFreeText]    = useState('');
   const [submitting,  setSubmitting]  = useState(false);
   const [error,       setError]       = useState<string | null>(null);
-  const [showCompletionMoment, setShowCompletionMoment] = useState(false);
-  const [completionPath, setCompletionPath] = useState<'choice' | 'writing' | null>(null);
+  // Re-seed the completion surface on mount when the task is already
+  // completed but has no outcome-era entry — otherwise a refresh
+  // between toggling complete and resolving the two-option prompt
+  // leaves the task forever without outcome data.
+  const initialPending = isCompletionOutcomePending(initialTask);
+  const [showCompletionMoment, setShowCompletionMoment] = useState(initialPending);
+  const [completionPath, setCompletionPath] = useState<'choice' | 'writing' | null>(
+    initialPending ? 'choice' : null,
+  );
 
   // A12: when the founder chose the writing path on a completed task
   // they have explicitly opted into telling us what happened — an
