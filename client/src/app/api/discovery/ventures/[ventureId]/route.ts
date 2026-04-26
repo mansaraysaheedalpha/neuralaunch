@@ -8,6 +8,7 @@
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import {
   HttpError,
@@ -21,6 +22,12 @@ import {
   assertVentureLimitNotReached,
   assertPausedVentureLimitNotReached,
 } from '@/lib/lifecycle';
+import { logger } from '@/lib/logger';
+import { inngest } from '@/inngest/client';
+import {
+  TRANSFORMATION_REPORT_EVENT,
+  REOPEN_WINDOW_MS,
+} from '@/lib/transformation/constants';
 
 // Request-body schema accepts any subset of the mutable fields. At
 // least one must be present; both are optional so rename-only and
@@ -39,19 +46,22 @@ const PatchBodySchema = z
  * Transition matrix — which from→to moves are allowed. Archived
  * ventures (set by tier-downgrade plumbing) are NOT modifiable
  * through this endpoint; they must be restored via the explicit
- * unarchive flow first. Completed is terminal — it cannot revert.
+ * unarchive flow first.
  *
  *   active    → paused     ✓  (user pauses to free the slot)
- *   active    → completed  ✓  (user marks the venture done)
- *   paused    → active     ✓  (user resumes; cap is re-checked)
+ *   active    → completed  ✓  (user marks the venture done; report fires)
+ *   paused    → active     ✓  (user resumes; active cap is re-checked)
  *   paused    → completed  ✓  (user marks the paused venture done)
- *   completed → anything   ✗  terminal
+ *   completed → active     ✓  (regret-trap escape: ONLY within 24h of
+ *                              completion AND only if the report has
+ *                              not been published. See REOPEN_WINDOW_MS
+ *                              and the publishState guard below.)
  *   archived  → anything   ✗  use the unarchive flow
  */
 const ALLOWED_TRANSITIONS: Record<string, readonly string[]> = {
   active:    ['paused', 'completed'],
   paused:    ['active', 'completed'],
-  completed: [],
+  completed: ['active'],
   archived:  [],
 };
 
@@ -86,7 +96,15 @@ export async function PATCH(
 
     const venture = await prisma.venture.findFirst({
       where:  { id: ventureId, userId },
-      select: { id: true, status: true, archivedAt: true },
+      select: {
+        id: true, status: true, archivedAt: true,
+        // The transformation report row anchors the 24h reopen
+        // window (its createdAt is the moment of completion) and
+        // gates publish-state-aware reopen denial.
+        transformationReport: {
+          select: { id: true, createdAt: true, publishState: true },
+        },
+      },
     });
     if (!venture) throw new HttpError(404, 'Not found');
 
@@ -130,16 +148,163 @@ export async function PATCH(
         await assertPausedVentureLimitNotReached(userId);
       }
 
+      // Reopen guard — `completed → active` is allowed only inside
+      // the 24h regret-trap window AND only when the transformation
+      // report has not been published. After the window, the report
+      // is locked-in archive material; reopening would silently
+      // delete a record the founder may have shared with others.
+      if (venture.status === 'completed' && parsed.data.status === 'active') {
+        const report = venture.transformationReport;
+        if (!report) {
+          throw new HttpError(
+            409,
+            'Cannot reopen — this venture has no transformation report row to anchor the reopen window.',
+          );
+        }
+        const elapsedMs = Date.now() - report.createdAt.getTime();
+        if (elapsedMs >= REOPEN_WINDOW_MS) {
+          throw new HttpError(
+            409,
+            'The 24-hour reopen window has passed. Completed ventures are terminal after that — start a new venture to keep working.',
+          );
+        }
+        if (report.publishState !== 'private') {
+          throw new HttpError(
+            409,
+            'Cannot reopen — this transformation report has been shared publicly. Unpublish it first if you really want to reopen the venture.',
+          );
+        }
+        // Resume also consumes an active slot — check the cap.
+        await assertVentureLimitNotReached(userId);
+      }
+
       updateData.status = parsed.data.status;
     }
 
-    const updated = await prisma.venture.update({
-      where: { id: ventureId },
-      data:  updateData,
-      select: { id: true, name: true, status: true },
+    // No status change OR a name-only change: keep the existing
+    // simple update path. Status transitions go through the
+    // transactional path below so we can fan out side effects
+    // (clear nudges, create or delete the transformation report).
+    if (updateData.status === undefined) {
+      const updated = await prisma.venture.update({
+        where: { id: ventureId },
+        data:  updateData,
+        select: { id: true, name: true, status: true },
+      });
+      return NextResponse.json(updated);
+    }
+
+    const log = logger.child({
+      route:    'PATCH ventures/[id]',
+      ventureId,
+      userId,
+      from:     venture.status,
+      to:       updateData.status,
     });
 
-    return NextResponse.json(updated);
+    // Transactional status transition with status-specific side
+    // effects. Each branch is its own consistency boundary — the
+    // venture row, the nudge state, and the transformation report
+    // row commit together (or roll back together).
+    const txResult = await prisma.$transaction(async (tx) => {
+      const updated = await tx.venture.update({
+        where: { id: ventureId },
+        data:  updateData,
+        select: { id: true, name: true, status: true },
+      });
+
+      // active|paused → completed: clear any pending in-flight
+      // nudges across this venture's roadmaps so the founder's
+      // notifications don't surface against a venture they just
+      // declared done. Also create the TransformationReport row in
+      // 'queued' state so the viewer page can poll it immediately.
+      if (updateData.status === 'completed') {
+        await tx.roadmapProgress.updateMany({
+          where: { roadmap: { ventureId } },
+          data:  {
+            nudgePending:        false,
+            staleTaskTitle:      null,
+            outcomePromptPending: false,
+          },
+        });
+
+        // Upsert because the founder may have reopened a previously
+        // completed venture (within 24h), wiped the report, and is
+        // now re-completing — a fresh queued report is the right
+        // state for the new completion. The unique constraint on
+        // ventureId guarantees one report per venture.
+        const report = await tx.transformationReport.upsert({
+          where:  { ventureId },
+          create: { ventureId, userId, stage: 'queued' },
+          update: {
+            stage:        'queued',
+            errorMessage: null,
+            // Prisma's nullable-JSON columns need the explicit
+            // Prisma.JsonNull sentinel — passing `null` confuses the
+            // type system between "set the column to NULL" and
+            // "remove the field from a JSON value."
+            content:             Prisma.JsonNull,
+            redactionCandidates: Prisma.JsonNull,
+            redactionEdits:      {},
+            startedAt:    new Date(),
+            completedAt:  null,
+            // Publish state is intentionally preserved — a previously
+            // published report that gets reopened+wiped is blocked
+            // before reaching this code by the publishState guard.
+          },
+          select: { id: true },
+        });
+
+        return { updated, reportId: report.id, sideEffect: 'completed' as const };
+      }
+
+      // completed → active (the 24h reopen path): drop the
+      // transformation report. The next Mark Complete will upsert
+      // a fresh row with stage='queued' so any new evidence the
+      // founder added during the reopen makes it into the report.
+      // Guarded above (publishState='private', within 24h) so this
+      // never wipes a published report.
+      if (venture.status === 'completed' && updateData.status === 'active') {
+        await tx.transformationReport.deleteMany({ where: { ventureId } });
+        return { updated, reportId: null, sideEffect: 'reopened' as const };
+      }
+
+      // active → paused, paused → active, etc. — no report-side
+      // effect needed. The status update has already happened
+      // inside the transaction above.
+      return { updated, reportId: null, sideEffect: 'plain' as const };
+    });
+
+    // Fire the durable Inngest event after the transaction commits
+    // so the worker only ever sees a row that exists. If this send
+    // fails (transient network), the row is in a stable queued
+    // state — a manual re-fire or the next "Mark Complete" attempt
+    // recovers without duplicates.
+    if (txResult.sideEffect === 'completed' && txResult.reportId) {
+      try {
+        await inngest.send({
+          name: TRANSFORMATION_REPORT_EVENT,
+          data: { reportId: txResult.reportId, ventureId, userId },
+        });
+      } catch (err) {
+        log.error(
+          'Transformation event send failed — report row is queued, manual re-fire required',
+          err instanceof Error ? err : new Error(String(err)),
+        );
+        // Do NOT throw — the row is persisted and the founder's
+        // status change succeeded. Surfacing this as a 5xx would
+        // leave them with a "completed" venture and a confusing
+        // error message; instead, we log and the report can be
+        // re-fired by an admin or by re-completing the venture.
+      }
+    }
+
+    log.info('Venture status transition committed', {
+      sideEffect: txResult.sideEffect,
+      reportId:   txResult.reportId,
+    });
+
+    return NextResponse.json(txResult.updated);
   } catch (err) {
     return httpErrorToResponse(err);
   }

@@ -12,8 +12,9 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import Link from 'next/link';
-import { Check, ChevronDown, FileText, Lock, Loader2, Map, Pause, Pencil, Play, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, FileText, Lock, Loader2, Map, Pause, Pencil, Play, RotateCcw, Sparkles, Trash2, X } from 'lucide-react';
 import type { Tier } from '@/lib/paddle/tiers';
+import { isWithinReopenWindow } from '@/lib/transformation/constants';
 
 const STATUS_CLASSES: Record<string, string> = {
   active:    'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
@@ -33,6 +34,17 @@ interface CycleSummary {
   completedAt:         string | null;
 }
 
+/** Snapshot of the venture's transformation report state. Null on
+ *  ventures that have never been completed; populated as soon as
+ *  Mark Complete fires (with stage='queued' before the worker has
+ *  written anything). The card uses it to drive the report-status
+ *  pill and the 24h Reopen button. */
+export interface TransformationReportSummary {
+  stage:        string;
+  publishState: string;
+  createdAt:    string;
+}
+
 export interface VentureCardProps {
   venture: {
     id:             string;
@@ -40,6 +52,7 @@ export interface VentureCardProps {
     status:         string;
     currentCycleId: string | null;
     cycles:         CycleSummary[];
+    transformationReport: TransformationReportSummary | null;
   };
   /** Progress for the active cycle's roadmap, if available. */
   progress: { completedTasks: number; totalTasks: number } | null;
@@ -173,6 +186,17 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
   const canPause    = status === 'active';
   const canResume   = status === 'paused';
   const canComplete = status === 'active' || status === 'paused';
+
+  // Reopen affordance — only on a completed venture, only inside
+  // the 24h window, and only when the transformation report has
+  // not been published. After 24h or once shared publicly, the
+  // venture is permanently completed; the button is hidden.
+  const report      = venture.transformationReport;
+  const reopenable  =
+       status === 'completed'
+    && report != null
+    && isWithinReopenWindow(report.createdAt)
+    && report.publishState === 'private';
   const isSaving    = action.kind === 'saving';
   const isDeleting  = action.kind === 'deleting';
   const busy        = isSaving || isDeleting;
@@ -304,6 +328,62 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                       ? 'You can read the roadmap, recommendation, and prior cycles. Check-ins, tools, and new task work are disabled until you resume.'
                       : 'The roadmap, recommendation, and prior cycles stay readable. No new check-ins, tool runs, or status changes will land — completed is terminal.'}
                   </p>
+                </div>
+              </div>
+            )}
+
+            {/* Transformation-report status — surfaced on completed
+                ventures only. The Inngest worker writes through stages
+                queued → loading_data → drafting → detecting_redactions
+                → persisting → complete (or failed); each row
+                describes what's happening and the link target.
+                Published-public reports surface a separate share badge
+                beneath. */}
+            {status === 'completed' && report && (
+              <div className="border-t border-border px-4 py-3 flex items-start gap-2 bg-primary/5">
+                <Sparkles className="size-3.5 text-primary mt-0.5 shrink-0" />
+                <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+                  {report.stage === 'complete' ? (
+                    <>
+                      <p className="text-[11px] font-medium text-foreground">
+                        Your transformation report is ready
+                      </p>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                        A personal narrative of how this venture went — written from your real check-ins and outcomes. Read it whenever you&apos;re ready.
+                      </p>
+                      <Link
+                        href={`/discovery/recommendations/${venture.id}/transformation`}
+                        className="self-start mt-1 text-[11px] font-medium text-primary hover:text-primary/80 underline underline-offset-2"
+                      >
+                        Open transformation report →
+                      </Link>
+                    </>
+                  ) : report.stage === 'failed' ? (
+                    <>
+                      <p className="text-[11px] font-medium text-foreground">
+                        Transformation report failed
+                      </p>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                        Something went wrong generating your narrative. The venture is still completed; you can re-trigger the report from the report viewer.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[11px] font-medium text-foreground inline-flex items-center gap-1.5">
+                        <Loader2 className="size-3 animate-spin" />
+                        Generating your transformation report…
+                      </p>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                        I&apos;m reading every cycle, every check-in, and every tool you used to write a personal narrative of how this went. Takes about 30 seconds. You can close this tab — it&apos;ll be ready when you come back.
+                      </p>
+                      <Link
+                        href={`/discovery/recommendations/${venture.id}/transformation`}
+                        className="self-start mt-1 text-[11px] font-medium text-primary hover:text-primary/80 underline underline-offset-2"
+                      >
+                        Watch progress →
+                      </Link>
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -534,10 +614,22 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                       onClick={() => setAction({ kind: 'confirming-complete' })}
                       disabled={busy}
                       className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                      title="Mark this venture as done. Terminal — cannot be reopened."
+                      title="Mark this venture as done. Terminal — cannot be reopened after 24h."
                     >
                       <Check className="size-3" />
                       Mark complete
+                    </button>
+                  )}
+                  {reopenable && (
+                    <button
+                      type="button"
+                      onClick={() => { void mutateStatus('active'); }}
+                      disabled={busy}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 transition-colors disabled:opacity-60"
+                      title="Reopen within 24 hours of marking complete. Deletes the transformation report so re-completing generates fresh."
+                    >
+                      {isSaving ? <Loader2 className="size-3 animate-spin" /> : <RotateCcw className="size-3" />}
+                      Reopen venture
                     </button>
                   )}
                   <button

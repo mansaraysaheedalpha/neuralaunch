@@ -271,6 +271,35 @@ export type NeuraLaunchEvents = {
       taskId:    string | null;
     };
   };
+
+  /**
+   * Fired when the founder transitions a venture from active|paused
+   * to completed. The Mark Complete handler creates a
+   * TransformationReport row with stage='queued' and fires this event
+   * synchronously so the Opus narrative synthesis runs in the
+   * background — the founder lands on the report viewer (which polls
+   * the row's stage) immediately and sees step-progress updates.
+   *
+   * Tab-close survival is automatic: the row persists in Postgres
+   * and the worker writes its result on completion regardless of
+   * whether the founder is still on the page. A push notification
+   * fires on completion if they're not.
+   *
+   * Consumer: `transformationReportFunction` in
+   * `src/inngest/functions/transformation-report-function.ts`
+   * (added in a later commit; this event is declared first so the
+   * accept-and-queue route can reference it).
+   *
+   * The literal name is exported as `TRANSFORMATION_REPORT_EVENT`
+   * from `src/lib/transformation/constants.ts`.
+   */
+  'discovery/transformation.requested': {
+    data: {
+      reportId:  string;
+      ventureId: string;
+      userId:    string;
+    };
+  };
 };
 
 /**

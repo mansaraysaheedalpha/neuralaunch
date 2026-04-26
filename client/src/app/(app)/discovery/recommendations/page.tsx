@@ -55,6 +55,18 @@ export default async function RecommendationsPage() {
           recommendation: { select: { id: true } },
         },
       },
+      // Transformation-report state for the completed-card UI: the
+      // 24h reopen window anchors off createdAt, the publishState
+      // gates whether reopen is offered (published reports lock
+      // reopen out), and the stage drives the "Generating..." vs
+      // "View report" label.
+      transformationReport: {
+        select: {
+          stage:        true,
+          publishState: true,
+          createdAt:    true,
+        },
+      },
     },
   });
 
@@ -151,16 +163,27 @@ export default async function RecommendationsPage() {
               {active.map(v => (
                 <VentureCard
                   key={v.id}
-                  venture={{ ...v, cycles: v.cycles.map(c => ({
-                    id:                  c.id,
-                    cycleNumber:         c.cycleNumber,
-                    status:              c.status,
-                    selectedForkSummary: c.selectedForkSummary,
-                    roadmapId:           c.roadmapId,
-                    recommendationId:    c.recommendation?.id ?? null,
-                    createdAt:           c.createdAt.toISOString(),
-                    completedAt:         c.completedAt?.toISOString() ?? null,
-                  })) }}
+                  venture={{
+                    id:             v.id,
+                    name:           v.name,
+                    status:         v.status,
+                    currentCycleId: v.currentCycleId,
+                    cycles: v.cycles.map(c => ({
+                      id:                  c.id,
+                      cycleNumber:         c.cycleNumber,
+                      status:              c.status,
+                      selectedForkSummary: c.selectedForkSummary,
+                      roadmapId:           c.roadmapId,
+                      recommendationId:    c.recommendation?.id ?? null,
+                      createdAt:           c.createdAt.toISOString(),
+                      completedAt:         c.completedAt?.toISOString() ?? null,
+                    })),
+                    transformationReport: v.transformationReport ? {
+                      stage:        v.transformationReport.stage,
+                      publishState: v.transformationReport.publishState,
+                      createdAt:    v.transformationReport.createdAt.toISOString(),
+                    } : null,
+                  }}
                   progress={progressMap.get(v.id) ?? null}
                   tier={tier}
                   pausedCount={pausedCount}
@@ -177,16 +200,27 @@ export default async function RecommendationsPage() {
               {paused.map(v => (
                 <VentureCard
                   key={v.id}
-                  venture={{ ...v, cycles: v.cycles.map(c => ({
-                    id:                  c.id,
-                    cycleNumber:         c.cycleNumber,
-                    status:              c.status,
-                    selectedForkSummary: c.selectedForkSummary,
-                    roadmapId:           c.roadmapId,
-                    recommendationId:    c.recommendation?.id ?? null,
-                    createdAt:           c.createdAt.toISOString(),
-                    completedAt:         c.completedAt?.toISOString() ?? null,
-                  })) }}
+                  venture={{
+                    id:             v.id,
+                    name:           v.name,
+                    status:         v.status,
+                    currentCycleId: v.currentCycleId,
+                    cycles: v.cycles.map(c => ({
+                      id:                  c.id,
+                      cycleNumber:         c.cycleNumber,
+                      status:              c.status,
+                      selectedForkSummary: c.selectedForkSummary,
+                      roadmapId:           c.roadmapId,
+                      recommendationId:    c.recommendation?.id ?? null,
+                      createdAt:           c.createdAt.toISOString(),
+                      completedAt:         c.completedAt?.toISOString() ?? null,
+                    })),
+                    transformationReport: v.transformationReport ? {
+                      stage:        v.transformationReport.stage,
+                      publishState: v.transformationReport.publishState,
+                      createdAt:    v.transformationReport.createdAt.toISOString(),
+                    } : null,
+                  }}
                   progress={null}
                   tier={tier}
                   pausedCount={pausedCount}
@@ -203,16 +237,27 @@ export default async function RecommendationsPage() {
               {completed.map(v => (
                 <VentureCard
                   key={v.id}
-                  venture={{ ...v, cycles: v.cycles.map(c => ({
-                    id:                  c.id,
-                    cycleNumber:         c.cycleNumber,
-                    status:              c.status,
-                    selectedForkSummary: c.selectedForkSummary,
-                    roadmapId:           c.roadmapId,
-                    recommendationId:    c.recommendation?.id ?? null,
-                    createdAt:           c.createdAt.toISOString(),
-                    completedAt:         c.completedAt?.toISOString() ?? null,
-                  })) }}
+                  venture={{
+                    id:             v.id,
+                    name:           v.name,
+                    status:         v.status,
+                    currentCycleId: v.currentCycleId,
+                    cycles: v.cycles.map(c => ({
+                      id:                  c.id,
+                      cycleNumber:         c.cycleNumber,
+                      status:              c.status,
+                      selectedForkSummary: c.selectedForkSummary,
+                      roadmapId:           c.roadmapId,
+                      recommendationId:    c.recommendation?.id ?? null,
+                      createdAt:           c.createdAt.toISOString(),
+                      completedAt:         c.completedAt?.toISOString() ?? null,
+                    })),
+                    transformationReport: v.transformationReport ? {
+                      stage:        v.transformationReport.stage,
+                      publishState: v.transformationReport.publishState,
+                      createdAt:    v.transformationReport.createdAt.toISOString(),
+                    } : null,
+                  }}
                   progress={null}
                   tier={tier}
                   pausedCount={pausedCount}

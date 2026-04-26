@@ -90,6 +90,7 @@ model User {
   // constraints gate active count (Execute: 1, Compound: 3).
   founderProfile FounderProfile?
   ventures       Venture[]
+  transformationReports TransformationReport[]
 
   // ----- Billing (Paddle) -----
   //
@@ -1193,6 +1194,9 @@ model Venture {
 
   cycles   Cycle[]
   roadmaps Roadmap[]
+  /// One transformation report per venture. Created when the founder
+  /// transitions the venture to `completed`; null until then.
+  transformationReport TransformationReport?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1243,6 +1247,80 @@ model Cycle {
 
   @@index([ventureId])
   @@index([ventureId, cycleNumber])
+}
+
+// ---------------------------------------------------------------------------
+// TransformationReport — the once-per-venture personal narrative the
+// founder gets when they Mark Complete. Reads everything that
+// happened across the venture's cycles — discovery belief states,
+// recommendations + pushback, every check-in, every tool session,
+// CycleSummaries, FounderProfile behavioural calibration, validation
+// signals — and synthesises a non-template narrative report.
+//
+// The row triple-duties: job-progress carrier (stage/errorMessage),
+// result holder (content/redactionCandidates), and publish-state
+// holder (publishState/publicSlug/publishedAt). Splitting `stage`
+// from `publishState` keeps the two lifecycles independent — the
+// generation pipeline finishes whether or not the founder ever
+// publishes, and a published report's stage stays at 'complete'.
+//
+// Venture-scoped (not roadmap-scoped) because a venture spans
+// multiple cycles/roadmaps and the report covers the whole arc.
+// One report per venture (@unique on ventureId).
+// ---------------------------------------------------------------------------
+
+model TransformationReport {
+  id        String  @id @default(cuid())
+  ventureId String  @unique
+  venture   Venture @relation(fields: [ventureId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Pipeline stage written by the Inngest function on each step.run
+  /// boundary. Terminal: 'complete' | 'failed'. Stages:
+  /// 'queued' | 'loading_data' | 'drafting' | 'detecting_redactions' |
+  /// 'persisting' | 'complete' | 'failed'.
+  stage         String    @default("queued")
+  errorMessage  String?
+  startedAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  completedAt   DateTime?
+
+  /// TransformationReportSchema-validated JSON. Nullable until
+  /// stage='complete'. The shape is intentionally dynamic — every
+  /// section is optional, an extra customSections array catches
+  /// asymmetric findings, and sectionOrder lets the renderer respect
+  /// the narrative flow the model produced. Reads like writing,
+  /// not like a fillable form.
+  content Json?
+
+  /// Detected PII / redaction candidates the founder reviews before
+  /// publishing. Populated alongside content during the
+  /// 'detecting_redactions' stage. Nullable until the redaction
+  /// detector has run.
+  redactionCandidates Json?
+
+  /// The founder's redaction choices keyed by candidate id —
+  /// { [candidateId]: { action: 'keep' | 'redact' | 'replace', replacement?: string } }.
+  /// Empty {} until the founder opens the editor; persists every save
+  /// so the editor remembers state across visits.
+  redactionEdits Json @default("{}")
+
+  /// Publish lifecycle, independent of `stage`:
+  ///   'private'        — default, only visible to the founder
+  ///   'pending_review' — founder requested publish, awaiting curation
+  ///                      (no curation UI yet — sits in DB until we
+  ///                      ship the public archive separately)
+  ///   'public'         — live at /stories/[publicSlug]
+  ///   'unpublished'    — was public, founder pulled it
+  publishState String   @default("private")
+  publicSlug   String?  @unique
+  publishedAt  DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, publishState])
 }
 
 // ---------------------------------------------------------------------------
