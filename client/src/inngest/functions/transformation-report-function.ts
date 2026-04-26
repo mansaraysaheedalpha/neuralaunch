@@ -14,18 +14,26 @@
 
 import { inngest } from '../client';
 import { logger } from '@/lib/logger';
+// Server-only deps imported directly from their own files so the
+// client barrel ('@/lib/transformation') stays free of
+// 'server-only' transitive dependencies. See the barrel file for
+// the rationale.
+import { TRANSFORMATION_REPORT_EVENT } from '@/lib/transformation/constants';
+import { loadVentureEvidenceBundle } from '@/lib/transformation/evidence-loader';
 import {
-  TRANSFORMATION_REPORT_EVENT,
-  loadVentureEvidenceBundle,
   generateTransformationReport,
   detectRedactionCandidates,
-  autoRedactReport,
+} from '@/lib/transformation/engine';
+import { autoRedactReport } from '@/lib/transformation/redaction';
+import {
   updateTransformationStage,
   completeTransformationReport,
   failTransformationReport,
+} from '@/lib/transformation/helpers';
+import {
   notifyTransformationComplete,
   notifyTransformationFailed,
-} from '@/lib/transformation';
+} from '@/lib/transformation/notifications';
 
 export const transformationReportFunction = inngest.createFunction(
   {

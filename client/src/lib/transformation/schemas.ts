@@ -137,3 +137,18 @@ export const RedactionCandidateSchema = z.object({
 export type RedactionCandidate = z.infer<typeof RedactionCandidateSchema>;
 
 export const RedactionCandidatesArraySchema = z.array(RedactionCandidateSchema);
+
+// ---------------------------------------------------------------------------
+// Founder-edit shapes — moved here from redaction.ts so the client
+// barrel can re-export the schemas without dragging redaction.ts's
+// `import 'server-only'` into the browser bundle.
+// ---------------------------------------------------------------------------
+
+export const RedactionEditEntrySchema = z.object({
+  action:      z.enum(['keep', 'redact', 'replace']),
+  replacement: z.string().nullable(),
+});
+export type RedactionEditEntry = z.infer<typeof RedactionEditEntrySchema>;
+
+export const RedactionEditsSchema = z.record(z.string(), RedactionEditEntrySchema);
+export type RedactionEdits = z.infer<typeof RedactionEditsSchema>;

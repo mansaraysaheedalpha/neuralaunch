@@ -22,13 +22,20 @@
 //   redacted report (used by Commit 3's publish action).
 
 import 'server-only';
-import { z } from 'zod';
 import {
   TransformationReportSchema,
   RedactionCandidatesArraySchema,
   type TransformationReport,
   type RedactionCandidate,
+  type RedactionEditEntry,
+  type RedactionEdits,
 } from './schemas';
+
+// Re-export the founder-edit types alongside the runtime helpers
+// for callers that already import from this file. The schemas live
+// in schemas.ts so the client barrel can surface them without
+// pulling 'server-only' into the browser bundle.
+export type { RedactionEditEntry, RedactionEdits };
 
 // ---------------------------------------------------------------------------
 // Auto-redact baseline — high-confidence regex matches that always fire,
@@ -182,14 +189,6 @@ export function autoRedactReport(
 // the public-version content. The private content stays unredacted.
 // ---------------------------------------------------------------------------
 
-export const RedactionEditEntrySchema = z.object({
-  action:      z.enum(['keep', 'redact', 'replace']),
-  replacement: z.string().nullable(),
-});
-export type RedactionEditEntry = z.infer<typeof RedactionEditEntrySchema>;
-
-export const RedactionEditsSchema = z.record(z.string(), RedactionEditEntrySchema);
-export type RedactionEdits = z.infer<typeof RedactionEditsSchema>;
 
 /**
  * Apply founder edits to a report. Each candidate's text is found

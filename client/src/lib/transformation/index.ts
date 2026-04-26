@@ -1,9 +1,26 @@
 // src/lib/transformation/index.ts
 //
-// Public API for the Transformation Report module. Mirrors the
-// continuation/lifecycle barrel pattern — re-exports every symbol
-// callers outside the module should reach for. Internal files
-// remain implementation detail.
+// Public barrel for Transformation Report TYPES + SCHEMAS +
+// CONSTANTS only. Safe to import from client components.
+//
+// Server-only modules (engine.ts, evidence-loader.ts, helpers.ts,
+// notifications.ts, redaction.ts) intentionally do NOT live in
+// this barrel — re-exporting them here would pull
+// `import 'server-only'` into the client bundle every time a UI
+// component touched a transformation type or schema. Server
+// consumers import directly from their respective files:
+//
+//   import { generateTransformationReport, detectRedactionCandidates }
+//     from '@/lib/transformation/engine';
+//   import { loadVentureEvidenceBundle, type VentureEvidenceBundle }
+//     from '@/lib/transformation/evidence-loader';
+//   import { updateTransformationStage, completeTransformationReport,
+//            failTransformationReport }
+//     from '@/lib/transformation/helpers';
+//   import { notifyTransformationComplete, notifyTransformationFailed }
+//     from '@/lib/transformation/notifications';
+//   import { autoRedactReport, autoRedactString, applyRedactionEdits }
+//     from '@/lib/transformation/redaction';
 
 export {
   TRANSFORMATION_REPORT_EVENT,
@@ -22,6 +39,8 @@ export {
   TransformationDecisivePivotSchema,
   RedactionCandidateSchema,
   RedactionCandidatesArraySchema,
+  RedactionEditEntrySchema,
+  RedactionEditsSchema,
   REDACTION_TYPES,
   safeParseTransformationReport,
   type TransformationReport,
@@ -29,42 +48,7 @@ export {
   type TransformationDecisivePivot,
   type DefaultSectionKey,
   type RedactionCandidate,
-  type RedactionType,
-} from './schemas';
-
-export {
-  updateTransformationStage,
-  completeTransformationReport,
-  failTransformationReport,
-} from './helpers';
-
-export {
-  notifyTransformationComplete,
-  notifyTransformationFailed,
-} from './notifications';
-
-export {
-  loadVentureEvidenceBundle,
-  type VentureEvidenceBundle,
-  type CycleEvidence,
-  type CheckInEvidence,
-  type ToolSessionEvidence,
-  type ParkingLotEvidence,
-  type ValidationSignalEvidence,
-  type OutcomeEvidence,
-} from './evidence-loader';
-
-export {
-  generateTransformationReport,
-  detectRedactionCandidates,
-} from './engine';
-
-export {
-  autoRedactReport,
-  autoRedactString,
-  applyRedactionEdits,
-  RedactionEditEntrySchema,
-  RedactionEditsSchema,
   type RedactionEditEntry,
   type RedactionEdits,
-} from './redaction';
+  type RedactionType,
+} from './schemas';
