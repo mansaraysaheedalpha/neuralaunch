@@ -131,3 +131,100 @@ export async function PATCH(
     return httpErrorToResponse(err);
   }
 }
+
+/**
+ * DELETE /api/discovery/ventures/[ventureId]
+ *
+ * Hard-deletes a venture and every artefact under it: cycles, the
+ * recommendations attached to those cycles, the roadmaps attached
+ * to those recommendations, and the validation pages bound to either
+ * roadmap or recommendation. Allowed at any status (active, paused,
+ * completed, archived) so the founder can clean up obsolete or test
+ * data without first transitioning state.
+ *
+ * Cascade order matters because the schema mixes Cascade and SetNull:
+ *   1. ValidationPage.recommendationId / roadmapId  → SetNull
+ *      (must be explicitly deleted; otherwise pages linger as
+ *      orphans in /discovery/validation)
+ *   2. Recommendation                               → cascades Roadmap
+ *      and RoadmapProgress
+ *   3. Venture                                      → cascades Cycle
+ *
+ * The DiscoverySession that produced the recommendation is NOT
+ * deleted — discovery sessions are shared across cycles within a
+ * venture (the fork flow reuses the parent session id) and the
+ * interview transcript is intentionally durable history.
+ */
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ ventureId: string }> },
+) {
+  try {
+    enforceSameOrigin(request);
+    const userId = await requireUserId();
+    await rateLimitByUser(userId, 'venture-delete', RATE_LIMITS.API_AUTHENTICATED);
+
+    const { ventureId } = await params;
+
+    const venture = await prisma.venture.findFirst({
+      where:  { id: ventureId, userId },
+      select: {
+        id: true,
+        cycles: {
+          select: {
+            id:             true,
+            roadmapId:      true,
+            recommendation: { select: { id: true } },
+          },
+        },
+        roadmaps: { select: { id: true } },
+      },
+    });
+    if (!venture) throw new HttpError(404, 'Not found');
+
+    const recommendationIds = venture.cycles
+      .map(c => c.recommendation?.id)
+      .filter((id): id is string => Boolean(id));
+
+    const roadmapIds = Array.from(new Set([
+      ...venture.cycles.map(c => c.roadmapId).filter((id): id is string => Boolean(id)),
+      ...venture.roadmaps.map(r => r.id),
+    ]));
+
+    await prisma.$transaction(async (tx) => {
+      // Step 1 — validation pages first, since their FKs are SetNull
+      // not Cascade. Deleting the page cascades its snapshots,
+      // reports, and events. Filter ownership-scoped so a malformed
+      // input cannot reach into another user's data.
+      if (recommendationIds.length > 0 || roadmapIds.length > 0) {
+        const orFilters: Array<Record<string, unknown>> = [];
+        if (recommendationIds.length > 0) {
+          orFilters.push({ recommendationId: { in: recommendationIds } });
+        }
+        if (roadmapIds.length > 0) {
+          orFilters.push({ roadmapId: { in: roadmapIds } });
+        }
+        if (orFilters.length > 0) {
+          await tx.validationPage.deleteMany({
+            where: { userId, OR: orFilters },
+          });
+        }
+      }
+
+      // Step 2 — recommendations cascade their roadmaps (and the
+      // RoadmapProgress / continuation columns living off Roadmap).
+      if (recommendationIds.length > 0) {
+        await tx.recommendation.deleteMany({
+          where: { id: { in: recommendationIds }, userId },
+        });
+      }
+
+      // Step 3 — the venture row itself, cascading the cycles.
+      await tx.venture.delete({ where: { id: ventureId } });
+    });
+
+    return new NextResponse(null, { status: 204 });
+  } catch (err) {
+    return httpErrorToResponse(err);
+  }
+}

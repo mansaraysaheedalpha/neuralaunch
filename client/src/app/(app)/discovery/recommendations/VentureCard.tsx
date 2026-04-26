@@ -12,7 +12,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import Link from 'next/link';
-import { Check, ChevronDown, Loader2, Pencil, Pause, Play, X } from 'lucide-react';
+import { Check, ChevronDown, FileText, Loader2, Map, Pause, Pencil, Play, Trash2, X } from 'lucide-react';
 
 const STATUS_CLASSES: Record<string, string> = {
   active:    'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
@@ -26,6 +26,8 @@ interface CycleSummary {
   status:              string;
   selectedForkSummary: string | null;
   roadmapId:           string | null;
+  /** Null on legacy pre-wiring rows; the UI hides the link when null. */
+  recommendationId:    string | null;
   createdAt:           string;
   completedAt:         string | null;
 }
@@ -45,7 +47,9 @@ export interface VentureCardProps {
 type ActionState =
   | { kind: 'idle' }
   | { kind: 'saving' }
+  | { kind: 'deleting' }
   | { kind: 'confirming-complete' }
+  | { kind: 'confirming-delete' }
   | { kind: 'error'; message: string };
 
 export function VentureCard({ venture, progress }: VentureCardProps) {
@@ -121,6 +125,34 @@ export function VentureCard({ venture, progress }: VentureCardProps) {
     }
   }
 
+  /**
+   * Hard-delete the venture and everything cascading from it. The
+   * server route fans out: delete the cycles' Recommendations
+   * (cascades Roadmap + RoadmapProgress + ValidationPage), then
+   * delete the Venture (cascades Cycle). Local state has nothing
+   * to optimistically toggle to — on success we refresh the
+   * server component so the venture disappears from its section.
+   */
+  async function mutateDelete() {
+    setAction({ kind: 'deleting' });
+    try {
+      const res = await fetch(`/api/discovery/ventures/${venture.id}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({})) as { error?: string };
+        setAction({
+          kind:    'error',
+          message: json.error ?? 'Could not delete the venture. Please try again.',
+        });
+        return;
+      }
+      router.refresh();
+    } catch {
+      setAction({ kind: 'error', message: 'Network error — please try again.' });
+    }
+  }
+
   const activeCycle = venture.cycles.find(c => c.status === 'in_progress');
   const completedCycles = venture.cycles.filter(c => c.status === 'completed');
   const totalCycles = venture.cycles.length;
@@ -134,6 +166,8 @@ export function VentureCard({ venture, progress }: VentureCardProps) {
   const canResume   = status === 'paused';
   const canComplete = status === 'active' || status === 'paused';
   const isSaving    = action.kind === 'saving';
+  const isDeleting  = action.kind === 'deleting';
+  const busy        = isSaving || isDeleting;
 
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
@@ -218,23 +252,47 @@ export function VentureCard({ venture, progress }: VentureCardProps) {
             <div className="border-t border-border px-4 py-3 flex flex-col gap-2">
               {venture.cycles.map(cycle => {
                 const isActive = cycle.status === 'in_progress';
-                const href = cycle.roadmapId ? `/discovery/roadmap/${cycle.roadmapId}` : null;
                 const dateStr = cycle.completedAt
                   ? new Date(cycle.completedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
                   : 'in progress';
 
-                return href ? (
-                  <Link key={cycle.id} href={href}
-                    className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[11px] transition-colors ${isActive ? 'bg-primary/5 text-primary font-medium hover:bg-primary/10' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
+                return (
+                  <div
+                    key={cycle.id}
+                    className={`rounded-md px-2.5 py-2 text-[11px] flex flex-col gap-1.5 ${isActive ? 'bg-primary/5' : 'bg-muted/20'}`}
                   >
-                    <span className={`size-1.5 rounded-full shrink-0 ${isActive ? 'bg-primary' : 'bg-muted-foreground/40'}`} />
-                    <span className="truncate">Cycle {cycle.cycleNumber}{cycle.selectedForkSummary ? `: ${cycle.selectedForkSummary}` : ''}</span>
-                    <span className="ml-auto text-[10px] text-muted-foreground shrink-0">{dateStr}</span>
-                  </Link>
-                ) : (
-                  <div key={cycle.id} className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[11px] text-muted-foreground">
-                    <span className="size-1.5 rounded-full shrink-0 bg-muted-foreground/40" />
-                    <span className="truncate">Cycle {cycle.cycleNumber} — no roadmap yet</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`size-1.5 rounded-full shrink-0 ${isActive ? 'bg-primary' : 'bg-muted-foreground/40'}`} />
+                      <span className={`truncate ${isActive ? 'text-primary font-medium' : 'text-foreground/80'}`}>
+                        Cycle {cycle.cycleNumber}{cycle.selectedForkSummary ? `: ${cycle.selectedForkSummary}` : ''}
+                      </span>
+                      <span className="ml-auto text-[10px] text-muted-foreground shrink-0">{dateStr}</span>
+                    </div>
+                    {(cycle.recommendationId || cycle.roadmapId) && (
+                      <div className="flex items-center flex-wrap gap-1.5 pl-3.5">
+                        {cycle.recommendationId && (
+                          <Link
+                            href={`/discovery/recommendations/${cycle.recommendationId}`}
+                            className="inline-flex items-center gap-1 rounded-md bg-background border border-border px-2 py-1 text-[10px] font-medium text-foreground/70 hover:text-foreground hover:border-foreground/30 transition-colors"
+                          >
+                            <FileText className="size-2.5" />
+                            View recommendation
+                          </Link>
+                        )}
+                        {cycle.roadmapId && (
+                          <Link
+                            href={`/discovery/roadmap/${cycle.roadmapId}`}
+                            className="inline-flex items-center gap-1 rounded-md bg-background border border-border px-2 py-1 text-[10px] font-medium text-foreground/70 hover:text-foreground hover:border-foreground/30 transition-colors"
+                          >
+                            <Map className="size-2.5" />
+                            View roadmap
+                          </Link>
+                        )}
+                      </div>
+                    )}
+                    {!cycle.recommendationId && !cycle.roadmapId && (
+                      <p className="pl-3.5 text-[10px] text-muted-foreground italic">No linked recommendation or roadmap yet.</p>
+                    )}
                   </div>
                 );
               })}
@@ -243,84 +301,125 @@ export function VentureCard({ venture, progress }: VentureCardProps) {
               )}
             </div>
 
-            {/* Lifecycle actions — pause / resume / complete. Hidden
-                when the venture is terminal. */}
-            {status !== 'completed' && (
-              <div className="border-t border-border px-4 py-3 flex flex-col gap-2">
-                {action.kind === 'confirming-complete' ? (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-[11px] text-foreground leading-relaxed">
-                      Mark this venture as <span className="font-semibold">completed</span>?
-                      Completed ventures cannot be reopened and stop consuming an active slot.
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => { void mutateStatus('completed'); }}
-                        disabled={isSaving}
-                        className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/40 px-3 py-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors disabled:opacity-60"
-                      >
-                        {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
-                        Confirm complete
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAction({ kind: 'idle' })}
-                        disabled={isSaving}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center flex-wrap gap-2">
-                    {canPause && (
-                      <button
-                        type="button"
-                        onClick={() => { void mutateStatus('paused'); }}
-                        disabled={isSaving}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-foreground hover:border-slate-500 hover:bg-muted transition-colors disabled:opacity-60"
-                        title="Pause to free an active-venture slot without finishing this venture."
-                      >
-                        {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Pause className="size-3" />}
-                        Pause venture
-                      </button>
-                    )}
-                    {canResume && (
-                      <button
-                        type="button"
-                        onClick={() => { void mutateStatus('active'); }}
-                        disabled={isSaving}
-                        className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 border border-primary/30 px-3 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/20 transition-colors disabled:opacity-60"
-                        title="Resume — consumes an active-venture slot."
-                      >
-                        {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Play className="size-3" />}
-                        Resume venture
-                      </button>
-                    )}
-                    {canComplete && (
-                      <button
-                        type="button"
-                        onClick={() => setAction({ kind: 'confirming-complete' })}
-                        disabled={isSaving}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                        title="Mark this venture as done. Terminal — cannot be reopened."
-                      >
-                        <Check className="size-3" />
-                        Mark complete
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {action.kind === 'error' && (
-                  <p className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-700 dark:text-red-400">
-                    {action.message}
+            {/* Lifecycle actions — pause / resume / complete (hidden on
+                terminal ventures) plus a Delete button that is always
+                available so the user can hard-clean test data and
+                obsolete ventures regardless of status. */}
+            <div className="border-t border-border px-4 py-3 flex flex-col gap-2">
+              {action.kind === 'confirming-complete' && (
+                <div className="flex flex-col gap-2">
+                  <p className="text-[11px] text-foreground leading-relaxed">
+                    Mark this venture as <span className="font-semibold">completed</span>?
+                    Completed ventures cannot be reopened and stop consuming an active slot.
                   </p>
-                )}
-              </div>
-            )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { void mutateStatus('completed'); }}
+                      disabled={busy}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/40 px-3 py-1.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors disabled:opacity-60"
+                    >
+                      {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                      Confirm complete
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAction({ kind: 'idle' })}
+                      disabled={busy}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {action.kind === 'confirming-delete' && (
+                <div className="flex flex-col gap-2">
+                  <p className="text-[11px] text-foreground leading-relaxed">
+                    Permanently delete <span className="font-semibold">{name}</span>?
+                    This removes every cycle, recommendation, and roadmap
+                    inside it. <span className="font-semibold text-red-600 dark:text-red-400">This cannot be undone.</span>
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { void mutateDelete(); }}
+                      disabled={busy}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-red-500/10 border border-red-500/40 px-3 py-1.5 text-[11px] font-semibold text-red-600 dark:text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-60"
+                    >
+                      {isDeleting ? <Loader2 className="size-3 animate-spin" /> : <Trash2 className="size-3" />}
+                      Confirm delete
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAction({ kind: 'idle' })}
+                      disabled={busy}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {action.kind !== 'confirming-complete' && action.kind !== 'confirming-delete' && (
+                <div className="flex items-center flex-wrap gap-2">
+                  {canPause && (
+                    <button
+                      type="button"
+                      onClick={() => { void mutateStatus('paused'); }}
+                      disabled={busy}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-foreground hover:border-slate-500 hover:bg-muted transition-colors disabled:opacity-60"
+                      title="Pause to free an active-venture slot without finishing this venture."
+                    >
+                      {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Pause className="size-3" />}
+                      Pause venture
+                    </button>
+                  )}
+                  {canResume && (
+                    <button
+                      type="button"
+                      onClick={() => { void mutateStatus('active'); }}
+                      disabled={busy}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 border border-primary/30 px-3 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/20 transition-colors disabled:opacity-60"
+                      title="Resume — consumes an active-venture slot."
+                    >
+                      {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Play className="size-3" />}
+                      Resume venture
+                    </button>
+                  )}
+                  {canComplete && (
+                    <button
+                      type="button"
+                      onClick={() => setAction({ kind: 'confirming-complete' })}
+                      disabled={busy}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      title="Mark this venture as done. Terminal — cannot be reopened."
+                    >
+                      <Check className="size-3" />
+                      Mark complete
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setAction({ kind: 'confirming-delete' })}
+                    disabled={busy}
+                    className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-red-500/30 bg-transparent px-3 py-1.5 text-[11px] font-medium text-red-600 dark:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-60"
+                    title="Permanently delete this venture and its recommendations and roadmaps."
+                  >
+                    <Trash2 className="size-3" />
+                    Delete venture
+                  </button>
+                </div>
+              )}
+
+              {action.kind === 'error' && (
+                <p className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] text-red-700 dark:text-red-400">
+                  {action.message}
+                </p>
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

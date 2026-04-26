@@ -48,6 +48,11 @@ export default async function RecommendationsPage() {
           id: true, cycleNumber: true, status: true,
           selectedForkSummary: true, roadmapId: true,
           createdAt: true, completedAt: true,
+          // Surface the linked recommendation id so the VentureCard
+          // can render an explicit "View recommendation" link per
+          // cycle. Pre-wiring rows have null here; the UI hides the
+          // button rather than showing a dead link.
+          recommendation: { select: { id: true } },
         },
       },
     },
@@ -141,7 +146,16 @@ export default async function RecommendationsPage() {
               {active.map(v => (
                 <VentureCard
                   key={v.id}
-                  venture={{ ...v, cycles: v.cycles.map(c => ({ ...c, createdAt: c.createdAt.toISOString(), completedAt: c.completedAt?.toISOString() ?? null })) }}
+                  venture={{ ...v, cycles: v.cycles.map(c => ({
+                    id:                  c.id,
+                    cycleNumber:         c.cycleNumber,
+                    status:              c.status,
+                    selectedForkSummary: c.selectedForkSummary,
+                    roadmapId:           c.roadmapId,
+                    recommendationId:    c.recommendation?.id ?? null,
+                    createdAt:           c.createdAt.toISOString(),
+                    completedAt:         c.completedAt?.toISOString() ?? null,
+                  })) }}
                   progress={progressMap.get(v.id) ?? null}
                 />
               ))}
@@ -155,7 +169,16 @@ export default async function RecommendationsPage() {
               {paused.map(v => (
                 <VentureCard
                   key={v.id}
-                  venture={{ ...v, cycles: v.cycles.map(c => ({ ...c, createdAt: c.createdAt.toISOString(), completedAt: c.completedAt?.toISOString() ?? null })) }}
+                  venture={{ ...v, cycles: v.cycles.map(c => ({
+                    id:                  c.id,
+                    cycleNumber:         c.cycleNumber,
+                    status:              c.status,
+                    selectedForkSummary: c.selectedForkSummary,
+                    roadmapId:           c.roadmapId,
+                    recommendationId:    c.recommendation?.id ?? null,
+                    createdAt:           c.createdAt.toISOString(),
+                    completedAt:         c.completedAt?.toISOString() ?? null,
+                  })) }}
                   progress={null}
                 />
               ))}
@@ -169,7 +192,16 @@ export default async function RecommendationsPage() {
               {completed.map(v => (
                 <VentureCard
                   key={v.id}
-                  venture={{ ...v, cycles: v.cycles.map(c => ({ ...c, createdAt: c.createdAt.toISOString(), completedAt: c.completedAt?.toISOString() ?? null })) }}
+                  venture={{ ...v, cycles: v.cycles.map(c => ({
+                    id:                  c.id,
+                    cycleNumber:         c.cycleNumber,
+                    status:              c.status,
+                    selectedForkSummary: c.selectedForkSummary,
+                    roadmapId:           c.roadmapId,
+                    recommendationId:    c.recommendation?.id ?? null,
+                    createdAt:           c.createdAt.toISOString(),
+                    completedAt:         c.completedAt?.toISOString() ?? null,
+                  })) }}
                   progress={null}
                 />
               ))}
