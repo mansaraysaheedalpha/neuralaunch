@@ -24,6 +24,7 @@ import { safeParseFounderProfile, type FounderProfile, type CycleSummary as Pers
 
 export interface VentureEvidenceBundle {
   ventureName:      string;
+  founderFirstName: string | null;
   daysActive:       number;
   ventureStatus:    string;
   cycleCount:       number;
@@ -202,6 +203,16 @@ export async function loadVentureEvidenceBundle(input: {
   });
   const founderProfile = profile?.profile ? safeParseFounderProfile(profile.profile) : null;
 
+  // First name is needed by the redaction baseline — it always
+  // gets [redacted] on the publish-version regardless of edits.
+  // Read off User row rather than profile so a freshly-created
+  // founder (no profile yet) still has it available.
+  const userRow = await prisma.user.findUnique({
+    where:  { id: userId },
+    select: { name: true },
+  });
+  const founderFirstName = userRow?.name?.trim().split(/\s+/)[0] ?? null;
+
   // Validation signal — aggregated across every page tied to this
   // venture's recommendations or roadmaps. The continuation engine
   // already has a similar aggregator (loadValidationSignal); for
@@ -226,11 +237,12 @@ export async function loadVentureEvidenceBundle(input: {
   );
 
   return {
-    ventureName:   venture.name,
+    ventureName:      venture.name,
+    founderFirstName,
     daysActive,
-    ventureStatus: venture.status,
-    cycleCount:    venture.cycles.length,
-    cycles:        venture.cycles.map(formatCycle),
+    ventureStatus:    venture.status,
+    cycleCount:       venture.cycles.length,
+    cycles:           venture.cycles.map(formatCycle),
     founderProfile,
     validationSignal,
   };

@@ -54,4 +54,17 @@ export {
   type OutcomeEvidence,
 } from './evidence-loader';
 
-export { generateTransformationReport } from './engine';
+export {
+  generateTransformationReport,
+  detectRedactionCandidates,
+} from './engine';
+
+export {
+  autoRedactReport,
+  autoRedactString,
+  applyRedactionEdits,
+  RedactionEditEntrySchema,
+  RedactionEditsSchema,
+  type RedactionEditEntry,
+  type RedactionEdits,
+} from './redaction';

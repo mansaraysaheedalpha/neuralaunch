@@ -18,6 +18,8 @@ import {
   TRANSFORMATION_REPORT_EVENT,
   loadVentureEvidenceBundle,
   generateTransformationReport,
+  detectRedactionCandidates,
+  autoRedactReport,
   updateTransformationStage,
   completeTransformationReport,
   failTransformationReport,
@@ -90,16 +92,32 @@ export const transformationReportFunction = inngest.createFunction(
       });
 
       // -----------------------------------------------------------------
-      // Stage 3 — persist + complete
+      // Stage 3 — detect additional redaction candidates
       //
-      // The redaction-candidate detection step is intentionally
-      // skipped in this commit. Commit 3 will insert a
-      // 'detecting_redactions' step here that runs the redaction
-      // detector and writes redactionCandidates before completing.
+      // Pass: auto-redact baseline (regex pass for emails / phones /
+      // names / large currency / founder's first name) + Sonnet
+      // detector for context-sensitive PII the regex can't catch
+      // (business names, exact locations, project codes, smaller
+      // monetary amounts, etc.). The candidates land alongside the
+      // report content; the founder reviews them in the redaction
+      // editor before publishing. The PRIVATE report viewer always
+      // renders the unredacted content — the founder reads their
+      // own story unredacted.
+      // -----------------------------------------------------------------
+      const redactionCandidates = await step.run('detecting_redactions', async () => {
+        await updateTransformationStage(reportId, 'detecting_redactions');
+        const baselineRedacted = autoRedactReport(report, bundle.founderFirstName);
+        return await detectRedactionCandidates({
+          reportAfterBaseline: baselineRedacted,
+        });
+      });
+
+      // -----------------------------------------------------------------
+      // Stage 4 — persist + complete (atomic single write)
       // -----------------------------------------------------------------
       await step.run('persisting', async () => {
         await updateTransformationStage(reportId, 'persisting');
-        await completeTransformationReport(reportId, report);
+        await completeTransformationReport(reportId, report, redactionCandidates);
       });
 
       // -----------------------------------------------------------------
@@ -110,9 +128,10 @@ export const transformationReportFunction = inngest.createFunction(
       });
 
       log.info('[TransformationReport] Done', {
-        sections:        report.sectionOrder.length,
-        customSections:  report.customSections?.length ?? 0,
-        cycles:          bundle.cycleCount,
+        sections:           report.sectionOrder.length,
+        customSections:     report.customSections?.length ?? 0,
+        redactionCandidates: redactionCandidates.length,
+        cycles:             bundle.cycleCount,
       });
 
       return { ok: true, reportId };

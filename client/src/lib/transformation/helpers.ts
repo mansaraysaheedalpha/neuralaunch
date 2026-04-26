@@ -11,7 +11,7 @@ import { Prisma } from '@prisma/client';
 import prisma, { toJsonValue } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import type { TransformationStage } from './constants';
-import type { TransformationReport } from './schemas';
+import type { TransformationReport, RedactionCandidate } from './schemas';
 
 /**
  * Update the stage of an in-flight report. Best-effort. The Inngest
@@ -38,23 +38,26 @@ export async function updateTransformationStage(
 }
 
 /**
- * Mark the report complete. Persists the synthesised content,
- * stamps completedAt, and flips stage → 'complete'. The redaction
- * candidates field is left null until Commit 3 ships the detector;
- * the publish flow gracefully handles that case.
+ * Mark the report complete. Persists the synthesised content + the
+ * detector's redaction-candidate array, stamps completedAt, flips
+ * stage → 'complete'. Both content and candidates land in the same
+ * write so the founder's editor never sees an inconsistent
+ * "report ready, candidates loading" state.
  */
 export async function completeTransformationReport(
-  reportId: string,
-  content:  TransformationReport,
+  reportId:   string,
+  content:    TransformationReport,
+  candidates: RedactionCandidate[],
 ): Promise<void> {
   try {
     await prisma.transformationReport.update({
       where: { id: reportId },
       data:  {
-        stage:        'complete',
-        content:      toJsonValue(content),
-        completedAt:  new Date(),
-        errorMessage: null,
+        stage:               'complete',
+        content:             toJsonValue(content),
+        redactionCandidates: toJsonValue(candidates),
+        completedAt:         new Date(),
+        errorMessage:        null,
       },
       select: { id: true },
     });
