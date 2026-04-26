@@ -10,6 +10,7 @@ export { pushbackAlternativeFunction } from './pushback-alternative-function';
 export { roadmapNudgeFunction }        from './roadmap-nudge-function';
 export { continuationBriefFunction }   from './continuation-brief-function';
 export { lifecycleTransitionFunction } from './lifecycle-transition-function';
+export { transformationReportFunction } from './transformation-report-function';
 export { usageAnomalyDetectionFunction } from './usage-anomaly-detection-function';
 export { paddleReconciliationFunction } from './paddle-reconciliation-function';
 export { backfillRoadmapTaskIdsFunction } from './backfill-roadmap-task-ids-function';
