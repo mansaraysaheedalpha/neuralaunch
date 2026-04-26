@@ -10,12 +10,24 @@ import {
   Mic,
   Send,
   Search,
+  Package,
+  Globe,
   Bell,
   Brain,
 } from "lucide-react";
+import type { ComponentType, SVGProps } from "react";
 import MarketingHeader from "@/components/marketing/MarketingHeader";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
 import RevealOnScroll from "@/components/marketing/RevealOnScroll";
+import HeroProductStack from "@/components/marketing/HeroProductStack";
+import ToolCard from "@/components/marketing/ToolCard";
+import {
+  CoachVisual,
+  ComposerVisual,
+  PackagerVisual,
+  ResearchVisual,
+  ValidationVisual,
+} from "@/components/marketing/ToolCardVisuals";
 import { PricingSection } from "@/components/marketing/PricingSection";
 import { getPriceIds } from "@/lib/paddle/founding-members";
 
@@ -73,8 +85,8 @@ function Hero() {
         className="pointer-events-none absolute inset-x-0 top-0 mx-auto h-[600px] max-w-5xl bg-[radial-gradient(ellipse_at_top,_rgba(37,99,235,0.15),_transparent_60%)]"
       />
 
-      <div className="relative mx-auto max-w-5xl px-4 pb-24 pt-20 sm:px-6 sm:pb-28 sm:pt-28 lg:px-8 lg:pb-36 lg:pt-36">
-        <div className="text-center">
+      <div className="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-16 px-4 pb-24 pt-20 sm:px-6 sm:pb-28 sm:pt-28 lg:min-h-[95vh] lg:grid-cols-12 lg:gap-12 lg:px-8 lg:pb-24 lg:pt-24">
+        <div className="lg:col-span-5">
           <RevealOnScroll>
             <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-navy-800/80 px-3.5 py-1.5 text-xs font-medium text-slate-300">
               <span className="h-1.5 w-1.5 rounded-full bg-success" />
@@ -85,7 +97,7 @@ function Hero() {
           <RevealOnScroll delayMs={80}>
             <h1
               id="hero-heading"
-              className="mx-auto max-w-3xl text-balance text-display text-white"
+              className="max-w-[620px] text-balance text-display text-white"
             >
               You know something needs to change.{" "}
               <span className="text-gold">
@@ -95,16 +107,16 @@ function Hero() {
           </RevealOnScroll>
 
           <RevealOnScroll delayMs={160}>
-            <p className="mx-auto mt-7 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
+            <p className="mt-7 max-w-[540px] text-base leading-relaxed text-slate-300 sm:text-lg">
               {HERO_SUBHEAD}
             </p>
           </RevealOnScroll>
 
           <RevealOnScroll delayMs={240}>
-            <div className="mt-10 flex justify-center">
+            <div className="mt-10 flex">
               <Link
                 href="/discovery"
-                className="group inline-flex items-center gap-2 rounded-md bg-primary px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-primary/20 transition-all hover:bg-blue-700 hover:shadow-xl hover:shadow-primary/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950"
+                className="group inline-flex items-center gap-2 rounded-md bg-primary px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-primary/20 ring-1 ring-transparent transition-all hover:bg-blue-700 hover:shadow-xl hover:shadow-primary/30 hover:ring-gold/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950"
               >
                 Start Your Discovery
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
@@ -114,6 +126,10 @@ function Hero() {
               Free to start. No credit card required.
             </p>
           </RevealOnScroll>
+        </div>
+
+        <div className="mt-12 lg:col-span-7 lg:mt-0 lg:pl-4">
+          <HeroProductStack />
         </div>
       </div>
     </section>
@@ -362,36 +378,61 @@ function OneRecommendation() {
 /* ============================================================
    SECTION 5 — THE EXECUTION TOOLS
    ============================================================ */
-const TOOLS: Array<{
-  icon: typeof Mic;
+type ToolEntry = {
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
   name: string;
   tagline: string;
   body: string;
-  example: string;
-}> = [
+  accent: "blue" | "gold";
+  visual: ComponentType;
+  spanClass: string;
+};
+
+const TOOLS: ToolEntry[] = [
   {
     icon: Mic,
     name: "Conversation Coach",
     tagline: "Rehearse the pitch before you walk in.",
-    body: "Tell it who you're talking to and what you're afraid of. It produces the opening, the asks, the objections you'll face — then role-plays the conversation in character so you can practise before it matters.",
-    example:
-      "Plays the supplier you're negotiating with. Pushes back the way they would. Doesn't make it artificially easy.",
+    body: "Tell it who you're talking to and what you're afraid of. It builds the opening, the asks, the objections — then role-plays the other side in character.",
+    accent: "blue",
+    visual: CoachVisual,
+    spanClass: "lg:col-span-2",
   },
   {
     icon: Send,
     name: "Outreach Composer",
     tagline: "Your messages, written and ready to send.",
-    body: "Single message, batch of ten variations, or a Day 1 / Day 5 / Day 14 sequence — for WhatsApp, email, or LinkedIn. Each one comes with a short note explaining why it works, so you learn the pattern.",
-    example:
-      "\"Follow up with the five owners who didn't respond on Tuesday.\" Three messages, ready to copy and send.",
+    body: "Single message, batched variations, or a Day 1 / Day 5 / Day 14 sequence across WhatsApp, email, and LinkedIn — each with a short note on why it works.",
+    accent: "blue",
+    visual: ComposerVisual,
+    spanClass: "lg:col-span-2",
   },
   {
     icon: Search,
     name: "Research Tool",
     tagline: "Find the people, the competitors, the answers.",
-    body: "Ask in plain language. Get back structured findings — businesses, people, competitors, regulations — with contact information, source URLs, and a verified / likely / unverified label on each one.",
-    example:
-      "\"Five biggest restaurant suppliers in Freetown and what they charge.\" Names, sites, prices, sources.",
+    body: "Ask in plain language. Get back structured findings — businesses, competitors, regulations — with source URLs and a verified / likely / unverified label.",
+    accent: "blue",
+    visual: ResearchVisual,
+    spanClass: "lg:col-span-2",
+  },
+  {
+    icon: Package,
+    name: "Service Packager",
+    tagline: "Turn what you do into tiers people can buy.",
+    body: "Builds three priced tiers from your situation — Starter, Pro, Premium — with the features, the price, and the reasoning behind each one.",
+    accent: "gold",
+    visual: PackagerVisual,
+    spanClass: "lg:col-span-3",
+  },
+  {
+    icon: Globe,
+    name: "Validation Page",
+    tagline: "A live page to test demand before you build.",
+    body: "Hosts a slug-routed landing page with a survey and analytics, so you learn whether anyone actually wants this — before you write a line of code.",
+    accent: "gold",
+    visual: ValidationVisual,
+    spanClass: "lg:col-span-3",
   },
 ];
 
@@ -405,59 +446,37 @@ function ExecutionTools() {
         <div className="mx-auto max-w-3xl text-center">
           <RevealOnScroll>
             <p className="text-sm font-semibold uppercase tracking-wider text-primary">
-              The tools
+              The toolkit
             </p>
           </RevealOnScroll>
           <RevealOnScroll delayMs={60}>
-            <h2
-              id="tools-heading"
-              className="mt-3 text-heading text-white"
-            >
-              Built for the work that decides whether you win.
+            <h2 id="tools-heading" className="mt-3 text-heading text-white">
+              Five tools, built for the work that decides whether you win.
             </h2>
           </RevealOnScroll>
           <RevealOnScroll delayMs={120}>
             <p className="mt-5 text-base leading-relaxed text-slate-300 sm:text-lg">
               The first cold message. The pricing call. The conversation with
-              the partner you've been avoiding. These moments decide outcomes.
-              We built the tools for them.
+              the partner you&rsquo;ve been avoiding. These moments decide
+              outcomes. We built the tools for them.
             </p>
           </RevealOnScroll>
         </div>
 
-        <div className="mx-auto mt-14 grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-3">
-          {TOOLS.map((tool, i) => {
-            const Icon = tool.icon;
-            return (
-              <RevealOnScroll key={tool.name} delayMs={i * 100}>
-                <article className="group h-full rounded-xl border border-slate-800 bg-navy-950 p-7 transition-all hover:border-primary/40 hover:bg-navy-800/60">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 ring-1 ring-inset ring-primary/30">
-                    <Icon
-                      className="h-5 w-5 text-primary"
-                      aria-hidden="true"
-                    />
-                  </div>
-                  <h3 className="mt-6 text-xl font-semibold text-white">
-                    {tool.name}
-                  </h3>
-                  <p className="mt-2 text-sm font-medium text-gold">
-                    {tool.tagline}
-                  </p>
-                  <p className="mt-4 text-sm leading-relaxed text-slate-300">
-                    {tool.body}
-                  </p>
-                  <div className="mt-6 rounded-md border border-slate-800 bg-navy-900 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                      What it does
-                    </p>
-                    <p className="mt-2 text-sm leading-relaxed text-slate-300">
-                      {tool.example}
-                    </p>
-                  </div>
-                </article>
-              </RevealOnScroll>
-            );
-          })}
+        <div className="mx-auto mt-14 grid max-w-6xl grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-6">
+          {TOOLS.map((tool, i) => (
+            <ToolCard
+              key={tool.name}
+              index={i}
+              icon={tool.icon}
+              name={tool.name}
+              tagline={tool.tagline}
+              body={tool.body}
+              accent={tool.accent}
+              visual={tool.visual}
+              className={tool.spanClass}
+            />
+          ))}
         </div>
       </div>
     </section>
