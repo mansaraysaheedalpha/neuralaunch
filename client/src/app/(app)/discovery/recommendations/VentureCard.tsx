@@ -279,9 +279,9 @@ export function VentureCard({ venture, progress }: VentureCardProps) {
                             View recommendation
                           </Link>
                         )}
-                        {cycle.roadmapId && (
+                        {cycle.roadmapId && cycle.recommendationId && (
                           <Link
-                            href={`/discovery/roadmap/${cycle.roadmapId}`}
+                            href={`/discovery/roadmap/${cycle.recommendationId}`}
                             className="inline-flex items-center gap-1 rounded-md bg-background border border-border px-2 py-1 text-[10px] font-medium text-foreground/70 hover:text-foreground hover:border-foreground/30 transition-colors"
                           >
                             <Map className="size-2.5" />
