@@ -29,7 +29,7 @@ import {
 } from '@/lib/validation/server-helpers';
 import { safeParseResearchSession } from '@/lib/roadmap/research-tool';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
-import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
+import { assertVentureWritable } from '@/lib/lifecycle/tier-limits';
 import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
 import { createToolJob } from '@/lib/tool-jobs/helpers';
 
@@ -61,7 +61,7 @@ export async function POST(
     await rateLimitByUser(userId, 'research-standalone-execute', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId } = await params;
-    await assertVentureNotArchivedByRoadmap(userId, roadmapId);
+    await assertVentureWritable(userId, roadmapId);
     const log = logger.child({ route: 'POST research-standalone-execute', roadmapId, userId });
 
     let body: unknown;

@@ -8,7 +8,7 @@ import 'server-only';
 import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { HttpError } from '@/lib/validation/server-helpers';
-import { TIER_VENTURE_LIMITS, type Tier } from '@/lib/paddle/tiers';
+import { TIER_VENTURE_LIMITS, TIER_PAUSED_VENTURE_LIMITS, type Tier } from '@/lib/paddle/tiers';
 
 /**
  * Free tier has no Venture slots (TIER_VENTURE_LIMITS.free = 0) and
@@ -21,6 +21,10 @@ export const FREE_DISCOVERY_SESSION_LIMIT = 2;
 
 function resolveLimit(tier: Tier): number {
   return TIER_VENTURE_LIMITS[tier];
+}
+
+function resolvePausedLimit(tier: Tier): number {
+  return TIER_PAUSED_VENTURE_LIMITS[tier];
 }
 
 /**
@@ -184,29 +188,44 @@ export async function restoreArchivedVenturesOnUpgrade(
 }
 
 /**
- * Assert that a venture is not archived — throws HttpError(403) when
- * it is. Called by the tool routes (coach/composer/research/packager/
- * check-in) as a secondary gate alongside requireTierOrThrow, so a
- * user whose tier cap dropped below their active-venture count is
- * blocked from running new AI-heavy actions on the overflow ventures
- * until they upgrade back (or manually archive a different one once
- * the reactivation UI ships).
+ * Assert that the venture behind this roadmap is currently writable —
+ * throws HttpError(403) when it is not. Called by every write-side
+ * tool / check-in / status route as a secondary gate alongside
+ * requireTierOrThrow. Three blocking states:
+ *
+ *   1. Archived (tier-downgrade overflow) — must restore via the swap
+ *      flow first.
+ *   2. Paused — the founder explicitly stepped away. Pause means the
+ *      whole venture is frozen until Resume; tools, check-ins, and
+ *      tool sessions all 403 until then. The Sessions tab is the only
+ *      surface that lets the founder act on a paused venture (read,
+ *      resume, delete).
+ *   3. Completed — terminal. The roadmap and its artefacts stay
+ *      readable as history but no new writes land. Ever.
+ *
+ * GET routes do NOT call this helper — reads stay open across every
+ * non-deleted state, including paused and completed, so the founder
+ * can review their work without resuming.
  *
  * The caller supplies the roadmapId (tools are addressed by roadmap,
- * not venture). We walk roadmap → ventureId → Venture.archivedAt in
- * one join.
+ * not venture). One join: roadmap → ventureId → Venture.{archivedAt, status}.
+ *
+ * Renamed from `assertVentureNotArchivedByRoadmap` once the assertion
+ * grew beyond the archive case. The old name remains in commit
+ * history for archaeology only — every call site uses the new name.
  */
-export async function assertVentureNotArchivedByRoadmap(
+export async function assertVentureWritable(
   userId: string,
   roadmapId: string,
 ): Promise<void> {
   const row = await prisma.roadmap.findFirst({
     where:  { id: roadmapId, userId },
-    select: { venture: { select: { archivedAt: true } } },
+    select: { venture: { select: { archivedAt: true, status: true } } },
   });
   // Nothing to assert — the caller's own ownership check will 404 if
   // roadmap doesn't exist. A roadmap without a ventureId is a
-  // pre-lifecycle-memory legacy roadmap; treat as unarchived.
+  // pre-lifecycle-memory legacy roadmap; treat as writable so existing
+  // data flows continue to work without a backfill dependency.
   if (!row || !row.venture) return;
   if (row.venture.archivedAt) {
     throw new HttpError(
@@ -214,6 +233,52 @@ export async function assertVentureNotArchivedByRoadmap(
       'This venture is archived. Upgrade your subscription to reactivate it.',
     );
   }
+  if (row.venture.status === 'paused') {
+    throw new HttpError(
+      403,
+      'This venture is paused. Resume it from the Sessions tab to continue working on it.',
+    );
+  }
+  if (row.venture.status === 'completed') {
+    throw new HttpError(
+      403,
+      'This venture has been marked complete. The roadmap is read-only — start a new venture to continue working.',
+    );
+  }
+}
+
+/**
+ * Throw HttpError(403) when the user has reached their tier's
+ * maximum PAUSED-venture count. Called from the ventures PATCH route
+ * before transitioning a venture from active → paused. Free is a
+ * no-op (free has no ventures to pause). Without this gate the
+ * active-venture cap becomes cosmetic — see TIER_PAUSED_VENTURE_LIMITS
+ * for the rationale.
+ *
+ * The 403 message names the actual count and the tier-specific cap
+ * so the founder can act without a second round-trip ("you have N of
+ * M paused"). Compound users hitting their paused cap get a different
+ * tail than Execute users (no upgrade path beyond Compound).
+ */
+export async function assertPausedVentureLimitNotReached(userId: string): Promise<void> {
+  const tier = await getUserTier(userId);
+  if (tier === 'free') return;
+
+  const limit = resolvePausedLimit(tier);
+  const pausedCount = await prisma.venture.count({
+    where: { userId, status: 'paused', archivedAt: null },
+  });
+
+  if (pausedCount < limit) return;
+
+  const upgradeTail = tier === 'execute'
+    ? ' Upgrade to Compound to keep up to 4 ventures paused at once, or complete or delete a paused venture before pausing this one.'
+    : ' Complete or delete a paused venture before pausing this one.';
+
+  throw new HttpError(
+    403,
+    `You already have ${pausedCount} of ${limit} paused ventures.${upgradeTail}`,
+  );
 }
 
 /**

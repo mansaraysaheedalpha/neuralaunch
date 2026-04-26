@@ -21,7 +21,7 @@ import {
   MAX_ADJUSTMENT_ROUNDS, safeParsePackagerSession,
 } from '@/lib/roadmap/service-packager';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
-import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
+import { assertVentureWritable } from '@/lib/lifecycle/tier-limits';
 import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
 import { createToolJob } from '@/lib/tool-jobs/helpers';
 
@@ -52,7 +52,7 @@ export async function POST(
     await rateLimitByUser(userId, 'packager-standalone-adjust', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId } = await params;
-    await assertVentureNotArchivedByRoadmap(userId, roadmapId);
+    await assertVentureWritable(userId, roadmapId);
     const log = logger.child({ route: 'POST packager-standalone-adjust', roadmapId, userId });
 
     let body: unknown;

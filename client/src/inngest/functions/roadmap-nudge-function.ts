@@ -66,9 +66,24 @@ export const roadmapNudgeFunction = inngest.createFunction(
       const rows = await prisma.roadmapProgress.findMany({
         where: {
           nudgePending: false,
-          OR: [
-            { nudgeLastSentAt: null },
-            { nudgeLastSentAt: { lt: sevenDaysAgo } },
+          AND: [
+            {
+              OR: [
+                { nudgeLastSentAt: null },
+                { nudgeLastSentAt: { lt: sevenDaysAgo } },
+              ],
+            },
+            {
+              // Pause-respect — when a founder paused or completed a
+              // venture they explicitly stepped away. Firing nudges
+              // (banner + push) would violate that intent. The legacy
+              // pre-wiring case (roadmap with no ventureId) stays
+              // eligible so existing-user data flows unchanged.
+              OR: [
+                { roadmap: { ventureId: null } },
+                { roadmap: { venture: { status: 'active', archivedAt: null } } },
+              ],
+            },
           ],
           // Avoid touching completed roadmaps. We do this with a raw
           // comparison because Prisma cannot reference another column
@@ -201,6 +216,13 @@ export const roadmapNudgeFunction = inngest.createFunction(
             recommendation: {
               outcome: null,
             },
+            // Same pause-respect as the nudge sweep above. A paused
+            // venture means the founder is intentionally not engaging
+            // — surfacing an outcome prompt would feel intrusive.
+            OR: [
+              { ventureId: null },
+              { venture: { status: 'active', archivedAt: null } },
+            ],
           },
         },
         select: {

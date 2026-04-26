@@ -38,7 +38,7 @@ import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import { MODELS } from '@/lib/discovery/constants';
 import { runTaskDiagnosticTurn } from '@/lib/roadmap/task-diagnostic-engine';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
-import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
+import { assertVentureWritable } from '@/lib/lifecycle/tier-limits';
 
 export const maxDuration = 300;
 
@@ -67,7 +67,7 @@ export async function POST(
     await rateLimitByUser(userId, 'task-diagnostic', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId, taskId } = await params;
-    await assertVentureNotArchivedByRoadmap(userId, roadmapId);
+    await assertVentureWritable(userId, roadmapId);
     const log = logger.child({ route: 'POST task-diagnostic', roadmapId, taskId, userId });
 
     let body: unknown;

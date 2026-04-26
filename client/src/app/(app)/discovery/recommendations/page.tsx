@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
-import { TIER_VENTURE_LIMITS, type Tier } from '@/lib/paddle/tiers';
+import { TIER_VENTURE_LIMITS, TIER_PAUSED_VENTURE_LIMITS, type Tier } from '@/lib/paddle/tiers';
 import { VentureCard } from './VentureCard';
 import {
   ArchivedVenturesSection,
@@ -71,6 +71,7 @@ export default async function RecommendationsPage() {
     ? subscription.tier
     : 'free';
   const cap = TIER_VENTURE_LIMITS[tier];
+  const pausedCap = TIER_PAUSED_VENTURE_LIMITS[tier];
 
   // For active ventures, load the active roadmap's progress for the bar
   const progressMap = new Map<string, { completedTasks: number; totalTasks: number }>();
@@ -107,6 +108,10 @@ export default async function RecommendationsPage() {
   const active     = unarchived.filter(v => v.status === 'active');
   const paused     = unarchived.filter(v => v.status === 'paused');
   const completed  = unarchived.filter(v => v.status === 'completed');
+
+  // Pause-cap context for the VentureCard. The pause confirm dialog
+  // surfaces "you have N of M paused" and an upgrade CTA on Execute.
+  const pausedCount = paused.length;
 
   const archived: ArchivedVentureEntry[] = ventures
     .filter(v => v.archivedAt !== null)
@@ -157,6 +162,9 @@ export default async function RecommendationsPage() {
                     completedAt:         c.completedAt?.toISOString() ?? null,
                   })) }}
                   progress={progressMap.get(v.id) ?? null}
+                  tier={tier}
+                  pausedCount={pausedCount}
+                  pausedCap={pausedCap}
                 />
               ))}
             </section>
@@ -180,6 +188,9 @@ export default async function RecommendationsPage() {
                     completedAt:         c.completedAt?.toISOString() ?? null,
                   })) }}
                   progress={null}
+                  tier={tier}
+                  pausedCount={pausedCount}
+                  pausedCap={pausedCap}
                 />
               ))}
             </section>
@@ -203,6 +214,9 @@ export default async function RecommendationsPage() {
                     completedAt:         c.completedAt?.toISOString() ?? null,
                   })) }}
                   progress={null}
+                  tier={tier}
+                  pausedCount={pausedCount}
+                  pausedCap={pausedCap}
                 />
               ))}
             </section>

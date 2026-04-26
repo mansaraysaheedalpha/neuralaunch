@@ -12,7 +12,8 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import Link from 'next/link';
-import { Check, ChevronDown, FileText, Loader2, Map, Pause, Pencil, Play, Trash2, X } from 'lucide-react';
+import { Check, ChevronDown, FileText, Lock, Loader2, Map, Pause, Pencil, Play, Trash2, X } from 'lucide-react';
+import type { Tier } from '@/lib/paddle/tiers';
 
 const STATUS_CLASSES: Record<string, string> = {
   active:    'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
@@ -42,17 +43,24 @@ export interface VentureCardProps {
   };
   /** Progress for the active cycle's roadmap, if available. */
   progress: { completedTasks: number; totalTasks: number } | null;
+  /** Founder's current tier — drives the upgrade CTA copy in pause/complete dialogs. */
+  tier: Tier;
+  /** Current count of the founder's paused ventures across the account. */
+  pausedCount: number;
+  /** Tier cap on paused ventures (Execute=2, Compound=4). */
+  pausedCap: number;
 }
 
 type ActionState =
   | { kind: 'idle' }
   | { kind: 'saving' }
   | { kind: 'deleting' }
+  | { kind: 'confirming-pause' }
   | { kind: 'confirming-complete' }
   | { kind: 'confirming-delete' }
   | { kind: 'error'; message: string };
 
-export function VentureCard({ venture, progress }: VentureCardProps) {
+export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }: VentureCardProps) {
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing]   = useState(false);
@@ -169,6 +177,35 @@ export function VentureCard({ venture, progress }: VentureCardProps) {
   const isDeleting  = action.kind === 'deleting';
   const busy        = isSaving || isDeleting;
 
+  // Pause-cap state — surfaced inline on the confirm dialog so the
+  // founder knows what the slot situation is *before* clicking
+  // confirm (the API also enforces, but pre-flight UX prevents an
+  // avoidable 403). Compute once per render from props.
+  const pausedAtCap   = pausedCount >= pausedCap;
+  const pausedSlotNum = pausedCount + 1;
+
+  // Data-grounded motivational copy — if we can read task progress,
+  // turn the pause-confirm warning into a quote of the founder's
+  // own situation rather than a generic "be persistent" platitude.
+  const progressPct = progress && progress.totalTasks > 0
+    ? Math.round((progress.completedTasks / progress.totalTasks) * 100)
+    : null;
+  const pauseGroundedCopy: string = (() => {
+    if (progressPct === null || !progress) {
+      return 'Pausing means stepping away. Most founders who pause early never resume — be honest about whether this is a real break or a flinch from difficulty.';
+    }
+    if (progress.completedTasks === 0) {
+      return 'You haven\'t completed any tasks yet. Pausing now is closer to abandoning than stepping away — most founders who pause before any progress never come back. If something concrete is in the way, getting unstuck is usually faster than restarting.';
+    }
+    if (progressPct < 30) {
+      return `You've completed ${progress.completedTasks} of ${progress.totalTasks} tasks (${progressPct}%). Pausing this early means coming back to a half-built thing later — and most founders don't. Make sure pausing beats finishing one more task right now.`;
+    }
+    if (progressPct < 70) {
+      return `You're ${progressPct}% through (${progress.completedTasks} of ${progress.totalTasks} tasks). You've built real momentum — pausing now hands it back. If something specific is blocking you, a check-in usually beats a pause.`;
+    }
+    return `You're ${progressPct}% through (${progress.completedTasks} of ${progress.totalTasks} tasks). You're closer to done than to start. Make sure pausing beats finishing.`;
+  })();
+
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       {/* Header — always visible */}
@@ -249,6 +286,28 @@ export function VentureCard({ venture, progress }: VentureCardProps) {
             transition={{ duration: 0.18 }}
             className="overflow-hidden"
           >
+            {/* Read-only banner — surfaced inside the expanded card
+                whenever the venture is paused or completed. Tools and
+                check-ins are blocked at the API layer; this label tells
+                the founder why their tool actions aren't working when
+                they navigate into the roadmap. The View buttons in the
+                cycle list still work — read access stays open. */}
+            {(status === 'paused' || status === 'completed') && (
+              <div className="border-t border-border px-4 py-3 flex items-start gap-2 bg-muted/40">
+                <Lock className="size-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                <div className="flex flex-col gap-0.5">
+                  <p className="text-[11px] font-medium text-foreground">
+                    {status === 'paused' ? 'Read-only — venture is paused' : 'Read-only — venture is complete'}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    {status === 'paused'
+                      ? 'You can read the roadmap, recommendation, and prior cycles. Check-ins, tools, and new task work are disabled until you resume.'
+                      : 'The roadmap, recommendation, and prior cycles stay readable. No new check-ins, tool runs, or status changes will land — completed is terminal.'}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="border-t border-border px-4 py-3 flex flex-col gap-2">
               {venture.cycles.map(cycle => {
                 const isActive = cycle.status === 'in_progress';
@@ -306,11 +365,91 @@ export function VentureCard({ venture, progress }: VentureCardProps) {
                 available so the user can hard-clean test data and
                 obsolete ventures regardless of status. */}
             <div className="border-t border-border px-4 py-3 flex flex-col gap-2">
+              {action.kind === 'confirming-pause' && (
+                <div className="flex flex-col gap-2">
+                  <p className="text-[11px] font-semibold text-foreground">
+                    Pause this venture?
+                  </p>
+                  <p className="text-[11px] text-foreground/80 leading-relaxed">
+                    {pauseGroundedCopy}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    While paused: tools, check-ins, and roadmap nudges are
+                    disabled. The roadmap and recommendation stay readable.
+                    {pausedAtCap
+                      ? ' '
+                      : ` This will be paused slot ${pausedSlotNum} of ${pausedCap}.`}
+                  </p>
+
+                  {pausedAtCap ? (
+                    <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 flex flex-col gap-2">
+                      <p className="text-[11px] font-medium text-foreground">
+                        You&apos;re at the {pausedCap}-paused-venture limit on {tier === 'execute' ? 'Execute' : 'Compound'}.
+                      </p>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                        {tier === 'execute'
+                          ? 'Compound raises the cap to 4 paused ventures and lets you run 3 in parallel. Or complete or delete one of your paused ventures before pausing this one.'
+                          : 'Complete or delete one of your paused ventures before pausing this one.'}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        {tier === 'execute' && (
+                          <Link
+                            href="/settings"
+                            className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 border border-primary/30 px-3 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/20 transition-colors"
+                          >
+                            Upgrade to Compound
+                          </Link>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setAction({ kind: 'idle' })}
+                          disabled={busy}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                        >
+                          Close
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { void mutateStatus('paused'); }}
+                        disabled={busy}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-foreground hover:border-slate-500 hover:bg-muted transition-colors disabled:opacity-60"
+                      >
+                        {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Pause className="size-3" />}
+                        Confirm pause
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAction({ kind: 'idle' })}
+                        disabled={busy}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      >
+                        Keep working
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {action.kind === 'confirming-complete' && (
                 <div className="flex flex-col gap-2">
-                  <p className="text-[11px] text-foreground leading-relaxed">
-                    Mark this venture as <span className="font-semibold">completed</span>?
-                    Completed ventures cannot be reopened and stop consuming an active slot.
+                  <p className="text-[11px] font-semibold text-foreground">
+                    Mark this venture as completed?
+                  </p>
+                  <p className="text-[11px] text-foreground/80 leading-relaxed">
+                    Completed is terminal. The roadmap, recommendation, and
+                    cycle history stay readable forever — but no new
+                    check-ins, tool runs, or status changes will ever land
+                    on this venture again. Use this when you&apos;re truly
+                    done with this direction (shipped, walked away, or
+                    pivoted to a new venture).
+                  </p>
+                  <p className="text-[10px] text-muted-foreground italic leading-relaxed">
+                    This cannot be reversed. If you&apos;re just stepping
+                    away for a while, pause instead.
                   </p>
                   <div className="flex items-center gap-2">
                     <button
@@ -363,17 +502,17 @@ export function VentureCard({ venture, progress }: VentureCardProps) {
                 </div>
               )}
 
-              {action.kind !== 'confirming-complete' && action.kind !== 'confirming-delete' && (
+              {action.kind !== 'confirming-pause' && action.kind !== 'confirming-complete' && action.kind !== 'confirming-delete' && (
                 <div className="flex items-center flex-wrap gap-2">
                   {canPause && (
                     <button
                       type="button"
-                      onClick={() => { void mutateStatus('paused'); }}
+                      onClick={() => setAction({ kind: 'confirming-pause' })}
                       disabled={busy}
                       className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-foreground hover:border-slate-500 hover:bg-muted transition-colors disabled:opacity-60"
-                      title="Pause to free an active-venture slot without finishing this venture."
+                      title="Pause to free an active-venture slot. The roadmap becomes read-only until you resume."
                     >
-                      {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Pause className="size-3" />}
+                      <Pause className="size-3" />
                       Pause venture
                     </button>
                   )}

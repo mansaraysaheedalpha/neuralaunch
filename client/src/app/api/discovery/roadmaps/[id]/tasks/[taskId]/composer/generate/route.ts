@@ -22,7 +22,7 @@ import {
   runComposerContext, OutreachContextSchema,
 } from '@/lib/roadmap/composer';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
-import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
+import { assertVentureWritable } from '@/lib/lifecycle/tier-limits';
 import { enforceCycleQuota } from '@/lib/billing/cycle-quota';
 import { createToolJob } from '@/lib/tool-jobs/helpers';
 
@@ -49,7 +49,7 @@ export async function POST(
     await enforceCycleQuota(userId, 'composer');
     await rateLimitByUser(userId, 'composer-task-generate', RATE_LIMITS.AI_GENERATION);
     const { id: roadmapId, taskId } = await params;
-    await assertVentureNotArchivedByRoadmap(userId, roadmapId);
+    await assertVentureWritable(userId, roadmapId);
     const log = logger.child({ route: 'POST composer-task-generate', roadmapId, taskId, userId });
 
     let body: unknown;

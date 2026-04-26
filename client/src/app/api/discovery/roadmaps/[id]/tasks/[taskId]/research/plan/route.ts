@@ -25,7 +25,7 @@ import {
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import { RESEARCH_TOOL_ID, runResearchPlan } from '@/lib/roadmap/research-tool';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
-import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
+import { assertVentureWritable } from '@/lib/lifecycle/tier-limits';
 
 export const maxDuration = 30;
 
@@ -52,7 +52,7 @@ export async function POST(
     await rateLimitByUser(userId, 'research-task-plan', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId, taskId } = await params;
-    await assertVentureNotArchivedByRoadmap(userId, roadmapId);
+    await assertVentureWritable(userId, roadmapId);
     const log = logger.child({ route: 'POST research-task-plan', roadmapId, taskId, userId });
 
     let body: unknown;

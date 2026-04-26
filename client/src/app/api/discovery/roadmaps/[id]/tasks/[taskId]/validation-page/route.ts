@@ -14,7 +14,7 @@
 //
 // Tier gate: Execute (per the scope modification applied to the
 // validation-integration branch — validation repositions to Execute).
-// Venture-archive gate: standard assertVentureNotArchivedByRoadmap.
+// Venture-archive gate: standard assertVentureWritable.
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -34,7 +34,7 @@ import type { AudienceType } from '@/lib/discovery/constants';
 import type { Roadmap, RoadmapPhase, RoadmapTask } from '@/lib/roadmap/roadmap-schema';
 import { buildPhaseContext, PHASES } from '@/lib/phase-context';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
-import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
+import { assertVentureWritable } from '@/lib/lifecycle/tier-limits';
 
 const BodySchema = z.object({
   /**
@@ -70,7 +70,7 @@ export async function POST(
     const userId = await requireUserId();
     await requireTierOrThrow(userId, 'execute');
     const { id: roadmapId, taskId } = await params;
-    await assertVentureNotArchivedByRoadmap(userId, roadmapId);
+    await assertVentureWritable(userId, roadmapId);
     await rateLimitByUser(userId, 'task-validation-page-generate', RATE_LIMITS.AI_GENERATION);
 
     const log = logger.child({

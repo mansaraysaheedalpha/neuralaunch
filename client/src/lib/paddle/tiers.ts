@@ -65,3 +65,20 @@ export const TIER_VENTURE_LIMITS: Record<Tier, number> = {
   execute:  1,
   compound: 3,
 };
+
+/**
+ * Per-tier ceiling on PAUSED ventures. Without this the active cap
+ * becomes cosmetic — a founder pauses venture A, starts B, pauses B,
+ * starts C, accumulating unlimited ventures by parking each one.
+ *
+ * Numbers chosen so legitimate stepping-away has room without the cap
+ * feeling punitive: Execute = 2 paused (3 non-completed total),
+ * Compound = 4 paused (7 total). The motivational copy ("be honest
+ * about what you'll come back to") lives in the pause confirm dialog,
+ * not here.
+ */
+export const TIER_PAUSED_VENTURE_LIMITS: Record<Tier, number> = {
+  free:     0,
+  execute:  2,
+  compound: 4,
+};

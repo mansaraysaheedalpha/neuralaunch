@@ -17,7 +17,10 @@ import {
   rateLimitByUser,
   RATE_LIMITS,
 } from '@/lib/validation/server-helpers';
-import { assertVentureLimitNotReached } from '@/lib/lifecycle';
+import {
+  assertVentureLimitNotReached,
+  assertPausedVentureLimitNotReached,
+} from '@/lib/lifecycle';
 
 // Request-body schema accepts any subset of the mutable fields. At
 // least one must be present; both are optional so rename-only and
@@ -115,6 +118,16 @@ export async function PATCH(
       // instead of silently bypassing the limit.
       if (venture.status === 'paused' && parsed.data.status === 'active') {
         await assertVentureLimitNotReached(userId);
+      }
+
+      // Pausing an active venture consumes a paused slot. Without
+      // this cap an Execute founder can serially pause ventures and
+      // accumulate unlimited non-active ventures, defeating the
+      // active-cap entirely. The asserter throws a 403 with a
+      // tier-aware message ("you have N of M paused" + upgrade hint
+      // on Execute) which the VentureCard surfaces inline.
+      if (venture.status === 'active' && parsed.data.status === 'paused') {
+        await assertPausedVentureLimitNotReached(userId);
       }
 
       updateData.status = parsed.data.status;

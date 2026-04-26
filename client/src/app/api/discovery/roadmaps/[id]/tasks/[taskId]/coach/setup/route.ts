@@ -28,7 +28,7 @@ import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import { COACH_TOOL_ID, SETUP_MAX_EXCHANGES } from '@/lib/roadmap/coach';
 import { runCoachSetup } from '@/lib/roadmap/coach/setup-engine';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
-import { assertVentureNotArchivedByRoadmap } from '@/lib/lifecycle/tier-limits';
+import { assertVentureWritable } from '@/lib/lifecycle/tier-limits';
 
 export const maxDuration = 300;
 
@@ -54,7 +54,7 @@ export async function POST(
     await rateLimitByUser(userId, 'coach-setup', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId, taskId } = await params;
-    await assertVentureNotArchivedByRoadmap(userId, roadmapId);
+    await assertVentureWritable(userId, roadmapId);
     const log = logger.child({ route: 'POST coach-setup', roadmapId, taskId, userId });
 
     let body: unknown;

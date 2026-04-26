@@ -31,7 +31,9 @@ export {
 
 export {
   assertVentureLimitNotReached,
+  assertPausedVentureLimitNotReached,
   assertFreeDiscoverySessionLimit,
+  assertVentureWritable,
   countFreeDiscoverySessions,
   getUserTier,
   FREE_DISCOVERY_SESSION_LIMIT,

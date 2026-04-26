@@ -6,6 +6,7 @@ import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
 import { DiscoveryChatClient } from './DiscoveryChatClient';
 import { SessionResumption } from './SessionResumption';
+import { CompoundUpgradeHint } from './CompoundUpgradeHint';
 import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
 import {
   countFreeDiscoverySessions,
@@ -45,7 +46,7 @@ export default async function DiscoveryPage() {
   // cap check — includes ACTIVE and abandoned sessions, not just
   // COMPLETE). Paid users skip the lifetime count since the cap
   // doesn't apply.
-  const [incomplete, completedCount, lifetimeCount] = await Promise.all([
+  const [incomplete, completedCount, lifetimeCount, nonActiveVentureCount] = await Promise.all([
     prisma.discoverySession.findFirst({
       where: {
         userId,
@@ -65,6 +66,15 @@ export default async function DiscoveryPage() {
       where: { userId, status: 'COMPLETE' },
     }),
     tier === 'free' ? countFreeDiscoverySessions(userId) : Promise.resolve(0),
+    // Compound-upgrade hint signal — only an Execute founder with at
+    // least one paused or completed venture has the "starting another
+    // direction" pattern that the hint targets. Skipped for Free
+    // (no ventures yet) and Compound (already on the upgrade target).
+    tier === 'execute'
+      ? prisma.venture.count({
+          where: { userId, status: { in: ['paused', 'completed'] }, archivedAt: null },
+        })
+      : Promise.resolve(0),
   ]);
 
   const isFirstSession = completedCount === 0;
@@ -103,8 +113,17 @@ export default async function DiscoveryPage() {
     );
   }
 
+  // Show the Compound hint only when the founder is on Execute AND
+  // already has a paused/completed venture sitting around — i.e.
+  // they're starting *another* direction. Skipped for first-time
+  // founders (nothing to compound across yet) and on the resumption
+  // path (they're not starting fresh, they're picking up an
+  // in-flight session).
+  const showCompoundHint = tier === 'execute' && nonActiveVentureCount >= 1 && !incomplete;
+
   return (
     <div className="flex flex-col h-full bg-background">
+      {showCompoundHint && <CompoundUpgradeHint />}
       <Suspense fallback={<DiscoveryChatSkeleton />}>
         {incomplete ? (
           <SessionResumption
