@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Bookmark, Loader2, X } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import type { ParkingLotItem } from '@/lib/continuation';
+import { useRoadmapWritability } from './RoadmapWritabilityContext';
 
 const MAX_IDEA_LENGTH = 280;
 
@@ -33,6 +34,7 @@ export function ParkingLotInline({ roadmapId, initialItems }: ParkingLotInlinePr
   const [draft, setDraft]       = useState('');
   const [submitting, setSubmit] = useState(false);
   const [error, setError]       = useState<string | null>(null);
+  const { writable } = useRoadmapWritability();
 
   const handleAdd = async () => {
     const trimmed = draft.trim();
@@ -79,7 +81,7 @@ export function ParkingLotInline({ roadmapId, initialItems }: ParkingLotInlinePr
             </span>
           </p>
         </div>
-        {!open ? (
+        {writable && !open && (
           <button
             type="button"
             onClick={() => setOpen(true)}
@@ -87,7 +89,8 @@ export function ParkingLotInline({ roadmapId, initialItems }: ParkingLotInlinePr
           >
             Park an idea →
           </button>
-        ) : (
+        )}
+        {writable && open && (
           <button
             type="button"
             onClick={() => { setOpen(false); setDraft(''); setError(null); }}

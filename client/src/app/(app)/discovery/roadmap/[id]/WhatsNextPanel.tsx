@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 // transitively and rejects in client components.
 import { INCONCLUSIVE_RESOLUTION_OPTIONS } from '@/lib/continuation/diagnostic-schema';
 import { useContinuationFlow } from './useContinuationFlow';
+import { useRoadmapWritability, readOnlyMessage } from './RoadmapWritabilityContext';
 
 /**
  * WhatsNextPanel
@@ -32,6 +33,8 @@ export function WhatsNextPanel({ roadmapId }: { roadmapId: string }) {
   const router = useRouter();
   const flow = useContinuationFlow(roadmapId);
   const [draft, setDraft] = useState('');
+  const { writable, readOnlyReason } = useRoadmapWritability();
+  const readOnlyTip = readOnlyMessage(readOnlyReason);
 
   // Navigate to the continuation reveal page once the brief lands.
   useEffect(() => {
@@ -65,8 +68,10 @@ export function WhatsNextPanel({ roadmapId }: { roadmapId: string }) {
         {flow.phase === 'idle' && (
           <button
             type="button"
-            onClick={() => { void flow.startCheckpoint(); }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/15 transition-colors"
+            onClick={() => { if (writable) void flow.startCheckpoint(); }}
+            disabled={!writable}
+            title={!writable ? (readOnlyTip ?? undefined) : undefined}
+            className={`inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors ${writable ? 'hover:bg-primary/15 cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
           >
             <ArrowRight className="size-3.5" />
             Take stock
@@ -101,9 +106,14 @@ export function WhatsNextPanel({ roadmapId }: { roadmapId: string }) {
         )}
       </div>
 
-      {flow.phase === 'idle' && (
+      {flow.phase === 'idle' && writable && (
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           Hit this any time. I&apos;ll read your progress and either help unblock you, or tell you what to do next based on what you&apos;ve learned.
+        </p>
+      )}
+      {flow.phase === 'idle' && !writable && (
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          {readOnlyTip ?? 'Resume the venture from the Sessions tab to take stock of progress.'}
         </p>
       )}
 

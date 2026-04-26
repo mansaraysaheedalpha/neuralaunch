@@ -31,6 +31,13 @@ const ALL_STATUSES: TaskStatus[] = ['not_started', 'in_progress', 'completed', '
 interface TaskStatusPickerProps {
   status:   TaskStatus;
   pending:  boolean;
+  /** When true, the trigger is disabled with the dropdown closed.
+   *  Used to gate status changes when the parent venture is paused
+   *  or completed — the API also enforces, but preflight-disabling
+   *  prevents the click in the first place. Optional title carries
+   *  the reason into the native tooltip. */
+  disabled?: boolean;
+  disabledReason?: string | null;
   onChange: (status: TaskStatus) => void;
 }
 
@@ -40,7 +47,7 @@ interface TaskStatusPickerProps {
  * opens a dropdown with colored options. After a successful change,
  * briefly flashes success before settling to the new color.
  */
-export function TaskStatusPicker({ status, pending, onChange }: TaskStatusPickerProps) {
+export function TaskStatusPicker({ status, pending, disabled, disabledReason, onChange }: TaskStatusPickerProps) {
   const [open, setOpen] = useState(false);
   const [justChanged, setJustChanged] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -73,13 +80,16 @@ export function TaskStatusPicker({ status, pending, onChange }: TaskStatusPicker
     ? 'bg-success/10 text-success'
     : STATUS_TRIGGER[status];
 
+  const isInert = pending || disabled === true;
+
   return (
     <div ref={ref} className="relative shrink-0">
       <button
         type="button"
-        onClick={() => setOpen(v => !v)}
-        disabled={pending}
-        className={`inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[10px] uppercase tracking-wider font-medium cursor-pointer transition-colors duration-fast hover:border-foreground/30 disabled:opacity-50 ${triggerClass}`}
+        onClick={() => { if (!isInert) setOpen(v => !v); }}
+        disabled={isInert}
+        title={disabled ? (disabledReason ?? undefined) : undefined}
+        className={`inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[10px] uppercase tracking-wider font-medium transition-colors duration-fast hover:border-foreground/30 disabled:opacity-50 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'} ${triggerClass}`}
       >
         {pending ? (
           <Loader2 className="size-2.5 animate-spin" />

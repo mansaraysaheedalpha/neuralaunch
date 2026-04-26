@@ -21,6 +21,7 @@ import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import type { StoredRoadmapTask } from '@/lib/roadmap/checkin-types';
 import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
+import { useRoadmapWritability } from './RoadmapWritabilityContext';
 import { ConversationCoachButton } from './coach/ConversationCoachButton';
 import { CoachFlow }                from './coach/CoachFlow';
 import { CoachSessionReview }       from './coach/CoachSessionReview';
@@ -55,6 +56,7 @@ export function TaskToolLaunchers({ roadmapId, taskId, task }: TaskToolLaunchers
 
   const { data: session } = useSession();
   const tier = session?.user?.tier ?? 'free';
+  const { writable } = useRoadmapWritability();
 
   const suggestedTools = (task as { suggestedTools?: string[] }).suggestedTools;
   const coachSession    = (task as { coachSession?:    Record<string, unknown> }).coachSession;
@@ -112,6 +114,22 @@ export function TaskToolLaunchers({ roadmapId, taskId, task }: TaskToolLaunchers
   if (tier === 'free') {
     if (!anyToolSuggested) return null;
     return <UpgradePrompt requiredTier="execute" variant="compact" />;
+  }
+
+  // Read-only ventures (paused/completed/archived) keep the prior
+  // tool-session reviews visible (they're informational history) but
+  // hide the launcher buttons + flows entirely. The top-level banner
+  // already tells the founder why; per-task echoes would be noise.
+  if (!writable) {
+    return (
+      <>
+        {coachSession    && <CoachSessionReview    session={coachSession} />}
+        {composerSession && <ComposerSessionReview session={composerSession} />}
+        {researchSession && <ResearchSessionReview session={researchSession} />}
+        {packagerSession && <PackagerSessionReview session={packagerSession} />}
+        {validationSession && <ValidationSessionReview session={validationSession} />}
+      </>
+    );
   }
 
   return (

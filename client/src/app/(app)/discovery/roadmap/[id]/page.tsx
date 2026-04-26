@@ -36,6 +36,16 @@ export default async function RoadmapPage({
       session: {
         select: { beliefState: true },
       },
+      // Pull the venture state so the client tree can preflight-
+      // disable every write surface (status picker, tool launchers,
+      // check-in form, parking lot, What's Next) when the venture is
+      // paused, completed, or archived. Without this, the founder
+      // could click write actions that only fail at the API layer.
+      cycle: {
+        select: {
+          venture: { select: { status: true, archivedAt: true } },
+        },
+      },
     },
   });
 
@@ -66,6 +76,22 @@ export default async function RoadmapPage({
     ? goalValue.trim().slice(0, 300)
     : null;
 
+  // Derive the writability flag once per request. Three blocking
+  // states map to read-only reasons; archived is checked first
+  // because a venture can be both archived and (status=paused), and
+  // archived takes precedence in the UI copy. Legacy roadmaps with
+  // no venture link are writable by default — same as the API gate.
+  const venture     = recommendation.cycle?.venture ?? null;
+  const archived    = venture?.archivedAt != null;
+  const isPaused    = venture?.status === 'paused';
+  const isCompleted = venture?.status === 'completed';
+  const writable    = !venture || (!archived && !isPaused && !isCompleted);
+  const readOnlyReason: 'archived' | 'paused' | 'completed' | null =
+      archived    ? 'archived'
+    : isCompleted ? 'completed'
+    : isPaused    ? 'paused'
+    :               null;
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex justify-between px-6 pt-4">
@@ -82,7 +108,12 @@ export default async function RoadmapPage({
             <span className="text-sm text-muted-foreground">Loading…</span>
           </div>
         }>
-          <RoadmapView recommendationId={recommendationId} founderGoal={founderGoal} />
+          <RoadmapView
+            recommendationId={recommendationId}
+            founderGoal={founderGoal}
+            writable={writable}
+            readOnlyReason={readOnlyReason}
+          />
         </Suspense>
       </div>
     </div>

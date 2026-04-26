@@ -15,6 +15,10 @@ import { TaskCompletionMoment } from './TaskCompletionMoment';
 import { TaskMetadata }        from './TaskMetadata';
 import { TaskStatusPicker }    from './TaskStatusPicker';
 import { useTaskCheckIn }      from './useTaskCheckIn';
+import {
+  useRoadmapWritability,
+  readOnlyMessage,
+} from './RoadmapWritabilityContext';
 
 /**
  * InteractiveTaskCard — orchestrator for one roadmap task. Owns the
@@ -65,6 +69,8 @@ export function InteractiveTaskCard({
   const taskId = buildTaskId(phaseNumber, index);
   const ck = useTaskCheckIn({ roadmapId, taskId, initialTask, onOutcomePromptDue });
   const [diagnosticOpen, setDiagnosticOpen] = useState(false);
+  const { writable, readOnlyReason } = useRoadmapWritability();
+  const readOnlyTip = readOnlyMessage(readOnlyReason);
 
   return (
     <motion.div
@@ -88,6 +94,8 @@ export function InteractiveTaskCard({
         <TaskStatusPicker
           status={ck.status}
           pending={ck.pendingStatus}
+          disabled={!writable}
+          disabledReason={readOnlyTip}
           onChange={(s) => { void ck.handleStatusChange(s); }}
         />
       </div>
@@ -110,55 +118,65 @@ export function InteractiveTaskCard({
 
       <CheckInHistoryList history={ck.history} />
 
-      <CheckInForm
-        open={ck.formOpen}
-        category={ck.category}
-        freeText={ck.freeText}
-        submitting={ck.submitting}
-        error={ck.error}
-        canSubmit={ck.canSubmit}
-        // A12: when the founder picked "Tell us how it went" from the
-        // two-option completion surface, the placeholder asks for the
-        // specific outcome rather than the generic per-category prompt.
-        placeholderOverride={
-          ck.completionPath === 'writing'
-            ? 'What happened when you did this? Did it match what you expected?'
-            : null
-        }
-        onCategoryChange={ck.setCategory}
-        onTextChange={ck.setFreeText}
-        onSubmit={() => { void ck.handleSubmitCheckIn(); }}
-        onCancel={ck.handleCancelForm}
-      />
+      {/* Read-only ventures (paused/completed/archived) hide the
+          check-in form, the diagnostic chat, and the action links
+          entirely. The CheckInHistoryList above stays so the founder
+          can review past entries. The top-level banner explains why
+          the surfaces are missing — a per-task echo would be noise. */}
+      {writable && (
+        <>
+          <CheckInForm
+            open={ck.formOpen}
+            category={ck.category}
+            freeText={ck.freeText}
+            submitting={ck.submitting}
+            error={ck.error}
+            canSubmit={ck.canSubmit}
+            // A12: when the founder picked "Tell us how it went" from the
+            // two-option completion surface, the placeholder asks for the
+            // specific outcome rather than the generic per-category prompt.
+            placeholderOverride={
+              ck.completionPath === 'writing'
+                ? 'What happened when you did this? Did it match what you expected?'
+                : null
+            }
+            onCategoryChange={ck.setCategory}
+            onTextChange={ck.setFreeText}
+            onSubmit={() => { void ck.handleSubmitCheckIn(); }}
+            onCancel={ck.handleCancelForm}
+          />
 
-      {!ck.formOpen && !diagnosticOpen && (
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => ck.setFormOpen(true)}
-            className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2"
-          >
-            Check in on this task →
-          </button>
-          {/* A6: task-level diagnostic — always visible, always active.
-              Opens a focused diagnostic conversation about THIS specific
-              task. Separate turn budget from the check-in system. */}
-          <button
-            type="button"
-            onClick={() => setDiagnosticOpen(true)}
-            className="text-[11px] text-primary/80 hover:text-primary underline underline-offset-2"
-          >
-            Get help with this task
-          </button>
-        </div>
+          {!ck.formOpen && !diagnosticOpen && (
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => ck.setFormOpen(true)}
+                className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+              >
+                Check in on this task →
+              </button>
+              {/* A6: task-level diagnostic — always visible when
+                  writable, always active. Opens a focused diagnostic
+                  conversation about THIS specific task. Separate turn
+                  budget from the check-in system. */}
+              <button
+                type="button"
+                onClick={() => setDiagnosticOpen(true)}
+                className="text-[11px] text-primary/80 hover:text-primary underline underline-offset-2"
+              >
+                Get help with this task
+              </button>
+            </div>
+          )}
+
+          <TaskDiagnosticChat
+            roadmapId={roadmapId}
+            taskId={taskId}
+            open={diagnosticOpen}
+            onClose={() => setDiagnosticOpen(false)}
+          />
+        </>
       )}
-
-      <TaskDiagnosticChat
-        roadmapId={roadmapId}
-        taskId={taskId}
-        open={diagnosticOpen}
-        onClose={() => setDiagnosticOpen(false)}
-      />
 
       <TaskToolLaunchers roadmapId={roadmapId} taskId={taskId} task={ck.task} />
     </motion.div>

@@ -75,7 +75,7 @@ export function CompoundUpgradeHint() {
               </p>
               <div className="flex items-center gap-2">
                 <Link
-                  href="/settings"
+                  href="/#pricing"
                   className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
                 >
                   See Compound

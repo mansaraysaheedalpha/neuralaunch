@@ -394,7 +394,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                       <div className="flex items-center gap-2">
                         {tier === 'execute' && (
                           <Link
-                            href="/settings"
+                            href="/#pricing"
                             className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 border border-primary/30 px-3 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/20 transition-colors"
                           >
                             Upgrade to Compound

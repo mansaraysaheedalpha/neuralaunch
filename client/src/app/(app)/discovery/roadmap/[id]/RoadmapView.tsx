@@ -2,8 +2,9 @@
 // src/app/(app)/discovery/roadmap/[id]/RoadmapView.tsx
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { motion } from 'motion/react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Lock } from 'lucide-react';
 import { OutcomeForm } from '@/components/outcome/OutcomeForm';
 import { useRoadmapPolling } from './useRoadmapPolling';
 import { PhaseBlock } from './PhaseBlock';
@@ -11,6 +12,10 @@ import { WhatsNextPanel } from './WhatsNextPanel';
 import { ParkingLotInline } from './ParkingLotInline';
 import { NudgeBanner } from './NudgeBanner';
 import { RoadmapProgressHeader } from './RoadmapProgressHeader';
+import {
+  RoadmapWritabilityProvider,
+  type ReadOnlyReason,
+} from './RoadmapWritabilityContext';
 
 /**
  * RoadmapView
@@ -31,9 +36,13 @@ import { RoadmapProgressHeader } from './RoadmapProgressHeader';
 export function RoadmapView({
   recommendationId,
   founderGoal,
+  writable,
+  readOnlyReason,
 }: {
   recommendationId: string;
   founderGoal:      string | null;
+  writable:         boolean;
+  readOnlyReason:   ReadOnlyReason | null;
 }) {
   const { data, loading, failed, regenerating, regenerate } = useRoadmapPolling(recommendationId);
 
@@ -73,6 +82,7 @@ export function RoadmapView({
     : null;
 
   return (
+    <RoadmapWritabilityProvider writable={writable} readOnlyReason={readOnlyReason}>
     <div className="flex flex-col gap-8 max-w-2xl mx-auto px-6 py-10">
 
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-1">
@@ -83,6 +93,39 @@ export function RoadmapView({
           </p>
         )}
       </motion.div>
+
+      {/* Top-level read-only banner — surfaced ABOVE everything else
+          when the venture is paused, completed, or archived. Tells
+          the founder *before* they try anything why every interactive
+          surface below is disabled. The Sessions tab link is the only
+          way back to writability (Resume / Restore). */}
+      {!writable && readOnlyReason && (
+        <motion.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 flex items-start gap-3"
+        >
+          <Lock className="size-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+          <div className="flex-1 flex flex-col gap-1.5">
+            <p className="text-[12px] font-semibold text-foreground">
+              {readOnlyReason === 'paused'    && 'This venture is paused — read-only'}
+              {readOnlyReason === 'completed' && 'This venture is complete — read-only'}
+              {readOnlyReason === 'archived'  && 'This venture is archived — read-only'}
+            </p>
+            <p className="text-[11px] text-foreground/80 leading-relaxed">
+              {readOnlyReason === 'paused' && 'You can read the roadmap, recommendation, and prior cycles. Check-ins, tools, status changes, and What’s Next are disabled until you resume.'}
+              {readOnlyReason === 'completed' && 'Completed is terminal. The roadmap and recommendation stay readable forever, but no new check-ins, tool runs, or status changes will land. Start a new venture to continue working.'}
+              {readOnlyReason === 'archived' && 'Tier downgrade auto-archived this venture. It stays readable; new actions resume after you restore it.'}
+            </p>
+            <Link
+              href="/discovery/recommendations"
+              className="self-start text-[11px] font-medium text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 underline underline-offset-2"
+            >
+              Open Sessions tab →
+            </Link>
+          </div>
+        </motion.div>
+      )}
 
       {data.progress && (
         <RoadmapProgressHeader
@@ -189,5 +232,6 @@ export function RoadmapView({
       )}
 
     </div>
+    </RoadmapWritabilityProvider>
   );
 }
