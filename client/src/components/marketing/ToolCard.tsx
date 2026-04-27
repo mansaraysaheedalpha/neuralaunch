@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion, type Transition } from "motion/react";
-import type { ComponentType, SVGProps } from "react";
+import type { ReactNode } from "react";
 
 const SPRING: Transition = {
   type: "spring",
@@ -20,23 +20,28 @@ const ACCENT_CLASSES: Record<Accent, string> = {
 
 export type ToolCardProps = {
   index: number;
-  icon: ComponentType<SVGProps<SVGSVGElement>>;
+  /** Pre-rendered icon node. Pass JSX (e.g. <Mic className="h-5 w-5" />)
+   *  rather than the component type — function components cannot be
+   *  serialised across the Server→Client Component boundary, so the
+   *  parent Server Component must render the icon JSX itself. */
+  icon: ReactNode;
   name: string;
   tagline: string;
   body: string;
   accent: Accent;
-  visual: ComponentType;
+  /** Pre-rendered visual node. Same boundary reason as `icon`. */
+  visual: ReactNode;
   className?: string;
 };
 
 export default function ToolCard({
   index,
-  icon: Icon,
+  icon,
   name,
   tagline,
   body,
   accent,
-  visual: Visual,
+  visual,
   className = "",
 }: ToolCardProps) {
   const reduce = useReducedMotion();
@@ -58,14 +63,12 @@ export default function ToolCard({
       <div
         className={`flex h-11 w-11 items-center justify-center rounded-lg ring-1 ring-inset ${ACCENT_CLASSES[accent]}`}
       >
-        <Icon className="h-5 w-5" aria-hidden="true" />
+        {icon}
       </div>
       <h3 className="mt-5 text-lg font-semibold text-white">{name}</h3>
       <p className="mt-1 text-sm text-gold">{tagline}</p>
       <p className="mt-3 text-sm leading-relaxed text-slate-300">{body}</p>
-      <div className="mt-5">
-        <Visual />
-      </div>
+      <div className="mt-5">{visual}</div>
     </motion.article>
   );
 }

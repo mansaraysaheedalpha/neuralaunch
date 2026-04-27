@@ -15,11 +15,23 @@ import {
   Bell,
   Brain,
 } from "lucide-react";
-import type { ComponentType, SVGProps } from "react";
+import type { ReactNode } from "react";
 import MarketingHeader from "@/components/marketing/MarketingHeader";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
 import RevealOnScroll from "@/components/marketing/RevealOnScroll";
 import HeroProductStack from "@/components/marketing/HeroProductStack";
+import {
+  ContinuationBriefMock,
+  InterviewMock,
+  RecommendationPreviewMock,
+  RoadmapMock,
+  TimelineStep,
+  ToolsRowMock,
+} from "@/components/marketing/HowItWorksTimeline";
+import {
+  PushbackLadder,
+  SampleRecommendationCard,
+} from "@/components/marketing/RecommendationAnatomy";
 import ToolCard from "@/components/marketing/ToolCard";
 import {
   CoachVisual,
@@ -213,35 +225,58 @@ function Problem() {
 /* ============================================================
    SECTION 3 — HOW IT WORKS
    ============================================================ */
-const STEPS: Array<{
-  icon: typeof MessageSquare;
-  title: string;
-  body: string;
-}> = [
+type Step = Omit<
+  React.ComponentProps<typeof TimelineStep>,
+  "index" | "number"
+>;
+
+const STEP_ICON_CLASS = "h-4 w-4";
+
+const STEPS: Step[] = [
   {
-    icon: MessageSquare,
-    title: "Be heard",
-    body: "A focused interview that builds a real picture of who you are, what you want, what you have, and what you've already tried.",
+    icon: <MessageSquare className={STEP_ICON_CLASS} aria-hidden="true" />,
+    eyebrow: "Step 1 · Discovery",
+    title: "Be heard.",
+    body: "A focused interview that builds a real picture of who you are, what you want, what you have, and what you've already tried. Five to fifteen questions, capped at fifteen.",
+    side: "right",
+    color: "primary",
+    visual: <InterviewMock />,
   },
   {
-    icon: Compass,
-    title: "One recommendation",
-    body: "Not a menu. One direction — with the reasoning, the risks, and the assumptions laid bare. Push back if you disagree.",
+    icon: <Compass className={STEP_ICON_CLASS} aria-hidden="true" />,
+    eyebrow: "Step 2 · Commitment",
+    title: "One recommendation.",
+    body: "Not a menu. One direction — for your specific situation — with the reasoning, risks, and what would make it wrong, all on the table. Push back if you disagree.",
+    side: "left",
+    color: "primary-to-gold",
+    visual: <RecommendationPreviewMock />,
   },
   {
-    icon: ListChecks,
-    title: "A real roadmap",
-    body: "Phased, sequenced, sized to the hours you actually have. Every task with a reason and a way to know it's done.",
+    icon: <ListChecks className={STEP_ICON_CLASS} aria-hidden="true" />,
+    eyebrow: "Step 3 · Roadmap",
+    title: "A real roadmap.",
+    body: "Phased, sequenced, sized to your hours. Up to five phases, up to five tasks per phase. Every task has a reason, a time estimate against your weekly hours, and a concrete success criterion.",
+    side: "right",
+    color: "gold",
+    visual: <RoadmapMock />,
   },
   {
-    icon: Wrench,
-    title: "Execute with tools",
-    body: "Conversation Coach, Outreach Composer, Research Tool — built for the work that actually decides whether you win.",
+    icon: <Wrench className={STEP_ICON_CLASS} aria-hidden="true" />,
+    eyebrow: "Step 4 · Execution",
+    title: "Execute with tools.",
+    body: "Conversation Coach for the calls. Outreach Composer for the messages. Research Tool for the questions. Service Packager for the offer. Validation Page for the demand. Built for the work that decides whether you win.",
+    side: "left",
+    color: "gold-to-success",
+    visual: <ToolsRowMock />,
   },
   {
-    icon: RefreshCcw,
-    title: "Learn and continue",
-    body: "When the cycle ends, NeuraLaunch tells you what happened, what it got wrong, and what comes next.",
+    icon: <RefreshCcw className={STEP_ICON_CLASS} aria-hidden="true" />,
+    eyebrow: "Step 5 · Continuation",
+    title: "Learn and continue.",
+    body: "When the cycle ends, NeuraLaunch produces a five-section brief: what happened, what got missed, what the evidence says, the forks ahead, and the parking lot. The next cycle starts smarter than the last.",
+    side: "right",
+    color: "success",
+    visual: <ContinuationBriefMock />,
   },
 ];
 
@@ -261,39 +296,39 @@ function HowItWorks() {
           <RevealOnScroll delayMs={60}>
             <h2
               id="how-it-works-heading"
-              className="mt-3 text-heading text-white"
+              className="mt-3 text-balance text-heading text-white"
             >
               One arc. From first question to first outcome.
             </h2>
           </RevealOnScroll>
+          <RevealOnScroll delayMs={120}>
+            <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-300 lg:text-lg">
+              Five moments. Each one connects to the next. The work compounds
+              because the system stays.
+            </p>
+          </RevealOnScroll>
         </div>
 
-        <ol className="mx-auto mt-16 grid max-w-6xl grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
-          {STEPS.map((step, i) => {
-            const Icon = step.icon;
-            return (
-              <RevealOnScroll key={step.title} delayMs={i * 80}>
-                <li className="relative h-full rounded-lg border border-slate-800 bg-navy-950 p-6">
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-700 bg-navy-800 text-xs font-semibold text-slate-300">
-                      {i + 1}
-                    </span>
-                    <Icon
-                      className="h-5 w-5 text-primary"
-                      aria-hidden="true"
-                    />
-                  </div>
-                  <h3 className="mt-5 text-lg font-semibold text-white">
-                    {step.title}
-                  </h3>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-300">
-                    {step.body}
-                  </p>
-                </li>
-              </RevealOnScroll>
-            );
-          })}
-        </ol>
+        <div className="relative mx-auto mt-16 max-w-6xl">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute left-4 top-0 h-full w-px bg-gradient-to-b from-primary via-gold to-success md:left-6 lg:left-1/2 lg:-translate-x-1/2"
+          />
+          <ol role="list" className="space-y-16 lg:space-y-24">
+            {STEPS.map((step, i) => (
+              <TimelineStep
+                key={step.title}
+                index={i}
+                number={i + 1}
+                {...step}
+              />
+            ))}
+          </ol>
+          <p className="mt-12 text-center text-sm italic text-slate-400 lg:mt-16">
+            From the first question to the first outcome &mdash; and into the
+            next.
+          </p>
+        </div>
       </div>
     </section>
   );
@@ -309,65 +344,38 @@ function OneRecommendation() {
       className="border-b border-slate-800 bg-navy-950"
     >
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
-        <div className="mx-auto max-w-5xl">
-          <div className="overflow-hidden rounded-2xl border border-gold/30 bg-gradient-to-br from-navy-800 to-navy-900 p-8 sm:p-12 lg:p-16">
-            <RevealOnScroll>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gold">
-                The principle
-              </p>
-            </RevealOnScroll>
-            <RevealOnScroll delayMs={80}>
-              <h2
-                id="one-rec-heading"
-                className="mt-4 text-balance text-heading text-white"
-              >
-                One recommendation.{" "}
-                <span className="text-gold">Not five.</span>
-              </h2>
-            </RevealOnScroll>
-            <RevealOnScroll delayMs={160}>
-              <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-14">
-                <div>
-                  <p className="text-base leading-relaxed text-slate-300 sm:text-lg">
-                    Every other AI tool is afraid to commit. It gives you
-                    options. It hedges. It says &ldquo;here are some strategies
-                    you could consider.&rdquo;
-                  </p>
-                  <p className="mt-4 text-base leading-relaxed text-slate-300 sm:text-lg">
-                    NeuraLaunch does not do that. After listening to your full
-                    situation, it commits to{" "}
-                    <span className="font-medium text-white">
-                      one direction
-                    </span>{" "}
-                    — the right one for you specifically — with the reasoning,
-                    the risks, and the assumptions laid out plainly.
-                  </p>
-                </div>
-                <div className="rounded-xl border border-slate-800 bg-navy-950/60 p-6">
-                  <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-300">
-                    If you disagree
-                  </h3>
-                  <p className="mt-3 text-base leading-relaxed text-slate-300">
-                    You can push back. Up to seven rounds of real argument. It
-                    will{" "}
-                    <span className="text-white">defend where it should</span>,{" "}
-                    <span className="text-white">
-                      refine where the point is valid
-                    </span>
-                    , and{" "}
-                    <span className="text-white">
-                      replace the recommendation entirely
-                    </span>{" "}
-                    if you and the evidence together prove it wrong.
-                  </p>
-                  <p className="mt-3 text-sm leading-relaxed text-slate-300">
-                    When someone is lost, they do not need more options. They
-                    need someone willing to point at the way — and willing to
-                    change their mind when the case is made.
-                  </p>
-                </div>
-              </div>
-            </RevealOnScroll>
+        <div className="mx-auto max-w-3xl text-center">
+          <RevealOnScroll>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gold">
+              The principle
+            </p>
+          </RevealOnScroll>
+          <RevealOnScroll delayMs={60}>
+            <h2
+              id="one-rec-heading"
+              className="mt-3 text-balance text-heading text-white"
+            >
+              One recommendation.{" "}
+              <span className="text-gold">Not five.</span>
+            </h2>
+          </RevealOnScroll>
+          <RevealOnScroll delayMs={120}>
+            <p className="mx-auto mt-5 max-w-3xl text-base leading-relaxed text-slate-300 lg:text-lg">
+              Every other AI tool is afraid to commit. It gives you options.
+              It hedges. NeuraLaunch listens to your full situation, then
+              commits to one direction &mdash; with the reasoning, the
+              risks, and the assumptions laid bare. Disagree? Argue with it.{" "}
+              <span className="text-white">This is what it looks like.</span>
+            </p>
+          </RevealOnScroll>
+        </div>
+
+        <div className="mx-auto mt-14 grid max-w-6xl grid-cols-1 items-stretch gap-8 lg:grid-cols-12 lg:gap-10">
+          <div className="lg:col-span-7">
+            <SampleRecommendationCard />
+          </div>
+          <div className="lg:col-span-5">
+            <PushbackLadder />
           </div>
         </div>
       </div>
@@ -379,59 +387,61 @@ function OneRecommendation() {
    SECTION 5 — THE EXECUTION TOOLS
    ============================================================ */
 type ToolEntry = {
-  icon: ComponentType<SVGProps<SVGSVGElement>>;
+  icon: ReactNode;
   name: string;
   tagline: string;
   body: string;
   accent: "blue" | "gold";
-  visual: ComponentType;
+  visual: ReactNode;
   spanClass: string;
 };
 
+const TOOL_ICON_CLASS = "h-5 w-5";
+
 const TOOLS: ToolEntry[] = [
   {
-    icon: Mic,
+    icon: <Mic className={TOOL_ICON_CLASS} aria-hidden="true" />,
     name: "Conversation Coach",
     tagline: "Rehearse the pitch before you walk in.",
     body: "Tell it who you're talking to and what you're afraid of. It builds the opening, the asks, the objections — then role-plays the other side in character.",
     accent: "blue",
-    visual: CoachVisual,
+    visual: <CoachVisual />,
     spanClass: "lg:col-span-2",
   },
   {
-    icon: Send,
+    icon: <Send className={TOOL_ICON_CLASS} aria-hidden="true" />,
     name: "Outreach Composer",
     tagline: "Your messages, written and ready to send.",
     body: "Single message, batched variations, or a Day 1 / Day 5 / Day 14 sequence across WhatsApp, email, and LinkedIn — each with a short note on why it works.",
     accent: "blue",
-    visual: ComposerVisual,
+    visual: <ComposerVisual />,
     spanClass: "lg:col-span-2",
   },
   {
-    icon: Search,
+    icon: <Search className={TOOL_ICON_CLASS} aria-hidden="true" />,
     name: "Research Tool",
     tagline: "Find the people, the competitors, the answers.",
     body: "Ask in plain language. Get back structured findings — businesses, competitors, regulations — with source URLs and a verified / likely / unverified label.",
     accent: "blue",
-    visual: ResearchVisual,
+    visual: <ResearchVisual />,
     spanClass: "lg:col-span-2",
   },
   {
-    icon: Package,
+    icon: <Package className={TOOL_ICON_CLASS} aria-hidden="true" />,
     name: "Service Packager",
     tagline: "Turn what you do into tiers people can buy.",
     body: "Builds three priced tiers from your situation — Starter, Pro, Premium — with the features, the price, and the reasoning behind each one.",
     accent: "gold",
-    visual: PackagerVisual,
+    visual: <PackagerVisual />,
     spanClass: "lg:col-span-3",
   },
   {
-    icon: Globe,
+    icon: <Globe className={TOOL_ICON_CLASS} aria-hidden="true" />,
     name: "Validation Page",
     tagline: "A live page to test demand before you build.",
     body: "Hosts a slug-routed landing page with a survey and analytics, so you learn whether anyone actually wants this — before you write a line of code.",
     accent: "gold",
-    visual: ValidationVisual,
+    visual: <ValidationVisual />,
     spanClass: "lg:col-span-3",
   },
 ];

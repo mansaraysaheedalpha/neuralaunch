@@ -1,8 +1,13 @@
-// src/app/(app)/discovery/recommendations/[ventureId]/transformation/page.tsx
+// src/app/(app)/discovery/recommendations/[id]/transformation/page.tsx
 //
 // Private viewer for the Transformation Report. Server component:
 // guards auth, validates ownership, hands off to the client view
 // which polls the status endpoint until the report renders.
+//
+// The route param is named `id` (not `ventureId`) to match the
+// sibling [id]/page.tsx — Next.js forbids two different dynamic
+// param names at the same level. Internally we treat it as the
+// venture id, since the transformation row is venture-scoped.
 
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -13,13 +18,13 @@ import { TransformationReportView } from './TransformationReportView';
 export default async function TransformationReportPage({
   params,
 }: {
-  params: Promise<{ ventureId: string }>;
+  params: Promise<{ id: string }>;
 }) {
   const session = await auth();
   if (!session?.user?.id) redirect('/signin');
   const userId = session.user.id;
 
-  const { ventureId } = await params;
+  const { id: ventureId } = await params;
 
   // Ownership + existence check. A 404 here means either the
   // ventureId is fake / belongs to someone else, or the venture
