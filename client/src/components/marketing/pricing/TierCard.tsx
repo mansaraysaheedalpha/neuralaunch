@@ -103,6 +103,11 @@ export default function TierCard({
       : null;
 
   const annualSavings = isPaid ? computeAnnualSavings(tier.monthly, tier.annual) : null;
+  // Monthly-equivalent of the annual price. Shown beneath the annual headline
+  // so the user feels the discount viscerally ("$49/mo → $39/mo"). Rendered
+  // with one decimal so $39.17 doesn't get misread as $39 flat — the decimal
+  // signals the figure is a derivation, not a billed amount.
+  const monthlyEquivalent = isPaid ? (tier.annual / 12).toFixed(2) : null;
 
   return (
     <motion.article
@@ -149,21 +154,31 @@ export default function TierCard({
               Standard rate ${tier.monthly}/mo
             </p>
           </>
-        ) : (
+        ) : cycle === "annual" && annualSavings ? (
           <>
+            {/* Annual headline — show what is actually charged ($X/year),
+                with the monthly equivalent and savings beneath. The toggle
+                says "Annual" so the headline must reflect that, otherwise
+                the user clicks Annual and sees a /mo price (a soft
+                contradiction). The /mo equivalent stays visible in the
+                subtitle so cross-tier comparison and the felt size of the
+                discount both survive. */}
             <p className="text-3xl font-bold text-white">
-              ${tier.monthly}
-              <span className="text-lg font-medium text-slate-400">/mo</span>
+              ${tier.annual}
+              <span className="text-lg font-medium text-slate-400">/year</span>
             </p>
-            {cycle === "annual" && annualSavings && (
-              <p className="mt-1 text-xs text-slate-400">
-                Billed annually — ${tier.annual}/year{" "}
-                <span className="font-medium text-success">
-                  save ${annualSavings.saved} ({annualSavings.percent}%)
-                </span>
-              </p>
-            )}
+            <p className="mt-1 text-xs text-slate-400">
+              ${monthlyEquivalent}/mo equivalent{" "}
+              <span className="font-medium text-success">
+                · save ${annualSavings.saved} ({annualSavings.percent}%)
+              </span>
+            </p>
           </>
+        ) : (
+          <p className="text-3xl font-bold text-white">
+            ${tier.monthly}
+            <span className="text-lg font-medium text-slate-400">/mo</span>
+          </p>
         )}
         {isPaid && (
           <div className="mt-3 space-y-1 text-[11px] leading-relaxed text-slate-400">
