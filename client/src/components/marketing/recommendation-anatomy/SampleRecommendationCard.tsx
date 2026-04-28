@@ -75,30 +75,6 @@ export function SampleRecommendationCard() {
 
   return (
     <div role="presentation" aria-hidden="true" className="relative">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-0 hidden xl:block"
-      >
-        <div className="absolute right-[-148px] top-[44px] flex items-center">
-          <span className="h-px w-28 border-t border-dashed border-slate-700" />
-          <span className="ml-2 text-[11px] font-medium text-gold">
-            &larr; one direction
-          </span>
-        </div>
-        <div className="absolute right-[-156px] top-[44%] flex items-center">
-          <span className="h-px w-28 border-t border-dashed border-slate-700" />
-          <span className="ml-2 text-[11px] font-medium text-gold">
-            &larr; falsification
-          </span>
-        </div>
-        <div className="absolute right-[-156px] top-[68%] flex items-center">
-          <span className="h-px w-28 border-t border-dashed border-slate-700" />
-          <span className="ml-2 text-[11px] font-medium text-slate-400">
-            &larr; rejected paths
-          </span>
-        </div>
-      </div>
-
       <motion.div
         {...cardMotion}
         className="relative z-10 overflow-hidden rounded-2xl border border-l-[3px] border-gold/30 border-l-gold bg-gradient-to-br from-navy-800 to-navy-900 p-6 shadow-2xl shadow-navy-950/60 lg:p-8"

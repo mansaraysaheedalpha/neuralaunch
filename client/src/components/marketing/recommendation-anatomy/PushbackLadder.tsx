@@ -73,17 +73,11 @@ export function PushbackLadder() {
         ))}
       </div>
 
-      <div className="my-6 h-px bg-gold/20" />
+      <div className="my-5 h-px bg-gold/20" />
 
-      <div className="lg:hidden">
-        <CompactMilestones />
-      </div>
-
-      <div className="hidden lg:block">
-        <FullLadder dotMotion={dotMotion} />
-      </div>
-
-      <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500">
+      {/* Tier legend — sits above the ladder so the meaning of the
+          dual-tier accent is clear before the eye walks the ticks. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500">
         <span className="inline-flex items-center gap-1.5">
           <span className="h-1.5 w-5 rounded-sm bg-slate-600" />
           Execute &middot; 10 rounds
@@ -94,11 +88,13 @@ export function PushbackLadder() {
         </span>
       </div>
 
-      <p className="mt-4 text-xs italic leading-relaxed text-slate-400">
-        When someone is lost, they don&rsquo;t need more options. They need
-        someone willing to point at the way &mdash; and willing to change
-        their mind when the case is made.
-      </p>
+      <div className="mt-3 lg:hidden">
+        <CompactMilestones />
+      </div>
+
+      <div className="mt-3 hidden lg:block">
+        <FullLadder dotMotion={dotMotion} />
+      </div>
     </motion.div>
   );
 }
@@ -133,19 +129,28 @@ function CompactMilestones() {
   );
 }
 
+const LADDER_HEIGHT_PX = 240;
+
 function FullLadder({ dotMotion }: { dotMotion: DotMotionFn }) {
   const rounds = Array.from({ length: 15 }, (_, i) => i + 1);
   return (
     <div className="relative pl-6">
-      <div className="absolute left-2 top-1 h-[360px] w-px bg-slate-800" />
-      <ul className="relative flex h-[360px] flex-col justify-between">
+      <div
+        className="absolute left-2 top-1 w-px bg-slate-700"
+        style={{ height: `${LADDER_HEIGHT_PX}px` }}
+      />
+      <ul
+        className="relative flex flex-col justify-between"
+        style={{ height: `${LADDER_HEIGHT_PX}px` }}
+      >
         {rounds.map((n) => {
           const highlight = HIGHLIGHTS[n];
           const compoundOnly = n > 10;
-          const tickColor = compoundOnly ? "bg-slate-800" : "bg-slate-700";
+          const tickColor = compoundOnly ? "bg-slate-700" : "bg-slate-600";
           const compoundAccent = compoundOnly
-            ? "before:absolute before:-left-2 before:top-1/2 before:h-px before:w-1.5 before:-translate-y-1/2 before:bg-gold/30"
+            ? "before:absolute before:-left-2 before:top-1/2 before:h-px before:w-1.5 before:-translate-y-1/2 before:bg-gold/40"
             : "";
+          const dotSize = highlight?.bold ? "h-2.5 w-2.5" : "h-2 w-2";
           return (
             <li
               key={n}
@@ -163,7 +168,7 @@ function FullLadder({ dotMotion }: { dotMotion: DotMotionFn }) {
                   className="flex items-center gap-2"
                 >
                   <span
-                    className={`h-2 w-2 shrink-0 rounded-full ${DOT_TONE[highlight.tone]} ${
+                    className={`${dotSize} shrink-0 rounded-full ${DOT_TONE[highlight.tone]} ${
                       highlight.bold && highlight.tone === "primary"
                         ? "ring-2 ring-primary/30"
                         : ""
@@ -176,7 +181,7 @@ function FullLadder({ dotMotion }: { dotMotion: DotMotionFn }) {
                   <span
                     className={`text-xs ${
                       highlight.tone === "gold" ? "text-gold" : "text-primary"
-                    } ${highlight.bold ? "font-medium" : ""}`}
+                    } ${highlight.bold ? "font-semibold" : ""}`}
                   >
                     {highlight.label}
                   </span>
