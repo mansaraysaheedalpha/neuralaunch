@@ -1,7 +1,13 @@
 "use client";
 
-import { motion, useReducedMotion, type Transition } from "motion/react";
+import {
+  motion,
+  useInView,
+  useReducedMotion,
+  type Transition,
+} from "motion/react";
 import { AlertTriangle, Check, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 const STAGGER_S = 0.06;
 
@@ -34,11 +40,55 @@ function buildCardMotion(index: number, reduce: boolean | null): CardMotionProps
   };
 }
 
+/** Scripted micro-sequence phases. Each phase highlights one card so the
+ *  hero communicates "the system progresses through stages" without
+ *  duplicating the HowItWorks narrative below. Plays once on viewport-enter. */
+type Phase = "idle" | "discovery" | "recommendation" | "roadmap" | "done";
+
+const PHASE_TIMINGS: Array<{ at: Phase; delayMs: number }> = [
+  { at: "discovery", delayMs: 700 },
+  { at: "recommendation", delayMs: 2000 },
+  { at: "roadmap", delayMs: 3500 },
+  { at: "done", delayMs: 4800 },
+];
+
 export default function HeroProductStack() {
   const reduce = useReducedMotion();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inView = useInView(containerRef, { once: true, margin: "-15%" });
+  const [phase, setPhase] = useState<Phase>("idle");
+
+  useEffect(() => {
+    if (reduce) return;
+    if (!inView) return;
+    const timers = PHASE_TIMINGS.map(({ at, delayMs }) =>
+      window.setTimeout(() => setPhase(at), delayMs),
+    );
+    return () => {
+      for (const t of timers) window.clearTimeout(t);
+    };
+  }, [inView, reduce]);
+
+  // Under reduce-motion, render the final state directly without
+  // running the timer-driven sequence. The `phase` state stays "idle"
+  // and the reach-flags short-circuit on `reduce`.
+  const reachedDiscovery =
+    !!reduce ||
+    phase === "discovery" ||
+    phase === "recommendation" ||
+    phase === "roadmap" ||
+    phase === "done";
+  const reachedRecommendation =
+    !!reduce ||
+    phase === "recommendation" ||
+    phase === "roadmap" ||
+    phase === "done";
+  const reachedRoadmap =
+    !!reduce || phase === "roadmap" || phase === "done";
 
   return (
     <div
+      ref={containerRef}
       role="presentation"
       aria-hidden="true"
       className="relative mx-auto w-full max-w-[520px]"
@@ -49,19 +99,31 @@ export default function HeroProductStack() {
       <div className="pointer-events-none absolute inset-x-0 top-[70%] -z-10 h-px bg-gold/30" />
 
       <div className="relative">
+        {/* Card 1 — Discovery (back, top-left) */}
         <motion.div
           {...buildCardMotion(0, reduce)}
-          className={`absolute left-[-48px] top-[-32px] z-10 hidden w-[80%] -rotate-[8deg] opacity-90 md:block ${CARD_BASE}`}
+          className={`absolute left-[-72px] top-[-72px] z-10 hidden w-[78%] -rotate-[7deg] opacity-95 md:block ${CARD_BASE}`}
         >
           <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
             Discovery &middot; Question 7 of 11
           </p>
-          <div className="mt-4 rounded-lg border border-slate-800 bg-navy-800/60 p-4">
+          <motion.div
+            animate={{
+              borderColor: reachedDiscovery
+                ? "rgb(37 99 235 / 0.4)"
+                : "rgb(30 41 59)",
+              boxShadow: reachedDiscovery
+                ? "0 0 0 1px rgb(37 99 235 / 0.25)"
+                : "0 0 0 0 rgb(37 99 235 / 0)",
+            }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="mt-4 rounded-lg border bg-navy-800/60 p-4"
+          >
             <p className="text-sm leading-relaxed text-slate-200">
               When you say &ldquo;stuck&rdquo;, is it the next step that&rsquo;s
               unclear &mdash; or do you not trust the direction itself?
             </p>
-          </div>
+          </motion.div>
           <div className="mt-3 flex items-center gap-1.5 px-1">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-600" />
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-600 [animation-delay:150ms]" />
@@ -69,6 +131,7 @@ export default function HeroProductStack() {
           </div>
         </motion.div>
 
+        {/* Card 2 — Recommendation (focal) */}
         <motion.div
           {...buildCardMotion(1, reduce)}
           className={`relative z-20 border-l-[3px] border-l-gold ${CARD_BASE}`}
@@ -76,9 +139,19 @@ export default function HeroProductStack() {
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">
             Your recommendation
           </p>
-          <h3 className="mt-3 text-lg font-semibold text-white">
-            Pivot to validated services before code.
-          </h3>
+          <div className="relative mt-3 inline-block">
+            <h3 className="text-lg font-semibold text-white">
+              Pivot to validated services before code.
+            </h3>
+            <motion.span
+              aria-hidden="true"
+              initial={{ scaleX: 0 }}
+              animate={{ scaleX: reachedRecommendation ? 1 : 0 }}
+              transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+              style={{ transformOrigin: "left center" }}
+              className="absolute -bottom-0.5 left-0 h-px w-full bg-gradient-to-r from-gold to-transparent"
+            />
+          </div>
           <div className="mt-4 space-y-2">
             <div className="flex items-start gap-2.5 rounded-md border border-success/20 bg-success/10 px-3 py-2">
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-success" />
@@ -108,9 +181,10 @@ export default function HeroProductStack() {
           </div>
         </motion.div>
 
+        {/* Card 3 — Roadmap (front, bottom-right) */}
         <motion.div
           {...buildCardMotion(2, reduce)}
-          className={`absolute bottom-[-32px] right-[-48px] z-10 hidden w-[80%] rotate-[6deg] opacity-95 md:block ${CARD_BASE}`}
+          className={`absolute bottom-[-72px] right-[-72px] z-10 hidden w-[78%] rotate-[5deg] opacity-95 md:block ${CARD_BASE}`}
         >
           <p className="text-xs font-medium uppercase tracking-wider text-slate-400">
             Roadmap &middot; Phase 1 of 3
@@ -124,13 +198,13 @@ export default function HeroProductStack() {
               <TimeChip>2h</TimeChip>
             </li>
             <li className="flex items-center gap-3">
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-primary">
-                <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
-              </span>
+              <Checkbox done={reachedRoadmap} />
               <span className="flex-1 text-sm text-slate-200">
                 Draft service tier sheet
               </span>
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+              {reachedRoadmap && (
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+              )}
               <TimeChip>4h</TimeChip>
             </li>
             <li className="flex items-center gap-3">
@@ -144,6 +218,29 @@ export default function HeroProductStack() {
         </motion.div>
       </div>
     </div>
+  );
+}
+
+function Checkbox({ done }: { done: boolean }) {
+  return (
+    <motion.span
+      animate={{
+        backgroundColor: done ? "rgb(37 99 235)" : "rgb(10 22 40)",
+        borderColor: done ? "rgb(37 99 235)" : "rgb(51 65 85)",
+      }}
+      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border"
+    >
+      {done && (
+        <motion.span
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.15, ...SPRING }}
+        >
+          <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
+        </motion.span>
+      )}
+    </motion.span>
   );
 }
 
