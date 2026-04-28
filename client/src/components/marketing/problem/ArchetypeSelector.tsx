@@ -72,7 +72,7 @@ export function ArchetypeSelector({
               tabIndex={active ? 0 : -1}
               onClick={() => onSelect(i)}
               onKeyDown={handleKey}
-              className={`group flex flex-col items-start gap-0.5 border-l-[3px] py-3 pl-4 pr-3 text-left transition-colors focus:outline-none focus-visible:bg-navy-800/60 ${
+              className={`group flex flex-col items-start gap-0.5 rounded-sm border-l-[3px] py-3 pl-4 pr-3 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 ${
                 active
                   ? "border-l-gold bg-navy-800/60"
                   : "border-l-transparent hover:bg-navy-800/30"

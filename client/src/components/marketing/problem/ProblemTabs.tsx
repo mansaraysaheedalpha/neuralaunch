@@ -1,6 +1,7 @@
 "use client";
 
 import { ArchetypeSelector } from "./ArchetypeSelector";
+import { CommonThreadPanel } from "./CommonThreadPanel";
 import { ARCHETYPES } from "./data";
 import { ProblemSpotlight } from "./ProblemSpotlight";
 import { useArchetypeAutoplay } from "./useArchetypeAutoplay";
@@ -55,7 +56,7 @@ export function ProblemTabs() {
         </div>
       </div>
 
-      <div className="lg:col-span-7">
+      <div className="flex flex-col gap-6 lg:col-span-7">
         <ProblemSpotlight
           archetype={active}
           index={activeIndex}
@@ -63,6 +64,7 @@ export function ProblemTabs() {
           reducedMotion={reducedMotion}
           hoverHandlers={hoverHandlers}
         />
+        <CommonThreadPanel />
       </div>
     </div>
   );
