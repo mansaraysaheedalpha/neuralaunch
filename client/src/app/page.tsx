@@ -20,6 +20,8 @@ import MarketingHeader from "@/components/marketing/MarketingHeader";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
 import RevealOnScroll from "@/components/marketing/RevealOnScroll";
 import HeroProductStack from "@/components/marketing/HeroProductStack";
+import { DifferentiationPanel } from "@/components/marketing/differentiation/DifferentiationPanel";
+import { ProblemTabs } from "@/components/marketing/problem/ProblemTabs";
 import {
   ContinuationBriefMock,
   InterviewMock,
@@ -32,6 +34,13 @@ import {
   PushbackLadder,
   SampleRecommendationCard,
 } from "@/components/marketing/RecommendationAnatomy";
+import {
+  CheckInBeatMock,
+  ContinuationBeatMock,
+  MemoryBeatMock,
+  RecalibrationBeatMock,
+  VentureLifecycleStrip,
+} from "@/components/marketing/StaysWithYouVisuals";
 import ToolCard from "@/components/marketing/ToolCard";
 import {
   CoachVisual,
@@ -151,29 +160,6 @@ function Hero() {
 /* ============================================================
    SECTION 2 — THE PROBLEM
    ============================================================ */
-const PROBLEM_MOMENTS: Array<{ title: string; body: string }> = [
-  {
-    title: "The graduate",
-    body: "Studied for years. Applied everywhere. Got nowhere. Has skills the world needs and no clear path to use them.",
-  },
-  {
-    title: "The stuck founder",
-    body: "Started something. Got some traction. Hit a wall. Cannot tell if the problem is the product, the market, the pricing, or something deeper.",
-  },
-  {
-    title: "The shop owner",
-    body: "Has real customers and real revenue. Knows growth is possible. Cannot see the next move from where they're standing.",
-  },
-  {
-    title: "The aspiring builder",
-    body: "Has a real idea. Maybe even early users. No idea how to take the next step without burning months on the wrong thing.",
-  },
-  {
-    title: "The professional with a side project",
-    body: "Has skills, has resources, maybe even a small team. Drowning in options. Cannot find the one direction that actually fits.",
-  },
-];
-
 function Problem() {
   return (
     <section
@@ -181,42 +167,7 @@ function Problem() {
       className="border-b border-slate-800 bg-navy-950"
     >
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
-        <div className="mx-auto max-w-3xl text-center">
-          <RevealOnScroll>
-            <h2
-              id="problem-heading"
-              className="text-heading text-white"
-            >
-              You are not the first person to feel stuck.
-            </h2>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={80}>
-            <p className="mt-5 text-base leading-relaxed text-slate-300 sm:text-lg">
-              The world has consultants — expensive, generic, built for
-              companies that already have money. The world has AI tools — they
-              give you five options when you need one answer, then leave you
-              alone the moment the answer is delivered.
-              <span className="mt-3 block font-medium text-slate-200">
-                Nothing has been built for the moments in between. Until now.
-              </span>
-            </p>
-          </RevealOnScroll>
-        </div>
-
-        <div className="mx-auto mt-16 grid max-w-6xl grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {PROBLEM_MOMENTS.map((moment, i) => (
-            <RevealOnScroll key={moment.title} delayMs={i * 60}>
-              <article className="h-full rounded-lg border border-slate-800 bg-navy-800/40 p-6 transition-colors hover:border-slate-700 hover:bg-navy-800/70">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-gold">
-                  {moment.title}
-                </h3>
-                <p className="mt-3 text-sm leading-relaxed text-slate-300">
-                  {moment.body}
-                </p>
-              </article>
-            </RevealOnScroll>
-          ))}
-        </div>
+        <ProblemTabs />
       </div>
     </section>
   );
@@ -496,29 +447,6 @@ function ExecutionTools() {
 /* ============================================================
    SECTION 6 — WHAT MAKES THIS DIFFERENT
    ============================================================ */
-const COMPARISONS: Array<{ them: string; us: string }> = [
-  {
-    them: "Idea validators score your idea and send you away.",
-    us: "NeuraLaunch interviews your situation — not your idea — and stays with you through every task that follows.",
-  },
-  {
-    them: "Report generators produce a document you read once and close.",
-    us: "NeuraLaunch produces a roadmap you live inside for weeks, with tools and check-ins built into every step.",
-  },
-  {
-    them: "Advice tools give you options.",
-    us: "NeuraLaunch gives you one answer, defends it, and changes its mind only if you argue well enough.",
-  },
-  {
-    them: "Chatbots forget everything when you close the tab.",
-    us: "NeuraLaunch remembers every check-in, every block, every adjacent idea — and uses them to tell you what you learned.",
-  },
-  {
-    them: "Consultants cost thousands, live in one meeting, and disappear.",
-    us: "NeuraLaunch is there every time you open the tab, at a fraction of the price, with perfect recall.",
-  },
-];
-
 function Differentiation() {
   return (
     <section
@@ -528,46 +456,26 @@ function Differentiation() {
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
         <div className="mx-auto max-w-3xl text-center">
           <RevealOnScroll>
+            <p className="text-sm font-semibold uppercase tracking-wider text-primary">
+              Where they stop
+            </p>
+          </RevealOnScroll>
+          <RevealOnScroll delayMs={60}>
             <h2
               id="diff-heading"
-              className="text-heading text-white"
+              className="mt-3 text-balance text-heading text-white"
             >
               The category had a gap. We filled it.
             </h2>
           </RevealOnScroll>
-          <RevealOnScroll delayMs={80}>
-            <p className="mt-5 text-base leading-relaxed text-slate-300 sm:text-lg">
-              An AI that stays with a founder across the full execution cycle —
-              from first question to first outcome — and interprets what
-              happened so the next cycle is smarter than the last.
+          <RevealOnScroll delayMs={120}>
+            <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-300 lg:text-lg">
+              Every tool that exists today helps with one slice of the
+              journey, then stops. NeuraLaunch is the one that stays.
             </p>
           </RevealOnScroll>
         </div>
-
-        <div className="mx-auto mt-14 max-w-5xl space-y-3">
-          {COMPARISONS.map((row, i) => (
-            <RevealOnScroll key={row.them} delayMs={i * 60}>
-              <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-slate-800 bg-slate-800 md:grid-cols-2">
-                <div className="bg-navy-900 p-6">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-300">
-                    The tools that exist
-                  </p>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-300 line-through decoration-slate-700 decoration-1 underline-offset-4">
-                    {row.them}
-                  </p>
-                </div>
-                <div className="bg-navy-800 p-6">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-                    NeuraLaunch
-                  </p>
-                  <p className="mt-2 text-sm leading-relaxed text-slate-200">
-                    {row.us}
-                  </p>
-                </div>
-              </div>
-            </RevealOnScroll>
-          ))}
-        </div>
+        <DifferentiationPanel />
       </div>
     </section>
   );
@@ -576,6 +484,42 @@ function Differentiation() {
 /* ============================================================
    SECTION 7 — IT STAYS WITH YOU
    ============================================================ */
+type BeatEntry = {
+  icon: ReactNode;
+  title: string;
+  body: string;
+  mock: ReactNode;
+};
+
+const BEAT_ICON_CLASS = "h-4 w-4";
+
+const BEATS: BeatEntry[] = [
+  {
+    icon: <Bell className={BEAT_ICON_CLASS} aria-hidden="true" />,
+    title: "It checks in",
+    body: "When a task runs past its time estimate or you've gone quiet, a nudge surfaces — not nagging, not on a schedule. Triggered by your real activity.",
+    mock: <CheckInBeatMock />,
+  },
+  {
+    icon: <Brain className={BEAT_ICON_CLASS} aria-hidden="true" />,
+    title: "It remembers",
+    body: "Every check-in, every blocked task, every parked idea is held in context. Nothing has to be re-explained when you come back.",
+    mock: <MemoryBeatMock />,
+  },
+  {
+    icon: <RefreshCcw className={BEAT_ICON_CLASS} aria-hidden="true" />,
+    title: "It recalibrates",
+    body: "When several check-ins point structurally the same way — and you're at least 40% through — it offers to revisit the recommendation. Without you having to ask.",
+    mock: <RecalibrationBeatMock />,
+  },
+  {
+    icon: <Compass className={BEAT_ICON_CLASS} aria-hidden="true" />,
+    title: "It tells you what's next",
+    body: "At the end of a cycle: a five-section brief on what happened, what got missed, what the evidence says, the forks ahead, and the parking lot — auto-generated, ready to read.",
+    mock: <ContinuationBeatMock />,
+  },
+];
+
 function ItStaysWithYou() {
   return (
     <section
@@ -583,80 +527,63 @@ function ItStaysWithYou() {
       className="border-b border-slate-800 bg-navy-900"
     >
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
-        <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 lg:grid-cols-2 lg:gap-20">
+        <div className="mx-auto max-w-3xl text-center">
           <RevealOnScroll>
-            <div>
-              <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-success">
-                <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                It stays with you
-              </p>
-              <h2
-                id="stays-heading"
-                className="mt-4 text-heading text-white"
-              >
-                A partner. Not a tool you check.
-              </h2>
-              <p className="mt-6 text-base leading-relaxed text-slate-300 sm:text-lg">
-                NeuraLaunch doesn&rsquo;t disappear after handing you a plan.
-                It checks in when you&rsquo;ve been stuck on a task too long.
-                It notices when the pattern across many tasks suggests the
-                direction itself is wrong — and offers to recalibrate. It
-                remembers every conversation. And when the cycle ends, it
-                tells you what happened, what it got wrong, and what comes
-                next.
-              </p>
-            </div>
+            <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-success">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              It stays with you
+            </p>
           </RevealOnScroll>
-
+          <RevealOnScroll delayMs={60}>
+            <h2
+              id="stays-heading"
+              className="mt-4 text-balance text-heading text-white"
+            >
+              A partner. Not a tool you check.
+            </h2>
+          </RevealOnScroll>
           <RevealOnScroll delayMs={120}>
-            <div className="space-y-3">
-              <Beat
-                icon={Bell}
-                title="It checks in"
-                body="When you've been working on a task longer than its time estimate — or you've gone quiet for too long — it surfaces the question."
-              />
-              <Beat
-                icon={Brain}
-                title="It remembers"
-                body="Every check-in, every blocked task, every parked idea is held in context. Nothing has to be re-explained."
-              />
-              <Beat
-                icon={RefreshCcw}
-                title="It recalibrates"
-                body="When several check-ins point structurally the same way, it offers to revisit the recommendation — without you having to ask."
-              />
-              <Beat
-                icon={Compass}
-                title="It tells you what's next"
-                body="At the end of a cycle: a five-section brief on what happened, what was wrong, and two to four concrete forks to choose from."
-              />
-            </div>
+            <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-300 lg:text-lg">
+              From the day you accept the recommendation to the day you mark
+              the venture complete &mdash; the system is in the room. It
+              checks in. It remembers. It notices when the direction itself
+              needs to change.
+            </p>
           </RevealOnScroll>
+        </div>
+
+        <div className="mx-auto mt-14 max-w-6xl">
+          <VentureLifecycleStrip />
+        </div>
+
+        <div className="mx-auto mt-10 grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-2">
+          {BEATS.map((beat, i) => (
+            <Beat key={beat.title} index={i} beat={beat} />
+          ))}
         </div>
       </div>
     </section>
   );
 }
 
-function Beat({
-  icon: Icon,
-  title,
-  body,
-}: {
-  icon: typeof Bell;
-  title: string;
-  body: string;
-}) {
+function Beat({ index, beat }: { index: number; beat: BeatEntry }) {
   return (
-    <div className="flex items-start gap-4 rounded-lg border border-slate-800 bg-navy-950 p-5">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-success/10 ring-1 ring-inset ring-success/30">
-        <Icon className="h-4 w-4 text-success" aria-hidden="true" />
-      </div>
-      <div>
-        <h3 className="text-base font-semibold text-white">{title}</h3>
-        <p className="mt-1 text-sm leading-relaxed text-slate-300">{body}</p>
-      </div>
-    </div>
+    <RevealOnScroll delayMs={index * 100}>
+      <article className="grid h-full min-h-[200px] grid-cols-1 gap-4 rounded-xl border border-slate-800 bg-navy-900 p-6 shadow-xl shadow-navy-950/50 sm:grid-cols-[1fr_140px]">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-success/10 text-success ring-1 ring-inset ring-success/30">
+              {beat.icon}
+            </span>
+            <h3 className="text-base font-semibold text-white">{beat.title}</h3>
+          </div>
+          <p className="mt-3 text-sm leading-relaxed text-slate-300">
+            {beat.body}
+          </p>
+        </div>
+        <div className="self-center">{beat.mock}</div>
+      </article>
+    </RevealOnScroll>
   );
 }
 
