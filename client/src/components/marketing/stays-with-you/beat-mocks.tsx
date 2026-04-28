@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 const FRAME =
-  "h-[100px] rounded-lg border border-slate-800 bg-navy-950 p-3";
+  "min-h-[140px] rounded-lg border border-slate-800 bg-navy-950 p-3.5";
 
 function Mock({ children }: { children: ReactNode }) {
   return (
@@ -17,35 +17,44 @@ export function CheckInBeatMock() {
       <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
         Nudge
       </p>
-      <p className="mt-1.5 text-xs leading-snug text-slate-200">
-        Task &lsquo;Draft tier sheet&rsquo; is 2 days past estimate. Want to
-        share what came up?
+      <p className="mt-2 text-xs leading-snug text-slate-200">
+        &lsquo;Draft tier sheet&rsquo; is 2 days past estimate. Share what
+        came up?
       </p>
-      <p className="mt-1.5 text-[10px] text-primary">Open task &rarr;</p>
+      <p className="mt-2 text-[10px] font-medium text-primary">
+        Open task &rarr;
+      </p>
     </Mock>
   );
 }
 
+const MEMORY_ROWS = [
+  { week: "W1", body: "‘Suppliers slow to respond’" },
+  { week: "W3", body: "‘Mariama confirmed pricing’" },
+  { week: "W4", body: "Idea: WhatsApp catalogue" },
+];
+
 export function MemoryBeatMock() {
   return (
     <Mock>
-      <div className="flex flex-col">
-        <div className="rounded-md border border-slate-800 bg-navy-900 px-2 py-1">
-          <p className="text-[10px] text-slate-300">
-            W1 &middot; &lsquo;Suppliers slow to respond&rsquo;
-          </p>
-        </div>
-        <div className="-mt-1 rounded-md border border-slate-800 bg-navy-900 px-2 py-1">
-          <p className="text-[10px] text-slate-300">
-            W3 &middot; &lsquo;Mariama confirmed pricing&rsquo;
-          </p>
-        </div>
-        <div className="-mt-1 rounded-md border border-slate-800 bg-navy-900 px-2 py-1">
-          <p className="text-[10px] text-slate-300">
-            W4 &middot; Idea: WhatsApp catalogue
-          </p>
-        </div>
-      </div>
+      <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
+        Held in context
+      </p>
+      <ul className="mt-2 flex flex-col gap-1.5">
+        {MEMORY_ROWS.map((row) => (
+          <li
+            key={row.week}
+            className="flex items-center gap-2 rounded-md border border-slate-800 bg-navy-900 px-2 py-1"
+          >
+            <span className="shrink-0 text-[10px] font-semibold tabular-nums text-success">
+              {row.week}
+            </span>
+            <span className="truncate text-[10px] text-slate-300">
+              {row.body}
+            </span>
+          </li>
+        ))}
+      </ul>
     </Mock>
   );
 }
@@ -56,14 +65,13 @@ export function RecalibrationBeatMock() {
       <p className="text-[10px] font-semibold uppercase tracking-wider text-gold">
         Recalibration available
       </p>
-      <p className="mt-1.5 text-xs leading-snug text-slate-200">
-        Three check-ins suggest the service-tier mix isn&rsquo;t working.
-        Revisit?
+      <p className="mt-2 text-xs leading-snug text-slate-200">
+        Three check-ins suggest the tier mix isn&rsquo;t working. Revisit?
       </p>
-      <div className="mt-1.5 flex gap-1.5">
+      <div className="mt-2 flex gap-1.5">
         <span
           role="presentation"
-          className="rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-[10px] text-gold"
+          className="rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-[10px] font-medium text-gold"
         >
           Revisit
         </span>
@@ -89,17 +97,22 @@ const BRIEF_ROWS = [
 export function ContinuationBeatMock() {
   return (
     <Mock>
-      <ol className="flex flex-col gap-1.5">
+      <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
+        Cycle brief
+      </p>
+      <ol className="mt-2 flex flex-col gap-1.5">
         {BRIEF_ROWS.map((row) => (
           <li key={row.label} className="flex items-center gap-2">
             <span
-              className={`h-2 flex-1 rounded-full ${
-                row.filled ? "bg-success/40" : "bg-slate-800"
+              className={`h-1.5 w-12 shrink-0 rounded-full ${
+                row.filled ? "bg-success/60" : "bg-slate-700"
               }`}
             />
             <span
-              className={`shrink-0 text-[10px] ${
-                row.filled ? "text-success" : "text-slate-400"
+              className={`text-[10px] ${
+                row.filled
+                  ? "font-medium text-success"
+                  : "text-slate-400"
               }`}
             >
               {row.label}

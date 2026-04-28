@@ -526,7 +526,7 @@ function ItStaysWithYou() {
       aria-labelledby="stays-heading"
       className="border-b border-slate-800 bg-navy-900"
     >
-      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
+      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-24">
         <div className="mx-auto max-w-3xl text-center">
           <RevealOnScroll>
             <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-success">
@@ -552,11 +552,11 @@ function ItStaysWithYou() {
           </RevealOnScroll>
         </div>
 
-        <div className="mx-auto mt-14 max-w-6xl">
+        <div className="mx-auto mt-10 max-w-6xl">
           <VentureLifecycleStrip />
         </div>
 
-        <div className="mx-auto mt-10 grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="mx-auto mt-8 grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-2">
           {BEATS.map((beat, i) => (
             <Beat key={beat.title} index={i} beat={beat} />
           ))}
@@ -569,7 +569,7 @@ function ItStaysWithYou() {
 function Beat({ index, beat }: { index: number; beat: BeatEntry }) {
   return (
     <RevealOnScroll delayMs={index * 100}>
-      <article className="grid h-full min-h-[200px] grid-cols-1 gap-4 rounded-xl border border-slate-800 bg-navy-900 p-6 shadow-xl shadow-navy-950/50 sm:grid-cols-[1fr_140px]">
+      <article className="grid h-full min-h-[220px] grid-cols-1 gap-5 rounded-xl border border-slate-800 bg-navy-900 p-6 shadow-xl shadow-navy-950/50 sm:grid-cols-[1fr_180px]">
         <div>
           <div className="flex items-center gap-2.5">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-success/10 text-success ring-1 ring-inset ring-success/30">
