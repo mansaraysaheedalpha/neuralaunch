@@ -107,6 +107,7 @@ export const TIERS: TierDefinition[] = [
           'Task check-ins + diagnostic chat',
           'Proactive nudges + push notifications',
           'Parking lot for adjacent ideas',
+          'A second voice before you pause — three-mode reflection on why',
         ],
       },
       {
@@ -114,13 +115,13 @@ export const TIERS: TierDefinition[] = [
         items: [
           'Continuation brief at cycle end',
           'Fork selection into the next cycle',
+          'Transformation report — a written narrative of what happened, ready to publish',
         ],
       },
       {
         label: 'Capacity',
         items: [
           '1 active venture (up to 2 paused)',
-          'Web + iOS + Android',
         ],
       },
     ],
