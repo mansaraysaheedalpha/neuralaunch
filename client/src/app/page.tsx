@@ -106,8 +106,8 @@ function Hero() {
         className="pointer-events-none absolute inset-x-0 top-0 mx-auto h-[600px] max-w-5xl bg-[radial-gradient(ellipse_at_top,_rgba(37,99,235,0.15),_transparent_60%)]"
       />
 
-      <div className="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-16 px-4 pb-24 pt-20 sm:px-6 sm:pb-28 sm:pt-28 lg:min-h-[95vh] lg:grid-cols-12 lg:gap-12 lg:px-8 lg:pb-24 lg:pt-24">
-        <div className="lg:col-span-5">
+      <div className="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-16 overflow-visible px-4 pb-24 pt-20 sm:px-6 sm:pb-28 sm:pt-28 lg:min-h-[95vh] lg:grid-cols-12 lg:gap-12 lg:px-8 lg:pb-24 lg:pt-24">
+        <div className="lg:col-span-6">
           <RevealOnScroll>
             <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-navy-800/80 px-3.5 py-1.5 text-xs font-medium text-slate-300">
               <span className="h-1.5 w-1.5 rounded-full bg-success" />
@@ -118,7 +118,7 @@ function Hero() {
           <RevealOnScroll delayMs={80}>
             <h1
               id="hero-heading"
-              className="max-w-[620px] text-balance text-display text-white"
+              className="max-w-[560px] text-balance text-[clamp(2rem,3.5vw,3.25rem)] font-bold leading-[1.1] tracking-tight text-white"
             >
               You know something needs to change.{" "}
               <span className="text-gold">
@@ -128,13 +128,13 @@ function Hero() {
           </RevealOnScroll>
 
           <RevealOnScroll delayMs={160}>
-            <p className="mt-7 max-w-[540px] text-base leading-relaxed text-slate-300 sm:text-lg">
+            <p className="mt-6 max-w-[520px] text-base leading-relaxed text-slate-300 sm:text-lg">
               {HERO_SUBHEAD}
             </p>
           </RevealOnScroll>
 
           <RevealOnScroll delayMs={240}>
-            <div className="mt-10 flex">
+            <div className="mt-8 flex">
               <Link
                 href="/discovery"
                 className="group inline-flex items-center gap-2 rounded-md bg-primary px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-primary/20 ring-1 ring-transparent transition-all hover:bg-blue-700 hover:shadow-xl hover:shadow-primary/30 hover:ring-gold/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950"
@@ -149,7 +149,7 @@ function Hero() {
           </RevealOnScroll>
         </div>
 
-        <div className="mt-12 lg:col-span-7 lg:mt-0 lg:pl-4">
+        <div className="relative mt-12 overflow-visible lg:col-span-6 lg:mt-0 lg:pl-8">
           <HeroProductStack />
         </div>
       </div>
