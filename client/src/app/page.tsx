@@ -646,10 +646,15 @@ function FinalCTA() {
       aria-labelledby="final-cta-heading"
       className="relative bg-gradient-to-b from-navy-900 to-navy-950"
     >
-      {/* gold-accent seal — visual closure for the page */}
+      {/* gold-accent seal — top */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent"
+      />
+      {/* gold-accent seal — bottom (symmetric closure for the page) */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent"
       />
 
       <div className="mx-auto max-w-5xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-28">
@@ -664,19 +669,15 @@ function FinalCTA() {
             >
               You&rsquo;ll know.
             </h2>
-            <div className="mx-auto mt-6 max-w-xl space-y-2 text-base leading-relaxed text-slate-300 sm:text-lg">
+            <div className="mx-auto mt-6 max-w-xl space-y-3 text-base leading-relaxed text-slate-300 sm:text-lg">
+              <p>Either you&rsquo;ve shipped.</p>
+              <p>Or you&rsquo;ve learned what to change.</p>
               <p>
-                Either you&rsquo;ve shipped.
-              </p>
-              <p>
-                Or you&rsquo;ve learned what to change.
-              </p>
-              <p>
-                Or you&rsquo;ve decided this wasn&rsquo;t the path &mdash;
-                with the evidence to prove it.
+                Or you&rsquo;ve decided this isn&rsquo;t the path &mdash;
+                with proof.
               </p>
             </div>
-            <p className="mx-auto mt-6 max-w-xl text-sm leading-relaxed text-slate-400">
+            <p className="mx-auto mt-7 max-w-xl text-base leading-relaxed text-slate-300">
               Whichever it is, you won&rsquo;t be guessing anymore.
             </p>
             <div className="mt-10 flex justify-center">
