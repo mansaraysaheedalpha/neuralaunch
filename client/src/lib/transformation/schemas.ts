@@ -152,3 +152,56 @@ export type RedactionEditEntry = z.infer<typeof RedactionEditEntrySchema>;
 
 export const RedactionEditsSchema = z.record(z.string(), RedactionEditEntrySchema);
 export type RedactionEdits = z.infer<typeof RedactionEditsSchema>;
+
+// ---------------------------------------------------------------------------
+// Public archive — outcome label + card summary shape. The marketing
+// strip + /stories index render from these; the full /stories/[slug]
+// page renders from the underlying TransformationReport content.
+// ---------------------------------------------------------------------------
+
+export const OUTCOME_LABELS = [
+  'shipped',
+  'walked_away',
+  'pivoted',
+  'learning',
+] as const;
+export type OutcomeLabel = typeof OUTCOME_LABELS[number];
+
+/**
+ * Card-content snapshot for a public story. Auto-derived on first
+ * approval from the report's existing fields; the moderator can
+ * edit before publish so the public face of the story stays
+ * tight + on-brand. Stored on TransformationReport.cardSummary
+ * (separate from `content`) so the strip's read path doesn't
+ * have to parse and trim a 600-word section dump.
+ *
+ * - openingQuote  — italic gold pull-quote on the card. 2-3 lines max.
+ *                    Typically pulled from centralChallenge or
+ *                    startingPoint at derive-time.
+ * - setup         — slate-300 setup paragraph below the opening quote.
+ *                    2 lines max. Pulled from whatYouLearned or
+ *                    written by the moderator.
+ * - closingQuote  — white pull-quote at the bottom of the card.
+ *                    Pulled from endingPoint or closingReflection.
+ * - moderatorNote — optional 1-line "Why this story matters" call-out.
+ *                    Only rendered on featured cards.
+ */
+export const TransformationCardSummarySchema = z.object({
+  openingQuote:  z.string().describe('Italic gold pull-quote at the top of the card. 2-3 lines max in the rendered output, but no schema-level cap — moderator can override.'),
+  setup:         z.string().describe('Setup paragraph below the opening quote. 2 lines max in the rendered output.'),
+  closingQuote:  z.string().describe('Closing pull-quote at the bottom of the card.'),
+  moderatorNote: z.string().nullable().describe('Optional moderator-written note for featured cards. 1 line max. Null for standard cards.'),
+});
+export type TransformationCardSummary = z.infer<typeof TransformationCardSummarySchema>;
+
+/**
+ * Safely parse a TransformationReport.cardSummary JSONB value.
+ * Returns null on null input or parse failure so consumers can
+ * fall back to the auto-derived view without crashing on a
+ * corrupt row.
+ */
+export function safeParseCardSummary(value: unknown): TransformationCardSummary | null {
+  if (value == null) return null;
+  const parsed = TransformationCardSummarySchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}

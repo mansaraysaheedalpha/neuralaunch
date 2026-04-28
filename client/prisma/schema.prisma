@@ -1339,10 +1339,51 @@ model TransformationReport {
   publicSlug   String?  @unique
   publishedAt  DateTime?
 
+  /// Moderator notes on the story. When publishState transitions
+  /// 'pending_review' → 'private' (send-back), surfaces in the
+  /// founder's private viewer banner so they know what to revise
+  /// before re-submitting. When 'pending_review' → 'unpublished'
+  /// (declined silently), the note stays internal — never shown
+  /// to the founder. Null when the story has never been reviewed
+  /// or when no notes were left.
+  reviewNotes  String?  @db.Text
+
+  /// Wall-clock of the moderator's last review action. Distinct
+  /// from publishedAt because a story can cycle through review →
+  /// send-back → re-submit → re-review. Each review action bumps
+  /// this timestamp; the founder banner uses
+  /// (reviewedAt > publishedAt OR publishedAt IS NULL) to decide
+  /// whether to show fresh moderator feedback.
+  reviewedAt   DateTime?
+
+  /// Moderator-stamped outcome label that drives the colored chip
+  /// on the public marketing strip + /stories index card. One of:
+  ///   'shipped'      — green
+  ///   'walked_away'  — amber
+  ///   'pivoted'      — blue
+  ///   'learning'     — neutral grey (catch-all default)
+  /// Stored as TEXT (not enum) so adding a label later doesn't
+  /// require a migration. Null until the moderator approves;
+  /// renderer falls back to 'learning' on null.
+  outcomeLabel String?
+
+  /// Card-content snapshot for the marketing strip + /stories
+  /// index. TransformationCardSummarySchema-validated JSON:
+  ///   { openingQuote, setup, closingQuote, moderatorNote? }
+  /// Auto-derived at first approval from the report's content;
+  /// the moderator can edit before publish so the public face of
+  /// the story is moderator-controlled. Stored separately from
+  /// `content` so card rendering is fast and consistent — the
+  /// strip never shows 600 words of one section.
+  cardSummary  Json?
+
   createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([userId, publishState])
+  /// Hot read path for the public archive: list all 'public'
+  /// stories ordered by publishedAt DESC with cursor pagination.
+  @@index([publishState, publishedAt])
 }
 
 // ---------------------------------------------------------------------------
