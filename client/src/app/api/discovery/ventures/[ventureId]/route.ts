@@ -32,10 +32,27 @@ import {
 // Request-body schema accepts any subset of the mutable fields. At
 // least one must be present; both are optional so rename-only and
 // status-only calls are both valid.
+// Pause-reason mode values stored alongside the status flip on
+// active → paused. Kept inline (rather than imported from the engine)
+// because this route doesn't need any of the engine's runtime
+// surface — only the enum strings.
+const PAUSE_REASON_MODE_VALUES = [
+  'acknowledge',
+  'reframe',
+  'mirror',
+  'static',
+  'no_reason',
+] as const;
+
 const PatchBodySchema = z
   .object({
     name:   z.string().min(1).max(100).transform(v => v.trim()).optional(),
     status: z.enum(['active', 'paused', 'completed']).optional(),
+    /** Founder-typed reason captured by the pause-reason agent. Only
+     *  honoured when the status transition is active → paused. Other
+     *  transitions ignore these fields silently. */
+    pauseReason:     z.string().min(1).max(1_000).optional(),
+    pauseReasonMode: z.enum(PAUSE_REASON_MODE_VALUES).optional(),
   })
   .refine(
     (v) => v.name !== undefined || v.status !== undefined,
@@ -115,7 +132,13 @@ export async function PATCH(
       throw new HttpError(409, 'Archived ventures cannot be edited here — restore the venture first from the archived section.');
     }
 
-    const updateData: { name?: string; status?: 'active' | 'paused' | 'completed' } = {};
+    const updateData: {
+      name?:            string;
+      status?:          'active' | 'paused' | 'completed';
+      pauseReason?:     string | null;
+      pauseReasonMode?: string | null;
+      pausedAt?:        Date | null;
+    } = {};
 
     if (parsed.data.name !== undefined) {
       updateData.name = parsed.data.name;
@@ -146,6 +169,24 @@ export async function PATCH(
       // on Execute) which the VentureCard surfaces inline.
       if (venture.status === 'active' && parsed.data.status === 'paused') {
         await assertPausedVentureLimitNotReached(userId);
+        // Pause-reason agent: capture the founder's reason + the
+        // mode the agent landed on alongside the status flip. Both
+        // fields are optional — missing them just records a pause
+        // with mode='no_reason'. Reason is stored verbatim (not
+        // re-validated against the original LLM call) since the
+        // route boundary already capped it at 1000 chars.
+        updateData.pauseReason     = parsed.data.pauseReason     ?? null;
+        updateData.pauseReasonMode = parsed.data.pauseReasonMode ?? 'no_reason';
+        updateData.pausedAt        = new Date();
+      }
+
+      // Resume clears the reason/mode/pausedAt metadata so a future
+      // re-pause captures fresh state rather than carrying the
+      // previous reason forward.
+      if (venture.status === 'paused' && parsed.data.status === 'active') {
+        updateData.pauseReason     = null;
+        updateData.pauseReasonMode = null;
+        updateData.pausedAt        = null;
       }
 
       // Reopen guard — `completed → active` is allowed only inside

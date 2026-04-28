@@ -36,8 +36,12 @@ export const PRICE_TO_TIER: Record<string, TierInfo> = {
   'pri_01kpdhyc6th4715bj15rqbe54y': { tier: 'execute',  isFounder: false }, // $29/month
   'pri_01kpdhzw31cfhffbzbj4cmz8mg': { tier: 'execute',  isFounder: false }, // $279/year
   // Compound — standard public prices.
+  // Annual is $470 ($118 saved of $588 = 20.07%) so the universal "Save 20%"
+  // marketing badge is honest at every spot-check. Paddle dashboard MUST
+  // mirror this — the constant is marketing display, Paddle is the actual
+  // charge. If Paddle still bills $479, users see "Save 20%" but pay 18.5%.
   'pri_01kpdhpkmqcyp5ccfs9ft9qbwx': { tier: 'compound', isFounder: false }, // $49/month
-  'pri_01kpdhvdzk2k50pn76x95xkj03': { tier: 'compound', isFounder: false }, // $479/year
+  'pri_01kpdhvdzk2k50pn76x95xkj03': { tier: 'compound', isFounder: false }, // $470/year
   // Founding member — hidden prices, injected only by the backend when
   // the founding-slot counter confirms availability.
   'pri_01kpdj0yeht31xvdmq1b5wrvz6': { tier: 'execute',  isFounder: true  }, // $19/month

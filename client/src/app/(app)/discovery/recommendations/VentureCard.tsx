@@ -84,6 +84,17 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
   const [action, setAction]     = useState<ActionState>({ kind: 'idle' });
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Pause-reason sub-state machine — orthogonal to `action`. Drives
+  // the three-step pause dialog: type-reason → wait-for-agent →
+  // see-reply-and-confirm. Resets to 'reason' every time the founder
+  // (re-)opens the pause dialog from idle.
+  const [pauseStep, setPauseStep] = useState<'reason' | 'loading' | 'reply'>('reason');
+  const [pauseReasonDraft, setPauseReasonDraft] = useState('');
+  const [pauseAgentResult, setPauseAgentResult] = useState<{
+    mode:    'acknowledge' | 'reframe' | 'mirror' | 'static';
+    message: string | null;
+  } | null>(null);
+
   useEffect(() => {
     if (editing) inputRef.current?.select();
   }, [editing]);
@@ -116,16 +127,28 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
    * updates local state, reverts on non-ok response, and surfaces the
    * server error message (most importantly the cap-hit 403 when
    * resuming a paused venture would exceed the tier limit).
+   *
+   * The pause-reason agent surface threads its captured reason +
+   * mode through the optional `pauseMeta` arg so the PATCH route
+   * can persist them alongside the status flip in one transaction.
    */
-  async function mutateStatus(next: 'active' | 'paused' | 'completed') {
+  async function mutateStatus(
+    next: 'active' | 'paused' | 'completed',
+    pauseMeta?: { reason: string | null; mode: string },
+  ) {
     const prev = status;
     setAction({ kind: 'saving' });
     setStatus(next); // optimistic
     try {
+      const body: Record<string, unknown> = { status: next };
+      if (pauseMeta) {
+        body.pauseReasonMode = pauseMeta.mode;
+        if (pauseMeta.reason !== null) body.pauseReason = pauseMeta.reason;
+      }
       const res = await fetch(`/api/discovery/ventures/${venture.id}`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ status: next }),
+        body:    JSON.stringify(body),
       });
       if (!res.ok) {
         setStatus(prev);
@@ -144,6 +167,51 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
       setStatus(prev);
       setAction({ kind: 'error', message: 'Network error — please try again.' });
     }
+  }
+
+  /**
+   * Fire the pause-reason agent against the founder's typed reason.
+   * Always resolves — engine timeout / 5xx surfaces as mode='static'
+   * so the dialog can render the existing pre-LLM motivational copy
+   * fallback. The route enforces this contract.
+   */
+  async function runPauseAgent(reason: string) {
+    setPauseStep('loading');
+    try {
+      const res = await fetch(`/api/discovery/ventures/${venture.id}/pause-reason`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ reason }),
+      });
+      if (!res.ok) {
+        // Soft fall-through to the static copy. We deliberately do
+        // NOT surface the agent's failure as an action error — the
+        // pause path must always be available to the founder.
+        setPauseAgentResult({ mode: 'static', message: null });
+        setPauseStep('reply');
+        return;
+      }
+      const json = await res.json() as {
+        mode:    'acknowledge' | 'reframe' | 'mirror' | 'static';
+        message: string | null;
+      };
+      setPauseAgentResult(json);
+      setPauseStep('reply');
+    } catch {
+      setPauseAgentResult({ mode: 'static', message: null });
+      setPauseStep('reply');
+    }
+  }
+
+  /**
+   * Reset the pause sub-state machine. Called by the existing Cancel
+   * paths and by the cap-hit branch (which never opens the agent
+   * dialog).
+   */
+  function resetPauseDialog() {
+    setPauseStep('reason');
+    setPauseReasonDraft('');
+    setPauseAgentResult(null);
   }
 
   /**
@@ -450,66 +518,177 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                   <p className="text-[11px] font-semibold text-foreground">
                     Pause this venture?
                   </p>
-                  <p className="text-[11px] text-foreground/80 leading-relaxed">
-                    {pauseGroundedCopy}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground leading-relaxed">
-                    While paused: tools, check-ins, and roadmap nudges are
-                    disabled. The roadmap and recommendation stay readable.
-                    {pausedAtCap
-                      ? ' '
-                      : ` This will be paused slot ${pausedSlotNum} of ${pausedCap}.`}
-                  </p>
 
-                  {pausedAtCap ? (
-                    <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 flex flex-col gap-2">
-                      <p className="text-[11px] font-medium text-foreground">
-                        You&apos;re at the {pausedCap}-paused-venture limit on {tier === 'execute' ? 'Execute' : 'Compound'}.
+                  {/* Cap-hit branch supersedes the pause-reason agent
+                      flow entirely — no point asking the founder to
+                      reflect on a pause they can't actually take. */}
+                  {pausedAtCap && (
+                    <>
+                      <p className="text-[11px] text-foreground/80 leading-relaxed">
+                        {pauseGroundedCopy}
                       </p>
-                      <p className="text-[10px] text-muted-foreground leading-relaxed">
-                        {tier === 'execute'
-                          ? 'Compound raises the cap to 4 paused ventures and lets you run 3 in parallel. Or complete or delete one of your paused ventures before pausing this one.'
-                          : 'Complete or delete one of your paused ventures before pausing this one.'}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        {tier === 'execute' && (
-                          <Link
-                            href="/#pricing"
-                            className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 border border-primary/30 px-3 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/20 transition-colors"
+                      <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 flex flex-col gap-2">
+                        <p className="text-[11px] font-medium text-foreground">
+                          You&apos;re at the {pausedCap}-paused-venture limit on {tier === 'execute' ? 'Execute' : 'Compound'}.
+                        </p>
+                        <p className="text-[10px] text-muted-foreground leading-relaxed">
+                          {tier === 'execute'
+                            ? 'Compound raises the cap to 4 paused ventures and lets you run 3 in parallel. Or complete or delete one of your paused ventures before pausing this one.'
+                            : 'Complete or delete one of your paused ventures before pausing this one.'}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          {tier === 'execute' && (
+                            <Link
+                              href="/#pricing"
+                              className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 border border-primary/30 px-3 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/20 transition-colors"
+                            >
+                              Upgrade to Compound
+                            </Link>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => { setAction({ kind: 'idle' }); resetPauseDialog(); }}
+                            disabled={busy}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                           >
-                            Upgrade to Compound
-                          </Link>
-                        )}
+                            Close
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Step 1 — type the reason. The founder can also
+                      skip with "Continue without saying" which records
+                      the pause as mode='no_reason' and goes straight
+                      to the existing static motivational copy. */}
+                  {!pausedAtCap && pauseStep === 'reason' && (
+                    <>
+                      <label className="text-[11px] text-foreground/80 leading-relaxed">
+                        What&apos;s pulling you away? One or two sentences. I&apos;ll read this against your venture history and give you a quick reflection before you confirm.
+                      </label>
+                      <textarea
+                        value={pauseReasonDraft}
+                        onChange={e => setPauseReasonDraft(e.target.value.slice(0, 1000))}
+                        placeholder="e.g. life event came up, motivation has dropped, market signal said no…"
+                        rows={3}
+                        maxLength={1000}
+                        className="rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/30 resize-none"
+                      />
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                        While paused: tools, check-ins, and roadmap nudges are disabled.
+                        The roadmap and recommendation stay readable.
+                        {` This will be paused slot ${pausedSlotNum} of ${pausedCap}.`}
+                      </p>
+                      <div className="flex items-center flex-wrap gap-2">
                         <button
                           type="button"
-                          onClick={() => setAction({ kind: 'idle' })}
-                          disabled={busy}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                          onClick={() => { void runPauseAgent(pauseReasonDraft.trim()); }}
+                          disabled={busy || pauseReasonDraft.trim().length === 0}
+                          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
                         >
-                          Close
+                          Submit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Skip the agent — record mode='no_reason'
+                            // and pause immediately. Static fallback
+                            // copy is implicit (no reflection shown).
+                            void mutateStatus('paused', { reason: null, mode: 'no_reason' });
+                          }}
+                          disabled={busy}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-60"
+                        >
+                          Continue without saying
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setAction({ kind: 'idle' }); resetPauseDialog(); }}
+                          disabled={busy}
+                          className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                        >
+                          Keep working
                         </button>
                       </div>
+                    </>
+                  )}
+
+                  {/* Step 2 — engine in flight. ~2-3s p50, hard 5s
+                      cap on the server. Cancel button still available
+                      so the founder isn't trapped if the network is
+                      slow. */}
+                  {!pausedAtCap && pauseStep === 'loading' && (
+                    <div className="rounded-md border border-border bg-muted/30 px-3 py-2 flex items-center gap-2">
+                      <Loader2 className="size-3.5 animate-spin text-primary shrink-0" />
+                      <p className="text-[11px] text-foreground/80 leading-relaxed">
+                        Reading your reason against your venture history…
+                      </p>
                     </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => { void mutateStatus('paused'); }}
-                        disabled={busy}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-foreground hover:border-slate-500 hover:bg-muted transition-colors disabled:opacity-60"
-                      >
-                        {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Pause className="size-3" />}
-                        Confirm pause
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setAction({ kind: 'idle' })}
-                        disabled={busy}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                      >
-                        Keep working
-                      </button>
-                    </div>
+                  )}
+
+                  {/* Step 3 — agent reply. Three actions: confirm
+                      pause (fires PATCH with the captured reason +
+                      mode), type a different reason (back to step 1),
+                      or cancel. If the engine fell back to static
+                      (mode='static', message=null) we render the
+                      existing static motivational copy as the
+                      reflection block. */}
+                  {!pausedAtCap && pauseStep === 'reply' && pauseAgentResult && (
+                    <>
+                      <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 flex flex-col gap-1.5">
+                        <p className="text-[10px] uppercase tracking-widest text-primary/70 font-semibold">
+                          Reflection
+                        </p>
+                        <p className="text-[11px] text-foreground/90 leading-relaxed whitespace-pre-wrap">
+                          {pauseAgentResult.message ?? pauseGroundedCopy}
+                        </p>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                        While paused: tools, check-ins, and roadmap nudges are disabled.
+                        {` This will be paused slot ${pausedSlotNum} of ${pausedCap}.`}
+                      </p>
+                      <div className="flex items-center flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void mutateStatus('paused', {
+                              reason: pauseReasonDraft.trim().length > 0 ? pauseReasonDraft.trim() : null,
+                              mode:   pauseAgentResult.mode,
+                            });
+                          }}
+                          disabled={busy}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-foreground hover:border-slate-500 hover:bg-muted transition-colors disabled:opacity-60"
+                        >
+                          {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Pause className="size-3" />}
+                          Confirm pause
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Drop the previous reason + reply, back
+                            // to step 1 with a clean draft. By design
+                            // the previous reason is NOT carried into
+                            // the new agent call (no chat history).
+                            setPauseReasonDraft('');
+                            setPauseAgentResult(null);
+                            setPauseStep('reason');
+                          }}
+                          disabled={busy}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-60"
+                        >
+                          Type a different reason
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setAction({ kind: 'idle' }); resetPauseDialog(); }}
+                          disabled={busy}
+                          className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                        >
+                          Keep working
+                        </button>
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -587,7 +766,13 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                   {canPause && (
                     <button
                       type="button"
-                      onClick={() => setAction({ kind: 'confirming-pause' })}
+                      onClick={() => {
+                        // Reset the pause sub-state machine before
+                        // opening so a previous pass's draft / agent
+                        // reply doesn't leak into the new attempt.
+                        resetPauseDialog();
+                        setAction({ kind: 'confirming-pause' });
+                      }}
                       disabled={busy}
                       className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-foreground hover:border-slate-500 hover:bg-muted transition-colors disabled:opacity-60"
                       title="Pause to free an active-venture slot. The roadmap becomes read-only until you resume."

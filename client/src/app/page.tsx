@@ -622,7 +622,9 @@ async function Pricing() {
           </RevealOnScroll>
           <RevealOnScroll delayMs={120}>
             <p className="mt-5 text-base leading-relaxed text-slate-300 sm:text-lg">
-              The free tier earns trust. The paid tiers deliver transformation.
+              Free earns trust with one honest interview and one full
+              recommendation. Execute ships your first venture end to end.
+              Compound runs the system across ventures.
             </p>
           </RevealOnScroll>
         </div>

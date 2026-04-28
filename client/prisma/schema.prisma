@@ -1198,6 +1198,28 @@ model Venture {
   /// transitions the venture to `completed`; null until then.
   transformationReport TransformationReport?
 
+  /// Founder-typed reason captured when the venture last transitioned
+  /// active → paused. Powers the resume-experience banner ("you paused
+  /// 12 days ago because…"), the cross-venture mirror-mode gating in
+  /// the pause-reason agent, and operator analytics on pause patterns.
+  /// Null when the founder paused without typing anything ("Continue
+  /// without saying"), when the venture was never paused, or for rows
+  /// that predate the pause-reason agent. Capped to ~1KB at the route
+  /// boundary; @db.Text here so we don't have to migrate again if the
+  /// cap is later raised.
+  pauseReason     String?   @db.Text
+  /// One of: 'acknowledge' | 'reframe' | 'mirror' | 'static' | 'no_reason'.
+  /// 'static' = LLM call failed/timed-out and the founder saw the
+  /// pre-existing static copy fallback. 'no_reason' = founder clicked
+  /// "Continue without saying". Stored as a TEXT column rather than an
+  /// enum so adding modes doesn't require a migration.
+  pauseReasonMode String?
+  /// Wall-clock moment of the most recent active → paused transition.
+  /// Null for ventures that have never been paused. Cleared when the
+  /// founder resumes (paused → active). Used for "days since paused"
+  /// in the resume banner and as one signal in mirror-mode gating.
+  pausedAt        DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
