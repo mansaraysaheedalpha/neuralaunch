@@ -113,7 +113,7 @@ export const TIERS: TierDefinition[] = [
       {
         label: 'Continue the journey',
         items: [
-          'Continuation brief at cycle end — drawn from your check-ins, validation signal, and parking lot',
+          'Continuation brief at cycle end — drawn from your check-ins, outreach activity, research patterns, validation signal, and parking lot',
           'Fork selection into the next cycle',
           'Transformation report — a written narrative of what happened, ready to publish',
         ],

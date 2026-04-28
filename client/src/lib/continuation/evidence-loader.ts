@@ -16,6 +16,7 @@ import prisma from '@/lib/prisma';
 import { safeParseDiscoveryContext, type DiscoveryContext } from '@/lib/discovery/context-schema';
 import { RecommendationSchema, safeParseAlternatives, type Recommendation } from '@/lib/discovery/recommendation-schema';
 import { StoredPhasesArraySchema, countTasksWithCheckins, type StoredRoadmapPhase } from '@/lib/roadmap/checkin-types';
+import { safeParseToolSessions, type ToolSessions } from '@/lib/roadmap/coach/schemas';
 import { safeParseParkingLot, type ParkingLot } from './parking-lot-schema';
 import { safeParseDiagnosticHistory, type DiagnosticHistory } from './diagnostic-schema';
 
@@ -108,6 +109,14 @@ export interface ContinuationEvidence {
   parkingLot:         ParkingLot;
   diagnosticHistory:  DiagnosticHistory;
   motivationAnchor:   string | null;
+  /**
+   * Standalone tool sessions launched from the tools menu (not from a
+   * task card). Polymorphic by `tool` discriminator. Task-bound tool
+   * sessions are NOT here — those live inside `phases[].tasks[]` on
+   * per-tool optional fields. The brief's tool-artifact aggregator
+   * walks BOTH locations to produce a complete summary.
+   */
+  toolSessions:       ToolSessions;
   progress: {
     totalTasks:     number;
     completedTasks: number;
@@ -156,6 +165,7 @@ export async function loadContinuationEvidence(input: {
       createdAt:          true,
       parkingLot:         true,
       diagnosticHistory:  true,
+      toolSessions:       true,
       continuationStatus: true,
       continuationBrief:  true,
       recommendationId:   true,
@@ -231,6 +241,7 @@ export async function loadContinuationEvidence(input: {
   const context           = safeParseDiscoveryContext(row.recommendation.session.beliefState);
   const parkingLot        = safeParseParkingLot(row.parkingLot);
   const diagnosticHistory = safeParseDiagnosticHistory(row.diagnosticHistory);
+  const toolSessions      = safeParseToolSessions(row.toolSessions);
   const motivationAnchor  = context.motivationAnchor?.value ?? null;
 
   return {
@@ -248,6 +259,7 @@ export async function loadContinuationEvidence(input: {
       parkingLot,
       diagnosticHistory,
       motivationAnchor,
+      toolSessions,
       progress: {
         totalTasks:     row.progress?.totalTasks     ?? 0,
         completedTasks: row.progress?.completedTasks ?? 0,

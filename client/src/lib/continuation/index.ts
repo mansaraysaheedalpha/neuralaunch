@@ -87,3 +87,16 @@ export {
   buildForkRecommendationPayload,
   persistForkRecommendation,
 } from './fork-to-recommendation';
+
+export type {
+  ToolArtifactSummary,
+  OutreachSummary,
+  ResearchSummary,
+  CoachSummary,
+  PackagerSummary,
+} from './tool-artifact-aggregator';
+export {
+  aggregateToolArtifacts,
+  hasAnyToolActivity,
+} from './tool-artifact-aggregator';
+export { renderToolArtifactsBlock } from './tool-artifact-renderer';

@@ -9,6 +9,8 @@ import {
   generateContinuationBrief,
   loadContinuationEvidence,
   loadValidationSignal,
+  aggregateToolArtifacts,
+  renderToolArtifactsBlock,
 } from '@/lib/continuation';
 import {
   appendResearchLog,
@@ -159,6 +161,16 @@ export const continuationBriefFunction = inngest.createFunction(
       return await loadValidationSignal(roadmap.ventureId);
     });
 
+    // Aggregate every Coach / Composer / Research / Packager session
+    // the founder ran during this cycle (both task-bound and standalone)
+    // into a single block the brief generator can quote back. Pure
+    // walk over already-loaded evidence — no extra Prisma round trip.
+    // Returns '' when no tool sessions exist; the brief prompt then
+    // drops the block cleanly.
+    const toolArtifactsBlock = renderToolArtifactsBlock(
+      aggregateToolArtifacts(loaded.phases, loaded.toolSessions),
+    );
+
     const briefStep = await step.run('generate-brief', async () => {
       const accumulator: ResearchLogEntry[] = [];
       const brief = await generateContinuationBrief({
@@ -174,6 +186,7 @@ export const continuationBriefFunction = inngest.createFunction(
         checkinCoverage:     loaded.checkinCoverage,
         lifecycleBlock:      lifecycleBlock || undefined,
         validationSignal:    validationSignal ?? null,
+        toolArtifactsBlock:  toolArtifactsBlock || undefined,
       });
       return { brief, researchLog: accumulator };
     });

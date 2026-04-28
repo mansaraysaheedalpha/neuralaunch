@@ -101,6 +101,16 @@ export interface GenerateBriefInput {
    * patterns to ground What the Evidence Says and What I Got Wrong.
    */
   validationSignal?: ValidationSignal | null;
+  /**
+   * Pre-rendered EXECUTION TOOL ARTIFACTS block summarising what the
+   * founder did with the toolkit (Conversation Coach, Outreach
+   * Composer, Research Tool, Service Packager) during this cycle.
+   * Empty string when no tool sessions exist — the prompt then drops
+   * the block via concatenation. The aggregator that produces the
+   * summary lives in tool-artifact-aggregator.ts; the renderer that
+   * shapes it into this string lives in tool-artifact-renderer.ts.
+   */
+  toolArtifactsBlock?: string;
 }
 
 /**
@@ -215,8 +225,7 @@ ${input.recommendation.assumptions.map((a, i) => `  ${i + 1}. ${sanitizeForPromp
 EXECUTION RECORD (per-task status and check-in evidence):
 ${phasesBlock}
 
-${signalsBlock}
-EXECUTION METRICS (use the calibration note in your forks):
+${signalsBlock}${input.toolArtifactsBlock ?? ''}EXECUTION METRICS (use the calibration note in your forks):
 - Tasks completed: ${input.metrics.tasksCompleted} of ${input.metrics.tasksTotal}
 - Tasks blocked:   ${input.metrics.tasksBlocked}
 - Days since roadmap created: ${input.metrics.daysSinceCreation}
