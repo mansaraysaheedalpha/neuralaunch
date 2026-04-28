@@ -7,6 +7,12 @@ import { DiscoveryContextSchema, createEmptyContext } from '@/lib/discovery';
 import type { AudienceType } from '@/lib/discovery';
 import { RecommendationSchema } from '@/lib/discovery/recommendation-schema';
 import { buildPhaseContext, PHASES } from '@/lib/phase-context';
+import { loadRoadmapContext } from '@/lib/lifecycle';
+import {
+  renderFounderProfileBlock,
+  renderCycleSummariesBlock,
+  renderCrossVentureBlock,
+} from '@/lib/lifecycle/prompt-renderers';
 
 /**
  * roadmapGenerationFunction
@@ -204,10 +210,37 @@ export const roadmapGenerationFunction = inngest.createFunction(
       return resolved === 'execute' || resolved === 'compound' ? resolved : 'free';
     });
 
+    // Step 2c: Load lifecycle context (FounderProfile + within-venture
+    // summaries + cross-venture summaries for Compound). Pre-lifecycle
+    // roadmaps (no ventureId) skip this — the block is empty and the
+    // generator runs as before. The cross-venture component is tier-
+    // gated inside the loader so Free/Execute see no change.
+    const lifecycleBlock = await step.run('load-lifecycle-context', async () => {
+      if (!ventureId) return undefined;
+      const ctx = await loadRoadmapContext(userId, ventureId);
+      const block = [
+        renderFounderProfileBlock(ctx.profile),
+        ctx.latestCycleSummary
+          ? renderCycleSummariesBlock([ctx.latestCycleSummary])
+          : '',
+        renderCrossVentureBlock(ctx.crossVentureSummaries),
+      ].filter(b => b.length > 0).join('\n');
+      return block.length > 0 ? block : undefined;
+    });
+
     // Step 3: Generate the roadmap
     const { roadmap, weeklyHours, totalWeeks } = await step.run(
       'generate-roadmap',
-      async () => generateRoadmap(recommendation, context, audienceType, sessionId, calibration, null, tier),
+      async () => generateRoadmap(
+        recommendation,
+        context,
+        audienceType,
+        sessionId,
+        calibration,
+        null,
+        tier,
+        lifecycleBlock ?? undefined,
+      ),
     );
 
     // Step 4: Persist the completed roadmap

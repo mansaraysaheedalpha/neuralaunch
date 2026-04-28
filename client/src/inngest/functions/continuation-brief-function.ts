@@ -16,7 +16,7 @@ import {
   type ResearchLogEntry,
 } from '@/lib/research';
 import { loadContinuationBriefContext } from '@/lib/lifecycle';
-import { renderFounderProfileBlock, renderCycleSummariesBlock } from '@/lib/lifecycle/prompt-renderers';
+import { renderFounderProfileBlock, renderCycleSummariesBlock, renderCrossVentureBlock } from '@/lib/lifecycle/prompt-renderers';
 
 /**
  * continuationBriefFunction
@@ -142,6 +142,7 @@ export const continuationBriefFunction = inngest.createFunction(
       return [
         renderFounderProfileBlock(ctx.profile),
         renderCycleSummariesBlock(ctx.cycleSummaries),
+        renderCrossVentureBlock(ctx.crossVentureSummaries),
       ].filter(b => b.length > 0).join('\n');
     });
 

@@ -19,7 +19,7 @@ import {
   runComposerGeneration,
 } from '@/lib/roadmap/composer';
 import { loadPerTaskAgentContext } from '@/lib/lifecycle';
-import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
+import { renderFounderProfileBlock, renderCrossVentureBlock } from '@/lib/lifecycle/prompt-renderers';
 import {
   updateToolJobStage,
   completeToolJob,
@@ -77,7 +77,8 @@ export const composerGenerateJobFunction = inngest.createFunction(
         const roadmap = await prisma.roadmap.findFirst({
           where:  { id: roadmapId, userId },
           select: {
-            id: true,
+            id:        true,
+            ventureId: true,
             recommendation: {
               select: {
                 path:    true,
@@ -91,13 +92,19 @@ export const composerGenerateJobFunction = inngest.createFunction(
 
         const bsRaw = roadmap.recommendation?.session?.beliefState;
         const bs    = bsRaw ? safeParseDiscoveryContext(bsRaw) : null;
-        const { profile } = await loadPerTaskAgentContext(userId);
+        const { profile, crossVentureSummaries } = await loadPerTaskAgentContext(userId, {
+          currentVentureId: roadmap.ventureId,
+        });
+        const founderProfileBlock = [
+          renderFounderProfileBlock(profile),
+          renderCrossVentureBlock(crossVentureSummaries),
+        ].filter(b => b.length > 0).join('\n') || undefined;
 
         return {
           context: parsedContext.data,
           mode:    modeParsed.data,
           channel: channelParsed.data,
-          founderProfileBlock: renderFounderProfileBlock(profile) || undefined,
+          founderProfileBlock,
           beliefState: {
             primaryGoal:          bs?.primaryGoal?.value ?? null,
             geographicMarket:     bs?.geographicMarket?.value ?? null,

@@ -45,6 +45,11 @@ const BodySchema = z.object({
  *   3. Send the inngest event. If it fails, the row is in a stable
  *      state (FORK_SELECTED with the linkage column set) and the
  *      next retry will follow the idempotent re-fire path.
+ *
+ * Tier gate: Execute+. Fork selection ships to both paid tiers as of
+ * 2026-04-28. Compound's differentiation lives elsewhere (multi-venture
+ * scale, cross-venture memory, 15-round pushback, voice) — not in
+ * exclusive fork access.
  */
 export async function POST(
   request: Request,
@@ -53,7 +58,7 @@ export async function POST(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
-    await requireTierOrThrow(userId, 'compound');
+    await requireTierOrThrow(userId, 'execute');
     await rateLimitByUser(userId, 'roadmap-continuation-fork', RATE_LIMITS.AI_GENERATION);
 
     const { id: roadmapId } = await params;

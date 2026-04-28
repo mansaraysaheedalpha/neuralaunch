@@ -19,6 +19,11 @@ import { ContinuationView } from './ContinuationView';
  * the brief data via the polling endpoint so it can show progress
  * states (GENERATING_BRIEF, BRIEF_READY, FORK_SELECTED) without a
  * full page reload.
+ *
+ * Tier gate: Execute+. Free is shown an upgrade prompt; Execute and
+ * Compound both reach the brief view. Cross-venture memory inside the
+ * brief stays Compound-only via the gate inside loadCrossVentureSummaries
+ * — Execute users get a brief built from their venture's signals only.
  */
 export default async function ContinuationPage({
   params,
@@ -36,7 +41,7 @@ export default async function ContinuationPage({
   });
   if (!roadmap) redirect('/discovery');
 
-  const isCompound = requireTier(session.user.tier ?? 'free', 'compound');
+  const isPaid = requireTier(session.user.tier ?? 'free', 'execute');
 
   return (
     <div className="flex flex-col h-full">
@@ -49,7 +54,7 @@ export default async function ContinuationPage({
         </Link>
       </div>
       <div className="flex-1 overflow-y-auto">
-        {isCompound ? (
+        {isPaid ? (
           <Suspense fallback={
             <div className="flex items-center justify-center py-24">
               <span className="text-sm text-muted-foreground">Loading…</span>
@@ -61,9 +66,9 @@ export default async function ContinuationPage({
           <div className="max-w-2xl mx-auto px-6 py-10">
             <UpgradePrompt
               variant="hero"
-              requiredTier="compound"
-              heading="Continuation brief is a Compound feature"
-              description="Close the cycle with a personalised continuation brief built from your check-ins, blockers, and parking lot — plus fork selection into your next venture. Upgrade to Compound to unlock it."
+              requiredTier="execute"
+              heading="Continuation brief is for Execute and Compound"
+              description="Close the cycle with a personalised continuation brief built from your check-ins, blockers, and parking lot — plus fork selection into your next venture. Upgrade to Execute or Compound to unlock it."
             />
           </div>
         )}

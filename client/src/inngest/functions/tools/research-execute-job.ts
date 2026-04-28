@@ -25,7 +25,7 @@ import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import { type ResearchLogEntry } from '@/lib/research';
 import { runResearchExecution } from '@/lib/roadmap/research-tool';
 import { loadPerTaskAgentContext } from '@/lib/lifecycle';
-import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
+import { renderFounderProfileBlock, renderCrossVentureBlock } from '@/lib/lifecycle/prompt-renderers';
 import {
   StoredPhasesArraySchema,
   readTask,
@@ -81,6 +81,7 @@ export const researchExecuteJobFunction = inngest.createFunction(
           where:  { id: roadmapId, userId },
           select: {
             id:           true,
+            ventureId:    true,
             phases:       true,
             recommendation: {
               select: {
@@ -95,7 +96,13 @@ export const researchExecuteJobFunction = inngest.createFunction(
 
         const bsRaw = roadmap.recommendation?.session?.beliefState;
         const bs    = bsRaw ? safeParseDiscoveryContext(bsRaw) : null;
-        const { profile } = await loadPerTaskAgentContext(userId);
+        const { profile, crossVentureSummaries } = await loadPerTaskAgentContext(userId, {
+          currentVentureId: roadmap.ventureId,
+        });
+        const founderProfileBlock = [
+          renderFounderProfileBlock(profile),
+          renderCrossVentureBlock(crossVentureSummaries),
+        ].filter(b => b.length > 0).join('\n') || undefined;
 
         // For task-launched runs, pull the task description so it can
         // flow into the research engine prompt as taskContext. The
@@ -111,7 +118,7 @@ export const researchExecuteJobFunction = inngest.createFunction(
         }
 
         return {
-          founderProfileBlock: renderFounderProfileBlock(profile) || undefined,
+          founderProfileBlock,
           beliefState: {
             geographicMarket:    bs?.geographicMarket?.value ?? null,
             primaryGoal:         bs?.primaryGoal?.value ?? null,

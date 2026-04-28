@@ -33,6 +33,13 @@ export const maxDuration = 300;
  *
  * READ-only. Read-tier rate limit. The client polls this every few
  * seconds while status is GENERATING_BRIEF.
+ *
+ * Tier gate: Execute+. The continuation brief is shipped to both paid
+ * tiers as of 2026-04-28; Compound's differentiation is multi-venture
+ * scale + cross-venture memory + 15-round pushback + voice, NOT
+ * exclusive access to continuation. Cross-venture memory itself stays
+ * Compound-only and is gated inside loadCrossVentureSummaries — Execute
+ * users get a brief built from THEIR venture's signals only.
  */
 export async function GET(
   request: Request,
@@ -41,7 +48,7 @@ export async function GET(
   try {
     enforceSameOrigin(request);
     const userId = await requireUserId();
-    await requireTierOrThrow(userId, 'compound');
+    await requireTierOrThrow(userId, 'execute');
     await rateLimitByUser(userId, 'roadmap-continuation-read', RATE_LIMITS.API_READ);
 
     const { id: roadmapId } = await params;

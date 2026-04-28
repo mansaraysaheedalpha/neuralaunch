@@ -42,6 +42,7 @@ export {
 export {
   renderFounderProfileBlock,
   renderCycleSummariesBlock,
+  renderCrossVentureBlock,
   renderInterviewOpeningBlock,
 } from './prompt-renderers';
 
@@ -52,10 +53,13 @@ export {
   loadPerTaskAgentContext,
   loadContinuationBriefContext,
   loadCycleSummaryGeneratorContext,
+  loadCrossVentureSummaries,
+  CROSS_VENTURE_CYCLE_LIMIT,
   type InterviewContext,
   type RecommendationContext,
   type RoadmapContext,
   type PerTaskAgentContext,
   type ContinuationBriefContext,
   type CycleSummaryGeneratorContext,
+  type CrossVentureCycleEntry,
 } from './context-loaders';

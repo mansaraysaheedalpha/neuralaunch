@@ -23,7 +23,7 @@ import {
 } from '@/lib/roadmap/coach/schemas';
 import { runCoachPreparation } from '@/lib/roadmap/coach/preparation-engine';
 import { loadPerTaskAgentContext } from '@/lib/lifecycle';
-import { renderFounderProfileBlock } from '@/lib/lifecycle/prompt-renderers';
+import { renderFounderProfileBlock, renderCrossVentureBlock } from '@/lib/lifecycle/prompt-renderers';
 import {
   StoredPhasesArraySchema,
   readTask,
@@ -72,6 +72,7 @@ export const coachPrepareJobFunction = inngest.createFunction(
           where:  { id: roadmapId, userId },
           select: {
             id:           true,
+            ventureId:    true,
             phases:       true,
             toolSessions: true,
             recommendation: {
@@ -109,11 +110,17 @@ export const coachPrepareJobFunction = inngest.createFunction(
 
         const bsRaw = roadmap.recommendation?.session?.beliefState;
         const bs    = bsRaw ? safeParseDiscoveryContext(bsRaw) : null;
-        const { profile } = await loadPerTaskAgentContext(userId);
+        const { profile, crossVentureSummaries } = await loadPerTaskAgentContext(userId, {
+          currentVentureId: roadmap.ventureId,
+        });
+        const founderProfileBlock = [
+          renderFounderProfileBlock(profile),
+          renderCrossVentureBlock(crossVentureSummaries),
+        ].filter(b => b.length > 0).join('\n') || undefined;
 
         return {
           setup: setupParsed.data,
-          founderProfileBlock: renderFounderProfileBlock(profile) || undefined,
+          founderProfileBlock,
           beliefState: {
             primaryGoal:          bs?.primaryGoal?.value ?? null,
             geographicMarket:     bs?.geographicMarket?.value ?? null,

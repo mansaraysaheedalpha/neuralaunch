@@ -12,7 +12,7 @@ import {
 } from '@/lib/discovery';
 import type { ResearchLogEntry } from '@/lib/research';
 import { loadRecommendationContext } from '@/lib/lifecycle';
-import { renderFounderProfileBlock, renderCycleSummariesBlock } from '@/lib/lifecycle/prompt-renderers';
+import { renderFounderProfileBlock, renderCycleSummariesBlock, renderCrossVentureBlock } from '@/lib/lifecycle/prompt-renderers';
 
 /**
  * discoverySessionFunction
@@ -87,6 +87,7 @@ export const discoverySessionFunction = inngest.createFunction(
       return [
         renderFounderProfileBlock(ctx.profile),
         renderCycleSummariesBlock(ctx.cycleSummaries),
+        renderCrossVentureBlock(ctx.crossVentureSummaries),
       ].filter(b => b.length > 0).join('\n');
     });
 

@@ -10,6 +10,12 @@
 
 import { renderUserContent } from '@/lib/validation/server-helpers';
 import type { FounderProfile, CycleSummary } from './schemas';
+import type { CrossVentureCycleEntry } from './context-loaders';
+
+// Per-string clip applied inside the cross-venture renderer to keep
+// per-cycle render cost bounded regardless of how verbose the founder is.
+// Documented in docs/cross-venture-memory-plan.md §3.
+const CROSS_VENTURE_FIELD_CLIP = 200;
 
 /**
  * Render a FounderProfile as a prompt block. Used by every agent that
@@ -72,6 +78,58 @@ ${s.forkSelected ? `Fork selected: ${renderUserContent(s.forkSelected.forkSummar
   });
 
   return `PRIOR CYCLES IN THIS VENTURE (${summaries.length} completed):
+${blocks.join('\n\n')}
+`;
+}
+
+/**
+ * Render the cross-venture context block — the most-recent completed
+ * cycles across all OTHER ventures the founder has run. Compound-only;
+ * the loader returns `[]` for non-Compound users so this renderer
+ * returns the empty string transparently.
+ *
+ * The leading directive is the guardrail: without an explicit "do not
+ * over-import" instruction the model tends to pull tactics from prior
+ * ventures into the current one even when the domains are unrelated
+ * (hotel SaaS lessons → wedding photography). The label appears in
+ * every render — non-negotiable.
+ *
+ * Per-string clip lives here, not in the loader, so the loader keeps
+ * the canonical CycleSummary shape and only the prompt-rendering path
+ * pays the truncation cost.
+ */
+export function renderCrossVentureBlock(entries: CrossVentureCycleEntry[]): string {
+  if (entries.length === 0) return '';
+
+  const blocks = entries.map(e => {
+    const s    = e.summary;
+    const date = e.completedAt ? e.completedAt.slice(0, 10) : 'unknown date';
+    const validated   = s.validatedAssumptions.length > 0
+      ? s.validatedAssumptions
+          .map(v => renderUserContent(v, CROSS_VENTURE_FIELD_CLIP))
+          .join(' · ')
+      : 'none recorded';
+    const invalidated = s.invalidatedAssumptions.length > 0
+      ? s.invalidatedAssumptions
+          .map(v => renderUserContent(v, CROSS_VENTURE_FIELD_CLIP))
+          .join(' · ')
+      : 'none recorded';
+    const learnings   = s.keyLearnings.length > 0
+      ? s.keyLearnings
+          .map(v => renderUserContent(v, CROSS_VENTURE_FIELD_CLIP))
+          .join(' · ')
+      : 'none recorded';
+
+    return `[Venture: ${renderUserContent(e.ventureName, 200)}] Cycle ${s.cycleNumber} (${renderUserContent(s.recommendationType, 100)}) — completed ${date}
+Recommendation: ${renderUserContent(s.recommendationSummary, 400)}
+Validated: ${validated}
+Invalidated: ${invalidated}
+Key learnings: ${learnings}`;
+  });
+
+  return `## CROSS-VENTURE CONTEXT (other ventures the founder has run, NOT the current one)
+Reference these only when relevant — patterns that recur across ventures, lessons that compound, conviction that's been earned. Do not pull tactics from these into the current venture without a real bridge.
+
 ${blocks.join('\n\n')}
 `;
 }

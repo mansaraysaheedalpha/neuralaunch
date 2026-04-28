@@ -25,7 +25,7 @@ import {
   type ResearchLogEntry,
 } from '@/lib/research';
 import { loadInterviewContext } from '@/lib/lifecycle';
-import { renderFounderProfileBlock, renderCycleSummariesBlock, renderInterviewOpeningBlock } from '@/lib/lifecycle/prompt-renderers';
+import { renderFounderProfileBlock, renderCycleSummariesBlock, renderCrossVentureBlock, renderInterviewOpeningBlock } from '@/lib/lifecycle/prompt-renderers';
 import {
   topicSimilarity,
   FOLLOW_UP_DUPLICATE_THRESHOLD,
@@ -219,6 +219,7 @@ export async function POST(
     renderInterviewOpeningBlock(scenario, lifecycleCtx.profile, lifecycleCtx.forkContext),
     renderFounderProfileBlock(lifecycleCtx.profile),
     renderCycleSummariesBlock(lifecycleCtx.cycleSummaries),
+    renderCrossVentureBlock(lifecycleCtx.crossVentureSummaries),
   ].filter(b => b.length > 0).join('\n');
 
   try {
