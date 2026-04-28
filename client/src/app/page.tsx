@@ -644,31 +644,48 @@ function FinalCTA() {
   return (
     <section
       aria-labelledby="final-cta-heading"
-      className="bg-gradient-to-b from-navy-900 to-navy-950"
+      className="relative bg-gradient-to-b from-navy-900 to-navy-950"
     >
-      <div className="mx-auto max-w-5xl px-4 py-24 sm:px-6 sm:py-28 lg:px-8 lg:py-36">
+      {/* gold-accent seal — visual closure for the page */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent"
+      />
+
+      <div className="mx-auto max-w-5xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-28">
         <RevealOnScroll>
           <div className="text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">
+              Eight weeks from today
+            </p>
             <h2
               id="final-cta-heading"
-              className="text-balance text-heading text-white"
+              className="mt-4 text-balance text-heading text-white"
             >
-              From lost to launched.{" "}
-              <span className="text-gold">For everyone.</span>{" "}
-              One step at a time.
+              You&rsquo;ll know.
             </h2>
-            <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
-              Answer a few honest questions. Get one clear direction —
-              built specifically for your situation. Then have a partner
-              with you through the work that follows.
+            <div className="mx-auto mt-6 max-w-xl space-y-2 text-base leading-relaxed text-slate-300 sm:text-lg">
+              <p>
+                Either you&rsquo;ve shipped.
+              </p>
+              <p>
+                Or you&rsquo;ve learned what to change.
+              </p>
+              <p>
+                Or you&rsquo;ve decided this wasn&rsquo;t the path &mdash;
+                with the evidence to prove it.
+              </p>
+            </div>
+            <p className="mx-auto mt-6 max-w-xl text-sm leading-relaxed text-slate-400">
+              Whichever it is, you won&rsquo;t be guessing anymore.
             </p>
             <div className="mt-10 flex justify-center">
               <Link
                 href="/discovery"
-                className="group inline-flex items-center gap-2 rounded-md bg-primary px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-primary/20 transition-all hover:bg-blue-700 hover:shadow-xl hover:shadow-primary/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950"
+                className="group inline-flex items-center gap-2 rounded-md bg-primary px-7 py-4 text-lg font-semibold text-white shadow-lg shadow-primary/20 ring-1 ring-gold/20 transition-all hover:bg-blue-700 hover:shadow-xl hover:shadow-primary/30 hover:ring-gold/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950"
               >
                 Start Your Discovery
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
               </Link>
             </div>
           </div>
