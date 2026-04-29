@@ -33,6 +33,18 @@ interface ReportPayload {
   redactionCandidates: RedactionCandidate[];
   redactionEdits:      RedactionEdits;
   publishState:        string;
+  /** ISO timestamp of when the story first went public, or null
+   *  if it never has. The send-back banner uses this to detect
+   *  whether the moderator's notes are FRESH (reviewedAt newer
+   *  than publishedAt) vs stale carryover from a prior cycle. */
+  publishedAt:         string | null;
+  /** Moderator's notes when a story was sent back. Null when no
+   *  send-back has happened (or after the founder re-submits). */
+  reviewNotes:         string | null;
+  /** Wall-clock of last moderator action — drives the
+   *  "fresh feedback" detection: surface the banner only when
+   *  reviewedAt > publishedAt OR publishedAt IS NULL. */
+  reviewedAt:          string | null;
   venture:             { id: string; name: string; status: string };
 }
 
@@ -259,6 +271,22 @@ function NarrativeWithPublishFlow({
 
   if (!report.content) return null;
 
+  // Send-back banner — moderator reviewed the founder's
+  // submission and routed it back for revision. Surface only
+  // when there's a fresh review (reviewedAt > publishedAt OR
+  // publishedAt is null, meaning the story has never been
+  // public). Once the founder edits + re-submits, publishState
+  // flips back to 'pending_review' and this banner disappears.
+  const hasFreshReview =
+    report.publishState === 'private'
+    && report.reviewNotes !== null
+    && report.reviewedAt !== null
+    && (report.publishedAt === null || report.reviewedAt > report.publishedAt);
+
+  const sendBackBanner = hasFreshReview ? (
+    <SendBackBanner notes={report.reviewNotes!} reviewedAt={report.reviewedAt!} />
+  ) : null;
+
   // Publish-state-driven status banner above the report.
   const banner =
     report.publishState === 'public' ? (
@@ -279,7 +307,7 @@ function NarrativeWithPublishFlow({
         submitting={submitting}
       />
     )
-    : null;
+    : sendBackBanner;
 
   return (
     <>
@@ -402,6 +430,36 @@ function PublishStateBanner({
             <EyeOff className="size-3" />
             {submitting ? 'Working…' : 'Unpublish'}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SendBackBanner({
+  notes,
+  reviewedAt,
+}: {
+  notes:      string;
+  reviewedAt: string;
+}) {
+  const reviewed = new Date(reviewedAt).toLocaleDateString(undefined, {
+    month: 'short', day: 'numeric',
+  });
+  return (
+    <div className="max-w-2xl mx-auto px-6 pt-6">
+      <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 flex items-start gap-3">
+        <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+        <div className="flex-1 flex flex-col gap-1.5">
+          <p className="text-[12px] font-semibold text-foreground">
+            Your submission needs a revision before it can go on the public archive
+          </p>
+          <p className="text-[11px] text-foreground/80 leading-relaxed">
+            <span className="font-medium">Note from review ({reviewed}):</span> {notes}
+          </p>
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            Edit your redaction choices below, then click &ldquo;Confirm and publish&rdquo; again to re-submit.
+          </p>
         </div>
       </div>
     </div>

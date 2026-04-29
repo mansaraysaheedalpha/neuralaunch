@@ -52,6 +52,12 @@ export async function GET(
         publishState:        true,
         publicSlug:          true,
         publishedAt:         true,
+        // Moderation feedback — surfaced as a banner in the
+        // founder's viewer when a story has been sent back for
+        // revision. The viewer detects "fresh feedback" via
+        // (reviewedAt > publishedAt OR publishedAt IS NULL).
+        reviewNotes:         true,
+        reviewedAt:          true,
         venture: { select: { id: true, name: true, status: true } },
       },
     });
@@ -86,6 +92,8 @@ export async function GET(
       publishState:        report.publishState,
       publicSlug:          report.publicSlug,
       publishedAt:         report.publishedAt?.toISOString() ?? null,
+      reviewNotes:         report.reviewNotes,
+      reviewedAt:          report.reviewedAt?.toISOString() ?? null,
       venture:             report.venture,
     });
   } catch (err) {
