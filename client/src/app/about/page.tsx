@@ -67,13 +67,13 @@ function Hero() {
           <RevealOnScroll>
             <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-navy-800/80 px-3.5 py-1.5 text-xs font-medium text-slate-300">
               <span className="h-1.5 w-1.5 rounded-full bg-gold" />
-              About NeuraLaunch
+              Our conviction
             </p>
           </RevealOnScroll>
           <RevealOnScroll delayMs={80}>
             <h1
               id="about-hero"
-              className="mx-auto max-w-3xl text-balance text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl md:text-6xl"
+              className="mx-auto max-w-3xl text-balance text-[clamp(2.25rem,4vw,3.5rem)] font-bold leading-[1.1] tracking-tight text-white"
             >
               We&rsquo;re building the guide that{" "}
               <span className="text-gold">
@@ -112,7 +112,7 @@ function Story() {
           </p>
           <h2
             id="story-heading"
-            className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl"
+            className="mt-3 text-balance text-[clamp(1.875rem,3.5vw,3rem)] font-bold leading-[1.15] tracking-tight text-white"
           >
             The world has consultants. The world has AI tools. Neither was the
             thing people actually needed.
@@ -146,11 +146,17 @@ function Story() {
             </p>
           </RevealOnScroll>
           <RevealOnScroll delayMs={260}>
-            <div className="border-l-2 border-gold pl-6 py-2">
-              <p className="text-lg font-medium text-white sm:text-xl">
-                So we built it. Two engineers and an operator, working from
-                Freetown, Sierra Leone, with the conviction that the right
-                guide at the right moment can change a life.
+            <div className="mt-4 overflow-hidden rounded-2xl border border-l-[3px] border-gold/30 border-l-gold bg-gradient-to-br from-navy-800 to-navy-900 p-7 shadow-xl shadow-navy-950/40 lg:p-8">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">
+                The founding moment
+              </p>
+              <p className="mt-3 text-lg font-semibold leading-relaxed text-white sm:text-xl">
+                &ldquo;So we built it. Two engineers and an operator, working
+                from Freetown, Sierra Leone, with the conviction that the
+                right guide at the right moment can change a life.&rdquo;
+              </p>
+              <p className="mt-4 text-sm text-slate-400">
+                &mdash; The founding team
               </p>
             </div>
           </RevealOnScroll>
