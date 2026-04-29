@@ -40,7 +40,6 @@ export default function AboutPage() {
         <Hero />
         <Story />
         <Beliefs />
-        <Team />
         <Company />
         <FinalCTA />
       </main>
@@ -262,107 +261,6 @@ function Beliefs() {
                   </h3>
                   <p className="mt-3 text-base leading-relaxed text-slate-300">
                     {belief.body}
-                  </p>
-                </article>
-              </RevealOnScroll>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ============================================================
-   THE TEAM
-   ============================================================ */
-const TEAM: Array<{
-  name: string;
-  role: string;
-  blurb: string;
-  initials: string;
-  accent: "blue" | "gold" | "emerald";
-}> = [
-  {
-    name: "Alpha Saheed Mansaray",
-    role: "Founder & CEO",
-    blurb:
-      "The believer. Spent decades watching capable people get stuck — and refused to accept that the right guidance had to be a privilege. Set the conviction the company is built on.",
-    initials: "AS",
-    accent: "gold",
-  },
-  {
-    name: "Saheed Alpha Mansaray",
-    role: "Co-Founder & Chief Engineer",
-    blurb:
-      "The builder. Designs and engineers the system end-to-end — from the discovery interview to the continuation brief. Holds the technical bar at the standard of a senior team at a world-class company.",
-    initials: "SM",
-    accent: "blue",
-  },
-  {
-    name: "John Bismark Sesay",
-    role: "Chief Operating Officer",
-    blurb:
-      "The operator. Translates the conviction and the engineering into a company that runs. Owns the discipline and the everyday rhythm that turns ambition into delivery.",
-    initials: "JS",
-    accent: "emerald",
-  },
-];
-
-function Team() {
-  return (
-    <section
-      aria-labelledby="team-heading"
-      className="border-b border-slate-800 bg-navy-950"
-    >
-      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
-        <div className="mx-auto max-w-3xl text-center">
-          <RevealOnScroll>
-            <p className="text-sm font-semibold uppercase tracking-wider text-primary">
-              The team
-            </p>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={60}>
-            <h2
-              id="team-heading"
-              className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl"
-            >
-              Three people. One conviction. Built with discipline.
-            </h2>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={120}>
-            <p className="mt-5 text-base leading-relaxed text-slate-300 sm:text-lg">
-              Not a corporation. Not a VC-backed team of fifty. A small group
-              that decided the gap between lost and launched should not be
-              decided by what someone already has.
-            </p>
-          </RevealOnScroll>
-        </div>
-
-        <div className="mx-auto mt-14 grid max-w-6xl grid-cols-1 gap-6 md:grid-cols-3">
-          {TEAM.map((member, i) => {
-            const accent = ACCENT_STYLES[member.accent];
-            return (
-              <RevealOnScroll key={member.name} delayMs={i * 100}>
-                <article className="h-full rounded-xl border border-slate-800 bg-navy-900 p-7 transition-colors hover:border-slate-700">
-                  <div className="flex items-center gap-4">
-                    <div
-                      className={`flex h-12 w-12 items-center justify-center rounded-full ring-1 ring-inset font-semibold text-sm tracking-wider ${accent.bg} ${accent.border} ${accent.text}`}
-                      aria-hidden="true"
-                    >
-                      {member.initials}
-                    </div>
-                    <div>
-                      <h3 className="text-base font-semibold text-white">
-                        {member.name}
-                      </h3>
-                      <p className={`text-sm font-medium ${accent.text}`}>
-                        {member.role}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="mt-5 text-sm leading-relaxed text-slate-300">
-                    {member.blurb}
                   </p>
                 </article>
               </RevealOnScroll>
