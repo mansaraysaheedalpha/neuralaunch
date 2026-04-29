@@ -25,6 +25,11 @@ const PILLS: PillSpec[] = [
   {
     name:          "Free",
     caption:       "discovery",
+    // Solid navy-950 fully occludes the gradient line behind the pill.
+    // Earlier the gold/5 and success/5 tints on Execute/Compound let
+    // the gradient bleed through and read as strikethrough — fixed by
+    // grounding all three pills on the same opaque base. Tier colour
+    // is still carried by the border, dot, and caption.
     chrome:        "border-slate-700 text-slate-300 bg-navy-950",
     dot:           "bg-primary",
     caption_class: "text-slate-500",
@@ -32,14 +37,14 @@ const PILLS: PillSpec[] = [
   {
     name:          "Execute",
     caption:       "+ execution",
-    chrome:        "border-gold/40 text-gold bg-gold/5",
+    chrome:        "border-gold/40 text-gold bg-navy-950",
     dot:           "bg-gold",
     caption_class: "text-gold/70",
   },
   {
     name:          "Compound",
     caption:       "+ scale",
-    chrome:        "border-success/40 text-success bg-success/5",
+    chrome:        "border-success/40 text-success bg-navy-950",
     dot:           "bg-success",
     caption_class: "text-success/70",
   },
