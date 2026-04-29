@@ -67,12 +67,16 @@ export default function TierUnlockStepper() {
       aria-hidden="true"
       className="relative mx-auto w-full max-w-3xl"
     >
-      <div className="relative flex items-center justify-between">
-        {/* Gradient line behind the pills. Draws in left-to-right on
-            viewport-enter so the eye registers the arc before the
-            pills land. */}
+      {/* Below md: stack the pills vertically — three rounded-full pills
+          with px-5 padding and full captions don't fit on a 320-375px
+          viewport in horizontal flex justify-between, which used to push
+          the entire page wider than the viewport and caused horizontal
+          scroll. md+ keeps the original horizontal connected-ladder. */}
+      <div className="relative flex flex-col items-center gap-2.5 md:flex-row md:justify-between md:gap-0">
+        {/* Gradient line — md+ only. Draws in left-to-right on viewport-
+            enter so the eye registers the arc before the pills land. */}
         <motion.div
-          className="pointer-events-none absolute inset-x-0 top-1/2 -z-0 h-px -translate-y-1/2 origin-left bg-gradient-to-r from-primary via-gold to-success"
+          className="pointer-events-none absolute inset-x-0 top-1/2 -z-0 hidden h-px -translate-y-1/2 origin-left bg-gradient-to-r from-primary via-gold to-success md:block"
           initial={reduce ? false : { scaleX: 0 }}
           whileInView={reduce ? undefined : { scaleX: 1 }}
           viewport={{ once: true, margin: "-15%" }}
@@ -86,7 +90,7 @@ export default function TierUnlockStepper() {
             whileInView={reduce ? undefined : { opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-15%" }}
             transition={reduce ? undefined : { ...SPRING, delay: 0.35 + i * PILL_STAGGER_S }}
-            className={`relative z-10 inline-flex items-center gap-2 rounded-full border px-5 py-2.5 ${pill.chrome}`}
+            className={`relative z-10 inline-flex items-center gap-2 rounded-full border px-4 py-2 md:px-5 md:py-2.5 ${pill.chrome}`}
           >
             <span className={`h-1.5 w-1.5 rounded-full ${pill.dot}`} />
             <span className="text-sm font-semibold">{pill.name}</span>
