@@ -50,6 +50,7 @@ import {
   ValidationVisual,
 } from "@/components/marketing/ToolCardVisuals";
 import { PricingSection } from "@/components/marketing/PricingSection";
+import { StoriesStrip } from "@/components/marketing/stories/StoriesStrip";
 import { getPriceIds } from "@/lib/paddle/founding-members";
 
 const HERO_SUBHEAD =
@@ -83,6 +84,7 @@ export default function LandingPage() {
         <ExecutionTools />
         <Differentiation />
         <ItStaysWithYou />
+        <StoriesStrip />
         <Pricing />
         <FinalCTA />
       </main>
