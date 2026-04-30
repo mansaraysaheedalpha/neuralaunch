@@ -126,10 +126,45 @@ export async function persistForkRecommendation(input: {
       newCycleId = next.cycleId;
     }
 
+    // Clone a fresh DiscoverySession for the fork-derived Recommendation.
+    //
+    // Recommendation.sessionId is @unique (one Recommendation per
+    // DiscoverySession by design — it models the interview-→-result
+    // pairing). Reusing the parent's sessionId here would collide with
+    // the parent Recommendation's row at insert time and surface as
+    // `Unique constraint failed on the fields: (sessionId)`. The fork
+    // didn't go through a fresh interview, but downstream consumers
+    // (Coach / Composer / Research / Packager / Roadmap engine) all
+    // read `recommendation.session.beliefState` as the founder's
+    // grounding context, so the cloned session carries the parent's
+    // beliefState verbatim. status=COMPLETE because there's no live
+    // interview attached. conversationId stays null so it doesn't
+    // share a chat thread with the parent (Conversation.id is also
+    // @unique on DiscoverySession).
+    const parentSession = await tx.discoverySession.findUnique({
+      where:  { id: input.parentSessionId },
+      select: { beliefState: true, audienceType: true, phase: true },
+    });
+    if (!parentSession) {
+      throw new Error(`Parent DiscoverySession ${input.parentSessionId} not found`);
+    }
+
+    const newSession = await tx.discoverySession.create({
+      data: {
+        userId:       input.userId,
+        status:       'COMPLETE',
+        beliefState:  parentSession.beliefState ?? toJsonValue({}),
+        audienceType: parentSession.audienceType,
+        phase:        parentSession.phase,
+        completedAt:  new Date(),
+      },
+      select: { id: true },
+    });
+
     const newRec = await tx.recommendation.create({
       data: {
         userId:                 input.userId,
-        sessionId:              input.parentSessionId,
+        sessionId:              newSession.id,
         recommendationType:     input.parentRecommendationType,
         summary:                input.payload.summary,
         path:                   input.payload.path,
@@ -146,7 +181,7 @@ export async function persistForkRecommendation(input: {
         acceptedAtRound:        0,
         ...(newCycleId ? { cycleId: newCycleId } : {}),
         phaseContext: toJsonValue(buildPhaseContext(PHASES.RECOMMENDATION, {
-          discoverySessionId: input.parentSessionId,
+          discoverySessionId: newSession.id,
           recommendationId:   input.parentRecommendationId,
         })),
       },
