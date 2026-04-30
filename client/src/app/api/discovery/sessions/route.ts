@@ -17,6 +17,8 @@ import {
   assertVentureLimitNotReached,
   assertFreeDiscoverySessionLimit,
 } from '@/lib/lifecycle';
+import { inngest } from '@/inngest/client';
+import { CONVERSATION_TITLE_EVENT } from '@/lib/discovery/constants';
 
 // Keep in sync with the per-turn cap in /sessions/[sessionId]/turn/route.ts.
 // 12k characters ≈ 3k tokens — ample for a detailed opening prompt
@@ -203,6 +205,32 @@ export async function POST(req: NextRequest) {
     });
 
     log.debug('Created discovery session', { sessionId, conversationId });
+
+    // Fire the AI-summarised-title event when we have a real first
+    // message to summarise. The Conversation row is already persisted
+    // with the truncated-first-message fallback as title, so the
+    // sidebar renders something usable until the worker overwrites
+    // it. Skipped when firstMessage is empty (cold-resume flow) —
+    // the "Discovery Interview" placeholder stays. Fire-and-forget:
+    // a failure leaves the truncated title in place, which is the
+    // prior behaviour, not a regression.
+    const trimmedFirstMessage = firstMessage?.trim();
+    if (trimmedFirstMessage && trimmedFirstMessage.length > 0) {
+      try {
+        await inngest.send({
+          name: CONVERSATION_TITLE_EVENT,
+          data: { conversationId, userId, firstMessage: trimmedFirstMessage },
+        });
+      } catch (err) {
+        // Title is cosmetic — never block session creation on the
+        // event-dispatch failure. Log and move on; the truncated
+        // fallback stays.
+        log.warn('Failed to enqueue conversation-title event', {
+          conversationId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
 
     // Seed Redis with the interview state (lifecycle scenario persisted
     // so the turn route can load the right context on each turn).

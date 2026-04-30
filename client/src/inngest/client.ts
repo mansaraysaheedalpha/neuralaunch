@@ -300,6 +300,35 @@ export type NeuraLaunchEvents = {
       userId:    string;
     };
   };
+
+  /**
+   * Fired when a Conversation is created with a non-empty first
+   * message. The worker generates a 3–5 word noun-phrase title from
+   * the message (matches ChatGPT / Claude / Gemini behaviour) and
+   * updates Conversation.title in place. Until the worker completes,
+   * the sidebar renders the truncated-first-message fallback set at
+   * session-create time, so the UX never shows an empty title.
+   *
+   * Fire-and-forget: failure leaves the truncated title in place,
+   * which is the prior behaviour. The title is cosmetic — no retry
+   * is required for correctness.
+   *
+   * Consumer: `conversationTitleFunction` in
+   * `src/inngest/functions/conversation-title-function.ts`
+   *
+   * The literal name is exported as `CONVERSATION_TITLE_EVENT` from
+   * `src/lib/discovery/constants.ts`.
+   */
+  'discovery/conversation.title.requested': {
+    data: {
+      conversationId: string;
+      userId:         string;
+      /** Founder's verbatim first message — the only signal needed
+       *  for a 3–5 word noun-phrase title. Passed by value so the
+       *  worker doesn't need a Prisma round-trip to read it. */
+      firstMessage:   string;
+    };
+  };
 };
 
 /**

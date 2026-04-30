@@ -116,6 +116,27 @@ export const QUESTION_MAX_TOKENS = 1000;
  */
 export const PUSHBACK_ALTERNATIVE_EVENT = 'discovery/pushback.alternative.requested';
 
+/**
+ * Inngest event name for AI-summarised conversation titles. Fired by
+ * the session-create route immediately after the Conversation row is
+ * committed (when firstMessage is non-empty). The worker generates a
+ * 3–5 word noun-phrase title via Haiku and updates Conversation.title.
+ *
+ * Naming follows the same `discovery/<noun>.<verb>` shape as the rest
+ * of the discovery event family.
+ */
+export const CONVERSATION_TITLE_EVENT = 'discovery/conversation.title.requested';
+
+/**
+ * Maximum length of an AI-generated conversation title. Chosen so a
+ * 3–5 word noun phrase fits comfortably on the sidebar entry without
+ * truncation at standard sidebar widths (~240-280px). Enforced via a
+ * .transform() post-clamp on the schema, NOT a .max() on the LLM
+ * output schema (Anthropic's structured-output validator rejects
+ * .max() on string fields — see CLAUDE.md "Reliability" rules).
+ */
+export const CONVERSATION_TITLE_MAX_CHARS = 60;
+
 // ---------------------------------------------------------------------------
 // Session — server-only (Redis key prefix, TTL)
 // ---------------------------------------------------------------------------

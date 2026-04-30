@@ -3,6 +3,7 @@ import { serve }   from 'inngest/next';
 import { inngest } from '@/inngest/client';
 import {
   discoverySessionFunction,
+  conversationTitleFunction,
   roadmapGenerationFunction,
   validationReportingFunction,
   validationReportingSchedulerFunction,
@@ -27,6 +28,7 @@ export const { GET, POST, PUT } = serve({
   client: inngest,
   functions: [
     discoverySessionFunction,
+    conversationTitleFunction,
     roadmapGenerationFunction,
     validationReportingSchedulerFunction,
     validationReportingFunction,

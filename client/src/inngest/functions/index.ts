@@ -1,5 +1,6 @@
 // src/inngest/functions/index.ts
 export { discoverySessionFunction }    from './discovery-session-function';
+export { conversationTitleFunction }   from './conversation-title-function';
 export { roadmapGenerationFunction }   from './roadmap-generation-function';
 export {
   validationReportingFunction,
