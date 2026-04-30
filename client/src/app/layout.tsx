@@ -7,8 +7,16 @@ import { Toaster } from "react-hot-toast";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
 import Script from "next/script";
+import { env } from "@/lib/env";
+
+// Canonical site origin. Falls back to the production domain so
+// metadata emitted at build time (sitemap, openGraph URLs, JSON-LD)
+// never points at localhost when NEXT_PUBLIC_APP_URL is unset on a
+// preview build.
+const SITE_URL = env.NEXT_PUBLIC_APP_URL ?? "https://startupvalidator.app";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
@@ -23,11 +31,40 @@ export const metadata: Metadata = {
   manifest: "/site.webmanifest",
   title: {
     default: "NeuraLaunch — From Lost to Launched",
-    template: "%s",
+    template: "%s | NeuraLaunch",
   },
   description:
     "NeuraLaunch interviews your situation, commits to one clear recommendation, then partners with you through every task — until you've shipped, learned, or decided what comes next.",
   applicationName: "NeuraLaunch",
+  // Brand-association keywords. Google does not rank on `keywords`
+  // alone, but Bing + lesser engines still read it, and including the
+  // brand variants we want to own ("NeuraLaunch") helps disambiguate
+  // from the unrelated NeuroLaunch (mental-health site).
+  keywords: [
+    "NeuraLaunch",
+    "Neura Launch",
+    "startup validator",
+    "AI startup advisor",
+    "from lost to launched",
+    "founder coach",
+  ],
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    siteName: "NeuraLaunch",
+    title: "NeuraLaunch — From Lost to Launched",
+    description:
+      "NeuraLaunch interviews your situation, commits to one clear recommendation, then partners with you through every task — until you've shipped, learned, or decided what comes next.",
+    url: SITE_URL,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "NeuraLaunch — From Lost to Launched",
+    description:
+      "NeuraLaunch interviews your situation, commits to one clear recommendation, then partners with you through every task — until you've shipped, learned, or decided what comes next.",
+  },
 };
 
 export const viewport: Viewport = {
@@ -47,9 +84,46 @@ export default function RootLayout({
   const GA_MEASUREMENT_ID = "G-KN3B2XG85H";
   const HOTJAR_SITE_ID = "6553219";
 
+  // JSON-LD structured data. Two graphs:
+  //   1. Organization — tells Google the brand "NeuraLaunch" lives at
+  //      this URL. Prerequisite for the brand panel + sitelinks under
+  //      a brand-name search ("NeuraLaunch") instead of the unrelated
+  //      NeuroLaunch (mental-health domain) Google currently surfaces.
+  //   2. WebSite — declares the canonical site name; Google uses this
+  //      to print "NeuraLaunch" rather than the bare domain in the
+  //      result row, and as a hint for the in-result search box.
+  // Both blocks are server-rendered into <head> as application/ld+json
+  // so they're parsed by Googlebot on first crawl. alternateName covers
+  // common spelling drift ("Neura Launch", "NeuraLaunch.app").
+  const jsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: "NeuraLaunch",
+      alternateName: ["Neura Launch", "NeuraLaunch.app"],
+      url: SITE_URL,
+      logo: `${SITE_URL}/neuralaunch_logo.png`,
+      description:
+        "NeuraLaunch interviews your situation, commits to one clear recommendation, then partners with you through every task — until you've shipped, learned, or decided what comes next.",
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: "NeuraLaunch",
+      alternateName: ["Neura Launch", "NeuraLaunch.app"],
+      url: SITE_URL,
+    },
+  ];
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <Script
+          id="ld-json-organization"
+          type="application/ld+json"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
         {/* --- Analytics Scripts --- */}
         <Script
           strategy="afterInteractive"
