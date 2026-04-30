@@ -71,7 +71,10 @@ export async function generateTransformationReport(
         messages:        cachedUserMessages(evidenceBlock, WRITE_NOW_INSTRUCTION),
         experimental_output: Output.object({ schema: TransformationReportSchema }),
         maxOutputTokens: MAX_OUTPUT_TOKENS,
-        temperature:     0.7,
+        // No `temperature` — Anthropic deprecated it on Opus 4.7
+        // and the API now returns 400 if it's passed. Default
+        // sampling on Opus is fine for narrative synthesis;
+        // rerun showed no quality regression.
         // Single-shot synthesis — no tool loop. stopWhen guards
         // against the AI SDK accidentally entering a loop on the
         // structured-output path.
@@ -394,7 +397,9 @@ export async function detectRedactionCandidates(input: {
         messages:        cachedUserMessages(evidenceBlock, DETECTOR_INSTRUCTION),
         experimental_output: Output.object({ schema: RedactionCandidatesArraySchema }),
         maxOutputTokens: DETECTOR_MAX_OUTPUT_TOKENS,
-        temperature:     0.2,
+        // No `temperature` — see synthesis call above. Anthropic
+        // deprecated the parameter on the new Opus models and
+        // we drop it on the fallback path too for consistency.
         stopWhen:        stepCountIs(1),
       });
       return object;

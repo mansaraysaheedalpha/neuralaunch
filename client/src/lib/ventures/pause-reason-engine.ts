@@ -136,7 +136,10 @@ export async function runPauseReasonAgent(input: {
         messages:        cachedUserMessages(stableContext, volatileTurn),
         experimental_output: Output.object({ schema: PauseAgentResponseSchema }),
         maxOutputTokens: MAX_OUTPUT_TOKENS,
-        temperature:     0.5,
+        // No `temperature` — Anthropic deprecated the parameter on
+        // the new Anthropic models and the API now 400s when it's
+        // passed. Default sampling is fine for this single-turn
+        // classifier; tone is enforced by the system prompt.
         stopWhen:        stepCountIs(1),
       });
       return object;
