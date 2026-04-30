@@ -249,71 +249,104 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
         />
       )}
 
-      {/* Empty state — welcome + input grouped and vertically centered */}
+      {/* Empty state — welcome + input grouped and vertically centered.
+          Wrapped in a relative container so the soft radial-glow backdrop
+          (decorative, agent-presence anchor) sits behind the content
+          without affecting the flexbox math. The backdrop only renders
+          here — once the conversation starts, the messages become the
+          focus and the page returns to a clean canvas. */}
       {!hasStarted && !stepperVisible && !isSynthesizing && (
-        <div className="flex-1 flex flex-col items-center justify-center gap-5 px-4 pb-6">
-          <WelcomeLayer
-            firstName={firstName}
-            isVisible
-          />
-          <form
-            onSubmit={handleSubmit}
-            className="flex gap-2 items-end w-full max-w-2xl rounded-xl border border-border bg-background px-4 py-3"
+        <div className="relative flex-1 flex flex-col items-center justify-center gap-6 px-4 pb-6">
+          {/* Backdrop: subtle radial blue glow + faint geometric grid,
+              same visual language as the marketing HeroProductStack so
+              the user feels they're inside the same product they signed
+              up to. Pointer-events disabled, decorative only. Mask-image
+              fades the grid out toward the edges. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 overflow-hidden"
           >
-            {inputField}
-            {voiceEnabled && (
-              <VoiceInputButton
-                onTranscription={handleVoiceTranscription}
-                onError={handleVoiceError}
-                disabled={!sessionReady || isSynthesizing}
-              />
-            )}
-            <Button type="submit" size="icon" disabled={!canSubmit} variant="ghost">
-              <SendHorizontal className="size-4" />
-            </Button>
-          </form>
-          {sessionInitError && (
-            <div className="w-full max-w-2xl rounded-lg border border-gold/30 bg-gold/5 px-4 py-3 flex flex-col gap-3">
-              <p className="text-xs text-gold font-medium leading-relaxed">{sessionInitError}</p>
-              {/* Paid users whose block is the venture cap get a primary
-                  CTA to find the venture that's blocking them. The error
-                  message itself tells them to "pause or complete your
-                  current venture" — the button has to deliver on that
-                  instruction, not just suggest upgrading. Free users
-                  whose block is the lifetime discovery cap see only the
-                  upgrade CTA (there are no ventures to find). */}
-              <div className="flex flex-wrap items-center gap-2">
-                {viewerTier === 'free' ? (
-                  <Link
-                    href="/#pricing"
-                    className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
-                  >
-                    <Sparkles className="size-3" aria-hidden="true" />
-                    See upgrade options
-                  </Link>
-                ) : (
-                  <>
+            <div className="absolute inset-x-0 top-0 mx-auto h-[420px] max-w-3xl bg-[radial-gradient(ellipse_at_top,_hsl(var(--primary)/0.10),_transparent_65%)]" />
+            <div className="absolute inset-0 opacity-[0.35] [background-image:linear-gradient(to_right,hsl(var(--border)/0.55)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.55)_1px,transparent_1px)] [background-size:42px_42px] [mask-image:radial-gradient(ellipse_at_center,black_45%,transparent_85%)]" />
+          </div>
+
+          <div className="relative z-10 flex w-full flex-col items-center gap-6">
+            <WelcomeLayer
+              firstName={firstName}
+              isVisible
+              isFirstSession={isFirstSession}
+              onOpenGuide={() => setGuideOpen(true)}
+            />
+            {/* Input bar — focus-within lights up a primary ring; send
+                button picks up primary tint when the field has content
+                so the affordance is visible before submit. shadow-lg
+                gives the input the visual weight it deserves on the
+                most important interactive surface in the product. */}
+            <form
+              onSubmit={handleSubmit}
+              className="group/input flex gap-2 items-end w-full max-w-2xl rounded-xl border border-border bg-card/70 backdrop-blur-sm px-4 py-3 shadow-lg shadow-black/10 transition-all focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/15 focus-within:shadow-primary/10"
+            >
+              {inputField}
+              {voiceEnabled && (
+                <VoiceInputButton
+                  onTranscription={handleVoiceTranscription}
+                  onError={handleVoiceError}
+                  disabled={!sessionReady || isSynthesizing}
+                />
+              )}
+              <Button
+                type="submit"
+                size="icon"
+                disabled={!canSubmit}
+                variant="ghost"
+                className={canSubmit ? 'text-primary hover:bg-primary/10 hover:text-primary' : undefined}
+              >
+                <SendHorizontal className="size-4" />
+              </Button>
+            </form>
+            {sessionInitError && (
+              <div className="w-full max-w-2xl rounded-lg border border-gold/30 bg-gold/5 px-4 py-3 flex flex-col gap-3">
+                <p className="text-xs text-gold font-medium leading-relaxed">{sessionInitError}</p>
+                {/* Paid users whose block is the venture cap get a primary
+                    CTA to find the venture that's blocking them. The error
+                    message itself tells them to "pause or complete your
+                    current venture" — the button has to deliver on that
+                    instruction, not just suggest upgrading. Free users
+                    whose block is the lifetime discovery cap see only the
+                    upgrade CTA (there are no ventures to find). */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {viewerTier === 'free' ? (
                     <Link
-                      href="/discovery/recommendations"
+                      href="/#pricing"
                       className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
                     >
-                      See your ventures
-                      <ArrowRight className="size-3" aria-hidden="true" />
+                      <Sparkles className="size-3" aria-hidden="true" />
+                      See upgrade options
                     </Link>
-                    {viewerTier === 'execute' && (
+                  ) : (
+                    <>
                       <Link
-                        href="/#pricing"
-                        className="inline-flex items-center gap-1.5 rounded-md border border-gold/40 bg-transparent px-3 py-1.5 text-xs font-semibold text-gold hover:bg-gold/10 transition-colors"
+                        href="/discovery/recommendations"
+                        className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
                       >
-                        <Sparkles className="size-3" aria-hidden="true" />
-                        Upgrade to Compound
+                        See your ventures
+                        <ArrowRight className="size-3" aria-hidden="true" />
                       </Link>
-                    )}
-                  </>
-                )}
+                      {viewerTier === 'execute' && (
+                        <Link
+                          href="/#pricing"
+                          className="inline-flex items-center gap-1.5 rounded-md border border-gold/40 bg-transparent px-3 py-1.5 text-xs font-semibold text-gold hover:bg-gold/10 transition-colors"
+                        >
+                          <Sparkles className="size-3" aria-hidden="true" />
+                          Upgrade to Compound
+                        </Link>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
 

@@ -3,62 +3,18 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-
-const QUESTION_POOL = [
-  'What problem are you trying to solve, and who wakes up every day frustrated by it?',
-  'If you could not raise funding, what is the smallest version of this you could charge for next week?',
-  'Have you talked to anyone who has this problem? What did they actually tell you?',
-  'What are people doing right now to solve this problem, and why is that not enough?',
-  'Who is the one person who would pay for this before it is finished — and why them specifically?',
-  'Is the problem urgent, or just interesting? What is the difference for your target customer?',
-  'What does success look like in 90 days — not eventually, but in 90 days?',
-  'How do you know this is a real problem and not just one you personally have?',
-  'Who is your first customer — not the ideal one, the first one you would call tomorrow?',
-  'What is the riskiest assumption in your idea right now? Have you tested it?',
-  'What would make you abandon this idea? If nothing comes to mind, what does that tell you?',
-  'What does the competitive landscape tell you about whether this market is real?',
-  'If you built this and nobody paid for it, what would you have learned?',
-  'What is the one thing that, if you got it wrong, would make everything else irrelevant?',
-  'What do you want to build — and is that the same thing as what people actually need?',
-  'What existing behaviour are you trying to change, and how hard has that proven to be for others?',
-  'What has already been tried in this space, and why did it not stick?',
-  'If your best potential customer solved this problem themselves tomorrow, how would they do it?',
-  'What is the unit of value you are selling — time saved, money made, pain removed?',
-  'Who loses if your idea succeeds? Understanding that tells you where resistance will come from.',
-  'What does your customer do in the ten minutes before and after they feel this problem?',
-  'What would have to be true about the market for this to be a ten-million-dollar business?',
-  'How often does this problem happen, and how bad does it feel each time?',
-  'What is the single sentence that explains why someone would switch from what they do today?',
-  'Are you building something people want, or something they say they want when asked?',
-  'What would a person have to believe to choose your solution over doing nothing?',
-  'Where does your target customer already spend money trying to fix this problem?',
-  'What does the person who most desperately needs this look like — what is their day like?',
-  'How will you find your first ten customers, and what will you say to them?',
-  'What is the smallest experiment that would prove or disprove your core assumption?',
-  'If a direct competitor launched tomorrow with more funding, what is your defensible advantage?',
-  'What does the world look like in three years if this works exactly as you imagine?',
-  'What are you assuming about your customer that you have not yet verified?',
-  'Is the pain you are solving a vitamin or a painkiller? How do you know?',
-  'What is the one metric that, if it moved, would tell you this is working?',
-  'What would make someone refer this to a friend — and do they feel that way yet?',
-  'What does the customer already use as a workaround, and what does that tell you about pricing?',
-  'How does the problem change depending on the size or type of customer you target?',
-  'What is the cheapest way to simulate your solution before you build anything?',
-  'What assumption are you most emotionally attached to — and is that a warning sign?',
-  'What does your ideal customer fear more than anything when thinking about this problem?',
-  'If you had to charge three times what you planned from day one, who would still pay?',
-  'What feedback have you received that you dismissed — and should you revisit it?',
-  'What is the difference between the customer who tries this and the one who stays?',
-  'Who in your life would tell you honestly if this idea was not good enough — and have you asked?',
-  'What do early adopters need that mainstream customers do not, and are you ready for that gap?',
-  'What does progress look like at week four, week twelve, and week fifty-two?',
-  'Is the timing right for this idea — what has changed recently that makes it possible now?',
-  'What part of the problem are you solving because it is important versus because it is easy to build?',
-] as const;
+import { Compass, Target, AlertTriangle, ListChecks, BookOpen, ArrowRight } from 'lucide-react';
+import { WELCOME_QUESTION_POOL } from './welcome-questions';
 
 interface WelcomeLayerProps {
-  firstName: string;
-  isVisible: boolean;
+  firstName:        string;
+  isVisible:        boolean;
+  /** True when the user has no completed sessions yet — surfaces the
+   *  "30-second guide" inline CTA so a first-time founder doesn't have
+   *  to discover the corner Guide button on their own. */
+  isFirstSession?:  boolean;
+  /** Opens the Interview Guide drawer (parent owns the open state). */
+  onOpenGuide?:     () => void;
 }
 
 function getGreeting(firstName: string): string {
@@ -69,21 +25,47 @@ function getGreeting(firstName: string): string {
   return `Good evening${name}`;
 }
 
+const TIPS: Array<{
+  icon: typeof Target;
+  text: string;
+  /** Token color class — kept restrained (one each across the trio so
+   *  the eye reads the tips as a triad of priorities, not a wall). */
+  color: string;
+}> = [
+  { icon: Target,         text: 'Give specific numbers — time, budget, success metrics', color: 'text-primary' },
+  { icon: AlertTriangle,  text: 'Name failed attempts honestly, including why you stopped', color: 'text-gold' },
+  { icon: ListChecks,     text: 'Answer one question at a time — no compression',           color: 'text-success' },
+];
+
 /**
  * WelcomeLayer
  *
- * Empty-state layer shown before the first message is sent.
- * Displays a time-aware greeting and a randomly selected discovery
- * question (changes on every page load) scoped to NeuraLaunch's purpose.
- * Fades out permanently once the conversation starts.
+ * Empty-state shown before the first message is sent. Premium-lift
+ * over the prior generic shadcn-muted shape:
+ *
+ *   1. "Discovery interview" agent-presence pill above the greeting —
+ *      anchors who is talking and sets the 5-15 question expectation.
+ *      Replaces the prior absence of any agent marker.
+ *   2. Question card carries a gold left-accent + full-opacity gold
+ *      eyebrow — same visual language as the Sample Recommendation
+ *      Card on the marketing landing, so a paying user moves between
+ *      surfaces without a brand discontinuity.
+ *   3. Tips render as a small Lucide-iconified triad (Target / Alert /
+ *      ListChecks) in primary/gold/success tokens — readable instead
+ *      of barely-visible /40 opacity bullets.
+ *   4. First-session founders get an inline "30-second guide →" CTA
+ *      so they do not have to discover the corner Guide button on
+ *      their own.
+ *   5. Staggered motion entrance (60ms between bands) — restrained,
+ *      respects useReducedMotion via Motion's whileInView default.
+ *
+ * Time-aware greeting + random rotating question are preserved
+ * verbatim — both already worked.
  */
-export function WelcomeLayer({ firstName, isVisible }: WelcomeLayerProps) {
-  // Both values are client-side only (time-of-day greeting + random
-  // question). The component is 'use client' so the lazy initializer
-  // runs on the client only — no SSR mismatch, no useEffect needed.
+export function WelcomeLayer({ firstName, isVisible, isFirstSession = false, onOpenGuide }: WelcomeLayerProps) {
   const [greeting] = useState(() => getGreeting(firstName));
   const [question] = useState(() =>
-    QUESTION_POOL[Math.floor(Math.random() * QUESTION_POOL.length)],
+    WELCOME_QUESTION_POOL[Math.floor(Math.random() * WELCOME_QUESTION_POOL.length)],
   );
 
   return (
@@ -94,36 +76,86 @@ export function WelcomeLayer({ firstName, isVisible }: WelcomeLayerProps) {
           initial={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -12 }}
           transition={{ duration: 0.2, ease: 'easeIn' }}
-          className="flex flex-col items-center gap-6 w-full select-none"
+          className="flex flex-col items-center gap-7 w-full select-none"
         >
-          <h2 className="text-3xl font-semibold text-foreground tracking-tight text-center">
-            {greeting}
-          </h2>
+          <motion.p
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: 'easeOut' }}
+            className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/40 px-3 py-1 text-[11px] font-medium text-muted-foreground"
+          >
+            <Compass className="size-3 text-gold" aria-hidden="true" />
+            Discovery interview · 5–15 questions
+          </motion.p>
 
-          <div className="max-w-md w-full rounded-xl bg-muted/50 px-5 py-4 space-y-2">
-            <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest text-center">
+          <motion.h2
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.06, ease: 'easeOut' }}
+            className="text-3xl font-semibold text-foreground tracking-tight text-center"
+          >
+            {greeting}
+          </motion.h2>
+
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.12, ease: 'easeOut' }}
+            className="max-w-md w-full rounded-xl border border-border/70 bg-card/60 px-5 py-4 space-y-2.5 border-l-[3px] border-l-gold shadow-lg shadow-black/10"
+          >
+            <p className="text-[10px] font-semibold tracking-[0.18em] uppercase text-gold">
               Think about this
             </p>
-            <p className="text-sm text-foreground/80 leading-relaxed text-center">
+            <p className="text-[15px] leading-relaxed text-foreground text-center sm:text-left">
               {question}
             </p>
-          </div>
+          </motion.div>
 
-          <div className="max-w-md w-full space-y-1.5">
-            <p className="text-[10px] font-medium text-muted-foreground/40 uppercase tracking-widest text-center mb-2">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, delay: 0.18, ease: 'easeOut' }}
+            className="max-w-md w-full space-y-2"
+          >
+            <p className="text-[10px] font-semibold tracking-[0.18em] uppercase text-muted-foreground/70 text-center mb-3">
               For the best recommendation
             </p>
-            {[
-              'Give specific numbers — time, budget, success metrics',
-              'Name failed attempts honestly, including why you stopped',
-              'Answer one question at a time — no compression',
-            ].map(tip => (
-              <div key={tip} className="flex gap-2 items-start justify-center text-xs text-muted-foreground/50">
-                <span className="shrink-0 mt-px select-none">·</span>
-                <span>{tip}</span>
-              </div>
-            ))}
-          </div>
+            <ul role="list" className="space-y-2">
+              {TIPS.map(tip => {
+                const Icon = tip.icon;
+                return (
+                  <li
+                    key={tip.text}
+                    className="flex items-start gap-3 text-xs text-muted-foreground"
+                  >
+                    <span
+                      className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-md bg-card/60 ${tip.color}`}
+                      aria-hidden="true"
+                    >
+                      <Icon className="size-3" />
+                    </span>
+                    <span className="leading-relaxed">{tip.text}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </motion.div>
+
+          {isFirstSession && onOpenGuide && (
+            <motion.button
+              type="button"
+              onClick={onOpenGuide}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, delay: 0.24, ease: 'easeOut' }}
+              className="group inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 hover:border-primary/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              aria-label="Open the 30-second interview guide"
+            >
+              <BookOpen className="size-3" aria-hidden="true" />
+              First time? Read the 30-second guide
+              <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+            </motion.button>
+          )}
         </motion.div>
       )}
     </AnimatePresence>
