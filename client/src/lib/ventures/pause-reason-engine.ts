@@ -24,7 +24,7 @@
 
 import 'server-only';
 import { z } from 'zod';
-import { generateText, Output, stepCountIs } from 'ai';
+import { generateObject } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { logger } from '@/lib/logger';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
@@ -130,17 +130,16 @@ export async function runPauseReasonAgent(input: {
     'pauseReason:run',
     { primary: PRIMARY_MODEL, fallback: FALLBACK_MODEL },
     async (modelId) => {
-      const { experimental_output: object } = await generateText({
+      // generateObject is the canonical AI-SDK structured-output
+      // API per CLAUDE.md. Migrated from `generateText +
+      // experimental_output` because that path returns empty
+      // objects on the current Anthropic models.
+      const { object } = await generateObject({
         model:           aiSdkAnthropic(modelId),
+        schema:          PauseAgentResponseSchema,
         system:          cachedSystem(SYSTEM_PROMPT),
         messages:        cachedUserMessages(stableContext, volatileTurn),
-        experimental_output: Output.object({ schema: PauseAgentResponseSchema }),
         maxOutputTokens: MAX_OUTPUT_TOKENS,
-        // No `temperature` — Anthropic deprecated the parameter on
-        // the new Anthropic models and the API now 400s when it's
-        // passed. Default sampling is fine for this single-turn
-        // classifier; tone is enforced by the system prompt.
-        stopWhen:        stepCountIs(1),
       });
       return object;
     },

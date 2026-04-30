@@ -14,7 +14,7 @@
 // See schemas.ts for the contract.
 
 import 'server-only';
-import { generateText, Output, stepCountIs } from 'ai';
+import { generateObject } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { logger } from '@/lib/logger';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
@@ -65,20 +65,20 @@ export async function generateTransformationReport(
       fallback: TRANSFORMATION_FALLBACK_MODEL,
     },
     async (modelId) => {
-      const { experimental_output: object } = await generateText({
+      // generateObject is the canonical structured-output API (per
+      // CLAUDE.md "Use generateObject with a Zod schema for all
+      // structured data extraction"). The earlier `generateText +
+      // experimental_output` path was the deprecated route and
+      // started returning empty objects (`Value: {}`) on Opus 4.7
+      // — the model emits plain text instead of triggering tool-use
+      // and the SDK can't recover the schema. generateObject forces
+      // tool-mode and returns a typed parsed object directly.
+      const { object } = await generateObject({
         model:           aiSdkAnthropic(modelId),
+        schema:          TransformationReportSchema,
         system:          cachedSystem(SYSTEM_PROMPT),
         messages:        cachedUserMessages(evidenceBlock, WRITE_NOW_INSTRUCTION),
-        experimental_output: Output.object({ schema: TransformationReportSchema }),
         maxOutputTokens: MAX_OUTPUT_TOKENS,
-        // No `temperature` — Anthropic deprecated it on Opus 4.7
-        // and the API now returns 400 if it's passed. Default
-        // sampling on Opus is fine for narrative synthesis;
-        // rerun showed no quality regression.
-        // Single-shot synthesis — no tool loop. stopWhen guards
-        // against the AI SDK accidentally entering a loop on the
-        // structured-output path.
-        stopWhen:        stepCountIs(1),
       });
       return object;
     },
@@ -391,16 +391,15 @@ export async function detectRedactionCandidates(input: {
       fallback: DETECTOR_FALLBACK_MODEL,
     },
     async (modelId) => {
-      const { experimental_output: object } = await generateText({
+      // generateObject — same migration reason as synthesis above.
+      // RedactionCandidatesArraySchema is a top-level array schema;
+      // the AI SDK wraps it as a tool-call automatically.
+      const { object } = await generateObject({
         model:           aiSdkAnthropic(modelId),
+        schema:          RedactionCandidatesArraySchema,
         system:          cachedSystem(DETECTOR_SYSTEM),
         messages:        cachedUserMessages(evidenceBlock, DETECTOR_INSTRUCTION),
-        experimental_output: Output.object({ schema: RedactionCandidatesArraySchema }),
         maxOutputTokens: DETECTOR_MAX_OUTPUT_TOKENS,
-        // No `temperature` — see synthesis call above. Anthropic
-        // deprecated the parameter on the new Opus models and
-        // we drop it on the fallback path too for consistency.
-        stopWhen:        stepCountIs(1),
       });
       return object;
     },
