@@ -179,14 +179,18 @@ export function PricingSection({ execute, compound }: PricingSectionProps) {
         </div>
       </div>
 
-      {/* One-line affirmation under the toggle. Honest framing — we
-          recommend annual on the savings (which are real and live in
-          the cards) and on the cycle-to-cycle continuity (annual
-          subscribers don't have to re-decide every month). When real
-          adoption data exists, swap to "Most founders choose annual." */}
-      <p className="-mt-6 mb-10 text-center text-xs text-slate-500">
-        Recommended — saves you $69 on Execute, $118 on Compound.
-      </p>
+      {/* One-line affirmation under the toggle — shown ONLY when Annual
+          is the active cycle. On Monthly the line read as "we recommend
+          the other choice" while the user was standing in this one,
+          which is contradiction not affirmation. The per-card loss-
+          framing line ("You'd save $X/year on the annual plan") still
+          carries the nudge on Monthly without doubling up. When real
+          adoption data exists, swap copy to "Most founders choose annual." */}
+      {cycle === "annual" && (
+        <p className="-mt-6 mb-10 text-center text-xs text-slate-500">
+          Recommended — saves you $69 on Execute, $118 on Compound.
+        </p>
+      )}
 
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-3">
         {TIERS.map((tier, i) => {
