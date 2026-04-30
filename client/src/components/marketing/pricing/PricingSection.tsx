@@ -173,11 +173,20 @@ export function PricingSection({ execute, compound }: PricingSectionProps) {
                   : "bg-slate-800 text-slate-400 border border-slate-700"
               }`}
             >
-              Save 20%
+              Best value · Save 20%
             </span>
           </button>
         </div>
       </div>
+
+      {/* One-line affirmation under the toggle. Honest framing — we
+          recommend annual on the savings (which are real and live in
+          the cards) and on the cycle-to-cycle continuity (annual
+          subscribers don't have to re-decide every month). When real
+          adoption data exists, swap to "Most founders choose annual." */}
+      <p className="-mt-6 mb-10 text-center text-xs text-slate-500">
+        Recommended — saves you $69 on Execute, $118 on Compound.
+      </p>
 
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-3">
         {TIERS.map((tier, i) => {

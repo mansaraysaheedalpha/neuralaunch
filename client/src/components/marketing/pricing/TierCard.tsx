@@ -175,10 +175,27 @@ export default function TierCard({
             </p>
           </>
         ) : (
-          <p className="text-3xl font-bold text-white">
-            ${tier.monthly}
-            <span className="text-lg font-medium text-slate-400">/mo</span>
-          </p>
+          <>
+            <p className="text-3xl font-bold text-white">
+              ${tier.monthly}
+              <span className="text-lg font-medium text-slate-400">/mo</span>
+            </p>
+            {annualSavings && annualSavings.saved > 0 && (
+              // Loss-framing: when the founder picks Monthly we
+              // surface what the choice costs them. Honest — the
+              // saving is real and matches the Annual cycle's
+              // headline math. No urgency copy, no hidden trick;
+              // the founder can stay on Monthly and still see what
+              // committing for a year would have saved.
+              <p className="mt-1 text-xs text-slate-400">
+                You&rsquo;d save{" "}
+                <span className="font-medium text-success">
+                  ${annualSavings.saved}/year
+                </span>{" "}
+                on the annual plan.
+              </p>
+            )}
+          </>
         )}
         {isPaid && (
           <div className="mt-3 space-y-1 text-[11px] leading-relaxed text-slate-400">
