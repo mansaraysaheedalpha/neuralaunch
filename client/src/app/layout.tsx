@@ -118,10 +118,17 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <Script
-          id="ld-json-organization"
+        {/* Plain inline <script> (not next/script) so the JSON-LD lands
+            in the server-rendered HTML at first byte. Google's
+            lightweight crawlers — including the Rich Results Test
+            crawler and the Knowledge Graph indexer — read structured
+            data out of the static HTML; they do not execute or wait
+            for next/script's lifecycle. Keeping it inline is the
+            documented best practice for static structured data.
+            (See: nextjs.org/docs/app/api-reference/components/script
+            §"JSON-LD".) */}
+        <script
           type="application/ld+json"
-          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
         {/* --- Analytics Scripts --- */}
