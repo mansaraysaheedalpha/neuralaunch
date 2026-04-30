@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowRight, Loader2, MessageCircle, Send } from 'lucide-react';
+import { ArrowRight, Loader2, MessageCircle, Send, Compass } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 // Import directly from the schema file — NOT the barrel index.
 // The barrel re-exports server-only modules (brief-generator,
@@ -59,10 +59,15 @@ export function WhatsNextPanel({ roadmapId }: { roadmapId: string }) {
       className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-4 flex flex-col gap-3"
     >
       <div className="flex items-center justify-between gap-3">
-        <div className="flex flex-col gap-0.5">
-          <p className="text-[10px] uppercase tracking-widest text-primary/70">
-            Always available
-          </p>
+        <div className="flex items-center gap-2.5">
+          {/* Compass icon anchors the action — was a generic "Always
+              available" eyebrow that read as internal copy that leaked
+              into the product. The title alone is the meaning, the
+              icon adds visual weight + product-language consistency
+              with the agent-presence pill above the roadmap header. */}
+          <span className="flex size-7 items-center justify-center rounded-md bg-primary/15 text-primary">
+            <Compass className="size-3.5" aria-hidden="true" />
+          </span>
           <p className="text-sm font-semibold text-foreground">What&apos;s next?</p>
         </div>
         {flow.phase === 'idle' && (

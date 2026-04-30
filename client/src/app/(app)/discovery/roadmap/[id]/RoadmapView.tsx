@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'motion/react';
-import { Loader2, Lock } from 'lucide-react';
+import { Loader2, Lock, Compass } from 'lucide-react';
 import { OutcomeForm } from '@/components/outcome/OutcomeForm';
 import { useRoadmapPolling } from './useRoadmapPolling';
 import { PhaseBlock } from './PhaseBlock';
@@ -83,15 +83,34 @@ export function RoadmapView({
 
   return (
     <RoadmapWritabilityProvider writable={writable} readOnlyReason={readOnlyReason}>
-    <div className="flex flex-col gap-8 max-w-2xl mx-auto px-6 py-10">
+    <div className="relative">
+      {/* Subtle backdrop — same radial primary glow + masked grid we
+          ship on /discovery and /recommendation, so a paying user
+          living inside this page for weeks of execution feels they're
+          inside a finished product, not a wireframe. Decorative only;
+          pointer-events disabled. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+      >
+        <div className="absolute inset-x-0 top-0 mx-auto h-[420px] max-w-3xl bg-[radial-gradient(ellipse_at_top,_hsl(var(--primary)/0.10),_transparent_60%)]" />
+        <div className="absolute inset-0 opacity-[0.30] [background-image:linear-gradient(to_right,hsl(var(--border)/0.55)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.55)_1px,transparent_1px)] [background-size:42px_42px] [mask-image:radial-gradient(ellipse_at_center,black_45%,transparent_85%)]" />
+      </div>
 
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold text-foreground">Your Execution Roadmap</h1>
+      <div className="flex flex-col gap-8 max-w-2xl mx-auto px-6 py-10">
+
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col items-start gap-3"
+      >
         {data.totalWeeks && data.weeklyHours && (
-          <p className="text-sm text-muted-foreground">
-            {data.totalWeeks} week{data.totalWeeks !== 1 ? 's' : ''} · {data.weeklyHours} hours/week
-          </p>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/30 bg-gold/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gold">
+            <Compass className="size-3" aria-hidden="true" />
+            Execution · {data.totalWeeks} week{data.totalWeeks !== 1 ? 's' : ''} · {data.weeklyHours}h/week
+          </span>
         )}
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">Your Execution Roadmap</h1>
       </motion.div>
 
       {/* Top-level read-only banner — surfaced ABOVE everything else
@@ -231,6 +250,7 @@ export function RoadmapView({
         />
       )}
 
+      </div>
     </div>
     </RoadmapWritabilityProvider>
   );

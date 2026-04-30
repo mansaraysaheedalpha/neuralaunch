@@ -31,20 +31,29 @@ export function CheckInHistoryList({ history }: CheckInHistoryListProps) {
       </p>
       {history.map(entry => (
         <div key={entry.id} className="flex flex-col gap-1.5">
-          <div className="rounded-lg border border-border bg-background px-3 py-2">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-1">
+          {/* Founder turn — primary left-rail accent + faint primary tint
+              so the chat reads as conversation, not a debugging log.
+              Same role-tinting pattern as the WhatsNextPanel diagnostic. */}
+          <div className="rounded-lg border border-border bg-primary/[0.04] border-l-[3px] border-l-primary/50 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-primary/80 mb-1">
               You · {entry.category}
             </p>
             <p className="text-[11px] text-foreground/90 whitespace-pre-wrap break-words">
               {entry.freeText}
             </p>
           </div>
+          {/* Agent turn — gold left-rail accent on the standard turn,
+              brighter gold on the adjusted_next_step turn (the "I'm
+              actually changing your roadmap" moment). The agent
+              response now reads as a deliberate voice, not a slate
+              utility card. */}
           <div className={[
-            'rounded-lg border px-3 py-2',
-            entry.agentAction === 'adjusted_next_step' ? 'border-gold/30 bg-gold/5' :
-            'border-border bg-muted/40',
+            'rounded-lg border border-l-[3px] px-3 py-2',
+            entry.agentAction === 'adjusted_next_step'
+              ? 'border-gold/30 border-l-gold bg-gold/5'
+              : 'border-border border-l-gold/40 bg-card/60',
           ].join(' ')}>
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-gold/80 mb-1">
               NeuraLaunch · {entry.agentAction.replace(/_/g, ' ')}
             </p>
             <p className="text-[11px] text-foreground/90 whitespace-pre-wrap break-words">

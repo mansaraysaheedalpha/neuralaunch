@@ -3,6 +3,7 @@
 
 import { motion } from 'motion/react';
 import { useState } from 'react';
+import { MessageCircle, LifeBuoy } from 'lucide-react';
 import {
   buildTaskId,
   type StoredRoadmapTask,
@@ -78,10 +79,18 @@ export function InteractiveTaskCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
       className={[
-        'rounded-lg border bg-card p-4 flex flex-col gap-3',
-        ck.status === 'completed' ? 'border-success/30 opacity-90' :
-        ck.status === 'blocked'   ? 'border-red-500/30' :
-        'border-border',
+        // Card chrome — subtle shadow + status-driven left-rail accent.
+        // The left-rail communicates the task's lifecycle position at a
+        // glance: primary (in progress = "you're on this right now"),
+        // success (completed = "marked done"), red (blocked), slate
+        // (not started). Replaces the prior border-only treatment which
+        // gave every task the same weight.
+        'rounded-lg border bg-card p-4 flex flex-col gap-3 transition-colors shadow-sm shadow-black/10',
+        'border-l-[3px]',
+        ck.status === 'completed'   ? 'border-success/30 border-l-success/60 opacity-90' :
+        ck.status === 'blocked'     ? 'border-red-500/30 border-l-red-500' :
+        ck.status === 'in_progress' ? 'border-primary/30 border-l-primary' :
+                                      'border-border border-l-border',
       ].join(' ')}
     >
       <div className="flex items-start justify-between gap-2">
@@ -147,13 +156,20 @@ export function InteractiveTaskCard({
           />
 
           {!ck.formOpen && !diagnosticOpen && (
-            <div className="flex items-center gap-3">
+            // Outlined chip buttons — were 11px underline links before,
+            // which read as footnotes for what are actually the most-
+            // used per-task affordances. Same pattern as the Reopen-
+            // discussion button on the recommendation page redesign:
+            // visible without dominating, icon + label, slate for the
+            // neutral check-in, primary for the diagnostic lifeline.
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => ck.setFormOpen(true)}
-                className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card/60 px-2.5 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-border/80 transition-colors"
               >
-                Check in on this task →
+                <MessageCircle className="size-3" aria-hidden="true" />
+                Check in on this task
               </button>
               {/* A6: task-level diagnostic — always visible when
                   writable, always active. Opens a focused diagnostic
@@ -162,8 +178,9 @@ export function InteractiveTaskCard({
               <button
                 type="button"
                 onClick={() => setDiagnosticOpen(true)}
-                className="text-[11px] text-primary/80 hover:text-primary underline underline-offset-2"
+                className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-primary/90 hover:bg-primary/10 hover:border-primary/50 transition-colors"
               >
+                <LifeBuoy className="size-3" aria-hidden="true" />
                 Get help with this task
               </button>
             </div>

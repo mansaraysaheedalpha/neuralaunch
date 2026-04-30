@@ -32,22 +32,29 @@ export function PhaseBlock({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.1 }}
+      transition={{ delay: index * 0.06, duration: 0.35, ease: 'easeOut' }}
       className="flex flex-col gap-4"
     >
-      <div className="flex items-start gap-3">
-        <div className="flex-shrink-0 size-7 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">
+      <div className="flex items-start gap-3.5">
+        {/* Phase badge — bumped from size-7 primary/10 to size-9 gold-
+            tinted ring + gold text. Gold reads as a chapter milestone
+            ("a phase of the journey") while primary stays for tasks
+            within the chapter. The size lift gives the most important
+            hierarchy signal of the roadmap the visual weight it
+            deserves, matching the numbered tile-badges we shipped on
+            the recommendation page's First Three Steps. */}
+        <div className="flex-shrink-0 size-9 rounded-lg border border-gold/30 bg-gold/10 text-gold text-sm font-bold flex items-center justify-center">
           {phase.phase}
         </div>
-        <div>
-          <h3 className="text-base font-semibold text-foreground">{phase.title}</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">{phase.objective}</p>
-          <p className="text-[11px] text-muted-foreground/60 mt-1">
+        <div className="flex flex-col gap-1">
+          <h3 className="text-lg font-semibold text-foreground tracking-tight">{phase.title}</h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">{phase.objective}</p>
+          <p className="text-[11px] text-muted-foreground/70 mt-0.5">
             {phase.durationWeeks} week{phase.durationWeeks !== 1 ? 's' : ''}
           </p>
         </div>
       </div>
-      <div className="ml-10 flex flex-col gap-2">
+      <div className="ml-12 flex flex-col gap-2">
         {phase.tasks.map((task, i) => (
           <InteractiveTaskCard
             key={i}
