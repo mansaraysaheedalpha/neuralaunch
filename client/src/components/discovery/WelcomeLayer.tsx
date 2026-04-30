@@ -85,7 +85,7 @@ export function WelcomeLayer({ firstName, isVisible, isFirstSession = false, onO
             className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/40 px-3 py-1 text-[11px] font-medium text-muted-foreground"
           >
             <Compass className="size-3 text-gold" aria-hidden="true" />
-            Discovery interview · 5–15 questions
+            Discovery interview
           </motion.p>
 
           <motion.h2

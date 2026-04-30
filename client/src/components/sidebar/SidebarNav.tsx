@@ -4,7 +4,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Compass, Settings, Wrench, LayoutGrid, Globe, type LucideIcon } from 'lucide-react';
+import { Settings, Wrench, LayoutGrid, Globe, type LucideIcon } from 'lucide-react';
 import { useHasRoadmap } from './useHasRoadmap';
 import { useHasValidationPages } from './useHasValidationPages';
 
@@ -15,22 +15,23 @@ export interface SidebarNavProps {
 /**
  * SidebarNav — primary top-level navigation inside the expanded sidebar.
  *
- * Five flat siblings (no nesting), each conditional where it makes sense:
- *   1. Discovery — always visible
- *   2. Ventures (or "Past recommendations" for Free) — always visible
- *      Renamed + promoted from sub-item under Discovery; "your" dropped
- *      because the sidebar context already implies ownership.
- *   3. Validation pages — only when the user has ≥1 page (avoids an
+ * Four flat siblings, each conditional where it makes sense:
+ *   1. Ventures (or "Past recommendations" for Free) — always visible
+ *   2. Validation pages — only when the user has ≥1 page (avoids an
  *      empty-list link cluttering the nav for founders who never used
  *      the tool)
- *   4. Tools — only when the user has ≥1 roadmap (tools are context-
+ *   3. Tools — only when the user has ≥1 roadmap (tools are context-
  *      aware and need a recommendation to produce useful output)
- *   5. Settings — always visible
+ *   4. Settings — always visible
  *
- * Active-route highlighting is the only stateful concern; everything
- * else is router-driven. Icons consolidated into a single NavItem helper
- * so the markup stays under the 200-line cap — the previous flat
- * Tailwind-by-hand layout was 175 lines for 4 entries; this scales to 5.
+ * The "Discovery" nav entry that used to live here was removed — it
+ * pointed to the same /discovery route as the "Start Discovery" CTA
+ * at the top of the sidebar (SidebarHeader.tsx) with the same Compass
+ * icon. ChatGPT / Claude / Gemini all use the same pattern: ONE
+ * primary CTA + a list of past chats. The redundant nav entry added
+ * no value — past conversations are already accessible via the
+ * Recent Chats rail beneath this nav, and the active discovery
+ * session shows an "In progress" gold pill there.
  */
 export function SidebarNav({ onNavigate }: SidebarNavProps) {
   const pathname = usePathname();
@@ -46,7 +47,6 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
     ? 'Ventures'
     : 'Past recommendations';
 
-  const isDiscoveryActive  = pathname === '/discovery' || pathname?.startsWith('/discovery/');
   const isVenturesActive   = pathname === '/discovery/recommendations' || pathname?.startsWith('/discovery/recommendations/');
   const isValidationActive = pathname === '/discovery/validation' || pathname?.startsWith('/discovery/validation/');
   const isToolsActive      = pathname === '/tools' || pathname?.startsWith('/tools/');
@@ -54,13 +54,6 @@ export function SidebarNav({ onNavigate }: SidebarNavProps) {
 
   return (
     <div className="p-2">
-      <NavItem
-        href="/discovery"
-        icon={Compass}
-        label="Discovery"
-        active={!!isDiscoveryActive && pathname === '/discovery'}
-        onClick={onNavigate}
-      />
       <NavItem
         href="/discovery/recommendations"
         icon={LayoutGrid}
