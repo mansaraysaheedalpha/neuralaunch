@@ -143,15 +143,37 @@ export default function TierCard({
           <p className="text-3xl font-bold text-white">$0</p>
         ) : showFoundingNote ? (
           <>
-            <p className="text-3xl font-bold text-white">
-              ${foundingMonthlyRate}
-              <span className="text-lg font-medium text-slate-400">/mo</span>
+            {/* Founding-rate clarity:
+                  1. Gold "FOUNDING RATE" eyebrow makes the framing
+                     inescapable. A scanner reads the word before they
+                     read the number, so they cannot misread $19/mo as
+                     the standard price for everyone.
+                  2. Standard rate rendered inline as a strikethrough
+                     immediately to the right of the founding number,
+                     not as a separate caption beneath. The eye reads
+                     "$19 was $29" in one beat — the savings become
+                     felt, not just stated.
+                  3. "Locked in for life — your rate never changes"
+                     removes the contract ambiguity of bare "Locked in
+                     for life" (which a few users could read as "you
+                     can't cancel" rather than "we won't raise your
+                     price"). */}
+            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">
+              Founding rate
             </p>
+            <div className="mt-1 flex items-baseline gap-2">
+              <p className="text-3xl font-bold text-white">
+                ${foundingMonthlyRate}
+                <span className="text-lg font-medium text-slate-400">/mo</span>
+              </p>
+              <p className="text-sm text-slate-500 line-through decoration-slate-600">
+                ${tier.monthly}
+              </p>
+            </div>
             <p className="mt-1 text-xs font-medium text-gold">
-              {isReturningFounder ? "Your founding member rate" : "Locked in for life"}
-            </p>
-            <p className="text-xs text-slate-400">
-              Standard rate ${tier.monthly}/mo
+              {isReturningFounder
+                ? "Your founding member rate — preserved for life."
+                : "Locked in for life — your rate never changes."}
             </p>
           </>
         ) : cycle === "annual" && annualSavings ? (
