@@ -46,7 +46,7 @@ const CATEGORIES: Category[] = [
       {
         question: "What is NeuraLaunch?",
         answer:
-          "NeuraLaunch is a growth engine and execution partner. It interviews your situation, commits to one clear recommendation for your specific circumstances, generates an execution roadmap sized to the hours you actually have, and stays with you through the work — with a Conversation Coach, an Outreach Composer, a Research Tool, a check-in system, and a continuation brief that interprets what you learned at the end of each cycle.",
+          "NeuraLaunch is a growth engine and execution partner. It interviews your situation, commits to one clear recommendation for your specific circumstances, generates an execution roadmap sized to the hours you actually have, and stays with you through the work — with a Conversation Coach, an Outreach Composer, a Research Tool, a Service Packager, a Validation Page builder, a check-in system, and a continuation brief that interprets what you learned at the end of each cycle.",
       },
       {
         question: "Who is NeuraLaunch built for?",
@@ -83,7 +83,7 @@ const CATEGORIES: Category[] = [
       {
         question: "Can I leave and come back later?",
         answer:
-          "Yes. If you walk away mid-interview and return within roughly 72 hours, the session resumes exactly where you left off — every previous answer is still there.",
+          "Yes. The active session is held in a 15-minute sliding window — every answer extends it. If you walk away for longer, the session is rehydrated from durable storage when you return, so every previous answer is still there.",
       },
       {
         question: "What if I’m stuck on a question?",
@@ -105,7 +105,7 @@ const CATEGORIES: Category[] = [
       {
         question: "What if I disagree with the recommendation?",
         answer:
-          "You can push back. Up to seven rounds of real argument. The system will defend its position when it should, refine where your point is valid, and replace the recommendation entirely if you and the evidence together prove it wrong. After seven rounds, if the disagreement persists, it produces a second alternative path built from the dominant thread of your pushback.",
+          "You can push back. The cap depends on your tier — up to 10 rounds on Execute, up to 15 on Compound. The system will defend its position when it should, refine where your point is valid, and replace the recommendation entirely if you and the evidence together prove it wrong. At the cap, if the disagreement persists, it produces a closing move — a second alternative path built from the dominant thread of your pushback.",
       },
       {
         question: "Can I flag specific assumptions in the recommendation?",
@@ -128,7 +128,7 @@ const CATEGORIES: Category[] = [
       {
         question: "What does the roadmap look like?",
         answer:
-          "Two to six phases. Up to five tasks per phase. Each task carries a description, a rationale, a realistic time estimate against your hours, and a success criterion you can actually check. Many tasks suggest a specific NeuraLaunch tool — Conversation Coach, Outreach Composer, or Research Tool — to use at the right moment.",
+          "Two to six phases, with up to five tasks per phase. Each task carries a description, a rationale, a realistic time estimate against your hours, and a success criterion you can actually check. Many tasks suggest a specific NeuraLaunch tool — Conversation Coach, Outreach Composer, Research Tool, Service Packager, or Validation Page — to use at the right moment.",
       },
       {
         question: "What does the Conversation Coach do?",
@@ -148,7 +148,7 @@ const CATEGORIES: Category[] = [
       {
         question: "Can I use the tools without a roadmap?",
         answer:
-          "Yes. All three tools are also available as standalone tools from the sidebar — useful when you need one of them for something outside the current task.",
+          "Yes. The full toolkit — Conversation Coach, Outreach Composer, Research Tool, Service Packager, and Validation Page — is also available standalone from the Tools section in the sidebar, useful when you need one of them for something outside the current task.",
       },
     ],
   },
@@ -175,7 +175,7 @@ const CATEGORIES: Category[] = [
       {
         question: "What is the continuation brief?",
         answer:
-          "Five sections: what happened, what the system got wrong, what the evidence says, two-to-four concrete forks for what you could do next (each with a first step, a time estimate, and the condition under which that fork would be the right one), and the parking lot of adjacent ideas you surfaced along the way. You pick a fork and the next cycle begins — auto-accepted, with speed calibration from what you actually did feeding into the new roadmap.",
+          "Five sections: what happened, what the system got wrong, what the evidence says, two or three concrete forks for what you could do next (each with a first move and the condition under which that fork would be the right one), and the parking lot of adjacent ideas you surfaced along the way. You pick a fork and the next cycle begins — auto-accepted, with speed calibration from what you actually did feeding into the new roadmap.",
       },
       {
         question: "Will it remember me across sessions?",
@@ -236,7 +236,7 @@ const CATEGORIES: Category[] = [
       {
         question: "Can I opt in to help train the system?",
         answer:
-          "Yes — and only if you choose to. After completing a roadmap, you can opt in to share an anonymised version of the outcome (with personal identifiers stripped, locations reduced to country) to help future founders. You can revoke at any time — and revocation removes the anonymised record from existing data, not just future submissions.",
+          "Yes — and only if you choose to. After completing a roadmap, you can opt in to share an anonymised version of the outcome — with personal identifiers stripped and the geographic market reduced to country level — to help future founders. You can revoke at any time, and revocation removes the anonymised record from existing data, not just future submissions. The anonymised record also has a 24-month TTL so older outcomes age out automatically.",
       },
       {
         question: "Can I delete my data?",
