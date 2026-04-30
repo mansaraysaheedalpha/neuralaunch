@@ -152,24 +152,28 @@ export function autoRedactReport(
 ): TransformationReport {
   const r = (s: string) => autoRedactString(s, founderFirstName);
 
+  // Schema is now all-required (every field present, never null).
+  // The renderer's source of truth for which sections appear is
+  // sectionOrder; an empty/short body in any section is dropped at
+  // render time by the engine's normaliseSectionOrder. Redaction
+  // therefore always runs against a present string.
   const redacted: TransformationReport = {
-    startingPoint:     report.startingPoint     != null ? r(report.startingPoint)     : null,
-    centralChallenge:  report.centralChallenge  != null ? r(report.centralChallenge)  : null,
-    decisivePivots:    report.decisivePivots != null
-      ? report.decisivePivots.map(p => ({
-          moment: r(p.moment),
-          why:    r(p.why),
-          change: r(p.change),
-        }))
-      : null,
-    whatYouLearned:    report.whatYouLearned    != null ? r(report.whatYouLearned)    : null,
-    whatYouBuilt:      report.whatYouBuilt      != null ? r(report.whatYouBuilt)      : null,
-    honestStruggles:   report.honestStruggles   != null ? r(report.honestStruggles)   : null,
-    endingPoint:       report.endingPoint       != null ? r(report.endingPoint)       : null,
+    startingPoint:     r(report.startingPoint),
+    centralChallenge:  r(report.centralChallenge),
+    decisivePivots:    report.decisivePivots.map(p => ({
+      moment: r(p.moment),
+      why:    r(p.why),
+      change: r(p.change),
+    })),
+    whatYouLearned:    r(report.whatYouLearned),
+    whatYouBuilt:      r(report.whatYouBuilt),
+    honestStruggles:   r(report.honestStruggles),
+    endingPoint:       r(report.endingPoint),
     closingReflection: r(report.closingReflection),
-    customSections:    report.customSections != null
-      ? report.customSections.map(cs => ({ heading: r(cs.heading), body: r(cs.body) }))
-      : null,
+    customSections:    report.customSections.map(cs => ({
+      heading: r(cs.heading),
+      body:    r(cs.body),
+    })),
     sectionOrder:      report.sectionOrder,
   };
 
@@ -236,23 +240,22 @@ export function applyRedactionEdits(
   };
 
   const out: TransformationReport = {
-    startingPoint:     report.startingPoint     != null ? apply(report.startingPoint)     : null,
-    centralChallenge:  report.centralChallenge  != null ? apply(report.centralChallenge)  : null,
-    decisivePivots:    report.decisivePivots != null
-      ? report.decisivePivots.map(p => ({
-          moment: apply(p.moment),
-          why:    apply(p.why),
-          change: apply(p.change),
-        }))
-      : null,
-    whatYouLearned:    report.whatYouLearned    != null ? apply(report.whatYouLearned)    : null,
-    whatYouBuilt:      report.whatYouBuilt      != null ? apply(report.whatYouBuilt)      : null,
-    honestStruggles:   report.honestStruggles   != null ? apply(report.honestStruggles)   : null,
-    endingPoint:       report.endingPoint       != null ? apply(report.endingPoint)       : null,
+    startingPoint:     apply(report.startingPoint),
+    centralChallenge:  apply(report.centralChallenge),
+    decisivePivots:    report.decisivePivots.map(p => ({
+      moment: apply(p.moment),
+      why:    apply(p.why),
+      change: apply(p.change),
+    })),
+    whatYouLearned:    apply(report.whatYouLearned),
+    whatYouBuilt:      apply(report.whatYouBuilt),
+    honestStruggles:   apply(report.honestStruggles),
+    endingPoint:       apply(report.endingPoint),
     closingReflection: apply(report.closingReflection),
-    customSections:    report.customSections != null
-      ? report.customSections.map(cs => ({ heading: apply(cs.heading), body: apply(cs.body) }))
-      : null,
+    customSections:    report.customSections.map(cs => ({
+      heading: apply(cs.heading),
+      body:    apply(cs.body),
+    })),
     sectionOrder:      report.sectionOrder,
   };
   return TransformationReportSchema.parse(out);

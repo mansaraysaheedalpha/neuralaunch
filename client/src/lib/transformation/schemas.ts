@@ -64,37 +64,31 @@ export type TransformationDecisivePivot = z.infer<typeof TransformationDecisiveP
 // sectionOrder are dropped at render time.
 // ---------------------------------------------------------------------------
 
+/**
+ * IMPORTANT: every field on this schema is REQUIRED — no `.nullable()`,
+ * no `.optional()` — because Anthropic's structured-output validator
+ * was returning `{}` (empty tool-call args) when the schema mixed
+ * 8+ nullable strings with verbose descriptions. The renderer
+ * achieves the dynamic-section experience at RENDER TIME by
+ * checking `sectionOrder` and dropping sections whose body is
+ * empty/whitespace. Tone instruction: "if a section has nothing
+ * real to say, write a single short sentence acknowledging that
+ * and OMIT the key from sectionOrder so the renderer drops it."
+ *
+ * Field descriptions are kept short. Long descriptions inflate the
+ * tool spec and reduce model reliability.
+ */
 export const TransformationReportSchema = z.object({
-  startingPoint: z.string().nullable().describe(
-    'Where the founder was when they started this venture — their situation, their constraints, what they had been trying. Quote their own opening words from the discovery interview when possible. Honest, specific. Set to null only if no meaningful starting belief state exists.',
-  ),
-  centralChallenge: z.string().nullable().describe(
-    'The real thing they were stuck on or trying to solve at the heart of this venture. The actual problem, not the surface symptom they first described. Set to null only if the venture\'s through-line was unclear.',
-  ),
-  decisivePivots: z.array(TransformationDecisivePivotSchema).nullable().describe(
-    '2 to 4 turning points across the venture — moments that materially changed direction, conviction, or scope. Reference specific evidence: a check-in, a fork pick, a validation result, a pushback round. Set to null or empty when the journey was linear.',
-  ),
-  whatYouLearned: z.string().nullable().describe(
-    'Insights that compound BEYOND this specific venture — things the founder will carry into whatever comes next. Frame as durable lessons, not bullet points. Set to null only if no learning surfaces.',
-  ),
-  whatYouBuilt: z.string().nullable().describe(
-    'Concrete outputs the founder produced — a priced offering, a list of customers contacted, a published landing page, a real conversation that led somewhere, a working MVP. Real things. Set to null when nothing concrete shipped.',
-  ),
-  honestStruggles: z.string().nullable().describe(
-    'What was hard. What they avoided. What almost stopped them. What they had to push through. Honest, not performative — refer to specific check-ins or blocked tasks when the evidence is there. Set to null when the journey was genuinely smooth (rare).',
-  ),
-  endingPoint: z.string().nullable().describe(
-    'Where the founder is RIGHT NOW as they mark complete — what changed inside them, what tangible outcome arrived (or didn\'t), what the validation signal said. Honest about negative outcomes: market said no, walked away, pivoted out — these are valuable stories. Set to null only if the venture ended without resolution.',
-  ),
-  closingReflection: z.string().describe(
-    '2-3 sentences addressed DIRECTLY TO THE FOUNDER in second person. In their voice as much as you can manage. Acknowledges what they actually did, names the choice ahead, ends with something that respects them. Always populated — never null.',
-  ),
-  customSections: z.array(TransformationCustomSectionSchema).nullable().describe(
-    'Optional extra sections for things that genuinely emerged outside the default sections (e.g. a specific community they unexpectedly connected with, a personal life event that shaped the venture, a moment of clarity worth its own beat). Set to null or empty when the defaults cover the story. Do not invent sections to fill space.',
-  ),
-  sectionOrder: z.array(z.enum(DEFAULT_SECTION_KEYS)).describe(
-    'Ordered list of which DEFAULT sections appear and in what order. Sections not listed here are dropped from the rendered report — drop sections that have nothing real to say. closingReflection is typically last. Custom sections render after the default list, in the order they appear in customSections.',
-  ),
+  startingPoint:     z.string().describe('Where the founder was when they started this venture. Quote their own opening words when possible. 2-4 sentences.'),
+  centralChallenge:  z.string().describe('The real thing they were stuck on. The actual problem, not the surface symptom. 2-3 sentences.'),
+  decisivePivots:    z.array(TransformationDecisivePivotSchema).describe('Turning points across the venture (2-4). Empty array if the journey was linear.'),
+  whatYouLearned:    z.string().describe('Insights that compound beyond this venture. Durable lessons, not bullets. 2-4 sentences.'),
+  whatYouBuilt:      z.string().describe('Concrete outputs produced. 1-3 sentences. If nothing shipped, say so honestly.'),
+  honestStruggles:   z.string().describe('What was hard. What they avoided. What almost stopped them. 2-3 sentences.'),
+  endingPoint:       z.string().describe('Where the founder is right now. Honest about negative outcomes. 2-4 sentences.'),
+  closingReflection: z.string().describe('2-3 sentences addressed to the founder in second person. Acknowledges what they did, ends respectfully.'),
+  customSections:    z.array(TransformationCustomSectionSchema).describe('Optional extra sections for asymmetric findings. Empty array if the defaults cover the story.'),
+  sectionOrder:      z.array(z.enum(DEFAULT_SECTION_KEYS)).describe('Ordered list of which sections render, in narrative order. Drop section keys whose body has nothing real to say. closingReflection is typically last.'),
 });
 export type TransformationReport = z.infer<typeof TransformationReportSchema>;
 
