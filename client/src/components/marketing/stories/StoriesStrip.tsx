@@ -36,7 +36,8 @@ export async function StoriesStrip() {
             id="stories-heading"
             className="mt-3 text-balance text-heading text-white"
           >
-            Real founders. Real journeys.
+            Real founders.{' '}
+            <span className="italic text-gold font-serif">Real journeys.</span>
           </h2>
           <p className="mt-5 text-base leading-relaxed text-slate-300 sm:text-lg">
             Every story below is from a real founder who completed a venture on NeuraLaunch.
