@@ -368,6 +368,71 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
         </motion.span>
       </button>
 
+      {/* Always-visible transformation-report banner. Surfaces on
+          completed ventures regardless of card-expansion state so a
+          founder who just clicked "Confirm complete" sees the status
+          IMMEDIATELY — even after the venture re-sorts into the
+          Completed section and the card collapses on re-render.
+          Without this banner the affordance hides inside the
+          expanded body and founders miss it. */}
+      {status === 'completed' && report && report.stage !== 'complete' && report.stage !== 'failed' && (
+        <Link
+          href={`/discovery/recommendations/${venture.id}/transformation`}
+          className="block border-t border-border bg-primary/5 px-4 py-2.5 hover:bg-primary/10 transition-colors"
+        >
+          <div className="flex items-start gap-2">
+            <Loader2 className="size-3.5 text-primary mt-0.5 shrink-0 animate-spin" />
+            <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+              <p className="text-[11px] font-medium text-foreground">
+                Generating your transformation report…
+              </p>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                Reading every cycle and check-in to write your narrative. Usually 1 to 3 minutes — tap to watch progress, or close the tab and come back.
+              </p>
+            </div>
+            <ChevronDown className="size-3.5 text-primary mt-0.5 shrink-0 -rotate-90" />
+          </div>
+        </Link>
+      )}
+      {status === 'completed' && report && report.stage === 'complete' && (
+        <Link
+          href={`/discovery/recommendations/${venture.id}/transformation`}
+          className="block border-t border-border bg-success/5 px-4 py-2.5 hover:bg-success/10 transition-colors"
+        >
+          <div className="flex items-start gap-2">
+            <Sparkles className="size-3.5 text-success mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+              <p className="text-[11px] font-medium text-foreground">
+                Your transformation report is ready
+              </p>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                A personal narrative of how this venture went. Tap to read.
+              </p>
+            </div>
+            <ChevronDown className="size-3.5 text-success mt-0.5 shrink-0 -rotate-90" />
+          </div>
+        </Link>
+      )}
+      {status === 'completed' && report && report.stage === 'failed' && (
+        <Link
+          href={`/discovery/recommendations/${venture.id}/transformation`}
+          className="block border-t border-border bg-red-500/5 px-4 py-2.5 hover:bg-red-500/10 transition-colors"
+        >
+          <div className="flex items-start gap-2">
+            <Sparkles className="size-3.5 text-red-500 mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+              <p className="text-[11px] font-medium text-foreground">
+                Transformation report failed
+              </p>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                Something went wrong generating your narrative. Tap for details.
+              </p>
+            </div>
+            <ChevronDown className="size-3.5 text-red-500 mt-0.5 shrink-0 -rotate-90" />
+          </div>
+        </Link>
+      )}
+
       {/* Expanded cycle list */}
       <AnimatePresence initial={false}>
         {expanded && (
@@ -442,7 +507,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                         Generating your transformation report…
                       </p>
                       <p className="text-[10px] text-muted-foreground leading-relaxed">
-                        I&apos;m reading every cycle, every check-in, and every tool you used to write a personal narrative of how this went. Takes about 30 seconds. You can close this tab — it&apos;ll be ready when you come back.
+                        I&apos;m reading every cycle, every check-in, and every tool you used to write a personal narrative of how this went. Usually takes 1 to 3 minutes. You can close this tab — it&apos;ll be ready when you come back.
                       </p>
                       <Link
                         href={`/discovery/recommendations/${venture.id}/transformation`}

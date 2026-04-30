@@ -191,7 +191,7 @@ export function TransformationReportView({
           <div className="flex items-start gap-2">
             <Sparkles className="size-4 text-primary mt-0.5 shrink-0" />
             <p className="text-sm text-foreground/90 leading-relaxed">
-              I&apos;m reading every cycle, every check-in you wrote, and every tool you used to write a personal narrative of how this venture went. Takes about 30 seconds.
+              I&apos;m reading every cycle, every check-in you wrote, and every tool you used to write a personal narrative of how this venture went. Usually takes 1 to 3 minutes.
               <br />
               <span className="text-xs text-muted-foreground">
                 You can close this tab — it&apos;ll be ready when you come back, and a notification will fire if you have push enabled.
