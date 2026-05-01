@@ -3,7 +3,7 @@
 
 import { motion, AnimatePresence } from 'motion/react';
 import { useState } from 'react';
-import { MessageCircle, LifeBuoy, ChevronDown, Clock, MessageSquare, Check, Circle } from 'lucide-react';
+import { MessageCircle, LifeBuoy, ChevronDown, MessageSquare, Check, Circle } from 'lucide-react';
 import {
   buildTaskId,
   type StoredRoadmapTask,
@@ -121,7 +121,11 @@ export function InteractiveTaskCard({
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04 }}
-      className={`rounded-lg border bg-card border-l-[3px] shadow-sm shadow-black/10 transition-colors ${railClass}`}
+      // min-w-0 propagates the shrink-allowance from the parent grid
+      // track into this card and onward to the flex children below.
+      // Without it, a long task title would force the card wider than
+      // its container and cascade into a layout collapse.
+      className={`rounded-lg border bg-card border-l-[3px] shadow-sm shadow-black/10 transition-colors min-w-0 ${railClass}`}
     >
       {/* Collapsed row — always rendered as the row spine. The
           chevron rotates to communicate expand state. Clicking
@@ -130,26 +134,31 @@ export function InteractiveTaskCard({
         type="button"
         onClick={onToggle}
         aria-expanded={isExpanded}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-background rounded-lg"
+        className="flex w-full items-center gap-3 px-4 py-3.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-background rounded-lg"
       >
         <StatusDot status={ck.status} />
         <p className={[
-          'flex-1 min-w-0 text-sm font-medium break-words',
+          // Title bumped from text-sm to text-base + font-semibold
+          // to match the design tool's larger, more-readable header.
+          // The task title is the primary scanning anchor for a row
+          // and deserves more weight than supporting metadata.
+          'flex-1 min-w-0 text-base font-semibold break-words',
           ck.status === 'completed' ? 'text-foreground/70 line-through decoration-foreground/30' : 'text-foreground',
         ].join(' ')}>
           {ck.task.title}
         </p>
-        {/* Time budget chip — surfaces the most-glanced metadata
-            without needing to expand the card. */}
-        <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-muted-foreground tabular-nums shrink-0 rounded-full border border-border bg-card/60 px-2 py-0.5">
-          <Clock className="size-2.5" aria-hidden="true" />
+        {/* Time budget — small slate pill, kept on the right side of
+            the row per the design tool spec. NOT on the left of the
+            title (the prior placement made the title visually
+            secondary). */}
+        <span className="hidden sm:inline-flex items-center text-[11px] text-muted-foreground/90 tabular-nums shrink-0 rounded-full bg-muted px-2.5 py-0.5">
           {ck.task.timeEstimate}
         </span>
-        {/* Check-in count — small affordance so the founder can see
-            "I have N check-ins on this task" without expanding. */}
+        {/* Check-in count — visible affordance so the founder can
+            see "I have N check-ins on this task" without expanding. */}
         {checkInCount > 0 && (
-          <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-muted-foreground tabular-nums shrink-0">
-            <MessageSquare className="size-2.5" aria-hidden="true" />
+          <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-muted-foreground tabular-nums shrink-0">
+            <MessageSquare className="size-3" aria-hidden="true" />
             {checkInCount}
           </span>
         )}

@@ -247,7 +247,15 @@ export function RoadmapView({
           panel always stretches to the full remaining canvas width
           so task descriptions get comfortable reading width. */}
       <div className="px-6 lg:px-10 pt-6 pb-10">
-        <div className="grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-8 lg:gap-10 items-start">
+        {/* CRITICAL: minmax(0, 1fr) — without the explicit min=0, the
+            CSS grid track defaults to min-width: auto, which means
+            "do not shrink below intrinsic content width." A long
+            task title or description with no soft breakpoints would
+            then push the track wider than the canvas, the rail
+            stays at 200px, and at the wrong viewport width the
+            panel content collapses to a 1-character vertical
+            column. minmax(0, 1fr) explicitly allows shrink. */}
+        <div className="grid grid-cols-1 lg:grid-cols-[200px_minmax(0,1fr)] gap-8 lg:gap-10 items-start">
           <PhaseRail
             phases={data.phases}
             selectedPhase={effectiveSelectedPhase}

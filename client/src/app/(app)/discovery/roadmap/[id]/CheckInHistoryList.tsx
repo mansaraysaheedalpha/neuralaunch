@@ -33,17 +33,21 @@ export function CheckInHistoryList({ history }: CheckInHistoryListProps) {
     // zero-JS keyboard accessibility — Space/Enter on the summary
     // toggles, screen readers announce "expanded" / "collapsed."
     <details className="group rounded-lg border border-border bg-card/40">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg">
-        <div className="flex items-center gap-2">
-          <MessageSquare className="size-3.5 text-muted-foreground" aria-hidden="true" />
-          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg">
+        <div className="flex items-center gap-2.5">
+          <MessageSquare className="size-3.5 text-gold" aria-hidden="true" />
+          {/* CHECK-IN HISTORY eyebrow rendered in gold (was muted slate)
+              to match the design tool spec. The check-in transcript is
+              the founder's own voice on the task — gold framing reads
+              as "this is something the system values," not just a log. */}
+          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gold">
             Check-in history
           </span>
-          <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground">
+          <span className="inline-flex items-center rounded-full bg-gold/10 border border-gold/20 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-gold/90">
             {history.length} / 5
           </span>
         </div>
-        <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground/70">
+        <span className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground/80">
           <span className="hidden sm:inline group-open:hidden">expand</span>
           <span className="hidden group-open:inline-flex">collapse</span>
           <ChevronDown className="size-3.5 transition-transform duration-200 group-open:rotate-180" aria-hidden="true" />
