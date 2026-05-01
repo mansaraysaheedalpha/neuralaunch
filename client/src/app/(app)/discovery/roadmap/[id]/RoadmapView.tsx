@@ -89,6 +89,20 @@ export function RoadmapView({
     ? { totalTasks: data.progress.totalTasks, completedTasks: data.progress.completedTasks }
     : null;
 
+  // Cumulative phase week ranges. Each phase carries a single
+  // durationWeeks number; the rail wants to show "WEEKS 4-5" for
+  // phase 2 when phase 1 was 3 weeks. Computed once here and passed
+  // down so PhaseRail stays presentational. Implemented as a reduce
+  // (rather than a let-cursor + map) to satisfy the React 19
+  // react-hooks/immutability lint rule, which forbids reassigning
+  // a variable across render-time iterations.
+  const phaseRanges = data.phases.reduce<Array<{ phase: number; startWeek: number; endWeek: number }>>((acc, p) => {
+    const dur   = Math.max(1, p.durationWeeks ?? 1);
+    const start = acc.length === 0 ? 1 : acc[acc.length - 1].endWeek + 1;
+    const end   = start + dur - 1;
+    return [...acc, { phase: p.phase, startWeek: start, endWeek: end }];
+  }, []);
+
   // Active phase = first phase with at least one not-yet-completed
   // task. Falls back to the last phase when everything is done so the
   // PhaseRail still has something to mark as the founder's position.
@@ -258,6 +272,7 @@ export function RoadmapView({
         <div className="grid grid-cols-1 lg:grid-cols-[200px_minmax(0,1fr)] gap-8 lg:gap-10 items-start">
           <PhaseRail
             phases={data.phases}
+            phaseRanges={phaseRanges}
             selectedPhase={effectiveSelectedPhase}
             activePhase={activePhase}
             onSelect={setSelectedPhase}

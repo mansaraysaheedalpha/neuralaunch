@@ -24,7 +24,11 @@ function Stat({ label, value, valueClass }: StatProps) {
       <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">
         {label}
       </p>
-      <p className={`text-lg font-semibold tabular-nums leading-none ${valueClass ?? 'text-foreground'}`}>
+      {/* Stat values sized to design-tool spec: 16px / 600. Was
+          text-lg (18px) before — tighter scale matches the rest of
+          the band's more-compact rhythm. Mono so digits align across
+          stats. */}
+      <p className={`text-base font-mono font-semibold tabular-nums leading-none ${valueClass ?? 'text-foreground'}`}>
         {value}
       </p>
     </div>
@@ -105,11 +109,13 @@ export function RoadmapProgressHeader({
           )}
         </div>
 
-        {/* Big percentage on the right — the most-glanced metric.
-            Switches from primary to success at 100% so the completion
-            moment is felt across the band. */}
+        {/* Big percentage on the right — design-tool spec: 24px / 600.
+            Was text-3xl (30px) before; the spec calls for a more
+            restrained 24px so the percentage feels deliberate, not
+            a billboard. Switches from primary to success at 100% so
+            the completion moment is felt across the band. */}
         <div className="flex items-baseline gap-2 shrink-0">
-          <span className={`text-3xl font-semibold tabular-nums leading-none ${isDone ? 'text-success' : 'text-primary'}`}>
+          <span className={`text-2xl font-mono font-semibold tabular-nums leading-none ${isDone ? 'text-success' : 'text-primary'}`}>
             {pct}%
           </span>
           <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">

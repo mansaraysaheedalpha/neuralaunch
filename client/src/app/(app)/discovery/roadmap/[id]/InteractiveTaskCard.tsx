@@ -9,6 +9,7 @@ import {
   type StoredRoadmapTask,
   type CheckInEntry,
 } from '@/lib/roadmap/checkin-types';
+import { shortenTimeEstimate } from './time-budget-shortener';
 import { CheckInForm }         from './CheckInForm';
 import { CheckInHistoryList }  from './CheckInHistoryList';
 import { TaskDiagnosticChat }  from './TaskDiagnosticChat';
@@ -138,26 +139,27 @@ export function InteractiveTaskCard({
       >
         <StatusDot status={ck.status} />
         <p className={[
-          // Title bumped from text-sm to text-base + font-semibold
-          // to match the design tool's larger, more-readable header.
-          // The task title is the primary scanning anchor for a row
-          // and deserves more weight than supporting metadata.
-          'flex-1 min-w-0 text-base font-semibold break-words',
+          // Title sized to design-tool spec: 13.5px / 500. Heavier
+          // than body, lighter than the section h2 — the task title
+          // is a row spine, not a heading. Was text-base font-semibold
+          // before, which dominated the row visually.
+          'flex-1 min-w-0 text-[13.5px] font-medium break-words',
           ck.status === 'completed' ? 'text-foreground/70 line-through decoration-foreground/30' : 'text-foreground',
         ].join(' ')}>
           {ck.task.title}
         </p>
-        {/* Time budget — small slate pill, kept on the right side of
-            the row per the design tool spec. NOT on the left of the
-            title (the prior placement made the title visually
-            secondary). */}
-        <span className="hidden sm:inline-flex items-center text-[11px] text-muted-foreground/90 tabular-nums shrink-0 rounded-full bg-muted px-2.5 py-0.5">
-          {ck.task.timeEstimate}
+        {/* Time pill — short mono form ("6-8h" / "1w" / "1 ev")
+            instead of the full sentence. The full sentence stays
+            in the TIME BUDGET cell of the expanded card. The prior
+            full-string rendering was eating ~250px of horizontal
+            real estate and forcing the task title to wrap. */}
+        <span className="hidden sm:inline-flex items-center text-[10px] font-mono text-muted-foreground/90 tabular-nums shrink-0 rounded-full bg-muted px-2 py-0.5">
+          {shortenTimeEstimate(ck.task.timeEstimate)}
         </span>
         {/* Check-in count — visible affordance so the founder can
             see "I have N check-ins on this task" without expanding. */}
         {checkInCount > 0 && (
-          <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-muted-foreground tabular-nums shrink-0">
+          <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-mono text-muted-foreground tabular-nums shrink-0">
             <MessageSquare className="size-3" aria-hidden="true" />
             {checkInCount}
           </span>
