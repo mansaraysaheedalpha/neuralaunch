@@ -1,7 +1,7 @@
 'use client';
 // src/app/(app)/discovery/roadmap/[id]/CheckInHistoryList.tsx
 
-import { Sparkles, Wrench, AlertTriangle } from 'lucide-react';
+import { Sparkles, Wrench, AlertTriangle, MessageSquare, ChevronDown } from 'lucide-react';
 import type { CheckInEntry } from '@/lib/roadmap/checkin-types';
 
 export interface CheckInHistoryListProps {
@@ -25,10 +25,31 @@ export interface CheckInHistoryListProps {
 export function CheckInHistoryList({ history }: CheckInHistoryListProps) {
   if (history.length === 0) return null;
   return (
-    <div className="flex flex-col gap-2 pt-2 border-t border-border">
-      <p className="text-[10px] uppercase tracking-widest text-muted-foreground/70">
-        Check-in history ({history.length}/5)
-      </p>
+    // Collapsible bar — collapsed by default. Even one check-in is two
+    // cards (founder turn + agent turn); five check-ins is ten cards
+    // before any other affordance is reachable. The bar shows a count
+    // badge so the founder can see at a glance "I have 3/5 check-ins
+    // captured" without expanding. Native <details>/<summary> for
+    // zero-JS keyboard accessibility — Space/Enter on the summary
+    // toggles, screen readers announce "expanded" / "collapsed."
+    <details className="group rounded-lg border border-border bg-card/40">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg">
+        <div className="flex items-center gap-2">
+          <MessageSquare className="size-3.5 text-muted-foreground" aria-hidden="true" />
+          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+            Check-in history
+          </span>
+          <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground">
+            {history.length} / 5
+          </span>
+        </div>
+        <span className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground/70">
+          <span className="hidden sm:inline group-open:hidden">expand</span>
+          <span className="hidden group-open:inline-flex">collapse</span>
+          <ChevronDown className="size-3.5 transition-transform duration-200 group-open:rotate-180" aria-hidden="true" />
+        </span>
+      </summary>
+      <div className="flex flex-col gap-2 px-4 pb-3 pt-2 border-t border-border">
       {history.map(entry => (
         <div key={entry.id} className="flex flex-col gap-1.5">
           {/* Founder turn — primary left-rail accent + faint primary tint
@@ -135,6 +156,7 @@ export function CheckInHistoryList({ history }: CheckInHistoryListProps) {
           </div>
         </div>
       ))}
-    </div>
+      </div>
+    </details>
   );
 }

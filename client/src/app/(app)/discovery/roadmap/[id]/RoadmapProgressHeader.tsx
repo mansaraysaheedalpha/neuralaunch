@@ -10,10 +10,46 @@ interface RoadmapProgressHeaderProps {
   totalWeeks:     number | null;
 }
 
+interface StatProps {
+  label:          string;
+  value:          string;
+  /** Optional accent color for the value digits — primary for stage
+   *  context, destructive for blocked. Numbers default to slate-100. */
+  valueClass?:    string;
+}
+
+function Stat({ label, value, valueClass }: StatProps) {
+  return (
+    <div className="flex flex-col gap-1 min-w-0">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">
+        {label}
+      </p>
+      <p className={`text-lg font-semibold tabular-nums leading-none ${valueClass ?? 'text-foreground'}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
 /**
- * RoadmapProgressHeader — sticky at-a-glance progress bar at the top
- * of the roadmap view. Shows task counts, phase position, approximate
- * remaining time, and a thin progress bar.
+ * RoadmapProgressHeader — sticky horizontal stat band at the top of
+ * the roadmap canvas. Replaces the prior inline run-on caption with
+ * a four-stat layout that matches the design tool spec: TASKS / PHASE
+ * / WEEKS LEFT / BLOCKED on the left, big primary percentage on the
+ * right, gradient progress bar at the bottom.
+ *
+ * Each stat carries:
+ *   - eyebrow label in uppercase muted-foreground
+ *   - large tabular-nums value beneath
+ *
+ * The big percentage on the right is the most-glanced metric on the
+ * page and gets the most weight (text-3xl primary, success-green at
+ * 100%). Below it a small uppercase "complete" caption anchors the
+ * meaning. The gradient progress bar (primary→gold→success) shifts
+ * naturally as the founder progresses across the journey.
+ *
+ * Stat columns are separated by thin slate dividers — keeps the band
+ * legible at a glance without forcing the eye to read commas.
  */
 export function RoadmapProgressHeader({
   totalTasks,
@@ -27,37 +63,66 @@ export function RoadmapProgressHeader({
   const isDone = pct === 100;
 
   const remaining = totalWeeks && totalTasks > 0
-    ? Math.max(1, Math.round(totalWeeks * (1 - completedTasks / totalTasks)))
+    ? Math.max(0, Math.round(totalWeeks * (1 - completedTasks / totalTasks)))
     : null;
 
   return (
-    <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border pb-3 -mx-6 px-6 pt-3">
-      <div className="flex items-end justify-between gap-4">
-        <span className="text-caption leading-relaxed">
-          {completedTasks} of {totalTasks} tasks
-          {' · '}Phase {currentPhase} of {totalPhases}
-          {remaining && !isDone && ` · ~${remaining} week${remaining !== 1 ? 's' : ''} remaining`}
-          {blockedTasks > 0 && (
-            <span className="text-destructive ml-1.5">· {blockedTasks} blocked</span>
+    <div className="py-4">
+      <div className="flex items-center justify-between gap-6">
+        {/* Stat columns — TASKS · PHASE · WEEKS LEFT · BLOCKED.
+            BLOCKED is omitted entirely when zero so the band stays
+            visually quiet during normal execution and only surfaces
+            the destructive accent when there's something to act on. */}
+        <div className="flex items-center divide-x divide-border min-w-0 flex-1 overflow-x-auto">
+          <div className="pr-6">
+            <Stat
+              label="Tasks"
+              value={`${completedTasks}/${totalTasks}`}
+            />
+          </div>
+          <div className="px-6">
+            <Stat
+              label="Phase"
+              value={`${currentPhase}/${totalPhases}`}
+            />
+          </div>
+          {remaining !== null && (
+            <div className="px-6">
+              <Stat
+                label="Weeks left"
+                value={isDone ? '0' : `~${remaining}`}
+              />
+            </div>
           )}
-        </span>
-        {/* Percentage promoted to a real focal number — was text-xs in
-            the muted-foreground/60 corner before. The most-glanced
-            metric on this page deserves the most weight. Switches to
-            success-green at 100% so the completion moment is felt. */}
-        <span className={`text-2xl font-semibold tabular-nums leading-none ${isDone ? 'text-success' : 'text-primary'}`}>
-          {pct}%
-        </span>
+          {blockedTasks > 0 && (
+            <div className="px-6">
+              <Stat
+                label="Blocked"
+                value={String(blockedTasks)}
+                valueClass="text-destructive"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Big percentage on the right — the most-glanced metric.
+            Switches from primary to success at 100% so the completion
+            moment is felt across the band. */}
+        <div className="flex items-baseline gap-2 shrink-0">
+          <span className={`text-3xl font-semibold tabular-nums leading-none ${isDone ? 'text-success' : 'text-primary'}`}>
+            {pct}%
+          </span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">
+            complete
+          </span>
+        </div>
       </div>
-      <div className="mt-2 h-1.5 w-full rounded-full bg-muted overflow-hidden">
-        {/* Gradient progress fill — primary → gold → success matches
-            the tier-unlock visual language on the marketing pricing
-            stepper. The gradient is FIXED across the bar (not scaled
-            with width) so as the founder progresses, the visible
-            colour at their position naturally shifts from primary
-            (early phases) toward success (late phases) without
-            requiring any per-state branching. At 100% the bar fills
-            entirely and the eye sees the success-green endcap. */}
+
+      {/* Gradient progress bar — primary → gold → success. As the
+          founder progresses, the visible colour at their position
+          naturally shifts from primary (early) toward success (late)
+          without per-state branching. */}
+      <div className="mt-3 h-1.5 w-full rounded-full bg-muted overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-slow ${isDone ? 'bg-success' : 'bg-gradient-to-r from-primary via-gold to-success'}`}
           style={{ width: `${pct}%` }}

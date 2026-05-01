@@ -132,32 +132,49 @@ export function TaskToolLaunchers({ roadmapId, taskId, task }: TaskToolLaunchers
     );
   }
 
+  // OPEN WITH eyebrow — the launcher row was previously a bare flat
+  // chip cluster with no framing. Wrapping it in an eyebrow + a flex
+  // container gives the row visual identity ("these are the tools
+  // available to do this task") and matches the design tool's spec.
+  // Only render the eyebrow when at least one tool is suggested —
+  // otherwise the eyebrow would dangle over an empty row.
   return (
-    <>
-      {/* Conversation Coach */}
-      <ConversationCoachButton suggestedTools={suggestedTools} onOpen={() => setCoachOpen(true)} />
-      <CoachFlow roadmapId={roadmapId} taskId={taskId} open={coachOpen} onClose={() => setCoachOpen(false)} />
-      {coachSession && !coachOpen && <CoachSessionReview session={coachSession} />}
+    <div className="flex flex-col gap-2 pt-1">
+      {anyToolSuggested && (
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">
+          Open with
+        </p>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Conversation Coach */}
+        <ConversationCoachButton suggestedTools={suggestedTools} onOpen={() => setCoachOpen(true)} />
+        <CoachFlow roadmapId={roadmapId} taskId={taskId} open={coachOpen} onClose={() => setCoachOpen(false)} />
 
-      {/* Outreach Composer */}
-      <OutreachComposerButton suggestedTools={suggestedTools} onOpen={() => setComposerOpen(true)} />
-      <ComposerFlow roadmapId={roadmapId} taskId={taskId} open={composerOpen} onClose={() => setComposerOpen(false)} />
-      {composerSession && !composerOpen && <ComposerSessionReview session={composerSession} />}
+        {/* Outreach Composer */}
+        <OutreachComposerButton suggestedTools={suggestedTools} onOpen={() => setComposerOpen(true)} />
+        <ComposerFlow roadmapId={roadmapId} taskId={taskId} open={composerOpen} onClose={() => setComposerOpen(false)} />
 
-      {/* Research Tool */}
-      <ResearchToolButton suggestedTools={suggestedTools} onOpen={() => setResearchOpen(true)} />
-      <ResearchFlow roadmapId={roadmapId} taskId={taskId} open={researchOpen} onClose={() => setResearchOpen(false)} />
-      {researchSession && !researchOpen && <ResearchSessionReview session={researchSession} />}
+        {/* Research Tool */}
+        <ResearchToolButton suggestedTools={suggestedTools} onOpen={() => setResearchOpen(true)} />
+        <ResearchFlow roadmapId={roadmapId} taskId={taskId} open={researchOpen} onClose={() => setResearchOpen(false)} />
 
-      {/* Service Packager */}
-      <ServicePackagerButton suggestedTools={suggestedTools} onOpen={() => setPackagerOpen(true)} />
-      <PackagerFlow roadmapId={roadmapId} taskId={taskId} open={packagerOpen} onClose={() => setPackagerOpen(false)} />
-      {packagerSession && !packagerOpen && <PackagerSessionReview session={packagerSession} />}
+        {/* Service Packager */}
+        <ServicePackagerButton suggestedTools={suggestedTools} onOpen={() => setPackagerOpen(true)} />
+        <PackagerFlow roadmapId={roadmapId} taskId={taskId} open={packagerOpen} onClose={() => setPackagerOpen(false)} />
 
-      {/* Validation Page */}
-      <ValidationToolButton suggestedTools={suggestedTools} onOpen={() => setValidationOpen(true)} />
-      <ValidationFlow roadmapId={roadmapId} taskId={taskId} open={validationOpen} onClose={() => setValidationOpen(false)} />
+        {/* Validation Page */}
+        <ValidationToolButton suggestedTools={suggestedTools} onOpen={() => setValidationOpen(true)} />
+        <ValidationFlow roadmapId={roadmapId} taskId={taskId} open={validationOpen} onClose={() => setValidationOpen(false)} />
+      </div>
+
+      {/* Session reviews render below the launcher row when present
+          and the corresponding flow is closed — keeps the launcher
+          row tight while still surfacing what the founder produced. */}
+      {coachSession      && !coachOpen      && <CoachSessionReview      session={coachSession} />}
+      {composerSession   && !composerOpen   && <ComposerSessionReview   session={composerSession} />}
+      {researchSession   && !researchOpen   && <ResearchSessionReview   session={researchSession} />}
+      {packagerSession   && !packagerOpen   && <PackagerSessionReview   session={packagerSession} />}
       {validationSession && !validationOpen && <ValidationSessionReview session={validationSession} />}
-    </>
+    </div>
   );
 }
