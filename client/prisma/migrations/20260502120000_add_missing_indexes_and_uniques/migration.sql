@@ -85,6 +85,68 @@ DROP INDEX IF EXISTS "Cycle_ventureId_cycleNumber_idx";
 -- =========================================================================
 -- 4. Enforce integrity invariants via UNIQUE constraints
 -- =========================================================================
+--
+-- Pre-step 4a: inline dedup. Prod was found to carry duplicate
+-- (sessionId, toolType) ToolJob rows on the first deploy attempt
+-- (failed at "ToolJob_sessionId_toolType_key" with key
+-- (rs_1776740287457_22b6f657, research_followup) duplicated). The
+-- duplicates are residue from worker retries that wrote a second row
+-- instead of updating the first — a route-layer bug now closed by the
+-- new unique itself. Inline cleanup so this migration is idempotent on
+-- any environment without requiring an out-of-band manual sweep.
+--
+-- Strategy: keep the most recently updated row per tuple (highest
+-- updatedAt; tie-break by id). Any older sibling rows are deleted.
+-- Same approach for Cycle (keep latest createdAt per
+-- (ventureId, cycleNumber)) and TierTransition (keep latest
+-- occurredAt per non-null paddleEventId).
+--
+-- These DELETEs are a one-time cleanup. After this migration commits,
+-- the unique constraints below structurally prevent the duplicates
+-- from re-appearing.
+
+DELETE FROM "ToolJob"
+WHERE  "id" IN (
+  SELECT "id"
+  FROM (
+    SELECT "id",
+           ROW_NUMBER() OVER (
+             PARTITION BY "sessionId", "toolType"
+             ORDER BY     "updatedAt" DESC, "id" DESC
+           ) AS rn
+    FROM "ToolJob"
+  ) ranked
+  WHERE ranked.rn > 1
+);
+
+DELETE FROM "Cycle"
+WHERE  "id" IN (
+  SELECT "id"
+  FROM (
+    SELECT "id",
+           ROW_NUMBER() OVER (
+             PARTITION BY "ventureId", "cycleNumber"
+             ORDER BY     "createdAt" DESC, "id" DESC
+           ) AS rn
+    FROM "Cycle"
+  ) ranked
+  WHERE ranked.rn > 1
+);
+
+DELETE FROM "TierTransition"
+WHERE  "id" IN (
+  SELECT "id"
+  FROM (
+    SELECT "id",
+           ROW_NUMBER() OVER (
+             PARTITION BY "paddleEventId"
+             ORDER BY     "occurredAt" DESC, "id" DESC
+           ) AS rn
+    FROM "TierTransition"
+    WHERE "paddleEventId" IS NOT NULL
+  ) ranked
+  WHERE ranked.rn > 1
+);
 
 -- TierTransition.paddleEventId — partial unique on non-null values.
 -- A Paddle webhook redelivery (Paddle retries on any 5xx) carries the
@@ -101,17 +163,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS "TierTransition_paddleEventId_key"
 -- pre-allocated by the route; one (sessionId, toolType) tuple should
 -- map to one in-flight job. Prevents a route bug from double-allocating
 -- and producing two competing rows that both try to write the same
--- toolSessions[] entry.
--- NOTE: this CREATE will fail if any duplicate tuple exists in prod.
--- Run the detection query at the bottom of this file first.
+-- toolSessions[] entry. Pre-step 4a above guarantees no duplicates
+-- exist when this CREATE runs.
 CREATE UNIQUE INDEX IF NOT EXISTS "ToolJob_sessionId_toolType_key"
   ON "ToolJob" ("sessionId", "toolType");
 
 -- Cycle (ventureId, cycleNumber) — exactly one cycle per ordinal
 -- per venture. Today the application enforces this in a transaction;
 -- adding the DB constraint protects against a regression that double-
--- creates cycles 2,2 instead of 2,3.
--- NOTE: this CREATE will fail if any duplicate tuple exists in prod.
+-- creates cycles 2,2 instead of 2,3. Pre-step 4a above guarantees no
+-- duplicates exist when this CREATE runs.
 CREATE UNIQUE INDEX IF NOT EXISTS "Cycle_ventureId_cycleNumber_key"
   ON "Cycle" ("ventureId", "cycleNumber");
 
@@ -128,6 +189,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS "Cycle_ventureId_cycleNumber_key"
 -- check efficiently, but a non-unique index is enough.
 CREATE INDEX IF NOT EXISTS "Cycle_roadmapId_idx"
   ON "Cycle" ("roadmapId");
+
+-- Pre-step: NULL out any dangling Cycle.roadmapId values so the FK
+-- creation below cannot fail on a referenced row that was deleted
+-- before the FK existed. Cycle.roadmapId had no constraint until this
+-- migration, so dangling references are a real possibility.
+UPDATE "Cycle" c
+SET    "roadmapId" = NULL
+WHERE  c."roadmapId" IS NOT NULL
+  AND  NOT EXISTS (
+         SELECT 1 FROM "Roadmap" r WHERE r."id" = c."roadmapId"
+       );
 
 ALTER TABLE "Cycle"
   DROP CONSTRAINT IF EXISTS "Cycle_roadmapId_fkey";
