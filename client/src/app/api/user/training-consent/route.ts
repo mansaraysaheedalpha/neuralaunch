@@ -23,9 +23,11 @@ const BodySchema = z.object({
  * Returns the current consent state. Used by the inline opt-in card
  * and the Settings page to render the toggle.
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const userId = await requireUserId();
+    enforceSameOrigin(request);
+    const userId = await requireUserId(request);
+    await rateLimitByUser(userId, 'training-consent-get', RATE_LIMITS.API_READ);
     const user = await prisma.user.findUnique({
       where:  { id: userId },
       select: { trainingConsent: true, trainingConsentAt: true },

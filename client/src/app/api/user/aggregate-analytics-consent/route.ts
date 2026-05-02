@@ -20,9 +20,11 @@ const BodySchema = z.object({
  * GET /api/user/aggregate-analytics-consent
  * Returns the current aggregate analytics consent state.
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const userId = await requireUserId();
+    enforceSameOrigin(request);
+    const userId = await requireUserId(request);
+    await rateLimitByUser(userId, 'aggregate-analytics-consent-get', RATE_LIMITS.API_READ);
     const user = await prisma.user.findUnique({
       where:  { id: userId },
       select: { aggregateAnalyticsConsent: true, aggregateAnalyticsConsentAt: true },

@@ -21,9 +21,11 @@ const BodySchema = z.object({
   nudgesEnabled: z.boolean(),
 });
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const userId = await requireUserId();
+    enforceSameOrigin(request);
+    const userId = await requireUserId(request);
+    await rateLimitByUser(userId, 'push-preferences-get', RATE_LIMITS.API_READ);
     const user = await prisma.user.findUnique({
       where:  { id: userId },
       select: { nudgesEnabled: true },

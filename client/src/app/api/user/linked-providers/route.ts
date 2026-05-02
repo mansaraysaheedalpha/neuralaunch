@@ -11,11 +11,16 @@ import prisma from '@/lib/prisma';
 import {
   httpErrorToResponse,
   requireUserId,
+  enforceSameOrigin,
+  rateLimitByUser,
+  RATE_LIMITS,
 } from '@/lib/validation/server-helpers';
 
 export async function GET(request: Request) {
   try {
+    enforceSameOrigin(request);
     const userId = await requireUserId(request);
+    await rateLimitByUser(userId, 'linked-providers', RATE_LIMITS.API_READ);
 
     const accounts = await prisma.account.findMany({
       where:  { userId },

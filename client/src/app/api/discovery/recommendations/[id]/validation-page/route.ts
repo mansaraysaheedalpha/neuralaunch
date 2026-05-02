@@ -164,11 +164,13 @@ export async function POST(
  * the caller. Returns { page: null } when none exists.
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const userId = await requireUserId();
+    enforceSameOrigin(request);
+    const userId = await requireUserId(request);
+    await rateLimitByUser(userId, 'validation-page-get', RATE_LIMITS.API_READ);
     await requireTierOrThrow(userId, 'execute');
     const { id: recommendationId } = await params;
 

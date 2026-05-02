@@ -13,6 +13,11 @@
 import { NextResponse } from 'next/server';
 import { env } from '@/lib/env';
 import { signState } from '@/lib/mobile-auth';
+import {
+  httpErrorToResponse,
+  rateLimitByIp,
+  RATE_LIMITS,
+} from '@/lib/validation/server-helpers';
 
 // Provider configs — authorization URLs and required scopes
 const PROVIDERS: Record<string, {
@@ -39,35 +44,45 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ provider: string }> },
 ) {
-  const { provider } = await params;
-  const url = new URL(request.url);
-  const redirectUri = url.searchParams.get('redirect_uri');
+  try {
+    // IP-keyed AUTH tier (5/15min) — tighter than API_READ because
+    // each invocation triggers HMAC CPU and a redirect to the OAuth
+    // provider, both of which a script can abuse to burn server-side
+    // work or get our client_id rate-limited at Google/GitHub.
+    await rateLimitByIp(request, 'mobile-oauth-init', RATE_LIMITS.AUTH);
 
-  if (!redirectUri) {
-    return NextResponse.json({ error: 'redirect_uri is required' }, { status: 400 });
+    const { provider } = await params;
+    const url = new URL(request.url);
+    const redirectUri = url.searchParams.get('redirect_uri');
+
+    if (!redirectUri) {
+      return NextResponse.json({ error: 'redirect_uri is required' }, { status: 400 });
+    }
+
+    const config = PROVIDERS[provider];
+    if (!config) {
+      return NextResponse.json({ error: `Unknown provider: ${provider}` }, { status: 400 });
+    }
+
+    // Our callback URL — where the provider redirects after auth
+    const callbackUrl = `${env.NEXTAUTH_URL}/api/auth/mobile/callback`;
+
+    // State encodes the mobile redirect URI + HMAC signature
+    const state = signState(redirectUri);
+
+    // Build the provider's authorization URL
+    const authParams = new URLSearchParams({
+      client_id:     config.clientId,
+      redirect_uri:  callbackUrl,
+      response_type: 'code',
+      scope:         config.scope,
+      state:         `${provider}:${state}`,
+      // Google-specific: force account selection so the user can switch accounts
+      ...(provider === 'google' ? { prompt: 'select_account' } : {}),
+    });
+
+    return NextResponse.redirect(`${config.authUrl}?${authParams.toString()}`);
+  } catch (err) {
+    return httpErrorToResponse(err);
   }
-
-  const config = PROVIDERS[provider];
-  if (!config) {
-    return NextResponse.json({ error: `Unknown provider: ${provider}` }, { status: 400 });
-  }
-
-  // Our callback URL — where the provider redirects after auth
-  const callbackUrl = `${env.NEXTAUTH_URL}/api/auth/mobile/callback`;
-
-  // State encodes the mobile redirect URI + HMAC signature
-  const state = signState(redirectUri);
-
-  // Build the provider's authorization URL
-  const authParams = new URLSearchParams({
-    client_id:     config.clientId,
-    redirect_uri:  callbackUrl,
-    response_type: 'code',
-    scope:         config.scope,
-    state:         `${provider}:${state}`,
-    // Google-specific: force account selection so the user can switch accounts
-    ...(provider === 'google' ? { prompt: 'select_account' } : {}),
-  });
-
-  return NextResponse.redirect(`${config.authUrl}?${authParams.toString()}`);
 }
