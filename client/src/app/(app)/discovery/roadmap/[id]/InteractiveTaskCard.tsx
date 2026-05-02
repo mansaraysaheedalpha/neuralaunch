@@ -122,11 +122,14 @@ export function InteractiveTaskCard({
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04 }}
+      // bg-navy-900 (deeper than shadcn's bg-card) matches the design
+      // tool's task card surface — the card sits as a deeper navy plate
+      // against the canvas, not a lighter raised card. Combined with
+      // the page-level primary radial glow, the card reads as "the
+      // work surface" rather than blending into the canvas.
       // min-w-0 propagates the shrink-allowance from the parent grid
       // track into this card and onward to the flex children below.
-      // Without it, a long task title would force the card wider than
-      // its container and cascade into a layout collapse.
-      className={`rounded-lg border bg-card border-l-[3px] shadow-sm shadow-black/10 transition-colors min-w-0 ${railClass}`}
+      className={`rounded-lg border bg-navy-900 border-l-[3px] shadow-sm shadow-black/10 transition-colors min-w-0 ${railClass}`}
     >
       {/* Collapsed row — always rendered as the row spine. The
           chevron rotates to communicate expand state. Clicking

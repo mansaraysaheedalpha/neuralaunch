@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'motion/react';
-import { Loader2, Lock, Compass } from 'lucide-react';
+import { Loader2, Lock, Compass, Flag } from 'lucide-react';
 import { OutcomeForm } from '@/components/outcome/OutcomeForm';
 import { useRoadmapPolling } from './useRoadmapPolling';
 import { PhaseBlock } from './PhaseBlock';
@@ -136,12 +136,14 @@ export function RoadmapView({
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
       >
-        {/* Top radial glow — primary-blue at 16% fading to ~4% per
-            the design-tool spec the user shared. Anchors the eye on
-            the title + progress band; the workspace lighting is
-            otherwise carried by the per-phase ambient lift inside
-            PhaseBlock so we don't double-tint the canvas. */}
-        <div className="absolute inset-x-0 top-0 h-[560px] bg-[radial-gradient(ellipse_at_top,_hsl(var(--primary)/0.16),_hsl(var(--primary)/0.04)_55%,transparent_75%)]" />
+        {/* Top radial glow — primary-blue at 22% fading to ~6% per
+            the design-tool spec, brightened from the prior 16/4
+            stops so the workspace environment lights up enough to
+            feel like an active surface (was reading too subtle).
+            Anchors the eye on the title + progress band; the canvas
+            now carries ALL the workspace lighting since the per-phase
+            ambient was removed. */}
+        <div className="absolute inset-x-0 top-0 h-[640px] bg-[radial-gradient(ellipse_at_top,_hsl(var(--primary)/0.22),_hsl(var(--primary)/0.06)_55%,transparent_80%)]" />
         {/* Geometric grid — slate-800 at 55% per spec, with a radial
             mask so the lines fade out toward the edges. */}
         <div className="absolute inset-0 opacity-[0.40] [background-image:linear-gradient(to_right,hsl(var(--border)/0.55)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.55)_1px,transparent_1px)] [background-size:42px_42px] [mask-image:radial-gradient(ellipse_at_center,black_50%,transparent_90%)]" />
@@ -326,17 +328,47 @@ export function RoadmapView({
           <ParkingLotInline roadmapId={data.id} initialItems={data.parkingLot ?? []} />
         </div>
 
-        {data.closingThought && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: data.phases.length * 0.06 + 0.2 }}
-            className="max-w-4xl mx-auto w-full rounded-xl border border-primary/20 bg-primary/5 px-5 py-4"
-          >
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-primary/70 mb-2">Your Next Move</p>
-            <p className="text-sm text-foreground leading-relaxed">{data.closingThought}</p>
-          </motion.div>
-        )}
+        {data.closingThought && (() => {
+          // Split the closing thought into a leading declarative
+          // sentence (rendered as the bolder headline, design-tool
+          // style) + the rest as supporting body. Boundary: first
+          // sentence terminator (".", "!", "?") followed by whitespace.
+          // Falls back to the entire string as headline when no
+          // boundary exists, so a one-sentence closing thought still
+          // renders cleanly.
+          const text = data.closingThought.trim();
+          const match = text.match(/^([^.!?]+[.!?])\s+(.+)$/s);
+          const headline = match ? match[1].trim() : text;
+          const body = match ? match[2].trim() : null;
+
+          return (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: data.phases.length * 0.06 + 0.2 }}
+              className="max-w-4xl mx-auto w-full rounded-xl border border-gold/25 bg-gold/[0.04] px-5 py-5"
+            >
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 size-9 rounded-lg border border-gold/30 bg-gold/10 text-gold flex items-center justify-center">
+                  <Flag className="size-4" aria-hidden="true" />
+                </div>
+                <div className="flex flex-col gap-2 min-w-0 flex-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold">
+                    Your next move
+                  </p>
+                  <p className="text-base font-semibold text-foreground leading-snug">
+                    {headline}
+                  </p>
+                  {body && (
+                    <p className="text-[13px] text-muted-foreground leading-[1.55]">
+                      {body}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          );
+        })()}
 
         {/* Concern 5 — outcome capture form. */}
         {outcomePromptVisible && (

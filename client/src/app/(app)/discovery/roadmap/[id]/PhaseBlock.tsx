@@ -78,18 +78,21 @@ export function PhaseBlock({
     : isCurrentPhase ? { count: `${completedCount}/${totalCount} complete`, label: 'In progress', color: 'text-gold'    }
     :                  { count: `${completedCount}/${totalCount} complete`, label: null,          color: 'text-muted-foreground/70' };
 
-  // Active-phase ambient lift — soft gold gradient across the block
-  // surface so the workspace feels lit. Inactive phases stay flat.
-  const ambientClass = isCurrentPhase
-    ? 'bg-gradient-to-b from-gold/[0.04] via-transparent to-transparent rounded-xl px-4 -mx-4 py-3 -my-1'
-    : '';
+  // No per-phase background tint — the previous edit wrapped the
+  // header in a gold-tinted box that read as "dark background under
+  // the title," which is the OPPOSITE of the design tool. The design
+  // tool keeps the phase header on the canvas itself; the workspace
+  // lighting is carried by the page-level radial glow + grid backdrop
+  // in RoadmapView, not by a per-phase rectangle. Leaving the wrapper
+  // empty so isCurrentPhase still flows through to the status word
+  // colour without painting any chrome.
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06, duration: 0.35, ease: 'easeOut' }}
-      className={`flex flex-col gap-4 ${ambientClass}`}
+      className="flex flex-col gap-4"
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3.5 min-w-0 flex-1">

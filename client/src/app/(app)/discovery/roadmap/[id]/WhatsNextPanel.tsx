@@ -56,75 +56,78 @@ export function WhatsNextPanel({ roadmapId }: { roadmapId: string }) {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-4 flex flex-col gap-3"
+      className="rounded-xl border border-primary/25 bg-primary/[0.04] px-5 py-5 flex flex-col gap-3"
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          {/* Compass icon anchors the action — was a generic "Always
-              available" eyebrow that read as internal copy that leaked
-              into the product. The title alone is the meaning, the
-              icon adds visual weight + product-language consistency
-              with the agent-presence pill above the roadmap header. */}
-          <span className="flex size-7 items-center justify-center rounded-md bg-primary/15 text-primary">
-            <Compass className="size-3.5" aria-hidden="true" />
-          </span>
-          <p className="text-sm font-semibold text-foreground">What&apos;s next?</p>
+      {/* Icon-tile + stacked-content composition matching the design
+          tool. Compass tile anchors the section as a "moment," eyebrow
+          + state-aware headline + supporting body stack on the right.
+          The action sits in the top-right of the row. The headline
+          changes per flow.phase so the surface tells the founder WHAT
+          it'll do at this moment, not just that it exists. */}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <div className="flex-shrink-0 size-9 rounded-lg border border-primary/30 bg-primary/10 text-primary flex items-center justify-center">
+            <Compass className="size-4" aria-hidden="true" />
+          </div>
+          <div className="flex flex-col gap-1 min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold">
+              What&apos;s next?
+            </p>
+            <p className="text-base font-semibold text-foreground leading-snug">
+              {flow.phase === 'idle' && writable && 'Take stock when you’re ready'}
+              {flow.phase === 'idle' && !writable && 'Take stock paused'}
+              {flow.phase === 'checking' && 'Reading your progress…'}
+              {flow.phase === 'brief_polling' && 'Building your continuation brief…'}
+              {flow.phase === 'brief_ready' && 'Your brief is ready'}
+              {flow.phase === 'fork_selected' && 'Continuation already chosen'}
+              {flow.phase === 'error' && 'Something went wrong'}
+              {flow.phase === 'diagnostic_open' && 'Diagnostic in progress'}
+            </p>
+            {flow.phase === 'idle' && writable && (
+              <p className="text-[13px] text-muted-foreground leading-[1.55] mt-1">
+                Hit this any time. I&apos;ll read your progress and either help unblock you, or tell you what to do next based on what you&apos;ve learned.
+              </p>
+            )}
+            {flow.phase === 'idle' && !writable && (
+              <p className="text-[13px] text-muted-foreground leading-[1.55] mt-1">
+                {readOnlyTip ?? 'Resume the venture from the Sessions tab to take stock of progress.'}
+              </p>
+            )}
+            {flow.phase === 'error' && flow.error && (
+              <p className="text-[13px] text-red-400 leading-[1.55] mt-1">{flow.error}</p>
+            )}
+          </div>
         </div>
-        {flow.phase === 'idle' && (
-          <button
-            type="button"
-            onClick={() => { if (writable) void flow.startCheckpoint(); }}
-            disabled={!writable}
-            title={!writable ? (readOnlyTip ?? undefined) : undefined}
-            className={`inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary transition-colors ${writable ? 'hover:bg-primary/15 cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
-          >
-            <ArrowRight className="size-3.5" />
-            Take stock
-          </button>
-        )}
-        {flow.phase === 'checking' && (
-          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Loader2 className="size-3.5 animate-spin" />
-            Reading your progress…
-          </span>
-        )}
-        {flow.phase === 'brief_polling' && (
-          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Loader2 className="size-3.5 animate-spin" />
-            Building your continuation brief…
-          </span>
-        )}
-        {flow.phase === 'brief_ready' && (
-          <span className="text-xs text-primary">Opening your brief…</span>
-        )}
-        {flow.phase === 'fork_selected' && (
-          <span className="text-xs text-muted-foreground">Continuation already chosen.</span>
-        )}
-        {flow.phase === 'error' && (
-          <button
-            type="button"
-            onClick={() => flow.reset()}
-            className="text-xs text-red-500 hover:text-red-600"
-          >
-            Try again
-          </button>
-        )}
+
+        {/* Right-side action / status. Single primary button when idle,
+            inline spinner when in flight, retry link on error. */}
+        <div className="shrink-0 pt-1">
+          {flow.phase === 'idle' && (
+            <button
+              type="button"
+              onClick={() => { if (writable) void flow.startCheckpoint(); }}
+              disabled={!writable}
+              title={!writable ? (readOnlyTip ?? undefined) : undefined}
+              className={`inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-foreground/85 transition-colors ${writable ? 'hover:bg-primary/15 hover:text-foreground cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}
+            >
+              <ArrowRight className="size-3.5 text-primary" />
+              Take stock
+            </button>
+          )}
+          {(flow.phase === 'checking' || flow.phase === 'brief_polling') && (
+            <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
+          )}
+          {flow.phase === 'error' && (
+            <button
+              type="button"
+              onClick={() => flow.reset()}
+              className="text-xs text-red-400 hover:text-red-300"
+            >
+              Try again
+            </button>
+          )}
+        </div>
       </div>
-
-      {flow.phase === 'idle' && writable && (
-        <p className="text-[11px] text-muted-foreground leading-relaxed">
-          Hit this any time. I&apos;ll read your progress and either help unblock you, or tell you what to do next based on what you&apos;ve learned.
-        </p>
-      )}
-      {flow.phase === 'idle' && !writable && (
-        <p className="text-[11px] text-muted-foreground leading-relaxed">
-          {readOnlyTip ?? 'Resume the venture from the Sessions tab to take stock of progress.'}
-        </p>
-      )}
-
-      {flow.phase === 'error' && flow.error && (
-        <p className="text-[11px] text-red-500 leading-relaxed">{flow.error}</p>
-      )}
 
       <AnimatePresence>
         {flow.phase === 'diagnostic_open' && (
