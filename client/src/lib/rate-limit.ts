@@ -63,7 +63,26 @@ export interface RateLimitResult {
 // ==========================================
 
 /**
- * Check rate limit using Redis
+ * Check rate limit using Redis.
+ *
+ * Concurrency: the previous implementation read GET → TTL → conditional
+ * SET(value=1, ex=window) → INCR. Two concurrent requests on a fresh
+ * (or expired) key would both observe count===null, both call SET(1),
+ * both call INCR — and the counter would reset twice within the same
+ * window, letting up to 2× the configured maxRequests slip through.
+ *
+ * The fix is to make the first write atomic: INCR first (creates the
+ * key with value 1 on miss), then EXPIRE only when INCR returned 1
+ * (first hit of the window). Redis INCR is single-command atomic, so
+ * concurrent first-hits both see distinct sequential counter values
+ * and only the genuine first increment sets the TTL — no race.
+ *
+ * One small inaccuracy this shape introduces: if a key was created
+ * just before the call but its EXPIRE hasn't been set yet (rare —
+ * window of microseconds between the racing INCR and EXPIRE in the
+ * other request), TTL might briefly read -1 (no expiry). We treat -1
+ * as "use the configured window" so the resetAt is conservative
+ * rather than infinite.
  */
 async function checkRateLimitRedis(
   config: RateLimitConfig
@@ -76,41 +95,38 @@ async function checkRateLimitRedis(
 
   const { maxRequests, windowSeconds, identifier } = config;
   const now = Date.now();
-  const windowMs = windowSeconds * 1000;
   const key = `ratelimit:${identifier}`;
 
   try {
-    const count = await redis.get<number>(key);
-    const ttl   = await redis.ttl(key);
-
-    // If no entry exists or TTL expired, create a new window
-    if (count === null || ttl === -2) {
-      await redis.set(key, 1, { ex: windowSeconds });
-      return {
-        success: true,
-        remaining: maxRequests - 1,
-        resetAt: now + windowMs,
-      };
-    }
-
-    // Increment the count
+    // Atomic increment. On a missing key Redis creates it with value 1.
     const newCount = await redis.incr(key);
 
-    // Calculate reset time
-    const resetAt = now + (ttl * 1000);
+    // First hit of the window — bind the TTL. Idempotent on collisions:
+    // if a parallel request also calls EXPIRE for the same value the
+    // result is the same.
+    if (newCount === 1) {
+      await redis.expire(key, windowSeconds);
+    }
 
-    // Check if limit is exceeded
+    // Read the current TTL so resetAt reflects the actual server-side
+    // window remainder. -1 (no expiry yet) and -2 (key gone) are
+    // treated as "fall back to the configured window" — both are rare
+    // race-window readings, neither should leak the limiter open.
+    const ttl = await redis.ttl(key);
+    const effectiveTtl = ttl > 0 ? ttl : windowSeconds;
+    const resetAt = now + effectiveTtl * 1000;
+
     if (newCount > maxRequests) {
       return {
-        success: false,
-        remaining: 0,
+        success:    false,
+        remaining:  0,
         resetAt,
-        retryAfter: Math.ceil(ttl),
+        retryAfter: effectiveTtl,
       };
     }
 
     return {
-      success: true,
+      success:   true,
       remaining: maxRequests - newCount,
       resetAt,
     };
