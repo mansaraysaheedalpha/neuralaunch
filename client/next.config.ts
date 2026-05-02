@@ -1,18 +1,53 @@
+// next.config.ts — targets Turbopack as the default compiler under
+// Next.js 16.2.4. The `--webpack` fallback CLI flag still works against
+// this same file (Next.js tolerates Turbopack-only keys when invoking the
+// legacy compiler), so this config is dual-purpose during the burn-in
+// window. See docs/migrations/turbopack-migration-research-2026-05.md.
+
 import type { NextConfig as NextJsConfig } from "next";
-import type { Configuration } from "webpack";
 import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextJsConfig = {
   reactStrictMode: false,
-  productionBrowserSourceMaps: false, // Keep this
+  productionBrowserSourceMaps: false,
+
   // Workspace packages that ship raw TypeScript (.ts) sources rather
-  // than pre-compiled JS. Next.js / webpack won't process files from
-  // node_modules by default — listing them here opts them into the
-  // same SWC transpile pipeline as the app's own source.
+  // than pre-compiled JS. Listing them opts these local packages into
+  // the SWC transpile pipeline (compiler-agnostic — Turbopack and Webpack
+  // both honour this key).
   transpilePackages: [
     '@neuralaunch/api-types',
     '@neuralaunch/constants',
   ],
+
+  // Server-side dependencies that must NOT be bundled — Next.js resolves
+  // them via runtime `require()` instead. Replaces the legacy
+  // `config.externals.push(...)` calls inside the old webpack hook.
+  // Scoped to packages we actually import from `client/src/`. See
+  // turbopack-migration-research-2026-05.md § "Server-Side Prisma and
+  // Email SDK Externalization".
+  serverExternalPackages: [
+    '@prisma/client',
+    '@paddle/paddle-node-sdk',
+  ],
+
+  // Turbopack equivalent of the legacy `config.resolve.fallback = { fs: false, ... }`
+  // browser polyfill suppression. Turbopack does not accept `false` as a
+  // resolution target, so each Node built-in is mapped to a physical empty
+  // module under the `browser` condition. The server condition is left
+  // unset, so server bundles continue to resolve the real built-ins.
+  turbopack: {
+    resolveAlias: {
+      fs: { browser: './src/lib/empty.ts' },
+      net: { browser: './src/lib/empty.ts' },
+      tls: { browser: './src/lib/empty.ts' },
+      crypto: { browser: './src/lib/empty.ts' },
+      stream: { browser: './src/lib/empty.ts' },
+      os: { browser: './src/lib/empty.ts' },
+      path: { browser: './src/lib/empty.ts' },
+    },
+  },
+
   images: {
     remotePatterns: [
       {
@@ -21,7 +56,8 @@ const nextConfig: NextJsConfig = {
       },
     ],
   },
-  // CORS headers for API routes and public assets
+
+  // CORS headers for API routes and public assets — compiler-agnostic.
   async headers() {
     return Promise.resolve([
       {
@@ -51,89 +87,46 @@ const nextConfig: NextJsConfig = {
       },
     ]);
   },
-  webpack: (
-    config: Configuration,
-    { isServer }: { isServer: boolean }
-  ): Configuration => {
-    // Basic Prisma handling (can be refined if needed)
-    if (isServer) {
-      // If you encounter Prisma runtime errors, uncommenting this might help
-      // config.externals = [...config.externals, '@prisma/client'];
-    }
-
-    // Ignore native modules that cause build errors
-    if (!isServer) {
-      // Client-side: ignore server-only packages
-      config.externals = config.externals || [];
-      if (Array.isArray(config.externals)) {
-        config.externals.push("ssh2");
-      }
-      config.resolve = config.resolve || {};
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        net: false,
-        tls: false,
-        crypto: false,
-        stream: false,
-        os: false,
-        path: false,
-        "@sendgrid/mail": false,
-        "@aws-sdk/client-ses": false,
-      };
-    } else {
-      // Server-side: externalize optional email providers
-      config.externals = config.externals || [];
-      if (Array.isArray(config.externals)) {
-        config.externals.push("@sendgrid/mail", "@aws-sdk/client-ses");
-      }
-    }
-
-    // Ignore binary files from ssh2 and dockerode
-    if (Array.isArray(config.externals)) {
-      config.externals.push("ssh2");
-    }
-    config.module = config.module || {};
-    config.module.rules = config.module.rules || [];
-    config.module.rules.push({
-      test: /\.node$/,
-      use: "ignore-loader",
-    });
-
-    return config;
-  },
 };
 
-// Sentry configuration options
+// Sentry configuration. Under Turbopack, Sentry uses runtime
+// OpenTelemetry instrumentation rather than build-time Webpack-plugin
+// AST wrapping, so a number of legacy keys have become no-ops and are
+// intentionally absent here. See turbopack-migration-research-2026-05.md
+// § "Sentry on Turbopack".
 const sentryWebpackPluginOptions = {
-  // For all available options, see:
-  // https://github.com/getsentry/sentry-webpack-plugin#options
-
   org: "infinite-dynamics",
   project: "neuralaunch",
 
-  // Disable source map upload if no auth token provided
-  disableServerWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
-  disableClientWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
+  // Note: disableServerWebpackPlugin / disableClientWebpackPlugin intentionally
+  // omitted. Under Turbopack, Sentry uses runtime OpenTelemetry instrumentation,
+  // not the build-time Webpack plugin. The gates are no-ops here.
+  // See docs/migrations/turbopack-migration-research-2026-05.md.
+
+  // Note: `automaticVercelMonitors` intentionally omitted — deprecated and
+  // ineffective under Turbopack compilation environments.
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
 
-  // For all available options, see:
-  // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
-
   // Upload a larger set of source maps for prettier stack traces (increases build time)
   widenClientFileUpload: true,
 
-  // Automatically annotate React components to show their full name in breadcrumbs and session replay
-  reactComponentAnnotation: {
-    enabled: true,
+  // Annotate React components for Session Replay. Under Turbopack the
+  // legacy top-level `reactComponentAnnotation` key is replaced by the
+  // `_experimental.turbopackReactComponentAnnotation.enabled` key, which
+  // hooks into the Rust compiler's AST stage to inject `data-sentry-component`
+  // attributes at build time.
+  _experimental: {
+    turbopackReactComponentAnnotation: {
+      enabled: true,
+    },
   },
 
-  // Route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
-  // This can increase your server load as well as your hosting bill.
-  // Note: Check that the configured route will not match with your Next.js middleware, otherwise reporting of client-
-  // side errors will fail.
+  // Route browser requests to Sentry through a Next.js rewrite to
+  // circumvent ad-blockers. If middleware.ts is later introduced, its
+  // matcher MUST exclude `/monitoring` (e.g. `(?!monitoring)`) so the
+  // tunnel endpoint is not intercepted by auth logic.
   tunnelRoute: "/monitoring",
 
   // Hides source maps from generated client bundles
@@ -141,12 +134,6 @@ const sentryWebpackPluginOptions = {
 
   // Automatically tree-shake Sentry logger statements to reduce bundle size
   disableLogger: true,
-
-  // Enables automatic instrumentation of Vercel Cron Monitors. (Does not yet work with App Router route handlers.)
-  // See the following for more information:
-  // https://docs.sentry.io/product/crons/
-  // https://vercel.com/docs/cron-jobs
-  automaticVercelMonitors: true,
 };
 
 // Make sure adding Sentry options is the last code to run before exporting
