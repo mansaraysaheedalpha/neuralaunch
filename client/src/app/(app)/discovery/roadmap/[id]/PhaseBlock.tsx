@@ -94,7 +94,10 @@ export function PhaseBlock({
       transition={{ delay: index * 0.06, duration: 0.35, ease: 'easeOut' }}
       className="flex flex-col gap-4"
     >
-      <div className="flex items-start justify-between gap-4">
+      {/* Mobile: status cluster collapses to a horizontal row beneath
+          the title (no room for a right column at 375px). Desktop:
+          status cluster sits to the right of the title block. */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="flex items-start gap-3.5 min-w-0 flex-1">
           {/* Phase badge — mono with leading zero ("02"), gold-tinted
               square. Mono mirrors the rail badge so the same phase
@@ -117,23 +120,27 @@ export function PhaseBlock({
             )}
           </div>
         </div>
-        {/* Right-side mono status cluster — "M/Y complete" + status
-            word. Stacks vertically and right-aligns so it sits as a
-            metadata column opposite the header. */}
+        {/* Status cluster — "M/Y complete" + status word.
+            Mobile: horizontal row, left-aligned beneath the title,
+            indented to align with title text (ml-12).
+            Desktop: vertical, right-aligned next to the title. */}
         {totalCount > 0 && (
-          <div className="flex flex-col items-end gap-0.5 shrink-0 pt-1">
+          <div className="flex items-center gap-2 ml-12 sm:ml-0 sm:flex-col sm:items-end sm:gap-0.5 shrink-0 sm:pt-1">
             <p className={`text-[11px] font-mono ${statusWord.color}`}>
               {statusWord.count}
             </p>
             {statusWord.label && (
-              <p className={`text-[11px] font-mono ${statusWord.color}`}>
-                {statusWord.label}
-              </p>
+              <>
+                <span className="text-muted-foreground/40 sm:hidden">·</span>
+                <p className={`text-[11px] font-mono ${statusWord.color}`}>
+                  {statusWord.label}
+                </p>
+              </>
             )}
           </div>
         )}
       </div>
-      <div className="ml-12 flex flex-col gap-2">
+      <div className="ml-0 sm:ml-12 flex flex-col gap-2">
         {tasks.map((task, i) => (
           <InteractiveTaskCard
             key={i}

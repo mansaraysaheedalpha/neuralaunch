@@ -64,7 +64,7 @@ export function WhatsNextPanel({ roadmapId }: { roadmapId: string }) {
           The action sits in the top-right of the row. The headline
           changes per flow.phase so the surface tells the founder WHAT
           it'll do at this moment, not just that it exists. */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3 min-w-0 flex-1">
           <div className="flex-shrink-0 size-9 rounded-lg border border-primary/30 bg-primary/10 text-primary flex items-center justify-center">
             <Compass className="size-4" aria-hidden="true" />
@@ -101,7 +101,7 @@ export function WhatsNextPanel({ roadmapId }: { roadmapId: string }) {
 
         {/* Right-side action / status. Single primary button when idle,
             inline spinner when in flight, retry link on error. */}
-        <div className="shrink-0 pt-1">
+        <div className="shrink-0 sm:pt-1 ml-12 sm:ml-0">
           {flow.phase === 'idle' && (
             <button
               type="button"

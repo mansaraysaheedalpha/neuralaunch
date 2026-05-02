@@ -130,7 +130,10 @@ export function PhaseRail({
             aria-controls="phase-panel"
             id={`phase-tab-${phase.phase}`}
             onClick={() => onSelect(phase.phase)}
-            className={`snap-start flex-shrink-0 lg:flex-shrink min-w-[220px] lg:min-w-0 flex items-start gap-2.5 rounded-md py-2.5 pl-3 pr-2.5 transition-colors text-left ${containerClass} focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background`}
+            // Min-width tightened to 180px on sm so two pills + part
+            // of a third are visible at 375px — was 220px which only
+            // showed 1.5 pills before requiring scroll.
+            className={`snap-start flex-shrink-0 lg:flex-shrink min-w-[180px] lg:min-w-0 flex items-start gap-2.5 rounded-md py-2.5 pl-3 pr-2.5 transition-colors text-left ${containerClass} focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background`}
           >
             <span
               className={`flex-shrink-0 size-7 rounded-md text-[11px] font-mono font-bold flex items-center justify-center ${badgeClass}`}
@@ -154,12 +157,13 @@ export function PhaseRail({
                 <p className={`text-[10px] font-mono ${status.color}`}>
                   {status.text}
                 </p>
-                {/* WEEKS X-Y micro-row, only shown when we have a
-                    valid range. Mono so the digits align across
-                    rows. Gold for the active phase to mirror the
-                    badge + status colour, muted otherwise. */}
+                {/* WEEKS X-Y micro-row, hidden on the horizontal sm
+                    pill row (w-range collides with the status word in
+                    a 180px pill at 375px) and only shown in the
+                    desktop vertical rail (lg+). Mono so the digits
+                    align across rows. */}
                 {range.endWeek > 0 && (
-                  <p className={`text-[9.5px] font-mono uppercase tracking-wider ${isCurrent ? 'text-gold/80' : 'text-muted-foreground/55'}`}>
+                  <p className={`hidden lg:block text-[9.5px] font-mono uppercase tracking-wider ${isCurrent ? 'text-gold/80' : 'text-muted-foreground/55'}`}>
                     W{range.startWeek}{range.startWeek !== range.endWeek ? `-${range.endWeek}` : ''}
                   </p>
                 )}

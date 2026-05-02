@@ -138,7 +138,10 @@ export function InteractiveTaskCard({
         type="button"
         onClick={onToggle}
         aria-expanded={isExpanded}
-        className="flex w-full items-center gap-3 px-4 py-3.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-background rounded-lg"
+        // Tighter horizontal padding + gap on mobile so the
+        // status-dot + title + status-pill + chevron all fit on a
+        // 375px viewport without crowding.
+        className="flex w-full items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 sm:py-3.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-background rounded-lg"
       >
         <StatusDot status={ck.status} />
         <p className={[
@@ -199,7 +202,7 @@ export function InteractiveTaskCard({
             transition={{ duration: 0.2, ease: 'easeInOut' }}
             className="overflow-hidden"
           >
-            <div className="flex flex-col gap-4 px-4 pb-4 pt-1 border-t border-border">
+            <div className="flex flex-col gap-4 px-3 sm:px-4 pb-4 pt-2 sm:pt-1 border-t border-border">
               <TaskMetadata task={ck.task} />
 
               {ck.showCompletionMoment && (

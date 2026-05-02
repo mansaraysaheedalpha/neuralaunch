@@ -72,26 +72,41 @@ export function RoadmapProgressHeader({
 
   return (
     <div className="py-4">
-      <div className="flex items-center justify-between gap-6">
-        {/* Stat columns — TASKS · PHASE · WEEKS LEFT · BLOCKED.
-            BLOCKED is omitted entirely when zero so the band stays
-            visually quiet during normal execution and only surfaces
-            the destructive accent when there's something to act on. */}
-        <div className="flex items-center divide-x divide-border min-w-0 flex-1 overflow-x-auto">
-          <div className="pr-6">
+      {/* Mobile-first: percentage on top, stats wrap below. At sm+,
+          collapses back to the desktop layout (stats left, percentage
+          right). Forced horizontal-scrolling stats at 375px felt like
+          desktop chrome smuggled into mobile. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+        {/* Big percentage — first on mobile so the most-glanced metric
+            is the eye anchor; moves to the right at sm+. */}
+        <div className="flex items-baseline gap-2 shrink-0 order-first sm:order-last">
+          <span className={`text-2xl font-mono font-semibold tabular-nums leading-none ${isDone ? 'text-success' : 'text-primary'}`}>
+            {pct}%
+          </span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">
+            complete
+          </span>
+        </div>
+
+        {/* Stat columns — wrap to multiple rows at sm via flex-wrap +
+            row-gap, divider hidden at sm so wrapped rows don't show
+            stranded vertical hairlines. Desktop uses the original
+            horizontal divide-x. */}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 sm:divide-x sm:divide-border sm:gap-x-0 sm:min-w-0 sm:flex-1 sm:overflow-x-auto">
+          <div className="sm:pr-6">
             <Stat
               label="Tasks"
               value={`${completedTasks}/${totalTasks}`}
             />
           </div>
-          <div className="px-6">
+          <div className="sm:px-6">
             <Stat
               label="Phase"
               value={`${currentPhase}/${totalPhases}`}
             />
           </div>
           {remaining !== null && (
-            <div className="px-6">
+            <div className="sm:px-6">
               <Stat
                 label="Weeks left"
                 value={isDone ? '0' : `~${remaining}`}
@@ -99,7 +114,7 @@ export function RoadmapProgressHeader({
             </div>
           )}
           {blockedTasks > 0 && (
-            <div className="px-6">
+            <div className="sm:px-6">
               <Stat
                 label="Blocked"
                 value={String(blockedTasks)}
@@ -107,20 +122,6 @@ export function RoadmapProgressHeader({
               />
             </div>
           )}
-        </div>
-
-        {/* Big percentage on the right — design-tool spec: 24px / 600.
-            Was text-3xl (30px) before; the spec calls for a more
-            restrained 24px so the percentage feels deliberate, not
-            a billboard. Switches from primary to success at 100% so
-            the completion moment is felt across the band. */}
-        <div className="flex items-baseline gap-2 shrink-0">
-          <span className={`text-2xl font-mono font-semibold tabular-nums leading-none ${isDone ? 'text-success' : 'text-primary'}`}>
-            {pct}%
-          </span>
-          <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/70">
-            complete
-          </span>
         </div>
       </div>
 

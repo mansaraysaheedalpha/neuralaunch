@@ -116,8 +116,10 @@ export function ParkingLotInline({ roadmapId, initialItems }: ParkingLotInlinePr
       animate={{ opacity: 1 }}
       className="rounded-xl border border-border bg-card/40 px-5 py-5 flex flex-col gap-3"
     >
-      {/* Header row — gold tile + headline + chip + CTA */}
-      <div className="flex items-start justify-between gap-4">
+      {/* Header row — gold tile + headline + chip + CTA. Stacks on
+          mobile so the "Park an idea" CTA doesn't crowd the headline
+          at 375px. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
         <div className="flex items-start gap-3 min-w-0 flex-1">
           <div className="flex-shrink-0 size-9 rounded-lg border border-gold/30 bg-gold/10 text-gold flex items-center justify-center">
             <Bookmark className="size-4" aria-hidden="true" />
@@ -148,7 +150,7 @@ export function ParkingLotInline({ roadmapId, initialItems }: ParkingLotInlinePr
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-gold/30 bg-gold/5 px-3 py-1.5 text-xs font-medium text-foreground/85 hover:bg-gold/10 hover:text-foreground transition-colors mt-1"
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-gold/30 bg-gold/5 px-3 py-1.5 text-xs font-medium text-foreground/85 hover:bg-gold/10 hover:text-foreground transition-colors sm:mt-1 self-start ml-12 sm:ml-0"
           >
             <Plus className="size-3.5 text-gold" aria-hidden="true" />
             Park an idea

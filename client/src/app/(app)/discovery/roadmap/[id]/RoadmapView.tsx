@@ -149,8 +149,11 @@ export function RoadmapView({
         <div className="absolute inset-0 opacity-[0.40] [background-image:linear-gradient(to_right,hsl(var(--border)/0.55)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.55)_1px,transparent_1px)] [background-size:42px_42px] [mask-image:radial-gradient(ellipse_at_center,black_50%,transparent_90%)]" />
       </div>
 
-      {/* Title bar — full canvas width, scrolls away normally. */}
-      <div className="px-6 lg:px-10 pt-10 pb-6">
+      {/* Title bar — full canvas width, scrolls away normally.
+          Padding tightens at sm so the title isn't pushed off-canvas
+          on a 375px viewport. Title clamps to text-2xl on sm so the
+          30px desktop size doesn't eat half the viewport width. */}
+      <div className="px-4 sm:px-6 lg:px-10 pt-6 sm:pt-10 pb-5 sm:pb-6">
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -162,7 +165,7 @@ export function RoadmapView({
               Execution · {data.totalWeeks} week{data.totalWeeks !== 1 ? 's' : ''} · {data.weeklyHours}h/week
             </span>
           )}
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Your Execution Roadmap</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">Your Execution Roadmap</h1>
         </motion.div>
       </div>
 
@@ -171,7 +174,7 @@ export function RoadmapView({
           completed, or archived. Tells the founder *before* they try
           anything why every interactive surface below is disabled. */}
       {!writable && readOnlyReason && (
-        <div className="px-6 lg:px-10 pb-4">
+        <div className="px-4 sm:px-6 lg:px-10 pb-4">
           <motion.div
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
@@ -205,7 +208,7 @@ export function RoadmapView({
           280px right-rail "Cycle progress" idea so the work surface
           below can stretch to its natural width. */}
       {data.progress && (
-        <div className="sticky top-0 z-20 px-6 lg:px-10 bg-background/95 backdrop-blur-md border-b border-border">
+        <div className="sticky top-0 z-20 px-4 sm:px-6 lg:px-10 bg-background/95 backdrop-blur-md border-b border-border">
           <RoadmapProgressHeader
             totalTasks={data.progress.totalTasks}
             completedTasks={data.progress.completedTasks}
@@ -219,7 +222,7 @@ export function RoadmapView({
 
       {/* Proactive nudge + STALE banners — full-width below the
           progress band. */}
-      <div className="px-6 lg:px-10 pt-6 flex flex-col gap-4">
+      <div className="px-4 sm:px-6 lg:px-10 pt-6 flex flex-col gap-4">
         {data.progress?.nudgePending && (
           <NudgeBanner
             phases={data.phases}
@@ -269,7 +272,7 @@ export function RoadmapView({
           pill row above the panel (handled inside PhaseRail). The
           panel always stretches to the full remaining canvas width
           so task descriptions get comfortable reading width. */}
-      <div className="px-6 lg:px-10 pt-6 pb-10">
+      <div className="px-4 sm:px-6 lg:px-10 pt-6 pb-10">
         {/* CRITICAL: minmax(0, 1fr) — without the explicit min=0, the
             CSS grid track defaults to min-width: auto, which means
             "do not shrink below intrinsic content width." A long
@@ -320,7 +323,7 @@ export function RoadmapView({
           reaches them naturally after scrolling through the tasks —
           which is the right cognitive moment for "take stock" or
           "park an idea." */}
-      <div className="px-6 lg:px-10 pb-12 flex flex-col gap-6">
+      <div className="px-4 sm:px-6 lg:px-10 pb-12 flex flex-col gap-6">
         <div className="max-w-4xl mx-auto w-full">
           <WhatsNextPanel roadmapId={data.id} />
         </div>
