@@ -14,6 +14,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import {
   HttpError, httpErrorToResponse, requireUserId, rateLimitByUser, RATE_LIMITS,
+  enforceSameOrigin,
 } from '@/lib/validation/server-helpers';
 import { ToolJobStatusSchema, type ToolJobType } from '@/lib/tool-jobs';
 
@@ -22,6 +23,12 @@ export async function GET(
   { params }: { params: Promise<{ id: string; jobId: string }> },
 ) {
   try {
+    // Defensive same-origin check on the most-polled authenticated
+    // route in the app (3s/foreground, 30s/backgrounded). The route is
+    // strictly a read, but every other authenticated route in the
+    // codebase enforces same-origin and the consistency is what makes
+    // the project's CSRF posture auditable.
+    enforceSameOrigin(request);
     const userId = await requireUserId(request);
     await rateLimitByUser(userId, 'tool-job-status', RATE_LIMITS.API_READ);
 
