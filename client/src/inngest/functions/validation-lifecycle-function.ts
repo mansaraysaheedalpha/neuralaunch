@@ -1,4 +1,5 @@
 // src/inngest/functions/validation-lifecycle-function.ts
+import 'server-only';
 import { Prisma }     from '@prisma/client';
 import { inngest }    from '../client';
 import prisma         from '@/lib/prisma';

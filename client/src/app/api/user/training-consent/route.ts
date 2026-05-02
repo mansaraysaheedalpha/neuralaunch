@@ -1,4 +1,5 @@
 // src/app/api/user/training-consent/route.ts
+import 'server-only';
 import { NextResponse } from 'next/server';
 import { z }            from 'zod';
 import { Prisma }       from '@prisma/client';

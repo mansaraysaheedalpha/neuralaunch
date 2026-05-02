@@ -1,10 +1,11 @@
 // src/lib/api-error.ts
 /**
  * API Error Handling Utilities
- * 
+ *
  * Provides consistent error handling and logging for API routes
  */
 
+import 'server-only';
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";

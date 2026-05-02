@@ -6,6 +6,7 @@
 //                          → lifecycle transition (pause / resume / complete)
 // Both validated, both ownership-scoped via findFirst({ id, userId }).
 
+import 'server-only';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';

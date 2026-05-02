@@ -1,4 +1,5 @@
 // src/app/api/discovery/recommendations/[id]/outcome/route.ts
+import 'server-only';
 import { NextResponse } from 'next/server';
 import { Prisma }       from '@prisma/client';
 import prisma, { toJsonValue } from '@/lib/prisma';
