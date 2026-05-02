@@ -132,8 +132,12 @@ const sentryWebpackPluginOptions = {
   // Hides source maps from generated client bundles
   hideSourceMaps: true,
 
-  // Automatically tree-shake Sentry logger statements to reduce bundle size
-  disableLogger: true,
+  // Note: `disableLogger` intentionally omitted. The Sentry SDK now logs
+  // a deprecation warning for it under Turbopack ("Use
+  // webpack.treeshake.removeDebugLogging instead. (Not supported with
+  // Turbopack.)"). The replacement is webpack-only, and Turbopack already
+  // tree-shakes dead branches — the original bundle-size optimisation is
+  // now compiler-default. Verified in the 2026-05-02 production build log.
 };
 
 // Make sure adding Sentry options is the last code to run before exporting
