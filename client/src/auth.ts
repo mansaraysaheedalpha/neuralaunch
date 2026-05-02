@@ -88,13 +88,23 @@ async function verifyGitHubPrimaryEmail(
 // claim makes auto-linking safe (same security model as Google) so we
 // keep allowDangerousEmailAccountLinking enabled and rely on LinkedIn's
 // own verification — no GitHub-style /user/emails round-trip needed.
-// The provider is always registered (no conditional spread) — if env
-// vars are missing in a particular deploy, NextAuth surfaces a real
-// "missing client_id" error on the OAuth handshake which is far easier
-// to debug than the prior "button silently absent" failure mode.
-// Empty-string fallbacks keep the constructor signature satisfied
-// without crashing app boot when the vars are unset; the actual
-// signin attempt is what surfaces the misconfiguration.
+//
+// Boot-time validation (warn, don't crash) — surfaces a missing secret
+// in deploy logs as a clear "LinkedIn provider registered without a
+// real secret" line so the next "clientSecret must not be empty" at
+// callback time is no longer a mystery. We don't throw at boot because
+// the rest of the app must still start (Google / GitHub work without
+// LinkedIn) — but the warning is the primary diagnostic surface for
+// future "set the env var but the value is empty" misconfigurations.
+if (!env.LINKEDIN_CLIENT_ID || !env.LINKEDIN_CLIENT_SECRET) {
+  logger.warn(
+    '[auth] LinkedIn provider registered but env credentials are missing or empty — OAuth callbacks will fail with "clientSecret must not be empty"',
+    {
+      hasId:     Boolean(env.LINKEDIN_CLIENT_ID),
+      hasSecret: Boolean(env.LINKEDIN_CLIENT_SECRET),
+    },
+  );
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma) as Adapter,
