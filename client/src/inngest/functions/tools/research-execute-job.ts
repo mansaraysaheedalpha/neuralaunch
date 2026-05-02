@@ -48,6 +48,11 @@ export const researchExecuteJobFunction = inngest.createFunction(
     // Single retry on Inngest's transient infrastructure errors; the
     // engine itself owns model-fallback retries via withModelFallback.
     retries: 1,
+    // Per-user concurrency cap — bounds simultaneous Opus + Exa/Tavily
+    // tool-loop spend when a founder fires multiple research jobs
+    // (e.g. multiple tabs queuing different queries). Subsequent
+    // invocations queue until the in-flight one completes.
+    concurrency: [{ limit: 1, key: 'event.data.userId' }],
     triggers: [{ event: 'tool/research-execute.requested' }],
   },
   async ({ event, step }) => {
@@ -211,16 +216,19 @@ export const researchExecuteJobFunction = inngest.createFunction(
       );
       const errorMessage = err instanceof Error ? err.message : String(err);
 
-      await failToolJob(jobId, err);
-      // Best-effort failure push so backgrounded founders aren't left
-      // staring at a stalled progress bar in another tab.
-      await notifyToolJobFailed({
-        userId,
-        jobId,
-        toolType:    'research_execute',
-        roadmapId,
-        sessionId,
-        errorMessage,
+      // Wrap failure-side-effects in step.run so retry does not
+      // duplicate the failure push or re-write the failed-stage
+      // marker. step.run memoises by step id.
+      await step.run('handle-failure', async () => {
+        await failToolJob(jobId, err);
+        await notifyToolJobFailed({
+          userId,
+          jobId,
+          toolType:    'research_execute',
+          roadmapId,
+          sessionId,
+          errorMessage,
+        });
       });
 
       // Re-throw so Inngest records the failure on the run record;

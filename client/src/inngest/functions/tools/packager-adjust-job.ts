@@ -40,6 +40,8 @@ export const packagerAdjustJobFunction = inngest.createFunction(
     id:       'tool-packager-adjust',
     name:     'Tool — Packager Adjust',
     retries:  1,
+    // Per-user concurrency cap — see research-execute-job for rationale.
+    concurrency: [{ limit: 1, key: 'event.data.userId' }],
     triggers: [{ event: 'tool/packager-adjust.requested' }],
   },
   async ({ event, step }) => {
@@ -176,12 +178,16 @@ export const packagerAdjustJobFunction = inngest.createFunction(
       );
       const errorMessage = err instanceof Error ? err.message : String(err);
 
-      await failToolJob(jobId, err);
-      await notifyToolJobFailed({
-        userId, jobId,
-        toolType:  'packager_adjust',
-        roadmapId, sessionId,
-        errorMessage,
+      // Wrap failure-side-effects in step.run so retry does not
+      // duplicate the failure push.
+      await step.run('handle-failure', async () => {
+        await failToolJob(jobId, err);
+        await notifyToolJobFailed({
+          userId, jobId,
+          toolType:  'packager_adjust',
+          roadmapId, sessionId,
+          errorMessage,
+        });
       });
 
       throw err;

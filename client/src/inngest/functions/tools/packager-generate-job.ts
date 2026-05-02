@@ -44,6 +44,8 @@ export const packagerGenerateJobFunction = inngest.createFunction(
     id:       'tool-packager-generate',
     name:     'Tool — Packager Generate',
     retries:  1,
+    // Per-user concurrency cap — see research-execute-job for rationale.
+    concurrency: [{ limit: 1, key: 'event.data.userId' }],
     triggers: [{ event: 'tool/packager-generate.requested' }],
   },
   async ({ event, step }) => {
@@ -189,12 +191,16 @@ export const packagerGenerateJobFunction = inngest.createFunction(
       );
       const errorMessage = err instanceof Error ? err.message : String(err);
 
-      await failToolJob(jobId, err);
-      await notifyToolJobFailed({
-        userId, jobId,
-        toolType:  'packager_generate',
-        roadmapId, sessionId,
-        errorMessage,
+      // Wrap failure-side-effects in step.run so retry does not
+      // duplicate the failure push.
+      await step.run('handle-failure', async () => {
+        await failToolJob(jobId, err);
+        await notifyToolJobFailed({
+          userId, jobId,
+          toolType:  'packager_generate',
+          roadmapId, sessionId,
+          errorMessage,
+        });
       });
 
       throw err;

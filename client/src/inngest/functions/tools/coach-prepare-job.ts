@@ -44,6 +44,8 @@ export const coachPrepareJobFunction = inngest.createFunction(
     id:       'tool-coach-prepare',
     name:     'Tool — Coach Prepare',
     retries:  1,
+    // Per-user concurrency cap — see research-execute-job for rationale.
+    concurrency: [{ limit: 1, key: 'event.data.userId' }],
     triggers: [{ event: 'tool/coach-prepare.requested' }],
   },
   async ({ event, step }) => {
@@ -195,12 +197,16 @@ export const coachPrepareJobFunction = inngest.createFunction(
       );
       const errorMessage = err instanceof Error ? err.message : String(err);
 
-      await failToolJob(jobId, err);
-      await notifyToolJobFailed({
-        userId, jobId,
-        toolType:  'coach_prepare',
-        roadmapId, sessionId,
-        errorMessage,
+      // Wrap failure-side-effects in step.run so retry does not
+      // duplicate the failure push.
+      await step.run('handle-failure', async () => {
+        await failToolJob(jobId, err);
+        await notifyToolJobFailed({
+          userId, jobId,
+          toolType:  'coach_prepare',
+          roadmapId, sessionId,
+          errorMessage,
+        });
       });
 
       throw err;

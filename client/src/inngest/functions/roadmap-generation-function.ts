@@ -30,6 +30,12 @@ export const roadmapGenerationFunction = inngest.createFunction(
     name:     'Discovery — Generate Execution Roadmap',
     retries:  2,
     timeouts: { start: '5m' },
+    // Per-user concurrency cap — bounds the per-second Anthropic spend
+    // when a founder fires multiple Accept actions in parallel (e.g. 5
+    // tabs each accepting their recommendation). Each surplus invocation
+    // queues until the in-flight one completes; on retry it sees the
+    // existing roadmap row and short-circuits via the upsert path.
+    concurrency: [{ limit: 1, key: 'event.data.userId' }],
     triggers: [{ event: ROADMAP_EVENT }],
     onFailure: async ({ event }) => {
       // onFailure receives a wrapper event; original data is at event.data.event.data

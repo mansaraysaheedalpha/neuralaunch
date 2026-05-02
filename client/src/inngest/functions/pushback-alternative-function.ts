@@ -41,6 +41,10 @@ export const pushbackAlternativeFunction = inngest.createFunction(
     name:     'Pushback — Alternative Recommendation Synthesis',
     retries:  2,
     timeouts: { start: '10m' },
+    // Per-user concurrency cap — a founder cannot reach the hard-cap
+    // round on two recommendations simultaneously today, but defending
+    // against the abuse case keeps Opus spend bounded per second.
+    concurrency: [{ limit: 1, key: 'event.data.userId' }],
     triggers: [{ event: PUSHBACK_ALTERNATIVE_EVENT }],
   },
   async ({ event, step }) => {

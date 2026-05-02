@@ -150,14 +150,19 @@ export const transformationReportFunction = inngest.createFunction(
       );
       const errorMessage = err instanceof Error ? err.message : String(err);
 
-      await failTransformationReport(reportId, err);
-      // Best-effort failure push so a backgrounded founder finds
-      // out without re-opening the tab.
-      await notifyTransformationFailed({
-        userId,
-        ventureId,
-        ventureName,
-        errorMessage,
+      // Wrap the failure-side-effects in step.run so a function-level
+      // retry does not re-fire failTransformationReport (idempotent
+      // but a wasted DB write) AND does not send a duplicate failure
+      // push to the founder. step.run memoises by step id; on retry
+      // Inngest sees the prior cached result and skips the body.
+      await step.run('handle-failure', async () => {
+        await failTransformationReport(reportId, err);
+        await notifyTransformationFailed({
+          userId,
+          ventureId,
+          ventureName,
+          errorMessage,
+        });
       });
 
       // Re-throw so Inngest records the failure on the run record.

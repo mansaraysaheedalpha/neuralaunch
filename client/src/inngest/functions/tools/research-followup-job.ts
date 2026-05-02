@@ -37,6 +37,9 @@ export const researchFollowupJobFunction = inngest.createFunction(
     id:      'tool-research-followup',
     name:    'Tool — Research Follow-up',
     retries: 1,
+    // Per-user concurrency cap — see research-execute-job for the
+    // canonical rationale. Same shape applies to follow-ups.
+    concurrency: [{ limit: 1, key: 'event.data.userId' }],
     triggers: [{ event: 'tool/research-followup.requested' }],
   },
   async ({ event, step }) => {
@@ -196,14 +199,18 @@ export const researchFollowupJobFunction = inngest.createFunction(
       );
       const errorMessage = err instanceof Error ? err.message : String(err);
 
-      await failToolJob(jobId, err);
-      await notifyToolJobFailed({
-        userId,
-        jobId,
-        toolType:    'research_followup',
-        roadmapId,
-        sessionId,
-        errorMessage,
+      // Wrap failure-side-effects in step.run so retry does not
+      // duplicate the failure push.
+      await step.run('handle-failure', async () => {
+        await failToolJob(jobId, err);
+        await notifyToolJobFailed({
+          userId,
+          jobId,
+          toolType:    'research_followup',
+          roadmapId,
+          sessionId,
+          errorMessage,
+        });
       });
 
       throw err;
