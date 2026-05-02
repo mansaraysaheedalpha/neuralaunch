@@ -52,7 +52,11 @@ export default async function DiscoveryPage() {
         userId,
         status:        'ACTIVE',
         questionCount: { gt: 0 },
-        recommendation: null,
+        // A "primary" recommendation is one whose parentRecommendationId
+        // is null. The session is considered incomplete when no primary
+        // exists yet — the relation flip moved this from a 1-to-1
+        // existence check to a "none-of-many" filter.
+        recommendations: { none: { parentRecommendationId: null } },
         lastTurnAt: {
           not: null,
           lt:  new Date(now - INCOMPLETE_MIN_AGE_MS),

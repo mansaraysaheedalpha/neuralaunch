@@ -55,16 +55,22 @@ export const pushbackAlternativeFunction = inngest.createFunction(
 
     // Step 1 — Load the original recommendation, its session belief state,
     // and the pushback history that drove the founder's stated alternative.
+    //
+    // Idempotency: if the inverse relation `alternativeRecommendation`
+    // is already populated, an alt has been persisted by a prior run —
+    // skip rather than re-create. The new schema makes this a real DB
+    // relation rather than a free-floating column, so the check is
+    // structural.
     const loaded = await step.run('load-source', async () => {
       const rec = await prisma.recommendation.findFirst({
         where:  { id: recommendationId, userId },
         select: {
-          id:                          true,
-          path:                        true,
-          summary:                     true,
-          recommendationType:          true,
-          pushbackHistory:             true,
-          alternativeRecommendationId: true,
+          id:                       true,
+          path:                     true,
+          summary:                  true,
+          recommendationType:       true,
+          pushbackHistory:          true,
+          alternativeRecommendation: { select: { id: true } },
           session: {
             select: {
               id:           true,
@@ -79,8 +85,10 @@ export const pushbackAlternativeFunction = inngest.createFunction(
         log.warn('Original recommendation no longer exists — skipping');
         return null;
       }
-      if (rec.alternativeRecommendationId) {
-        log.warn('Alternative already exists — skipping idempotent re-trigger');
+      if (rec.alternativeRecommendation) {
+        log.warn('Alternative already exists — skipping idempotent re-trigger', {
+          altId: rec.alternativeRecommendation.id,
+        });
         return null;
       }
       if (!rec.session?.beliefState) {
@@ -135,50 +143,54 @@ export const pushbackAlternativeFunction = inngest.createFunction(
     });
     const altRecommendation = altSynthesisStep.recommendation;
 
-    // Step 5 — Persist as a new Recommendation row and link it from
-    // the original via the self-relation alternativeRecommendationId.
+    // Step 5 — Persist as a new Recommendation row whose
+    // parentRecommendationId points back at the original. The single
+    // FK direction (alt → parent) replaces the prior parent → alt
+    // direction; no second update is needed because the relationship
+    // is fully expressed by the alt row alone.
+    //
+    // Idempotency: parentRecommendationId is @unique, so a retry that
+    // somehow races past the load-source guard will hit P2002 on commit
+    // and the function will fail-fast without creating a duplicate row.
+    // The partial unique on (sessionId) WHERE parentRecommendationId IS
+    // NULL still allows this row to coexist with the primary that owns
+    // the same sessionId.
     const altId = await step.run('persist-alternative', async () => {
-      return await prisma.$transaction(async (tx) => {
-        const created = await tx.recommendation.create({
-          data: {
-            userId,
-            sessionId,
-            recommendationType:     altRecommendation.recommendationType,
-            summary:                altRecommendation.summary,
-            path:                   altRecommendation.path,
-            reasoning:              altRecommendation.reasoning,
-            firstThreeSteps:        altRecommendation.firstThreeSteps,
-            timeToFirstResult:      altRecommendation.timeToFirstResult,
-            risks:                  altRecommendation.risks,
-            assumptions:            altRecommendation.assumptions,
-            whatWouldMakeThisWrong: altRecommendation.whatWouldMakeThisWrong,
-            alternativeRejected:    altRecommendation.alternativeRejected,
-            // Research audit log — every tool call the alternative
-            // synthesis fired (exa_search or tavily_search), captured
-            // by the per-call accumulator inside the run-final-synthesis
-            // step. Persisted on the new Recommendation row so the
-            // audit trail follows the alternative.
-            researchLog:            toJsonValue(altSynthesisStep.researchLog),
-            // Concern 3 — preparatory metadata. The alternative is
-            // still a phase-1 output (Discovery + synthesis fused),
-            // even though it was triggered by a phase-3 closing move.
-            // Upstream tracks both the original session AND the
-            // recommendation it replaces.
-            phaseContext: toJsonValue(buildPhaseContext(PHASES.RECOMMENDATION, {
-              discoverySessionId: sessionId,
-              recommendationId,
-            })),
-          },
-          select: { id: true },
-        });
-
-        await tx.recommendation.update({
-          where: { id: recommendationId },
-          data:  { alternativeRecommendationId: created.id },
-        });
-
-        return created.id;
+      const created = await prisma.recommendation.create({
+        data: {
+          userId,
+          sessionId,
+          parentRecommendationId: recommendationId,
+          recommendationType:     altRecommendation.recommendationType,
+          summary:                altRecommendation.summary,
+          path:                   altRecommendation.path,
+          reasoning:              altRecommendation.reasoning,
+          firstThreeSteps:        altRecommendation.firstThreeSteps,
+          timeToFirstResult:      altRecommendation.timeToFirstResult,
+          risks:                  altRecommendation.risks,
+          assumptions:            altRecommendation.assumptions,
+          whatWouldMakeThisWrong: altRecommendation.whatWouldMakeThisWrong,
+          alternativeRejected:    altRecommendation.alternativeRejected,
+          // Research audit log — every tool call the alternative
+          // synthesis fired (exa_search or tavily_search), captured
+          // by the per-call accumulator inside the run-final-synthesis
+          // step. Persisted on the new Recommendation row so the
+          // audit trail follows the alternative.
+          researchLog:            toJsonValue(altSynthesisStep.researchLog),
+          // Concern 3 — preparatory metadata. The alternative is
+          // still a phase-1 output (Discovery + synthesis fused),
+          // even though it was triggered by a phase-3 closing move.
+          // Upstream tracks both the original session AND the
+          // recommendation it replaces.
+          phaseContext: toJsonValue(buildPhaseContext(PHASES.RECOMMENDATION, {
+            discoverySessionId: sessionId,
+            recommendationId,
+          })),
+        },
+        select: { id: true },
       });
+
+      return created.id;
     });
 
     log.info('[Pushback] Alternative recommendation persisted', { altId });

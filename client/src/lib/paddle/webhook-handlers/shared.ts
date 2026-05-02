@@ -6,9 +6,27 @@
 // stay thin.
 
 import 'server-only';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { logger } from '@/lib/logger';
 
 export type Tx = Prisma.TransactionClient;
+
+/**
+ * True when a Prisma error is a unique-constraint violation on
+ * TierTransition.paddleEventId — i.e. a Paddle webhook redelivery for
+ * an event we already recorded. Callers translate this into a 200 ack
+ * so Paddle stops retrying.
+ */
+export function isDuplicatePaddleEventError(err: unknown): boolean {
+  if (!(err instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  if (err.code !== 'P2002') return false;
+  const target = err.meta?.target;
+  // Prisma reports `target` as either string[] (newer drivers) or a
+  // single string. Normalise both shapes to the same check.
+  if (Array.isArray(target)) return target.includes('paddleEventId');
+  if (typeof target === 'string') return target.includes('paddleEventId');
+  return false;
+}
 
 /**
  * Extract the internal user id we stamped onto the checkout via
@@ -72,6 +90,15 @@ export function nextLastPaidTier(existing: string | null, candidate: string): st
  * when access was granted / revoked) and for any future churn
  * analysis. Also pairs with the tierUpdatedAt bump so the
  * session-tier cache invalidates the moment the audit row lands.
+ *
+ * Idempotency on Paddle redeliveries:
+ *   TierTransition.paddleEventId is @unique. The findUnique pre-check
+ *   handles the common serial-redelivery case (Paddle waits minutes
+ *   between retries) cleanly — no row is created, the tx commits,
+ *   the route acks 200 and Paddle stops retrying. The rare concurrent
+ *   redelivery still races past the pre-check, hits the unique
+ *   constraint at commit time, and aborts the tx with P2002 — the
+ *   route catches that via isDuplicatePaddleEventError() and acks 200.
  */
 export async function recordTierTransition(
   tx: Tx,
@@ -84,6 +111,20 @@ export async function recordTierTransition(
   },
 ): Promise<void> {
   if (args.fromTier === args.toTier) return;
+
+  const existing = await tx.tierTransition.findUnique({
+    where:  { paddleEventId: args.paddleEventId },
+    select: { id: true },
+  });
+  if (existing) {
+    logger.info('Paddle webhook redelivery — TierTransition already recorded', {
+      paddleEventId:   args.paddleEventId,
+      paddleEventType: args.paddleEventType,
+      userId:          args.userId,
+    });
+    return;
+  }
+
   await tx.tierTransition.create({
     data: {
       userId:          args.userId,

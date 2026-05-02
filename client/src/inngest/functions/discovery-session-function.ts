@@ -142,14 +142,37 @@ export const discoverySessionFunction = inngest.createFunction(
           discoverySessionId: sessionId,
         })),
       };
-      const rec = await prisma.recommendation.upsert({
-        where:  { sessionId },
-        create: data,
-        update: data,
-        select: { id: true },
+      // Recommendation.sessionId is no longer column-level unique; the
+      // partial unique on (sessionId) WHERE parentRecommendationId IS
+      // NULL is what enforces "one primary per session." That partial
+      // unique cannot be referenced from a Prisma upsert's `where`,
+      // so we resolve idempotency via findFirst-then-create-or-update
+      // inside a transaction. Concurrent invocations are bounded by
+      // Inngest's per-function-id retry semantics, but if two ever
+      // raced past the findFirst, the partial unique would still cause
+      // the loser's create to throw P2002 — which is the correct
+      // failure (Inngest will retry, the second pass finds the
+      // committed row, and updates it).
+      const recommendationId = await prisma.$transaction(async (tx) => {
+        const existing = await tx.recommendation.findFirst({
+          where:  { sessionId, parentRecommendationId: null },
+          select: { id: true },
+        });
+        if (existing) {
+          await tx.recommendation.update({
+            where: { id: existing.id },
+            data,
+          });
+          return existing.id;
+        }
+        const created = await tx.recommendation.create({
+          data,
+          select: { id: true },
+        });
+        return created.id;
       });
-      log.debug('Recommendation persisted', { sessionId, recommendationId: rec.id });
-      return { recommendationId: rec.id };
+      log.debug('Recommendation persisted', { sessionId, recommendationId });
+      return { recommendationId };
     });
 
     // Roadmap warm-up removed. Previously we fired the roadmap

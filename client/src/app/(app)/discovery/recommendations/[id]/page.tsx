@@ -42,7 +42,7 @@ export default async function RecommendationDetailPage({
       acceptedAt:                  true,
       pushbackHistory:             true,
       versions:                    true,
-      alternativeRecommendationId: true,
+      alternativeRecommendation:   { select: { id: true } },
       roadmap:                     { select: { status: true } },
       session:                     { select: { conversationId: true } },
     },
@@ -72,8 +72,15 @@ export default async function RecommendationDetailPage({
       && 'timestamp' in v
       && ((v as { action: unknown }).action === 'refine' || (v as { action: unknown }).action === 'replace'),
   );
+  // Project the alt-relation back to the column-shape the client
+  // component already understands. Schema flipped the FK to alt → parent
+  // (alt.parentRecommendationId) but RecommendationReveal still consumes
+  // the legacy `alternativeRecommendationId` shape; translate here so
+  // the client surface stays stable.
+  const { alternativeRecommendation, ...recRest } = recommendation;
   const recForClient = {
-    ...recommendation,
+    ...recRest,
+    alternativeRecommendationId: alternativeRecommendation?.id ?? null,
     acceptedAt:      recommendation.acceptedAt ? recommendation.acceptedAt.toISOString() : null,
     pushbackHistory: safeParsePushbackHistory(recommendation.pushbackHistory),
     versions,

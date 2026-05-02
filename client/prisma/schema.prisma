@@ -88,8 +88,8 @@ model User {
   // Interview → Recommendation → Roadmap → Execute → Continuation
   // loop). A founder can have multiple ventures in parallel; tier
   // constraints gate active count (Execute: 1, Compound: 3).
-  founderProfile FounderProfile?
-  ventures       Venture[]
+  founderProfile        FounderProfile?
+  ventures              Venture[]
   transformationReports TransformationReport[]
 
   // ----- Billing (Paddle) -----
@@ -214,7 +214,10 @@ model TierTransition {
   /// transitions originating outside webhooks (manual operator action).
   paddleEventType String?
   /// Paddle event id for forensic correlation against the Paddle dashboard.
-  paddleEventId   String?
+  /// Unique (when not null) so a Paddle webhook redelivery cannot insert
+  /// a duplicate audit row — the conflict throws P2002 and the route
+  /// translates that into a 200 ack so Paddle stops retrying.
+  paddleEventId   String? @unique
 
   occurredAt DateTime @default(now())
 
@@ -277,12 +280,13 @@ model Conversation {
   discoverySession DiscoverySession?
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
+  /// Standalone @@index([createdAt]) was redundant — every read predicate
+  /// includes userId, so the (userId, createdAt) composite is sufficient.
 
   // Sidebar query is `where: { userId }, orderBy: createdAt desc, take: 100`.
   // The composite index covers both predicates so the planner can use
   // an index-only scan. Stage 7.2 scalability fix.
   @@index([userId, createdAt])
-  @@index([createdAt])
 }
 
 model Message {
@@ -388,7 +392,13 @@ model DiscoverySession {
    */
   researchLog Json @default("[]")
 
-  recommendation Recommendation?
+  /// A session can produce multiple recommendations: the synthesis
+  /// pipeline writes one primary, and a pushback hard-cap closing
+  /// move can later add an alternative against the same belief state.
+  /// The "primary" is the row whose parentRecommendationId is null —
+  /// at most one per session, enforced by a partial unique index on
+  /// (sessionId) WHERE parentRecommendationId IS NULL.
+  recommendations Recommendation[]
 
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -397,6 +407,10 @@ model DiscoverySession {
   @@index([userId])
   @@index([userId, status])
   @@index([createdAt])
+  /// Resume-discovery query at /discovery load — filters by
+  /// (userId, status='ACTIVE', lastTurnAt range) ordered by lastTurnAt desc.
+  /// Promoted into schema from migration 20260405000000 (was drift).
+  @@index([userId, status, lastTurnAt(sort: Desc)])
 }
 
 /**
@@ -409,7 +423,15 @@ model Recommendation {
   id        String           @id @default(cuid())
   userId    String
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sessionId String           @unique
+  /// Sessions can produce more than one Recommendation: the synthesis
+  /// pipeline writes the primary, and the pushback hard-cap closing
+  /// move writes an alternative against the same belief state. Both
+  /// row types reference the same DiscoverySession via this column.
+  /// A partial unique index in migration 20260502130000 enforces the
+  /// real invariant — at most one row per sessionId WHERE
+  /// parentRecommendationId IS NULL — so the synthesis worker still
+  /// has a deterministic key to upsert against.
+  sessionId String
   session   DiscoverySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   // ----- Phase awareness (Concern 3 — preparatory data only) -----
@@ -527,14 +549,28 @@ model Recommendation {
   // ----- Round-7 alternative recommendation (Concern 1, closing move) -----
 
   /**
-   * The alternative recommendation generated at round 7 when the
-   * founder's pushback indicated a fundamentally different direction.
-   * Self-relation enables a single query to fetch both for the
-   * comparison view.
+   * The alternative recommendation generated at the pushback hard-cap
+   * closing move when the founder argued for a fundamentally different
+   * direction.
+   *
+   * Direction: alt → parent. The alternative row carries the FK
+   * `parentRecommendationId` pointing back at the primary. The primary
+   * exposes its alternative through the inverse virtual relation
+   * `alternativeRecommendation`. Single source of truth, no redundant
+   * columns to keep in sync.
+   *
+   * Why this direction (and not the inverse, which used to be on the
+   * parent): the alternative MUST share the parent's sessionId so the
+   * comparison view can render both against the same belief state.
+   * The partial unique on `(sessionId) WHERE parentRecommendationId IS
+   * NULL` only works if the discriminator column lives on the alt row.
+   *
+   * onDelete: Cascade — deleting the parent should remove its alt;
+   * the alt is meaningless without the primary it was generated against.
    */
-  alternativeRecommendationId String?         @unique
-  alternativeRecommendation   Recommendation? @relation("RecommendationAlternative", fields: [alternativeRecommendationId], references: [id])
-  primaryRecommendation       Recommendation? @relation("RecommendationAlternative")
+  parentRecommendationId String?         @unique
+  parentRecommendation   Recommendation? @relation("RecommendationAlternative", fields: [parentRecommendationId], references: [id], onDelete: Cascade)
+  alternativeRecommendation Recommendation? @relation("RecommendationAlternative")
 
   // Core recommendation fields (mirroring RecommendationSchema)
   summary                String @db.Text
@@ -570,6 +606,9 @@ model Recommendation {
   @@index([userId])
   @@index([sessionId])
   @@index([cycleId])
+  /// Sidebar list query: where userId, orderBy createdAt desc, take 50.
+  /// Composite covers both predicates for an index-only scan.
+  @@index([userId, createdAt(sort: Desc)])
 }
 
 enum RoadmapStatus {
@@ -765,8 +804,14 @@ model Roadmap {
   /// two pages binding to the same task.
   validationPages ValidationPage[]
 
+  /// Back-reference for the Cycle.roadmapId FK. Cycles point at this
+  /// roadmap via their denormalised roadmapId column; deleting the
+  /// roadmap nulls the column rather than cascading.
+  cycles Cycle[]
+
   @@index([userId])
-  @@index([recommendationId])
+  /// recommendationId is already @unique (line above), which creates a
+  /// btree index — a separate @@index is redundant and bloats writes.
   @@index([parentRoadmapId])
   @@index([ventureId])
 }
@@ -1014,11 +1059,15 @@ model ValidationPage {
   /// semantics — truly-standalone pages (both null) are unrestricted.
   @@unique([roadmapId, taskId])
   @@index([userId])
-  @@index([slug])
+  /// slug is already @unique (line above), which creates a btree index —
+  /// a separate @@index is redundant and bloats writes.
   @@index([status])
-  @@index([recommendationId])
+  /// recommendationId is already covered by @@unique([recommendationId])
+  /// (above) which creates a btree index — a separate @@index is redundant.
   @@index([taskId])
   @@index([roadmapId])
+  /// Validation dashboard list: where userId, orderBy updatedAt desc, take 50.
+  @@index([userId, updatedAt(sort: Desc)])
 }
 
 /**
@@ -1192,8 +1241,8 @@ model Venture {
   /// automatically unarchives up to the new cap, newest-archived first.
   archivedAt DateTime?
 
-  cycles   Cycle[]
-  roadmaps Roadmap[]
+  cycles               Cycle[]
+  roadmaps             Roadmap[]
   /// One transformation report per venture. Created when the founder
   /// transitions the venture to `completed`; null until then.
   transformationReport TransformationReport?
@@ -1226,6 +1275,8 @@ model Venture {
   @@index([userId])
   @@index([userId, status])
   @@index([userId, archivedAt])
+  /// Sessions tab + /api/discovery/ventures: where userId, orderBy updatedAt desc, take 50.
+  @@index([userId, updatedAt(sort: Desc)])
 }
 
 /**
@@ -1251,7 +1302,9 @@ model Cycle {
   recommendation Recommendation?
   /// Denormalised roadmapId for query convenience (also findable via
   /// recommendation → roadmap). Nullable until the roadmap is generated.
+  /// SetNull on Roadmap delete — the cycle outlives a deleted roadmap.
   roadmapId      String?
+  roadmap        Roadmap?        @relation(fields: [roadmapId], references: [id], onDelete: SetNull)
 
   /// CycleSummarySchema-validated JSON. See lib/lifecycle/schemas.ts.
   /// Populated by the Lifecycle Transition Engine after the
@@ -1267,8 +1320,12 @@ model Cycle {
   createdAt   DateTime  @default(now())
   completedAt DateTime?
 
+  /// One row per (venture, cycleNumber) — replaces the prior plain index
+  /// with a unique constraint to enforce the invariant in the DB.
+  @@unique([ventureId, cycleNumber])
   @@index([ventureId])
-  @@index([ventureId, cycleNumber])
+  /// Match the Cycle.roadmapId FK lookups that walk back to a roadmap.
+  @@index([roadmapId])
 }
 
 // ---------------------------------------------------------------------------
@@ -1302,11 +1359,11 @@ model TransformationReport {
   /// boundary. Terminal: 'complete' | 'failed'. Stages:
   /// 'queued' | 'loading_data' | 'drafting' | 'detecting_redactions' |
   /// 'persisting' | 'complete' | 'failed'.
-  stage         String    @default("queued")
-  errorMessage  String?
-  startedAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  completedAt   DateTime?
+  stage        String    @default("queued")
+  errorMessage String?
+  startedAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  completedAt  DateTime?
 
   /// TransformationReportSchema-validated JSON. Nullable until
   /// stage='complete'. The shape is intentionally dynamic — every
@@ -1335,8 +1392,8 @@ model TransformationReport {
   ///                      ship the public archive separately)
   ///   'public'         — live at /stories/[publicSlug]
   ///   'unpublished'    — was public, founder pulled it
-  publishState String   @default("private")
-  publicSlug   String?  @unique
+  publishState String    @default("private")
+  publicSlug   String?   @unique
   publishedAt  DateTime?
 
   /// Moderator notes on the story. When publishState transitions
@@ -1346,7 +1403,7 @@ model TransformationReport {
   /// (declined silently), the note stays internal — never shown
   /// to the founder. Null when the story has never been reviewed
   /// or when no notes were left.
-  reviewNotes  String?  @db.Text
+  reviewNotes String? @db.Text
 
   /// Wall-clock of the moderator's last review action. Distinct
   /// from publishedAt because a story can cycle through review →
@@ -1354,7 +1411,7 @@ model TransformationReport {
   /// this timestamp; the founder banner uses
   /// (reviewedAt > publishedAt OR publishedAt IS NULL) to decide
   /// whether to show fresh moderator feedback.
-  reviewedAt   DateTime?
+  reviewedAt DateTime?
 
   /// Moderator-stamped outcome label that drives the colored chip
   /// on the public marketing strip + /stories index card. One of:
@@ -1375,7 +1432,7 @@ model TransformationReport {
   /// the story is moderator-controlled. Stored separately from
   /// `content` so card rendering is fast and consistent — the
   /// strip never shows 600 words of one section.
-  cardSummary  Json?
+  cardSummary Json?
 
   createdAt DateTime @default(now())
 
@@ -1438,7 +1495,14 @@ model ToolJob {
   updatedAt   DateTime  @updatedAt
   completedAt DateTime?
 
-  @@index([userId, stage])
+  /// One in-flight job per (sessionId, toolType). Prevents a route bug
+  /// from double-allocating the same sessionId across two tool types
+  /// and producing competing rows. Also provides a btree on sessionId
+  /// (leading column) — separate @@index([sessionId]) was redundant.
+  @@unique([sessionId, toolType])
+  /// Polls every 3-30s for the active-jobs banner — predicate is
+  /// (userId, stage NOT IN terminal) ordered by startedAt desc. The
+  /// composite supersedes the prior @@index([userId, stage]).
+  @@index([userId, stage, startedAt(sort: Desc)])
   @@index([roadmapId])
-  @@index([sessionId])
 }

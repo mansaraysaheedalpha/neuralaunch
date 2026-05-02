@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { paddleClient } from '@/lib/paddle/client';
 import { handleWebhookEvent } from '@/lib/paddle/webhook-processor';
+import { isDuplicatePaddleEventError } from '@/lib/paddle/webhook-handlers/shared';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
 import { rateLimitByIp } from '@/lib/validation/server-helpers';
@@ -76,6 +77,20 @@ export async function POST(req: Request) {
   try {
     await handleWebhookEvent(event);
   } catch (err) {
+    // Concurrent Paddle redelivery race: the findUnique pre-check in
+    // recordTierTransition handles the common serial-redelivery case
+    // cleanly, but two near-simultaneous redeliveries can both pass the
+    // pre-check and race the create. The loser hits P2002 on
+    // TierTransition.paddleEventId. Treat it as a successful idempotent
+    // ack so Paddle stops retrying — the winner already committed the
+    // exact same audit row and side effects under transactional
+    // semantics.
+    if (isDuplicatePaddleEventError(err)) {
+      logger.info('Paddle webhook concurrent redelivery — already processed', {
+        eventType: event.eventType,
+      });
+      return NextResponse.json({ status: 'ok', deduplicated: true }, { status: 200 });
+    }
     logger.error(
       'Paddle webhook processing failed',
       err instanceof Error ? err : new Error(String(err)),

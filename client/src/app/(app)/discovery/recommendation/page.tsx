@@ -45,7 +45,7 @@ export default async function RecommendationPage({
       acceptedAt:                  true,
       pushbackHistory:             true,
       versions:                    true,
-      alternativeRecommendationId: true,
+      alternativeRecommendation:   { select: { id: true } },
       roadmap:                     { select: { status: true } },
     },
   });
@@ -76,8 +76,13 @@ export default async function RecommendationPage({
       && 'timestamp' in v
       && ((v as { action: unknown }).action === 'refine' || (v as { action: unknown }).action === 'replace'),
   );
+  // See sibling /recommendations/[id]/page.tsx for context — schema
+  // flipped the alternative FK to alt → parent, client component still
+  // expects the legacy `alternativeRecommendationId` column shape.
+  const { alternativeRecommendation, ...recRest } = recommendation;
   const recForClient = {
-    ...recommendation,
+    ...recRest,
+    alternativeRecommendationId: alternativeRecommendation?.id ?? null,
     acceptedAt:      recommendation.acceptedAt ? recommendation.acceptedAt.toISOString() : null,
     pushbackHistory: safeParsePushbackHistory(recommendation.pushbackHistory),
     versions,

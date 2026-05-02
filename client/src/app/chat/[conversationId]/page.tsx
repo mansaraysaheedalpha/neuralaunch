@@ -47,13 +47,20 @@ export default async function ChatTranscriptPage({
         select: {
           id:     true,
           status: true,
-          recommendation: {
+          // Sessions can have multiple recommendations (primary +
+          // optional pushback alternative); the chat page only cares
+          // about the primary, identified by parentRecommendationId IS
+          // NULL. Filter at query time so the array we read below has
+          // at most one entry.
+          recommendations: {
+            where:  { parentRecommendationId: null },
             select: {
               id:              true,
               path:            true,
               pushbackHistory: true,
               acceptedAt:      true,
             },
+            take: 1,
           },
         },
       },
@@ -86,16 +93,17 @@ export default async function ChatTranscriptPage({
   // so the founder can see the full Q&A in one place — interview turns AND
   // pushback turns. Pushback is per-recommendation, interview is
   // per-conversation, but the founder thinks of them as one conversation.
-  const pushbackTurns = conversation.discoverySession?.recommendation
-    ? safeParsePushbackHistory(conversation.discoverySession.recommendation.pushbackHistory)
+  const primaryRec = conversation.discoverySession?.recommendations[0] ?? null;
+  const pushbackTurns = primaryRec
+    ? safeParsePushbackHistory(primaryRec.pushbackHistory)
     : [];
 
   // Build the contextual action link
   const ds = conversation.discoverySession;
   let actionHref:  string | null = null;
   let actionLabel: string | null = null;
-  if (ds?.status === 'COMPLETE' && ds.recommendation?.id) {
-    actionHref  = `/discovery/recommendations/${ds.recommendation.id}`;
+  if (ds?.status === 'COMPLETE' && primaryRec?.id) {
+    actionHref  = `/discovery/recommendations/${primaryRec.id}`;
     actionLabel = 'View recommendation →';
   } else if (ds && ds.status !== 'COMPLETE') {
     actionHref  = '/discovery';

@@ -105,7 +105,7 @@ export async function POST(
         pushbackVersion:        true,
         versions:               true,
         researchLog:            true,
-        alternativeRecommendationId: true,
+        alternativeRecommendation: { select: { id: true } },
         roadmap:                { select: { id: true, status: true } },
         session: { select: { beliefState: true } },
       },
@@ -138,7 +138,7 @@ export async function POST(
 
     // If a prior alternative was already generated, the conversation is over —
     // accept it or start a new session.
-    if (rec.alternativeRecommendationId) {
+    if (rec.alternativeRecommendation) {
       throw new HttpError(409, 'An alternative has already been generated for this recommendation. Compare them and accept one, or start a new discovery session.');
     }
 

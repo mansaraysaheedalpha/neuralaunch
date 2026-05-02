@@ -57,8 +57,11 @@ export async function GET(
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
     }
 
-    const recommendation = await prisma.recommendation.findUnique({
-      where:  { sessionId },
+    // sessionId is no longer column-level @unique (the partial unique
+    // on primaries lives in raw SQL only). Use findFirst against the
+    // primary-row predicate so we never accidentally return an alt.
+    const recommendation = await prisma.recommendation.findFirst({
+      where:  { sessionId, parentRecommendationId: null },
       select: {
         id:                     true,
         path:                   true,

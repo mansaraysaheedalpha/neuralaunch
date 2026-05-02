@@ -10,6 +10,79 @@ import { logger } from "./lib/logger";
 import { env } from "@/lib/env";
 import { readTierCache } from "@/lib/auth/tier-cache";
 
+/**
+ * GitHub primary-email verification gate.
+ *
+ * GitHub's `/user` profile endpoint returns the user's primary email as
+ * a plain string with NO verification flag. A GitHub user can register
+ * and use any email address as their primary without ever proving they
+ * own it. Combined with `allowDangerousEmailAccountLinking: true`, this
+ * is an account-takeover vector: an attacker creates a GitHub account
+ * with a victim's email (unverified), authorises the OAuth app, and
+ * Auth.js silently links the GitHub identity into the victim's
+ * existing NeuraLaunch account.
+ *
+ * Mitigation: every GitHub sign-in fetches `/user/emails` (which is
+ * gated by the `user:email` scope we already request) and refuses to
+ * proceed unless the OAuth-supplied email matches a row marked
+ * `verified: true` AND `primary: true`. Fail-closed on any error from
+ * the API, missing token, or shape mismatch — never allow a sign-in
+ * we cannot positively confirm.
+ *
+ * Google has its own verification at the issuer (`email_verified` in
+ * the ID token) which Auth.js + the Google provider already enforce by
+ * default; this gate is GitHub-specific.
+ */
+async function verifyGitHubPrimaryEmail(
+  accessToken: string,
+  expectedEmail: string,
+): Promise<boolean> {
+  try {
+    const res = await fetch('https://api.github.com/user/emails', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept:        'application/vnd.github+json',
+        // GitHub asks every API caller to identify itself; without a
+        // User-Agent header the request is rejected with 403.
+        'User-Agent':  'neuralaunch-auth-verify',
+      },
+    });
+    if (!res.ok) {
+      logger.warn('GitHub /user/emails fetch failed during sign-in verification', {
+        status: res.status,
+      });
+      return false;
+    }
+    const body: unknown = await res.json();
+    if (!Array.isArray(body)) {
+      logger.warn('GitHub /user/emails returned non-array body');
+      return false;
+    }
+    const expectedLower = expectedEmail.toLowerCase();
+    for (const entry of body) {
+      if (
+        entry
+        && typeof entry === 'object'
+        && 'email' in entry
+        && 'verified' in entry
+        && 'primary' in entry
+        && typeof (entry as { email: unknown }).email === 'string'
+        && (entry as { verified: unknown }).verified === true
+        && (entry as { primary: unknown }).primary === true
+        && (entry as { email: string }).email.toLowerCase() === expectedLower
+      ) {
+        return true;
+      }
+    }
+    return false;
+  } catch (err) {
+    logger.warn('GitHub /user/emails fetch threw during sign-in verification', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return false;
+  }
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma) as Adapter,
   providers: [
@@ -24,11 +97,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // allowDangerousEmailAccountLinking is named "Dangerous" by
       // Auth.js because it allows account-takeover via email collision
       // when an OAuth provider does not strictly verify email
-      // ownership. Both Google and GitHub DO verify email ownership
-      // (you cannot create an account with an email you do not
-      // control), so this is acceptable for our threat model — but
-      // we should never enable it for any provider that ships
-      // unverified emails.
+      // ownership. Google verifies email ownership at the issuer
+      // (email_verified claim in the ID token, enforced by the Google
+      // provider). GitHub does NOT — its /user profile endpoint returns
+      // the primary email as a plain string with no verification flag,
+      // so an attacker can register a GitHub account with a victim's
+      // email and link into the victim's NeuraLaunch account.
+      //
+      // We keep auto-linking enabled for UX (one identity, multiple
+      // OAuth providers) but pair it with verifyGitHubPrimaryEmail()
+      // in the signIn callback below — every GitHub sign-in fetches
+      // /user/emails (gated by user:email scope) and rejects unless
+      // the OAuth-supplied email matches a row marked verified=true
+      // AND primary=true.
       allowDangerousEmailAccountLinking: true,
       authorization: {
         params: {
@@ -48,9 +129,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   secret: env.NEXTAUTH_SECRET,
   callbacks: {
-    signIn() {
-      // Allow sign in - account linking will be handled automatically
-      // by allowDangerousEmailAccountLinking
+    async signIn({ user, account }) {
+      // GitHub-specific account-takeover defence. The provider's auto-
+      // linking is allowed only after the OAuth-supplied email is
+      // proven to be a verified+primary email on the GitHub side.
+      // Fail-closed: any missing token, shape mismatch, or fetch
+      // failure rejects the sign-in. See verifyGitHubPrimaryEmail().
+      if (account?.provider === 'github') {
+        const accessToken = account.access_token;
+        const claimedEmail = user?.email;
+        if (typeof accessToken !== 'string' || accessToken.length === 0) {
+          logger.warn('GitHub sign-in rejected: no access_token on account');
+          return false;
+        }
+        if (typeof claimedEmail !== 'string' || claimedEmail.length === 0) {
+          logger.warn('GitHub sign-in rejected: no email on user object');
+          return false;
+        }
+        const ok = await verifyGitHubPrimaryEmail(accessToken, claimedEmail);
+        if (!ok) {
+          logger.warn('GitHub sign-in rejected: email is not a verified primary on GitHub', {
+            // No email logged — CLAUDE.md PII rule.
+            providerAccountId: account.providerAccountId,
+          });
+          return false;
+        }
+      }
       return true;
     },
     async session({ session, user }) {
