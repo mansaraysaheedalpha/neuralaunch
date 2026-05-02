@@ -7,6 +7,18 @@
 import type { NextConfig as NextJsConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
+// Configured app origin used for CORS Allow-Origin on /api/* responses.
+// Reading process.env directly (rather than @/lib/env) because this
+// file runs in the build/config context before the validated env
+// module loads. Falls back to localhost for contributor dev where
+// NEXT_PUBLIC_APP_URL is not set in .env.local. Vercel previews and
+// production set NEXT_PUBLIC_APP_URL per environment, so the prod
+// build resolves to the actual app origin.
+const API_CORS_ORIGIN =
+  process.env.NEXT_PUBLIC_APP_URL
+  ?? process.env.NEXT_PUBLIC_SITE_URL
+  ?? "http://localhost:3000";
+
 const nextConfig: NextJsConfig = {
   reactStrictMode: false,
   productionBrowserSourceMaps: false,
@@ -61,11 +73,31 @@ const nextConfig: NextJsConfig = {
   async headers() {
     return Promise.resolve([
       {
-        // Apply CORS headers to API routes (excluding auth routes - NextAuth handles its own CORS)
+        // /api/* (excluding NextAuth which handles its own CORS).
+        //
+        // Allow-Origin pinned to the configured app origin instead of "*".
+        // The previous "*" + "Allow-Credentials: true" pairing was a
+        // browser-rejected combination per the CORS spec — the wildcard
+        // disables credential propagation, so cookie-bearing cross-origin
+        // fetches were silently failing while the headers signalled
+        // permissive intent that was never delivered. Pinning to the
+        // configured origin lets cookie-bearing fetches from the app's
+        // own browser origin work AND gives clean preflight responses
+        // for legitimate cross-tool integrations going forward.
+        //
+        // Vary: Origin tells caches the response varies by Origin so a
+        // proxy doesn't reuse the same CORS headers across origins
+        // (defense-in-depth — the value is fixed today, but the header
+        // is correct as soon as we add per-origin allow-listing).
+        //
+        // Mobile native callers are not browsers and do not honour CORS,
+        // so they are unaffected by this change. NextAuth and webhook
+        // routes are excluded by the source matcher above.
         source: "/api/((?!auth).*)*",
         headers: [
           { key: "Access-Control-Allow-Credentials", value: "true" },
-          { key: "Access-Control-Allow-Origin", value: "*" }, // Will be overridden by middleware for specific origins
+          { key: "Access-Control-Allow-Origin",      value: API_CORS_ORIGIN },
+          { key: "Vary",                              value: "Origin" },
           {
             key: "Access-Control-Allow-Methods",
             value: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
@@ -78,10 +110,14 @@ const nextConfig: NextJsConfig = {
         ],
       },
       {
-        // Apply CORS headers to public landing pages
+        // Public landing pages — these are explicitly meant to be
+        // embedded / shared cross-origin (validation pages live under
+        // /l/[slug]). Wildcard is intentional here. No credentials
+        // header so the spec mismatch on the /api/* block does not
+        // apply.
         source: "/l/:path*",
         headers: [
-          { key: "Access-Control-Allow-Origin", value: "*" },
+          { key: "Access-Control-Allow-Origin",  value: "*" },
           { key: "Access-Control-Allow-Methods", value: "GET,OPTIONS" },
         ],
       },
