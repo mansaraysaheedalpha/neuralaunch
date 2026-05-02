@@ -3,6 +3,7 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import GitHub from "next-auth/providers/github";
+import LinkedIn from "next-auth/providers/linkedin";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import prisma from "@/lib/prisma";
 import type { Adapter } from "next-auth/adapters";
@@ -83,6 +84,21 @@ async function verifyGitHubPrimaryEmail(
   }
 }
 
+// LinkedIn OAuth uses OpenID Connect; the issuer-side `email_verified`
+// claim makes auto-linking safe (same security model as Google) so we
+// keep allowDangerousEmailAccountLinking enabled and rely on LinkedIn's
+// own verification — no GitHub-style /user/emails round-trip needed.
+// The provider only registers when both env vars are present so the
+// app still boots in dev environments without LinkedIn configured.
+const linkedInProviders =
+  env.LINKEDIN_CLIENT_ID && env.LINKEDIN_CLIENT_SECRET
+    ? [LinkedIn({
+        clientId:     env.LINKEDIN_CLIENT_ID,
+        clientSecret: env.LINKEDIN_CLIENT_SECRET,
+        allowDangerousEmailAccountLinking: true,
+      })]
+    : [];
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma) as Adapter,
   providers: [
@@ -91,6 +107,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientSecret: env.GOOGLE_CLIENT_SECRET,
       allowDangerousEmailAccountLinking: true,
     }),
+    ...linkedInProviders,
     GitHub({
       clientId: env.GITHUB_CLIENT_ID,
       clientSecret: env.GITHUB_CLIENT_SECRET,

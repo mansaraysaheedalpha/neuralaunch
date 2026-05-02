@@ -24,6 +24,14 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   GITHUB_CLIENT_ID:     z.string().min(1),
   GITHUB_CLIENT_SECRET: z.string().min(1),
+  // LinkedIn — optional. The provider is registered conditionally in
+  // auth.ts so the app boots without these set; the sign-in page hides
+  // the LinkedIn button when LINKEDIN_CLIENT_ID is absent. Production
+  // intent: founders live on LinkedIn; the OAuth profile (name +
+  // headline + current role) enriches the discovery agent's first
+  // turn.
+  LINKEDIN_CLIENT_ID:     z.string().optional(),
+  LINKEDIN_CLIENT_SECRET: z.string().optional(),
 
   // OAuth Providers — mobile
   // Google is shared with the web app (the mobile callback URL is
