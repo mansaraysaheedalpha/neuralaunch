@@ -13,19 +13,14 @@
 import { signIn } from "next-auth/react";
 import { motion, useReducedMotion } from "motion/react";
 import { ArrowLeft, Lock, Compass, ArrowRight, ChevronRight } from "lucide-react";
-import { FaGoogle, FaGithub, FaLinkedin } from "react-icons/fa";
+import { FaGithub, FaLinkedin } from "react-icons/fa";
+import { FcGoogle } from "react-icons/fc";
 import Link from "next/link";
 import Image from "next/image";
 
-interface SignInClientProps {
-  /** True when LINKEDIN_CLIENT_ID / SECRET are present in env.
-   *  False hides the LinkedIn provider row. */
-  linkedInEnabled: boolean;
-}
-
 type Provider = "google" | "linkedin" | "github";
 
-export default function SignInClient({ linkedInEnabled }: SignInClientProps) {
+export default function SignInClient() {
   const reduce = useReducedMotion();
 
   const handleSignIn = (provider: Provider) => {
@@ -64,7 +59,6 @@ export default function SignInClient({ linkedInEnabled }: SignInClientProps) {
         <BrandPanel reduce={reduce} />
         <SignInCard
           reduce={reduce}
-          linkedInEnabled={linkedInEnabled}
           onSignIn={handleSignIn}
         />
       </div>
@@ -200,11 +194,9 @@ function RhythmTile({ color }: { color: "primary" | "gold" | "success" }) {
 
 function SignInCard({
   reduce,
-  linkedInEnabled,
   onSignIn,
 }: {
   reduce:           boolean | null;
-  linkedInEnabled:  boolean;
   onSignIn:         (provider: Provider) => void;
 }) {
   const fade = (delay: number) =>
@@ -238,16 +230,14 @@ function SignInCard({
         <div className="mt-7 flex flex-col gap-2.5">
           <ProviderButton
             label="Continue with Google"
-            icon={<FaGoogle className="size-4 text-[#EA4335]" />}
+            icon={<FcGoogle className="size-4" />}
             onClick={() => onSignIn("google")}
           />
-          {linkedInEnabled && (
-            <ProviderButton
-              label="Continue with LinkedIn"
-              icon={<FaLinkedin className="size-4 text-[#0A66C2]" />}
-              onClick={() => onSignIn("linkedin")}
-            />
-          )}
+          <ProviderButton
+            label="Continue with LinkedIn"
+            icon={<FaLinkedin className="size-4 text-[#0A66C2]" />}
+            onClick={() => onSignIn("linkedin")}
+          />
           <ProviderButton
             label="Continue with GitHub"
             icon={<FaGithub className="size-4 text-white" />}

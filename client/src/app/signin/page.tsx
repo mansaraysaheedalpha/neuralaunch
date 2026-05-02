@@ -1,15 +1,13 @@
 // src/app/signin/page.tsx
 //
-// Server-component wrapper for the sign-in surface. Reads the
-// LinkedIn env flag at request time and passes it down to the
-// interactive client component, which gates the LinkedIn provider
-// button so it only renders when the OAuth credentials are
-// actually configured. Keeps the env access on the server (the
-// LINKEDIN_CLIENT_ID is not a public secret but it doesn't need to
-// reach the browser bundle either).
+// Server-component wrapper for the sign-in surface. The prior
+// version gated the LinkedIn button behind a server-side check on
+// the LinkedIn env vars — that was hiding real misconfiguration
+// behind silence. The button now always renders; if the OAuth
+// credentials aren't set, NextAuth surfaces a proper error on
+// click which is easier to debug than a missing button.
 
 import type { Metadata } from "next";
-import { env } from "@/lib/env";
 import SignInClient from "./SignInClient";
 
 export const metadata: Metadata = {
@@ -19,8 +17,5 @@ export const metadata: Metadata = {
 };
 
 export default function SignInPage() {
-  const linkedInEnabled = Boolean(
-    env.LINKEDIN_CLIENT_ID && env.LINKEDIN_CLIENT_SECRET
-  );
-  return <SignInClient linkedInEnabled={linkedInEnabled} />;
+  return <SignInClient />;
 }
