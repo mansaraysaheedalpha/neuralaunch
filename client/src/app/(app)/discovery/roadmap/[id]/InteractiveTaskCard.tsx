@@ -241,21 +241,29 @@ export function InteractiveTaskCard({
                   />
 
                   {!ck.formOpen && !diagnosticOpen && (
+                    // Action chips: per the design tool, label text is
+                    // SLATE while the leading icon carries the tint.
+                    // Primary-text-on-primary-tinted-background was
+                    // collapsing into a single hue and reading as flat;
+                    // separating the tint (icon + border) from the
+                    // label (slate) keeps the chip readable AND keeps
+                    // the diagnostic-lifeline visually distinct from
+                    // the neutral check-in.
                     <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         onClick={() => ck.setFormOpen(true)}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card/60 px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-border/80 transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card/60 px-2.5 py-1.5 text-[11px] font-medium text-foreground/80 hover:text-foreground hover:border-border/80 transition-colors"
                       >
-                        <MessageCircle className="size-3" aria-hidden="true" />
+                        <MessageCircle className="size-3 text-muted-foreground" aria-hidden="true" />
                         Check in on this task
                       </button>
                       <button
                         type="button"
                         onClick={() => setDiagnosticOpen(true)}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-[11px] font-medium text-primary/90 hover:bg-primary/10 hover:border-primary/50 transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1.5 text-[11px] font-medium text-foreground/85 hover:bg-primary/10 hover:border-primary/50 hover:text-foreground transition-colors"
                       >
-                        <LifeBuoy className="size-3" aria-hidden="true" />
+                        <LifeBuoy className="size-3 text-primary" aria-hidden="true" />
                         Get help with this task
                       </button>
                     </div>

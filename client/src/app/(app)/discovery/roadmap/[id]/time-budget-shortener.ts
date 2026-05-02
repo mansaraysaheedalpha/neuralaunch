@@ -40,3 +40,29 @@ export function shortenTimeEstimate(s: string): string {
   // Defensive fallback for unrecognised phrasing.
   return trimmed.length > 10 ? `${trimmed.slice(0, 8).trimEnd()}…` : trimmed;
 }
+
+/**
+ * extractHourUpperBound — pull the upper-bound hour count out of a
+ * freeform timeEstimate so a phase header can sum task estimates to
+ * a single "20H BUDGET" mono micro-row. Returns 0 when nothing
+ * hour-shaped is parseable (weeks / evenings / freeform fall back to
+ * 0 rather than guessing).
+ *
+ * Examples:
+ *   "10-12 hours …"  → 12
+ *   "6-8h"           → 8
+ *   "3 hours …"      → 3
+ *   "1 evening"      → 0  (deliberately — evenings don't convert
+ *                          cleanly to hours; the phase-level number
+ *                          would lie if we tried)
+ *   "1 week"         → 0
+ */
+export function extractHourUpperBound(s: string): number {
+  if (!s) return 0;
+  const m = s.trim().match(HOUR_RE);
+  if (!m) return 0;
+  const range = m[1].replace('–', '-');
+  const parts = range.split('-').map(p => Number.parseInt(p, 10)).filter(Number.isFinite);
+  if (parts.length === 0) return 0;
+  return parts[parts.length - 1];
+}

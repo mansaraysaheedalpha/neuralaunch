@@ -48,15 +48,17 @@ export function TaskMetadata({ task }: { task: StoredRoadmapTask }) {
         </div>
       </div>
 
-      {/* WHY THIS MATTERS — gold-tinted callout. Body sized to the
-          spec's 13.5px italic so it reads as a deliberate quote, not
-          a paragraph. */}
+      {/* WHY THIS MATTERS — gold-tinted callout. Per the design
+          tool, the body is GOLD italic (not slate) so the eyebrow +
+          body read as one continuous gold idea, not a slate paragraph
+          in a gold frame. The slightly muted gold/85 keeps the body
+          readable next to the punchier gold eyebrow. */}
       {task.rationale && (
         <div className="rounded-lg border border-gold/25 bg-gold/[0.04] border-l-[3px] border-l-gold px-5 py-4">
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold mb-2">
             Why this matters
           </p>
-          <p className="text-[13.5px] italic text-foreground/90 leading-relaxed">
+          <p className="text-[13.5px] italic text-gold/85 leading-relaxed">
             {task.rationale}
           </p>
         </div>

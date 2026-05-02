@@ -136,8 +136,15 @@ export function RoadmapView({
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
       >
-        <div className="absolute inset-x-0 top-0 h-[480px] bg-[radial-gradient(ellipse_at_top,_hsl(var(--primary)/0.10),_transparent_60%)]" />
-        <div className="absolute inset-0 opacity-[0.30] [background-image:linear-gradient(to_right,hsl(var(--border)/0.55)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.55)_1px,transparent_1px)] [background-size:42px_42px] [mask-image:radial-gradient(ellipse_at_center,black_45%,transparent_85%)]" />
+        {/* Top radial glow — primary-blue at 16% fading to ~4% per
+            the design-tool spec the user shared. Anchors the eye on
+            the title + progress band; the workspace lighting is
+            otherwise carried by the per-phase ambient lift inside
+            PhaseBlock so we don't double-tint the canvas. */}
+        <div className="absolute inset-x-0 top-0 h-[560px] bg-[radial-gradient(ellipse_at_top,_hsl(var(--primary)/0.16),_hsl(var(--primary)/0.04)_55%,transparent_75%)]" />
+        {/* Geometric grid — slate-800 at 55% per spec, with a radial
+            mask so the lines fade out toward the edges. */}
+        <div className="absolute inset-0 opacity-[0.40] [background-image:linear-gradient(to_right,hsl(var(--border)/0.55)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.55)_1px,transparent_1px)] [background-size:42px_42px] [mask-image:radial-gradient(ellipse_at_center,black_50%,transparent_90%)]" />
       </div>
 
       {/* Title bar — full canvas width, scrolls away normally. */}
@@ -295,6 +302,8 @@ export function RoadmapView({
                 roadmapId={data.id}
                 founderGoal={founderGoal}
                 progress={phaseProgress}
+                weekRange={phaseRanges.find(r => r.phase === visiblePhase.phase)}
+                isCurrentPhase={visiblePhase.phase === activePhase}
                 onOutcomePromptDue={() => setManualOutcomeTrigger(true)}
               />
             )}
