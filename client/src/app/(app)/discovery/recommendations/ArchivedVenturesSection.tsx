@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { Archive, RotateCcw } from 'lucide-react';
 import { swapVentureStatus, type SwapResult } from '@/app/actions/ventures';
 import { ReactivateDialog } from './ReactivateDialog';
+import { logger } from '@/lib/logger';
 
 export interface ArchivedVentureEntry {
   id:          string;
@@ -83,8 +84,12 @@ export function ArchivedVenturesSection({
           setSubmitting(false);
           setPendingId(null);
           setDialogFor(null);
-          // Swallow error to the handler; log via console for devtools.
-          console.error('swapVentureStatus threw', err);
+          // Swallow to keep the toast UX clean; log via central logger
+          // so dev sees it in console and prod ships it to Sentry.
+          logger.error(
+            'swapVentureStatus threw',
+            err instanceof Error ? err : new Error(String(err)),
+          );
           return;
         }
 

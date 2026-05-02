@@ -4,6 +4,7 @@
 import React, { Component, ReactNode } from "react";
 import { AlertCircle, RefreshCw } from "lucide-react";
 import { env } from "@/lib/env";
+import { logger } from "@/lib/logger";
 
 interface Props {
   children: ReactNode;
@@ -32,14 +33,13 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // Log error to console in development
-    if (env.NODE_ENV === "development") {
-      console.error("Error caught by boundary:", error, errorInfo);
-    }
-
-    // In production, you would send this to an error tracking service
-    // like Sentry, LogRocket, or Bugsnag
-    // Example: Sentry.captureException(error, { extra: errorInfo });
+    // Routed through the central logger so dev gets a readable
+    // console line and prod ships a structured error to Sentry. The
+    // previous `if (NODE_ENV === 'development') console.error(...)`
+    // swallowed every production crash silently.
+    logger.error("Error caught by boundary", error, {
+      componentStack: errorInfo.componentStack,
+    });
   }
 
   handleReset = () => {

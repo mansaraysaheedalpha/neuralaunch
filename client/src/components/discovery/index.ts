@@ -5,8 +5,6 @@ export { DiscoveryChat }             from './DiscoveryChat';
 export { WelcomeLayer }              from './WelcomeLayer';
 export { InterviewGuide }            from './InterviewGuide';
 export { QuestionStepper }           from './QuestionStepper';
-export { PhaseIndicator }            from './PhaseIndicator';
-export { ContextProgress }           from './ContextProgress';
 export { ThinkingPanel }             from './ThinkingPanel';
 export { MessageList }               from './MessageList';
 export type { ChatMessage }          from './MessageList';
