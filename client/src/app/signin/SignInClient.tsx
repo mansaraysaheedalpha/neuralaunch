@@ -43,19 +43,22 @@ export default function SignInClient() {
         <div className="absolute inset-0 opacity-[0.35] [background-image:linear-gradient(to_right,hsl(var(--border)/0.55)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.55)_1px,transparent_1px)] [background-size:42px_42px] [mask-image:radial-gradient(ellipse_at_center,black_45%,transparent_88%)]" />
       </div>
 
-      {/* Back to home */}
+      {/* Back to home — top-left corner. On mobile, sits in its own
+          row above the brand panel content so it doesn't visually
+          collide with the wordmark (both were anchored top-left at
+          sm and overlapped on a 320-375px viewport). */}
       <Link
         href="/"
-        className="absolute left-5 top-5 sm:left-8 sm:top-8 z-20 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm font-medium text-slate-400 transition-colors hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        className="absolute left-4 top-4 sm:left-6 sm:top-6 z-20 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs sm:text-sm font-medium text-slate-400 transition-colors hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
-        <ArrowLeft className="h-4 w-4" />
+        <ArrowLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
         Back to home
       </Link>
 
       {/* Two-column composition. Brand panel on the left (lg+),
           sign-in card on the right. Below lg, the brand panel
           collapses into a tighter header above the card. */}
-      <div className="relative mx-auto grid min-h-screen w-full max-w-7xl grid-cols-1 items-center gap-12 px-5 py-20 sm:px-8 lg:grid-cols-12 lg:gap-16 lg:px-12 lg:py-0">
+      <div className="relative mx-auto grid min-h-screen w-full max-w-7xl grid-cols-1 items-start gap-10 px-5 pt-20 pb-12 sm:px-8 sm:gap-12 lg:grid-cols-12 lg:items-center lg:gap-16 lg:px-12 lg:py-0">
         <BrandPanel reduce={reduce} />
         <SignInCard
           reduce={reduce}
@@ -114,7 +117,7 @@ function BrandPanel({ reduce }: { reduce: boolean | null }) {
 
         <motion.h1
           {...fade(0.16)}
-          className="text-3xl sm:text-4xl font-semibold tracking-tight leading-[1.15]"
+          className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight leading-[1.15]"
         >
           One honest interview.{" "}
           <span className="text-gold">One clear recommendation.</span>

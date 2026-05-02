@@ -4,6 +4,7 @@
 import Image from 'next/image';
 import { Github } from 'lucide-react';
 import { FcGoogle } from 'react-icons/fc';
+import { FaLinkedin } from 'react-icons/fa';
 
 interface AccountInfoSectionProps {
   name:      string | null;
@@ -27,8 +28,9 @@ export function AccountInfoSection({
     ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
     : email?.slice(0, 2).toUpperCase() ?? 'U';
 
-  const hasGoogle = providers.includes('google');
-  const hasGithub = providers.includes('github');
+  const hasGoogle   = providers.includes('google');
+  const hasLinkedIn = providers.includes('linkedin');
+  const hasGithub   = providers.includes('github');
 
   return (
     <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-5">
@@ -78,6 +80,20 @@ export function AccountInfoSection({
         </div>
 
         <div className="flex items-center gap-3">
+          <div className="size-8 rounded-lg bg-white dark:bg-slate-800 border flex items-center justify-center">
+            <FaLinkedin className="size-4 text-[#0A66C2]" />
+          </div>
+          <p className="text-xs text-foreground">LinkedIn</p>
+          <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full ${
+            hasLinkedIn
+              ? 'bg-success/10 text-success'
+              : 'bg-muted text-muted-foreground'
+          }`}>
+            {hasLinkedIn ? 'Connected' : 'Not connected'}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-3">
           <div className="size-8 rounded-lg bg-gray-900 dark:bg-gray-700 flex items-center justify-center">
             <Github className="size-4 text-white" />
           </div>
@@ -85,7 +101,7 @@ export function AccountInfoSection({
           <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full ${
             hasGithub
               ? 'bg-success/10 text-success'
-              : 'bg-gold/10 text-gold'
+              : 'bg-muted text-muted-foreground'
           }`}>
             {hasGithub ? 'Connected' : 'Not connected'}
           </span>
