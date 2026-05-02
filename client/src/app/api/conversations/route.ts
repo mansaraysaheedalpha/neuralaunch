@@ -1,44 +1,36 @@
 // client/src/app/api/conversations/route.ts
-import { auth } from "@/auth";
-import prisma from "@/lib/prisma";
-import { handleApiError, ErrorResponses } from "@/lib/api-error";
-import { successResponse } from "@/lib/api-response";
+import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
 import {
   enforceSameOrigin,
-  HttpError,
   httpErrorToResponse,
   rateLimitByUser,
   RATE_LIMITS,
-} from "@/lib/validation/server-helpers";
+  requireUserId,
+} from '@/lib/validation/server-helpers';
 
 export async function GET(request: Request) {
   try {
     enforceSameOrigin(request);
-    const session = await auth();
-    if (!session?.user?.id) {
-      return ErrorResponses.unauthorized();
-    }
-    const userId = session.user.id;
-    await rateLimitByUser(userId, "conversations-list", RATE_LIMITS.API_READ);
+    const userId = await requireUserId(request);
+    await rateLimitByUser(userId, 'conversations-list', RATE_LIMITS.API_READ);
 
     // Pagination cap: the sidebar shows recent conversations, not the
-    // founder's entire history. 100 is well above the visual fold
-    // and prevents an unbounded payload from a power user with
-    // hundreds of past sessions. Stage 7.2 scalability bound.
+    // founder's entire history. 100 is well above the visual fold and
+    // prevents an unbounded payload from a power user with hundreds of
+    // past sessions. Stage 7.2 scalability bound.
     const conversations = await prisma.conversation.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      take: 100,
+      where:   { userId },
+      orderBy: { createdAt: 'desc' },
+      take:    100,
       select: {
-        id: true,
-        title: true,
+        id:        true,
+        title:     true,
         createdAt: true,
         updatedAt: true,
         // Surface the linked discovery session status so the sidebar
         // can route in-progress sessions to /discovery (live interview)
-        // instead of /chat/[id] (read-only transcript). Without this
-        // the sidebar dropped founders into a transcript with no
-        // input box and no way to continue.
+        // instead of /chat/[id] (read-only transcript).
         discoverySession: {
           select: { status: true },
         },
@@ -48,16 +40,15 @@ export async function GET(request: Request) {
     // Flatten the relation for the client — the sidebar component
     // does not need a nested object.
     const shaped = conversations.map(c => ({
-      id:                c.id,
-      title:             c.title,
-      createdAt:         c.createdAt,
-      updatedAt:         c.updatedAt,
-      discoveryStatus:   c.discoverySession?.status ?? null,
+      id:              c.id,
+      title:           c.title,
+      createdAt:       c.createdAt,
+      updatedAt:       c.updatedAt,
+      discoveryStatus: c.discoverySession?.status ?? null,
     }));
 
-    return successResponse(shaped);
+    return NextResponse.json(shaped);
   } catch (error) {
-    if (error instanceof HttpError) return httpErrorToResponse(error);
-    return handleApiError(error, "GET /api/conversations");
+    return httpErrorToResponse(error);
   }
 }

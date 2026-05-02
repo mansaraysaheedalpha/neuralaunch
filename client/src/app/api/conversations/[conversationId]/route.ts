@@ -1,17 +1,15 @@
 // client/src/app/api/conversations/[conversationId]/route.ts
-import { NextRequest } from "next/server";
-import { auth } from "@/auth";
-import prisma from "@/lib/prisma";
-import { handleApiError, ErrorResponses, NotFoundError } from "@/lib/api-error";
-import { noContentResponse } from "@/lib/api-response";
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import prisma from '@/lib/prisma';
 import {
   enforceSameOrigin,
   HttpError,
   httpErrorToResponse,
   rateLimitByUser,
   RATE_LIMITS,
-} from "@/lib/validation/server-helpers";
-import { z } from "zod";
+  requireUserId,
+} from '@/lib/validation/server-helpers';
 
 const conversationIdSchema = z.object({
   conversationId: z.string().cuid(),
@@ -30,21 +28,17 @@ const conversationIdSchema = z.object({
  */
 export async function DELETE(
   req: NextRequest,
-  context: { params: Promise<{ conversationId: string }> }
+  context: { params: Promise<{ conversationId: string }> },
 ) {
   try {
     enforceSameOrigin(req);
-    const session = await auth();
-    if (!session?.user?.id) {
-      return ErrorResponses.unauthorized();
-    }
-
-    await rateLimitByUser(session.user.id, "conversation-delete", RATE_LIMITS.API_AUTHENTICATED);
+    const userId = await requireUserId(req);
+    await rateLimitByUser(userId, 'conversation-delete', RATE_LIMITS.API_AUTHENTICATED);
 
     const params = await context.params;
     const validation = conversationIdSchema.safeParse(params);
     if (!validation.success) {
-      return ErrorResponses.badRequest("Invalid conversation ID");
+      throw new HttpError(400, 'Invalid conversation ID');
     }
 
     const { conversationId } = validation.data;
@@ -54,17 +48,16 @@ export async function DELETE(
     const deleteResult = await prisma.conversation.deleteMany({
       where: {
         id: conversationId,
-        userId: session.user.id,
+        userId,
       },
     });
 
     if (deleteResult.count === 0) {
-      throw new NotFoundError("Conversation");
+      throw new HttpError(404, 'Conversation not found');
     }
 
-    return noContentResponse();
+    return new NextResponse(null, { status: 204 });
   } catch (error) {
-    if (error instanceof HttpError) return httpErrorToResponse(error);
-    return handleApiError(error, "DELETE /api/conversations/[conversationId]");
+    return httpErrorToResponse(error);
   }
 }

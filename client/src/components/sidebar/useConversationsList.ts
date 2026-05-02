@@ -16,16 +16,13 @@ export interface SidebarConversation {
   discoveryStatus?: 'ACTIVE' | 'COMPLETE' | 'EXPIRED' | null;
 }
 
-interface ConversationsApiResponse {
-  success: boolean;
-  data:    SidebarConversation[];
-}
-
 const fetcher = async (url: string): Promise<SidebarConversation[]> => {
   const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch conversations');
-  const json = await res.json() as ConversationsApiResponse;
-  return json.data ?? [];
+  // Route returns the array directly (canonical shape across the app —
+  // the legacy { success, data, timestamp } envelope was retired with
+  // the api-response/api-error helper purge).
+  return await res.json() as SidebarConversation[];
 };
 
 export interface UseConversationsListResult {
