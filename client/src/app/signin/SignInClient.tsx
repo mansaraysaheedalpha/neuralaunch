@@ -301,14 +301,23 @@ function ProviderButton({
     <button
       type="button"
       onClick={onClick}
-      className="group relative flex h-12 w-full items-center justify-center gap-3 rounded-lg border border-slate-800 bg-navy-950 px-4 text-sm font-medium text-foreground/90 transition-all hover:bg-navy-800 hover:border-slate-700 hover:text-foreground hover:-translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-900"
+      // text-white at full opacity (was text-foreground/90) — the
+      // dim 90% baseline relied on `hover:text-foreground` lifting
+      // it to full white, which never fires on mobile (no hover
+      // state on touch devices), so labels were rendering as
+      // washed-out grey on phones.
+      // ChevronRight goes from "hover-only on desktop" to "always
+      // visible at low opacity on mobile, full opacity on hover at
+      // desktop" so the row has the same visual richness on every
+      // device.
+      className="group relative flex h-12 w-full items-center justify-center gap-3 rounded-lg border border-slate-800 bg-navy-950 px-4 text-sm font-medium text-white transition-all hover:bg-navy-800 hover:border-slate-700 hover:-translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-900"
     >
       <span className="flex items-center gap-3">
         {icon}
         <span>{label}</span>
       </span>
       <ChevronRight
-        className="absolute right-3 size-4 text-slate-600 opacity-0 transition-opacity group-hover:opacity-100"
+        className="absolute right-3 size-4 text-slate-500 opacity-60 transition-opacity group-hover:opacity-100 group-hover:text-slate-300"
         aria-hidden="true"
       />
     </button>
