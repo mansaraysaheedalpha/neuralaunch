@@ -14,6 +14,7 @@ import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { archiveExcessVenturesOnDowngrade } from '@/lib/lifecycle/tier-limits';
 import { recordTierTransition } from './shared';
+import { invalidateTierCache } from '@/lib/auth/tier-cache';
 
 /**
  * Demotion rules:
@@ -108,6 +109,9 @@ export async function handleAdjustment(event: AdjustmentCreatedEvent | Adjustmen
     });
     await archiveExcessVenturesOnDowngrade(existing.userId, 'free', tx);
   });
+
+  // Drop tier cache so paid access ends immediately on next request.
+  await invalidateTierCache(existing.userId);
 
   logger.info('Paddle adjustment processed — tier demoted to free', {
     userId:               existing.userId,

@@ -19,6 +19,7 @@ import {
 import { sendPaymentFailedEmail } from '@/lib/email/templates/payment-failed';
 import { sendPushToUser } from '@/lib/push/send-push';
 import { recordTierTransition } from './shared';
+import { invalidateTierCache } from '@/lib/auth/tier-cache';
 
 // ---------------------------------------------------------------------------
 // transaction.completed — renewal confirmed
@@ -65,6 +66,12 @@ export async function handleTransactionCompleted(event: TransactionCompletedEven
       await restoreArchivedVenturesOnUpgrade(existing.userId, restoredTier as Tier, tx);
     }
   });
+
+  // Drop tier cache so the recovered paid tier takes effect on the
+  // user's next request rather than waiting for the 30s TTL.
+  if (existing.tier !== restoredTier) {
+    await invalidateTierCache(existing.userId);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -116,6 +123,11 @@ export async function handlePaymentFailed(event: TransactionPaymentFailedEvent):
       await archiveExcessVenturesOnDowngrade(existing.userId, 'free', tx);
     }
   });
+
+  // Drop tier cache so paid access ends on the user's next request.
+  if (existing.tier !== 'free') {
+    await invalidateTierCache(existing.userId);
+  }
 
   // Dunning notifications — fired AFTER the transaction commits so a
   // failed notification never rolls back the tier demotion. Both

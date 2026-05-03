@@ -27,6 +27,7 @@ import {
   nextLastPaidTier,
   recordTierTransition,
 } from './shared';
+import { invalidateTierCache } from '@/lib/auth/tier-cache';
 
 // ---------------------------------------------------------------------------
 // subscription.created
@@ -124,6 +125,12 @@ export async function handleSubscriptionCreated(event: SubscriptionCreatedEvent)
     isFounder,
   });
 
+  // Drop the L1 + L2 tier cache so this user's very next request
+  // sees the new tier instead of waiting up to 30s for natural TTL
+  // expiry. Best-effort — User.tierUpdatedAt was bumped inside the
+  // tx above so the cache will refresh correctly even if this fails.
+  await invalidateTierCache(internalUserId);
+
   if (isFounder) {
     await checkFoundingOverflow();
     await invalidateFoundingCountCache();
@@ -218,6 +225,9 @@ export async function handleSubscriptionUpdated(
         paddleEventId:   event.eventId,
       });
     });
+    // Same as the created-handler invalidation — drop both cache
+    // layers so the next session callback re-derives.
+    await invalidateTierCache(internalUserId);
     if (isFounder) {
       await checkFoundingOverflow();
       await invalidateFoundingCountCache();
@@ -276,6 +286,10 @@ export async function handleSubscriptionUpdated(
     }
   });
 
+  // Drop both cache layers for the row's user — `existing` is the
+  // owning user from the subscription lookup at the top.
+  await invalidateTierCache(existing.userId);
+
   if (isFounder) {
     await checkFoundingOverflow();
     await invalidateFoundingCountCache();
@@ -322,6 +336,9 @@ export async function handleSubscriptionCanceled(event: SubscriptionCanceledEven
     });
     await archiveExcessVenturesOnDowngrade(existing.userId, 'free', tx);
   });
+
+  // Drop tier cache so the next session callback sees free tier.
+  await invalidateTierCache(existing.userId);
 }
 
 // ---------------------------------------------------------------------------
@@ -370,4 +387,7 @@ export async function handleSubscriptionPaused(event: SubscriptionPausedEvent): 
       await archiveExcessVenturesOnDowngrade(existing.userId, 'free', tx);
     }
   });
+
+  // Drop tier cache so paid features flip off on the next request.
+  await invalidateTierCache(existing.userId);
 }
