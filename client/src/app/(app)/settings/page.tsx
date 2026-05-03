@@ -7,6 +7,7 @@ import { AggregateAnalyticsConsentSection } from './AggregateAnalyticsConsentSec
 import { AccountInfoSection }              from './AccountInfoSection';
 import { BillingSection }                  from './BillingSection';
 import { TierHistorySection, type TierHistoryEntry } from './TierHistorySection';
+import { DangerZoneSection }               from './DangerZoneSection';
 
 /**
  * SettingsPage
@@ -149,6 +150,18 @@ export default async function SettingsPage() {
           transitions={tierHistory}
           wasFoundingMember={Boolean(user.wasFoundingMember)}
         />
+      </section>
+
+      {/* Danger zone — account deletion */}
+      <section className="flex flex-col gap-4">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Danger zone</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Irreversible account-level actions. Read carefully before confirming.
+          </p>
+        </div>
+
+        <DangerZoneSection />
       </section>
     </div>
   );

@@ -12,7 +12,7 @@
 
 import { signIn } from "next-auth/react";
 import { motion, useReducedMotion } from "motion/react";
-import { ArrowLeft, Lock, Compass, ArrowRight, ChevronRight } from "lucide-react";
+import { ArrowLeft, Lock, Compass, ArrowRight, ChevronRight, Check } from "lucide-react";
 import { FaGithub, FaLinkedin } from "react-icons/fa";
 import { FcGoogle } from "react-icons/fc";
 import Link from "next/link";
@@ -20,7 +20,15 @@ import Image from "next/image";
 
 type Provider = "google" | "linkedin" | "github";
 
-export default function SignInClient() {
+interface SignInClientProps {
+  /** True when the page was reached via the account-deletion redirect
+   *  (`/signin?deleted=1`). Renders a confirmation banner so the
+   *  founder sees an explicit ack of the destructive action they just
+   *  triggered, instead of bouncing silently to a fresh signin form. */
+  accountDeleted?: boolean;
+}
+
+export default function SignInClient({ accountDeleted = false }: SignInClientProps) {
   const reduce = useReducedMotion();
 
   const handleSignIn = (provider: Provider) => {
@@ -63,6 +71,7 @@ export default function SignInClient() {
         <SignInCard
           reduce={reduce}
           onSignIn={handleSignIn}
+          accountDeleted={accountDeleted}
         />
       </div>
     </div>
@@ -198,9 +207,11 @@ function RhythmTile({ color }: { color: "primary" | "gold" | "success" }) {
 function SignInCard({
   reduce,
   onSignIn,
+  accountDeleted,
 }: {
-  reduce:           boolean | null;
-  onSignIn:         (provider: Provider) => void;
+  reduce:          boolean | null;
+  onSignIn:        (provider: Provider) => void;
+  accountDeleted:  boolean;
 }) {
   const fade = (delay: number) =>
     reduce
@@ -216,6 +227,23 @@ function SignInCard({
       {...fade(0.20)}
       className="lg:col-span-7 lg:justify-self-end w-full max-w-[460px] mx-auto lg:mx-0"
     >
+      {accountDeleted && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mb-4 flex items-start gap-3 rounded-xl border border-success/30 bg-success/5 px-4 py-3"
+        >
+          <Check className="size-4 shrink-0 text-success mt-0.5" />
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium text-white">Account deleted</p>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Your NeuraLaunch account and any active Paddle subscription have been
+              cancelled. You won&rsquo;t be charged again.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-xl border border-slate-800 bg-navy-900 px-7 py-9 sm:px-8 sm:py-10 shadow-2xl shadow-black/30">
         {/* Eyebrow + headline */}
         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold">

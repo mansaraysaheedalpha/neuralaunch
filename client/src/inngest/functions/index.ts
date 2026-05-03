@@ -15,6 +15,8 @@ export { transformationReportFunction } from './transformation-report-function';
 export { usageAnomalyDetectionFunction } from './usage-anomaly-detection-function';
 export { paddleReconciliationFunction } from './paddle-reconciliation-function';
 export { backfillRoadmapTaskIdsFunction } from './backfill-roadmap-task-ids-function';
+export { stuckJobReconciliationFunction } from './stuck-job-reconciliation';
+export { accountDeletionFunction } from './account-deletion-function';
 
 // Tool-job durable executions. See
 // docs/inngest-tools-migration-plan-2026-04-24.md.

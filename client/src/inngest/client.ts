@@ -329,6 +329,31 @@ export type NeuraLaunchEvents = {
       firstMessage:   string;
     };
   };
+
+  /**
+   * Fired when a founder confirms account deletion via Settings →
+   * Danger zone. The route returns 202 immediately; this event drives
+   * the durable saga that cancels Paddle subscriptions, revokes
+   * sessions / push tokens, deletes the User row (cascades wipe every
+   * downstream artefact), and invalidates the tier cache.
+   *
+   * Durable rather than synchronous because Paddle's cancel API is
+   * an external dependency that can transiently fail — a half-applied
+   * deletion (Paddle still billing, local row gone) is strictly worse
+   * than no deletion at all. Inngest's retry semantics let the saga
+   * resume from the failed step.
+   *
+   * Consumer: `accountDeletionFunction` in
+   * `src/inngest/functions/account-deletion-function.ts`
+   *
+   * The literal name is exported as `ACCOUNT_DELETION_EVENT` from
+   * `src/lib/auth/account-deletion-constants.ts`.
+   */
+  'user/account.delete.requested': {
+    data: {
+      userId: string;
+    };
+  };
 };
 
 /**

@@ -16,6 +16,15 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function SignInPage() {
-  return <SignInClient />;
+interface SignInPageProps {
+  // Next 15+ async searchParams. The DangerZone delete flow redirects
+  // here with `?deleted=1` so the founder gets an explicit confirmation
+  // banner instead of silently bouncing back to the signin form.
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function SignInPage({ searchParams }: SignInPageProps) {
+  const params = await searchParams;
+  const accountDeleted = params.deleted === '1';
+  return <SignInClient accountDeleted={accountDeleted} />;
 }
