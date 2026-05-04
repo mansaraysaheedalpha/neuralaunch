@@ -12,7 +12,7 @@
 
 import { signIn } from "next-auth/react";
 import { motion, useReducedMotion } from "motion/react";
-import { ArrowLeft, Lock, Compass, ArrowRight, ChevronRight, Check } from "lucide-react";
+import { ArrowLeft, Lock, Compass, ArrowRight, ChevronRight, Check, AlertTriangle } from "lucide-react";
 import { FaGithub, FaLinkedin } from "react-icons/fa";
 import { FcGoogle } from "react-icons/fc";
 import Link from "next/link";
@@ -20,15 +20,77 @@ import Image from "next/image";
 
 type Provider = "google" | "linkedin" | "github";
 
+/**
+ * NextAuth redirects to /signin?error=<code> on every failed-auth path.
+ * Map the documented codes to copy the founder can act on. Unknown
+ * codes fall through to a generic message so we never blank out on
+ * a future Auth.js error addition.
+ *
+ * AccessDenied is the most important one for this product: it's what
+ * the C3 GitHub email-verification gate raises when the OAuth profile
+ * email isn't a verified primary on GitHub. The copy spells out the
+ * fix because the founder otherwise has no way to discover it.
+ */
+const AUTH_ERROR_COPY: Record<string, { title: string; detail: string }> = {
+  AccessDenied: {
+    title: 'Sign-in was rejected',
+    detail:
+      'Your GitHub email is not a verified primary email on GitHub. ' +
+      'Verify it in GitHub Settings → Emails, then try signing in again. ' +
+      'You can also sign in with Google instead.',
+  },
+  Verification: {
+    title: 'Verification link expired',
+    detail: 'The magic link has expired. Sign in again to receive a new one.',
+  },
+  OAuthAccountNotLinked: {
+    title: 'Account already exists',
+    detail:
+      'An account with this email already exists, signed in via a different provider. ' +
+      'Sign in with the original provider, then connect other accounts in Settings.',
+  },
+  Configuration: {
+    title: 'Authentication is misconfigured',
+    detail: 'Something is wrong on our end. Please try again, or contact support if it persists.',
+  },
+  OAuthCallback: {
+    title: 'Provider sign-in failed',
+    detail: 'The OAuth provider rejected the sign-in. Please try again.',
+  },
+  OAuthSignin: {
+    title: 'Provider sign-in failed',
+    detail: 'Could not start the OAuth flow. Please try again.',
+  },
+  CallbackRouteError: {
+    title: 'Sign-in callback failed',
+    detail: 'Something went wrong processing the provider response. Please try again.',
+  },
+};
+
+const FALLBACK_AUTH_ERROR = {
+  title:  'Sign-in did not complete',
+  detail: 'Something went wrong. Please try again, or contact support if it persists.',
+};
+
+function resolveAuthError(code: string | null): { title: string; detail: string } | null {
+  if (!code) return null;
+  return AUTH_ERROR_COPY[code] ?? FALLBACK_AUTH_ERROR;
+}
+
 interface SignInClientProps {
   /** True when the page was reached via the account-deletion redirect
    *  (`/signin?deleted=1`). Renders a confirmation banner so the
    *  founder sees an explicit ack of the destructive action they just
    *  triggered, instead of bouncing silently to a fresh signin form. */
   accountDeleted?: boolean;
+  /** NextAuth error code from `?error=<code>`. Mapped to founder-facing
+   *  copy via AUTH_ERROR_COPY; unknown codes use FALLBACK_AUTH_ERROR
+   *  so a future Auth.js code never silently no-ops the banner. */
+  errorCode?: string | null;
 }
 
-export default function SignInClient({ accountDeleted = false }: SignInClientProps) {
+export default function SignInClient({ accountDeleted = false, errorCode = null }: SignInClientProps) {
+  const authError = resolveAuthError(errorCode);
   const reduce = useReducedMotion();
 
   const handleSignIn = (provider: Provider) => {
@@ -72,6 +134,7 @@ export default function SignInClient({ accountDeleted = false }: SignInClientPro
           reduce={reduce}
           onSignIn={handleSignIn}
           accountDeleted={accountDeleted}
+          authError={authError}
         />
       </div>
     </div>
@@ -208,10 +271,12 @@ function SignInCard({
   reduce,
   onSignIn,
   accountDeleted,
+  authError,
 }: {
   reduce:          boolean | null;
   onSignIn:        (provider: Provider) => void;
   accountDeleted:  boolean;
+  authError:       { title: string; detail: string } | null;
 }) {
   const fade = (delay: number) =>
     reduce
@@ -227,6 +292,20 @@ function SignInCard({
       {...fade(0.20)}
       className="lg:col-span-7 lg:justify-self-end w-full max-w-[460px] mx-auto lg:mx-0"
     >
+      {authError && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="mb-4 flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3"
+        >
+          <AlertTriangle className="size-4 shrink-0 text-destructive mt-0.5" />
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium text-white">{authError.title}</p>
+            <p className="text-xs text-slate-300 leading-relaxed">{authError.detail}</p>
+          </div>
+        </div>
+      )}
+
       {accountDeleted && (
         <div
           role="status"

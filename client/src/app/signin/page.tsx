@@ -17,14 +17,30 @@ export const metadata: Metadata = {
 };
 
 interface SignInPageProps {
-  // Next 15+ async searchParams. The DangerZone delete flow redirects
-  // here with `?deleted=1` so the founder gets an explicit confirmation
-  // banner instead of silently bouncing back to the signin form.
+  // Next 15+ async searchParams. Two banner triggers handled here:
+  //
+  //   ?deleted=1     — DangerZone delete flow redirects here on
+  //                    successful queue-and-signout, so the founder
+  //                    gets an explicit ack of the destructive action.
+  //
+  //   ?error=<code>  — NextAuth's documented redirect on every
+  //                    failed-auth path. Today the founder bounces
+  //                    back here on AccessDenied (e.g. C3 GitHub
+  //                    email-verification gate rejection),
+  //                    Verification (expired magic link),
+  //                    OAuthAccountNotLinked (email collision with
+  //                    a different provider), and Configuration
+  //                    (server-side OAuth misconfig). We mirror the
+  //                    success-banner shape with a red error banner
+  //                    so the founder sees WHY the sign-in didn't
+  //                    complete instead of staring at an empty form.
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const params = await searchParams;
   const accountDeleted = params.deleted === '1';
-  return <SignInClient accountDeleted={accountDeleted} />;
+  const errorCodeRaw = params.error;
+  const errorCode = typeof errorCodeRaw === 'string' ? errorCodeRaw : null;
+  return <SignInClient accountDeleted={accountDeleted} errorCode={errorCode} />;
 }
