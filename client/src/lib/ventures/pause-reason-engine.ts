@@ -28,6 +28,15 @@ import { generateObject } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { logger } from '@/lib/logger';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import {
+  withAgentSpan,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
 import { cachedSystem, cachedUserMessages } from '@/lib/ai/prompt-cache';
 import { renderUserContent } from '@/lib/validation/server-helpers';
 import { MODELS } from '@/lib/discovery/constants';
@@ -126,23 +135,41 @@ export async function runPauseReasonAgent(input: {
   });
   const volatileTurn = renderVolatileTurn(input.reason);
 
-  const result = await withModelFallback(
+  const result = await withAgentSpan(
+    {
+      name: 'ventures.pause_reason',
+      attributes: {
+        [ATTR_AGENT_TIER]: 3,
+        [ATTR_AGENT_MODEL]: PRIMARY_MODEL,
+      },
+    },
+    (setAttr) => withModelFallback(
     'pauseReason:run',
     { primary: PRIMARY_MODEL, fallback: FALLBACK_MODEL },
     async (modelId) => {
+      const start = Date.now();
       // generateObject is the canonical AI-SDK structured-output
       // API per CLAUDE.md. Migrated from `generateText +
       // experimental_output` because that path returns empty
       // objects on the current Anthropic models.
-      const { object } = await generateObject({
+      const genResult = await generateObject({
         model:           aiSdkAnthropic(modelId),
         schema:          PauseAgentResponseSchema,
         system:          cachedSystem(SYSTEM_PROMPT),
         messages:        cachedUserMessages(stableContext, volatileTurn),
         maxOutputTokens: MAX_OUTPUT_TOKENS,
       });
-      return object;
+      setAttr(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== PRIMARY_MODEL) {
+        recordModelFallback(`primary ${PRIMARY_MODEL} unavailable`);
+      }
+      const usage = genResult.usage;
+      if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
+      return genResult.object;
     },
+    ),
   );
 
   // Hard gate: if the model returned mirror but the data didn't earn

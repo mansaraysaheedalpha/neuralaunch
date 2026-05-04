@@ -6,6 +6,15 @@ import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { MODELS } from './constants';
 import { logger } from '@/lib/logger';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import {
+  withAgentSpan,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
 import { cachedUserMessages } from '@/lib/ai/prompt-cache';
 
 // ---------------------------------------------------------------------------
@@ -110,18 +119,27 @@ export async function runSafetyGate(
   const log = logger.child({ module: 'SafetyGate' });
 
   try {
-    const result = await withModelFallback(
+    const result = await withAgentSpan(
+      {
+        name: 'discovery.safety_gate',
+        attributes: {
+          [ATTR_AGENT_TIER]: 1,
+          [ATTR_AGENT_MODEL]: MODELS.INTERVIEW_FALLBACK_1,
+        },
+      },
+      (setAttr) => withModelFallback(
       'safetyGate',
       // Haiku primary (speed + cost), Sonnet fallback (reliability)
       { primary: MODELS.INTERVIEW_FALLBACK_1, fallback: MODELS.INTERVIEW },
       async (modelId) => {
+        const start = Date.now();
         const volatile = `CONVERSATION CONTEXT (for detecting social engineering across messages):
 ${conversationHistory ? conversationHistory.slice(-2000) : '(first message)'}
 
 LATEST USER MESSAGE:
 ${userMessage}`;
 
-        const { output } = await generateText({
+        const genResult = await generateText({
           model:    aiSdkAnthropic(modelId),
           output:   Output.object({ schema: SafetyClassificationSchema }),
           // Rules block is stable across every turn in a session and
@@ -130,8 +148,17 @@ ${userMessage}`;
           // helper may no-op when the prefix sits below the floor.
           messages: cachedUserMessages(SAFETY_CLASSIFIER_RULES, volatile),
         });
-        return output;
+        setAttr(ATTR_AGENT_MODEL, modelId);
+        if (modelId !== MODELS.INTERVIEW_FALLBACK_1) {
+          recordModelFallback(`primary ${MODELS.INTERVIEW_FALLBACK_1} unavailable`);
+        }
+        const usage = genResult.usage;
+        if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+        if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+        setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
+        return genResult.output;
       },
+      ),
     );
 
     if (!result.safe) {

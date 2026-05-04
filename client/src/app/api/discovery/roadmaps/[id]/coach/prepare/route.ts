@@ -13,6 +13,7 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { sendToolJobEvent } from '@/lib/tool-jobs/queue';
+import { withToolUiSpan, captureTraceHeaders } from '@/lib/observability';
 import {
   HttpError,
   httpErrorToResponse,
@@ -76,27 +77,37 @@ export async function POST(
     const setupParsed = ConversationSetupSchema.safeParse(session.setup);
     if (!setupParsed.success) throw new HttpError(409, 'Coach setup data is malformed.');
 
-    const job = await createToolJob({
-      userId, roadmapId,
-      toolType:  'coach_prepare',
-      sessionId: parsed.data.sessionId,
-    });
+    return await withToolUiSpan(
+      { name: 'tool.coach_prepare' },
+      async () => {
+        const job = await createToolJob({
+          userId, roadmapId,
+          toolType:  'coach_prepare',
+          sessionId: parsed.data.sessionId,
+        });
 
-    await sendToolJobEvent(job.id, {
-      name: 'tool/coach-prepare.requested',
-      data: {
-        jobId:     job.id,
-        userId,
-        roadmapId,
-        sessionId: parsed.data.sessionId,
-        taskId:    null,
+        const traceHeaders = captureTraceHeaders();
+        await sendToolJobEvent(
+          job.id,
+          {
+            name: 'tool/coach-prepare.requested',
+            data: {
+              jobId:     job.id,
+              userId,
+              roadmapId,
+              sessionId: parsed.data.sessionId,
+              taskId:    null,
+            },
+          },
+          traceHeaders,
+        );
+
+        log.info('[StandaloneCoachPrepare] Job queued', { jobId: job.id, sessionId: parsed.data.sessionId });
+        return NextResponse.json(
+          { jobId: job.id, sessionId: parsed.data.sessionId },
+          { status: 202 },
+        );
       },
-    });
-
-    log.info('[StandaloneCoachPrepare] Job queued', { jobId: job.id, sessionId: parsed.data.sessionId });
-    return NextResponse.json(
-      { jobId: job.id, sessionId: parsed.data.sessionId },
-      { status: 202 },
     );
   } catch (err) {
     return httpErrorToResponse(err);

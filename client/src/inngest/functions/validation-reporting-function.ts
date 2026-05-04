@@ -4,6 +4,10 @@ import { Prisma }                     from '@prisma/client';
 import { inngest }                    from '../client';
 import prisma, { toJsonValue }                         from '@/lib/prisma';
 import { logger }                     from '@/lib/logger';
+import {
+  withInngestQueueSpan,
+  withDistributedTrace,
+} from '@/lib/observability';
 import { collectMetricsForPage }      from '@/lib/validation/metrics-collector';
 import { interpretValidationMetrics } from '@/lib/validation/interpreter';
 import {
@@ -39,7 +43,21 @@ export const validationReportingSchedulerFunction = inngest.createFunction(
       { cron: `0 */${VALIDATION_SYNTHESIS_THRESHOLDS.THRESHOLD_CHECK_INTERVAL_HOURS} * * *` },
     ],
   },
-  async ({ event, step }) => {
+  async ({ event, step, runId, attempt }) => {
+    // Cron-triggered: no upstream parent. Worker becomes the trace
+    // root. `withDistributedTrace` no-ops on absent headers.
+    const sentryTrace = (event.data as { sentryTrace?: string }).sentryTrace;
+    const baggage     = (event.data as { baggage?: string }).baggage;
+    return withDistributedTrace(
+      { sentryTrace, baggage },
+      () => withInngestQueueSpan(
+        {
+          functionId: 'validation-reporting-scheduler',
+          eventName:  event.name,
+          runId,
+          attempt,
+        },
+        async () => {
     const log = logger.child({ inngestFunction: 'validationReportingScheduler', runId: event.id });
 
     // Pagination cap: this scheduler enqueues one reporting event per
@@ -76,6 +94,9 @@ export const validationReportingSchedulerFunction = inngest.createFunction(
 
     log.info('Reporting events enqueued', { enqueued: pages.length });
     return { enqueued: pages.length };
+        },
+      ),
+    );
   },
 );
 
@@ -103,7 +124,23 @@ export const validationReportingFunction = inngest.createFunction(
     concurrency: { limit: 5 },
     triggers: [{ event: VALIDATION_REPORTING_EVENT }],
   },
-  async ({ event, step }) => {
+  async ({ event, step, runId, attempt }) => {
+    // Per-page reporter is fanned-out from the scheduler — its event
+    // payload comes from a cron sweep, never from a route. Becomes a
+    // fresh trace root when its parent (the scheduler) is itself
+    // root. `withDistributedTrace` no-ops on absent headers.
+    const sentryTrace = (event.data as { sentryTrace?: string }).sentryTrace;
+    const baggage     = (event.data as { baggage?: string }).baggage;
+    return withDistributedTrace(
+      { sentryTrace, baggage },
+      () => withInngestQueueSpan(
+        {
+          functionId: 'validation-page-reporting',
+          eventName:  event.name,
+          runId,
+          attempt,
+        },
+        async () => {
     const { pageId } = event.data as { pageId: string };
     const log = logger.child({ inngestFunction: 'validationReporting', pageId, runId: event.id });
 
@@ -362,5 +399,8 @@ export const validationReportingFunction = inngest.createFunction(
     });
 
     return { snapshotId, interpreted: true, briefGenerated: true };
+        },
+      ),
+    );
   },
 );

@@ -11,6 +11,15 @@ import type { AudienceType } from '@/lib/discovery/constants';
 import { logger } from '@/lib/logger';
 import { renderUserContent, sanitizeForPrompt } from '@/lib/validation/server-helpers';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import {
+  withAgentSpan,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
 import type { FounderProfile } from '@/lib/lifecycle/schemas';
 import type { Tier } from '@/lib/paddle/tiers';
 import { tierAvailableTools, type ToolMeta } from './available-tools';
@@ -191,11 +200,20 @@ export async function generateRoadmap(
 
   log.debug('Generating roadmap', { weeklyHours, audienceType, tier, toolCount: availableTools.length });
 
-  const object = await withModelFallback(
+  const object = await withAgentSpan(
+    {
+      name: 'roadmap.generate',
+      attributes: {
+        [ATTR_AGENT_TIER]: 3,
+        [ATTR_AGENT_MODEL]: ROADMAP_MODELS.PLANNER,
+      },
+    },
+    (setAttr) => withModelFallback(
     'roadmap:generateRoadmap',
     { primary: ROADMAP_MODELS.PLANNER, fallback: MODELS.INTERVIEW_FALLBACK_1 },
     async (modelId) => {
-      const { output } = await generateText({
+      const start = Date.now();
+      const result = await generateText({
         model:  anthropic(modelId),
         output: Output.object({ schema: RoadmapSchema }),
         messages: [{
@@ -279,8 +297,17 @@ When suggesting the Validation Page tool:
 Build the roadmap now.`,
         }],
       });
-      return output;
+      setAttr(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== ROADMAP_MODELS.PLANNER) {
+        recordModelFallback(`primary ${ROADMAP_MODELS.PLANNER} unavailable`);
+      }
+      const usage = result.usage;
+      if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
+      return result.output;
     },
+    ),
   );
 
   const totalWeeks = object.phases.reduce((sum, p) => sum + p.durationWeeks, 0);

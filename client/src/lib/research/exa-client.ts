@@ -10,6 +10,7 @@ import 'server-only';
 import Exa from 'exa-js';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
+import { withExaSearchSpan } from '@/lib/observability';
 import {
   RESEARCH_QUERY_TIMEOUT_MS,
   RESEARCH_MAX_ATTEMPTS,
@@ -102,13 +103,23 @@ export async function exaSearchOnce(
   let lastErr: unknown;
   for (let i = 0; i < RESEARCH_MAX_ATTEMPTS; i++) {
     try {
-      const result = await withTimeout(
-        client.search(query, {
-          numResults,
-          contents: { text: { maxCharacters: 800 } },
-        }),
-        RESEARCH_QUERY_TIMEOUT_MS,
-        `Exa query attempt ${i + 1}`,
+      // Span attribute carries ONLY the query LENGTH — never the query
+      // string itself. The Exa API key (e85b***378) is passed implicitly
+      // via the SDK client constructor and is structurally unreachable
+      // from this wrap. Per the canonical attribute-content rule:
+      // "if you wouldn't put it on a Slack message, don't put it on a
+      // span." This is the reference implementation for any future
+      // external-API wrap.
+      const result = await withExaSearchSpan(
+        { queryLength: query.length },
+        () => withTimeout(
+          client.search(query, {
+            numResults,
+            contents: { text: { maxCharacters: 800 } },
+          }),
+          RESEARCH_QUERY_TIMEOUT_MS,
+          `Exa query attempt ${i + 1}`,
+        ),
       );
       if (i > 0) log.info('[Research] Exa query succeeded on retry', { attempt: i + 1 });
       // exa-js returns a typed SearchResponse — we narrow to our

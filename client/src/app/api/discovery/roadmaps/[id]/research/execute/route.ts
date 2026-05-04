@@ -20,6 +20,11 @@ import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { sendToolJobEvent } from '@/lib/tool-jobs/queue';
 import {
+  withToolUiSpan,
+  captureTraceHeaders,
+  ATTR_TOOL_INPUT_LENGTH,
+} from '@/lib/observability';
+import {
   HttpError,
   httpErrorToResponse,
   requireUserId,
@@ -87,34 +92,52 @@ export async function POST(
     const existingSession = safeParseResearchSession(rawSession);
     if (!existingSession) throw new HttpError(409, 'Session data is malformed. Re-run the plan stage.');
 
-    const job = await createToolJob({
-      userId,
-      roadmapId,
-      toolType:  'research_execute',
-      sessionId: parsed.data.sessionId,
-    });
-
-    await sendToolJobEvent(job.id, {
-      name: 'tool/research-execute.requested',
-      data: {
-        jobId:     job.id,
-        userId,
-        roadmapId,
-        sessionId: parsed.data.sessionId,
-        taskId:    null,
-        planText:  parsed.data.plan,
-        query:     existingSession.query,
+    return await withToolUiSpan(
+      {
+        name: 'tool.research_execute',
+        attributes: { [ATTR_TOOL_INPUT_LENGTH]: parsed.data.plan.length },
       },
-    });
+      async () => {
+        const job = await createToolJob({
+          userId,
+          roadmapId,
+          toolType:  'research_execute',
+          sessionId: parsed.data.sessionId,
+        });
 
-    log.info('[ResearchStandaloneExecute] Job queued', {
-      jobId:     job.id,
-      sessionId: parsed.data.sessionId,
-    });
+        // Capture the route's current trace context inside the span so the
+        // worker can resume the parent trace via withDistributedTrace. Must
+        // be inside the withToolUiSpan callback — the span sets the active
+        // trace context that getTraceData reads from.
+        const traceHeaders = captureTraceHeaders();
 
-    return NextResponse.json(
-      { jobId: job.id, sessionId: parsed.data.sessionId },
-      { status: 202 },
+        await sendToolJobEvent(
+          job.id,
+          {
+            name: 'tool/research-execute.requested',
+            data: {
+              jobId:     job.id,
+              userId,
+              roadmapId,
+              sessionId: parsed.data.sessionId,
+              taskId:    null,
+              planText:  parsed.data.plan,
+              query:     existingSession.query,
+            },
+          },
+          traceHeaders,
+        );
+
+        log.info('[ResearchStandaloneExecute] Job queued', {
+          jobId:     job.id,
+          sessionId: parsed.data.sessionId,
+        });
+
+        return NextResponse.json(
+          { jobId: job.id, sessionId: parsed.data.sessionId },
+          { status: 202 },
+        );
+      },
     );
   } catch (err) {
     return httpErrorToResponse(err);

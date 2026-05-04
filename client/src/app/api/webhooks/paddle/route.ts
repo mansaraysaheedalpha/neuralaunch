@@ -7,6 +7,7 @@ import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
 import { rateLimitByIp } from '@/lib/validation/server-helpers';
 import { HttpError } from '@/lib/validation/server-helpers';
+import { withPaddleWebhookSpan } from '@/lib/observability';
 
 // Processor runs inline (see below) and the slowest handler is
 // handleSubscriptionCreated's single transaction — comfortably inside
@@ -74,8 +75,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Empty event' }, { status: 400 });
   }
 
+  // PII-sensitive wrap. The ONLY attribute exposed on this span is
+  // `paddle.event_type` — the helper's signature structurally rejects
+  // any other Paddle-payload field. Customer IDs, transaction amounts,
+  // email addresses, subscription ids — all forbidden. The dispatcher's
+  // sub-handlers run inside this span via AsyncLocalStorage; their
+  // Prisma DB calls auto-instrument as `db.query` child spans, which
+  // is the right granularity. Adding per-sub-handler spans would emit
+  // empty wrappers without diagnostic value. See migration log
+  // § "Phase 3f" for the canonical PII-sensitive integration pattern.
   try {
-    await handleWebhookEvent(event);
+    await withPaddleWebhookSpan(
+      { eventType: event.eventType },
+      () => handleWebhookEvent(event),
+    );
   } catch (err) {
     // Concurrent Paddle redelivery race: the findUnique pre-check in
     // recordTierTransition handles the common serial-redelivery case

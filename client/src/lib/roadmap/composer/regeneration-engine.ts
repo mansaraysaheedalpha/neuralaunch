@@ -13,6 +13,15 @@ import { generateText, Output } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { logger } from '@/lib/logger';
+import {
+  withAgentSpan,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
 import { MODELS } from '@/lib/discovery/constants';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
 import { renderUserContent, sanitizeForPrompt } from '@/lib/validation/server-helpers';
@@ -56,11 +65,20 @@ export async function runComposerRegeneration(
 
   const { originalMessage, context } = input;
 
-  const object = await withModelFallback(
+  const object = await withAgentSpan(
+    {
+      name: 'composer.regeneration',
+      attributes: {
+        [ATTR_AGENT_TIER]: 3,
+        [ATTR_AGENT_MODEL]: MODELS.INTERVIEW,
+      },
+    },
+    (setAttr) => withModelFallback(
     'composer:regeneration',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
     async (modelId) => {
-      const { output } = await generateText({
+      const start = Date.now();
+      const result = await generateText({
         model:  aiSdkAnthropic(modelId),
         output: Output.object({ schema: RegenerationResponseSchema }),
         maxOutputTokens: 16_384,
@@ -92,8 +110,17 @@ RULES:
 Produce the variation now.`,
       }],
       });
-      return output;
+      setAttr(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== MODELS.INTERVIEW) {
+        recordModelFallback(`primary ${MODELS.INTERVIEW} unavailable`);
+      }
+      const usage = result.usage;
+      if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
+      return result.output;
     },
+    ),
   );
 
   log.info('[ComposerRegeneration] Variation generated');

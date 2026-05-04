@@ -7,6 +7,15 @@ import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { MODELS } from '@/lib/discovery/constants';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import {
+  withAgentSpan,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
 import { LAYOUT_VARIANTS, type LayoutVariant } from './constants';
 import {
   ValidationPageContentSchema,
@@ -169,11 +178,20 @@ export async function generateValidationPage(
 
   log.info('Page generation starting', { sessionId, layoutVariant, slug });
 
-  const object = await withModelFallback(
+  const object = await withAgentSpan(
+    {
+      name: 'validation.generate_page',
+      attributes: {
+        [ATTR_AGENT_TIER]: 3,
+        [ATTR_AGENT_MODEL]: MODELS.INTERVIEW,
+      },
+    },
+    (setAttr) => withModelFallback(
     'validation:generatePage',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
     async (modelId) => {
-      const { output } = await generateText({
+      const start = Date.now();
+      const result = await generateText({
         model:  aiSdkAnthropic(modelId),
         output: Output.object({ schema: ValidationPageContentSchema }),
         messages: [{
@@ -214,8 +232,17 @@ Generate the full page content. Rules:
 Do not invent facts. Use only what is provided above.`,
         }],
       });
-      return output;
+      setAttr(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== MODELS.INTERVIEW) {
+        recordModelFallback(`primary ${MODELS.INTERVIEW} unavailable`);
+      }
+      const usage = result.usage;
+      if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
+      return result.output;
     },
+    ),
   );
 
   // Enforce taskId uniqueness defensively. The prompt asks Opus to copy

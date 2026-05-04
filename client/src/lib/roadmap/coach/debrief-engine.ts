@@ -16,6 +16,15 @@ import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { logger } from '@/lib/logger';
 import { MODELS } from '@/lib/discovery/constants';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import {
+  withAgentSpan,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
 import { renderUserContent, sanitizeForPrompt } from '@/lib/validation/server-helpers';
 import { DebriefSchema, type Debrief, type RolePlayTurn, type PreparationPackage, type ConversationSetup } from './schemas';
 
@@ -63,11 +72,20 @@ export async function runDebrief(
     .map((o, i) => `${i + 1}. "${sanitizeForPrompt(o.objection, 200)}"`)
     .join('\n');
 
-  const object = await withModelFallback(
+  const object = await withAgentSpan(
+    {
+      name: 'coach.debrief',
+      attributes: {
+        [ATTR_AGENT_TIER]: 1,
+        [ATTR_AGENT_MODEL]: DEBRIEF_MODEL,
+      },
+    },
+    (setAttr) => withModelFallback(
     'coach:debrief',
     { primary: DEBRIEF_MODEL, fallback: MODELS.INTERVIEW_FALLBACK_1 },
     async (modelId) => {
-      const { output } = await generateText({
+      const start = Date.now();
+      const result = await generateText({
         model:  aiSdkAnthropic(modelId),
         output: Output.object({ schema: DebriefSchema }),
         maxOutputTokens: 16_384,
@@ -106,8 +124,22 @@ TONE RULES:
 Produce the structured debrief now.`,
         }],
       });
-      return output;
+      // Record fired model + usage. See sentry-spans.ts banner rule #3
+      // for the requested-vs-fired model double-set rationale. DEBRIEF_MODEL
+      // and the fallback are both Haiku variants in this engine, so the
+      // fallback signal here mostly indicates the primary Haiku endpoint
+      // was momentarily unavailable rather than a tier downgrade.
+      setAttr(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== DEBRIEF_MODEL) {
+        recordModelFallback(`primary ${DEBRIEF_MODEL} unavailable`);
+      }
+      const usage = result.usage;
+      if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
+      return result.output;
     },
+    ),
   );
 
   log.info('[CoachDebrief] Debrief generated', {

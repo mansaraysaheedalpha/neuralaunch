@@ -6,6 +6,10 @@ import { inngest } from '../client';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import {
+  withInngestQueueSpan,
+  withDistributedTrace,
+} from '@/lib/observability';
 import { renderUserContent } from '@/lib/validation/server-helpers';
 import {
   MODELS,
@@ -62,7 +66,14 @@ export const conversationTitleFunction = inngest.createFunction(
     retries:  1,
     triggers: [{ event: CONVERSATION_TITLE_EVENT }],
   },
-  async ({ event, step }) => {
+  async ({ event, step, runId, attempt }) => {
+    const sentryTrace = (event.data as { sentryTrace?: string }).sentryTrace;
+    const baggage     = (event.data as { baggage?: string }).baggage;
+    return withDistributedTrace(
+      { sentryTrace, baggage },
+      () => withInngestQueueSpan(
+        { functionId: 'conversation-title-summarisation', eventName: event.name, runId, attempt },
+        async () => {
     // event.data arrives typed as `any` from Inngest's runtime — the
     // typed event-map in client.ts gives autocomplete on `inngest.send`
     // but the handler-side payload is opaque. Other Inngest functions
@@ -123,5 +134,8 @@ Output a single title.`,
 
     log.info('Title generated', { titleLength: title.length });
     return { ok: true, title };
+        },
+      ),
+    );
   },
 );

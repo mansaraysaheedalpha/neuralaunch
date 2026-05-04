@@ -17,6 +17,11 @@ import prisma, { toJsonValue } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { sendToolJobEvent } from '@/lib/tool-jobs/queue';
 import {
+  withToolUiSpan,
+  captureTraceHeaders,
+  ATTR_TOOL_INPUT_LENGTH,
+} from '@/lib/observability';
+import {
   HttpError, httpErrorToResponse, requireUserId,
   enforceSameOrigin, rateLimitByUser, RATE_LIMITS,
 } from '@/lib/validation/server-helpers';
@@ -105,41 +110,58 @@ export async function POST(
     // -----------------------------------------------------------------
     // Branch B — generation (accept-and-queue; async via Inngest)
     // -----------------------------------------------------------------
-    // Persist context + mode + channel onto the session row first so
-    // the worker has them even if the founder closes the tab.
-    const sessionData = {
-      ...(existing ?? {}), id: sessionId, tool: COMPOSER_TOOL_ID,
-      context: parsed.data.context, mode: parsed.data.mode, channel: parsed.data.channel,
-      createdAt: existing?.createdAt ?? now, updatedAt: now,
-    };
-    const others = rawSessions.filter(s => s['id'] !== sessionId);
-    await prisma.roadmap.update({
-      where: { id: roadmapId },
-      data:  { toolSessions: toJsonValue([...others, sessionData]) },
-    });
-
-    const job = await createToolJob({
-      userId, roadmapId,
-      toolType:  'composer_generate',
-      sessionId,
-    });
-
-    await sendToolJobEvent(job.id, {
-      name: 'tool/composer-generate.requested',
-      data: {
-        jobId:       job.id,
-        userId,
-        roadmapId,
-        sessionId,
-        taskId:      null,
-        contextJson: JSON.stringify(parsed.data.context),
-        mode:        parsed.data.mode,
-        channel:     parsed.data.channel,
+    // Extract narrowed values to locals — TS's flow narrowing on
+    // `parsed.data` doesn't survive into the async closure scope.
+    const generateInput = parsed.data;
+    const contextJson = JSON.stringify(generateInput.context);
+    return await withToolUiSpan(
+      {
+        name: 'tool.composer_generate',
+        attributes: { [ATTR_TOOL_INPUT_LENGTH]: contextJson.length },
       },
-    });
+      async () => {
+        // Persist context + mode + channel onto the session row first so
+        // the worker has them even if the founder closes the tab.
+        const sessionData = {
+          ...(existing ?? {}), id: sessionId, tool: COMPOSER_TOOL_ID,
+          context: generateInput.context, mode: generateInput.mode, channel: generateInput.channel,
+          createdAt: existing?.createdAt ?? now, updatedAt: now,
+        };
+        const others = rawSessions.filter(s => s['id'] !== sessionId);
+        await prisma.roadmap.update({
+          where: { id: roadmapId },
+          data:  { toolSessions: toJsonValue([...others, sessionData]) },
+        });
 
-    log.info('[StandaloneComposer] Generate job queued', { jobId: job.id, sessionId });
-    return NextResponse.json({ jobId: job.id, sessionId }, { status: 202 });
+        const job = await createToolJob({
+          userId, roadmapId,
+          toolType:  'composer_generate',
+          sessionId,
+        });
+
+        const traceHeaders = captureTraceHeaders();
+        await sendToolJobEvent(
+          job.id,
+          {
+            name: 'tool/composer-generate.requested',
+            data: {
+              jobId:       job.id,
+              userId,
+              roadmapId,
+              sessionId,
+              taskId:      null,
+              contextJson,
+              mode:        generateInput.mode,
+              channel:     generateInput.channel,
+            },
+          },
+          traceHeaders,
+        );
+
+        log.info('[StandaloneComposer] Generate job queued', { jobId: job.id, sessionId });
+        return NextResponse.json({ jobId: job.id, sessionId }, { status: 202 });
+      },
+    );
   } catch (err) {
     return httpErrorToResponse(err);
   }

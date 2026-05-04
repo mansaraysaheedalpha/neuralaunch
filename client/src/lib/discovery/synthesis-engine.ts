@@ -9,6 +9,17 @@ import type { AudienceType } from './constants';
 import { MODELS } from './constants';
 import { logger } from '@/lib/logger';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import {
+  withAgentSpan,
+  setActiveSpanAttribute,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_AGENT_AUDIENCE_TYPE,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
 import { renderUserContent } from '@/lib/validation/server-helpers';
 import { cachedAnthropicContent, cachedUserMessages } from '@/lib/ai/prompt-cache';
 import {
@@ -33,6 +44,7 @@ export async function summariseContext(context: DiscoveryContext): Promise<strin
     .map(([key, field]) => `${key}: ${renderUserContent(JSON.stringify(field.value), 800)} (confidence: ${field.confidence.toFixed(2)})`)
     .join('\n');
 
+  const start = Date.now();
   const response = await withModelFallback(
     'synthesis:summariseContext',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
@@ -59,6 +71,18 @@ Be direct. Do not give advice. Only state what the data confirms.`,
     }),
   );
 
+  // Record fired model + usage on the active span (set up by the
+  // wrapping `withAgentSpan` in runSynthesis). Raw Anthropic SDK returns
+  // snake_case usage fields (input_tokens / output_tokens) — different
+  // from AI SDK v5's camelCase shape elsewhere.
+  setActiveSpanAttribute(ATTR_AGENT_MODEL, response.model);
+  if (response.model !== MODELS.INTERVIEW) {
+    recordModelFallback(`primary ${MODELS.INTERVIEW} unavailable`);
+  }
+  setActiveSpanAttribute(ATTR_TOKENS_INPUT, response.usage.input_tokens);
+  setActiveSpanAttribute(ATTR_TOKENS_OUTPUT, response.usage.output_tokens);
+  setActiveSpanAttribute(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
+
   const content = response.content[0];
   if (content.type !== 'text') throw new Error('Unexpected response type from summarise step');
   return content.text;
@@ -69,6 +93,7 @@ Be direct. Do not give advice. Only state what the data confirms.`,
 // ---------------------------------------------------------------------------
 
 export async function eliminateAlternatives(summary: string): Promise<string> {
+  const start = Date.now();
   const response = await withModelFallback(
     'synthesis:eliminateAlternatives',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
@@ -92,6 +117,14 @@ Be ruthless. This person needs ONE clear answer, not a menu.`,
       }],
     }),
   );
+
+  setActiveSpanAttribute(ATTR_AGENT_MODEL, response.model);
+  if (response.model !== MODELS.INTERVIEW) {
+    recordModelFallback(`primary ${MODELS.INTERVIEW} unavailable`);
+  }
+  setActiveSpanAttribute(ATTR_TOKENS_INPUT, response.usage.input_tokens);
+  setActiveSpanAttribute(ATTR_TOKENS_OUTPUT, response.usage.output_tokens);
+  setActiveSpanAttribute(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
 
   const content = response.content[0];
   if (content.type !== 'text') throw new Error('Unexpected response type from eliminate step');
@@ -156,6 +189,7 @@ export async function runFinalSynthesis(
   const accumulator = input.researchAccumulator ?? [];
   const accumulatorBaseline = accumulator.length;
 
+  const start = Date.now();
   const recommendation = await withModelFallback(
     'synthesis:runFinalSynthesis',
     { primary: MODELS.SYNTHESIS, fallback: MODELS.INTERVIEW },
@@ -234,6 +268,15 @@ When you are ready, emit the structured recommendation as your final output.`;
         messages: cachedUserMessages(synthesisStable, synthesisVolatile),
       });
 
+      setActiveSpanAttribute(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== MODELS.SYNTHESIS) {
+        recordModelFallback(`primary ${MODELS.SYNTHESIS} unavailable`);
+      }
+      const usage = result.usage;
+      if (typeof usage?.inputTokens === 'number') setActiveSpanAttribute(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setActiveSpanAttribute(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setActiveSpanAttribute(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
+
       return result.output;
     },
   );
@@ -268,21 +311,62 @@ export async function runSynthesis(input: RunSynthesisInput): Promise<Recommenda
   const { context, sessionId, audienceType = null, researchAccumulator } = input;
   const log = logger.child({ module: 'SynthesisEngine', sessionId });
 
-  log.debug('Starting synthesis step 1: summarise context');
-  const summary  = await summariseContext(context);
+  // Parent span carries user-facing intent + audience type + total
+  // wall-time. Three children carry per-stage model/tier/tokens/latency.
+  // Children auto-attach via Sentry's AsyncLocalStorage propagation
+  // through the outer factory's awaits.
+  return withAgentSpan(
+    {
+      name: 'discovery.synthesis',
+      attributes: {
+        ...(audienceType ? { [ATTR_AGENT_AUDIENCE_TYPE]: audienceType } : {}),
+      },
+    },
+    async () => {
+      log.debug('Starting synthesis step 1: summarise context');
+      const summary = await withAgentSpan(
+        {
+          name: 'synthesis.summarise',
+          attributes: {
+            [ATTR_AGENT_TIER]: 3,
+            [ATTR_AGENT_MODEL]: MODELS.INTERVIEW,
+          },
+        },
+        () => summariseContext(context),
+      );
 
-  log.debug('Starting synthesis step 2: eliminate alternatives');
-  const analysis = await eliminateAlternatives(summary);
+      log.debug('Starting synthesis step 2: eliminate alternatives');
+      const analysis = await withAgentSpan(
+        {
+          name: 'synthesis.eliminate',
+          attributes: {
+            [ATTR_AGENT_TIER]: 3,
+            [ATTR_AGENT_MODEL]: MODELS.INTERVIEW,
+          },
+        },
+        () => eliminateAlternatives(summary),
+      );
 
-  log.debug('Starting synthesis step 3: generate structured recommendation');
-  const recommendation = await runFinalSynthesis({
-    summary,
-    analysis,
-    audienceType,
-    contextId: sessionId,
-    researchAccumulator,
-  });
+      log.debug('Starting synthesis step 3: generate structured recommendation');
+      const recommendation = await withAgentSpan(
+        {
+          name: 'synthesis.final',
+          attributes: {
+            [ATTR_AGENT_TIER]: 4,
+            [ATTR_AGENT_MODEL]: MODELS.SYNTHESIS,
+          },
+        },
+        () => runFinalSynthesis({
+          summary,
+          analysis,
+          audienceType,
+          contextId: sessionId,
+          researchAccumulator,
+        }),
+      );
 
-  log.debug('Synthesis complete');
-  return recommendation;
+      log.debug('Synthesis complete');
+      return recommendation;
+    },
+  );
 }

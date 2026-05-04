@@ -26,6 +26,10 @@ import prisma from '@/lib/prisma';
 import { paddleClient } from '@/lib/paddle/client';
 import { resolveTier } from '@/lib/paddle/tiers';
 import { logger } from '@/lib/logger';
+import {
+  withInngestQueueSpan,
+  withDistributedTrace,
+} from '@/lib/observability';
 
 /**
  * Cap on the number of subscriptions checked per run. Keeps a single
@@ -53,7 +57,14 @@ export const paddleReconciliationFunction = inngest.createFunction(
       { cron: '0 3 * * *' },
     ],
   },
-  async ({ event, step }) => {
+  async ({ event, step, runId, attempt }) => {
+    const sentryTrace = (event.data as { sentryTrace?: string } | undefined)?.sentryTrace;
+    const baggage     = (event.data as { baggage?: string } | undefined)?.baggage;
+    return withDistributedTrace(
+      { sentryTrace, baggage },
+      () => withInngestQueueSpan(
+        { functionId: 'paddle-reconciliation', eventName: event.name, runId, attempt },
+        async () => {
     const log = logger.child({ inngestFunction: 'paddleReconciliation', runId: event.id });
 
     // Step 1: load every local subscription that should exist on
@@ -188,5 +199,8 @@ export const paddleReconciliationFunction = inngest.createFunction(
       discrepancies: discrepancies.length,
       fetchErrors,
     };
+        },
+      ),
+    );
   },
 );

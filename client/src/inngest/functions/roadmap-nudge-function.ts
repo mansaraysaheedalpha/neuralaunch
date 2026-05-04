@@ -3,6 +3,10 @@ import { inngest } from '../client';
 import prisma      from '@/lib/prisma';
 import { logger }  from '@/lib/logger';
 import {
+  withInngestQueueSpan,
+  withDistributedTrace,
+} from '@/lib/observability';
+import {
   StoredPhasesArraySchema,
   type StoredRoadmapPhase,
 } from '@/lib/roadmap/checkin-types';
@@ -50,7 +54,14 @@ export const roadmapNudgeFunction = inngest.createFunction(
       { cron: '0 14 * * *' },
     ],
   },
-  async ({ event, step }) => {
+  async ({ event, step, runId, attempt }) => {
+    const sentryTrace = (event.data as { sentryTrace?: string } | undefined)?.sentryTrace;
+    const baggage     = (event.data as { baggage?: string } | undefined)?.baggage;
+    return withDistributedTrace(
+      { sentryTrace, baggage },
+      () => withInngestQueueSpan(
+        { functionId: 'roadmap-nudge-sweep', eventName: event.name, runId, attempt },
+        async () => {
     const log = logger.child({ inngestFunction: 'roadmapNudge', runId: event.id });
 
     // Pagination cap: this cron iterates RoadmapProgress rows for the
@@ -265,6 +276,9 @@ export const roadmapNudgeFunction = inngest.createFunction(
     });
 
     return { swept: candidates.length, flagged, outcomeFlagged };
+        },
+      ),
+    );
   },
 );
 

@@ -14,6 +14,10 @@
 import { inngest } from '../../client';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import {
+  withInngestQueueSpan,
+  withDistributedTrace,
+} from '@/lib/observability';
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import {
   MAX_ADJUSTMENT_ROUNDS,
@@ -44,7 +48,14 @@ export const packagerAdjustJobFunction = inngest.createFunction(
     concurrency: [{ limit: 1, key: 'event.data.userId' }],
     triggers: [{ event: 'tool/packager-adjust.requested' }],
   },
-  async ({ event, step }) => {
+  async ({ event, step, runId, attempt }) => {
+    const sentryTrace = (event.data as { sentryTrace?: string }).sentryTrace;
+    const baggage     = (event.data as { baggage?: string }).baggage;
+    return withDistributedTrace(
+      { sentryTrace, baggage },
+      () => withInngestQueueSpan(
+        { functionId: 'tool-packager-adjust', eventName: event.name, runId, attempt },
+        async () => {
     const { jobId, userId, roadmapId, sessionId, taskId, adjustmentRequest } =
       event.data as {
         jobId:             string;
@@ -192,5 +203,8 @@ export const packagerAdjustJobFunction = inngest.createFunction(
 
       throw err;
     }
+        },
+      ),
+    );
   },
 );

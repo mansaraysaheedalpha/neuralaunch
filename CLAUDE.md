@@ -124,9 +124,9 @@ Users are waiting. Every unnecessary millisecond is friction between a person an
 
 | Layer | Technology | Version | Notes |
 |---|---|---|---|
-| Framework | Next.js | 16.2.x | App Router only. No Pages Router. Pinned to `--webpack` until the custom webpack config is ported to Turbopack — see `client/package.json` scripts. |
+| Framework | Next.js | 16.2.x | App Router only. No Pages Router. **Turbopack is the default compiler** (`pnpm dev` / `pnpm build`). `pnpm dev:webpack` / `pnpm build:webpack` are the rollback hatches — keep them, do not delete. See `docs/migrations/turbopack-migration-research-2026-05.md`. |
 | Language | TypeScript | 5.x | Strict mode. No `any`. |
-| Styling | Tailwind CSS | 4.x | Utility-first. No inline styles. |
+| Styling | Tailwind CSS | 3.4.x | Utility-first. No inline styles. v3 with classic `tailwindcss` PostCSS plugin — NOT v4 + `@tailwindcss/postcss`. v4 upgrade deferred until upstream patches the Turbopack + Oxide arbitrary-value scanner defect. |
 | Components | shadcn/ui | v4 CLI | Chat, Timeline, Stepper blocks for AI UX. |
 | Animation | Motion | v12 | Import from `motion/react`, not `framer-motion`. |
 | AI SDK | Vercel AI SDK | v5.0 | `streamText`, `generateObject` with Zod schemas. |

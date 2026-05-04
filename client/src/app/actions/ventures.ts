@@ -8,6 +8,7 @@
 // losing data on the others.
 
 import { revalidatePath } from 'next/cache';
+import { withServerActionInstrumentation } from '@sentry/nextjs';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { auth } from '@/auth';
@@ -85,6 +86,12 @@ async function resolveTier(userId: string): Promise<Tier> {
  * Rate-limited per user at API_AUTHENTICATED (60/min).
  */
 export async function swapVentureStatus(input: SwapInput): Promise<SwapResult> {
+  // Explicit return-type annotation on the inner callback narrows the
+  // SwapResult discriminated union (literal `true`/`false` on `ok`)
+  // through `withServerActionInstrumentation`'s generic ReturnType<A>
+  // inference. Without it, `ok: true` widens to `ok: boolean` and the
+  // union loses its discrimination.
+  return withServerActionInstrumentation('swapVentureStatus', async (): Promise<SwapResult> => {
   const session = await auth();
   if (!session?.user?.id) {
     return { ok: false, reason: 'unauthorised' };
@@ -228,4 +235,5 @@ export async function swapVentureStatus(input: SwapInput): Promise<SwapResult> {
     );
     return { ok: false, reason: 'not-found', message: 'Swap failed — try again in a moment.' };
   }
+  });
 }

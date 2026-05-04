@@ -15,6 +15,10 @@ import { inngest } from '../client';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { mintTaskId } from '@/lib/roadmap/roadmap-engine';
+import {
+  withInngestQueueSpan,
+  withDistributedTrace,
+} from '@/lib/observability';
 
 interface LegacyTask {
   id?: string;
@@ -35,7 +39,14 @@ export const backfillRoadmapTaskIdsFunction = inngest.createFunction(
     retries: 1,
     triggers: [{ event: 'neuralaunch/backfill.roadmap-task-ids' }],
   },
-  async ({ step }) => {
+  async ({ event, step, runId, attempt }) => {
+    const sentryTrace = (event.data as { sentryTrace?: string } | undefined)?.sentryTrace;
+    const baggage     = (event.data as { baggage?: string } | undefined)?.baggage;
+    return withDistributedTrace(
+      { sentryTrace, baggage },
+      () => withInngestQueueSpan(
+        { functionId: 'backfill-roadmap-task-ids', eventName: event.name, runId, attempt },
+        async () => {
     const log = logger.child({ inngestFunction: 'backfillRoadmapTaskIds' });
 
     const roadmaps = await step.run('load-roadmaps', async () =>
@@ -79,5 +90,8 @@ export const backfillRoadmapTaskIdsFunction = inngest.createFunction(
     log.info('[BackfillRoadmapTaskIds] complete', { scanned, updated, taskIdsMinted });
 
     return { scanned, updated, taskIdsMinted };
+        },
+      ),
+    );
   },
 );

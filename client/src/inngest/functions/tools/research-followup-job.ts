@@ -10,6 +10,10 @@
 import { inngest } from '../../client';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import {
+  withInngestQueueSpan,
+  withDistributedTrace,
+} from '@/lib/observability';
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import { type ResearchLogEntry } from '@/lib/research';
 import {
@@ -42,7 +46,14 @@ export const researchFollowupJobFunction = inngest.createFunction(
     concurrency: [{ limit: 1, key: 'event.data.userId' }],
     triggers: [{ event: 'tool/research-followup.requested' }],
   },
-  async ({ event, step }) => {
+  async ({ event, step, runId, attempt }) => {
+    const sentryTrace = (event.data as { sentryTrace?: string }).sentryTrace;
+    const baggage     = (event.data as { baggage?: string }).baggage;
+    return withDistributedTrace(
+      { sentryTrace, baggage },
+      () => withInngestQueueSpan(
+        { functionId: 'tool-research-followup', eventName: event.name, runId, attempt },
+        async () => {
     const { jobId, userId, roadmapId, sessionId, taskId, query } =
       event.data as {
         jobId:     string;
@@ -215,5 +226,8 @@ export const researchFollowupJobFunction = inngest.createFunction(
 
       throw err;
     }
+        },
+      ),
+    );
   },
 );

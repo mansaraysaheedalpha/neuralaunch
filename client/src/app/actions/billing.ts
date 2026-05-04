@@ -1,11 +1,20 @@
 'use server';
 
+import { withServerActionInstrumentation } from '@sentry/nextjs';
 import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
 import { paddleClient } from '@/lib/paddle/client';
 import { logger } from '@/lib/logger';
 import { HttpError, rateLimitByUser } from '@/lib/validation/server-helpers';
 import { RATE_LIMITS } from '@/lib/rate-limit';
+
+// Discriminated-union return type lifted to a top-level alias so the
+// inner `withServerActionInstrumentation` callback can declare its
+// return as `Promise<GeneratePortalLinkResult>` and preserve narrowing
+// (see swapVentureStatus for the canonical pattern + rationale).
+type GeneratePortalLinkResult =
+  | { ok: true;  url: string }
+  | { ok: false; reason: 'unauthorised' | 'no-billing-profile' | 'paddle-error' | 'rate-limited' };
 
 /**
  * Generate a one-time authenticated link to the Paddle customer portal.
@@ -28,10 +37,13 @@ import { RATE_LIMITS } from '@/lib/rate-limit';
  * friendly-error return value instead of a thrown exception; the UI
  * uses the { ok: false } branch to render a disabled state.
  */
-export async function generatePortalLink(): Promise<
-  | { ok: true;  url: string }
-  | { ok: false; reason: 'unauthorised' | 'no-billing-profile' | 'paddle-error' | 'rate-limited' }
-> {
+export async function generatePortalLink(): Promise<GeneratePortalLinkResult> {
+  // Explicit return-type annotation on the inner callback narrows the
+  // discriminated union (literal `true`/`false` on `ok`) through
+  // withServerActionInstrumentation's generic ReturnType<A> inference.
+  // Without it, `ok: true` widens to `ok: boolean`. Same pattern as
+  // swapVentureStatus.
+  return withServerActionInstrumentation('generatePortalLink', async (): Promise<GeneratePortalLinkResult> => {
   const session = await auth();
   if (!session?.user?.id) {
     return { ok: false, reason: 'unauthorised' };
@@ -97,4 +109,5 @@ export async function generatePortalLink(): Promise<
     { userId: session.user.id, attempts: RETRY_DELAYS_MS.length },
   );
   return { ok: false, reason: 'paddle-error' };
+  });
 }

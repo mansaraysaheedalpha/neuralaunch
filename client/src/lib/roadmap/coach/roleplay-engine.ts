@@ -21,6 +21,15 @@ import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { MODELS } from '@/lib/discovery/constants';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import {
+  withAgentSpan,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
 import { renderUserContent, sanitizeForPrompt } from '@/lib/validation/server-helpers';
 import { ROLEPLAY_WARNING_TURN } from './constants';
 import type { RolePlayTurn, PreparationPackage, ConversationSetup } from './schemas';
@@ -91,11 +100,20 @@ export async function runRolePlayTurn(
     ? '\n\nIMPORTANT: This is turn ' + input.turn + ' of the rehearsal. The rehearsal is approaching its limit. You MUST naturally weave into your reply — as the other party — a cue that suggests this particular exchange is reaching a natural pause or conclusion. Do not break character or say "rehearsal ending." Stay in character but signal a natural close.'
     : '';
 
-  const object = await withModelFallback(
+  const object = await withAgentSpan(
+    {
+      name: 'coach.roleplay',
+      attributes: {
+        [ATTR_AGENT_TIER]: 3,
+        [ATTR_AGENT_MODEL]: MODELS.INTERVIEW,
+      },
+    },
+    (setAttr) => withModelFallback(
     'coach:roleplay',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
     async (modelId) => {
-      const { output } = await generateText({
+      const start = Date.now();
+      const result = await generateText({
         model:  aiSdkAnthropic(modelId),
         output: Output.object({ schema: RolePlayResponseSchema }),
         maxOutputTokens: 16_384,
@@ -140,8 +158,19 @@ RULES:
 Produce your in-character response now.`,
       }],
       });
-      return output;
+      // Record fired model + usage. See sentry-spans.ts banner rule #3
+      // for the requested-vs-fired model double-set rationale.
+      setAttr(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== MODELS.INTERVIEW) {
+        recordModelFallback(`primary ${MODELS.INTERVIEW} unavailable`);
+      }
+      const usage = result.usage;
+      if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
+      return result.output;
     },
+    ),
   );
 
   log.info('[CoachRolePlay] Turn complete', { turn: input.turn });

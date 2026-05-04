@@ -14,6 +14,10 @@
 
 import { inngest } from '../client';
 import { logger } from '@/lib/logger';
+import {
+  withInngestQueueSpan,
+  withDistributedTrace,
+} from '@/lib/observability';
 // Server-only deps imported directly from their own files so the
 // client barrel ('@/lib/transformation') stays free of
 // 'server-only' transitive dependencies. See the barrel file for
@@ -45,7 +49,19 @@ export const transformationReportFunction = inngest.createFunction(
     retries: 1,
     triggers: [{ event: TRANSFORMATION_REPORT_EVENT }],
   },
-  async ({ event, step }) => {
+  async ({ event, step, runId, attempt }) => {
+    const sentryTrace = (event.data as { sentryTrace?: string }).sentryTrace;
+    const baggage     = (event.data as { baggage?: string }).baggage;
+    return withDistributedTrace(
+      { sentryTrace, baggage },
+      () => withInngestQueueSpan(
+        {
+          functionId: 'discovery-transformation-report',
+          eventName:  event.name,
+          runId,
+          attempt,
+        },
+        async () => {
     const { reportId, ventureId, userId } = event.data as {
       reportId:  string;
       ventureId: string;
@@ -171,5 +187,8 @@ export const transformationReportFunction = inngest.createFunction(
       // fallback inside withModelFallback).
       throw err;
     }
+        },
+      ),
+    );
   },
 );

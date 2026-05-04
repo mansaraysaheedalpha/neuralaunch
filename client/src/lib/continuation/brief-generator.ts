@@ -16,6 +16,15 @@ import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { logger } from '@/lib/logger';
 import { MODELS } from '@/lib/discovery/constants';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import {
+  withAgentSpan,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
 import { renderUserContent, sanitizeForPrompt } from '@/lib/validation/server-helpers';
 import { cachedUserMessages } from '@/lib/ai/prompt-cache';
 import {
@@ -154,10 +163,19 @@ export async function generateContinuationBrief(input: GenerateBriefInput): Prom
     paceLabel:        input.metrics.paceLabel,
   });
 
-  const brief = await withModelFallback(
+  const brief = await withAgentSpan(
+    {
+      name: 'continuation.brief',
+      attributes: {
+        [ATTR_AGENT_TIER]: 4,
+        [ATTR_AGENT_MODEL]: MODELS.SYNTHESIS,
+      },
+    },
+    (setAttr) => withModelFallback(
     'continuation:generateBrief',
     { primary: MODELS.SYNTHESIS, fallback: MODELS.INTERVIEW },
     async (modelId) => {
+      const start = Date.now();
       // Reset the accumulator on retry so a fallback doesn't
       // double-count tool calls in the audit log.
       accumulator.length = accumulatorBaseline;
@@ -256,8 +274,17 @@ When you are ready, emit the structured continuation brief as your final output.
         output: Output.object({ schema: ContinuationBriefSchema }),
         messages: cachedUserMessages(briefStable, briefVolatile),
       });
+      setAttr(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== MODELS.SYNTHESIS) {
+        recordModelFallback(`primary ${MODELS.SYNTHESIS} unavailable`);
+      }
+      const usage = result.usage;
+      if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
       return result.output;
     },
+    ),
   );
 
   log.info('[BriefGenerator] Brief generated', {

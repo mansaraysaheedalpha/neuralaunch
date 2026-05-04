@@ -13,6 +13,11 @@ import prisma, { toJsonValue } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { sendToolJobEvent } from '@/lib/tool-jobs/queue';
 import {
+  withToolUiSpan,
+  captureTraceHeaders,
+  ATTR_TOOL_INPUT_LENGTH,
+} from '@/lib/observability';
+import {
   HttpError, httpErrorToResponse, requireUserId,
   enforceSameOrigin, rateLimitByUser, RATE_LIMITS,
 } from '@/lib/validation/server-helpers';
@@ -116,39 +121,56 @@ export async function POST(
     // -----------------------------------------------------------------
     // Branch B — generation (accept-and-queue; async via Inngest)
     // -----------------------------------------------------------------
-    // Persist the confirmed context onto the task's packagerSession
-    // first so the worker has it available even if the founder closes
-    // the tab and the in-flight job state is lost from React.
-    const sessionData: Record<string, unknown> = {
-      ...(existing ?? {}), id: sid, tool: PACKAGER_TOOL_ID,
-      context: parsed.data.context,
-      createdAt: existing?.createdAt ?? now, updatedAt: now,
-    };
-    const next = patchTask(phases, taskId, t => ({ ...t, packagerSession: sessionData }));
-    if (!next) throw new HttpError(404, 'Task not found post-merge');
-    await prisma.roadmap.update({ where: { id: roadmapId }, data: { phases: toJsonValue(next) } });
-
-    const job = await createToolJob({
-      userId, roadmapId,
-      toolType: 'packager_generate',
-      sessionId: sid,
-      taskId,
-    });
-
-    await sendToolJobEvent(job.id, {
-      name: 'tool/packager-generate.requested',
-      data: {
-        jobId:       job.id,
-        userId,
-        roadmapId,
-        sessionId:   sid,
-        taskId,
-        contextJson: JSON.stringify(parsed.data.context),
+    // Extract narrowed values to locals — TS's flow narrowing on
+    // `parsed.data` doesn't survive into the async closure scope.
+    const generateInput = parsed.data;
+    const contextJson = JSON.stringify(generateInput.context);
+    return await withToolUiSpan(
+      {
+        name: 'tool.packager_generate',
+        attributes: { [ATTR_TOOL_INPUT_LENGTH]: contextJson.length },
       },
-    });
+      async () => {
+        // Persist the confirmed context onto the task's packagerSession
+        // first so the worker has it available even if the founder closes
+        // the tab and the in-flight job state is lost from React.
+        const sessionData: Record<string, unknown> = {
+          ...(existing ?? {}), id: sid, tool: PACKAGER_TOOL_ID,
+          context: generateInput.context,
+          createdAt: existing?.createdAt ?? now, updatedAt: now,
+        };
+        const next = patchTask(phases, taskId, t => ({ ...t, packagerSession: sessionData }));
+        if (!next) throw new HttpError(404, 'Task not found post-merge');
+        await prisma.roadmap.update({ where: { id: roadmapId }, data: { phases: toJsonValue(next) } });
 
-    log.info('[PackagerTask] Generate job queued', { jobId: job.id, taskId, sessionId: sid });
-    return NextResponse.json({ jobId: job.id, sessionId: sid }, { status: 202 });
+        const job = await createToolJob({
+          userId, roadmapId,
+          toolType: 'packager_generate',
+          sessionId: sid,
+          taskId,
+        });
+
+        const traceHeaders = captureTraceHeaders();
+        await sendToolJobEvent(
+          job.id,
+          {
+            name: 'tool/packager-generate.requested',
+            data: {
+              jobId:       job.id,
+              userId,
+              roadmapId,
+              sessionId:   sid,
+              taskId,
+              contextJson,
+            },
+          },
+          traceHeaders,
+        );
+
+        log.info('[PackagerTask] Generate job queued', { jobId: job.id, taskId, sessionId: sid });
+        return NextResponse.json({ jobId: job.id, sessionId: sid }, { status: 202 });
+      },
+    );
   } catch (err) {
     return httpErrorToResponse(err);
   }

@@ -21,6 +21,10 @@
 import { inngest } from '../../client';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import {
+  withInngestQueueSpan,
+  withDistributedTrace,
+} from '@/lib/observability';
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import { type ResearchLogEntry } from '@/lib/research';
 import { runResearchExecution } from '@/lib/roadmap/research-tool';
@@ -55,7 +59,22 @@ export const researchExecuteJobFunction = inngest.createFunction(
     concurrency: [{ limit: 1, key: 'event.data.userId' }],
     triggers: [{ event: 'tool/research-execute.requested' }],
   },
-  async ({ event, step }) => {
+  async ({ event, step, runId, attempt }) => {
+    // Resume the parent trace if the route propagated trace headers in
+    // the event payload; otherwise the worker becomes a trace root.
+    // `withDistributedTrace` no-ops cleanly on absent headers.
+    const sentryTrace = (event.data as { sentryTrace?: string }).sentryTrace;
+    const baggage     = (event.data as { baggage?: string }).baggage;
+    return withDistributedTrace(
+      { sentryTrace, baggage },
+      () => withInngestQueueSpan(
+        {
+          functionId: 'tool-research-execute',
+          eventName:  event.name,
+          runId,
+          attempt,
+        },
+        async () => {
     const { jobId, userId, roadmapId, sessionId, taskId, planText, query } =
       event.data as {
         jobId:     string;
@@ -237,5 +256,8 @@ export const researchExecuteJobFunction = inngest.createFunction(
       // fallback exhausting).
       throw err;
     }
+        },
+      ),
+    );
   },
 );

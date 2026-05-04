@@ -18,6 +18,15 @@ import { generateObject, generateText } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { logger } from '@/lib/logger';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import {
+  withAgentSpan,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
 import { cachedSystem, cachedUserMessages } from '@/lib/ai/prompt-cache';
 import { renderUserContent } from '@/lib/validation/server-helpers';
 import { MODELS } from '@/lib/discovery/constants';
@@ -58,13 +67,22 @@ export async function generateTransformationReport(
 
   const evidenceBlock = renderEvidenceBundle(bundle);
 
-  const result = await withModelFallback(
+  const result = await withAgentSpan(
+    {
+      name: 'transformation.report',
+      attributes: {
+        [ATTR_AGENT_TIER]: 4,
+        [ATTR_AGENT_MODEL]: TRANSFORMATION_MODEL,
+      },
+    },
+    (setAttr) => withModelFallback(
     'transformation:generateReport',
     {
       primary:  TRANSFORMATION_MODEL,
       fallback: TRANSFORMATION_FALLBACK_MODEL,
     },
     async (modelId) => {
+      const start = Date.now();
       // generateText + manual JSON parse rather than generateObject
       // because Opus 4.7 was wrapping its tool-call payload under a
       // self-invented `$SCHEMA` key — every field was correctly
@@ -73,12 +91,21 @@ export async function generateTransformationReport(
       // could unwrap. Doing the parse ourselves gives a defensive
       // unwrap path AND lets us log the raw response on failure so
       // we can diagnose future shape drift.
-      const { text } = await generateText({
+      const genResult = await generateText({
         model:           aiSdkAnthropic(modelId),
         system:          cachedSystem(SYSTEM_PROMPT),
         messages:        cachedUserMessages(evidenceBlock, WRITE_NOW_JSON_INSTRUCTION),
         maxOutputTokens: MAX_OUTPUT_TOKENS,
       });
+      const text = genResult.text;
+      setAttr(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== TRANSFORMATION_MODEL) {
+        recordModelFallback(`primary ${TRANSFORMATION_MODEL} unavailable`);
+      }
+      const usage = genResult.usage;
+      if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
 
       const parsed = parseTransformationJson(text);
       const validated = TransformationReportSchema.safeParse(parsed);
@@ -91,6 +118,7 @@ export async function generateTransformationReport(
       }
       return validated.data;
     },
+    ),
   );
 
   // Defensive normalisation — sectionOrder must include any
@@ -412,25 +440,43 @@ export async function detectRedactionCandidates(input: {
   const reportPayload = JSON.stringify(reportAfterBaseline);
   const evidenceBlock = `## Auto-redacted report (review this for additional sensitive content)\n\n[[[${reportPayload}]]]`;
 
-  const result = await withModelFallback(
+  const result = await withAgentSpan(
+    {
+      name: 'transformation.redaction_detect',
+      attributes: {
+        [ATTR_AGENT_TIER]: 4,
+        [ATTR_AGENT_MODEL]: DETECTOR_MODEL,
+      },
+    },
+    (setAttr) => withModelFallback(
     'transformation:detectRedactions',
     {
       primary:  DETECTOR_MODEL,
       fallback: DETECTOR_FALLBACK_MODEL,
     },
     async (modelId) => {
+      const start = Date.now();
       // generateObject — same migration reason as synthesis above.
       // RedactionCandidatesArraySchema is a top-level array schema;
       // the AI SDK wraps it as a tool-call automatically.
-      const { object } = await generateObject({
+      const genResult = await generateObject({
         model:           aiSdkAnthropic(modelId),
         schema:          RedactionCandidatesArraySchema,
         system:          cachedSystem(DETECTOR_SYSTEM),
         messages:        cachedUserMessages(evidenceBlock, DETECTOR_INSTRUCTION),
         maxOutputTokens: DETECTOR_MAX_OUTPUT_TOKENS,
       });
-      return object;
+      setAttr(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== DETECTOR_MODEL) {
+        recordModelFallback(`primary ${DETECTOR_MODEL} unavailable`);
+      }
+      const usage = genResult.usage;
+      if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
+      return genResult.object;
     },
+    ),
   );
 
   // Defensive: ensure ids are unique and follow rc-N pattern. The

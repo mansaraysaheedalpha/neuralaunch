@@ -2,6 +2,10 @@
 import { inngest } from '../client';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import {
+  withInngestQueueSpan,
+  withDistributedTrace,
+} from '@/lib/observability';
 import { env } from '@/lib/env';
 import {
   CYCLE_LIMITS,
@@ -111,7 +115,14 @@ export const usageAnomalyDetectionFunction = inngest.createFunction(
       { cron: '0 6 * * *' },
     ],
   },
-  async ({ event, step }) => {
+  async ({ event, step, runId, attempt }) => {
+    const sentryTrace = (event.data as { sentryTrace?: string } | undefined)?.sentryTrace;
+    const baggage     = (event.data as { baggage?: string } | undefined)?.baggage;
+    return withDistributedTrace(
+      { sentryTrace, baggage },
+      () => withInngestQueueSpan(
+        { functionId: 'usage-anomaly-detection', eventName: event.name, runId, attempt },
+        async () => {
     const log = logger.child({ inngestFunction: 'usageAnomalyDetection', runId: event.id });
 
     // Load paying subscriptions (active or past_due — both are still
@@ -226,5 +237,8 @@ export const usageAnomalyDetectionFunction = inngest.createFunction(
     });
 
     return { swept: subscriptions.length, flagged: alerts.length };
+        },
+      ),
+    );
   },
 );

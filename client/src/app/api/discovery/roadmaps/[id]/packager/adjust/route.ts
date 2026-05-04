@@ -14,6 +14,11 @@ import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { sendToolJobEvent } from '@/lib/tool-jobs/queue';
 import {
+  withToolUiSpan,
+  captureTraceHeaders,
+  ATTR_TOOL_INPUT_LENGTH,
+} from '@/lib/observability';
+import {
   HttpError, httpErrorToResponse, requireUserId,
   enforceSameOrigin, rateLimitByUser, RATE_LIMITS,
 } from '@/lib/validation/server-helpers';
@@ -79,28 +84,41 @@ export async function POST(
       throw new HttpError(409, `Adjustment limit reached (${MAX_ADJUSTMENT_ROUNDS} adjustments maximum).`);
     }
 
-    const job = await createToolJob({
-      userId, roadmapId,
-      toolType:  'packager_adjust',
-      sessionId: parsed.data.sessionId,
-    });
-
-    await sendToolJobEvent(job.id, {
-      name: 'tool/packager-adjust.requested',
-      data: {
-        jobId:             job.id,
-        userId,
-        roadmapId,
-        sessionId:         parsed.data.sessionId,
-        taskId:            null,
-        adjustmentRequest: parsed.data.adjustmentRequest,
+    return await withToolUiSpan(
+      {
+        name: 'tool.packager_adjust',
+        attributes: { [ATTR_TOOL_INPUT_LENGTH]: parsed.data.adjustmentRequest.length },
       },
-    });
+      async () => {
+        const job = await createToolJob({
+          userId, roadmapId,
+          toolType:  'packager_adjust',
+          sessionId: parsed.data.sessionId,
+        });
 
-    log.info('[StandalonePackager] Adjust job queued', { jobId: job.id, sessionId: parsed.data.sessionId });
-    return NextResponse.json(
-      { jobId: job.id, sessionId: parsed.data.sessionId },
-      { status: 202 },
+        const traceHeaders = captureTraceHeaders();
+        await sendToolJobEvent(
+          job.id,
+          {
+            name: 'tool/packager-adjust.requested',
+            data: {
+              jobId:             job.id,
+              userId,
+              roadmapId,
+              sessionId:         parsed.data.sessionId,
+              taskId:            null,
+              adjustmentRequest: parsed.data.adjustmentRequest,
+            },
+          },
+          traceHeaders,
+        );
+
+        log.info('[StandalonePackager] Adjust job queued', { jobId: job.id, sessionId: parsed.data.sessionId });
+        return NextResponse.json(
+          { jobId: job.id, sessionId: parsed.data.sessionId },
+          { status: 202 },
+        );
+      },
     );
   } catch (err) {
     return httpErrorToResponse(err);

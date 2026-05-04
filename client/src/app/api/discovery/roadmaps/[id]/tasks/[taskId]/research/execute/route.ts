@@ -12,6 +12,11 @@ import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { sendToolJobEvent } from '@/lib/tool-jobs/queue';
 import {
+  withToolUiSpan,
+  captureTraceHeaders,
+  ATTR_TOOL_INPUT_LENGTH,
+} from '@/lib/observability';
+import {
   HttpError,
   httpErrorToResponse,
   requireUserId,
@@ -79,35 +84,48 @@ export async function POST(
       throw new HttpError(409, 'Research plan has not been generated. Run the plan stage first.');
     }
 
-    const job = await createToolJob({
-      userId,
-      roadmapId,
-      toolType:  'research_execute',
-      sessionId: existingSession.id,
-      taskId,
-    });
-
-    await sendToolJobEvent(job.id, {
-      name: 'tool/research-execute.requested',
-      data: {
-        jobId:     job.id,
-        userId,
-        roadmapId,
-        sessionId: existingSession.id,
-        taskId,
-        planText:  parsed.data.plan,
-        query:     existingSession.query,
+    return await withToolUiSpan(
+      {
+        name: 'tool.research_execute',
+        attributes: { [ATTR_TOOL_INPUT_LENGTH]: parsed.data.plan.length },
       },
-    });
+      async () => {
+        const job = await createToolJob({
+          userId,
+          roadmapId,
+          toolType:  'research_execute',
+          sessionId: existingSession.id,
+          taskId,
+        });
 
-    log.info('[ResearchTaskExecute] Job queued', {
-      jobId:     job.id,
-      sessionId: existingSession.id,
-    });
+        const traceHeaders = captureTraceHeaders();
+        await sendToolJobEvent(
+          job.id,
+          {
+            name: 'tool/research-execute.requested',
+            data: {
+              jobId:     job.id,
+              userId,
+              roadmapId,
+              sessionId: existingSession.id,
+              taskId,
+              planText:  parsed.data.plan,
+              query:     existingSession.query,
+            },
+          },
+          traceHeaders,
+        );
 
-    return NextResponse.json(
-      { jobId: job.id, sessionId: existingSession.id },
-      { status: 202 },
+        log.info('[ResearchTaskExecute] Job queued', {
+          jobId:     job.id,
+          sessionId: existingSession.id,
+        });
+
+        return NextResponse.json(
+          { jobId: job.id, sessionId: existingSession.id },
+          { status: 202 },
+        );
+      },
     );
   } catch (err) {
     return httpErrorToResponse(err);

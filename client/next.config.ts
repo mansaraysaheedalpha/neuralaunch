@@ -168,6 +168,30 @@ const sentryWebpackPluginOptions = {
   // Hides source maps from generated client bundles
   hideSourceMaps: true,
 
+  // Phase 5 — explicit source-map upload + post-upload deletion. The
+  // default in @sentry/nextjs v10.51 is already `true`, but explicit is
+  // documentation: future contributors see the policy directly in
+  // next.config.ts; a future SDK release that flips the default does
+  // not silently change our behaviour. Pairs with
+  // `productionBrowserSourceMaps: false` above and `hideSourceMaps:
+  // true` immediately above — three layers of "no source maps reach the
+  // production edge":
+  //   1. Source maps are NOT served from `/_next/static/chunks/*.map`
+  //      to the public (productionBrowserSourceMaps: false +
+  //      hideSourceMaps: true).
+  //   2. Maps that ARE produced as build artifacts are uploaded to
+  //      Sentry, then deleted from `.next/` before the deploy
+  //      uploads to Vercel's edge (this option).
+  //   3. Sentry's stack-trace de-minification reads the uploaded
+  //      copy via Debug IDs injected into the chunks; the public
+  //      edge never has a `.map` file to leak.
+  //
+  // See docs/migrations/turbopack-migration-log.md § "Phase 5" for the
+  // verification command sequence.
+  sourcemaps: {
+    deleteSourcemapsAfterUpload: true,
+  },
+
   // Note: `disableLogger` intentionally omitted. The Sentry SDK now logs
   // a deprecation warning for it under Turbopack ("Use
   // webpack.treeshake.removeDebugLogging instead. (Not supported with

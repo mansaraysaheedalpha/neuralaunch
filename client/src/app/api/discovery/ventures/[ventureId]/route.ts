@@ -25,6 +25,7 @@ import {
 } from '@/lib/lifecycle';
 import { logger } from '@/lib/logger';
 import { inngest } from '@/inngest/client';
+import { withToolUiSpan, captureTraceHeaders } from '@/lib/observability';
 import {
   TRANSFORMATION_REPORT_EVENT,
   REOPEN_WINDOW_MS,
@@ -323,22 +324,41 @@ export async function PATCH(
     // state — a manual re-fire or the next "Mark Complete" attempt
     // recovers without duplicates.
     if (txResult.sideEffect === 'completed' && txResult.reportId) {
-      try {
-        await inngest.send({
-          name: TRANSFORMATION_REPORT_EVENT,
-          data: { reportId: txResult.reportId, ventureId, userId },
-        });
-      } catch (err) {
-        log.error(
-          'Transformation event send failed — report row is queued, manual re-fire required',
-          err instanceof Error ? err : new Error(String(err)),
-        );
-        // Do NOT throw — the row is persisted and the founder's
-        // status change succeeded. Surfacing this as a 5xx would
-        // leave them with a "completed" venture and a confusing
-        // error message; instead, we log and the report can be
-        // re-fired by an admin or by re-completing the venture.
-      }
+      // Span op = "ui.action" (the helper's op for tool/UI flows).
+      // Transformation isn't a Tier-1 tool in the product taxonomy —
+      // span name reflects that ('ui.transformation_complete', not
+      // 'tool.*'). Trace headers are injected inline rather than via
+      // tool-jobs/queue.ts because this is a direct inngest.send, not
+      // a ToolJob flow.
+      const reportId = txResult.reportId;
+      await withToolUiSpan(
+        { name: 'ui.transformation_complete' },
+        async () => {
+          const traceHeaders = captureTraceHeaders();
+          try {
+            await inngest.send({
+              name: TRANSFORMATION_REPORT_EVENT,
+              data: {
+                reportId,
+                ventureId,
+                userId,
+                sentryTrace: traceHeaders.sentryTrace,
+                baggage:     traceHeaders.baggage,
+              },
+            });
+          } catch (err) {
+            log.error(
+              'Transformation event send failed — report row is queued, manual re-fire required',
+              err instanceof Error ? err : new Error(String(err)),
+            );
+            // Do NOT throw — the row is persisted and the founder's
+            // status change succeeded. Surfacing this as a 5xx would
+            // leave them with a "completed" venture and a confusing
+            // error message; instead, we log and the report can be
+            // re-fired by an admin or by re-completing the venture.
+          }
+        },
+      );
     }
 
     log.info('Venture status transition committed', {

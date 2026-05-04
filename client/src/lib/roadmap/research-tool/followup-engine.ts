@@ -17,6 +17,15 @@ import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { MODELS } from '@/lib/discovery/constants';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import {
+  withAgentSpan,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
 import { renderUserContent, sanitizeForPrompt } from '@/lib/validation/server-helpers';
 import {
   buildResearchTools,
@@ -69,6 +78,20 @@ export interface FollowUpResult {
 export async function runResearchFollowUp(
   input: RunResearchFollowUpInput,
 ): Promise<FollowUpResult> {
+  // Parent span: one logical follow-up = one user-facing intent.
+  // Two child spans (`phase1` + `phase2`) wrap the sub-calls.
+  return withAgentSpan(
+    {
+      name: 'research.followup',
+      attributes: { 'research.followup_round': input.followUpRound },
+    },
+    () => runResearchFollowUpInner(input),
+  );
+}
+
+async function runResearchFollowUpInner(
+  input: RunResearchFollowUpInput,
+): Promise<FollowUpResult> {
   const log = logger.child({
     module:       'ResearchFollowUp',
     roadmapId:    input.roadmapId,
@@ -97,10 +120,19 @@ export async function runResearchFollowUp(
 
   // Two-phase — same split as research-execute. Phase 1: tool loop +
   // free-form writeup. Phase 2: structured emission from the writeup.
-  const phase1Text = await withModelFallback(
+  const phase1Text = await withAgentSpan(
+    {
+      name: 'research.followup.phase1',
+      attributes: {
+        [ATTR_AGENT_TIER]: 3,
+        [ATTR_AGENT_MODEL]: MODELS.INTERVIEW,
+      },
+    },
+    (setAttr) => withModelFallback(
     'research:followup:phase1-research',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
     async (modelId) => {
+      const start = Date.now();
       accumulator.length = accumulatorBaseline;
       const tools = buildResearchTools({
         agent:       'research-followup',
@@ -159,15 +191,33 @@ Execute the targeted follow-up research now.`,
         }],
       });
 
+      setAttr(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== MODELS.INTERVIEW) {
+        recordModelFallback(`primary ${MODELS.INTERVIEW} unavailable`);
+      }
+      const usage = result.usage;
+      if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
       return result.text;
     },
+    ),
   );
 
   // Phase 2 — structured emission.
-  const response = await withModelFallback(
+  const response = await withAgentSpan(
+    {
+      name: 'research.followup.phase2',
+      attributes: {
+        [ATTR_AGENT_TIER]: 3,
+        [ATTR_AGENT_MODEL]: MODELS.INTERVIEW,
+      },
+    },
+    (setAttr) => withModelFallback(
     'research:followup:phase2-emit',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
     async (modelId) => {
+      const start = Date.now();
       const result = await generateText({
         model:           aiSdkAnthropic(modelId),
         output:          Output.object({ schema: FollowUpResponseSchema }),
@@ -188,8 +238,17 @@ Execute the targeted follow-up research now.`,
       if (!result.output) {
         throw new Error('Follow-up research emit phase failed — no structured output produced.');
       }
+      setAttr(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== MODELS.INTERVIEW) {
+        recordModelFallback(`primary ${MODELS.INTERVIEW} unavailable`);
+      }
+      const usage = result.usage;
+      if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
       return result.output;
     },
+    ),
   );
 
   log.info('[ResearchFollowUp] Follow-up complete', {

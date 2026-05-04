@@ -12,6 +12,11 @@ import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { sendToolJobEvent } from '@/lib/tool-jobs/queue';
 import {
+  withToolUiSpan,
+  captureTraceHeaders,
+  ATTR_TOOL_INPUT_LENGTH,
+} from '@/lib/observability';
+import {
   HttpError,
   httpErrorToResponse,
   requireUserId,
@@ -84,35 +89,48 @@ export async function POST(
       throw new HttpError(409, `Follow-up round limit of ${FOLLOWUP_MAX_ROUNDS} reached. Start a new research session.`);
     }
 
-    const job = await createToolJob({
-      userId,
-      roadmapId,
-      toolType:  'research_followup',
-      sessionId: existingSession.id,
-      taskId,
-    });
-
-    await sendToolJobEvent(job.id, {
-      name: 'tool/research-followup.requested',
-      data: {
-        jobId:     job.id,
-        userId,
-        roadmapId,
-        sessionId: existingSession.id,
-        taskId,
-        query:     parsed.data.query,
+    return await withToolUiSpan(
+      {
+        name: 'tool.research_followup',
+        attributes: { [ATTR_TOOL_INPUT_LENGTH]: parsed.data.query.length },
       },
-    });
+      async () => {
+        const job = await createToolJob({
+          userId,
+          roadmapId,
+          toolType:  'research_followup',
+          sessionId: existingSession.id,
+          taskId,
+        });
 
-    log.info('[ResearchTaskFollowUp] Job queued', {
-      jobId:     job.id,
-      sessionId: existingSession.id,
-      round:     currentRounds + 1,
-    });
+        const traceHeaders = captureTraceHeaders();
+        await sendToolJobEvent(
+          job.id,
+          {
+            name: 'tool/research-followup.requested',
+            data: {
+              jobId:     job.id,
+              userId,
+              roadmapId,
+              sessionId: existingSession.id,
+              taskId,
+              query:     parsed.data.query,
+            },
+          },
+          traceHeaders,
+        );
 
-    return NextResponse.json(
-      { jobId: job.id, sessionId: existingSession.id },
-      { status: 202 },
+        log.info('[ResearchTaskFollowUp] Job queued', {
+          jobId:     job.id,
+          sessionId: existingSession.id,
+          round:     currentRounds + 1,
+        });
+
+        return NextResponse.json(
+          { jobId: job.id, sessionId: existingSession.id },
+          { status: 202 },
+        );
+      },
     );
   } catch (err) {
     return httpErrorToResponse(err);

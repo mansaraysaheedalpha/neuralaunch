@@ -3,6 +3,10 @@ import { inngest } from '../client';
 import prisma, { toJsonValue } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import {
+  withInngestQueueSpan,
+  withDistributedTrace,
+} from '@/lib/observability';
+import {
   CONTINUATION_BRIEF_EVENT,
   CONTINUATION_STATUSES,
   computeExecutionMetrics,
@@ -69,7 +73,14 @@ export const continuationBriefFunction = inngest.createFunction(
       }
     },
   },
-  async ({ event, step }) => {
+  async ({ event, step, runId, attempt }) => {
+    const sentryTrace = (event.data as { sentryTrace?: string }).sentryTrace;
+    const baggage     = (event.data as { baggage?: string }).baggage;
+    return withDistributedTrace(
+      { sentryTrace, baggage },
+      () => withInngestQueueSpan(
+        { functionId: 'continuation-brief-generation', eventName: event.name, runId, attempt },
+        async () => {
     const { roadmapId, userId } = event.data as { roadmapId: string; userId: string };
 
     const log = logger.child({
@@ -262,5 +273,8 @@ export const continuationBriefFunction = inngest.createFunction(
     });
 
     return { roadmapId, status: 'complete' };
+        },
+      ),
+    );
   },
 );

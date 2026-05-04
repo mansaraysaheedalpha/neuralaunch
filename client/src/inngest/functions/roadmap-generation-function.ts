@@ -2,6 +2,10 @@
 import { inngest } from '../client';
 import prisma, { toJsonValue } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import {
+  withInngestQueueSpan,
+  withDistributedTrace,
+} from '@/lib/observability';
 import { generateRoadmap, ROADMAP_EVENT } from '@/lib/roadmap';
 import { DiscoveryContextSchema, createEmptyContext } from '@/lib/discovery';
 import type { AudienceType } from '@/lib/discovery';
@@ -46,7 +50,14 @@ export const roadmapGenerationFunction = inngest.createFunction(
       });
     },
   },
-  async ({ event, step }) => {
+  async ({ event, step, runId, attempt }) => {
+    const sentryTrace = (event.data as { sentryTrace?: string }).sentryTrace;
+    const baggage     = (event.data as { baggage?: string }).baggage;
+    return withDistributedTrace(
+      { sentryTrace, baggage },
+      () => withInngestQueueSpan(
+        { functionId: 'discovery-roadmap-generation', eventName: event.name, runId, attempt },
+        async () => {
     const { recommendationId, userId, parentRoadmapId } = event.data as {
       recommendationId: string;
       userId:           string;
@@ -270,5 +281,8 @@ export const roadmapGenerationFunction = inngest.createFunction(
     });
 
     return { recommendationId, status: 'complete', totalWeeks };
+        },
+      ),
+    );
   },
 );

@@ -18,6 +18,15 @@ import { z } from 'zod';
 import { logger } from '@/lib/logger';
 import { MODELS } from '@/lib/discovery/constants';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import {
+  withAgentSpan,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
 import { renderUserContent, sanitizeForPrompt } from '@/lib/validation/server-helpers';
 import { COACH_CHANNELS, SETUP_MAX_EXCHANGES } from './constants';
 
@@ -92,11 +101,20 @@ export async function runCoachSetup(
 
   const isLastExchange = input.exchangeNumber >= SETUP_MAX_EXCHANGES;
 
-  const object = await withModelFallback(
+  const object = await withAgentSpan(
+    {
+      name: 'coach.setup',
+      attributes: {
+        [ATTR_AGENT_TIER]: 3,
+        [ATTR_AGENT_MODEL]: MODELS.INTERVIEW,
+      },
+    },
+    (setAttr) => withModelFallback(
     'coach:setup',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
     async (modelId) => {
-      const { output } = await generateText({
+      const start = Date.now();
+      const result = await generateText({
         model:  aiSdkAnthropic(modelId),
         output: Output.object({ schema: SetupResponseSchema }),
         maxOutputTokens: 16_384,
@@ -133,8 +151,20 @@ ${input.taskContext
 Produce your structured response now.`,
       }],
       });
-      return output;
+      // Record fired model + usage. ATTR_AGENT_MODEL is set twice on
+      // purpose (see sentry-spans.ts banner rule #3): the initial value
+      // is the requested model; this is the model that actually ran.
+      setAttr(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== MODELS.INTERVIEW) {
+        recordModelFallback(`primary ${MODELS.INTERVIEW} unavailable`);
+      }
+      const usage = result.usage;
+      if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
+      return result.output;
     },
+    ),
   );
 
   log.info('[CoachSetup] Turn complete', {

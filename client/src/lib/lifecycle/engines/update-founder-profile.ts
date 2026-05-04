@@ -15,6 +15,15 @@ import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { logger } from '@/lib/logger';
 import { MODELS } from '@/lib/discovery/constants';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import {
+  withAgentSpan,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
 import { renderUserContent } from '@/lib/validation/server-helpers';
 import { FounderProfileSchema, type FounderProfile, type CycleSummary } from '../schemas';
 
@@ -51,11 +60,20 @@ ${renderUserContent(JSON.stringify(input.cycleSummary, null, 2), 4000)}`;
     cycleNumber:    input.cycleSummary.cycleNumber,
   });
 
-  const profile = await withModelFallback(
+  const profile = await withAgentSpan(
+    {
+      name: 'lifecycle.update_founder_profile',
+      attributes: {
+        [ATTR_AGENT_TIER]: 1,
+        [ATTR_AGENT_MODEL]: MODELS.INTERVIEW_FALLBACK_1,
+      },
+    },
+    (setAttr) => withModelFallback(
     'lifecycle:updateFounderProfile',
     { primary: MODELS.INTERVIEW_FALLBACK_1, fallback: MODELS.INTERVIEW },
     async (modelId) => {
-      const { output } = await generateText({
+      const start = Date.now();
+      const result = await generateText({
         model:  aiSdkAnthropic(modelId),
         output: Output.object({ schema: FounderProfileSchema }),
         messages: [{
@@ -102,8 +120,17 @@ journeyOverview:
 Output the complete FounderProfile now.`,
         }],
       });
-      return output;
+      setAttr(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== MODELS.INTERVIEW_FALLBACK_1) {
+        recordModelFallback(`primary ${MODELS.INTERVIEW_FALLBACK_1} unavailable`);
+      }
+      const usage = result.usage;
+      if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
+      return result.output;
     },
+    ),
   );
 
   log.info('[FounderProfile] Profile updated', {

@@ -21,6 +21,15 @@ import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { logger } from '@/lib/logger';
 import { MODELS } from '@/lib/discovery/constants';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import {
+  withAgentSpan,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
 import { cachedSingleMessage } from '@/lib/ai/prompt-cache';
 import { renderUserContent, sanitizeForPrompt } from '@/lib/validation/server-helpers';
 import {
@@ -84,10 +93,19 @@ export async function runCoachPreparation(
     hasResearchTools: true,
   });
 
-  const preparation = await withModelFallback(
+  const preparation = await withAgentSpan(
+    {
+      name: 'coach.preparation',
+      attributes: {
+        [ATTR_AGENT_TIER]: 4,
+        [ATTR_AGENT_MODEL]: MODELS.SYNTHESIS,
+      },
+    },
+    (setAttr) => withModelFallback(
     'coach:preparation',
     { primary: MODELS.SYNTHESIS, fallback: MODELS.INTERVIEW },
     async (modelId) => {
+      const start = Date.now();
       accumulator.length = accumulatorBaseline;
       const tools = buildResearchTools({
         agent:       'recommendation', // reuse recommendation budget
@@ -157,8 +175,20 @@ Produce the structured preparation package now.`;
       if (!result.output) {
         throw new Error('Model failed to produce the preparation package — exhausted tool budget without emitting structured output.');
       }
+      // Record fired model + usage. ATTR_AGENT_MODEL is set twice on
+      // purpose (see sentry-spans.ts banner rule #3): initial value is
+      // the requested Opus; this captures the model that actually ran.
+      setAttr(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== MODELS.SYNTHESIS) {
+        recordModelFallback(`primary ${MODELS.SYNTHESIS} unavailable`);
+      }
+      const usage = result.usage;
+      if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
       return result.output;
     },
+    ),
   );
 
   log.info('[CoachPreparation] Package generated', {

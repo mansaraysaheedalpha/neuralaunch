@@ -2,6 +2,10 @@
 import { inngest }                from '../client';
 import prisma, { toJsonValue }     from '@/lib/prisma';
 import { logger }                 from '@/lib/logger';
+import {
+  withInngestQueueSpan,
+  withDistributedTrace,
+} from '@/lib/observability';
 import { buildPhaseContext, PHASES } from '@/lib/phase-context';
 import {
   PUSHBACK_ALTERNATIVE_EVENT,
@@ -47,7 +51,14 @@ export const pushbackAlternativeFunction = inngest.createFunction(
     concurrency: [{ limit: 1, key: 'event.data.userId' }],
     triggers: [{ event: PUSHBACK_ALTERNATIVE_EVENT }],
   },
-  async ({ event, step }) => {
+  async ({ event, step, runId, attempt }) => {
+    const sentryTrace = (event.data as { sentryTrace?: string }).sentryTrace;
+    const baggage     = (event.data as { baggage?: string }).baggage;
+    return withDistributedTrace(
+      { sentryTrace, baggage },
+      () => withInngestQueueSpan(
+        { functionId: 'pushback-alternative-synthesis', eventName: event.name, runId, attempt },
+        async () => {
     const { recommendationId, userId } = event.data as { recommendationId: string; userId: string };
 
     const log = logger.child({
@@ -199,6 +210,9 @@ export const pushbackAlternativeFunction = inngest.createFunction(
 
     log.info('[Pushback] Alternative recommendation persisted', { altId });
     return { altId };
+        },
+      ),
+    );
   },
 );
 

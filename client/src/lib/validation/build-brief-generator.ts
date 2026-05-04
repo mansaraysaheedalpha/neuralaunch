@@ -6,6 +6,15 @@ import { logger }                      from '@/lib/logger';
 import { MODELS }                      from '@/lib/discovery/constants';
 import { withModelFallback }           from '@/lib/ai/with-model-fallback';
 import {
+  withAgentSpan,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
+import {
   ValidationReportSchema,
   type ValidationReport,
   type ValidationInterpretation,
@@ -134,11 +143,20 @@ export async function generateBuildBrief(input: BuildBriefInput): Promise<Valida
     surveyCount:  metrics.surveyResponses.length,
   });
 
-  const object = await withModelFallback(
+  const object = await withAgentSpan(
+    {
+      name: 'validation.build_brief',
+      attributes: {
+        [ATTR_AGENT_TIER]: 4,
+        [ATTR_AGENT_MODEL]: MODELS.SYNTHESIS,
+      },
+    },
+    (setAttr) => withModelFallback(
     'validation:buildBrief',
     { primary: MODELS.SYNTHESIS, fallback: MODELS.INTERVIEW },
     async (modelId) => {
-      const { output } = await generateText({
+      const start = Date.now();
+      const result = await generateText({
         model:  aiSdkAnthropic(modelId),
         output: Output.object({ schema: ValidationReportSchema }),
         messages: [{
@@ -211,8 +229,17 @@ RULES:
 11. If the signal contradicts the original recommendation path, say so plainly in the buildBrief. Never paper over it.`,
       }],
       });
-      return output;
+      setAttr(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== MODELS.SYNTHESIS) {
+        recordModelFallback(`primary ${MODELS.SYNTHESIS} unavailable`);
+      }
+      const usage = result.usage;
+      if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
+      return result.output;
     },
+    ),
   );
 
   log.info('Build brief generated', {

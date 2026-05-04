@@ -5,6 +5,10 @@ import { inngest }    from '../client';
 import prisma         from '@/lib/prisma';
 import { logger }     from '@/lib/logger';
 import {
+  withInngestQueueSpan,
+  withDistributedTrace,
+} from '@/lib/observability';
+import {
   VALIDATION_LIFECYCLE_EVENT,
   VALIDATION_PAGE_CONFIG,
 } from '@/lib/validation/constants';
@@ -39,7 +43,14 @@ export const validationLifecycleFunction = inngest.createFunction(
       { event: VALIDATION_LIFECYCLE_EVENT },
     ],
   },
-  async ({ event, step }) => {
+  async ({ event, step, runId, attempt }) => {
+    const sentryTrace = (event.data as { sentryTrace?: string } | undefined)?.sentryTrace;
+    const baggage     = (event.data as { baggage?: string } | undefined)?.baggage;
+    return withDistributedTrace(
+      { sentryTrace, baggage },
+      () => withInngestQueueSpan(
+        { functionId: 'validation-page-lifecycle', eventName: event.name, runId, attempt },
+        async () => {
     const log = logger.child({
       inngestFunction: 'validationLifecycle',
       runId:           event.id,
@@ -128,5 +139,8 @@ export const validationLifecycleFunction = inngest.createFunction(
     });
 
     return { draftsArchived, liveArchived, eventsPurged, trainingPurged };
+        },
+      ),
+    );
   },
 );

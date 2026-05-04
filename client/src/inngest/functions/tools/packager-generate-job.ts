@@ -19,6 +19,10 @@
 import { inngest } from '../../client';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import {
+  withInngestQueueSpan,
+  withDistributedTrace,
+} from '@/lib/observability';
 import { safeParseDiscoveryContext } from '@/lib/discovery/context-schema';
 import { type ResearchLogEntry } from '@/lib/research';
 import {
@@ -48,7 +52,14 @@ export const packagerGenerateJobFunction = inngest.createFunction(
     concurrency: [{ limit: 1, key: 'event.data.userId' }],
     triggers: [{ event: 'tool/packager-generate.requested' }],
   },
-  async ({ event, step }) => {
+  async ({ event, step, runId, attempt }) => {
+    const sentryTrace = (event.data as { sentryTrace?: string }).sentryTrace;
+    const baggage     = (event.data as { baggage?: string }).baggage;
+    return withDistributedTrace(
+      { sentryTrace, baggage },
+      () => withInngestQueueSpan(
+        { functionId: 'tool-packager-generate', eventName: event.name, runId, attempt },
+        async () => {
     const { jobId, userId, roadmapId, sessionId, taskId, contextJson } =
       event.data as {
         jobId:       string;
@@ -205,5 +216,8 @@ export const packagerGenerateJobFunction = inngest.createFunction(
 
       throw err;
     }
+        },
+      ),
+    );
   },
 );

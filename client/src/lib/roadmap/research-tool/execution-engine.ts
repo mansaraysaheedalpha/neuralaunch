@@ -19,6 +19,15 @@ import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { logger } from '@/lib/logger';
 import { MODELS } from '@/lib/discovery/constants';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import {
+  withAgentSpan,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
 import { cachedSingleMessage } from '@/lib/ai/prompt-cache';
 import { renderUserContent, sanitizeForPrompt } from '@/lib/validation/server-helpers';
 import {
@@ -60,6 +69,18 @@ export interface RunResearchExecutionInput {
 export async function runResearchExecution(
   input: RunResearchExecutionInput,
 ): Promise<ResearchReport> {
+  // Parent span: one logical research execution = one user-facing
+  // intent. Two child spans (`research.execution.phase1` + `phase2`)
+  // wrap the sequential sub-calls per the synthesis precedent.
+  return withAgentSpan(
+    { name: 'research.execution' },
+    () => runResearchExecutionInner(input),
+  );
+}
+
+async function runResearchExecutionInner(
+  input: RunResearchExecutionInput,
+): Promise<ResearchReport> {
   const log = logger.child({ module: 'ResearchExecution', roadmapId: input.roadmapId });
 
   const accumulator = input.researchAccumulator ?? [];
@@ -92,10 +113,19 @@ export async function runResearchExecution(
   // single-purpose (just emit JSON) so it never has to compete with a
   // tool decision. Cost: one extra non-tool Opus call per research run
   // — negligible relative to the 25-step tool loop itself.
-  const phase1Text = await withModelFallback(
+  const phase1Text = await withAgentSpan(
+    {
+      name: 'research.execution.phase1',
+      attributes: {
+        [ATTR_AGENT_TIER]: 4,
+        [ATTR_AGENT_MODEL]: MODELS.SYNTHESIS,
+      },
+    },
+    (setAttr) => withModelFallback(
     'research:execution:phase1-research',
     { primary: MODELS.SYNTHESIS, fallback: MODELS.INTERVIEW },
     async (modelId) => {
+      const start = Date.now();
       accumulator.length = accumulatorBaseline;
       const tools = buildResearchTools({
         agent:       'research-execution',
@@ -191,8 +221,17 @@ Execute the research plan now. A follow-up call will format your writeup into th
         messages:        cachedSingleMessage(promptContent),
       });
 
+      setAttr(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== MODELS.SYNTHESIS) {
+        recordModelFallback(`primary ${MODELS.SYNTHESIS} unavailable`);
+      }
+      const usage = result.usage;
+      if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
       return result.text;
     },
+    ),
   );
 
   // Phase 2 — structured emission only. No tools, no competing concern,
@@ -200,10 +239,19 @@ Execute the research plan now. A follow-up call will format your writeup into th
   // ResearchReport JSON shape. Uses a smaller / faster model because
   // it's a formatting task not a reasoning task; falls back to the
   // primary if the smaller model fails schema validation.
-  const report = await withModelFallback(
+  const report = await withAgentSpan(
+    {
+      name: 'research.execution.phase2',
+      attributes: {
+        [ATTR_AGENT_TIER]: 3,
+        [ATTR_AGENT_MODEL]: MODELS.INTERVIEW,
+      },
+    },
+    (setAttr) => withModelFallback(
     'research:execution:phase2-emit',
     { primary: MODELS.INTERVIEW, fallback: MODELS.SYNTHESIS },
     async (modelId) => {
+      const start = Date.now();
       const result = await generateText({
         model:           aiSdkAnthropic(modelId),
         output:          Output.object({ schema: ResearchReportSchema }),
@@ -225,8 +273,17 @@ Execute the research plan now. A follow-up call will format your writeup into th
       if (!result.output) {
         throw new Error('Research execution emit phase failed — no structured output produced.');
       }
+      setAttr(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== MODELS.INTERVIEW) {
+        recordModelFallback(`primary ${MODELS.INTERVIEW} unavailable`);
+      }
+      const usage = result.usage;
+      if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
       return result.output;
     },
+    ),
   );
 
   log.info('[ResearchExecution] Report generated', {

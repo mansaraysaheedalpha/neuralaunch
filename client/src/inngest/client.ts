@@ -22,6 +22,21 @@ import { Inngest } from 'inngest';
  * Inngest accepts arbitrary event names at runtime, but typing the
  * map gives us autocomplete and lets the compiler catch payload-shape
  * drift between the call site and the function handler.
+ *
+ * Distributed-trace stitching: seven event types (the 6 Tier-1 tool
+ * events + `discovery/transformation.requested`) carry optional
+ * `sentryTrace?` and `baggage?` fields. Routes that send these
+ * events propagate trace headers via `lib/tool-jobs/queue.ts`'s
+ * helper (Tier-1 tools) or inline (transformation). Workers gate on
+ * presence via `withDistributedTrace` — absent headers cleanly
+ * make the worker a trace root. The deferred event types
+ * (`discovery/synthesis.requested`, `discovery/roadmap.requested`,
+ * `discovery/pushback.alternative.requested`,
+ * `discovery/continuation.requested`,
+ * `discovery/conversation.title.requested`, account-deletion) do
+ * NOT carry these fields today; their workers stay trace roots
+ * until route-side propagation lands in a follow-up ticket. Worker
+ * code requires zero changes when that happens.
  */
 export type NeuraLaunchEvents = {
   /**
@@ -165,6 +180,10 @@ export type NeuraLaunchEvents = {
       taskId:       string | null;
       planText:     string;
       query:        string;
+      // Optional Sentry distributed-trace headers. See type-map docstring
+      // for the architectural rationale.
+      sentryTrace?: string;
+      baggage?:     string;
     };
   };
 
@@ -186,6 +205,8 @@ export type NeuraLaunchEvents = {
       sessionId: string;
       taskId:    string | null;
       query:     string;
+      sentryTrace?: string;
+      baggage?:     string;
     };
   };
 
@@ -210,6 +231,8 @@ export type NeuraLaunchEvents = {
       // passing it to runPackagerGeneration. Stringify keeps the event
       // payload schema flat (Inngest's TS map prefers primitive shapes).
       contextJson: string;
+      sentryTrace?: string;
+      baggage?:     string;
     };
   };
 
@@ -228,6 +251,8 @@ export type NeuraLaunchEvents = {
       sessionId:         string;
       taskId:            string | null;
       adjustmentRequest: string;
+      sentryTrace?: string;
+      baggage?:     string;
     };
   };
 
@@ -250,6 +275,8 @@ export type NeuraLaunchEvents = {
       contextJson: string;
       mode:        string;
       channel:     string;
+      sentryTrace?: string;
+      baggage?:     string;
     };
   };
 
@@ -269,6 +296,8 @@ export type NeuraLaunchEvents = {
       roadmapId: string;
       sessionId: string;
       taskId:    string | null;
+      sentryTrace?: string;
+      baggage?:     string;
     };
   };
 
@@ -298,6 +327,8 @@ export type NeuraLaunchEvents = {
       reportId:  string;
       ventureId: string;
       userId:    string;
+      sentryTrace?: string;
+      baggage?:     string;
     };
   };
 

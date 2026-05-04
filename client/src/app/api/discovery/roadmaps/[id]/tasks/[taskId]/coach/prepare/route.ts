@@ -11,6 +11,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { sendToolJobEvent } from '@/lib/tool-jobs/queue';
+import { withToolUiSpan, captureTraceHeaders } from '@/lib/observability';
 import {
   HttpError,
   httpErrorToResponse,
@@ -82,26 +83,36 @@ export async function POST(
     const sessionId = session['id'] as string | undefined;
     if (!sessionId) throw new HttpError(409, 'Coach session is malformed (missing id). Re-run setup.');
 
-    const job = await createToolJob({
-      userId, roadmapId,
-      toolType:  'coach_prepare',
-      sessionId,
-      taskId,
-    });
+    return await withToolUiSpan(
+      { name: 'tool.coach_prepare' },
+      async () => {
+        const job = await createToolJob({
+          userId, roadmapId,
+          toolType:  'coach_prepare',
+          sessionId,
+          taskId,
+        });
 
-    await sendToolJobEvent(job.id, {
-      name: 'tool/coach-prepare.requested',
-      data: {
-        jobId:     job.id,
-        userId,
-        roadmapId,
-        sessionId,
-        taskId,
+        const traceHeaders = captureTraceHeaders();
+        await sendToolJobEvent(
+          job.id,
+          {
+            name: 'tool/coach-prepare.requested',
+            data: {
+              jobId:     job.id,
+              userId,
+              roadmapId,
+              sessionId,
+              taskId,
+            },
+          },
+          traceHeaders,
+        );
+
+        log.info('[CoachPrepare] Job queued', { jobId: job.id, taskId, sessionId });
+        return NextResponse.json({ jobId: job.id, sessionId }, { status: 202 });
       },
-    });
-
-    log.info('[CoachPrepare] Job queued', { jobId: job.id, taskId, sessionId });
-    return NextResponse.json({ jobId: job.id, sessionId }, { status: 202 });
+    );
   } catch (err) {
     return httpErrorToResponse(err);
   }

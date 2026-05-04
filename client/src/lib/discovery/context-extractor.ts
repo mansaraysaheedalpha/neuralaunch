@@ -8,6 +8,15 @@ import { MODELS } from './constants';
 import type { AudienceType } from './constants';
 import { renderUserContent } from '@/lib/validation/server-helpers';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import {
+  withAgentSpan,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
 
 // ---------------------------------------------------------------------------
 // Public result type returned to the turn route
@@ -162,11 +171,20 @@ export async function extractContext(
     .map(d => `  - ${d}: ${DIMENSION_DESCRIPTIONS[d]}`)
     .join('\n');
 
-  const object = await withModelFallback(
+  const object = await withAgentSpan(
+    {
+      name: 'discovery.extract_context',
+      attributes: {
+        [ATTR_AGENT_TIER]: 3,
+        [ATTR_AGENT_MODEL]: MODELS.INTERVIEW,
+      },
+    },
+    (setAttr) => withModelFallback(
     'extractContext',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
     async (modelId) => {
-    const { output } = await generateText({
+    const start = Date.now();
+    const result = await generateText({
       model:  aiSdkAnthropic(modelId),
       output: Output.object({ schema: ExtractionResultSchema }),
       messages: [{
@@ -222,8 +240,17 @@ Do NOT flag routine mentions of tools (e.g., "I use Excel") or general context (
 If inputType is NOT "answer": set extractions to an empty array, contradicts to false, and followUp.detected to false.`,
       }],
     });
-    return output;
-  });
+    setAttr(ATTR_AGENT_MODEL, modelId);
+    if (modelId !== MODELS.INTERVIEW) {
+      recordModelFallback(`primary ${MODELS.INTERVIEW} unavailable`);
+    }
+    const usage = result.usage;
+    if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+    if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+    setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
+    return result.output;
+  }),
+  );
 
   // Build the followUp signal from the extraction result
   const followUp: FollowUpSignal = object.followUp.detected && object.followUp.topic
@@ -308,11 +335,20 @@ export async function detectAudienceType(
     .map(([k, f]) => `${k}: ${renderUserContent(JSON.stringify(f.value), 500)}`)
     .join('\n');
 
-  const object = await withModelFallback(
+  const object = await withAgentSpan(
+    {
+      name: 'discovery.detect_audience_type',
+      attributes: {
+        [ATTR_AGENT_TIER]: 3,
+        [ATTR_AGENT_MODEL]: MODELS.INTERVIEW,
+      },
+    },
+    (setAttr) => withModelFallback(
     'detectAudienceType',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
     async (modelId) => {
-    const { output } = await generateText({
+    const start = Date.now();
+    const result = await generateText({
       model:  aiSdkAnthropic(modelId),
       output: Output.object({ schema: AudienceClassificationSchema }),
       messages: [{
@@ -337,8 +373,17 @@ Audience types:
 Choose the closest fit. Confidence 0.6-0.8 if inferred, 0.8-1.0 if explicit.`,
       }],
     });
-    return output;
-  });
+    setAttr(ATTR_AGENT_MODEL, modelId);
+    if (modelId !== MODELS.INTERVIEW) {
+      recordModelFallback(`primary ${MODELS.INTERVIEW} unavailable`);
+    }
+    const usage = result.usage;
+    if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+    if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+    setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
+    return result.output;
+  }),
+  );
 
   return object;
 }

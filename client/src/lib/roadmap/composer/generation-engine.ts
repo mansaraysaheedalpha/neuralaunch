@@ -15,6 +15,15 @@ import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { logger } from '@/lib/logger';
 import { MODELS } from '@/lib/discovery/constants';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import {
+  withAgentSpan,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
 import { cachedSingleMessage } from '@/lib/ai/prompt-cache';
 import { renderUserContent, sanitizeForPrompt } from '@/lib/validation/server-helpers';
 import {
@@ -131,10 +140,19 @@ export async function runComposerGeneration(
     channel: input.channel,
   });
 
-  const output = await withModelFallback(
+  const output = await withAgentSpan(
+    {
+      name: 'composer.generation',
+      attributes: {
+        [ATTR_AGENT_TIER]: 3,
+        [ATTR_AGENT_MODEL]: MODELS.INTERVIEW,
+      },
+    },
+    (setAttr) => withModelFallback(
     'composer:generation',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
     async (modelId) => {
+      const start = Date.now();
       accumulator.length = accumulatorBaseline;
       const tools = buildResearchTools({
         agent:       'composer',
@@ -193,8 +211,17 @@ Produce the structured ComposerOutput now.`;
       if (!result.output) {
         throw new Error('Model failed to produce ComposerOutput — exhausted tool budget without emitting structured output.');
       }
+      setAttr(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== MODELS.INTERVIEW) {
+        recordModelFallback(`primary ${MODELS.INTERVIEW} unavailable`);
+      }
+      const usage = result.usage;
+      if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
       return result.output;
     },
+    ),
   );
 
   log.info('[ComposerGeneration] Output generated', {

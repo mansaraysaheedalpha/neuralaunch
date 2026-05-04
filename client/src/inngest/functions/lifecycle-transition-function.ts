@@ -13,6 +13,10 @@
 import { inngest } from '../client';
 import prisma, { toJsonValue } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import {
+  withInngestQueueSpan,
+  withDistributedTrace,
+} from '@/lib/observability';
 import { loadCycleSummaryGeneratorContext } from '@/lib/lifecycle/context-loaders';
 import { getFounderProfile, upsertFounderProfile } from '@/lib/lifecycle/profile';
 import { generateCycleSummaryFromContext } from '@/lib/lifecycle/engines/generate-cycle-summary';
@@ -26,7 +30,14 @@ export const lifecycleTransitionFunction = inngest.createFunction(
     timeouts: { start: '5m' },
     triggers: [{ event: 'neuralaunch/cycle.completing' }],
   },
-  async ({ event, step }) => {
+  async ({ event, step, runId, attempt }) => {
+    const sentryTrace = (event.data as { sentryTrace?: string }).sentryTrace;
+    const baggage     = (event.data as { baggage?: string }).baggage;
+    return withDistributedTrace(
+      { sentryTrace, baggage },
+      () => withInngestQueueSpan(
+        { functionId: 'lifecycle-transition', eventName: event.name, runId, attempt },
+        async () => {
     const { cycleId, userId, ventureId } = event.data as {
       cycleId:   string;
       userId:    string;
@@ -110,5 +121,8 @@ export const lifecycleTransitionFunction = inngest.createFunction(
     });
 
     return { cycleId, status: 'complete' };
+        },
+      ),
+    );
   },
 );

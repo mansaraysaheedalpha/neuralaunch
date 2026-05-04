@@ -4,6 +4,16 @@ import { generateText, stepCountIs, Output } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { logger } from '@/lib/logger';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
+import {
+  withAgentSpan,
+  setActiveSpanAttribute,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
 import { MODELS } from './constants';
 import { PUSHBACK_ACTIONS, PUSHBACK_CONFIG } from './constants';
 import { renderUserContent } from '@/lib/validation/server-helpers';
@@ -90,6 +100,23 @@ export interface RunPushbackInput {
  * incorporate the soft-warn reframe at round 4 when stalled.
  */
 export async function runPushbackTurn(
+  input: RunPushbackInput,
+): Promise<PushbackResponse & { patch?: Recommendation }> {
+  // Parent span: one logical pushback turn = one user-facing intent.
+  // Three child spans (`pushback.reasoning`, `pushback.emit`,
+  // `pushback.rewrite`) wrap the sequential sub-calls. The rewrite is
+  // conditional — `pushback.rewrite_fired` is set on the parent so
+  // queries can filter without counting children.
+  return withAgentSpan(
+    {
+      name: 'discovery.pushback',
+      attributes: { 'pushback.round': input.currentRound },
+    },
+    () => runPushbackTurnInner(input),
+  );
+}
+
+async function runPushbackTurnInner(
   input: RunPushbackInput,
 ): Promise<PushbackResponse & { patch?: Recommendation }> {
   const log = logger.child({ module: 'PushbackEngine', recommendationId: input.recommendationId });
@@ -274,10 +301,19 @@ Produce your structured response now.`;
   // Phase 1A — research + free-form reasoning.
   let reasoning: string;
   try {
-    reasoning = await withModelFallback(
+    reasoning = await withAgentSpan(
+      {
+        name: 'pushback.reasoning',
+        attributes: {
+          [ATTR_AGENT_TIER]: 4,
+          [ATTR_AGENT_MODEL]: MODELS.SYNTHESIS,
+        },
+      },
+      (setAttr) => withModelFallback(
       'pushback:reasoning',
       { primary: MODELS.SYNTHESIS, fallback: MODELS.INTERVIEW },
       async (modelId) => {
+        const start = Date.now();
         // Reset the accumulator on every attempt so a fallback rerun
         // of the same research tools does not duplicate audit entries.
         accumulator.length = accumulatorBaseline;
@@ -302,8 +338,17 @@ Produce your structured response now.`;
             },
           ],
         });
+        setAttr(ATTR_AGENT_MODEL, modelId);
+        if (modelId !== MODELS.SYNTHESIS) {
+          recordModelFallback(`primary ${MODELS.SYNTHESIS} unavailable`);
+        }
+        const usage = result.usage;
+        if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+        if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+        setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
         return result.text;
       },
+      ),
     );
   } catch (err) {
     const cause = err instanceof Error && 'cause' in err ? err.cause : undefined;
@@ -322,10 +367,19 @@ Produce your structured response now.`;
   // remains the fallback in the rare case Sonnet rejects the schema.
   let decision: PushbackResponse;
   try {
-    decision = await withModelFallback(
+    decision = await withAgentSpan(
+      {
+        name: 'pushback.emit',
+        attributes: {
+          [ATTR_AGENT_TIER]: 3,
+          [ATTR_AGENT_MODEL]: MODELS.INTERVIEW,
+        },
+      },
+      (setAttr) => withModelFallback(
       'pushback:emit',
       { primary: MODELS.INTERVIEW, fallback: MODELS.SYNTHESIS },
       async (modelId) => {
+        const start = Date.now();
         const result = await generateText({
           model:    aiSdkAnthropic(modelId),
           output:   Output.object({ schema: PushbackResponseSchema }),
@@ -342,8 +396,17 @@ Produce your structured response now.`;
             },
           ],
         });
+        setAttr(ATTR_AGENT_MODEL, modelId);
+        if (modelId !== MODELS.INTERVIEW) {
+          recordModelFallback(`primary ${MODELS.INTERVIEW} unavailable`);
+        }
+        const usage = result.usage;
+        if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+        if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+        setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
         return result.output;
       },
+      ),
     );
   } catch (err) {
     const cause = err instanceof Error && 'cause' in err ? err.cause : undefined;
@@ -431,11 +494,20 @@ YOUR DECISION FROM THE PRIOR STEP: ${decision.action === PUSHBACK_ACTIONS.REFINE
 
 Produce the updated recommendation now.`;
 
-      patch = await withModelFallback(
+      patch = await withAgentSpan(
+        {
+          name: 'pushback.rewrite',
+          attributes: {
+            [ATTR_AGENT_TIER]: 4,
+            [ATTR_AGENT_MODEL]: MODELS.SYNTHESIS,
+          },
+        },
+        (setAttr) => withModelFallback(
         'pushback:rewrite',
         { primary: MODELS.SYNTHESIS, fallback: MODELS.INTERVIEW },
         async (modelId) => {
-          const { output: updated } = await generateText({
+          const start = Date.now();
+          const result = await generateText({
             model:    aiSdkAnthropic(modelId),
             output:   Output.object({ schema: RecommendationSchema }),
             // A full Recommendation (summary + path + reasoning +
@@ -446,8 +518,17 @@ Produce the updated recommendation now.`;
             maxOutputTokens: 16_384,
             messages: cachedUserMessages(rewriteStable, rewriteVolatile),
           });
-          return updated;
+          setAttr(ATTR_AGENT_MODEL, modelId);
+          if (modelId !== MODELS.SYNTHESIS) {
+            recordModelFallback(`primary ${MODELS.SYNTHESIS} unavailable`);
+          }
+          const usage = result.usage;
+          if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+          if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+          setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
+          return result.output;
         },
+        ),
       );
     } catch (err) {
       // The AI SDK wraps the underlying Zod failure inside a `cause`
@@ -465,6 +546,12 @@ Produce the updated recommendation now.`;
       throw err;
     }
   }
+
+  // Mark whether the rewrite phase fired on the parent span so a
+  // single Sentry filter can isolate "rewrite-firing" turns without
+  // counting children.
+  setActiveSpanAttribute('pushback.rewrite_fired', !!patch);
+  setActiveSpanAttribute('pushback.action', decision.action);
 
   log.info('[Pushback] Turn complete', {
     mode:       decision.mode,

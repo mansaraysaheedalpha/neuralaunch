@@ -143,6 +143,20 @@ export interface FallbackStreamResult {
    * Message row. Rejects if every provider failed.
    */
   modelUsed: Promise<ProviderId>;
+
+  /**
+   * Resolves with the committed provider's terminal token usage AFTER
+   * the stream completes, or with `undefined` if usage cannot be
+   * resolved (chain failed, AI SDK build doesn't expose it, stream
+   * was cancelled before completion).
+   *
+   * Additive — existing callers ignore. Consumed by the Sentry
+   * streaming-span helper (`withStreamingAgentSpan`) to write
+   * `tokens.input` / `tokens.output` attributes after stream close.
+   * Never rejects — observability concerns must not crash request
+   * paths.
+   */
+  usagePromise: Promise<{ inputTokens?: number; outputTokens?: number } | undefined>;
 }
 
 /**
@@ -176,6 +190,17 @@ export function streamQuestionWithFallback(
   const modelUsed = new Promise<ProviderId>((res, rej) => {
     resolveModelUsed = res;
     rejectModelUsed  = rej;
+  });
+
+  // Terminal usage Promise, resolved with the committed provider's
+  // streamText result.usage after the stream closes. Never rejects —
+  // observability concerns must not crash the request path. If the
+  // chain fails or the stream is cancelled before usage resolves,
+  // settles to undefined so the streaming-span helper omits token
+  // attributes gracefully.
+  let resolveUsage: (u: { inputTokens?: number; outputTokens?: number } | undefined) => void;
+  const usagePromise = new Promise<{ inputTokens?: number; outputTokens?: number } | undefined>((res) => {
+    resolveUsage = res;
   });
 
   const textStream = new ReadableStream<string>({
@@ -254,7 +279,21 @@ export function streamQuestionWithFallback(
               throw streamErr;
             }
 
-            // Success — close the stream
+            // Success — surface terminal usage from the committed
+            // provider before closing. AI SDK v5's streamText exposes
+            // `result.usage` as a Promise that resolves after the
+            // stream completes. Observability concerns must never
+            // crash the request path; on any failure resolving
+            // usage, settle to undefined.
+            try {
+              const usage = await result.usage;
+              resolveUsage({
+                inputTokens:  typeof usage?.inputTokens  === 'number' ? usage.inputTokens  : undefined,
+                outputTokens: typeof usage?.outputTokens === 'number' ? usage.outputTokens : undefined,
+              });
+            } catch {
+              resolveUsage(undefined);
+            }
             controller.close();
             return;
           } catch (err) {
@@ -289,9 +328,10 @@ export function streamQuestionWithFallback(
         lastError instanceof Error ? lastError : new Error(String(lastError)),
       );
       rejectModelUsed(lastError ?? new Error('All providers exhausted'));
+      resolveUsage(undefined);
       controller.error(lastError ?? new Error('All providers exhausted'));
     },
   });
 
-  return { textStream, modelUsed };
+  return { textStream, modelUsed, usagePromise };
 }

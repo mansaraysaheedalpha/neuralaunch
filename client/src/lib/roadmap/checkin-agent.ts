@@ -6,6 +6,15 @@ import { logger }                       from '@/lib/logger';
 import { MODELS }                       from '@/lib/discovery/constants';
 import { renderUserContent, sanitizeForPrompt } from '@/lib/validation/server-helpers';
 import { withModelFallback }            from '@/lib/ai/with-model-fallback';
+import {
+  withAgentSpan,
+  recordModelFallback,
+  ATTR_AGENT_TIER,
+  ATTR_AGENT_MODEL,
+  ATTR_TOKENS_INPUT,
+  ATTR_TOKENS_OUTPUT,
+  ATTR_LATENCY_TOTAL_MS,
+} from '@/lib/observability';
 import { cachedUserMessages }           from '@/lib/ai/prompt-cache';
 import type { DiscoveryContext }        from '@/lib/discovery/context-schema';
 import type { Recommendation }          from '@/lib/discovery/recommendation-schema';
@@ -119,10 +128,19 @@ export async function runCheckIn(input: RunCheckInInput): Promise<CheckInRespons
     historyLen:  history.length,
   });
 
-  const object = await withModelFallback(
+  const object = await withAgentSpan(
+    {
+      name: 'roadmap.checkin',
+      attributes: {
+        [ATTR_AGENT_TIER]: 3,
+        [ATTR_AGENT_MODEL]: MODELS.INTERVIEW,
+      },
+    },
+    (setAttr) => withModelFallback(
     'roadmap:checkInAgent',
     { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
     async (modelId) => {
+      const start = Date.now();
       // Reset the accumulator on each retry so a fallback doesn't
       // double-count tool calls in the audit log.
       accumulator.length = accumulatorBaseline;
@@ -262,8 +280,17 @@ Produce your structured response now.`;
         maxOutputTokens: 16_384,
         messages: cachedUserMessages(stable, volatile),
       });
+      setAttr(ATTR_AGENT_MODEL, modelId);
+      if (modelId !== MODELS.INTERVIEW) {
+        recordModelFallback(`primary ${MODELS.INTERVIEW} unavailable`);
+      }
+      const usage = result.usage;
+      if (typeof usage?.inputTokens === 'number') setAttr(ATTR_TOKENS_INPUT, usage.inputTokens);
+      if (typeof usage?.outputTokens === 'number') setAttr(ATTR_TOKENS_OUTPUT, usage.outputTokens);
+      setAttr(ATTR_LATENCY_TOTAL_MS, Date.now() - start);
       return result.output;
     },
+    ),
   );
 
   log.info('[CheckIn] Turn complete', {

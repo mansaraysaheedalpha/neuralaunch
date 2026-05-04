@@ -2,6 +2,10 @@
 import { inngest } from '../client';
 import prisma, { toJsonValue } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import {
+  withInngestQueueSpan,
+  withDistributedTrace,
+} from '@/lib/observability';
 import { buildPhaseContext, PHASES } from '@/lib/phase-context';
 import {
   getSession,
@@ -32,7 +36,14 @@ export const discoverySessionFunction = inngest.createFunction(
     timeouts: { start: '10m' },
     triggers: [{ event: 'discovery/synthesis.requested' }],
   },
-  async ({ event, step }) => {
+  async ({ event, step, runId, attempt }) => {
+    const sentryTrace = (event.data as { sentryTrace?: string }).sentryTrace;
+    const baggage     = (event.data as { baggage?: string }).baggage;
+    return withDistributedTrace(
+      { sentryTrace, baggage },
+      () => withInngestQueueSpan(
+        { functionId: 'discovery-synthesis', eventName: event.name, runId, attempt },
+        async () => {
     const { sessionId, userId } = event.data as { sessionId: string; userId: string };
 
     const log = logger.child({
@@ -198,5 +209,8 @@ export const discoverySessionFunction = inngest.createFunction(
 
     log.debug('Synthesis complete', { sessionId });
     return { sessionId, status: 'complete' };
+        },
+      ),
+    );
   },
 );
