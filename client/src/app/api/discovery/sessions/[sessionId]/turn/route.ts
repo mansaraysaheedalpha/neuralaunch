@@ -1,14 +1,17 @@
 // src/app/api/discovery/sessions/[sessionId]/turn/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { auth } from '@/auth';
 import prisma, { toJsonValue } from '@/lib/prisma';
 import { inngest } from '@/inngest/client';
 import { logger } from '@/lib/logger';
 import {
-  checkRateLimit, RATE_LIMITS, getRequestIdentifier, getClientIp,
-} from '@/lib/rate-limit';
-import { enforceSameOrigin, HttpError, httpErrorToResponse } from '@/lib/validation/server-helpers';
+  enforceSameOrigin,
+  HttpError,
+  httpErrorToResponse,
+  rateLimitByUser,
+  RATE_LIMITS,
+  requireUserId,
+} from '@/lib/validation/server-helpers';
 import {
   getSession, saveSession, extractContext, applyUpdate, generateQuestion, generateReflection,
   canSynthesise, teeDiscoveryStream, detectAudienceType, computeOverallCompleteness,
@@ -17,6 +20,12 @@ import {
   MIN_FIELD_CONFIDENCE,
 } from '@/lib/discovery';
 import type { FallbackStreamResult } from '@/lib/ai/question-stream-fallback';
+import {
+  withStreamingAgentSpan,
+  ATTR_GENERATION_TYPE,
+  ATTR_RESPONSE_TYPE,
+} from '@/lib/observability';
+import type { SpanAttrs } from '@/lib/observability';
 import { runSafetyGate, SAFETY_REFUSAL_MESSAGE } from '@/lib/discovery/safety-gate';
 import {
   runInterviewPreResearch,
@@ -59,14 +68,39 @@ const TurnRequestSchema = z.object({
  * Pipes the textStream through teeDiscoveryStream so the assistant
  * message is persisted alongside, with the resolved provider id stored
  * in modelUsed for observability.
+ *
+ * The stream is wrapped in `withStreamingAgentSpan` to emit the
+ * `discovery.turn` span carrying first-token latency, fired model id,
+ * and terminal token usage. Exactly one of `generationType` or
+ * `responseType` is set per call — they're mutually exclusive
+ * dispatcher branches (see migration log § "Phase 3b Step 1 —
+ * dispatcher grep").
  */
-function buildStreamResponse(
+type DispatchKind =
+  | { generationType: 'question' | 'reflection' }
+  | { responseType: 'meta' | 'frustration' | 'clarification_confirmation' | 'clarification' | 'pricing_follow_up' };
+
+async function buildStreamResponse(
   result: FallbackStreamResult,
   cid:    string | null,
   phase:  string,
   count:  number,
-): NextResponse {
-  const r = new NextResponse(teeDiscoveryStream(result.textStream, cid, result.modelUsed));
+  dispatch: DispatchKind,
+): Promise<NextResponse> {
+  const initialAttrs: SpanAttrs = 'generationType' in dispatch
+    ? { [ATTR_GENERATION_TYPE]: dispatch.generationType }
+    : { [ATTR_RESPONSE_TYPE]: dispatch.responseType };
+
+  const observed = await withStreamingAgentSpan(
+    { name: 'discovery.turn', attributes: initialAttrs },
+    () => ({
+      stream:    teeDiscoveryStream(result.textStream, cid, result.modelUsed),
+      modelUsed: result.modelUsed,
+      usage:     result.usagePromise,
+    }),
+  );
+
+  const r = new NextResponse(observed);
   r.headers.set('Content-Type', 'text/plain; charset=utf-8');
   r.headers.set('X-Phase', phase);
   r.headers.set('X-Question-Count', String(count));
@@ -104,64 +138,46 @@ export async function POST(
 ) {
   try {
     enforceSameOrigin(req);
-  } catch (err) {
-    if (err instanceof HttpError) return httpErrorToResponse(err);
-    throw err;
-  }
+    const userId = await requireUserId(req);
+    await rateLimitByUser(userId, 'discovery-turn', RATE_LIMITS.DISCOVERY_TURN);
 
-  const authSession = await auth();
-  if (!authSession?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
-  }
-  const userId = authSession.user.id;
+    const { sessionId } = await params;
+    const log = logger.child({ route: 'POST /api/discovery/sessions/[id]/turn', userId, sessionId });
 
-  const clientIp = getClientIp(req.headers);
-  const rateLimitResult = await checkRateLimit({
-    ...RATE_LIMITS.DISCOVERY_TURN,
-    identifier: getRequestIdentifier(userId, clientIp),
-  });
-  if (!rateLimitResult.success) {
-    return NextResponse.json(
-      { error: 'Rate limit exceeded', retryAfter: rateLimitResult.retryAfter },
-      { status: 429, headers: { 'Retry-After': String(rateLimitResult.retryAfter ?? 60) } },
-    );
-  }
+    const body: unknown = await req.json();
+    const parsed = TurnRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      // Direct response (not HttpError) because this carries an extra
+      // `issues` field the founder UI surfaces verbatim — HttpError's
+      // single-string body would lose the structured detail.
+      return NextResponse.json({ error: 'Invalid request', issues: parsed.error.format() }, { status: 400 });
+    }
+    const { message, history, inputMethod } = parsed.data;
 
-  const { sessionId } = await params;
-  const log = logger.child({ route: 'POST /api/discovery/sessions/[id]/turn', userId, sessionId });
+    const state = await getSession(sessionId);
+    if (!state) throw new HttpError(404, 'Session not found or expired');
+    if (state.userId !== userId) throw new HttpError(401, 'Unauthorised');
+    if (state.isComplete) {
+      return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
+    }
 
-  const body: unknown = await req.json();
-  const parsed = TurnRequestSchema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid request', issues: parsed.error.format() }, { status: 400 });
-  }
-  const { message, history, inputMethod } = parsed.data;
+    // Check if the session has already been terminated by a prior safety gate.
+    // Once terminated, no further messages are accepted — ever.
+    const dbSession = await prisma.discoverySession.findFirst({
+      where:  { id: sessionId, userId },
+      select: { conversationId: true, status: true },
+    });
+    if (dbSession?.status === 'TERMINATED') {
+      // Direct response (not HttpError) because this carries the
+      // `sessionTerminated` flag the founder UI uses to hide the
+      // resume CTA — HttpError's plain body would drop it.
+      return NextResponse.json({
+        error:             SAFETY_REFUSAL_MESSAGE,
+        sessionTerminated: true,
+      }, { status: 403 });
+    }
 
-  const state = await getSession(sessionId);
-  if (!state) {
-    return NextResponse.json({ error: 'Session not found or expired' }, { status: 404 });
-  }
-  if (state.userId !== userId) {
-    return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
-  }
-  if (state.isComplete) {
-    return NextResponse.json({ status: 'synthesizing' }, { status: 200 });
-  }
-
-  // Check if the session has already been terminated by a prior safety gate.
-  // Once terminated, no further messages are accepted — ever.
-  const dbSession = await prisma.discoverySession.findFirst({
-    where:  { id: sessionId, userId },
-    select: { conversationId: true, status: true },
-  });
-  if (dbSession?.status === 'TERMINATED') {
-    return NextResponse.json({
-      error:             SAFETY_REFUSAL_MESSAGE,
-      sessionTerminated: true,
-    }, { status: 403 });
-  }
-
-  const conversationId: string | null = dbSession?.conversationId ?? null;
+    const conversationId: string | null = dbSession?.conversationId ?? null;
 
   // ---------------------------------------------------------------------------
   // SAFETY GATE — runs on EVERY message, not just the first.
@@ -222,12 +238,11 @@ export async function POST(
     renderCrossVentureBlock(lifecycleCtx.crossVentureSummaries),
   ].filter(b => b.length > 0).join('\n');
 
-  try {
     const t0          = Date.now();
     const rawField    = state.activeField ?? 'situation';
     const activeField = (rawField === 'psych_probe' || rawField === 'follow_up') ? 'biggestConcern' : rawField;
     const { updates, inputType, contradicts, followUp } = await extractContext(message, activeField, history, state.context[activeField]);
-    if (inputType === 'offtopic') { await saveSession(sessionId, state); return buildStreamResponse(generateMetaResponse(message, state.phase, state.questionCount, history), conversationId, state.phase, state.questionCount); }
+    if (inputType === 'offtopic') { await saveSession(sessionId, state); return buildStreamResponse(generateMetaResponse(message, state.phase, state.questionCount, history), conversationId, state.phase, state.questionCount, { responseType: 'meta' }); }
     if (inputType === 'frustrated') {
       // The founder just told us something is going wrong from their
       // seat. Clear pendingFollowUp so the NEXT turn doesn't come back
@@ -236,11 +251,11 @@ export async function POST(
       // this / stop asking this" signal without needing the user to
       // repeat themselves three times.
       await saveSession(sessionId, { ...state, pendingFollowUp: null });
-      return buildStreamResponse(generateFrustrationResponse(message, activeField, history), conversationId, state.phase, state.questionCount);
+      return buildStreamResponse(generateFrustrationResponse(message, activeField, history), conversationId, state.phase, state.questionCount, { responseType: 'frustration' });
     }
-    if (inputType === 'clarification') { const lq = history.split('\n').filter(l => l.startsWith('assistant:')).pop()?.replace(/^assistant:\s*/, '') ?? ''; await saveSession(sessionId, state); return buildStreamResponse(generateClarificationConfirmation(message, lq, activeField, history, state.audienceType ?? undefined), conversationId, state.phase, state.questionCount); }
-    if (inputType === 'synthesis_request') { await saveSession(sessionId, { ...state, isComplete: true }); await inngest.send({ name: 'discovery/synthesis.requested', data: { sessionId, userId } }); await prisma.discoverySession.update({ where: { id: sessionId }, data: { status: 'COMPLETE', completedAt: new Date() }, select: { id: true } }); const sr = buildStreamResponse(generateReflection(state.context, state.audienceType, history), conversationId, 'SYNTHESIS', state.questionCount); sr.headers.set('X-Synthesis-Transition', 'true'); return sr; }
-    if (contradicts) { await saveSession(sessionId, state); return buildStreamResponse(generateClarificationResponse(message, activeField, state.context[activeField], history), conversationId, state.phase, state.questionCount); }
+    if (inputType === 'clarification') { const lq = history.split('\n').filter(l => l.startsWith('assistant:')).pop()?.replace(/^assistant:\s*/, '') ?? ''; await saveSession(sessionId, state); return buildStreamResponse(generateClarificationConfirmation(message, lq, activeField, history, state.audienceType ?? undefined), conversationId, state.phase, state.questionCount, { responseType: 'clarification_confirmation' }); }
+    if (inputType === 'synthesis_request') { await saveSession(sessionId, { ...state, isComplete: true }); await inngest.send({ name: 'discovery/synthesis.requested', data: { sessionId, userId } }); await prisma.discoverySession.update({ where: { id: sessionId }, data: { status: 'COMPLETE', completedAt: new Date() }, select: { id: true } }); const sr = await buildStreamResponse(generateReflection(state.context, state.audienceType, history), conversationId, 'SYNTHESIS', state.questionCount, { generationType: 'reflection' }); sr.headers.set('X-Synthesis-Transition', 'true'); return sr; }
+    if (contradicts) { await saveSession(sessionId, state); return buildStreamResponse(generateClarificationResponse(message, activeField, state.context[activeField], history), conversationId, state.phase, state.questionCount, { responseType: 'clarification' }); }
     // Genuine extraction miss — re-ask with clarification, or skip after 2 consecutive misses
     if (Object.keys(updates).length === 0) {
       if (state.consecutiveMisses >= 1) {
@@ -258,19 +273,20 @@ export async function POST(
           // without the reflection, which was the missing-transition
           // regression described in the 2026-04-21 test session.
           await triggerSynthesis({ sessionId, userId });
-          const ref = buildStreamResponse(
+          const ref = await buildStreamResponse(
             generateReflection(skipped.context, skipped.audienceType, history),
             conversationId,
             'SYNTHESIS',
             skipped.questionCount,
+            { generationType: 'reflection' },
           );
           ref.headers.set('X-Synthesis-Transition', 'true');
           return ref;
         }
-        return buildStreamResponse(generateQuestion(skipped.activeField, skipped.phase as never, skipped.context, {}, skipped.audienceType ?? undefined, history, skipped.askedFields, lifecycleBlock || undefined), conversationId, skipped.phase, skipped.questionCount);
+        return buildStreamResponse(generateQuestion(skipped.activeField, skipped.phase as never, skipped.context, {}, skipped.audienceType ?? undefined, history, skipped.askedFields, lifecycleBlock || undefined), conversationId, skipped.phase, skipped.questionCount, { generationType: 'question' });
       }
       await saveSession(sessionId, { ...state, consecutiveMisses: 1 });
-      return buildStreamResponse(generateQuestion(rawField, state.phase as never, state.context, { unclear: true }, state.audienceType ?? undefined, history, state.askedFields, lifecycleBlock || undefined), conversationId, state.phase, state.questionCount);
+      return buildStreamResponse(generateQuestion(rawField, state.phase as never, state.context, { unclear: true }, state.audienceType ?? undefined, history, state.askedFields, lifecycleBlock || undefined), conversationId, state.phase, state.questionCount, { generationType: 'question' });
     }
 
     let nextState = { ...applyUpdate(state, updates), consecutiveMisses: 0 };
@@ -396,7 +412,7 @@ export async function POST(
     if (canSynthesise(nextState.context) || nextState.isComplete) {
       await inngest.send({ name: 'discovery/synthesis.requested', data: { sessionId, userId } });
       await prisma.discoverySession.update({ where: { id: sessionId }, data: { status: 'COMPLETE', completedAt: new Date() }, select: { id: true } });
-      const ref = buildStreamResponse(generateReflection(nextState.context, nextState.audienceType, history), conversationId, 'SYNTHESIS', nextState.questionCount);
+      const ref = await buildStreamResponse(generateReflection(nextState.context, nextState.audienceType, history), conversationId, 'SYNTHESIS', nextState.questionCount, { generationType: 'reflection' });
       ref.headers.set('X-Synthesis-Transition', 'true'); return ref;
     }
     const nextField = nextState.activeField;
@@ -410,16 +426,17 @@ export async function POST(
       // transition screen instead of a stark jump. Rare edge case
       // after the advance() fallback fix; kept as a safety net.
       await triggerSynthesis({ sessionId, userId });
-      const ref = buildStreamResponse(
+      const ref = await buildStreamResponse(
         generateReflection(nextState.context, nextState.audienceType, history),
         conversationId,
         'SYNTHESIS',
         nextState.questionCount,
+        { generationType: 'reflection' },
       );
       ref.headers.set('X-Synthesis-Transition', 'true');
       return ref;
     }
-    if (detectsPricingChange(message) && !state.pricingProbed) { await saveSession(sessionId, { ...nextState, pricingProbed: true }); return buildStreamResponse(generatePricingFollowUp(message, history, nextState.audienceType ?? undefined), conversationId, nextState.phase, nextState.questionCount); }
+    if (detectsPricingChange(message) && !state.pricingProbed) { await saveSession(sessionId, { ...nextState, pricingProbed: true }); return buildStreamResponse(generatePricingFollowUp(message, history, nextState.audienceType ?? undefined), conversationId, nextState.phase, nextState.questionCount, { responseType: 'pricing_follow_up' }); }
 
     // If the next field is a follow-up slot, pass the topic and clear
     // the pending so it doesn't fire again next turn. Track the fire
@@ -435,15 +452,14 @@ export async function POST(
         recentFollowUpTopics:   nextRecentTopics,
       });
       log.debug('Turn follow-up', { sessionId, topic, questionCount: nextState.questionCount });
-      return buildStreamResponse(generateQuestion('follow_up', nextState.phase as never, nextState.context, { followUpTopic: topic }, nextState.audienceType ?? undefined, history, nextState.askedFields, lifecycleBlock || undefined), conversationId, nextState.phase, nextState.questionCount);
+      return buildStreamResponse(generateQuestion('follow_up', nextState.phase as never, nextState.context, { followUpTopic: topic }, nextState.audienceType ?? undefined, history, nextState.askedFields, lifecycleBlock || undefined), conversationId, nextState.phase, nextState.questionCount, { generationType: 'question' });
     }
 
     const insufficientSignal = nextState.questionCount >= 6 && computeOverallCompleteness(nextState.context) < 0.35;
     const phaseChanged = nextState.phase !== state.phase;
     log.debug('Turn stream start', { sessionId, totalToStreamMs: Date.now() - t0, inputType, phase: nextState.phase, phaseChanged, researchCalls: researchAccumulator.length });
-    return buildStreamResponse(generateQuestion(nextField, nextState.phase as never, nextState.context, { insufficientSignal, phaseChanged, researchFindings: research.findings || undefined }, nextState.audienceType ?? undefined, history, nextState.askedFields, lifecycleBlock || undefined), conversationId, nextState.phase, nextState.questionCount);
-  } catch (error) {
-    log.error('Turn processing failed', error instanceof Error ? error : undefined);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return buildStreamResponse(generateQuestion(nextField, nextState.phase as never, nextState.context, { insufficientSignal, phaseChanged, researchFindings: research.findings || undefined }, nextState.audienceType ?? undefined, history, nextState.askedFields, lifecycleBlock || undefined), conversationId, nextState.phase, nextState.questionCount, { generationType: 'question' });
+  } catch (err) {
+    return httpErrorToResponse(err);
   }
 }

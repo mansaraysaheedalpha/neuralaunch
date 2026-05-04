@@ -1,6 +1,5 @@
 // src/app/api/discovery/sessions/[sessionId]/recommendation/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import {
@@ -9,6 +8,7 @@ import {
   httpErrorToResponse,
   rateLimitByUser,
   RATE_LIMITS,
+  requireUserId,
 } from '@/lib/validation/server-helpers';
 
 /**
@@ -24,28 +24,12 @@ export async function GET(
 ) {
   try {
     enforceSameOrigin(req);
-  } catch (err) {
-    if (err instanceof HttpError) return httpErrorToResponse(err);
-    throw err;
-  }
-
-  const authSession = await auth();
-  if (!authSession?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
-  }
-  const userId = authSession.user.id;
-
-  try {
+    const userId = await requireUserId(req);
     await rateLimitByUser(userId, 'session-recommendation-poll', RATE_LIMITS.API_READ);
-  } catch (err) {
-    if (err instanceof HttpError) return httpErrorToResponse(err);
-    throw err;
-  }
 
-  const { sessionId } = await params;
-  const log = logger.child({ route: 'GET /api/discovery/sessions/[id]/recommendation', userId, sessionId });
+    const { sessionId } = await params;
+    const log = logger.child({ route: 'GET /api/discovery/sessions/[id]/recommendation', userId, sessionId });
 
-  try {
     // Verify the session belongs to this user (single query, no
     // existence-leak via separate 404 vs 401 responses).
     const session = await prisma.discoverySession.findFirst({
@@ -54,7 +38,7 @@ export async function GET(
     });
 
     if (!session) {
-      return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+      throw new HttpError(404, 'Session not found');
     }
 
     // sessionId is no longer column-level @unique (the partial unique
@@ -83,8 +67,7 @@ export async function GET(
     }
 
     return NextResponse.json({ recommendation });
-  } catch (error) {
-    log.error('Failed to retrieve recommendation', error instanceof Error ? error : undefined);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } catch (err) {
+    return httpErrorToResponse(err);
   }
 }

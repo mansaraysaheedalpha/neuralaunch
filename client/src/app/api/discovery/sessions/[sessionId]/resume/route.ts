@@ -1,6 +1,5 @@
 // src/app/api/discovery/sessions/[sessionId]/resume/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { getSession } from '@/lib/discovery';
@@ -10,6 +9,7 @@ import {
   httpErrorToResponse,
   rateLimitByUser,
   RATE_LIMITS,
+  requireUserId,
 } from '@/lib/validation/server-helpers';
 
 /**
@@ -27,29 +27,12 @@ export async function GET(
 ) {
   try {
     enforceSameOrigin(req);
-  } catch (err) {
-    if (err instanceof HttpError) return httpErrorToResponse(err);
-    throw err;
-  }
-
-  const authSession = await auth();
-  if (!authSession?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
-  }
-  const userId = authSession.user.id;
-
-  try {
+    const userId = await requireUserId(req);
     await rateLimitByUser(userId, 'session-resume', RATE_LIMITS.API_AUTHENTICATED);
-  } catch (err) {
-    if (err instanceof HttpError) return httpErrorToResponse(err);
-    throw err;
-  }
 
-  const { sessionId } = await params;
+    const { sessionId } = await params;
+    const log = logger.child({ route: 'GET /api/discovery/sessions/[id]/resume', userId, sessionId });
 
-  const log = logger.child({ route: 'GET /api/discovery/sessions/[id]/resume', userId, sessionId });
-
-  try {
     const record = await prisma.discoverySession.findFirst({
       where:  { id: sessionId, userId },
       select: {
@@ -68,8 +51,8 @@ export async function GET(
       },
     });
 
-    if (!record) return NextResponse.json({ error: 'Session not found' }, { status: 404 });
-    if (record.status !== 'ACTIVE') return NextResponse.json({ error: 'Session not resumable' }, { status: 409 });
+    if (!record) throw new HttpError(404, 'Session not found');
+    if (record.status !== 'ACTIVE') throw new HttpError(409, 'Session not resumable');
 
     // Ensure InterviewState is warm in Redis so the next turn is fast
     const state = await getSession(sessionId);
@@ -83,8 +66,7 @@ export async function GET(
       activeField:   record.activeField,
       conversationId: record.conversationId,
     });
-  } catch (error) {
-    log.error('Resume failed', error instanceof Error ? error : undefined);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } catch (err) {
+    return httpErrorToResponse(err);
   }
 }

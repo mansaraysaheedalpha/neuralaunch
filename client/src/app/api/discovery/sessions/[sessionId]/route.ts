@@ -1,6 +1,5 @@
 // src/app/api/discovery/sessions/[sessionId]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { deleteSession } from '@/lib/discovery';
@@ -10,6 +9,7 @@ import {
   httpErrorToResponse,
   rateLimitByUser,
   RATE_LIMITS,
+  requireUserId,
 } from '@/lib/validation/server-helpers';
 
 /**
@@ -25,35 +25,18 @@ export async function DELETE(
 ) {
   try {
     enforceSameOrigin(req);
-  } catch (err) {
-    if (err instanceof HttpError) return httpErrorToResponse(err);
-    throw err;
-  }
-
-  const authSession = await auth();
-  if (!authSession?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorised' }, { status: 401 });
-  }
-  const userId = authSession.user.id;
-
-  try {
+    const userId = await requireUserId(req);
     await rateLimitByUser(userId, 'session-delete', RATE_LIMITS.API_AUTHENTICATED);
-  } catch (err) {
-    if (err instanceof HttpError) return httpErrorToResponse(err);
-    throw err;
-  }
 
-  const { sessionId } = await params;
+    const { sessionId } = await params;
+    const log = logger.child({ route: 'DELETE /api/discovery/sessions/[id]', userId, sessionId });
 
-  const log = logger.child({ route: 'DELETE /api/discovery/sessions/[id]', userId, sessionId });
-
-  try {
     const record = await prisma.discoverySession.findFirst({
       where:  { id: sessionId, userId },
       select: { status: true },
     });
 
-    if (!record) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    if (!record) throw new HttpError(404, 'Not found');
     if (record.status !== 'ACTIVE') return NextResponse.json({ ok: true }); // already done
 
     await Promise.all([
@@ -67,8 +50,7 @@ export async function DELETE(
 
     log.debug('Session discarded', { sessionId });
     return NextResponse.json({ ok: true });
-  } catch (error) {
-    log.error('Session delete failed', error instanceof Error ? error : undefined);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  } catch (err) {
+    return httpErrorToResponse(err);
   }
 }
