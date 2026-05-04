@@ -176,7 +176,7 @@ export function TaskToolLaunchers({ roadmapId, taskId, task }: TaskToolLaunchers
           row tight while still surfacing what the founder produced. */}
       {coachSession      && !coachOpen      && <CoachSessionReview      session={coachSession} />}
       {composerSession   && !composerOpen   && <ComposerSessionReview   session={composerSession} />}
-      {researchSession   && !researchOpen   && <ResearchSessionReview   session={researchSession} />}
+      {researchSession   && !researchOpen   && <ResearchSessionReview   session={researchSession} onReopen={() => setResearchOpen(true)} />}
       {packagerSession   && !packagerOpen   && <PackagerSessionReview   session={packagerSession} />}
       {validationSession && !validationOpen && <ValidationSessionReview session={validationSession} />}
     </div>
