@@ -6,10 +6,11 @@ import GitHub from "next-auth/providers/github";
 import LinkedIn from "next-auth/providers/linkedin";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import prisma from "@/lib/prisma";
-import type { Adapter } from "next-auth/adapters";
+import type { Adapter, AdapterSession } from "next-auth/adapters";
 import { logger } from "./lib/logger";
 import { env } from "@/lib/env";
 import { readTierCache } from "@/lib/auth/tier-cache";
+import { hashSessionToken } from "@/lib/auth/session-token-hash";
 
 /**
  * GitHub primary-email verification gate.
@@ -106,8 +107,99 @@ if (!env.LINKEDIN_CLIENT_ID || !env.LINKEDIN_CLIENT_SECRET) {
   );
 }
 
+// ---------------------------------------------------------------------
+// Hashed-session adapter wrapper
+// ---------------------------------------------------------------------
+//
+// At-rest protection for the Session table. Wraps the standard
+// PrismaAdapter so:
+//
+//   * createSession    — hash before INSERT; return the row to
+//                        NextAuth with the RAW token preserved so the
+//                        cookie writer sets the cookie to raw
+//   * getSessionAndUser, updateSession — hash the incoming raw
+//                        sessionToken before lookup; rewrite the
+//                        returned row's sessionToken to raw so any
+//                        downstream NextAuth code reading it sees
+//                        the value the client knows
+//   * deleteSession    — hash before DELETE
+//
+// The DB column NEVER holds a raw token. Clients (browser cookie,
+// mobile SecureStore) hold the only raw copy. A read-only DB leak
+// gives the attacker hashes with no way to derive the raw tokens.
+//
+// Force-reauth on first deploy: every existing Session row has its
+// raw token in `sessionToken`. After this code ships, lookups hash
+// the cookie's raw token and won't match — every existing user gets
+// auto-logged-out and re-authenticates, which writes a new hashed
+// row. No explicit migration required.
+//
+// See lib/auth/session-token-hash.ts for the HMAC rationale and
+// the rotation/key-management properties.
+//
+// Mirror this wrapper for the mobile bearer flow: lib/mobile-auth.ts
+// hashes on createMobileSession + resolveUserFromToken using the
+// same helper so the Session table stays uniformly hashed regardless
+// of whether the writer was NextAuth or the mobile login route.
+const baseAdapter = PrismaAdapter(prisma);
+
+const hashedSessionAdapter: Adapter = {
+  ...baseAdapter,
+  async createSession(session) {
+    if (!baseAdapter.createSession) {
+      throw new Error('PrismaAdapter is missing createSession');
+    }
+    await baseAdapter.createSession({
+      ...session,
+      sessionToken: hashSessionToken(session.sessionToken),
+    });
+    // Return the session with the RAW token. NextAuth uses this
+    // return value to set the session cookie — the cookie must
+    // hold the raw token so subsequent requests can be re-hashed
+    // and looked up.
+    return session;
+  },
+  async getSessionAndUser(rawToken) {
+    if (!baseAdapter.getSessionAndUser) {
+      throw new Error('PrismaAdapter is missing getSessionAndUser');
+    }
+    const hashed = hashSessionToken(rawToken);
+    const result = await baseAdapter.getSessionAndUser(hashed);
+    if (!result) return null;
+    // Restore the raw token in the returned row so any downstream
+    // NextAuth code reading session.sessionToken sees the value
+    // the client knows, not the on-disk hash.
+    return {
+      ...result,
+      session: { ...result.session, sessionToken: rawToken },
+    };
+  },
+  async updateSession(session) {
+    if (!baseAdapter.updateSession) {
+      throw new Error('PrismaAdapter is missing updateSession');
+    }
+    const rawToken = session.sessionToken;
+    const updated = await baseAdapter.updateSession({
+      ...session,
+      sessionToken: hashSessionToken(rawToken),
+    });
+    if (!updated) return null;
+    return { ...updated, sessionToken: rawToken } as AdapterSession;
+  },
+  async deleteSession(rawToken): Promise<void> {
+    if (!baseAdapter.deleteSession) {
+      throw new Error('PrismaAdapter is missing deleteSession');
+    }
+    // PrismaAdapter's deleteSession is typed as a union returning
+    // either void or the deleted AdapterSession; we don't need the
+    // returned row, so awaiting and discarding keeps the wrapper's
+    // return type narrow.
+    await baseAdapter.deleteSession(hashSessionToken(rawToken));
+  },
+};
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(prisma) as Adapter,
+  adapter: hashedSessionAdapter,
   providers: [
     Google({
       clientId: env.GOOGLE_CLIENT_ID,

@@ -19,6 +19,7 @@ import { randomBytes, createHash } from 'crypto';
 import prisma from '@/lib/prisma';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
+import { hashSessionToken } from '@/lib/auth/session-token-hash';
 
 // Session token: 32 bytes of crypto randomness, base64url encoded.
 // Same entropy as NextAuth's own token generation.
@@ -40,6 +41,16 @@ export function generateSessionToken(): string {
 /**
  * Create a new Session row for a mobile user. Returns the raw
  * sessionToken that the mobile app stores in SecureStore.
+ *
+ * The DB row stores ONLY the hash of the token (HMAC-SHA-256 keyed on
+ * NEXTAUTH_SECRET). The raw token is returned to the caller and never
+ * persisted server-side — a read-only DB leak gives the attacker
+ * hashes with no way to derive the raw bearer values.
+ *
+ * Mirror behaviour for the NextAuth web flow: src/auth.ts wraps the
+ * PrismaAdapter so its createSession also writes hashes. Both paths
+ * write to the same Session table, so the column is uniformly hashed
+ * regardless of which writer created the row.
  */
 export async function createMobileSession(userId: string): Promise<string> {
   const sessionToken = generateSessionToken();
@@ -47,7 +58,7 @@ export async function createMobileSession(userId: string): Promise<string> {
 
   await prisma.session.create({
     data: {
-      sessionToken,
+      sessionToken: hashSessionToken(sessionToken),
       userId,
       expires,
     },
@@ -84,9 +95,14 @@ export async function resolveUserFromToken(
 ): Promise<MobileUser | null> {
   if (!token || token.length < 10) return null;
 
+  // Hash the client-supplied raw token and look up by the hash. The
+  // DB never sees the raw value. See createMobileSession + the
+  // auth.ts adapter wrapper for the symmetrical writer side.
+  const hashed = hashSessionToken(token);
+
   try {
     const session = await prisma.session.findUnique({
-      where: { sessionToken: token },
+      where: { sessionToken: hashed },
       select: {
         expires: true,
         user: {
@@ -112,7 +128,7 @@ export async function resolveUserFromToken(
     if (session.expires < new Date()) {
       // Expired — clean up the row
       await prisma.session.delete({
-        where: { sessionToken: token },
+        where: { sessionToken: hashed },
       }).catch(() => { /* best-effort cleanup */ });
       return null;
     }
