@@ -115,6 +115,34 @@ const envSchema = z.object({
   // Stage 3 and not replaced).
   USAGE_ANOMALY_WEBHOOK_URL: z.string().url().optional(),
 
+  // Sentry — error reporting + distributed tracing. All optional so
+  // local dev / contributor builds boot without telemetry; production
+  // sets all four. The Sentry SDK silently no-ops when DSN is unset,
+  // which is fine — but declaring the keys here means a misconfigured
+  // deploy fails fast at boot if the values are malformed (URL Zod)
+  // rather than silently disabling Sentry forever.
+  //
+  //   SENTRY_DSN              — server runtime DSN (sentry.server.config.ts,
+  //                             sentry.edge.config.ts, instrumentation.ts).
+  //   NEXT_PUBLIC_SENTRY_DSN  — browser DSN (instrumentation-client.ts).
+  //                             Public-prefixed because it's bundled into
+  //                             client JS; the DSN is not a secret.
+  //   SENTRY_AUTH_TOKEN       — build-time source-map upload (next.config.ts).
+  //                             Optional even in prod — when absent, the
+  //                             webpack/Turbopack plugin skips the upload
+  //                             step and source maps stay server-local.
+  //   SENTRY_ENVIRONMENT      — overrides NODE_ENV for the env tag in
+  //                             Sentry. Useful when one Vercel project
+  //                             serves multiple environments (preview,
+  //                             staging) and you want them isolated in
+  //                             the Sentry UI.
+  //   NEXT_PUBLIC_SENTRY_ENVIRONMENT — same, browser side.
+  SENTRY_DSN:                    z.string().url().optional(),
+  NEXT_PUBLIC_SENTRY_DSN:        z.string().url().optional(),
+  SENTRY_AUTH_TOKEN:             z.string().min(1).optional(),
+  SENTRY_ENVIRONMENT:            z.string().min(1).optional(),
+  NEXT_PUBLIC_SENTRY_ENVIRONMENT: z.string().min(1).optional(),
+
   // Node environment
   NODE_ENV:   z.enum(['development', 'production', 'test']).default('development'),
   VERCEL_ENV: z.enum(['development', 'preview', 'production']).optional(),
