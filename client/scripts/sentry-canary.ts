@@ -5,13 +5,15 @@
 // for them in the Sentry UI and verify each PII vector appears as
 // [Filtered] in the resulting event.
 //
-// Run via: pnpm tsx scripts/sentry-canary.ts
+// Run via: pnpm tsx scripts/sentry-canary.ts (from the `client/` dir).
 //
-// REQUIRES: SENTRY_DSN set (typically read from .env.local). The
-// script connects to the project's DEV environment specifically — set
-// SENTRY_ENVIRONMENT=development before running so test events are
-// filterable separately from production. The Phase 1 env checklist
-// already configures this.
+// REQUIRES: client/.env.local with SENTRY_DSN set. The script loads
+// .env.local explicitly via dotenv — `tsx` does NOT auto-load env
+// files, and a missing DSN causes Sentry.init to construct a no-op
+// client that returns synthetic event IDs without dispatching to the
+// backend. Result: the canary "succeeds" but no events appear in
+// Sentry's UI. The DSN-host log line below catches that failure mode
+// before it wastes a debugging session.
 //
 // PASS CRITERIA (verify by inspection in Sentry's UI):
 //   1. Event "canary-1": event.message contains [Filtered] (was email)
@@ -26,14 +28,37 @@
 // ALL FIVE must redact correctly. Any one failure means the scrub is
 // not wired correctly for that surface.
 
+// Load .env.local BEFORE importing Sentry — Sentry.init reads
+// process.env at call time and `tsx` does not auto-load env files.
+// dotenv is already a devDependency.
+import { config as loadDotenv } from 'dotenv';
+loadDotenv({ path: '.env.local' });
+
 import * as Sentry from '@sentry/nextjs';
 import { beforeSend, beforeSendTransaction } from '../src/lib/observability/scrub';
+
+// Sanity log so a missing/stale DSN doesn't silently fail the canary.
+// Sentry's no-op fallback returns synthetic event IDs without sending
+// anything; without this line, that failure mode is invisible.
+const dsnRaw = process.env.SENTRY_DSN ?? '';
+if (!dsnRaw) {
+  console.error('[Canary] FATAL: SENTRY_DSN is not set. Add it to client/.env.local');
+  console.error('[Canary] (NEXT_PUBLIC_SENTRY_DSN and SENTRY_DSN should both contain the same value)');
+  process.exit(1);
+}
+try {
+  const dsnUrl = new URL(dsnRaw);
+  console.log(`[Canary] Using DSN host: ${dsnUrl.host} (project id: ${dsnUrl.pathname.replace(/^\//, '')})`);
+} catch {
+  console.error('[Canary] FATAL: SENTRY_DSN is not a valid URL — check client/.env.local');
+  process.exit(1);
+}
 
 // Bootstrap a minimal Sentry init for the canary. Mirrors
 // sentry.server.config.ts's hooks so the test fires through the same
 // scrub path as production.
 Sentry.init({
-  dsn: process.env.SENTRY_DSN,
+  dsn: dsnRaw,
   environment: process.env.SENTRY_ENVIRONMENT ?? 'development',
   tracesSampleRate: 1.0,
   // Same hook widening as sentry.server.config.ts.
