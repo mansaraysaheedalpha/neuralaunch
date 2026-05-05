@@ -118,12 +118,19 @@ async function main(): Promise<void> {
   console.log(`  canary-4 (Paddle customer ID):    ${id4}`);
   console.log(`  canary-5 (breadcrumb URL token):  ${id5}`);
   console.log('');
-  console.log('[Canary] Flushing transport buffer (max 2s)...');
+  console.log('[Canary] Flushing transport buffer (max 10s)...');
 
   // Sentry's transport batches sends; explicit flush ensures the events
   // are dispatched to Sentry's backend before this process exits. A
   // fast-exiting script can lose events without this call.
-  const flushed = await Sentry.flush(2000);
+  //
+  // 10s timeout — first call from a cold Node process to a regional
+  // Sentry edge (e.g. ingest.de.sentry.io) involves DNS + TLS handshake
+  // before the events queue. 2s was too tight; the events would still
+  // dispatch in the background but the script exited before confirmation,
+  // producing a false "WARNING: flush timed out" line. 10s gives
+  // comfortable margin for any region's cold-start latency.
+  const flushed = await Sentry.flush(10000);
   if (!flushed) {
     console.error('[Canary] WARNING: flush timed out — events may not have reached Sentry');
     process.exit(1);
