@@ -32,9 +32,15 @@ export interface ResearchSessionReviewProps {
   /** The researchSession from the task, typed broadly so the caller
    *  can pass the raw JSON field without a cast. */
   session:    Record<string, unknown>;
-  /** Optional callback to reopen the full ResearchFlow surface so the
-   *  founder can run a follow-up round or revisit the rich report. */
-  onReopen?:  () => void;
+  /**
+   * Optional callback to reopen the full ResearchFlow surface so the
+   * founder can run a follow-up round or revisit the rich report. The
+   * sessionId arg is read off the session and forwarded so the parent
+   * can hydrate the flow against the existing report (rather than
+   * mounting a fresh blank query input — which is what the prior
+   * shape did, making the button misleading).
+   */
+  onReopen?:  (sessionId: string) => void;
 }
 
 const MAX_VISIBLE_FINDINGS = 5;
@@ -85,6 +91,7 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
   const strict = safeParseResearchSession(session);
   const fallback = permissiveRead(session);
 
+  const sessionId          = strict?.id ?? (typeof session.id === 'string' ? session.id : undefined);
   const query              = strict?.query                                ?? fallback.query;
   const plan               = strict?.plan                                 ?? fallback.plan;
   const summary            = strict?.report?.summary                      ?? fallback.summary;
@@ -377,12 +384,16 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
               )}
 
               {/* REOPEN BUTTON — surfaced when the parent provides an
-                  onReopen callback. Lets the founder jump back into the
-                  rich live ResearchFlow to run follow-ups or refine. */}
-              {onReopen && (
+                  onReopen callback AND the session id is recoverable
+                  from the persisted session. Forwards the session id
+                  so the parent can hydrate the live flow against the
+                  existing report (rather than mounting a blank query
+                  input — which is what the prior shape did and the
+                  reason the button felt broken). */}
+              {onReopen && sessionId && (
                 <button
                   type="button"
-                  onClick={onReopen}
+                  onClick={() => onReopen(sessionId)}
                   className="self-start mt-1 inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-foreground/85 hover:bg-primary/10 hover:text-foreground transition-colors"
                 >
                   <Search className="size-3 text-primary" />

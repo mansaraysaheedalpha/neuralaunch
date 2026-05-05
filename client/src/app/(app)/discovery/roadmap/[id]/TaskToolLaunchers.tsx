@@ -54,6 +54,24 @@ export function TaskToolLaunchers({ roadmapId, taskId, task }: TaskToolLaunchers
   const [packagerOpen,   setPackagerOpen]   = useState(false);
   const [validationOpen, setValidationOpen] = useState(false);
 
+  // When the founder clicks "Reopen full session" in the persistent
+  // ResearchSessionReview, we capture the session id here and pass it
+  // to <ResearchFlow initialSessionId={...}>. The flow's hydrate-on-
+  // open effect calls handleLoadSession with this id, so the live
+  // surface lands on the rich report view + follow-up input rather
+  // than a blank query box. Cleared when the flow closes so a
+  // subsequent "open from launcher button" still mounts blank as
+  // expected.
+  const [researchHydrateId, setResearchHydrateId] = useState<string | undefined>(undefined);
+  const handleResearchReopen = (id: string) => {
+    setResearchHydrateId(id);
+    setResearchOpen(true);
+  };
+  const handleResearchClose = () => {
+    setResearchOpen(false);
+    setResearchHydrateId(undefined);
+  };
+
   const { data: session } = useSession();
   const tier = session?.user?.tier ?? 'free';
   const { writable } = useRoadmapWritability();
@@ -159,8 +177,14 @@ export function TaskToolLaunchers({ roadmapId, taskId, task }: TaskToolLaunchers
         <ComposerFlow roadmapId={roadmapId} taskId={taskId} open={composerOpen} onClose={() => setComposerOpen(false)} />
 
         {/* Research Tool */}
-        <ResearchToolButton suggestedTools={suggestedTools} onOpen={() => setResearchOpen(true)} />
-        <ResearchFlow roadmapId={roadmapId} taskId={taskId} open={researchOpen} onClose={() => setResearchOpen(false)} />
+        <ResearchToolButton suggestedTools={suggestedTools} onOpen={() => { setResearchHydrateId(undefined); setResearchOpen(true); }} />
+        <ResearchFlow
+          roadmapId={roadmapId}
+          taskId={taskId}
+          open={researchOpen}
+          onClose={handleResearchClose}
+          initialSessionId={researchHydrateId}
+        />
 
         {/* Service Packager */}
         <ServicePackagerButton suggestedTools={suggestedTools} onOpen={() => setPackagerOpen(true)} />
@@ -176,7 +200,7 @@ export function TaskToolLaunchers({ roadmapId, taskId, task }: TaskToolLaunchers
           row tight while still surfacing what the founder produced. */}
       {coachSession      && !coachOpen      && <CoachSessionReview      session={coachSession} />}
       {composerSession   && !composerOpen   && <ComposerSessionReview   session={composerSession} />}
-      {researchSession   && !researchOpen   && <ResearchSessionReview   session={researchSession} onReopen={() => setResearchOpen(true)} />}
+      {researchSession   && !researchOpen   && <ResearchSessionReview   session={researchSession} onReopen={handleResearchReopen} />}
       {packagerSession   && !packagerOpen   && <PackagerSessionReview   session={packagerSession} />}
       {validationSession && !validationOpen && <ValidationSessionReview session={validationSession} />}
     </div>

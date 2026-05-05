@@ -5,6 +5,7 @@
 // Stages: query → planning → plan_review → executing → report
 // Server interaction logic lives in useResearchFlow hook.
 
+import { useEffect, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { X } from 'lucide-react';
 import { ResearchQueryInput }        from './ResearchQueryInput';
@@ -32,16 +33,46 @@ export interface ResearchFlowProps {
    * this — the component calls useResearchFlow internally as before.
    */
   flow?: UseResearchFlowResult;
+  /**
+   * When provided, the flow auto-hydrates the matching session on
+   * first open (via flow.handleLoadSession) so the founder lands on
+   * the rich report view + follow-up input instead of a blank query
+   * input. Used by the task-card "Reopen full session" affordance
+   * to make the button do what the label says — rather than mounting
+   * a fresh empty flow alongside the existing completed session.
+   *
+   * The hydration fires once per (open=true, sessionId) pair so a
+   * mid-session toggle doesn't refetch unnecessarily.
+   */
+  initialSessionId?: string;
 }
 
 export function ResearchFlow({
   roadmapId, taskId, open, onClose, standalone, prePopulatedQuery, onToolCallComplete,
   flow: externalFlow,
+  initialSessionId,
 }: ResearchFlowProps) {
   const internalFlow = useResearchFlow({
     roadmapId, taskId, standalone, onToolCallComplete,
   });
   const flow = externalFlow ?? internalFlow;
+
+  // Hydrate-on-open: when the parent passes an initialSessionId AND
+  // the flow is being opened, fire flow.handleLoadSession exactly once
+  // for that (open, sessionId) pair. The ref tracks the last-loaded id
+  // so a re-render with the same prop doesn't re-fetch, and a different
+  // id (e.g. the user clicks Reopen on a different session) DOES
+  // re-hydrate. handleLoadSession is intentionally NOT in the deps —
+  // it's stable across renders via useCallback inside the hook, and
+  // adding it would tighten the firing semantics for no benefit.
+  const lastLoadedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!open || !initialSessionId) return;
+    if (lastLoadedRef.current === initialSessionId) return;
+    lastLoadedRef.current = initialSessionId;
+    void flow.handleLoadSession(initialSessionId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialSessionId]);
 
   return (
     <AnimatePresence>
