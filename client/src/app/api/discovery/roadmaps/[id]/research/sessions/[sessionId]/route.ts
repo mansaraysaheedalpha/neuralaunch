@@ -36,8 +36,15 @@ export async function GET(
       ? (roadmap.toolSessions as Array<Record<string, unknown>>).find(s => s['id'] === sessionId)
       : null;
     if (standalone) {
+      // Return the strict-parsed session when the schema accepts it,
+      // otherwise return the raw session and let the client's
+      // permissive-fallback rendering handle shape drift. The prior
+      // shape silently fell through to 404 when safeParse returned
+      // null — which made the "Reopen full session" affordance
+      // appear broken because the route was 404'ing a session that
+      // genuinely exists, just with slightly-off shape.
       const parsed = safeParseResearchSession(standalone);
-      if (parsed) return NextResponse.json({ session: parsed });
+      return NextResponse.json({ session: parsed ?? standalone });
     }
 
     // 2. Task-launched sessions on roadmap.phases[].tasks[].researchSession
@@ -47,8 +54,11 @@ export async function GET(
         for (const task of phase.tasks) {
           const rs = task.researchSession as Record<string, unknown> | undefined;
           if (rs && rs['id'] === sessionId) {
+            // Same defensive return as the standalone branch — id
+            // match wins; the client tolerates shape drift via its
+            // permissive-fallback rendering.
             const parsed = safeParseResearchSession(rs);
-            if (parsed) return NextResponse.json({ session: parsed });
+            return NextResponse.json({ session: parsed ?? rs });
           }
         }
       }
