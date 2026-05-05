@@ -105,7 +105,7 @@ async function main(): Promise<void> {
   }
 
   console.log('[Canary] Done. Verify each event in Sentry UI:');
-  console.log('         https://sentry.io/organizations/infinite-dynamics/issues/');
+  console.log('         https://sentry.io/organizations/tabempa-engineering/issues/');
   console.log('         Filter: environment:development');
 }
 

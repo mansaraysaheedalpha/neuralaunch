@@ -131,7 +131,7 @@ const nextConfig: NextJsConfig = {
 // intentionally absent here. See turbopack-migration-research-2026-05.md
 // § "Sentry on Turbopack".
 const sentryWebpackPluginOptions = {
-  org: "infinite-dynamics",
+  org: "tabempa-engineering",
   project: "neuralaunch",
 
   // Note: disableServerWebpackPlugin / disableClientWebpackPlugin intentionally
