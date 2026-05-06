@@ -1619,5 +1619,153 @@ browser test, manual token removal) documented as a runbook.
 Stopping for the verification gate. Phase 6 (validation /
 end-to-end checklist) is next.
 
+### Phase 5 — Verification result (2026-05-06): partial pass
+
+**Decision: ship with documented gap.**
+
+Verification runbook executed end-to-end. Findings:
+
+**What works:**
+- Sentry-Vercel integration installed; auth token reaches builds.
+- Source-map upload pipeline runs on every production build.
+- Build log confirms upload to `tabempa-engineering/neuralaunch`
+  with `Release: <git sha>` tagging.
+- Server-side errors de-minify correctly (Node's own sourcemap
+  support handles these, independent of Sentry).
+- Page-level errors that bubble through compiled `~/app/...`
+  routes and `~/chunks/0bdd_...` action chunks de-minify
+  correctly — those chunks ship with co-located `.map` files in
+  the second upload pass.
+- PII scrub fires on every event before egress (Phase 4 verified
+  separately).
+- Replay events tagged with the right environment.
+
+**What doesn't work — Turbopack ↔ Sentry source-map interop gap:**
+
+Turbopack-generated runtime chunks (e.g. `0koOwfxnrho~t.js`,
+`turbopack-17c8kum.unjhs.js`, ~50+ similar) ship with embedded
+Debug IDs but WITHOUT co-located `.map` files. The build log shows
+the warning class explicitly:
+
+```
+~/0ko0wfxnrho~t.js (no sourcemap found, debug id 8fe01a9b-...)
+   - warning: could not determine a source map reference
+     (Could not auto-detect referenced sourcemap for ~/0ko0wfxnrho~t.js)
+```
+
+Errors that fire from code bundled into these runtime chunks land
+in Sentry with minified stack frames. The Phase 5 canary deliberately
+fired such an error (a thin click handler in
+`/dev/sentry-source-map-canary`). Result: event landed correctly
+in Sentry's UI under `tabempa-engineering/neuralaunch`, tagged
+`environment: vercel-preview`, but the top stack frame showed
+`app:///_next/static/chunks/0koOwfxnrho~t.js:2:1140` instead of
+`src/app/dev/sentry-source-map-canary/page.tsx:71`.
+
+**Root cause:** Turbopack's chunk-output layout doesn't co-locate
+`.map` files with the runtime chunks in a path that
+@sentry/bundler-plugin-core's auto-discovery walker checks. Sentry
+sees the Debug ID, knows a source map should exist, but cannot
+locate the `.map` file in the build artifact. This is a known
+upstream interop issue:
+- Sentry's plugin: github.com/getsentry/sentry-javascript-bundler-plugins
+- Turbopack's emit layout: github.com/vercel/next.js (Turbopack issue tracker)
+- Phase 0 research doc § "Source Map Upload Mechanics — Known Risk"
+  predicted this class of failure for Turbopack builds.
+
+**Coverage estimate (post-decision):**
+- Server-side errors: ~100% de-minified
+- API route errors: ~100% de-minified (server-side)
+- Page-level component errors (rendered by `~/app/...` routes):
+  high coverage — these chunks ship with `.map` files
+- Inngest worker errors: ~100% de-minified (server-side)
+- Click-handler / event-handler errors that land in Turbopack
+  runtime chunks: minified (the gap)
+- Browser console errors from third-party SDKs (Paddle, etc.):
+  irrelevant — those wouldn't de-minify regardless
+
+For NeuraLaunch's actual product surface, the gap mostly affects
+generic browser-side runtime errors. Real user errors typically
+have call-stack depth that touches a `~/app/...` chunk somewhere,
+where source maps DO resolve. The pure-runtime-chunk failure mode
+is the worst case.
+
+**Decision rationale (chose B over A or C):**
+
+Option A (rollback to `next build --webpack`) was rejected because:
+- Production build time would regress ~50% (per
+  turbopack-migration-research-2026-05.md performance baseline)
+- The whole project just migrated to Turbopack default in
+  Phase 0 (deploy 740924a). Rolling back the build flag for one
+  observability concern reverses substantial unrelated work.
+- Webpack support is itself deprecated upstream (Next.js 16+
+  defaults to Turbopack; Webpack is the rollback hatch, not the
+  intended path forward).
+
+Option C (wait for upstream fix) was rejected because:
+- Open-ended timeline. Could be weeks or months.
+- Leaves us shipping without observability verification closed.
+
+Option B (accept gap, ship) chosen because:
+- Server-side coverage (the high-value surface) is unaffected.
+- The gap is documented; future readers know this is intentional,
+  not an oversight.
+- Cheap to flip back to full coverage when either Sentry's plugin
+  or Turbopack's chunk-emit layout updates upstream — the next
+  re-verification of this canary will pass without code changes,
+  it'll just start working.
+
+**What stays in place:**
+- All Phase 5 implementation: `withSentryConfig` source-map config,
+  `sourcemaps.deleteSourcemapsAfterUpload: true`, the gated
+  `/dev/sentry-source-map-canary` page (gates remain; page is a
+  404 in production until `NEXT_PUBLIC_SENTRY_TEST_ENABLED=true`).
+- The Vercel-Sentry integration with org-scoped auth token.
+- Source-map upload runs on every production build.
+- The runbook in this section above (still valid for re-verifying
+  when interop fix lands).
+
+**Re-verification trigger:**
+
+Re-run the Phase 5 canary verification when ANY of these happen:
+1. `@sentry/nextjs` is upgraded to a version that addresses the
+   Turbopack chunk auto-discovery issue (check release notes for
+   "Turbopack" mentions).
+2. Next.js or Turbopack is upgraded with changes to the chunk
+   emit layout (specifically the runtime chunks at
+   `/_next/static/chunks/<hash>.js`).
+3. `client/package.json`'s build script flips back to webpack
+   (the rollback path) for any other reason.
+4. Sentry releases the Vercel-managed source-map pipeline
+   v2 (in beta as of mid-2026) which uses different upload
+   mechanics.
+
+When any of these happens: set `NEXT_PUBLIC_SENTRY_TEST_ENABLED=true`
+on Vercel Preview, push an empty commit to a fresh test branch,
+visit `/dev/sentry-source-map-canary`, click button, check Sentry
+event detail. If the top stack frame shows
+`src/app/dev/sentry-source-map-canary/page.tsx`, the gap has
+closed; remove this watch entry.
+
+**Migration log housekeeping:**
+
+This Phase 5 partial-pass is the only intentionally-shipped gap
+across the entire Sentry integration. All other phases (1-4, 3a-f)
+verified end-to-end with no known coverage holes.
+
+The Sentry-Vercel integration's auto-provisioned DSN was found to
+point at a different Sentry account than `tabempa-engineering`
+during verification. Resolution: manually overrode
+`NEXT_PUBLIC_SENTRY_DSN` and `SENTRY_DSN` in Vercel env vars
+with the correct DSN from `tabempa-engineering/neuralaunch`'s
+Client Keys page, plus replaced the integration's auto-provisioned
+auth token with an org-scoped Sentry token (scopes:
+`project:write`, `project:releases`, `org:read`). Document this
+behaviour for future contributors: integration auto-provisioning
+is convenient but verify it points at the correct project before
+trusting it.
+
+Phase 5 closed: 2026-05-06.
+
 
 
