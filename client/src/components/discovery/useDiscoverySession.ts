@@ -107,6 +107,18 @@ interface ResumeState {
 interface Options {
   onComplete?: (recommendation: Recommendation, conversationId: string) => void;
   resume?:     ResumeState;
+  /**
+   * Optional pre-seed from the archetype picker. When set, the
+   * session-create POST carries `scenario` and `preseededAudienceType`
+   * so the turn route locks the audience and skips Q4/Q7 silent
+   * classification. The picker chooses scenario per founder profile
+   * presence (fresh_start when a profile exists, first_interview when
+   * not); this hook does not derive it.
+   */
+  preseed?: {
+    audienceType: string;
+    scenario:     'first_interview' | 'fresh_start';
+  };
 }
 
 /**
@@ -115,7 +127,7 @@ interface Options {
  * Manages all server interaction for the discovery interview:
  * session init, per-turn streaming, and recommendation polling.
  */
-export function useDiscoverySession({ onComplete, resume }: Options): DiscoverySessionState {
+export function useDiscoverySession({ onComplete, resume, preseed }: Options): DiscoverySessionState {
   const [messages,        setMessages]        = useState<ChatMessage[]>(resume?.messages ?? []);
   const [status,          setStatus]          = useState<ChatStatus>('idle');
   const [sessionId,       setSessionId]       = useState<string | null>(resume?.sessionId ?? null);
@@ -175,7 +187,14 @@ export function useDiscoverySession({ onComplete, resume }: Options): DiscoveryS
       const res = await fetch('/api/discovery/sessions', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ firstMessage, acknowledgePendingOutcome }),
+        body:    JSON.stringify({
+          firstMessage,
+          acknowledgePendingOutcome,
+          ...(preseed && {
+            scenario:              preseed.scenario,
+            preseededAudienceType: preseed.audienceType,
+          }),
+        }),
       });
       if (!res.ok) {
         // 403 = tier-limit refusal (Free-tier lifetime cap).

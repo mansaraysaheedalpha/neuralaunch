@@ -4,9 +4,11 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
+import { isNoIdeaEnabled } from '@/lib/env';
 import { DiscoveryChatClient } from './DiscoveryChatClient';
 import { SessionResumption } from './SessionResumption';
 import { CompoundUpgradeHint } from './CompoundUpgradeHint';
+import { ArchetypePicker } from './ArchetypePicker';
 import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
 import {
   countFreeDiscoverySessions,
@@ -46,7 +48,19 @@ export default async function DiscoveryPage() {
   // cap check — includes ACTIVE and abandoned sessions, not just
   // COMPLETE). Paid users skip the lifetime count since the cap
   // doesn't apply.
-  const [incomplete, completedCount, lifetimeCount, nonActiveVentureCount] = await Promise.all([
+  //
+  // The incomplete query now also pulls `ideationRuns` so we can
+  // detect no_idea sessions and redirect them to /discovery/no-idea/[id]
+  // instead of showing the Discovery resumption card. FounderProfile
+  // is pulled to decide the picker's default scenario per archetype
+  // (with profile → fresh_start, without → first_interview).
+  const [
+    incomplete,
+    completedCount,
+    lifetimeCount,
+    nonActiveVentureCount,
+    founderProfile,
+  ] = await Promise.all([
     prisma.discoverySession.findFirst({
       where: {
         userId,
@@ -64,7 +78,12 @@ export default async function DiscoveryPage() {
         },
       },
       orderBy: { lastTurnAt: 'desc' },
-      select:  { id: true, questionCount: true, conversationId: true },
+      select:  {
+        id:             true,
+        questionCount:  true,
+        conversationId: true,
+        ideationRuns:   { select: { stageNumber: true, status: true } },
+      },
     }),
     prisma.discoverySession.count({
       where: { userId, status: 'COMPLETE' },
@@ -79,7 +98,12 @@ export default async function DiscoveryPage() {
           where: { userId, status: { in: ['paused', 'completed'] }, archivedAt: null },
         })
       : Promise.resolve(0),
+    isNoIdeaEnabled()
+      ? prisma.founderProfile.findUnique({ where: { userId }, select: { id: true } })
+      : Promise.resolve(null),
   ]);
+
+  const hasFounderProfile = founderProfile !== null;
 
   const isFirstSession = completedCount === 0;
   const freeCapReached =
@@ -125,6 +149,19 @@ export default async function DiscoveryPage() {
   // in-flight session).
   const showCompoundHint = tier === 'execute' && nonActiveVentureCount >= 1 && !incomplete;
 
+  // Resumption: when the incomplete session is a no_idea archetype
+  // (has at least one IdeationStageRun), route the founder to the
+  // dedicated no-idea surface so they land on the right stage page,
+  // not on the Discovery chat.
+  if (incomplete && incomplete.ideationRuns.length > 0) {
+    redirect(`/discovery/no-idea/${incomplete.id}`);
+  }
+
+  // When the No Idea flag is off, the picker is bypassed — fall back
+  // to today's behaviour so we never strand real users behind a
+  // half-built surface during development.
+  const noIdeaEnabled = isNoIdeaEnabled();
+
   return (
     <div className="flex flex-col h-full bg-background">
       {showCompoundHint && <CompoundUpgradeHint />}
@@ -133,6 +170,12 @@ export default async function DiscoveryPage() {
           <SessionResumption
             session={{ id: incomplete.id, questionCount: incomplete.questionCount, conversationId: incomplete.conversationId }}
             firstName={firstName}
+          />
+        ) : noIdeaEnabled ? (
+          <ArchetypePicker
+            firstName={firstName}
+            hasFounderProfile={hasFounderProfile}
+            isFirstSession={isFirstSession}
           />
         ) : (
           <DiscoveryChatClient firstName={firstName} isFirstSession={isFirstSession} />

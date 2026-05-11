@@ -33,6 +33,15 @@ interface DiscoveryChatProps {
   resume?:         ResumeState;
   /** True when the user has no prior completed sessions — shows guide pulse indicator */
   isFirstSession?: boolean;
+  /**
+   * Optional pre-seed from the archetype picker. Threaded straight
+   * into useDiscoverySession so the session-create POST carries the
+   * founder's explicit archetype pick + scenario.
+   */
+  preseed?: {
+    audienceType: string;
+    scenario:     'first_interview' | 'fresh_start';
+  };
 }
 
 /**
@@ -61,7 +70,7 @@ function readPersistedDraft(): string {
   }
 }
 
-export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = false }: DiscoveryChatProps) {
+export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = false, preseed }: DiscoveryChatProps) {
   const [input,      setInput]      = useState<string>(readPersistedDraft);
   const [hasStarted, setHasStarted] = useState(!!resume);
   const [guideOpen,  setGuideOpen]  = useState(false);
@@ -122,7 +131,7 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
     pendingOutcomeRecommendationId,
     dismissPendingOutcomeAndRetry,
     sessionInitError,
-  } = useDiscoverySession({ onComplete, resume });
+  } = useDiscoverySession({ onComplete, resume, preseed });
 
   // The stepper stays visible during a stepper-surface failure so the
   // founder can see the cut content and the retry icon. Without this

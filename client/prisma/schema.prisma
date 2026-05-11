@@ -412,6 +412,76 @@ model DiscoverySession {
   /// (userId, status='ACTIVE', lastTurnAt range) ordered by lastTurnAt desc.
   /// Promoted into schema from migration 20260405000000 (was drift).
   @@index([userId, status, lastTurnAt(sort: Desc)])
+
+  /// Stage runs for the "No Idea" archetype (lifecycleScenario='no_idea').
+  /// Empty for every other archetype — those produce a Recommendation
+  /// directly without traversing the ideation stage ladder.
+  ideationRuns IdeationStageRun[]
+}
+
+/**
+ * IdeationStageRun
+ *
+ * One row per (DiscoverySession × stage) for the No Idea archetype's
+ * 6-stage ideation flow (stages 0..5). Stages 0 and 1 are implemented
+ * in this batch; stages 2..5 land in future batches.
+ *
+ * The `output` JSONB column is discriminated by `status`:
+ *
+ *   - 'authoring'    — Stage1AuthoringStateSchema (partial 4-dim
+ *                      beliefField state + running recommendedActions[]
+ *                      + optional priorCommittedSnapshot used by the
+ *                      edit-discard flow). Stage 0 never sits in this
+ *                      status because it commits directly without
+ *                      authoring.
+ *   - 'output_ready' — OutcomeDocumentSchema (final dimensions +
+ *                      synthesisParagraph + rulesOut +
+ *                      recommendedActions[]); composer has run.
+ *   - 'committed'    — OutcomeDocumentSchema, frozen. committedAt is
+ *                      set IFF status='committed' — invariant enforced
+ *                      in app code (commit/edit/discard-edit routes
+ *                      and the lifecycle test) since Prisma cannot
+ *                      express CHECK constraints natively.
+ *
+ * Edit flow: status reverts 'committed' or 'output_ready' → 'authoring'
+ * on /api/ideation/stage-runs/[id]/edit, with the prior document
+ * preserved inside `output.priorCommittedSnapshot` so a "discard edit"
+ * restores it.
+ *
+ * Cross-stage caveat: when stages 2..5 land, editing a committed prior
+ * stage must cascade-invalidate downstream stages. Moot today; TODO
+ * markers in the commit/edit routes call this out for future stages.
+ *
+ * See client/src/lib/ideation/ for the schemas and helpers.
+ */
+model IdeationStageRun {
+  id          String           @id @default(cuid())
+  sessionId   String
+  session     DiscoverySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  /// 0..5. Stage 0 = mindset (commits directly). Stage 1 = outcome
+  /// definition (authoring → output_ready → committed). Stages 2..5
+  /// reserved for future work.
+  stageNumber Int
+
+  /// 'authoring' | 'output_ready' | 'committed'. See model docstring
+  /// for the per-status shape of `output`.
+  status      String
+
+  /// Discriminated by `status`. See model docstring.
+  output      Json?
+
+  startedAt   DateTime  @default(now())
+
+  /// Set IFF status='committed'. Invariant enforced in app code.
+  committedAt DateTime?
+
+  /// At most one active stage row per (sessionId, stageNumber). The
+  /// edit flow reverts the same row from 'committed' back to
+  /// 'authoring' rather than spawning a new one — so this unique
+  /// constraint is the right shape.
+  @@unique([sessionId, stageNumber])
+  @@index([sessionId])
 }
 
 /**

@@ -40,6 +40,7 @@ import {
   FOLLOW_UP_DUPLICATE_THRESHOLD,
   FOLLOW_UP_COOLDOWN_QUESTIONS,
 } from '@/lib/discovery/topic-similarity';
+import { handleStage1Turn } from './stage1-handler';
 
 // Pro plan supports up to 300s. The fallback chain can take ~50s in
 // the worst case (Sonnet retries 0+2+8+30 = 40s, then Haiku first
@@ -225,11 +226,20 @@ export async function POST(
     }).catch(() => { /* non-fatal */ });
   }
 
+  // ── 'no_idea' archetype — delegate to the ideation stage 1 handler ──
+  //
+  // Lives in a sibling file so this route stays as orchestration. The
+  // handler trusts that the safety gate, ownership check, rate limit,
+  // and user-message persistence already happened above.
+  const scenario = state.lifecycleScenario ?? 'first_interview';
+  if (scenario === 'no_idea') {
+    return handleStage1Turn({ message, history, sessionId, userId, conversationId });
+  }
+
   // Lifecycle context — loaded fresh each turn from the DB. The
   // scenario + ventureId are persisted in Redis (InterviewState); the
   // actual profile + summaries are loaded here. For first_interview
   // (no lifecycle data), this is a fast null-returning query.
-  const scenario = state.lifecycleScenario ?? 'first_interview';
   const lifecycleCtx = await loadInterviewContext(userId, scenario === 'first_interview' ? 'fresh_start' : scenario, { ventureId: state.ventureId, forkContext: state.forkContext });
   const lifecycleBlock = [
     renderInterviewOpeningBlock(scenario, lifecycleCtx.profile, lifecycleCtx.forkContext),
@@ -322,9 +332,16 @@ export async function POST(
     // if the initial confidence was low (< 0.7). The cost of a wrong
     // audience type cascading through field weights for 10+ questions
     // is higher than waiting 1-2 more exchanges for better signal.
+    //
+    // When the founder pre-selected their archetype on the picker,
+    // `audienceTypeLocked` is set and we trust their pick over any
+    // classification — both the initial Q4 and the Q7 reclassification
+    // are skipped entirely.
     const shouldClassify =
-      (!nextState.audienceType && nextState.questionCount >= 4)  // first classification
-      || (nextState.audienceType && nextState.questionCount === 7); // reclassification window
+      !nextState.audienceTypeLocked && (
+        (!nextState.audienceType && nextState.questionCount >= 4)  // first classification
+        || (nextState.audienceType && nextState.questionCount === 7) // reclassification window
+      );
     if (shouldClassify) {
       const detection = await detectAudienceType(nextState.context, history);
       // Only reclassify if the new detection is higher confidence than

@@ -146,6 +146,20 @@ const envSchema = z.object({
   // Node environment
   NODE_ENV:   z.enum(['development', 'production', 'test']).default('development'),
   VERCEL_ENV: z.enum(['development', 'preview', 'production']).optional(),
+
+  // Feature flag — gates the "No Idea" archetype picker on /discovery
+  // and the 'no_idea' scenario value in POST /api/discovery/sessions.
+  // Default 'false' so the existing direct-into-chat behaviour stays
+  // intact until we flip the flag.
+  //
+  // Build-time caveat: Next.js bakes NEXT_PUBLIC_* values into the
+  // client bundle at build time, so flipping in production requires a
+  // redeploy. This is fine for the "kill switch during development"
+  // use case but is NOT a true runtime kill switch — if we need
+  // instant disable post-launch we'll lift it to a server-side
+  // FeatureFlag table or Vercel Edge Config. TODO marker also lives
+  // in src/app/api/discovery/sessions/route.ts.
+  NEXT_PUBLIC_NO_IDEA_ENABLED: z.enum(['true', 'false']).optional().default('false'),
 });
 
 /**
@@ -222,3 +236,19 @@ function validateEnv(): Env {
 }
 
 export const env = validateEnv();
+
+// ---------------------------------------------------------------------------
+// Feature-flag helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * True when the "No Idea" archetype picker (the new 6-option entry
+ * surface on /discovery) and its Stage 0 + Stage 1 routes are
+ * available. Server-side check at session-create and page-render
+ * time; client-side check in the picker mount path. Defaults to
+ * false — the legacy direct-into-chat path is the fallback when the
+ * flag is off.
+ */
+export function isNoIdeaEnabled(): boolean {
+  return env.NEXT_PUBLIC_NO_IDEA_ENABLED === 'true';
+}

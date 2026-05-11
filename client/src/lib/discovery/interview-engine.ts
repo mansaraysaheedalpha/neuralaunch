@@ -73,10 +73,25 @@ export interface InterviewState {
    * client to re-send scenario info. Only small strings are stored;
    * the actual FounderProfile + CycleSummaries are loaded fresh from
    * the DB on each turn via the context loaders.
+   *
+   * 'no_idea' is handled by a different dispatch path inside the
+   * turn route (delegates to stage1-handler instead of the normal
+   * advance() loop) — this enum carries the value but the engine
+   * functions in this file are never called for no_idea sessions.
    */
-  lifecycleScenario?:    'fresh_start' | 'fork_continuation' | 'first_interview';
+  lifecycleScenario?:    'fresh_start' | 'fork_continuation' | 'first_interview' | 'no_idea';
   ventureId?:            string;
   forkContext?:           string;
+  /**
+   * When true the turn route's audience-detection branch is skipped
+   * entirely — the founder pre-selected their archetype on the
+   * picker, so we trust that pick over any Q4/Q7 reclassification.
+   * Set by createInterviewState when the session-create route
+   * supplies a preseeded audienceType. Unset for sessions started
+   * via the legacy path or for 'no_idea' (which has no audience
+   * concept).
+   */
+  audienceTypeLocked?:   boolean;
   createdAt:             string;
   updatedAt:             string;
 }
@@ -127,14 +142,22 @@ const PHASE_ORDER: InterviewPhase[] = [
  * Creates a fresh interview state for a new session. Accepts an
  * optional lifecycle scenario so the turn route can load the right
  * context (FounderProfile + CycleSummaries) on each subsequent turn.
+ *
+ * The `audienceType` pre-seed (with `audienceTypeLocked: true`) is
+ * used by the new archetype picker: when the founder explicitly picks
+ * one of the 5 existing archetypes, we trust their pick over the
+ * silent Q4/Q7 classification. The turn route's `shouldClassify`
+ * check skips when `audienceTypeLocked` is true.
  */
 export function createInterviewState(
   sessionId: string,
   userId:    string,
   lifecycle?: {
-    scenario:     'fresh_start' | 'fork_continuation' | 'first_interview';
+    scenario:     'fresh_start' | 'fork_continuation' | 'first_interview' | 'no_idea';
     ventureId?:   string;
     forkContext?:  string;
+    audienceType?: AudienceType;
+    audienceTypeLocked?: boolean;
   },
 ): InterviewState {
   const now = new Date().toISOString();
@@ -147,7 +170,7 @@ export function createInterviewState(
     questionsInPhase:      0,
     isComplete:            false,
     activeField:           null,
-    audienceType:          null,
+    audienceType:          lifecycle?.audienceType ?? null,
     consecutiveMisses:     0,
     psychConstraintProbed: false,
     pricingProbed:         false,
@@ -158,6 +181,7 @@ export function createInterviewState(
     lifecycleScenario:     lifecycle?.scenario,
     ventureId:             lifecycle?.ventureId,
     forkContext:            lifecycle?.forkContext,
+    audienceTypeLocked:    lifecycle?.audienceTypeLocked,
     createdAt:             now,
     updatedAt:             now,
   };
@@ -172,12 +196,20 @@ export function createInterviewState(
  * - Return the next field to ask about, OR
  * - Advance to the next phase, OR
  * - Mark the session as ready for synthesis
+ *
+ * NOT FOR 'no_idea' SESSIONS. Those run through a separate dispatch
+ * path in `stage1-handler.ts` and never touch this engine. Throws
+ * loudly if mis-called so a future accidental wire-up surfaces at
+ * the first request instead of corrupting a no_idea session's state.
  */
 export function advance(state: InterviewState): {
   nextField:         DiscoveryContextField | 'psych_probe' | 'follow_up' | null;
   nextPhase:         InterviewPhase;
   readyForSynthesis: boolean;
 } {
+  if (state.lifecycleScenario === 'no_idea') {
+    throw new Error("advance() is not supported for lifecycleScenario='no_idea' — Stage 1 dispatch lives in stage1-handler.ts");
+  }
   // Hard ceiling — never ask more than the maximum
   if (state.questionCount >= MAX_TOTAL_QUESTIONS) {
     return { nextField: null, nextPhase: INTERVIEW_PHASES.SYNTHESIS, readyForSynthesis: true };
@@ -259,11 +291,19 @@ export function advance(state: InterviewState): {
 /**
  * Applies an extracted context update to the state and advances counters.
  * Returns a new state object — never mutates.
+ *
+ * NOT FOR 'no_idea' SESSIONS. Stage 1 has its own state machine in
+ * `lib/ideation/stage1-outcome/state.ts` — `applyExtractions`. Throws
+ * loudly if mis-called so a future accidental wire-up surfaces at the
+ * first turn instead of silently corrupting a no_idea session's state.
  */
 export function applyUpdate(
   state:   InterviewState,
   updates: Partial<DiscoveryContext>,
 ): InterviewState {
+  if (state.lifecycleScenario === 'no_idea') {
+    throw new Error("applyUpdate() is not supported for lifecycleScenario='no_idea' — use lib/ideation applyExtractions instead");
+  }
   const mergedContext = { ...state.context };
   const wasPsychProbe = state.activeField === 'psych_probe';
 
