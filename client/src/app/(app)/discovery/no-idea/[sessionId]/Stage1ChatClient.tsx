@@ -5,7 +5,6 @@ import type { Stage1Message } from './useStage1Session';
 
 interface Stage1ChatClientProps {
   sessionId:        string;
-  firstName:        string;
   initialMessages:  Stage1Message[];
   editingDimension: 'timeHorizon' | 'financialGoal' | 'riskTolerance' | 'lifestylePreference' | null;
   hasPriorSnapshot: boolean;

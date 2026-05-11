@@ -51,15 +51,28 @@ export {
   getActiveStageRun,
   requireOwnedStageRun,
   persistAuthoringState,
+  // Stage 1 transitions
   markStage1OutputReady,
   markStage1Committed,
   revertToEdit,
   restoreFromEditSnapshot,
+  // Stage 2 transitions
+  markStage2OutputReady,
+  markStage2Committed,
+  updateSkillTier,
+  updateTeammate,
+  setStructuralBlockerChoice,
+  writeWorkingExpectedProfile,
+  writeExpectedProfileEntry,
+  // Cross-stage cascades
+  cascadeStage1EditToStage2,
+  restoreStage2FromCascadeSnapshot,
+  clearStage2CascadeSnapshot,
 } from './stage-run-store';
 
 // ---- Agent (streaming) ----
 export type { AgentMove } from './stage1-outcome/reality-grounding';
-export { streamStage1Message } from './stage1-outcome/agent';
+export { streamStage1Message, streamStage1Opening } from './stage1-outcome/agent';
 
 // ---- Extractor (structured) ----
 export type { ExtractAndPlanResult, Stage1InputType } from './stage1-outcome/extractor';
@@ -67,3 +80,13 @@ export { extractAndPlan } from './stage1-outcome/extractor';
 
 // ---- Composer ----
 export { composeOutcomeDocument } from './stage1-outcome/composer';
+
+// ===========================================================================
+// Stage 2 — Outcome Requirements
+// ===========================================================================
+//
+// Stage 2's public surface is re-exported from its sub-module barrel
+// at './stage2-requirements'. Importers that prefer a more specific
+// path can also reach it as `@/lib/ideation/stage2-requirements`.
+
+export * from './stage2-requirements';

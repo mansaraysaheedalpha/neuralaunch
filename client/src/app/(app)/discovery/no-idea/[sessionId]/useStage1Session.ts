@@ -23,19 +23,21 @@ interface UseStage1SessionArgs {
 }
 
 interface UseStage1SessionResult {
-  messages:    Stage1Message[];
-  status:      Stage1Status;
-  turnError:   Stage1TurnError | null;
-  sendMessage: (content: string, inputMethod?: 'voice') => Promise<void>;
-  clearError:  () => void;
+  messages:        Stage1Message[];
+  status:          Stage1Status;
+  turnError:       Stage1TurnError | null;
+  sendMessage:     (content: string, inputMethod?: 'voice') => Promise<void>;
+  requestOpening:  () => Promise<void>;
+  clearError:      () => void;
 }
 
 /**
  * Stage 1 chat hook. Streams turn responses from
  * `/api/discovery/sessions/[sessionId]/turn` (which the route
- * delegates to `stage1-handler.ts`).
+ * delegates to `stage1-handler.ts`) AND the opening probe from
+ * `/api/discovery/sessions/[sessionId]/stage1-opening`.
  *
- * Two terminal response shapes the route may return:
+ * Two terminal response shapes the turn route may return:
  *   - text/plain stream  → consume tokens into the latest assistant
  *                          message and append it on completion
  *   - application/json   → either { status: 'output_ready' } meaning
@@ -43,6 +45,8 @@ interface UseStage1SessionResult {
  *                          server-component re-renders the review
  *                          surface), or { error, sessionTerminated }
  *                          on a safety-gate block
+ *
+ * The opening endpoint only returns text/plain streams or error JSON.
  */
 export function useStage1Session({
   sessionId,
@@ -55,6 +59,45 @@ export function useStage1Session({
   const abortRef = useRef<AbortController | null>(null);
 
   const clearError = useCallback(() => setTurnError(null), []);
+
+  /**
+   * Shared text-stream consumer. Appends an empty assistant message
+   * upfront, then fills it as chunks arrive. Sets terminal status on
+   * its own. Returns true on clean close, false if the stream cut.
+   */
+  const consumeStream = useCallback(async (body: ReadableStream<Uint8Array>): Promise<boolean> => {
+    setStatus('streaming');
+    const assistantId = crypto.randomUUID();
+    setMessages(prev => [...prev, { id: assistantId, role: 'assistant', content: '', inputMethod: null }]);
+
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let acc = '';
+
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        acc += decoder.decode(value, { stream: true });
+        setMessages(prev =>
+          prev.map(m => (m.id === assistantId ? { ...m, content: acc } : m)),
+        );
+      }
+      acc += decoder.decode();
+      setMessages(prev =>
+        prev.map(m => (m.id === assistantId ? { ...m, content: acc } : m)),
+      );
+      setStatus('idle');
+      return true;
+    } catch (streamErr) {
+      setStatus('error');
+      setTurnError({
+        kind:    'cut_stream',
+        message: streamErr instanceof Error ? streamErr.message : 'Stream interrupted',
+      });
+      return false;
+    }
+  }, []);
 
   const sendMessage = useCallback(async (content: string, inputMethod?: 'voice') => {
     if (status === 'sending' || status === 'streaming') return;
@@ -104,27 +147,18 @@ export function useStage1Session({
 
         if (res.status === 403 && data.sessionTerminated) {
           setStatus('terminated');
-          setTurnError({
-            kind:    'session_terminated',
-            message: data.error ?? 'Session terminated',
-          });
+          setTurnError({ kind: 'session_terminated', message: data.error ?? 'Session terminated' });
           return;
         }
 
         if (res.ok && data.status === 'output_ready') {
           setStatus('composing');
-          // Refresh — the server component re-renders the page in
-          // review mode now that the stage row is output_ready.
           router.refresh();
           return;
         }
 
-        // Any other JSON shape is an error.
         setStatus('error');
-        setTurnError({
-          kind:    'http',
-          message: data.error ?? `Server returned ${res.status}`,
-        });
+        setTurnError({ kind: 'http', message: data.error ?? `Server returned ${res.status}` });
         return;
       }
 
@@ -135,37 +169,7 @@ export function useStage1Session({
         return;
       }
 
-      setStatus('streaming');
-      const assistantId = crypto.randomUUID();
-      setMessages(prev => [...prev, { id: assistantId, role: 'assistant', content: '', inputMethod: null }]);
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let acc = '';
-
-      try {
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          acc += decoder.decode(value, { stream: true });
-          setMessages(prev =>
-            prev.map(m => (m.id === assistantId ? { ...m, content: acc } : m)),
-          );
-        }
-        acc += decoder.decode();
-        setMessages(prev =>
-          prev.map(m => (m.id === assistantId ? { ...m, content: acc } : m)),
-        );
-      } catch (streamErr) {
-        setStatus('error');
-        setTurnError({
-          kind:    'cut_stream',
-          message: streamErr instanceof Error ? streamErr.message : 'Stream interrupted',
-        });
-        return;
-      }
-
-      setStatus('idle');
+      await consumeStream(res.body);
     } catch (err) {
       setStatus('error');
       setTurnError({
@@ -175,7 +179,59 @@ export function useStage1Session({
     } finally {
       abortRef.current = null;
     }
-  }, [messages, sessionId, status, router]);
+  }, [messages, sessionId, status, router, consumeStream]);
 
-  return { messages, status, turnError, sendMessage, clearError };
+  /**
+   * Fire the dedicated opening probe for a fresh Stage 1 session. The
+   * Stage 1 chat component calls this once on mount when the
+   * conversation has no prior messages. Streams the agent's first
+   * probe question; idempotent at the server side (409 on re-fire).
+   */
+  const requestOpening = useCallback(async () => {
+    if (status === 'sending' || status === 'streaming') return;
+
+    setTurnError(null);
+    setStatus('sending');
+    abortRef.current = new AbortController();
+
+    try {
+      const res = await fetch(`/api/discovery/sessions/${sessionId}/stage1-opening`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal:  abortRef.current.signal,
+      });
+
+      const contentType = res.headers.get('content-type') ?? '';
+
+      if (contentType.includes('application/json')) {
+        const data = await res.json() as { error?: string; sessionTerminated?: boolean };
+        if (res.status === 403 && data.sessionTerminated) {
+          setStatus('terminated');
+          setTurnError({ kind: 'session_terminated', message: data.error ?? 'Session terminated' });
+          return;
+        }
+        setStatus('error');
+        setTurnError({ kind: 'http', message: data.error ?? `Server returned ${res.status}` });
+        return;
+      }
+
+      if (!res.ok || !res.body) {
+        setStatus('error');
+        setTurnError({ kind: 'http', message: `Server returned ${res.status}` });
+        return;
+      }
+
+      await consumeStream(res.body);
+    } catch (err) {
+      setStatus('error');
+      setTurnError({
+        kind:    'http',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      abortRef.current = null;
+    }
+  }, [sessionId, status, consumeStream]);
+
+  return { messages, status, turnError, sendMessage, requestOpening, clearError };
 }

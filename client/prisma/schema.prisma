@@ -1269,6 +1269,20 @@ model FounderProfile {
   /// FounderProfileSchema-validated JSON. See lib/lifecycle/schemas.ts.
   profile Json
 
+  /// Stage 2 (No Idea archetype) structured skill inventory — 14
+  /// skills × 4 tiers per (founder + each teammate). Updated in-place
+  /// during Stage 2 authoring; snapshotted at commit into the
+  /// IdeationStageRun.output.skillInventorySnapshot field.
+  ///
+  /// Shape validated by SkillInventorySchema in
+  /// src/lib/ideation/stage2-requirements/schema.ts.
+  ///
+  /// Separate from `profile.stableContext.skills` — that column is a
+  /// loose qualitative string array surfaced from belief-state
+  /// extraction. This column carries the structured 14×4 matrix used
+  /// for Constraints derivation.
+  skillInventory Json?
+
   /// The Cycle.id whose completion produced the latest profile update.
   /// Null on bootstrap rows (first profile created from belief state).
   lastUpdatedByCycleId String?

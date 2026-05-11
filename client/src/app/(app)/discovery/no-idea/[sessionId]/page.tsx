@@ -32,7 +32,6 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
   if (!isNoIdeaEnabled())  redirect('/discovery');
 
   const userId = session.user.id;
-  const firstName = session.user.name?.split(' ')[0] ?? '';
   const { sessionId } = await params;
 
   const discoverySession = await prisma.discoverySession.findFirst({
@@ -98,7 +97,6 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
     return (
       <Stage1ChatClient
         sessionId={sessionId}
-        firstName={firstName}
         initialMessages={messages}
         editingDimension={initialAuthoring.editTargetDimension}
         hasPriorSnapshot={initialAuthoring.priorCommittedSnapshot !== null}
@@ -116,7 +114,6 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
     return (
       <Stage1ChatClient
         sessionId={sessionId}
-        firstName={firstName}
         initialMessages={[]}
         editingDimension={null}
         hasPriorSnapshot={false}

@@ -14,6 +14,7 @@ import {
   requireOwnedStageRun,
   revertToEdit,
   safeParseOutcomeDocument,
+  cascadeStage1EditToStage2,
 } from '@/lib/ideation';
 
 interface RouteContext {
@@ -37,8 +38,13 @@ const EditRequestSchema = z.object({
  * document is snapshotted inside the new authoring payload so a
  * /discard-edit can restore it.
  *
- * Future cross-stage caveat (TODO): when stages 2..5 land, editing a
- * committed prior stage must mark downstream stages stale. Moot today.
+ * Cross-stage cascade: when Stage 1's status reverts, any
+ * output_ready / committed Stage 2 row for the same session is
+ * cascade-reverted to authoring with a cascadeSnapshot (so a
+ * subsequent /discard-edit can restore it) and requiresRederivation
+ * = true (the UI surfaces a "Stage 1 was updated — re-derive"
+ * prompt). The cascade helper is idempotent — no Stage 2 row, or
+ * Stage 2 already in authoring, is a no-op.
  */
 export async function POST(req: NextRequest, { params }: RouteContext) {
   try {
@@ -69,8 +75,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
     await revertToEdit(id, userId, parsed.data.dimension, prior, run.status);
 
+    // Cascade: revert any committed-or-output-ready Stage 2 row.
+    // Idempotent if Stage 2 doesn't exist or is already in authoring.
+    await cascadeStage1EditToStage2(run.sessionId, userId);
+
     logger.child({ route: 'POST /api/ideation/stage-runs/[id]/edit', userId, stageRunId: id })
-          .debug('Stage 1 reverted to editing', { dimension: parsed.data.dimension, priorStatus: run.status });
+          .debug('Stage 1 reverted to editing (cascade fired)', { dimension: parsed.data.dimension, priorStatus: run.status });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

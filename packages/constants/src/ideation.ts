@@ -143,3 +143,147 @@ export const IDEATION_STAGE_STATUSES = [
   'committed',
 ] as const;
 export type IdeationStageStatus = typeof IDEATION_STAGE_STATUSES[number];
+
+// ---------------------------------------------------------------------------
+// Stage 2 — Outcome Requirements: the 14 skills, tier vocabulary,
+// constraint severities, and founder choices.
+// ---------------------------------------------------------------------------
+
+/**
+ * The 14 skills the founder + each teammate are tier-rated against.
+ *
+ * Troy's 11 (founder-development canon):
+ *   sales, graphic_design, product_design, content_creative,
+ *   marketing, public_speaking, technical_literacy, programming,
+ *   finance, operational_efficiency, leadership.
+ *
+ * Late-2026 additions, justified by current-era distribution shape:
+ *   ai_literacy                       — fluency with AI tooling has
+ *                                       become foundational across
+ *                                       almost every modern outcome.
+ *   data_analysis                     — distinct from technical_literacy:
+ *                                       reading and reasoning about
+ *                                       numbers, not just systems.
+ *   distribution_community_building   — "build it and they will come"
+ *                                       failed; community + distribution
+ *                                       is its own discipline.
+ */
+export const SKILL_KEYS = [
+  'sales',
+  'graphic_design',
+  'product_design',
+  'content_creative',
+  'marketing',
+  'public_speaking',
+  'technical_literacy',
+  'programming',
+  'finance',
+  'operational_efficiency',
+  'leadership',
+  'ai_literacy',
+  'data_analysis',
+  'distribution_community_building',
+] as const;
+export type SkillKey = typeof SKILL_KEYS[number];
+
+/**
+ * Tier vocabulary. Troy's exact three-tier conversational vocabulary
+ * (Good / Acceptable / Bad) plus a fourth data-model state:
+ *
+ *   - good         — the founder is competitive at this skill
+ *   - acceptable   — the founder can do it but it's not a strength
+ *   - bad          — the founder is weak here; counts against fit
+ *   - unknown      — the founder has explicitly disclaimed knowing
+ *                    their level (NOT "not yet asked"). Drives the
+ *                    blind-spot constraint when the Expected Profile
+ *                    requires this skill: the gap is structurally
+ *                    worse than a known weakness because the founder
+ *                    cannot self-assess.
+ *
+ * Conversational framing in the Stage 2 agent stays 3-tier — the
+ * agent talks about good / acceptable / bad and only routes a chip
+ * to `unknown` when the founder uses "I don't know" / "haven't really
+ * tried this" / "never had to" cues.
+ */
+export const SKILL_TIERS = [
+  'good',
+  'acceptable',
+  'bad',
+  'unknown',
+] as const;
+export type SkillTier = typeof SKILL_TIERS[number];
+
+/**
+ * Constraint severity. Derived deterministically by
+ * computeConstraints(inventory, expected):
+ *
+ *   - mild        — 1 tier below the expected requirement
+ *                   (e.g. required 'good', strongest-across-team 'acceptable')
+ *   - structural  — 2 tiers below
+ *                   (required 'good', strongest 'bad')
+ *   - blind_spot  — the strongest-across-team tier is 'unknown' on
+ *                   a required skill. Treated as structural for the
+ *                   blocker threshold; surfaced separately in the UI
+ *                   because the remediation is different ("find out
+ *                   if you have this" not "improve / hire for this").
+ */
+export const GAP_SEVERITIES = [
+  'mild',
+  'structural',
+  'blind_spot',
+] as const;
+export type GapSeverity = typeof GAP_SEVERITIES[number];
+
+/**
+ * Founder's choice when the structural-blocker threshold trips
+ * (≥ N structural-or-blind-spot constraints on critical Expected
+ * Profile entries). Recorded on the artifact; the choice itself is
+ * not acted on inside Stage 2 — what happens next is a Stage 3+
+ * concern.
+ *
+ *   - revisit_outcome              — go back to Stage 1 (Stage 3+ wires)
+ *   - plan_team_recruit            — keep the outcome, plan to fill
+ *                                    gaps with a co-founder
+ *   - pushed_back_and_committed    — founder disagrees with the
+ *                                    derivation and commits anyway
+ *   - not_yet_chosen               — initial state before the founder
+ *                                    encounters the soft-warning card
+ */
+export const STRUCTURAL_BLOCKER_CHOICES = [
+  'revisit_outcome',
+  'plan_team_recruit',
+  'pushed_back_and_committed',
+  'not_yet_chosen',
+] as const;
+export type StructuralBlockerChoice = typeof STRUCTURAL_BLOCKER_CHOICES[number];
+
+// ---------------------------------------------------------------------------
+// Expected Profile pushback — multi-round adversarial flow on a
+// single ExpectedProfileEntry. Mirrors the engine pattern from
+// lib/discovery/pushback-engine.ts (action enum + mode classifier)
+// but scoped per-entry, capped at 5 rounds, and without the round-7
+// alternative-synthesis branch.
+// ---------------------------------------------------------------------------
+
+/** Per-round structured action the agent chooses. */
+export const EXPECTED_PROFILE_PUSHBACK_ACTIONS = [
+  'continue_dialogue',
+  'defend',
+  'refine',
+  'replace',
+  'closing',
+] as const;
+export type ExpectedProfilePushbackAction = typeof EXPECTED_PROFILE_PUSHBACK_ACTIONS[number];
+
+/**
+ * The agent's read of the founder's emotional / argumentative shape.
+ * Same three modes the recommendation pushback engine uses —
+ * founders question Expected Profile entries with the same emotional
+ * shapes.
+ */
+export const EXPECTED_PROFILE_PUSHBACK_MODES = [
+  'analytical',
+  'fear',
+  'lack_of_belief',
+] as const;
+export type ExpectedProfilePushbackMode = typeof EXPECTED_PROFILE_PUSHBACK_MODES[number];

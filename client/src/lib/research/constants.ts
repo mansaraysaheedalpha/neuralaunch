@@ -136,4 +136,15 @@ export const RESEARCH_BUDGETS: Record<ResearchAgent, { steps: number; descriptio
     steps:       8,
     description: 'Market rate verification, competitor pricing lookup, local benchmarks for pricing tiers.',
   },
+  'stage2-expected-profile': {
+    // Stage 2 — No Idea archetype: derive the Expected Profile (skill
+    // demands) from the committed Stage 1 OutcomeDocument. Budget = 3
+    // gives the agent at most ~2 targeted tool calls (e.g. verify
+    // benchmark skill profiles for the founder's stated outcome
+    // shape) plus the structured emission. Agent decides per attempt
+    // whether to research at all — the call is allowed to return
+    // without invoking any tools.
+    steps:       3,
+    description: 'Optional targeted verification of skill demands implied by the Stage 1 OutcomeDocument.',
+  },
 } as const;

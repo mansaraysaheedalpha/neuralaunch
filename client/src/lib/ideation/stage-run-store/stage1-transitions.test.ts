@@ -1,17 +1,21 @@
-// src/lib/ideation/stage-run-store.test.ts
+// src/lib/ideation/stage-run-store/stage1-transitions.test.ts
 //
-// Lifecycle invariants for IdeationStageRun. We mock the Prisma
-// client and verify that each helper issues the right query shape —
-// the value being that the invariants live in the helpers' where
-// clauses (status transitions, ownership scope, snapshot priorStatus
-// preservation) rather than at the DB level (Prisma can't express
-// CHECK constraints natively).
+// Lifecycle invariants for the Stage 1 IdeationStageRun transitions.
+// We mock the Prisma client and verify each helper issues the right
+// query shape — the value being that the invariants live in the
+// helpers' where clauses (status transitions, ownership scope,
+// snapshot priorStatus preservation) rather than at the DB level
+// (Prisma can't express CHECK constraints natively).
+//
+// `createInitialStageRunsForNoIdea` is the shared no_idea bootstrap
+// helper that lives in the folder's index.ts; it's exercised here too
+// because Stages 0 and 1 always co-occur for no_idea sessions.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type {
   OutcomeDocument,
   PriorCommittedSnapshot,
-} from './stage1-outcome/schema';
+} from '../stage1-outcome/schema';
 
 vi.mock('server-only', () => ({}));
 
@@ -50,13 +54,15 @@ vi.mock('@/lib/prisma', () => ({
   toJsonValue: (x: unknown) => x,
 }));
 
-// Re-import after the mock so the store sees our stub.
+// Re-import after the mock so the store sees our stub. The folder
+// barrel re-exports both the shared helper (from index) and the
+// Stage 1 transitions (from stage1-transitions).
 import {
   createInitialStageRunsForNoIdea,
   markStage1Committed,
   revertToEdit,
   restoreFromEditSnapshot,
-} from './stage-run-store';
+} from '.';
 
 const { updateMany, createMany } = mocks;
 

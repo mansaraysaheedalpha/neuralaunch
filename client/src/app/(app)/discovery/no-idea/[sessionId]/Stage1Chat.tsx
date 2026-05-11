@@ -11,7 +11,6 @@ import { useStage1Session, type Stage1Message } from './useStage1Session';
 
 interface Stage1ChatProps {
   sessionId:        string;
-  firstName:        string;
   initialMessages:  Stage1Message[];
   editingDimension: 'timeHorizon' | 'financialGoal' | 'riskTolerance' | 'lifestylePreference' | null;
   hasPriorSnapshot: boolean;
@@ -22,10 +21,14 @@ interface Stage1ChatProps {
  * Stage 1 chat surface. Slimmer than the Discovery DiscoveryChat —
  * no audience-specific copy, no stepper, no welcome layer, no guide
  * pulse. Banner + message list + input.
+ *
+ * The founder's first name is no longer threaded through here — the
+ * dedicated /stage1-opening endpoint pulls it server-side from the
+ * authenticated User row so the agent can fold it into the opening
+ * probe naturally. Subsequent turns don't need it.
  */
 export function Stage1Chat({
   sessionId,
-  firstName,
   initialMessages,
   editingDimension,
   hasPriorSnapshot,
@@ -33,8 +36,9 @@ export function Stage1Chat({
 }: Stage1ChatProps) {
   const [input, setInput] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const openingFiredRef = useRef(false);
 
-  const { messages, status, turnError, sendMessage } = useStage1Session({
+  const { messages, status, turnError, sendMessage, requestOpening } = useStage1Session({
     sessionId,
     initialMessages,
   });
@@ -42,6 +46,19 @@ export function Stage1Chat({
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // Fire the opening probe ONCE on mount when the conversation is
+  // genuinely empty. The server-side route enforces the pristine-state
+  // check authoritatively (409 on re-fire); this ref is just a UX
+  // guard against React 18 StrictMode double-invocation in dev.
+  useEffect(() => {
+    if (openingFiredRef.current) return;
+    if (initialMessages.length > 0)       return;
+    if (editingDimension !== null)        return;
+    if (status !== 'idle')                return;
+    openingFiredRef.current = true;
+    void requestOpening();
+  }, [initialMessages.length, editingDimension, status, requestOpening]);
 
   const isBusy = status === 'sending' || status === 'streaming' || status === 'composing';
   const isTerminated = status === 'terminated';
@@ -112,20 +129,19 @@ export function Stage1Chat({
       {errorBanner}
       {recoveryBanner}
 
-      {hasMessages ? (
+      {(hasMessages || status === 'sending' || status === 'streaming') ? (
         <MessageList
           messages={chatMessages}
           isLoading={status === 'sending'}
           isSynthesizing={false}
         />
       ) : (
-        <div className="flex-1 overflow-y-auto px-4 py-8">
-          <div className="mx-auto max-w-2xl text-sm text-muted-foreground">
-            {firstName ? `Hi ${firstName}.` : 'Hi.'} Tell me a bit about where you are — what
-            kind of life you&apos;re trying to build, what feels solid, what doesn&apos;t.
-            Wherever you want to start.
-          </div>
-        </div>
+        // Pre-opening state — extremely brief. The opening probe fires
+        // automatically on mount (see useEffect above) and arrives in
+        // under a few seconds, at which point the MessageList branch
+        // takes over. Anything more substantive here would compete
+        // with the agent's first message.
+        <div className="flex-1" aria-hidden="true" />
       )}
 
       <form

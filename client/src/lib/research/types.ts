@@ -26,6 +26,7 @@ export const RESEARCH_AGENTS = [
   'research-execution',
   'research-followup',
   'service-packager',
+  'stage2-expected-profile',
 ] as const;
 export type ResearchAgent = typeof RESEARCH_AGENTS[number];
 
