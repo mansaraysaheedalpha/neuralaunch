@@ -2,250 +2,389 @@
 
 > How the system actually flows. Read `CLAUDE.md` first for the
 > engineering standards every file in this repo is held to. This
-> document describes the current state of the codebase after the
-> Phase 3 cleanup; nothing here is aspirational.
+> document describes the **current** state of the codebase. Nothing
+> here is aspirational. If you find drift between this document and
+> the code, the code wins — and please update this file.
+>
+> Last refreshed: 2026-05-11.
 
 ---
 
 ## 1. Top of stack
 
-NeuraLaunch is a Next.js 15 application backed by Postgres
-(via Prisma 6), Upstash Redis for ephemeral session state, and
-Inngest v4 for durable background work. It walks a founder through
-three phases — **Discovery** (interview that produces a single
-committed recommendation), **Roadmap** (phased execution plan), and
-**Validation** (a public landing page plus an analytics-driven
-build brief). It does not host built products, it does not run
-agent swarms, and it does not execute user-supplied code in any
-sandbox — that machinery was deleted in the Phase 3 cleanup.
-All AI calls go through the Vercel AI SDK v5 with Claude 4.6
-(Sonnet for execution, Opus for synthesis) plus a Gemini 2.5
-Flash fallback tier on the question-generation hot path.
+NeuraLaunch is a Next.js 16.2 application backed by Postgres (via
+Prisma 6.6) on Neon (`pgvector` enabled), Upstash Redis for ephemeral
+session state, and Inngest v4 for durable background work. A standalone
+Expo / React Native app (`mobile/`) consumes the same API surface and
+shares Zod schemas + enum constants via the `packages/*` workspace.
+
+All AI calls go through the Vercel AI SDK v5. Anthropic Claude 4.6 is
+the primary model family (Sonnet for execution, Opus for synthesis);
+Google Gemini 2.5 Flash is the third-tier fallback on the question
+generation hot path via `@ai-sdk/google`. External research is mediated
+through Tavily (factual answers) and Exa (semantic / neural search)
+exposed as in-loop tools the agent picks between per query.
+
+Auth runs on NextAuth v5 with server-side sessions. Billing is Paddle
+v4 with `Tier`-aware gating across Free / Execute / Compound. Mobile
+auth piggybacks on the same NextAuth session via short-lived bridge
+tokens.
+
+What the system **is not**: a code generator, an agent swarm, a sandbox
+that runs founder-supplied code, or a marketplace. Those machineries
+never existed or were deleted in earlier cleanup phases and are
+explicitly out of scope.
 
 ---
 
 ## 2. Repository layout
 
-Only the directories that matter to runtime behaviour are listed.
+Only directories that matter to runtime behaviour are listed.
 
 ```
-client/src/
-├── app/
-│   ├── (app)/discovery/        # Authenticated discovery UI
-│   │   ├── DiscoveryChatClient.tsx
-│   │   ├── recommendation/     # Recommendation reveal + pushback UI
-│   │   ├── roadmap/            # Roadmap viewer + check-ins
-│   │   └── validation/         # Validation page editor
-│   ├── api/discovery/          # Discovery / roadmap / validation routes
-│   │   ├── sessions/           # Interview chat + streaming
-│   │   ├── recommendations/    # Reveal, pushback, accept, outcome
-│   │   ├── roadmaps/           # Roadmap reads + task check-ins
-│   │   └── validation/         # Validation page CRUD + trigger
-│   ├── api/lp/analytics/       # Public landing page event capture
-│   ├── lp/[slug]/              # Public landing page renderer
-│   └── auth/, signin/          # NextAuth surfaces
-├── inngest/
-│   ├── client.ts               # Event payload type map (single source)
-│   └── functions/              # Durable workers (one per file)
-├── lib/
-│   ├── ai/                     # Provider chains, fallback wrappers
-│   ├── discovery/              # Interview engine, synthesis, pushback
-│   ├── roadmap/                # Roadmap engine, check-in agent
-│   ├── validation/             # Page generator, interpreter, briefs
-│   ├── outcome/                # Anonymisation + consent gating
-│   ├── phase-context.ts        # Phase numbering + builder
-│   ├── api-error.ts            # HttpError + httpErrorToResponse
-│   ├── rate-limit.ts           # Per-user / per-route limiters
-│   ├── logger.ts               # Structured logger (Sentry-aware)
-│   ├── env.ts                  # Validated env at startup
-│   ├── prisma.ts, redis.ts     # Singletons
-│   └── sanitize.ts             # Prompt-injection delimiters etc
-└── components/                 # Shadcn-based UI
+neuralaunch/
+├── client/                          # Next.js 16 application (the product)
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── (app)/discovery/     # Authenticated discovery + roadmap + validation UI
+│   │   │   ├── api/discovery/       # Session + recommendation + roadmap + validation routes
+│   │   │   ├── api/ideation/        # No-Idea archetype stage-run routes (Stages 0–5)
+│   │   │   ├── api/transformation-reports/   # Once-per-venture narrative + review
+│   │   │   ├── api/stories/         # Public archive of consented transformation reports
+│   │   │   ├── api/billing/         # Paddle webhook + subscription state
+│   │   │   ├── api/push/            # Device token registration + per-user push prefs
+│   │   │   ├── api/auth/            # NextAuth + mobile bridge endpoints
+│   │   │   ├── api/lp/analytics/    # Public landing-page event capture (rate-limited beacon)
+│   │   │   ├── lp/[slug]/           # Public landing pages for build_software paths
+│   │   │   ├── stories/             # Public read of redacted transformation narratives
+│   │   │   └── admin/stories/       # Moderation surface for the public archive
+│   │   ├── inngest/                 # Durable workers (one per file) + tools subfolder
+│   │   ├── lib/                     # Engines, services, helpers (see § 3)
+│   │   └── components/              # shadcn/ui-based React components
+│   └── prisma/                      # Schema + migrations (canonical Prisma path)
+├── mobile/                          # React Native (Expo) app — NOT a workspace member
+│   └── ...                          # Standalone install; consumes packages/* via link:
+├── packages/                        # Workspace packages shared by client + mobile
+│   ├── api-types/                   # Zod schemas + inferred types (wire protocol)
+│   └── constants/                   # Enum value lists + configuration limits
+├── ARCHITECTURE.md                  # This file
+├── RUNBOOK.md                       # On-call playbook for production incidents
+└── CLAUDE.md                        # Engineering standards (mandatory reading)
 ```
+
+### `client/src/lib/` — engine layer
+
+| Module | Responsibility |
+|---|---|
+| `ai/` | Provider chains, fallback wrappers (`withModelFallback`, `streamQuestionWithFallback`), prompt-cache helpers, model id constants |
+| `auth/` | NextAuth callbacks, mobile bridge token issuance |
+| `billing/` | Paddle webhook handling, tier resolution, subscription state, usage caps |
+| `continuation/` | Post-roadmap continuation brief generation (forks, parking lot) |
+| `discovery/` | Interview engine, extractor, synthesis, pushback, safety gate, session store |
+| `email/` | Transactional email rendering + send |
+| `ideation/` | No-Idea archetype Stage 0–5 engines (currently Stage 0+1; Stages 2–5 in progress) |
+| `legal/` | Cookie / privacy / ToS rendering helpers |
+| `lifecycle/` | FounderProfile + Venture + Cycle context loaders + cross-venture summaries |
+| `observability/` | Sentry instrumentation, agent spans, distributed tracing, queue spans |
+| `outcome/` | RecommendationOutcome anonymisation + consent gating |
+| `paddle/` | Paddle SDK wrapper, signature verification |
+| `phase-context.ts` | Phase numbering + `phaseContext` JSONB builder |
+| `push/` | Push notification dispatch (`sendPushToUser`, per-user prefs) |
+| `research/` | Shared Tavily + Exa tooling exposed to every research-enabled agent |
+| `roadmap/` | Roadmap engine, check-in agent, nudge selector |
+| `tool-jobs/` | Durable ToolJob model: createToolJob, persistToolJobResult, status polling |
+| `transformation/` | Transformation Report engine: opus narrative, redaction baseline + detector, publish flow |
+| `validation/` | Landing page generator, interpretation, lifecycle, server helpers (CSRF, rate limits, error shaping) |
+| `ventures/` | Venture / Cycle model accessors, pause-reason engine |
+| `voice/` | Voice transcription helpers (tier-gated) |
+| `env.ts`, `logger.ts`, `prisma.ts`, `redis.ts`, `rate-limit.ts` | Module singletons + structured logger + per-user/per-IP limiters |
+
+### `client/src/inngest/functions/` — durable workers
+
+```
+account-deletion-function.ts
+backfill-roadmap-task-ids-function.ts
+continuation-brief-function.ts
+conversation-title-function.ts
+discovery-session-function.ts          # Synthesis pipeline (the discovery hot path)
+lifecycle-transition-function.ts       # Venture/Cycle/profile transitions
+paddle-reconciliation-function.ts
+pushback-alternative-function.ts
+roadmap-generation-function.ts
+roadmap-nudge-function.ts
+stuck-job-reconciliation.ts
+transformation-report-function.ts
+usage-anomaly-detection-function.ts
+validation-lifecycle-function.ts
+validation-reporting-function.ts
+tools/
+  ├── coach-prepare-job.ts
+  ├── composer-generate-job.ts
+  ├── packager-adjust-job.ts
+  ├── packager-generate-job.ts
+  ├── research-execute-job.ts
+  └── research-followup-job.ts
+```
+
+Every function follows the canonical accept-and-queue shape: route
+returns immediately with `jobId`; worker reads its event, runs the
+engine inside `step.run` blocks, writes the result via the helpers in
+`lib/tool-jobs/persistence.ts`. See CLAUDE.md "Reliability" § for the
+ToolJob contract.
 
 ---
 
-## 3. The three phases — data flow at a glance
+## 3. The product surface
+
+NeuraLaunch is now a **multi-venture lifecycle**, not a single funnel.
+A founder may run several `Venture` rows over time; each Venture has
+one or more `Cycle` rows (recommendation + roadmap + validation
+attempts); each Cycle hangs off a single `Recommendation`.
 
 ```
-        ┌─────────────────────────┐
-        │  Phase 1: Discovery     │
-        │  /discovery             │
-        │  DiscoverySession +     │
-        │  Recommendation         │
-        └──────────┬──────────────┘
-                   │ acceptedAt
-                   ▼
-        ┌─────────────────────────┐
-        │  Phase 2: Roadmap       │
-        │  /discovery/roadmap     │
-        │  Roadmap +              │
-        │  RoadmapProgress        │
-        └──────────┬──────────────┘
-                   │ recommendationType
-                   │ === build_software
-                   ▼
-        ┌─────────────────────────┐
-        │  Phase 3: Validation    │
-        │  /lp/[slug]             │
-        │  ValidationPage +       │
-        │  Snapshot/Report/Event  │
-        └─────────────────────────┘
+            FounderProfile (1)
+                 │
+                 │ owns
+                 ▼
+          ┌──── Venture (N) ─── status: active / paused / completed / archived
+          │       │
+          │       │ contains
+          │       ▼
+          │     Cycle (N) ──── current cycle attached to one Recommendation
+          │       │
+          │       │ wraps
+          │       ▼
+          │     Recommendation (1) ─── pushbackHistory, acceptedAt
+          │       │
+          │       ├── Roadmap (1) ─── RoadmapProgress (1)
+          │       │     │
+          │       │     └── per-task ToolSession[] (Research, Packager, Composer, Coach)
+          │       │
+          │       └── ValidationPage (0..1)  ── ValidationSnapshot + Report + Event
+          │
+          └── TransformationReport (0..1 per venture lifecycle, on Mark Complete)
+                    │
+                    └── public archive entry (if consented + reviewed + published)
 ```
 
-Each box hangs off the same `Recommendation` row. Phase outputs
-also write `phaseContext` metadata (see section 7) so a future
-orchestration layer can walk the dependency graph backwards.
+The **three core phases** still exist inside any one cycle:
+
+1. **Phase 1: Discovery** — interview → recommendation
+2. **Phase 2: Roadmap** — phased execution plan + check-ins + tools
+3. **Phase 3: Validation** — public landing page + analytics + report
+   (only for `recommendationType === 'build_software'`)
+
+But the **product container around them** is the Venture/Cycle pair,
+which is what enables continuation forks, cross-venture memory,
+transformation reports, and tier-gated venture caps.
+
+The four **per-task Tools** (Research, Packager, Composer, Coach) hang
+off the Roadmap layer — they run as durable ToolJobs and persist
+ToolSessions either standalone on the roadmap or task-launched on a
+specific task. See § 7.
 
 ---
 
 ## 4. Phase 1 — Discovery
 
 **Entry point:** `src/app/(app)/discovery/page.tsx` →
-`DiscoveryChatClient.tsx`. The client streams from
-`src/app/api/discovery/sessions/.../route.ts`.
+`DiscoveryChatClient.tsx` (or the new `ArchetypePicker.tsx` when
+`NEXT_PUBLIC_NO_IDEA_ENABLED=true`).
 
-**Prisma models:** `DiscoverySession`, `Recommendation`,
-`RecommendationOutcome`.
+**Prisma models:** `DiscoverySession`, `Conversation`, `Message`,
+`Recommendation`, `RecommendationOutcome`, `IdeationStageRun`.
 
-**Inngest functions:**
-`src/inngest/functions/discovery-session-function.ts`,
-`src/inngest/functions/pushback-alternative-function.ts`.
+**Inngest functions:** `discovery-session-function.ts` (synthesis),
+`pushback-alternative-function.ts` (round-7 closing alternative),
+`conversation-title-function.ts` (AI-summarised sidebar titles).
 
-### Interview state machine
+### 4.1 Session creation
 
-The engine lives in `src/lib/discovery/interview-engine.ts` and
-runs through five phases declared in `constants.ts`:
-`ORIENTATION → GOAL_CLARITY → CONSTRAINT_MAP → CONVICTION →
-SYNTHESIS`. Per-field caps (`MAX_QUESTIONS_PER_PHASE`) and a
-total cap (`MAX_TOTAL_QUESTIONS = 15`) prevent runaway sessions.
-`question-selector.ts` uses an information-gain heuristic
-(`MIN_EXPECTED_GAIN_TO_CONTINUE = 0.05`) to decide when asking
-the next question is no longer worth the round trip.
+`POST /api/discovery/sessions` does, in order:
 
-State persists in two tiers:
+1. `enforceSameOrigin` + `requireUserId` + `rateLimitByUser` (`AI_GENERATION`)
+2. Zod-validate the body (`firstMessage` ≤ 12 000 chars, optional
+   `scenario`, optional `ventureId` + `forkContext` for continuations,
+   optional `preseededAudienceType`)
+3. **Free-tier lifetime cap** via `assertFreeDiscoverySessionLimit`
+4. **Venture cap** via `assertVentureLimitNotReached` for `fresh_start`
+   and `no_idea` scenarios (paid tiers only; the cap is per-tier)
+5. **Concern 5 (pending outcome)** — if the founder has a prior
+   partially-complete roadmap without an outcome attestation, return
+   200 with `pendingOutcomeRecommendationId` instead of creating a
+   session. The client surfaces the outcome modal; the founder either
+   submits or skips, then re-POSTs with `acknowledgePendingOutcome=true`
+6. Single Prisma transaction creates `Conversation` + `DiscoverySession`
+   (plus `IdeationStageRun(stage=0, status='committed')` and
+   `IdeationStageRun(stage=1, status='authoring')` when scenario is
+   `'no_idea'`)
+7. Seed `InterviewState` in Upstash Redis with the appropriate
+   lifecycle scenario + audience preseed
+8. Fire `discovery/conversation.title.requested` Inngest event when a
+   `firstMessage` is present (Haiku summarises it into a 3-5 word
+   sidebar title)
 
-1. **Upstash Redis** with a sliding 15-minute TTL
-   (`SESSION_TTL_SECONDS`). Read/written through
-   `src/lib/discovery/session-store.ts`.
-2. **Postgres `DiscoverySession`** as the durable fallback. Every
-   meaningful state write also persists here so a Redis miss
-   (TTL expiry, regional outage, key eviction) does not lose
-   the founder's progress.
+### 4.2 Per-turn loop
 
-`teeDiscoveryStream` mirrors the in-flight token stream into
-Redis so a reconnecting client can resume mid-question.
+`POST /api/discovery/sessions/[sessionId]/turn` runs `maxDuration = 90s`
+to absorb the worst case of the model fallback chain. Each turn:
 
-### Belief state — `DiscoveryContext`
+1. CSRF + auth + `DISCOVERY_TURN` rate limit
+2. `getSession()` reads Redis with Postgres fallback on miss (15-min
+   sliding TTL; Postgres is the source of truth; Redis miss → rehydrate
+   + re-warm)
+3. **Safety gate** on every message via `runSafetyGate` (Haiku primary,
+   Sonnet fallback). On `severity: 'block'` the session is permanently
+   `TERMINATED` and no further messages are accepted — the boundary is
+   independent per message so a refusal on turn 1 cannot be socially
+   engineered around on turn 2
+4. Persist user `Message` (fire-and-forget; non-fatal)
+5. Load lifecycle context fresh per turn (`FounderProfile`,
+   `cycleSummaries`, `crossVentureSummaries` for Compound)
+6. `extractContext` — a single Sonnet `generateText` + `Output.object`
+   call does classification AND multi-field extraction AND follow-up
+   detection in one shot. Multi-field is the critical fix: a founder
+   who says "I'm a solo accountant in Lagos with ₦5M saved" populates
+   four fields in one turn instead of one
+7. Branch on `inputType`: `offtopic` / `frustrated` / `clarification` /
+   `synthesis_request` / `answer`. Contradictions stream a clarification
+   response. Empty extraction = one unclear retry, force-skip after 2
+   consecutive misses
+8. `applyUpdate` — confidence-merge incoming extractions, advance the
+   phase machine, mark every extracted field as asked (including
+   fields the founder volunteered unprompted)
+9. **Audience classification** at Q4, optional reclassify at Q7 if
+   confidence ≥ 0.7 — silent today, will be replaced by the
+   explicit-pick archetype picker as the No-Idea track lands
+10. **B1 pre-research** for the main question-generation path: a short
+    non-streaming Sonnet call exposes Tavily + Exa as tools and decides
+    whether to research the founder's prior message. Findings flow into
+    the streaming question generator's `researchFindings` option —
+    never dumped to the founder
+11. Persist to Postgres (beliefState, askedFields, researchLog
+    appended) + Redis (state)
+12. Synthesis transition? Fire `discovery/synthesis.requested`, mark
+    session `COMPLETE`, stream `generateReflection` with
+    `X-Synthesis-Transition: true`
+13. Otherwise: pricing-change one-shot, follow-up slot (topic-similarity
+    dedup + 3-question cooldown), or main `generateQuestion`
 
-Defined in `src/lib/discovery/context-schema.ts`. Every field is
-a `beliefField` carrying a `value`, a `confidence` in `[0,1]`,
-and an `extractedAt` timestamp. A field counts as "known" only
-once `MIN_FIELD_CONFIDENCE = 0.65` is reached, and the engine
-will only allow synthesis once `SYNTHESIS_READINESS_RATIO = 0.80`
-of required fields are known (`assumption-guard.ts:canSynthesise`).
+### 4.3 Belief state — `DiscoveryContext`
 
-Every read of the JSON column goes through
-`safeParseDiscoveryContext`. Direct casts are forbidden — see
-section 7 ("toJsonValue / safeParse helpers").
+Defined in `src/lib/discovery/context-schema.ts`. Fifteen fields
+grouped by phase, each wrapped in `beliefField<T>({ value, confidence,
+extractedAt })`. The 15th — `motivationAnchor` — captures the
+founder's purpose (distinct from `whyNow` which is timing) and is
+referenced by check-in nudges and continuation diagnostics.
 
-### Synthesis flow
+A field counts as "known" only once `MIN_FIELD_CONFIDENCE = 0.65` is
+reached. `canSynthesise()` requires **both**:
 
-When `canSynthesise()` returns true (or the founder explicitly
-asks for it), the route fires `discovery/synthesis.requested`.
-`discoverySessionFunction` runs the pipeline as Inngest steps so
-every stage is durable and individually retryable:
+1. Overall weighted completeness ≥ `SYNTHESIS_READINESS_RATIO = 0.80`
+2. No critical field (weight ≥ 0.8) at confidence 0
+
+Hard ceiling: `MAX_TOTAL_QUESTIONS = 15`. Every JSON-column read uses
+`safeParseDiscoveryContext`; direct casts are forbidden.
+
+### 4.4 Synthesis pipeline
+
+`discoverySessionFunction` (`retries: 2`, `timeouts.start: '10m'`) runs:
 
 ```
-load belief state
+load belief state            (Postgres rehydrate if Redis missed)
    │
    ▼
-summariseContext       (Sonnet, fast)
+summariseContext             (Sonnet, cached prefix)
    │
    ▼
-eliminateAlternatives  (Sonnet — kills weak paths)
+eliminateAlternatives        (Sonnet, cached prefix)
    │
    ▼
-runResearch            (targeted web research)
+load lifecycle context block (FounderProfile + cycle summaries +
+                              cross-venture for Compound)
    │
    ▼
-runFinalSynthesis      (Opus, extended thinking)
+runFinalSynthesis            (Opus 4.6, in-loop research via Tavily +
+                              Exa tools — RESEARCH_BUDGETS.recommendation
+                              = 10 steps total; AI SDK tool loop picks
+                              tool + query per call)
    │
    ▼
-persist Recommendation
+persist Recommendation       (tx-idempotent: findFirst against the
+                              partial unique (sessionId WHERE
+                              parentRecommendationId IS NULL), then
+                              create-or-update)
    │
    ▼
-emit discovery/roadmap.requested  (warm-up)
+cleanup Redis session
 ```
 
-The output is validated against `RecommendationSchema`
-(`recommendation-schema.ts`) before it touches the database. The
-schema enforces a single committed `summary`, exactly three
-`firstThreeSteps`, an `alternativeRejected` block, an explicit
-`assumptions` array, and a `whatWouldMakeThisWrong` field.
+`Recommendation.researchLog` carries one entry per tool invocation:
+`{ agent, tool, query, resultSummary, timestamp }`. The roadmap warm-up
+that used to live here was **removed** — roadmap generation now fires
+only when the founder explicitly clicks "Build my roadmap" on accept.
 
-### `recommendationType` and downstream gating
+### 4.5 Pushback engine
 
-Synthesis classifies the action shape into one of seven values
-declared in `RECOMMENDATION_TYPES`:
+`src/lib/discovery/pushback-engine.ts`. Two-phase model:
 
-| Value | Meaning | Downstream |
-|---|---|---|
-| `build_software` | Build a software product | Validation page CTA shown |
-| `build_service` | Productised service / consulting | No validation page (yet) |
-| `sales_motion` | Already has product, sell it | No validation page |
-| `process_change` | Behavioural / operational fix | No validation page |
-| `hire_or_outsource` | Capacity bottleneck | No validation page |
-| `further_research` | Not enough data yet | No validation page |
-| `other` | Catch-all | No validation page |
+- **Phase 1A — reasoning + research.** Opus + research tools, free-form
+  text output, `RESEARCH_BUDGETS.pushback = 5` steps. Emits plain
+  reasoning covering mode (`analytical | fear | lack_of_belief`),
+  action (`continue_dialogue | defend | refine | replace`),
+  `converging` boolean, and rebuttal message.
+- **Phase 1B — structured emission.** Sonnet, `Output.object` against
+  `PushbackResponseSchema`. Single concern: format phase 1A's reasoning
+  into valid JSON. Splitting the work fixed a round-4+ production
+  incident where combining tools + structured output exhausted the step
+  budget mid-emission.
+- **Phase 2 — rewrite (optional).** Fires only on `action ∈
+  {refine, replace}`. Opus, full `RecommendationSchema` output, cached
+  prefix, max 16 k output tokens. Result is merged through
+  `mergeRecommendationPatch` which validates against the canonical
+  schema before persisting.
 
-`VALIDATION_PAGE_ELIGIBLE_TYPES` is the single set the UI and the
-API both check. Defence in depth: the validation-page route
-re-checks the type server-side and refuses to provision a page
-for ineligible recommendations.
+Round limits are tier-aware: Execute = 10, Compound = 15. Soft re-frame
+fires at `SOFT_WARN_ROUND` when `converging: false`; server-side
+appends the canonical phrase if the model didn't honour the contract.
+`HARD_CAP_ROUND` triggers `pushbackAlternativeFunction`, which
+synthesises a constrained alternative recommendation linked back via
+`alternativeRecommendationId`.
 
-### Pushback engine (Concern 1 + 2)
+Concurrency is enforced through `Recommendation.pushbackVersion`, an
+integer optimistic lock. Every pushback write uses
+`updateMany({ where: { id, pushbackVersion: previousVersion } })` and
+treats `count: 0` as a contention failure. **Removing this field
+would silently corrupt history.**
 
-`src/lib/discovery/pushback-engine.ts`. The founder can challenge
-any recommendation. Configuration in `PUSHBACK_CONFIG`:
-`SOFT_WARN_ROUND = 4` (re-frame fires only if the model
-self-reports a stalled dialogue) and `HARD_CAP_ROUND = 7` (the
-agent's response on this round is the closing move — there is
-no eighth turn). Every pushback turn produces one of five
-structured actions: `continue_dialogue`, `defend`, `refine`,
-`replace`, `closing`.
+### 4.6 Acceptance + outcome
 
-Concurrency is enforced through `Recommendation.pushbackVersion`,
-an integer optimistic lock. Every write uses
-`updateMany({ where: { id, pushbackVersion: previousVersion } })`
-and treats a `count: 0` result as a contention failure. **Removing
-this field would silently corrupt history** (see section 9).
-
-On the closing turn, the route fires
-`discovery/pushback.alternative.requested`.
-`pushbackAlternativeFunction` reads the entire pushback transcript
-and synthesises a constrained alternative recommendation, linked
-back to the original via `alternativeRecommendationId`.
-
-### Acceptance flow
-
-`POST /api/discovery/recommendations/[id]/accept` writes
-`acceptedAt` and `acceptedAtRound`. Acceptance is the gate for
-the roadmap UI, but **roadmap generation itself is decoupled**:
-the synthesis function emits `discovery/roadmap.requested` as a
-warm-up immediately after writing the Recommendation, so by the
-time the founder accepts, the roadmap is usually already on disk.
-Acceptance is idempotent and can be revoked, but revoking does
-not invalidate an already-generated roadmap.
-
-### Concern 5 — outcome capture
+`POST /api/discovery/recommendations/[id]/accept` writes `acceptedAt`
+and `acceptedAtRound`. Acceptance fires `discovery/roadmap.requested`
+which produces the roadmap on-demand (no speculative warm-up).
 
 `POST /api/discovery/recommendations/[id]/outcome` writes a
-`RecommendationOutcome` row. The user picks an outcome category
-and explicitly toggles `consentedToTraining`. Anonymisation runs
-in `src/lib/outcome/`, which strips PII and produces an
-`anonymisedRecord` JSON blob — but **only if consent is true**.
-This is the hard data invariant in section 9.
+`RecommendationOutcome` row. The founder picks one outcome category and
+toggles `consentedToTraining` explicitly. Anonymisation runs in
+`src/lib/outcome/`; the `anonymisedRecord` field is populated **only
+if consent is true**. This is hard invariant #1 in § 11.
+
+### 4.7 No-Idea archetype (in progress)
+
+A new ideation track for founders who arrive without an idea. Six
+stages produce a ranked shortlist of five evaluated opportunities; the
+top one is committed as a normal `Recommendation` and hands off into
+the existing Phase 2 roadmap pipeline. The remaining four sit dormant
+in the continuation-brief mechanism (§ 9.3) as forks for if validation
+fails.
+
+Persistence: `IdeationStageRun` (one row per `(sessionId, stageNumber)`)
+with `status` discriminating between `Stage{N}AuthoringState` and
+the final per-stage `*Document`. Routes at `/api/ideation/stage-runs/
+[id]/commit` and `/edit`. Feature flag: `NEXT_PUBLIC_NO_IDEA_ENABLED`.
+
+Stage 0 (mindset) and Stage 1 (Outcome Definition) are the current
+delivery. Stages 2–5 are under design.
 
 ---
 
@@ -256,317 +395,339 @@ This is the hard data invariant in section 9.
 
 **Prisma models:** `Roadmap`, `RoadmapProgress`.
 
-**Inngest functions:**
-`src/inngest/functions/roadmap-generation-function.ts`,
-`src/inngest/functions/roadmap-nudge-function.ts`.
+**Inngest functions:** `roadmap-generation-function.ts`,
+`roadmap-nudge-function.ts`, `stuck-job-reconciliation.ts`,
+`backfill-roadmap-task-ids-function.ts`.
 
-### Generation
+### 5.1 Generation
 
-`roadmapGenerationFunction` consumes
-`discovery/roadmap.requested`. The function is fully idempotent:
-if a roadmap already exists for the recommendation it returns
-without producing a duplicate. The roadmap engine
-(`src/lib/roadmap/roadmap-engine.ts`) calls Sonnet with a Zod
-schema (`roadmap-schema.ts`) describing phased tasks and
-exit criteria, then persists the result and creates the matching
-`RoadmapProgress` row with `completedTasks = 0`, `blockedTasks = 0`,
-and `totalTasks` derived from the generated task list.
+`roadmapGenerationFunction` consumes `discovery/roadmap.requested`. The
+function is idempotent: if a roadmap already exists for the
+recommendation it returns without producing a duplicate. The engine
+(`src/lib/roadmap/roadmap-engine.ts`) calls Sonnet with
+`RoadmapSchema`, persists the result, and creates the matching
+`RoadmapProgress` row in the same transaction. `totalTasks`,
+`completedTasks`, `blockedTasks`, `outcomePromptSkippedAt`, and
+`venturePauseReason` are all derived in-transaction so reading them
+out of band is safe.
 
-`completedTasks` / `blockedTasks` / `totalTasks` are kept in sync
-inside the same Prisma transaction as every check-in write.
-Reading them out of band is safe because they are never updated
-without the underlying tasks JSON being updated in the same
-statement.
+### 5.2 Check-ins
 
-### Check-ins (Concern 4)
+`POST /api/discovery/roadmaps/[id]/tasks/[taskId]/checkin` runs the
+check-in agent in `src/lib/roadmap/checkin-agent.ts`. The agent
+receives the prior `checkInHistory` for the task plus a free-text
+founder update, and emits one of `agentAction`: `acknowledge`,
+`ask_follow_up`, `propose_changes`, `escalate`. The agent decides
+whether to research mid-check-in via Tavily/Exa (`RESEARCH_BUDGETS.
+checkin = 4` steps).
 
-`POST /api/discovery/roadmaps/[id]/tasks/[taskId]/checkin`
-runs the check-in agent in `src/lib/roadmap/checkin-agent.ts`.
-The agent receives the prior check-in history for the task plus
-a free-text update from the founder, and emits a structured
-response with one of these `agentAction` values: acknowledge a
-completion, ask a follow-up, propose changes to the next step,
-or escalate. Every entry is appended to `checkInHistory` on the
-task within the roadmap JSON; `RoadmapProgress` counters are
-updated in the same transaction.
+Every entry is appended to the task's `checkInHistory`; counters in
+`RoadmapProgress` are updated in the same transaction.
 
-The `proposedChanges` payload is **surfaced as readable text only**.
-The accept/reject mutation editor (the "Roadmap Adjustment Layer")
-is deliberately deferred — see section 8.
+### 5.3 Writability + pause lockdown
 
-### Nudge cron
+A Venture in `paused` or `completed` status puts the entire roadmap
+into read-only mode via `RoadmapWritabilityContext` (React context
+threaded through the tree). The pause cron also freezes the nudge
+function so paused ventures don't get re-engaged. Compound-tier
+founders see a "Compound upgrade hint" on `/discovery` when they have
+≥1 paused venture and are on Execute tier.
 
-`roadmapNudgeFunction` runs on a schedule, finds tasks marked as
-in-progress with no recent activity, and prompts the founder for
-an outcome update. Same path also surfaces the outcome capture
-flow when a roadmap reaches its final task.
+`POST /api/discovery/ventures/[ventureId]/pause` runs the pause-reason
+agent (`lib/ventures/pause-reason-engine.ts`) — a conversational agent
+that responds to the founder's pause reason with one of three modes:
+acknowledge, gentle reframe, or pattern-mirror (when the founder shows
+a serial-pause history).
 
-### STALE state via late pushback
+### 5.4 Nudge cron
 
-A founder can return to the recommendation after the roadmap has
-been generated and push back. If the pushback agent's action is
-`refine`, the resulting Recommendation update marks the existing
-roadmap as stale via the `phaseContext.upstream` link, so the
-roadmap UI surfaces a "regenerate" affordance. The roadmap row
-itself is not deleted — staleness is metadata.
+`roadmapNudgeFunction` runs on a schedule, finds tasks stuck for ≥ N
+days, and chooses one of: gentle nudge, motivation-anchor reminder
+(uses the belief state's `motivationAnchor`), or escalation. Skipped
+for paused ventures. Skipped for founders whose `nudgesEnabled` is
+false.
+
+### 5.5 Continuation brief
+
+When the founder clicks **"What's Next"** on the Roadmap, the
+continuation engine generates a brief (`continuation-brief-function.
+ts`) tailored to one of four scenarios (zero / partial / 70%+ / 100%
+task completion). The brief contains five sections: What Happened,
+What I Got Wrong, What the Evidence Says, The Fork, The Parking Lot.
+Forks let the founder pick a continuation path; the parking lot is a
+JSONB array of deferred items that flow into the next venture's
+context.
 
 ---
 
 ## 6. Phase 3 — Validation
 
-**Entry points:**
-- Authenticated editor at `src/app/(app)/discovery/validation/`
-- Provisioning at `src/app/api/discovery/recommendations/[id]/validation-page/`
-- CRUD at `src/app/api/discovery/validation/`
-- Public renderer at `src/app/lp/[slug]/`
-- Public analytics at `src/app/api/lp/analytics/`
+**Entry point:** `src/app/(app)/discovery/validation/`. Public read at
+`/lp/[slug]`. Analytics beacon at `/api/lp/analytics`.
 
 **Prisma models:** `ValidationPage`, `ValidationSnapshot`,
 `ValidationReport`, `ValidationEvent`.
 
-**Inngest functions:**
-`src/inngest/functions/validation-reporting-function.ts`,
-`src/inngest/functions/validation-lifecycle-function.ts`.
+**Inngest functions:** `validation-lifecycle-function.ts`,
+`validation-reporting-function.ts`.
 
-### Eligibility gate
+### 6.1 Eligibility
 
-The validation surface only exists for recommendations whose
-`recommendationType` is in `VALIDATION_PAGE_ELIGIBLE_TYPES`
-(currently just `build_software`). The gate is enforced in three
-places: the UI hides the CTA, the provisioning route rejects
-ineligible recommendations with a 400, and the page generator
-refuses to run.
+Only `recommendationType === 'build_software'` recommendations get a
+validation page. `VALIDATION_PAGE_ELIGIBLE_TYPES` is the single set
+the UI and API both check; the validation-page route re-checks
+server-side and refuses to provision for ineligible recommendations.
 
-### Lifecycle: `DRAFT → LIVE → ARCHIVED`
+### 6.2 Page generation
 
-Lifecycle thresholds live in `src/lib/validation/constants.ts`:
+`POST /api/discovery/validation-pages` consumes the accepted
+recommendation and generates a landing page through
+`src/lib/validation/page-generator.ts`. The page renders publicly at
+`/lp/[slug]`. Founder edits go through the validation editor in the
+authenticated app.
 
-- `VALIDATION_PAGE_CONFIG.DRAFT_EXPIRY_HOURS = 72` — drafts not
-  published within 72 hours are auto-archived.
-- `VALIDATION_PAGE_CONFIG.MAX_ACTIVE_DAYS = 30` — LIVE pages with
-  no build brief generated in 30 days are archived.
-- `validationLifecycleFunction` runs daily and applies both
-  sweeps. It also purges old `ValidationEvent` rows on archived
-  pages so the analytics table does not grow unbounded.
+### 6.3 Analytics + lifecycle
 
-### Page generation pipeline
+`/api/lp/analytics` is the only **unauthenticated** route in the
+codebase. It is hardened with IP rate limiting, a body size cap, and
+a `taskId` cross-check. Events are persisted to `ValidationEvent`.
 
-1. **Build brief generator** (`build-brief-generator.ts`) — Opus,
-   produces the structured page content from the parent
-   Recommendation.
-2. **Distribution generator** (`distribution-generator.ts`) — picks
-   `DISTRIBUTION_BRIEF_CONFIG.CHANNEL_COUNT` channels (default 3)
-   that meet the `MIN_GROUP_SIZE_FOR_RECOMMENDATION` threshold.
-3. **Page generator** (`page-generator.ts`) — selects one of the
-   three controlled `LAYOUT_VARIANTS` (`product`, `service`,
-   `marketplace`) and assembles the rendered page.
+`validation-lifecycle-function.ts` runs on a schedule and transitions
+the page through lifecycle states based on traffic + time-on-page +
+form submission rates. Below the qualitative gate, the page surfaces
+a "low-traffic warning" so the founder knows not to over-read the
+report.
 
-The variant is chosen by the engine, never the user — consistent
-structure is what makes cross-page analytics meaningful.
+### 6.4 Reporting
 
-### Public rendering and analytics
-
-`/lp/[slug]/page.tsx` renders the page server-side and is the
-only public surface that does not require auth. Client-side
-events (visit, scroll depth, feature interest click, survey
-response) post to `/api/lp/analytics`, which validates the
-payload against a Zod schema, applies CSRF / origin checks, and
-inserts a `ValidationEvent` row.
-
-### Reporting
-
-`validationReportingFunction` consumes
-`validation/report.requested`. With no `pageId` it processes
-every LIVE page (cron mode); with a `pageId` it forces a single
-report (on-demand mode). Each run:
-
-1. Loads recent events into `metrics-collector.ts`.
-2. Writes a `ValidationSnapshot` of the raw counters.
-3. If thresholds in `VALIDATION_SYNTHESIS_THRESHOLDS` are met
-   (`MIN_VISITORS_FOR_BRIEF = 50`,
-   `MIN_FEATURE_CLICKS_FOR_BRIEF = 5`,
-   `MIN_SURVEY_RESPONSES_FOR_SYNTHESIS = 3`), runs the
-   `interpreter.ts` agent and writes a `ValidationReport` with a
-   `signalStrength` enum.
-4. Writes that `signalStrength` back to the parent
-   `Recommendation.validationOutcome` (Concern 3 substrate).
-
-If `DAYS_BEFORE_LOW_TRAFFIC_WARNING = 4` passes without hitting
-visitor thresholds, the next-action recommendation flips from
-"wait for data" to "your traffic strategy needs attention".
+`validation-reporting-function.ts` consumes the lifecycle transition
+and produces a `ValidationReport` — a structured doc naming
+confirmed assumptions, disconfirmed assumptions, and the surrounding
+evidence (snapshots, event counts, traffic source breakdown). The
+interpreter handles strict-parse failures by returning the raw session
+rather than dropping it.
 
 ---
 
-## 7. Cross-cutting infrastructure
+## 7. Tools layer
 
-### Auth — NextAuth v5
+Four founder-facing tools accelerate roadmap execution. Each runs as a
+durable **ToolJob** (Inngest function in `inngest/functions/tools/`)
+and persists results via the shared `lib/tool-jobs/persistence.ts`
+helper, which handles both standalone (`roadmap.toolSessions[]`) and
+task-launched (`task.<x>Session`) shapes through one entry point.
 
-Server-side sessions only, configured in `src/app/auth/`. The
-Prisma adapter requires the `Session`, `Account`, and
-`VerificationToken` tables to exist even though no application
-code calls `prisma.session.*` directly. Those models look dead in
-a grep but are load-bearing — leave them.
+| Tool | Purpose | Worker file | Sub-models |
+|---|---|---|---|
+| **Research** | Long-form research session with founder follow-ups | `research-execute-job.ts`, `research-followup-job.ts` | `ResearchSession`, `ResearchFollowUp` |
+| **Packager** | Productised-service offer + revenue scenarios | `packager-generate-job.ts`, `packager-adjust-job.ts` | `PackagerSession`, `PackagerScenario` |
+| **Composer** | Outreach message drafts (cold-email, warm intros, etc.) | `composer-generate-job.ts` | `ComposerSession` |
+| **Coach** | Conversation rehearsal (sales call, hard meeting, etc.) | `coach-prepare-job.ts` | `CoachSession` |
 
-### Inngest events
+The accept-and-queue route shape:
 
-`src/inngest/client.ts` is the single source of truth for event
-payload shapes. Every event is declared with a typed `data`
-field; runtime sends are checked against this map. The literal
-event-name strings live next to their consumers
-(`PUSHBACK_ALTERNATIVE_EVENT`, `VALIDATION_REPORTING_EVENT`,
-`VALIDATION_LIFECYCLE_EVENT`, `ROADMAP_EVENT`) so call sites
-import the constant rather than typing the string twice.
+```
+validate (auth, tier, quota, ownership) →
+  createToolJob({ userId, roadmapId, toolType, sessionId, taskId? }) →
+  sendToolJobEvent(job.id, { name: 'tool/<x>.requested', data }) →
+  return 202 with { jobId, sessionId }
+```
 
-### Logging and error response
+The route owns **no** LLM calls. The worker runs the engine in
+`step.run` blocks (`context_loaded` → `researching` → `emitting` →
+`persisting`) and writes its result via `persistToolJobResult`.
 
-`src/lib/logger.ts` is the only logger. Use `log.error(msg, err)`
-with a real `Error` instance so stack traces survive — passing
-a string loses them. `httpErrorToResponse` in
-`src/lib/api-error.ts` is the single error sink for every API
-route: it converts `HttpError` instances into safe client
-responses, logs the original error server-side via `log.error`,
-and forwards to Sentry. Internal stack traces never reach the
-client.
-
-### Rate limiting
-
-`src/lib/rate-limit.ts`. `rateLimitByUser(userId, key, config)`
-is mandatory on every AI-touching route. Rate limits are
-declared in a single `RATE_LIMITS` map; routes pass the relevant
-preset (`AI_GENERATION`, `READ`, etc).
-
-### `safeParseX` and `toJsonValue` helpers
-
-Prisma JSON columns return `unknown` at the type level. Casting
-them is forbidden because schema drift, corrupt rows, or null
-values produce silent runtime crashes. Every JSON read instead
-goes through a `safeParseX` helper that runs the matching Zod
-schema and returns either the parsed value or an empty default
-(`safeParseDiscoveryContext`, `safeParsePushbackHistory`,
-`safeParsePhaseContext`, etc). Writes go through `toJsonValue`,
-which strips `undefined` and narrows the value to the
-`Prisma.JsonValue` type so the compiler accepts it without a
-cast.
-
-### Question generation fallback chain
-
-`src/lib/ai/question-stream-fallback.ts`. The interview hot path
-calls Sonnet first; on timeout, overload, or transport failure
-it falls back to Claude Haiku 4.5 (different Anthropic
-infrastructure), and if that also fails, to Gemini 2.5 Flash
-(different vendor entirely, same Vercel AI SDK interface). The
-chain is **not dead code** — it is the resilience layer that
-keeps interviews alive during partial provider outages, and is
-called out as a hard invariant in section 9. Synthesis
-deliberately does not fall back: if Opus fails the synthesis
-surfaces the failure rather than silently producing a weaker
-recommendation.
-
-### Sentry
-
-`@sentry/nextjs` is wired through `next.config.ts` and the
-`instrumentation*.ts` entry points. The logger forwards errors
-to Sentry automatically; routes do not call Sentry directly.
-
-### `phaseContext`
-
-`src/lib/phase-context.ts` declares `PHASES` (the canonical
-phase numbering) and a small builder. Every phase output row
-(`Recommendation`, `Roadmap`, `ValidationPage`, `ValidationReport`)
-has a `phaseContext Json?` column carrying its phase number plus
-a list of upstream rows it consumed. The module is intentionally
-behaviour-free — it is the substrate the future cross-phase
-orchestration layer (Concern 3, deferred) will read to walk the
-dependency graph backwards.
+The client polls `/api/discovery/roadmaps/[id]/tool-jobs/[jobId]/status`
+via `useToolJob` (3s foreground / 30s backgrounded) and renders
+`<ToolJobProgress>` until the worker writes the result. Short
+conversational LLM calls (Coach roleplay turns, Composer/Packager
+context exchange) stay synchronous because they need to feel immediate.
 
 ---
 
-## 8. Concerns 1–5 status
+## 8. Lifecycle memory
 
-See `docs/AGENT_ARCHITECTURE_REVIEW.md` for the full text of each
-concern.
+`src/lib/lifecycle/` owns the cross-venture / cross-cycle memory layer
+that lets agents reference what already happened.
 
-| # | Concern | Status |
-|---|---|---|
-| 1 | Mutable recommendations / pushback | **Shipped.** Pushback engine, soft warn at round 4, hard cap at round 7, alternative synthesis on closing turn. |
-| 2 | Roadmap gated behind acceptance | **Shipped.** `acceptedAt` gates the UI; warm-up event keeps generation latency near zero. |
-| 3 | Phase coordination | **Substrate only.** `phaseContext` columns and `validationOutcome` written; the orchestration layer itself is deferred. |
-| 4 | Two-track ongoing support / check-ins | **Shipped (read-only adjustments).** Check-in agent runs; the accept/reject editor for proposed roadmap changes is deferred. |
-| 5 | Outcome capture for training | **Shipped.** `RecommendationOutcome` + consented anonymisation. |
+### 8.1 `FounderProfile`
 
-Two items are deliberately deferred until production data
-justifies the build:
+One row per user. Captures stable founder-level facts derived from past
+interview belief states: their consistent voice, recurring constraints,
+serial patterns. Updated lazily as cycles complete.
 
-- **Roadmap Adjustment Layer** (Concern 4) —
-  `src/app/api/discovery/roadmaps/[id]/tasks/[taskId]/checkin/route.ts`.
-  Trigger to build: 15+ `adjusted_next_step` check-in entries
-  logged in production. At that point the actual `proposedChanges`
-  shapes inform the editor design.
-- **Cross-Phase Orchestration Layer** (Concern 3) —
-  `src/inngest/functions/validation-reporting-function.ts`.
-  Trigger to build: 20+ completed validation reports across real
-  founder sessions. Build it only if Phase-3-vs-Phase-2
-  contradictions appear in 30%+ of cases; otherwise the manual
-  pushback path is sufficient.
+### 8.2 `Venture` + `Cycle`
 
----
+`Venture` is the long-lived container (single product / direction);
+`Cycle` is one attempt at it (one recommendation + roadmap + optional
+validation). A venture in `paused` state freezes the cycle; a
+`completed` venture has been Mark-Complete'd and may have a
+`TransformationReport`. `archivedAt` hides it from the founder's
+default view.
 
-## 9. Hard data invariants
+### 8.3 Context loaders + prompt renderers
 
-These three rules must never break. A failing test on any of
-them indicates a serious bug, not a flaky test.
+`loadInterviewContext(userId, scenario, opts)` reads the right slice
+based on `lifecycleScenario`:
 
-1. **Outcome consent gating.** A `RecommendationOutcome` row with
-   `consentedToTraining = false` must NEVER carry a non-null
-   `anonymisedRecord`. Anonymisation only runs when consent is
-   true at submission time; a daily lifecycle sweep additionally
-   nulls `anonymisedRecord` after the 24-month TTL while leaving
-   `consentedToTraining` intact.
-2. **Pushback optimistic lock.**
-   `Recommendation.pushbackVersion` is the row-level lock for
-   concurrent pushback writes. Every write site uses
-   `updateMany({ where: { id, pushbackVersion: previousVersion } })`
-   and treats `count: 0` as contention. Removing the field, or
-   switching to `update`, would silently corrupt history.
-3. **Question generation fallback chain.** Sonnet → Haiku →
-   Gemini Flash in `src/lib/ai/question-stream-fallback.ts`. The
-   chain is critical resilience infrastructure. Removing a tier,
-   or swapping in a same-vendor model for the bottom tier,
-   defeats the point — a regional Anthropic outage must not be
-   able to take both tiers down.
+- `first_interview` — empty
+- `fresh_start` — FounderProfile + cross-venture summaries (Compound
+  only)
+- `fork_continuation` — FounderProfile + the current venture's cycle
+  summaries + fork context
+- `no_idea` — same as `fresh_start` (the No-Idea track starts a new
+  venture)
+
+`renderInterviewOpeningBlock`, `renderFounderProfileBlock`,
+`renderCycleSummariesBlock`, `renderCrossVentureBlock` produce
+delimiter-wrapped opaque text suitable for direct injection into agent
+prompts. Every renderer uses `renderUserContent` so the model treats
+prior-cycle text as DATA, not instructions — defence in depth against
+indirect injection across the lifecycle boundary.
+
+### 8.4 Cross-venture memory (Compound)
+
+Compound tier reads cycle summaries from **all other** ventures owned
+by the same user. The block is rendered after the within-venture
+summary block. Free + Execute tiers receive the empty string at every
+layer (loader returns `[]`, renderer returns `''`, prompt assembly
+drops the empty block).
 
 ---
 
-## 10. Deliberate non-features
+## 9. Transformation Report
 
-Things that are absent on purpose. New code must not reintroduce
-them.
+Once-per-venture narrative produced when the founder clicks **Mark
+Complete** on a venture.
 
-- **No Pages Router.** App Router only. Anything under `app/` is
-  authoritative; `pages/` does not exist.
-- **No `useEffect` for data fetching.** Server Components fetch
-  data; the client `use()` hook consumes promises. The Discovery
-  chat client streams via the AI SDK hooks, not via ad-hoc
-  effects.
-- **No `framer-motion`.** Motion v12 only, imported from
-  `motion/react`. Any PR that imports `framer-motion` is wrong.
-- **No client-side LLM calls.** All Anthropic / Google calls
-  happen server-side, behind authenticated, rate-limited routes
-  or Inngest functions. API keys never leave the server.
-- **No mocking-as-default in tests.** Per the CLAUDE.md priority
-  hierarchy, the test suite targets hard invariants and security
-  boundaries first. Snapshot tests of LLM prompts are explicitly
-  out of scope. LLM-touching tests use Vercel AI SDK
-  `MockLanguageModelV2` so no real network calls are made — that
-  is the only mocking allowed by default.
-- **No backwards-compatibility shims for the deleted Phase 2
-  agent system.** The old multi-agent wave executor, the
-  Docker-sandbox command tool, the `agentTask` / `agentExecution`
-  / `executionWave` / `agentMemory` / `criticalFailure` models,
-  and the Phase 5 sprint machinery were all deleted in the
-  cleanup. Nothing is left behind to "ease migration" — that
-  code is gone, its tables are gone, and its routes are gone.
+**Prisma model:** `TransformationReport`.
+**Inngest function:** `transformation-report-function.ts`.
+
+The pipeline is durable + idempotent:
+
+```
+opus narrative draft (uses full venture history: belief state,
+                      recommendation, roadmap progress, check-ins,
+                      outcome, tool sessions)
+   │
+   ▼
+redaction baseline    (PII detector + editor — names, emails,
+                       phone numbers, financial specifics)
+   │
+   ▼
+founder review        (founder can edit redactions, push back on
+                       narrative framing, or request a redraft)
+   │
+   ▼
+publish flow          (founder consent → public archive entry at
+                       /stories/[slug] AND admin moderation queue
+                       at /admin/stories)
+```
+
+The public archive is read-only and serves Discovery / Stories pages
+from the database. Consent is per-report — un-consented reports stay
+private to the founder.
 
 ---
 
-*NeuraLaunch — Architecture document last updated: 2026-04-07*
+## 10. Auth, billing, observability
+
+### 10.1 Auth
+
+NextAuth v5 (beta) with server-side sessions. Magic-link or OAuth on
+the web; mobile auth issues a short-lived bridge token redeemable
+through `/api/auth/mobile/session`. The mobile app stores the resulting
+JWT in secure storage and presents it on every request.
+
+### 10.2 Billing
+
+Paddle v4. Webhook at `/api/billing/paddle/webhook` (signature-verified
+via `lib/paddle/`). Subscription state lands on `User.tier` (`free` |
+`execute` | `compound`) and `User.tierTransitions[]` history.
+`paddle-reconciliation-function.ts` is the safety net for missed
+webhooks. `usage-anomaly-detection-function.ts` catches abusive usage
+patterns.
+
+Tier gates appear at four layers:
+
+- **Pricing/upgrade UI** for soft prompts
+- **Server-side asserters** (`assertVentureLimitNotReached`,
+  `assertFreeDiscoverySessionLimit`, etc.) at every state-changing
+  route
+- **Per-call quota** for LLM-intensive routes (some tools are
+  Compound-only)
+- **Voice mode** is tier-gated via `lib/voice/client-tier.ts`
+
+### 10.3 Observability
+
+Sentry covers errors + traces. `lib/observability/` wraps every LLM
+call in an `withAgentSpan` so spans carry the model id, token usage,
+latency, audience type, and any model-fallback events. Inngest queue
+spans (`withInngestQueueSpan`) tie the worker invocation back to the
+originating turn. `withDistributedTrace` propagates the trace context
+through the event bus.
+
+---
+
+## 11. Hard data invariants
+
+These are real correctness invariants enforced by code or database
+constraints. Violations are data corruption, not policy questions.
+
+1. **Outcome consent gating.** `RecommendationOutcome` rows with
+   `consentedToTraining = false` MUST have `anonymisedRecord = null`.
+   Enforced in `src/lib/outcome/anonymise.ts`; tested in
+   `outcome-anonymise.test.ts`. A row with `consentedToTraining=false`
+   AND non-null `anonymisedRecord` is a P0 incident — see RUNBOOK § 5g.
+2. **Pushback optimistic lock.** Every pushback write uses
+   `updateMany({ where: { id, pushbackVersion: prev } })` and treats
+   `count: 0` as contention. Removing `pushbackVersion` would silently
+   corrupt pushback history.
+3. **Session rehydration on Redis miss.** `getSession()` MUST fall back
+   to Postgres on Redis miss — a 15-minute idle pause cannot lose the
+   founder's belief state. See `src/lib/discovery/session-store.ts`.
+4. **Recommendation uniqueness.** The partial unique on
+   `(sessionId WHERE parentRecommendationId IS NULL)` enforces "one
+   primary recommendation per session." Synthesis upsert resolves
+   idempotency through a transactional findFirst-then-create-or-update.
+5. **Ownership scoping on reads.** Every read returning user data uses
+   `findFirst({ where: { id, userId } })`, never `findUnique({ id })` +
+   manual check. Prevents existence-leaks between 404 and 401.
+
+---
+
+## 12. Deliberate non-features
+
+Things the system explicitly does not do, and the reasoning:
+
+- **No code generation, no sandbox, no agent swarm.** Removed in
+  earlier cleanup phases. NeuraLaunch helps the founder decide what
+  to build and proves the demand — building the thing is the
+  founder's job.
+- **No infinite synthesis retries.** `MAX_TOTAL_QUESTIONS = 15` + the
+  synthesis readiness guard are the contract; the engine never loops
+  forever waiting for a clean answer.
+- **No silent classification override on explicit choice.** When the
+  archetype picker is enabled, the founder's self-pick wins; the
+  `detectAudienceType` classifier is skipped (or its result is ignored
+  via `audienceTypeLocked`).
+- **No roadmap warm-up.** Removed because cycles invalidated by
+  pushback wasted the work and the build-but-stale roadmap could leak
+  through. Roadmap generation fires only on explicit accept.
+- **No multi-recommendation output.** The synthesis contract is "ONE
+  path, not two, not 'it depends'". The No-Idea track produces a
+  ranked shortlist of five upstream of synthesis, but the artifact
+  that lands in `Recommendation` is always one.
+
+---
+
+## 13. Where to read next
+
+- **Engineering standards** — `CLAUDE.md`
+- **On-call playbooks** — `RUNBOOK.md`
+- **Source of truth for any specific subsystem** — read the code in
+  the corresponding `lib/` module. The code is more reliable than any
+  prose document including this one.
+
+If you find drift between this document and the code, the code wins.
+Please open a PR updating this file rather than leaving the drift.
