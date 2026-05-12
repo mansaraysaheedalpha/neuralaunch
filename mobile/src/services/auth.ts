@@ -33,7 +33,7 @@ interface AuthState {
   /** Hydrate session from stored token on app launch */
   hydrate:     () => Promise<void>;
   /** Start the OAuth sign-in flow */
-  signIn:      (provider: 'google' | 'github') => Promise<void>;
+  signIn:      (provider: 'google' | 'github' | 'linkedin') => Promise<void>;
   /** Clear session and token */
   signOut:     () => Promise<void>;
 }

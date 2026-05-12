@@ -38,6 +38,16 @@ const PROVIDERS: Record<string, {
     clientId: env.GITHUB_MOBILE_CLIENT_ID,
     scope:    'read:user user:email',
   },
+  linkedin: {
+    // LinkedIn supports multiple authorised redirect URIs per app, so
+    // the web and mobile share the same LINKEDIN_CLIENT_ID. Add
+    // {NEXTAUTH_URL}/api/auth/mobile/callback to the app's authorised
+    // redirect URLs in the LinkedIn developer console alongside the
+    // existing NextAuth web callback.
+    authUrl:  'https://www.linkedin.com/oauth/v2/authorization',
+    clientId: env.LINKEDIN_CLIENT_ID ?? '',
+    scope:    'openid profile email',
+  },
 };
 
 export async function GET(

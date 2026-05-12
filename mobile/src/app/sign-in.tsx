@@ -40,6 +40,13 @@ export default function SignInScreen() {
             fullWidth
           />
           <Button
+            title="Continue with LinkedIn"
+            onPress={() => { void signIn('linkedin'); }}
+            variant="secondary"
+            size="lg"
+            fullWidth
+          />
+          <Button
             title="Continue with GitHub"
             onPress={() => { void signIn('github'); }}
             variant="secondary"

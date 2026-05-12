@@ -144,6 +144,55 @@ async function exchangeGitHubCode(code: string): Promise<OAuthUser> {
   };
 }
 
+async function exchangeLinkedInCode(code: string, callbackUrl: string): Promise<OAuthUser> {
+  // LinkedIn OIDC flow — same shared client credentials the web NextAuth
+  // provider uses (LinkedIn supports multiple authorised redirect URIs
+  // per app, so unlike GitHub there is no separate mobile OAuth App).
+  const tokenRes = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      code,
+      client_id:     env.LINKEDIN_CLIENT_ID     ?? '',
+      client_secret: env.LINKEDIN_CLIENT_SECRET ?? '',
+      redirect_uri:  callbackUrl,
+      grant_type:    'authorization_code',
+    }),
+  });
+
+  if (!tokenRes.ok) {
+    const err = await tokenRes.text();
+    throw new Error(`LinkedIn token exchange failed: ${err}`);
+  }
+
+  const tokens = await tokenRes.json() as { access_token: string };
+
+  // OIDC userinfo endpoint — returns sub/email/name/picture under the
+  // `openid profile email` scopes requested upstream.
+  const profileRes = await fetch('https://api.linkedin.com/v2/userinfo', {
+    headers: { Authorization: `Bearer ${tokens.access_token}` },
+  });
+
+  if (!profileRes.ok) {
+    throw new Error('LinkedIn profile fetch failed');
+  }
+
+  const profile = await profileRes.json() as {
+    sub:     string;
+    email:   string;
+    name:    string;
+    picture: string;
+  };
+
+  return {
+    email:             profile.email,
+    name:              profile.name,
+    image:             profile.picture,
+    provider:          'linkedin',
+    providerAccountId: profile.sub,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Callback handler
 // ---------------------------------------------------------------------------
@@ -195,6 +244,8 @@ export async function GET(request: Request) {
       oauthUser = await exchangeGoogleCode(code, callbackUrl);
     } else if (provider === 'github') {
       oauthUser = await exchangeGitHubCode(code);
+    } else if (provider === 'linkedin') {
+      oauthUser = await exchangeLinkedInCode(code, callbackUrl);
     } else {
       return NextResponse.json({ error: `Unknown provider: ${provider}` }, { status: 400 });
     }
