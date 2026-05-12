@@ -59,6 +59,7 @@
     },
     "extra": {
       "apiUrl": "https://startupvalidator.app",
+      "noIdeaEnabled": true,
       "eas": {
         "projectId": "e6240873-bbe7-49e3-8634-f68f53043cd1"
       }

@@ -8,6 +8,14 @@ import { useEffect, useRef, useState } from 'react';
 import { View, FlatList, StyleSheet, KeyboardAvoidingView, Platform, Pressable } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { HelpCircle } from 'lucide-react-native';
+import Constants from 'expo-constants';
+
+// Mirrors web's NEXT_PUBLIC_NO_IDEA_ENABLED gate. When on, /discovery
+// surfaces the ArchetypePicker instead of dropping straight into chat;
+// when off, today's chat is the entry. Sourced from extra.noIdeaEnabled
+// in app.json so EAS can flip it per environment without a rebuild
+// of the existing chat code path.
+const NO_IDEA_ENABLED = Constants.expoConfig?.extra?.noIdeaEnabled === true;
 
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/services/auth';
@@ -56,20 +64,30 @@ export default function DiscoveryScreen() {
     sendMessage,
   } = useDiscovery();
 
-  // Check for incomplete session on mount
+  // Check for incomplete session on mount. Routing priority mirrors
+  // the web (client/src/app/(app)/discovery/page.tsx): resumable
+  // session wins over the archetype gate so the founder isn't pushed
+  // to pick a starting point when they're already mid-interview.
   useEffect(() => {
     async function check() {
       const existing = await fetchIncompleteSession();
       if (existing) {
         setIncomplete(existing);
         setInitPhase('resumable');
-      } else {
-        setInitPhase('chat');
-        void initSession();
+        return;
       }
+      // No in-flight session. When the archetype gate is on, redirect
+      // to the picker instead of auto-starting a generic chat — same
+      // as the web's <ArchetypePicker /> branch.
+      if (NO_IDEA_ENABLED) {
+        router.replace('/discovery/archetype' as any);
+        return;
+      }
+      setInitPhase('chat');
+      void initSession();
     }
     void check();
-  }, [initSession]);
+  }, [initSession, router]);
 
   async function handleResume() {
     if (!incomplete) return;
