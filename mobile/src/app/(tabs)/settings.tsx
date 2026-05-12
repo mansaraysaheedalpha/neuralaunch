@@ -13,9 +13,9 @@ import {
   FileCheck,
   Bell,
   ChevronRight,
-  ShieldCheck,
   Code,
   Mail,
+  Briefcase,
   ExternalLink,
 } from 'lucide-react-native';
 import { useAuth } from '@/services/auth';
@@ -25,6 +25,7 @@ import { Text, Button, Card, Separator, ScreenContainer } from '@/components/ui'
 import { BillingSection, useBillingOverview } from '@/components/billing/BillingSection';
 import { TierHistorySection } from '@/components/billing/TierHistorySection';
 import { WelcomeBackBanner } from '@/components/billing/WelcomeBackBanner';
+import { DangerZoneSection } from '@/components/settings/DangerZoneSection';
 import { spacing, iconSize } from '@/constants/theme';
 
 const LEGAL_BASE_URL = 'https://startupvalidator.app/legal';
@@ -172,31 +173,37 @@ export default function SettingsScreen() {
         </Card>
       </View>
 
-      {/* Connected accounts — which OAuth providers the founder signed in with */}
-      {linkedProviders.length > 0 && (
-        <View style={styles.section}>
-          <Text variant="overline" color={c.mutedForeground}>Connected accounts</Text>
-          <Card>
-            <View style={{ gap: spacing[2.5] }}>
-              {linkedProviders.map(provider => (
-                <View key={provider} style={styles.providerRow}>
-                  {provider === 'github' ? (
-                    <Code size={iconSize.md} color={c.foreground} />
-                  ) : provider === 'google' ? (
-                    <Mail size={iconSize.md} color={c.foreground} />
-                  ) : (
-                    <ShieldCheck size={iconSize.md} color={c.foreground} />
-                  )}
-                  <Text variant="label" style={{ flex: 1 }}>
-                    {provider === 'github' ? 'GitHub' : provider === 'google' ? 'Google' : provider}
-                  </Text>
-                  <Text variant="caption" color={c.success}>Connected</Text>
-                </View>
-              ))}
-            </View>
-          </Card>
-        </View>
-      )}
+      {/* Connected accounts — mirrors the web settings layout: shows
+          every supported OAuth provider with a Connected/Not-connected
+          badge so the founder can see what they could add (e.g. link
+          LinkedIn for the discovery-agent profile-enrichment boost).
+          Rendered only once the /linked-providers call resolves so
+          the page doesn't flash a 0-of-3 state during hydrate. */}
+      <View style={styles.section}>
+        <Text variant="overline" color={c.mutedForeground}>Connected accounts</Text>
+        <Card>
+          <View style={{ gap: spacing[2.5] }}>
+            <ProviderRow
+              icon={Mail}
+              label="Google"
+              connected={linkedProviders.includes('google')}
+              colors={c}
+            />
+            <ProviderRow
+              icon={Briefcase}
+              label="LinkedIn"
+              connected={linkedProviders.includes('linkedin')}
+              colors={c}
+            />
+            <ProviderRow
+              icon={Code}
+              label="GitHub"
+              connected={linkedProviders.includes('github')}
+              colors={c}
+            />
+          </View>
+        </Card>
+      </View>
 
       {/* Notifications */}
       <View style={styles.section}>
@@ -296,6 +303,14 @@ export default function SettingsScreen() {
         fullWidth
       />
 
+      {/* Danger zone — account deletion. Sits after sign-out (and
+          its own visual section) so the founder has to scroll past
+          the non-destructive option to find the destructive one. */}
+      <View style={[styles.section, { marginTop: spacing[6] }]}>
+        <Text variant="overline" color={c.destructive}>Danger zone</Text>
+        <DangerZoneSection />
+      </View>
+
       <Text variant="caption" color={c.mutedForeground} align="center" style={{ marginTop: spacing[4] }}>
         NeuraLaunch v1.0.0
       </Text>
@@ -331,6 +346,30 @@ function LegalRow({
       </Text>
       <ChevronRight size={iconSize.md} color={c.mutedForeground} />
     </Pressable>
+  );
+}
+
+function ProviderRow({
+  icon: Icon,
+  label,
+  connected,
+  colors: c,
+}: {
+  icon: React.ComponentType<{ size?: number; color?: string }>;
+  label: string;
+  connected: boolean;
+  colors: Record<string, string>;
+}) {
+  return (
+    <View style={styles.providerRow}>
+      <Icon size={iconSize.md} color={connected ? c.foreground : c.mutedForeground} />
+      <Text variant="label" style={{ flex: 1 }} color={connected ? c.foreground : c.mutedForeground}>
+        {label}
+      </Text>
+      <Text variant="caption" color={connected ? c.success : c.mutedForeground}>
+        {connected ? 'Connected' : 'Not connected'}
+      </Text>
+    </View>
   );
 }
 

@@ -15,7 +15,7 @@ import { Text } from './Text';
 import { useTheme } from '@/hooks/useTheme';
 import { radius, spacing, typography, animation } from '@/constants/theme';
 
-type Variant = 'primary' | 'secondary' | 'ghost';
+type Variant = 'primary' | 'secondary' | 'ghost' | 'destructive';
 type Size = 'sm' | 'md' | 'lg';
 
 interface Props {
@@ -78,7 +78,11 @@ export function Button({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'primary' ? c.primaryForeground : c.primary}
+          color={
+            variant === 'primary' || variant === 'destructive'
+              ? c.primaryForeground
+              : c.primary
+          }
         />
       ) : (
         <>
@@ -116,9 +120,10 @@ function getContainerStyle(
   };
 
   const variantStyles: Record<Variant, ViewStyle> = {
-    primary:   { backgroundColor: c.primary },
-    secondary: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
-    ghost:     { backgroundColor: 'transparent' },
+    primary:     { backgroundColor: c.primary },
+    secondary:   { backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+    ghost:       { backgroundColor: 'transparent' },
+    destructive: { backgroundColor: c.destructive },
   };
 
   return { ...base, ...sizeStyles[size], ...variantStyles[variant] };
@@ -138,8 +143,9 @@ function getTextStyle(
   return {
     fontSize: sizeMap[size],
     fontWeight: typography.weight.semibold,
-    color: variant === 'primary' ? c.primaryForeground
-         : variant === 'ghost'   ? c.primary
-         :                         c.foreground,
+    color: variant === 'primary'     ? c.primaryForeground
+         : variant === 'destructive' ? c.primaryForeground
+         : variant === 'ghost'       ? c.primary
+         :                             c.foreground,
   };
 }
