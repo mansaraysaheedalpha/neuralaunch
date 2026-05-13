@@ -4,31 +4,61 @@
 // Dismissable Stage 1 introduction banner shown before the first
 // founder message and force-visible when the message list is empty.
 //
-// Dismissal state is in-memory only — it resets when the screen is
-// unmounted. AsyncStorage persistence (parity with the web's
-// localStorage behaviour) is queued for Phase D so we don't add a
-// new dependency just for this banner. The UX cost is small: the
-// banner re-appears if the founder leaves and returns mid-session,
-// but a single Pressable click dismisses it again.
+// Dismissal persists across screen mounts (and app restarts) via
+// expo-secure-store, keyed by sessionId — matches the web's
+// localStorage behaviour. expo-secure-store keys are restricted to
+// [A-Za-z0-9_-], so the sessionId is sanitised before keying.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { X } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { Text } from '@/components/ui';
+import { getPref, setPref } from '@/lib/preferences';
 import { spacing, iconSize, radius } from '@/constants/theme';
 
 interface Stage1BannerProps {
+  /** The Stage 1 session ID — used to scope the dismissal so a
+   *  dismissal in session A doesn't hide the banner in session B. */
+  sessionId: string;
   /** True when the chat has no prior messages yet — banner is always
    *  shown, the dismiss button stays hidden so the founder reads the
    *  intro before sending their first turn. */
   forceVisible: boolean;
 }
 
-export function Stage1Banner({ forceVisible }: Stage1BannerProps) {
-  const { colors: c } = useTheme();
-  const [dismissed, setDismissed] = useState(false);
+function bannerKey(sessionId: string): string {
+  // expo-secure-store only accepts [A-Za-z0-9_-]; replace anything
+  // else with an underscore so arbitrary sessionId shapes still key
+  // safely. Prefix namespaces the key to avoid collisions with other
+  // preferences in the future.
+  const safe = sessionId.replace(/[^A-Za-z0-9_-]/g, '_');
+  return `nl_no_idea_stage1_banner_${safe}`;
+}
 
+export function Stage1Banner({ sessionId, forceVisible }: Stage1BannerProps) {
+  const { colors: c } = useTheme();
+  // null = hydrating from storage (don't flash either state),
+  // false = visible, true = dismissed.
+  const [dismissed, setDismissed] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const stored = await getPref(bannerKey(sessionId));
+      if (!cancelled) setDismissed(stored === '1');
+    })();
+    return () => { cancelled = true; };
+  }, [sessionId]);
+
+  function dismiss() {
+    setDismissed(true);
+    void setPref(bannerKey(sessionId), '1');
+  }
+
+  // Hydrating from secure-store — render nothing rather than flash
+  // the banner. Matches the web's SSR-safe initial-null pattern.
+  if (dismissed === null) return null;
   if (dismissed && !forceVisible) return null;
 
   return (
@@ -50,7 +80,7 @@ export function Stage1Banner({ forceVisible }: Stage1BannerProps) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Dismiss Stage 1 intro"
-          onPress={() => setDismissed(true)}
+          onPress={dismiss}
           hitSlop={8}
           style={({ pressed }) => [styles.dismiss, pressed && { opacity: 0.6 }]}
         >

@@ -5,11 +5,10 @@
 // component: hydrate from GET /api/discovery/no-idea/[sessionId] and
 // pick a surface based on the active stage row.
 //
-// Phase B ships the authoring chat surface in full. output_ready /
-// committed states currently route to a "ready, view on web" message
-// because OutcomeDocumentView is the Phase C deliverable. Stages 2+
-// drop onto Stage2Placeholder copy (Phase D will swap in the real
-// per-stage UX).
+// Authoring chat (Phase B), Outcome Document review (Phase C), and
+// Stage 2 placeholder copy (Phase D) all live behind this dispatcher;
+// Stages 2-5 themselves are not yet implemented on either side, hence
+// the placeholder for those stage numbers.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -33,6 +32,7 @@ import {
   ScreenContainer,
 } from '@/components/ui';
 import { Stage1Banner } from '@/components/discovery/Stage1Banner';
+import { Stage2Placeholder } from '@/components/discovery/Stage2Placeholder';
 import {
   OutcomeDocumentView,
   type OutcomeDocument,
@@ -137,7 +137,7 @@ export default function NoIdeaSessionScreen() {
 
   // Dispatch based on active stage state.
   if (hydration.active.stageNumber >= 2) {
-    return <Stage2PlaceholderScreen stageNumber={hydration.active.stageNumber} />;
+    return <Stage2Placeholder stageNumber={hydration.active.stageNumber} />;
   }
 
   if (hydration.active.stageNumber === 1 && hydration.active.status === 'authoring') {
@@ -277,7 +277,7 @@ function Stage1ChatScreen({
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View>
-            <Stage1Banner forceVisible={messages.length === 0} />
+            <Stage1Banner sessionId={sessionId} forceVisible={messages.length === 0} />
 
             {editingDimension && (
               <BannerStrip
@@ -339,44 +339,6 @@ function Stage1ChatScreen({
         placeholder={isTerminated ? 'Session ended.' : 'Share your thoughts…'}
       />
     </KeyboardAvoidingView>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/* Stage 2 placeholder                                                        */
-/* -------------------------------------------------------------------------- */
-
-function Stage2PlaceholderScreen({ stageNumber }: { stageNumber: number }) {
-  const { colors: c } = useTheme();
-  const router = useRouter();
-  return (
-    <ScreenContainer>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          headerTitle: `Stage ${stageNumber}`,
-          headerTintColor: c.foreground,
-          headerStyle: { backgroundColor: c.background },
-          headerShadowVisible: false,
-        }}
-      />
-      <View style={styles.centered}>
-        <Text variant="title" align="center">Stage {stageNumber} — coming soon</Text>
-        <Text variant="body" color={c.mutedForeground} align="center" style={{ marginTop: spacing[3] }}>
-          You've moved past Stage 1. The remaining stages will land in
-          a future release. Open the session on the web to continue
-          for now.
-        </Text>
-        <Button
-          title="Back to discovery"
-          onPress={() => router.replace('/discovery' as any)}
-          variant="ghost"
-          size="lg"
-          fullWidth
-          style={{ marginTop: spacing[6] }}
-        />
-      </View>
-    </ScreenContainer>
   );
 }
 

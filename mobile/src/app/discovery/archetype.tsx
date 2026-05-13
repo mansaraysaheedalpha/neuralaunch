@@ -16,6 +16,7 @@ import { ChevronRight } from 'lucide-react-native';
 import { useAuth } from '@/services/auth';
 import { useTheme } from '@/hooks/useTheme';
 import { Text, Card, ScreenContainer } from '@/components/ui';
+import { CompoundUpgradeHint } from '@/components/discovery/CompoundUpgradeHint';
 import { spacing, iconSize } from '@/constants/theme';
 
 type ArchetypeId =
@@ -101,6 +102,8 @@ export default function ArchetypePickerScreen() {
           headerShadowVisible: false,
         }}
       />
+
+      <CompoundUpgradeHint />
 
       <View style={styles.header}>
         <Text variant="heading">
