@@ -115,6 +115,16 @@ export async function POST(
 
     const firstName = dbSession.user?.name?.split(' ')[0] ?? '';
 
+    // Mark the session as recently active so the /discovery
+    // resumption-detection redirect picks it up if the founder
+    // navigates away before answering the opening probe. Fire-and-
+    // forget — a write failure here just loses resumption for the
+    // brief window before the first /turn lands, which itself bumps
+    // lastTurnAt again on each subsequent message.
+    prisma.discoverySession
+      .update({ where: { id: sessionId }, data: { lastTurnAt: new Date() }, select: { id: true } })
+      .catch(() => { /* non-fatal */ });
+
     const result = streamStage1Opening({ firstName });
 
     const observed = await withStreamingAgentSpan(

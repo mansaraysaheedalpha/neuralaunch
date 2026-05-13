@@ -64,8 +64,21 @@ export default async function DiscoveryPage() {
     prisma.discoverySession.findFirst({
       where: {
         userId,
-        status:        'ACTIVE',
-        questionCount: { gt: 0 },
+        status: 'ACTIVE',
+        // Either signal of "founder made progress" is enough. The legacy
+        // Discovery interview increments questionCount on every turn;
+        // the no_idea archetype writes its progress into IdeationStageRun
+        // rows instead and never touches questionCount, so we also accept
+        // "any IdeationStageRun past stage 0 exists" as the resumable
+        // signal. Without this OR, the sidebar's link-to-/discovery for
+        // ACTIVE no_idea sessions would never trigger the redirect and
+        // the founder would land on the archetype picker, effectively
+        // starting their session over with their real conversation
+        // orphaned behind a different session id.
+        OR: [
+          { questionCount: { gt: 0 } },
+          { ideationRuns: { some: { stageNumber: { gte: 1 } } } },
+        ],
         // A "primary" recommendation is one whose parentRecommendationId
         // is null. The session is considered incomplete when no primary
         // exists yet — the relation flip moved this from a 1-to-1

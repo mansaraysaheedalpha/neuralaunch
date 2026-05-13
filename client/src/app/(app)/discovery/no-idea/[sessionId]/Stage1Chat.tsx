@@ -11,6 +11,15 @@ import { useStage1Session, type Stage1Message } from './useStage1Session';
 
 interface Stage1ChatProps {
   sessionId:        string;
+  /**
+   * Accepted but unused. The opening probe endpoint pulls the
+   * founder's first name server-side from the authenticated User row,
+   * so subsequent client-side turns no longer need it. The prop is
+   * preserved on the interface so existing callers (page.tsx, the
+   * documentLoadError branch) keep compiling while a follow-up polish
+   * pass cleans the threading up properly.
+   */
+  firstName?:       string;
   initialMessages:  Stage1Message[];
   editingDimension: 'timeHorizon' | 'financialGoal' | 'riskTolerance' | 'lifestylePreference' | null;
   hasPriorSnapshot: boolean;
@@ -29,6 +38,7 @@ interface Stage1ChatProps {
  */
 export function Stage1Chat({
   sessionId,
+  firstName: _firstName,
   initialMessages,
   editingDimension,
   hasPriorSnapshot,

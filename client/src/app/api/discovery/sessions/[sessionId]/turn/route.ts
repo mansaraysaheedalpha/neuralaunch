@@ -40,7 +40,7 @@ import {
   FOLLOW_UP_DUPLICATE_THRESHOLD,
   FOLLOW_UP_COOLDOWN_QUESTIONS,
 } from '@/lib/discovery/topic-similarity';
-import { handleStage1Turn } from './stage1-handler';
+import { handleNoIdeaTurn } from './no-idea-dispatcher';
 
 // Pro plan supports up to 300s. The fallback chain can take ~50s in
 // the worst case (Sonnet retries 0+2+8+30 = 40s, then Haiku first
@@ -233,7 +233,7 @@ export async function POST(
   // and user-message persistence already happened above.
   const scenario = state.lifecycleScenario ?? 'first_interview';
   if (scenario === 'no_idea') {
-    return handleStage1Turn({ message, history, sessionId, userId, conversationId });
+    return handleNoIdeaTurn({ message, history, sessionId, userId, conversationId });
   }
 
   // Lifecycle context — loaded fresh each turn from the DB. The

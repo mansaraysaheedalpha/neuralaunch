@@ -63,8 +63,12 @@ export function classifyGap(
   required: SkillTier,
   actual:   SkillTier,
 ): Constraint['gap'] | null {
+  // Order matters: required='unknown' is a noop on the gap axis
+  // (the model decided not to assert a requirement) and supersedes
+  // any actual tier. Only when there IS a real requirement does
+  // actual='unknown' become the blind-spot constraint.
+  if (required === 'unknown') return null;
   if (actual === 'unknown')   return 'blind_spot';
-  if (required === 'unknown') return null; // Required = unknown is a noop on the gap axis
   const requiredOrder = TIER_ORDER[required];
   const actualOrder   = TIER_ORDER[actual];
   if (actualOrder >= requiredOrder) return null;

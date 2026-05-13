@@ -1,6 +1,7 @@
 // src/app/api/discovery/sessions/[sessionId]/turn/stage1-handler.ts
 import 'server-only';
 import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import { HttpError } from '@/lib/validation/server-helpers';
 import { teeDiscoveryStream } from '@/lib/discovery';
@@ -69,6 +70,17 @@ export type Stage1HandlerArgs = {
 export async function handleStage1Turn(args: Stage1HandlerArgs): Promise<NextResponse> {
   const { message, history, sessionId, userId, conversationId } = args;
   const log = logger.child({ route: 'POST /api/discovery/sessions/[id]/turn', userId, sessionId, scenario: 'no_idea' });
+
+  // Mark the session as recently active so the /discovery resumption
+  // detection treats it the same as a legacy Discovery turn. Without
+  // this, lastTurnAt stays null forever for no_idea sessions and the
+  // sidebar's link-to-/discovery → page-redirect chain fails to find
+  // the session, sending the founder back to the archetype picker.
+  // Fire-and-forget — a write failure here would just lose resumption
+  // for one turn, not break the actual turn.
+  prisma.discoverySession
+    .update({ where: { id: sessionId }, data: { lastTurnAt: new Date() }, select: { id: true } })
+    .catch(() => { /* non-fatal */ });
 
   // ── 1. Load + parse stage run ───────────────────────────────────────────
   const stageRun = await getActiveStageRun(sessionId);

@@ -3,10 +3,19 @@ import { redirect, notFound } from 'next/navigation';
 import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
 import { isNoIdeaEnabled } from '@/lib/env';
-import { safeParseStage1AuthoringState, safeParseOutcomeDocument } from '@/lib/ideation';
+import {
+  safeParseStage1AuthoringState,
+  safeParseOutcomeDocument,
+  safeParseStage2AuthoringState,
+  safeParseRequirementsDocument,
+  safeParseSkillInventory,
+  createEmptySkillInventory,
+} from '@/lib/ideation';
 import { Stage1ChatClient } from './Stage1ChatClient';
 import { OutcomeDocumentView } from './OutcomeDocumentView';
+import { Stage2ChatClient } from './Stage2ChatClient';
 import { Stage2Placeholder } from './Stage2Placeholder';
+import { RequirementsDocumentView } from '@/components/ideation/RequirementsDocumentView';
 
 interface PageProps {
   params: Promise<{ sessionId: string }>;
@@ -15,14 +24,16 @@ interface PageProps {
 /**
  * Stage router for the No Idea archetype.
  *
- * Loads the DiscoverySession + its IdeationStageRun rows once (server-
- * side, ownership-scoped) and decides which surface to render:
+ * Loads the DiscoverySession + its IdeationStageRun rows once
+ * (server-side, ownership-scoped) and decides which surface to render:
  *
- *   - Stage 1 authoring     → Stage1ChatClient (chat surface)
- *   - Stage 1 output_ready  → OutcomeDocumentView in pre-commit review
- *   - Stage 1 committed     → OutcomeDocumentView in committed mode
- *                             (read-only with edit / Stage 2 affordance)
- *   - Stage 2+              → Stage2Placeholder ("coming soon")
+ *   - Stage 1 authoring     → Stage1ChatClient
+ *   - Stage 1 output_ready  → OutcomeDocumentView (pre-commit review)
+ *   - Stage 1 committed     → OutcomeDocumentView (committed)
+ *   - Stage 2 authoring     → Stage2ChatClient (canvas + chat)
+ *   - Stage 2 output_ready  → RequirementsDocumentView (pre-commit review)
+ *   - Stage 2 committed     → RequirementsDocumentView (committed)
+ *   - Stage 3+              → Stage2Placeholder ("coming soon")
  *
  * Guards: auth + flag + ownership (findFirst with userId scope).
  */
@@ -32,6 +43,7 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
   if (!isNoIdeaEnabled())  redirect('/discovery');
 
   const userId = session.user.id;
+  const firstName = session.user.name?.split(' ')[0] ?? '';
   const { sessionId } = await params;
 
   const discoverySession = await prisma.discoverySession.findFirst({
@@ -70,8 +82,8 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
 
   if (!active) notFound();
 
-  // Stages 2..5 are not implemented yet.
-  if (active.stageNumber >= 2) {
+  // Stages 3..5 are not implemented yet — the placeholder gets them.
+  if (active.stageNumber >= 3) {
     return <Stage2Placeholder stageNumber={active.stageNumber} />;
   }
 
@@ -82,18 +94,71 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
     redirect('/discovery/no-idea/mindset');
   }
 
+  const messages = (discoverySession.conversation?.messages ?? [])
+    .filter(m => m.role === 'user' || m.role === 'assistant')
+    .map(m => ({
+      id:          m.id,
+      role:        m.role as 'user' | 'assistant',
+      content:     m.content,
+      inputMethod: m.inputMethod === 'voice' ? ('voice' as const) : null,
+    }));
+
+  // ─── Stage 2 ──────────────────────────────────────────────────────────
+  if (active.stageNumber === 2) {
+    if (active.status === 'authoring') {
+      const authoring = safeParseStage2AuthoringState(active.output);
+      return (
+        <Stage2ChatClient
+          sessionId={sessionId}
+          stageRunId={active.id}
+          firstName={firstName}
+          initialMessages={messages}
+          inventory={authoring.workingInventory}
+          hasExpectedProfile={
+            authoring.workingExpectedProfile !== null
+            && authoring.workingExpectedProfile.length > 0
+          }
+          requiresRederivation={authoring.requiresRederivation}
+        />
+      );
+    }
+    // output_ready or committed — render the review surface.
+    const doc = safeParseRequirementsDocument(active.output);
+    if (!doc) {
+      // Output column failed to parse. Surface the chat with the
+      // FounderProfile's current inventory as fallback so the founder
+      // can recompose if needed.
+      const profile = await prisma.founderProfile.findUnique({
+        where:  { userId },
+        select: { skillInventory: true },
+      });
+      const inv = safeParseSkillInventory(profile?.skillInventory ?? null)
+        ?? createEmptySkillInventory();
+      return (
+        <Stage2ChatClient
+          sessionId={sessionId}
+          stageRunId={active.id}
+          firstName={firstName}
+          initialMessages={messages}
+          inventory={inv}
+          hasExpectedProfile={false}
+          requiresRederivation={false}
+        />
+      );
+    }
+    return (
+      <RequirementsDocumentView
+        stageRunId={active.id}
+        sessionId={sessionId}
+        status={active.status as 'output_ready' | 'committed'}
+        document={doc}
+      />
+    );
+  }
+
   // ─── Stage 1 ──────────────────────────────────────────────────────────
   if (active.status === 'authoring') {
     const initialAuthoring = safeParseStage1AuthoringState(active.output);
-    const messages = (discoverySession.conversation?.messages ?? [])
-      .filter(m => m.role === 'user' || m.role === 'assistant')
-      .map(m => ({
-        id:          m.id,
-        role:        m.role as 'user' | 'assistant',
-        content:     m.content,
-        inputMethod: m.inputMethod === 'voice' ? ('voice' as const) : null,
-      }));
-
     return (
       <Stage1ChatClient
         sessionId={sessionId}
