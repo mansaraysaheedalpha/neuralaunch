@@ -27,6 +27,7 @@ import {
 import {
   safeParseStage1AuthoringState,
   safeParseOutcomeDocument,
+  type OutcomeDocument,
 } from '@/lib/ideation';
 
 export type Stage1Message = {
@@ -51,6 +52,13 @@ export type NoIdeaSessionResponse = {
    *  failed to parse. The mobile chat surface will degrade to authoring
    *  mode and let the agent recompose, just like the web page. */
   documentLoadError: boolean;
+  /** The parsed Outcome Document for output_ready / committed stage
+   *  runs. Null while authoring or when the output JSON failed to
+   *  parse (in which case documentLoadError is true). Mobile renders
+   *  OutcomeDocumentView from this field — no client-side zod runtime
+   *  needed. Shape is OutcomeDocument from @/lib/ideation; clients
+   *  declare a parallel TS interface matching the wire format. */
+  document: OutcomeDocument | null;
 };
 
 export async function GET(
@@ -112,6 +120,7 @@ export async function GET(
     let editingDimension:  NoIdeaSessionResponse['editingDimension'] = null;
     let hasPriorSnapshot   = false;
     let documentLoadError  = false;
+    let document: OutcomeDocument | null = null;
 
     if (active.stageNumber === 1) {
       if (active.status === 'authoring') {
@@ -119,10 +128,12 @@ export async function GET(
         editingDimension = authoring.editTargetDimension;
         hasPriorSnapshot = authoring.priorCommittedSnapshot !== null;
       } else {
-        // output_ready or committed — verify the document parses so
-        // mobile knows to degrade to authoring if not.
-        const doc = safeParseOutcomeDocument(active.output);
-        if (!doc) documentLoadError = true;
+        // output_ready or committed — parse the document once on the
+        // server so mobile receives a typed shape. A null result means
+        // the row's output JSON is malformed; mobile shows the
+        // recovery banner and degrades to authoring.
+        document = safeParseOutcomeDocument(active.output);
+        if (!document) documentLoadError = true;
       }
     }
 
@@ -147,6 +158,7 @@ export async function GET(
       editingDimension,
       hasPriorSnapshot,
       documentLoadError,
+      document,
     };
 
     return NextResponse.json(response);

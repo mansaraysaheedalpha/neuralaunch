@@ -19,18 +19,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import Constants from 'expo-constants';
-import { Sparkles } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { api } from '@/services/api-client';
 import {
   Text,
   Button,
-  Card,
   ChatBubble,
   ChatInput,
   TypingIndicator,
@@ -38,12 +34,14 @@ import {
 } from '@/components/ui';
 import { Stage1Banner } from '@/components/discovery/Stage1Banner';
 import {
+  OutcomeDocumentView,
+  type OutcomeDocument,
+} from '@/components/discovery/OutcomeDocumentView';
+import {
   useStage1Session,
   type Stage1Message,
-  type Stage1Status,
-  type Stage1TurnError,
 } from '@/hooks/useStage1Session';
-import { spacing, iconSize } from '@/constants/theme';
+import { spacing } from '@/constants/theme';
 
 // Response shape from GET /api/discovery/no-idea/[sessionId] —
 // kept in sync with the route's NoIdeaSessionResponse type. We
@@ -61,6 +59,10 @@ interface SessionHydration {
   editingDimension:  'timeHorizon' | 'financialGoal' | 'riskTolerance' | 'lifestylePreference' | null;
   hasPriorSnapshot:  boolean;
   documentLoadError: boolean;
+  /** Pre-parsed OutcomeDocument. Non-null only when the active row
+   *  is Stage 1 in output_ready or committed state AND the output
+   *  JSON parsed successfully. */
+  document:          OutcomeDocument | null;
 }
 
 const DIM_LABELS: Record<NonNullable<SessionHydration['editingDimension']>, string> = {
@@ -151,9 +153,42 @@ export default function NoIdeaSessionScreen() {
     );
   }
 
-  // output_ready or committed — OutcomeDocumentView is the Phase C
-  // deliverable; for now route the founder to the web equivalent.
-  return <OutcomeReadyScreen sessionId={sessionId} />;
+  // output_ready or committed. Mirrors the web page.tsx fall-through:
+  // if the document JSON failed to parse, route back to Stage1Chat in
+  // a degraded "documentLoadError" mode so the agent can recompose;
+  // otherwise render the document review surface.
+  if (hydration.documentLoadError || !hydration.document) {
+    return (
+      <Stage1ChatScreen
+        sessionId={sessionId}
+        initialMessages={[]}
+        editingDimension={null}
+        hasPriorSnapshot={false}
+        documentLoadError
+        onSessionReady={loadSession}
+      />
+    );
+  }
+
+  return (
+    <ScreenContainer scroll={false}>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          headerTitle: 'Outcome Document',
+          headerTintColor: c.foreground,
+          headerStyle: { backgroundColor: c.background },
+          headerShadowVisible: false,
+        }}
+      />
+      <OutcomeDocumentView
+        stageRunId={hydration.active.id}
+        status={hydration.active.status as 'output_ready' | 'committed'}
+        document={hydration.document}
+        onAfterAction={loadSession}
+      />
+    </ScreenContainer>
+  );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -308,75 +343,6 @@ function Stage1ChatScreen({
 }
 
 /* -------------------------------------------------------------------------- */
-/* Outcome-ready bridge (Phase C target)                                      */
-/* -------------------------------------------------------------------------- */
-
-function OutcomeReadyScreen({ sessionId }: { sessionId: string }) {
-  const { colors: c } = useTheme();
-  const router = useRouter();
-  const apiUrl = (Constants.expoConfig?.extra?.apiUrl as string | undefined) ?? '';
-  const webUrl = apiUrl ? `${apiUrl}/discovery/no-idea/${sessionId}` : null;
-
-  async function openOnWeb() {
-    if (!webUrl) return;
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    try { await Linking.openURL(webUrl); } catch { /* best-effort */ }
-  }
-
-  return (
-    <ScreenContainer>
-      <Stack.Screen
-        options={{
-          headerShown: true,
-          headerTitle: 'Outcome Document',
-          headerTintColor: c.foreground,
-          headerStyle: { backgroundColor: c.background },
-          headerShadowVisible: false,
-        }}
-      />
-
-      <View style={styles.heroIconWrap}>
-        <View style={[styles.heroIcon, { backgroundColor: c.primaryAlpha10 }]}>
-          <Sparkles size={iconSize.lg} color={c.primary} />
-        </View>
-      </View>
-
-      <Text variant="title" align="center">Your Outcome Document is ready</Text>
-      <Text variant="body" color={c.mutedForeground} align="center" style={styles.subtitle}>
-        Stage 1 is complete — the review and edit UI ships on mobile in
-        Phase C. Open it on the web to read, edit dimensions, or commit
-        and move on to Stage 2.
-      </Text>
-
-      <Card style={styles.sessionCard}>
-        <Text variant="overline" color={c.mutedForeground}>Session ID</Text>
-        <Text variant="caption" color={c.foreground} style={{ marginTop: spacing[1] }}>
-          {sessionId}
-        </Text>
-      </Card>
-
-      <View style={styles.cta}>
-        <Button
-          title="Open on the web"
-          onPress={() => { void openOnWeb(); }}
-          variant="primary"
-          size="lg"
-          disabled={!webUrl}
-          fullWidth
-        />
-        <Button
-          title="Back to discovery"
-          onPress={() => router.replace('/discovery' as any)}
-          variant="ghost"
-          size="lg"
-          fullWidth
-        />
-      </View>
-    </ScreenContainer>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
 /* Stage 2 placeholder                                                        */
 /* -------------------------------------------------------------------------- */
 
@@ -499,28 +465,5 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     marginBottom: spacing[2],
-  },
-  heroIconWrap: {
-    alignItems: 'center',
-    marginTop: spacing[8],
-    marginBottom: spacing[6],
-  },
-  heroIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  subtitle: {
-    marginTop: spacing[3],
-    paddingHorizontal: spacing[2],
-  },
-  sessionCard: {
-    marginTop: spacing[6],
-  },
-  cta: {
-    marginTop: spacing[8],
-    gap: spacing[2],
   },
 });
