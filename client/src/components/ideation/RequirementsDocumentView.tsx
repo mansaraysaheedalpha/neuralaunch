@@ -4,10 +4,12 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+// Specific-path imports keep the lib/ideation barrel (which
+// re-exports server-only modules) out of this client bundle.
 import type {
   RequirementsDocument,
   ExpectedProfileEntry,
-} from '@/lib/ideation';
+} from '@/lib/ideation/stage2-requirements/schema';
 import type {
   ExpectedProfilePushbackAction,
   StructuralBlockerChoice,

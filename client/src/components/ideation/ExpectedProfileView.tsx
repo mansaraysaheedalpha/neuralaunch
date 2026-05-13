@@ -3,9 +3,12 @@
 import { useState } from 'react';
 import { MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { ExpectedProfileEntry } from '@/lib/ideation';
+// Client-component imports use specific module paths so Turbopack
+// doesn't follow the lib/ideation barrel through to server-only
+// modules (composer / extractor / agent etc).
+import type { ExpectedProfileEntry } from '@/lib/ideation/stage2-requirements/schema';
 import type { ExpectedProfilePushbackAction } from '@neuralaunch/constants';
-import { EXPECTED_PROFILE_PUSHBACK_HARD_CAP_ROUND } from '@/lib/ideation';
+import { EXPECTED_PROFILE_PUSHBACK_HARD_CAP_ROUND } from '@/lib/ideation/stage2-requirements/constants';
 import { SKILL_LABELS, TIER_LABEL } from './labels';
 import { PushbackDrawer } from './PushbackDrawer';
 

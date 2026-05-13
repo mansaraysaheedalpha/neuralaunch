@@ -3,9 +3,11 @@
 import { useState, useTransition, type FormEvent } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { ExpectedProfileEntry } from '@/lib/ideation';
+// Client-component imports use specific paths to keep the barrel
+// (which re-exports server-only modules) out of the client bundle.
+import type { ExpectedProfileEntry } from '@/lib/ideation/stage2-requirements/schema';
 import type { ExpectedProfilePushbackAction } from '@neuralaunch/constants';
-import { EXPECTED_PROFILE_PUSHBACK_HARD_CAP_ROUND } from '@/lib/ideation';
+import { EXPECTED_PROFILE_PUSHBACK_HARD_CAP_ROUND } from '@/lib/ideation/stage2-requirements/constants';
 
 export interface PushbackDrawerProps {
   entryIndex: number;

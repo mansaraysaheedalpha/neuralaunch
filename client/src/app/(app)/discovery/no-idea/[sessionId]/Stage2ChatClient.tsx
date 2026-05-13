@@ -2,7 +2,7 @@
 
 import { Stage2Chat } from './Stage2Chat';
 import type { Stage2Message } from './useStage2Session';
-import type { SkillInventory } from '@/lib/ideation';
+import type { SkillInventory } from '@/lib/ideation/stage2-requirements/schema';
 
 interface Stage2ChatClientProps {
   sessionId:            string;

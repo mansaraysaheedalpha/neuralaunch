@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { AlertOctagon, ArrowRight } from 'lucide-react';
-import type { StructuralBlocker } from '@/lib/ideation';
+import type { StructuralBlocker } from '@/lib/ideation/stage2-requirements/schema';
 import type { StructuralBlockerChoice } from '@neuralaunch/constants';
 
 interface StructuralBlockerCardProps {

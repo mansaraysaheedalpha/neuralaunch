@@ -13,7 +13,7 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { SKILL_KEYS, SKILL_TIERS, type SkillKey, type SkillTier } from '@neuralaunch/constants';
-import type { SkillInventory } from '@/lib/ideation';
+import type { SkillInventory } from '@/lib/ideation/stage2-requirements/schema';
 import { TeammateForm } from './TeammateForm';
 import { SKILL_LABELS, TIER_LANE_LABEL } from './labels';
 import { Trash2 } from 'lucide-react';

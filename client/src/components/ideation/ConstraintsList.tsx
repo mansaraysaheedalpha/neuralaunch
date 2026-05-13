@@ -1,7 +1,7 @@
 'use client';
 
 import { AlertCircle, AlertTriangle, HelpCircle } from 'lucide-react';
-import type { Constraint } from '@/lib/ideation';
+import type { Constraint } from '@/lib/ideation/stage2-requirements/schema';
 import { SKILL_LABELS, TIER_LABEL } from './labels';
 
 interface ConstraintsListProps {

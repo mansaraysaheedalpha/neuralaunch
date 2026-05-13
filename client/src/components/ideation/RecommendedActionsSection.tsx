@@ -1,6 +1,6 @@
 'use client';
 
-import type { RecommendedAction } from '@/lib/ideation';
+import type { RecommendedAction } from '@/lib/ideation/stage1-outcome/schema';
 
 interface RecommendedActionsSectionProps {
   actions: ReadonlyArray<RecommendedAction>;

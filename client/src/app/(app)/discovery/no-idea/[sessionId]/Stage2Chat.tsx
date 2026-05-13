@@ -9,7 +9,7 @@ import { SkillCanvas } from '@/components/ideation/SkillCanvas';
 import { SkillCanvasEntry, type SkillCanvasEntryMode } from '@/components/ideation/SkillCanvasEntry';
 import { Stage2Banner } from './Stage2Banner';
 import { useStage2Session, type Stage2Message } from './useStage2Session';
-import type { SkillInventory } from '@/lib/ideation';
+import type { SkillInventory } from '@/lib/ideation/stage2-requirements/schema';
 
 interface Stage2ChatProps {
   sessionId:       string;

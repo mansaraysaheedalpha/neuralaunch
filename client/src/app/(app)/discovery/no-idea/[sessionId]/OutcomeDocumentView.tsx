@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Pencil, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import type { OutcomeDocument } from '@/lib/ideation';
+import type { OutcomeDocument } from '@/lib/ideation/stage1-outcome/schema';
 import { OutcomeDocumentChat } from './OutcomeDocumentChat';
 
 type EditableDim = 'timeHorizon' | 'financialGoal' | 'riskTolerance' | 'lifestylePreference';
