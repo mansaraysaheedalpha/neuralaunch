@@ -2,34 +2,11 @@
 
 import { AlertCircle, AlertTriangle, HelpCircle } from 'lucide-react';
 import type { Constraint } from '@/lib/ideation';
+import { SKILL_LABELS, TIER_LABEL } from './labels';
 
 interface ConstraintsListProps {
   constraints: Constraint[];
 }
-
-const SKILL_LABELS: Record<string, string> = {
-  sales:                            'Sales',
-  graphic_design:                   'Graphic Design',
-  product_design:                   'Product Design',
-  content_creative:                 'Content / Creative',
-  marketing:                        'Marketing',
-  public_speaking:                  'Public Speaking',
-  technical_literacy:               'Technical Literacy',
-  programming:                      'Programming',
-  finance:                          'Finance',
-  operational_efficiency:           'Operational Efficiency',
-  leadership:                       'Leadership',
-  ai_literacy:                      'AI Literacy',
-  data_analysis:                    'Data Analysis',
-  distribution_community_building:  'Distribution / Community',
-};
-
-const TIER_LABEL: Record<string, string> = {
-  good:       'Good',
-  acceptable: 'Acceptable',
-  bad:        'Bad',
-  unknown:    'Unknown',
-};
 
 /**
  * Read-only render of computed constraints grouped by severity.

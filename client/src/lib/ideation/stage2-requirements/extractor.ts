@@ -239,6 +239,15 @@ function clampConfidence(n: number): number {
   return n;
 }
 
+/**
+ * Exported for unit-test access. Enforces the action↔payload invariant
+ * (move='recommend' must carry a recommendedAction; other moves must
+ * not) and clamps confidence values to [0, 1].
+ */
+export function narrowExtractAndPlanResult(raw: ExtractAndPlanStage2Raw): ExtractAndPlanStage2Result {
+  return narrowResult(raw);
+}
+
 function narrowResult(raw: ExtractAndPlanStage2Raw): ExtractAndPlanStage2Result {
   // Same invariant as Stage 1: move='recommend' requires an action.
   let agentMove: Stage2AgentMove = raw.agentMove;

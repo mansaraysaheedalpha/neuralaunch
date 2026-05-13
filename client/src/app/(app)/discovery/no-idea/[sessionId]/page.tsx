@@ -14,7 +14,7 @@ import {
 import { Stage1ChatClient } from './Stage1ChatClient';
 import { OutcomeDocumentView } from './OutcomeDocumentView';
 import { Stage2ChatClient } from './Stage2ChatClient';
-import { Stage2Placeholder } from './Stage2Placeholder';
+import { StageBeyondPlaceholder } from './StageBeyondPlaceholder';
 import { RequirementsDocumentView } from '@/components/ideation/RequirementsDocumentView';
 
 interface PageProps {
@@ -84,7 +84,7 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
 
   // Stages 3..5 are not implemented yet — the placeholder gets them.
   if (active.stageNumber >= 3) {
-    return <Stage2Placeholder stageNumber={active.stageNumber} />;
+    return <StageBeyondPlaceholder stageNumber={active.stageNumber} />;
   }
 
   // Stage 0 should never be the "active" stage — it always commits
@@ -107,6 +107,14 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
   if (active.stageNumber === 2) {
     if (active.status === 'authoring') {
       const authoring = safeParseStage2AuthoringState(active.output);
+      // Show the mode picker only on truly fresh sessions — no prior
+      // messages AND every founder tier still 'unknown' AND no
+      // teammates. Computed server-side so the client doesn't
+      // replicate the logic.
+      const showEntryPicker =
+        messages.length === 0
+        && authoring.workingInventory.team.length === 0
+        && Object.values(authoring.workingInventory.founder.tiers).every(t => t === 'unknown');
       return (
         <Stage2ChatClient
           sessionId={sessionId}
@@ -119,6 +127,7 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
             && authoring.workingExpectedProfile.length > 0
           }
           requiresRederivation={authoring.requiresRederivation}
+          showEntryPicker={showEntryPicker}
         />
       );
     }
@@ -143,6 +152,7 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
           inventory={inv}
           hasExpectedProfile={false}
           requiresRederivation={false}
+          showEntryPicker={false}
         />
       );
     }

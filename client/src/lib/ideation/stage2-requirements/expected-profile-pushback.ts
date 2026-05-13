@@ -325,13 +325,23 @@ async function runEmit(args: {
 
 // ---------------------------------------------------------------------------
 // Entry mutation
+//
+// Exported for unit-test access. Pure function: takes the prior
+// entry + action + optional refinement/replacement payloads and
+// returns the next entry shape. defend/continue_dialogue/closing
+// leave the entry unchanged; refine merges fields; replace rewrites.
 // ---------------------------------------------------------------------------
+
+export { applyEntryMutation };
+
+export type PushbackRefinementPayload = z.infer<typeof RefinementPayloadSchema>;
+export type PushbackReplacementPayload = z.infer<typeof ReplacementPayloadSchema>;
 
 function applyEntryMutation(
   entry: ExpectedProfileEntry,
   action: ExpectedProfilePushbackAction,
-  refinement: z.infer<typeof RefinementPayloadSchema> | null,
-  replacement: z.infer<typeof ReplacementPayloadSchema> | null,
+  refinement: PushbackRefinementPayload | null,
+  replacement: PushbackReplacementPayload | null,
 ): ExpectedProfileEntry {
   if (action === 'refine' && refinement !== null) {
     return {

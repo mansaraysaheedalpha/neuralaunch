@@ -15,6 +15,7 @@ import {
 import { SKILL_KEYS, SKILL_TIERS, type SkillKey, type SkillTier } from '@neuralaunch/constants';
 import type { SkillInventory } from '@/lib/ideation';
 import { TeammateForm } from './TeammateForm';
+import { SKILL_LABELS, TIER_LANE_LABEL } from './labels';
 import { Trash2 } from 'lucide-react';
 
 interface SkillCanvasProps {
@@ -25,30 +26,6 @@ interface SkillCanvasProps {
   onTeammateAdd:    (name: string) => Promise<void>;
   onTeammateRemove: (index: number) => Promise<void>;
 }
-
-const SKILL_LABELS: Record<SkillKey, string> = {
-  sales:                            'Sales',
-  graphic_design:                   'Graphic Design',
-  product_design:                   'Product Design',
-  content_creative:                 'Content / Creative',
-  marketing:                        'Marketing',
-  public_speaking:                  'Public Speaking',
-  technical_literacy:               'Technical Literacy',
-  programming:                      'Programming',
-  finance:                          'Finance',
-  operational_efficiency:           'Operational Efficiency',
-  leadership:                       'Leadership',
-  ai_literacy:                      'AI Literacy',
-  data_analysis:                    'Data Analysis',
-  distribution_community_building:  'Distribution / Community',
-};
-
-const TIER_LABEL: Record<SkillTier, string> = {
-  good:       'Good',
-  acceptable: 'Acceptable',
-  bad:        'Bad',
-  unknown:    'Set aside',
-};
 
 const TIER_STYLE: Record<SkillTier, string> = {
   good:       'border-success/40 bg-success/5',
@@ -142,7 +119,7 @@ export function SkillCanvas({
           <TierLane
             key={tier}
             tier={tier}
-            label={TIER_LABEL[tier]}
+            label={TIER_LANE_LABEL[tier]}
             style={TIER_STYLE[tier]}
             skills={SKILL_KEYS.filter(s => currentPerson.tiers[s] === tier)}
             readOnly={readOnly}
@@ -186,6 +163,9 @@ function TierLane({
   return (
     <div
       ref={setNodeRef}
+      role="region"
+      aria-label={`${label} tier — drop skills here to set their level`}
+      aria-dropeffect="move"
       className={`rounded-lg border px-3 py-3 min-h-[120px] ${style} ${
         isOver ? 'ring-2 ring-primary/40' : ''
       }`}

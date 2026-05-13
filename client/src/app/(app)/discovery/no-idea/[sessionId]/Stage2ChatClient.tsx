@@ -12,6 +12,7 @@ interface Stage2ChatClientProps {
   inventory:            SkillInventory;
   hasExpectedProfile:   boolean;
   requiresRederivation: boolean;
+  showEntryPicker:      boolean;
 }
 
 /**

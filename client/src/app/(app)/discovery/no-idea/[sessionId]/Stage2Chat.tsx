@@ -19,6 +19,13 @@ interface Stage2ChatProps {
   inventory:       SkillInventory;
   hasExpectedProfile: boolean;
   requiresRederivation: boolean;
+  /**
+   * When true, render the SkillCanvasEntry mode picker instead of
+   * the canvas + chat. Derived server-side in [sessionId]/page.tsx
+   * (no messages yet AND inventory entirely 'unknown') so the
+   * client doesn't replicate that logic.
+   */
+  showEntryPicker: boolean;
 }
 
 /**
@@ -36,11 +43,10 @@ export function Stage2Chat({
   inventory,
   hasExpectedProfile,
   requiresRederivation,
+  showEntryPicker,
 }: Stage2ChatProps) {
   const [mode, setMode] = useState<SkillCanvasEntryMode | null>(
-    initialMessages.length > 0 || hasInventoryContent(inventory)
-      ? 'canvas'  // resumed session — skip the picker
-      : null,
+    showEntryPicker ? null : 'canvas',
   );
   const [input, setInput] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -93,7 +99,12 @@ export function Stage2Chat({
   }
 
   const hasMessages = messages.length > 0;
-  const showDeriveButton = hasInventoryContent(inventory) && !hasExpectedProfile;
+  // The derive button surfaces once the founder has past the entry
+  // picker AND derivation hasn't run yet. The page.tsx server
+  // component computed `showEntryPicker` from the persisted inventory,
+  // so its inverse here is the canonical "founder has surfaced
+  // tier content" signal.
+  const showDeriveButton = !showEntryPicker && !hasExpectedProfile;
   const showRederiveBanner = requiresRederivation && hasExpectedProfile;
 
   return (
@@ -201,11 +212,3 @@ export function Stage2Chat({
   );
 }
 
-function hasInventoryContent(inv: SkillInventory): boolean {
-  // True if any tier is not 'unknown' on the founder, or any teammate exists.
-  if (inv.team.length > 0) return true;
-  for (const k in inv.founder.tiers) {
-    if (inv.founder.tiers[k as keyof typeof inv.founder.tiers] !== 'unknown') return true;
-  }
-  return false;
-}
