@@ -27,7 +27,11 @@ import {
 import {
   safeParseStage1AuthoringState,
   safeParseOutcomeDocument,
+  safeParseStage2AuthoringState,
+  safeParseRequirementsDocument,
   type OutcomeDocument,
+  type RequirementsDocument,
+  type Stage2AuthoringState,
 } from '@/lib/ideation';
 
 export type Stage1Message = {
@@ -59,6 +63,24 @@ export type NoIdeaSessionResponse = {
    *  needed. Shape is OutcomeDocument from @/lib/ideation; clients
    *  declare a parallel TS interface matching the wire format. */
   document: OutcomeDocument | null;
+  // ── Stage 2 fields ──────────────────────────────────────────────────
+  // Populated only when the active stage row is Stage 2. Mobile clients
+  // declare parallel TS types in mobile/src/lib/ideation-types.ts; the
+  // wire shape mirrors the canonical zod schemas at
+  // client/src/lib/ideation/stage2-requirements/schema.ts.
+  /** Parsed Stage 2 authoring state — non-null when active.stageNumber
+   *  === 2 AND active.status === 'authoring'. The mobile chat surface
+   *  reads workingInventory / workingExpectedProfile / structuralBlocker
+   *  / requiresRederivation from here. */
+  stage2Authoring: Stage2AuthoringState | null;
+  /** Parsed RequirementsDocument for Stage 2 output_ready / committed
+   *  rows. Null while authoring or when the output JSON failed to parse
+   *  (in which case requirementsLoadError is true). */
+  requirements: RequirementsDocument | null;
+  /** Stage 2 counterpart to documentLoadError — true when the row is
+   *  Stage 2 output_ready/committed but the JSON failed to parse, so
+   *  the UI should degrade to authoring mode. */
+  requirementsLoadError: boolean;
 };
 
 export async function GET(
@@ -115,12 +137,16 @@ export async function GET(
       throw new HttpError(404, 'No ideation stage runs for session');
     }
 
-    // Default values for Stage 1 metadata. Only meaningful when the
-    // active run is Stage 1 in authoring/output_ready/committed.
+    // Default values for stage-specific metadata. Only meaningful when
+    // the active run matches the corresponding stage number; defaults
+    // pass through unchanged for other stages.
     let editingDimension:  NoIdeaSessionResponse['editingDimension'] = null;
     let hasPriorSnapshot   = false;
     let documentLoadError  = false;
     let document: OutcomeDocument | null = null;
+    let stage2Authoring: Stage2AuthoringState | null = null;
+    let requirements: RequirementsDocument | null = null;
+    let requirementsLoadError = false;
 
     if (active.stageNumber === 1) {
       if (active.status === 'authoring') {
@@ -134,6 +160,17 @@ export async function GET(
         // recovery banner and degrades to authoring.
         document = safeParseOutcomeDocument(active.output);
         if (!document) documentLoadError = true;
+      }
+    } else if (active.stageNumber === 2) {
+      if (active.status === 'authoring') {
+        // safeParseStage2AuthoringState normalises a missing/malformed
+        // row into a fresh empty state, so this never returns null.
+        // The mobile chat reads workingInventory + workingExpectedProfile
+        // + requiresRederivation directly from this field.
+        stage2Authoring = safeParseStage2AuthoringState(active.output);
+      } else {
+        requirements = safeParseRequirementsDocument(active.output);
+        if (!requirements) requirementsLoadError = true;
       }
     }
 
@@ -159,6 +196,9 @@ export async function GET(
       hasPriorSnapshot,
       documentLoadError,
       document,
+      stage2Authoring,
+      requirements,
+      requirementsLoadError,
     };
 
     return NextResponse.json(response);

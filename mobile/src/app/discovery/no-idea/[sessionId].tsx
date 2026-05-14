@@ -42,6 +42,10 @@ import {
   useStage1Session,
   type Stage1Message,
 } from '@/hooks/useStage1Session';
+import type {
+  Stage2AuthoringState,
+  RequirementsDocument,
+} from '@/lib/ideation-types';
 import { spacing } from '@/constants/theme';
 
 // Response shape from GET /api/discovery/no-idea/[sessionId] —
@@ -64,6 +68,14 @@ interface SessionHydration {
    *  is Stage 1 in output_ready or committed state AND the output
    *  JSON parsed successfully. */
   document:          OutcomeDocument | null;
+  // ── Stage 2 fields (Phase A laid the wire; consumed in Phase B+) ──
+  /** Parsed Stage 2 authoring state — non-null when active.stageNumber
+   *  === 2 AND active.status === 'authoring'. */
+  stage2Authoring:        Stage2AuthoringState | null;
+  /** Parsed RequirementsDocument for Stage 2 output_ready / committed. */
+  requirements:           RequirementsDocument | null;
+  /** Stage 2 counterpart to documentLoadError. */
+  requirementsLoadError:  boolean;
 }
 
 const DIM_LABELS: Record<NonNullable<SessionHydration['editingDimension']>, string> = {
