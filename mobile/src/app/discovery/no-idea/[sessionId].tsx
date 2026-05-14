@@ -33,6 +33,7 @@ import {
 } from '@/components/ui';
 import { Stage1Banner } from '@/components/discovery/Stage1Banner';
 import { Stage2Placeholder } from '@/components/discovery/Stage2Placeholder';
+import { StageBeyondPlaceholder } from '@/components/discovery/StageBeyondPlaceholder';
 import {
   OutcomeDocumentView,
   type OutcomeDocument,
@@ -136,8 +137,15 @@ export default function NoIdeaSessionScreen() {
   }
 
   // Dispatch based on active stage state.
-  if (hydration.active.stageNumber >= 2) {
-    return <Stage2Placeholder stageNumber={hydration.active.stageNumber} />;
+  // Stage 2 ships on web but not yet on mobile — the Stage2Placeholder
+  // surface deep-links the founder to the web's session URL so they
+  // aren't stranded. Stages 3+ aren't on web yet either, so they fall
+  // back to the generic StageBeyondPlaceholder.
+  if (hydration.active.stageNumber === 2) {
+    return <Stage2Placeholder sessionId={sessionId} />;
+  }
+  if (hydration.active.stageNumber >= 3) {
+    return <StageBeyondPlaceholder stageNumber={hydration.active.stageNumber} />;
   }
 
   if (hydration.active.stageNumber === 1 && hydration.active.status === 'authoring') {
