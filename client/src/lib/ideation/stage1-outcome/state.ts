@@ -52,6 +52,7 @@ export function createEmptyStage1AuthoringState(): Stage1AuthoringState {
     questionsSinceLastConfidenceGain: 0,
     editTargetDimension:              null,
     priorCommittedSnapshot:           null,
+    editStartedAt:                    null,
   };
 }
 
@@ -91,9 +92,14 @@ export function safeParseOutcomeDocument(value: unknown): OutcomeDocument | null
 // ---------------------------------------------------------------------------
 
 const TARGET_MAX_CHARS              = 80;
-const ACTION_MAX_CHARS              = 200;
-const FOUNDER_RESPONSE_MAX_CHARS    = 400;
-const SYNTHESIS_PARAGRAPH_MAX_CHARS = 800;
+const ACTION_MAX_CHARS               = 200;
+const FOUNDER_RESPONSE_MAX_CHARS     = 400;
+// Bumped from 800 → 1200 (2026-05-12). A realistic founder pass
+// produced a clean 3-4 sentence synthesis that got chopped mid-word
+// at 800. We want the clamp to be a runaway-output guard, not a
+// truncator on natural output. The composer prompt itself still
+// targets 3-5 sentences — the cap is just a ceiling.
+const SYNTHESIS_PARAGRAPH_MAX_CHARS = 1200;
 const RULES_OUT_MAX_CHARS           = 500;
 
 function clamp(str: string | null, max: number): string | null {

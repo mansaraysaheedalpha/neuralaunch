@@ -72,7 +72,11 @@ export {
 
 // ---- Agent (streaming) ----
 export type { AgentMove } from './stage1-outcome/reality-grounding';
-export { streamStage1Message, streamStage1Opening } from './stage1-outcome/agent';
+export {
+  streamStage1Message,
+  streamStage1Opening,
+  streamStage1EditProbe,
+} from './stage1-outcome/agent';
 
 // ---- Extractor (structured) ----
 export type { ExtractAndPlanResult, Stage1InputType } from './stage1-outcome/extractor';

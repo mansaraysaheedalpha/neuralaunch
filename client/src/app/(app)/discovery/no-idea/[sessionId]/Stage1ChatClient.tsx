@@ -10,6 +10,10 @@ interface Stage1ChatClientProps {
   initialMessages:  Stage1Message[];
   editingDimension: 'timeHorizon' | 'financialGoal' | 'riskTolerance' | 'lifestylePreference' | null;
   hasPriorSnapshot: boolean;
+  /** Active IdeationStageRun id — required for the in-chat
+   *  Discard-edit button. Optional on the type so the document-
+   *  load-error fallback (which has no real stage run) compiles. */
+  stageRunId?:      string;
   documentLoadError?: boolean;
 }
 

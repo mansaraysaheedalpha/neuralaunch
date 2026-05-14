@@ -23,12 +23,13 @@ interface UseStage1SessionArgs {
 }
 
 interface UseStage1SessionResult {
-  messages:        Stage1Message[];
-  status:          Stage1Status;
-  turnError:       Stage1TurnError | null;
-  sendMessage:     (content: string, inputMethod?: 'voice') => Promise<void>;
-  requestOpening:  () => Promise<void>;
-  clearError:      () => void;
+  messages:         Stage1Message[];
+  status:           Stage1Status;
+  turnError:        Stage1TurnError | null;
+  sendMessage:      (content: string, inputMethod?: 'voice') => Promise<void>;
+  requestOpening:   () => Promise<void>;
+  requestEditProbe: () => Promise<void>;
+  clearError:       () => void;
 }
 
 /**
@@ -182,12 +183,13 @@ export function useStage1Session({
   }, [messages, sessionId, status, router, consumeStream]);
 
   /**
-   * Fire the dedicated opening probe for a fresh Stage 1 session. The
-   * Stage 1 chat component calls this once on mount when the
-   * conversation has no prior messages. Streams the agent's first
-   * probe question; idempotent at the server side (409 on re-fire).
+   * Shared probe runner — both /stage1-opening (fresh session) and
+   * /stage1-edit-probe (founder reopened a single dimension to
+   * revise) share the same body-less POST + streaming-or-JSON
+   * response contract. Differs only by URL. Both routes are
+   * idempotent server-side; this helper trusts that and just streams.
    */
-  const requestOpening = useCallback(async () => {
+  const fireProbe = useCallback(async (path: string) => {
     if (status === 'sending' || status === 'streaming') return;
 
     setTurnError(null);
@@ -195,7 +197,7 @@ export function useStage1Session({
     abortRef.current = new AbortController();
 
     try {
-      const res = await fetch(`/api/discovery/sessions/${sessionId}/stage1-opening`, {
+      const res = await fetch(`/api/discovery/sessions/${sessionId}/${path}`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         signal:  abortRef.current.signal,
@@ -233,5 +235,8 @@ export function useStage1Session({
     }
   }, [sessionId, status, consumeStream]);
 
-  return { messages, status, turnError, sendMessage, requestOpening, clearError };
+  const requestOpening   = useCallback(() => fireProbe('stage1-opening'),   [fireProbe]);
+  const requestEditProbe = useCallback(() => fireProbe('stage1-edit-probe'), [fireProbe]);
+
+  return { messages, status, turnError, sendMessage, requestOpening, requestEditProbe, clearError };
 }

@@ -158,5 +158,17 @@ export const Stage1AuthoringStateSchema = z.object({
   ]).nullable(),
   /** See PriorCommittedSnapshotSchema. */
   priorCommittedSnapshot: PriorCommittedSnapshotSchema.nullable(),
+  /**
+   * ISO timestamp captured by `revertToEdit` when this row enters
+   * edit mode. The dedicated /stage1-edit-probe route uses it as the
+   * re-fire guard: an assistant Message row with `createdAt >
+   * editStartedAt` means the probe already ran for this edit, so
+   * subsequent calls 409 instead of overwriting the streamed probe.
+   *
+   * `.default(null)` so authoring states persisted BEFORE this field
+   * was added still parse cleanly. New empty states and every
+   * revertToEdit write set it explicitly.
+   */
+  editStartedAt: z.string().nullable().default(null),
 });
 export type Stage1AuthoringState = z.infer<typeof Stage1AuthoringStateSchema>;

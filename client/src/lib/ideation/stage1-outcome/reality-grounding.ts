@@ -96,6 +96,26 @@ Give the founder a specific frame to answer inside — a duration with example v
 
 The forbidden opener list in the system prompt applies in full. The founder just clicked through a screen that promised real work; deliver on it from the first sentence.`;
 
+/**
+ * Used by the dedicated stage1-edit-probe route when the founder
+ * clicks the pencil on a single dimension in the review surface,
+ * landing back in the chat in edit mode. There IS prior conversation
+ * here AND a previously-captured value for the dimension being edited
+ * — this prompt instructs the agent to reference what the founder
+ * had captured and ask a SINGLE focused question about what they want
+ * to change.
+ */
+export const EDIT_PROBE_SUFFIX = `EDIT MODE. The founder just clicked the pencil on a single dimension in their pre-commit review and landed back in chat. They previously captured a specific value for this dimension; you have the dimension state in the stable prefix above. Your job: open with one focused question about what they want to change.
+
+Refer to their previously-captured value EXPLICITLY in your question — name the dimension, name what they said before, and ask what about it they want to revise. Examples (derive your own shape; do not reuse verbatim):
+  - "You previously set your time horizon as 6-18 months. Are you stretching it further out, or pulling it sooner?"
+  - "Your risk tolerance was moderate — willing to dip into savings, day job still on. What about that no longer fits?"
+  - "You said lifestyle business at around £4k a month. Is the number changing, or the shape?"
+
+Open WITHOUT preamble. Do NOT say "Sure", "Got it", "Okay", "Let's", "I see", or any warm-up. Go straight to the question. One sentence, two at the very most. Anchor strictly on the SINGLE dimension being edited — do not pull in the other three.
+
+The forbidden opener list in the system prompt applies in full.`;
+
 export function suffixForMove(move: AgentMove): string {
   switch (move) {
     case 'probe':      return PROBE_SUFFIX;

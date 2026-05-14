@@ -77,10 +77,17 @@ export async function revertToEdit(
   editTarget: 'timeHorizon' | 'financialGoal' | 'riskTolerance' | 'lifestylePreference',
   priorDocument: OutcomeDocument,
   priorStatus: 'output_ready' | 'committed',
+  now: Date = new Date(),
 ): Promise<void> {
   // Build the new authoring state from the prior document so the
   // founder doesn't lose accumulated dimension state — only the
   // dimension being edited will be reprobed.
+  //
+  // `editStartedAt` is the anchor the /stage1-edit-probe route uses
+  // to gate re-fire — an assistant Message with createdAt > this
+  // value means the probe already streamed. Clearing happens
+  // implicitly on commit / discard-edit (both paths overwrite the
+  // whole authoring payload).
   const snapshot: PriorCommittedSnapshot = { document: priorDocument, priorStatus };
   const nextAuthoring: Stage1AuthoringState = {
     dimensions:                       priorDocument.dimensions,
@@ -88,6 +95,7 @@ export async function revertToEdit(
     questionsSinceLastConfidenceGain: 0,
     editTargetDimension:              editTarget,
     priorCommittedSnapshot:           snapshot,
+    editStartedAt:                    now.toISOString(),
   };
 
   const result = await prisma.ideationStageRun.updateMany({

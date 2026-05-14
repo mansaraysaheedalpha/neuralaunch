@@ -172,6 +172,7 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
     return (
       <Stage1ChatClient
         sessionId={sessionId}
+        stageRunId={active.id}
         initialMessages={messages}
         editingDimension={initialAuthoring.editTargetDimension}
         hasPriorSnapshot={initialAuthoring.priorCommittedSnapshot !== null}
@@ -189,6 +190,7 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
     return (
       <Stage1ChatClient
         sessionId={sessionId}
+        stageRunId={active.id}
         initialMessages={[]}
         editingDimension={null}
         hasPriorSnapshot={false}
