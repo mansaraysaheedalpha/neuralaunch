@@ -62,7 +62,9 @@ interface UseStage1SessionResult {
 }
 
 function newId(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  // CLAUDE.md bans Math.random() for IDs; Hermes (RN 0.74+) supports
+  // crypto.randomUUID() natively via the Web Crypto API.
+  return `${prefix}-${crypto.randomUUID()}`;
 }
 
 export function useStage1Session({
