@@ -229,7 +229,7 @@ export function Stage2Chat({
                 onRemoveTeammate={removeTeammate}
                 onRenameTeammate={renameTeammate}
                 onDerive={deriveExpectedProfile}
-                busy={isBusy || isTerminated}
+                busy={isBusy || isTerminated || stage2.canvasBusy}
                 isDeriving={stage2.status === 'composing'}
                 hasExpectedProfile={hasExpectedProfile}
               />

@@ -75,6 +75,14 @@ interface UseStage2SessionResult {
   messages:               Stage2Message[];
   status:                 Stage2Status;
   turnError:              Stage2TurnError | null;
+  /** True while one or more canvas action dispatchers (skill-tier,
+   *  teammate add/remove/rename) are in flight. Distinct from
+   *  `status` because canvas writes don't transition the chat-status
+   *  state machine — but the SkillCanvas needs to surface a "saving"
+   *  state and prevent rapid duplicate writes from racing. Computed
+   *  from an internal in-flight counter so concurrent actions track
+   *  correctly. */
+  canvasBusy:             boolean;
   sendMessage:            (content: string, inputMethod?: 'voice') => Promise<void>;
   updateSkillTier:        (person: 'founder' | number, skill: SkillKey, tier: SkillTier) => Promise<void>;
   addTeammate:            (name: string) => Promise<void>;
@@ -96,10 +104,25 @@ export function useStage2Session({
   initialMessages,
   onTurnComplete,
 }: UseStage2SessionArgs): UseStage2SessionResult {
-  const [messages,  setMessages]  = useState<Stage2Message[]>(initialMessages);
-  const [status,    setStatus]    = useState<Stage2Status>('idle');
-  const [turnError, setTurnError] = useState<Stage2TurnError | null>(null);
+  const [messages,   setMessages]   = useState<Stage2Message[]>(initialMessages);
+  const [status,     setStatus]     = useState<Stage2Status>('idle');
+  const [turnError,  setTurnError]  = useState<Stage2TurnError | null>(null);
+  const [canvasBusy, setCanvasBusy] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  // Concurrent canvas dispatchers (e.g. updateSkillTier + addTeammate
+  // fired rapidly) need to coexist without one prematurely clearing
+  // canvasBusy. We track an in-flight count via ref so the boolean
+  // only flips when the last action settles.
+  const canvasInFlightRef = useRef(0);
+
+  const beginCanvasWrite = useCallback(() => {
+    canvasInFlightRef.current += 1;
+    if (canvasInFlightRef.current === 1) setCanvasBusy(true);
+  }, []);
+  const endCanvasWrite = useCallback(() => {
+    canvasInFlightRef.current = Math.max(0, canvasInFlightRef.current - 1);
+    if (canvasInFlightRef.current === 0) setCanvasBusy(false);
+  }, []);
 
   // Abort any in-flight stream on unmount so a navigation away mid-
   // turn doesn't leak a fetch + setState into a torn-down component.
@@ -283,14 +306,17 @@ export function useStage2Session({
     invoke:  () => Promise<unknown>,
   ): Promise<void> => {
     setTurnError(null);
+    beginCanvasWrite();
     try {
       await invoke();
     } catch (err) {
       const message = err instanceof Error ? err.message : `Could not ${label}`;
       setTurnError({ kind: 'action', message });
       throw err instanceof Error ? err : new Error(message);
+    } finally {
+      endCanvasWrite();
     }
-  }, []);
+  }, [beginCanvasWrite, endCanvasWrite]);
 
   const updateSkillTier = useCallback(
     (person: 'founder' | number, skill: SkillKey, tier: SkillTier) =>
@@ -361,6 +387,7 @@ export function useStage2Session({
     messages,
     status,
     turnError,
+    canvasBusy,
     sendMessage,
     updateSkillTier,
     addTeammate,
