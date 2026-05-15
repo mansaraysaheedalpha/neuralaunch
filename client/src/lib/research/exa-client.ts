@@ -11,6 +11,7 @@ import Exa from 'exa-js';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
 import { withExaSearchSpan } from '@/lib/observability';
+import { cachedFetch } from './cache';
 import {
   RESEARCH_QUERY_TIMEOUT_MS,
   RESEARCH_MAX_ATTEMPTS,
@@ -77,6 +78,16 @@ export function isExaConfigured(): boolean {
 }
 
 /**
+ * Lowercase + trim + collapse internal whitespace. Folded into the
+ * cache key alongside `numResults` (since different `numResults`
+ * yields different result sets and must miss separately).
+ */
+function normaliseQueryForKey(q: string, numResults: number): string {
+  const normalised = q.toLowerCase().trim().replace(/\s+/g, ' ');
+  return `n=${numResults}|q=${normalised}`;
+}
+
+/**
  * Single Exa neural search with timeout + linear-backoff retry.
  *
  * - Uses Exa's default neural prompt-engineered search via .search().
@@ -86,6 +97,12 @@ export function isExaConfigured(): boolean {
  * - numResults defaults to 5 (matches the agent tool's default) and
  *   can be tuned per call by the agent.
  *
+ * Wrapped in cachedFetch — default TTL is 30 min (see cache.ts).
+ * Pass `bypassCache: true` for fresh-by-definition calls. Cache
+ * misses fall through to the same retry-bounded live path. The
+ * `withExaSearchSpan` wrapper stays inside the live path so cache
+ * hits don't open spurious "Exa search" spans.
+ *
  * Throws after RESEARCH_MAX_ATTEMPTS failures so the calling tool
  * execute function can return a structured "search failed" string
  * to the model rather than crashing the whole agent loop.
@@ -94,12 +111,27 @@ export async function exaSearchOnce(
   query:      string,
   numResults: number,
   log:        ReturnType<typeof logger.child>,
+  options:    { bypassCache?: boolean } = {},
 ): Promise<ExaSearchResult> {
   const client = getClient();
   if (!client) {
     throw new Error('Exa not configured — EXA_API_KEY missing');
   }
 
+  return cachedFetch<ExaSearchResult>({
+    provider:    'exa',
+    queryKey:    normaliseQueryForKey(query, numResults),
+    bypassCache: options.bypassCache ?? false,
+    fetch:       () => liveExaSearchOnce(client, query, numResults, log),
+  });
+}
+
+async function liveExaSearchOnce(
+  client:     Exa,
+  query:      string,
+  numResults: number,
+  log:        ReturnType<typeof logger.child>,
+): Promise<ExaSearchResult> {
   let lastErr: unknown;
   for (let i = 0; i < RESEARCH_MAX_ATTEMPTS; i++) {
     try {

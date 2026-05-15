@@ -8,6 +8,7 @@ import 'server-only';
 import { tavily } from '@tavily/core';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
+import { cachedFetch } from './cache';
 import {
   RESEARCH_QUERY_TIMEOUT_MS,
   RESEARCH_MAX_ATTEMPTS,
@@ -70,6 +71,17 @@ export function isResearchConfigured(): boolean {
 }
 
 /**
+ * Lowercase + trim + collapse internal whitespace. The cache key is
+ * `sha256(this string)`, so equivalent queries (different casing,
+ * stray double-spaces) collapse to one cache slot. Anything that
+ * actually changes the result set — `numResults`, search depth —
+ * must be folded into the queryKey explicitly by the caller.
+ */
+function normaliseQueryForKey(q: string): string {
+  return q.toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+/**
  * Single Tavily search with timeout + linear-backoff retry.
  *
  * - searchDepth='advanced' (2 credits / query) for higher source quality.
@@ -80,6 +92,10 @@ export function isResearchConfigured(): boolean {
  *   we can quote directly into the prompt block.
  * - maxResults=5 with downstream dedup to MAX_SOURCES_PER_QUERY.
  *
+ * Wrapped in cachedFetch — the default TTL is 1h (see cache.ts).
+ * Pass `bypassCache: true` for fresh-by-definition queries. Cache
+ * misses fall through to this same retry-bounded live path.
+ *
  * Throws after RESEARCH_MAX_ATTEMPTS failures so the caller can
  * decide whether to fail open (Recommendation, Continuation) or
  * skip the agent (Interview, Pushback, Check-in).
@@ -87,12 +103,26 @@ export function isResearchConfigured(): boolean {
 export async function searchOnce(
   query: string,
   log:   ReturnType<typeof logger.child>,
+  options: { bypassCache?: boolean } = {},
 ): Promise<TavilySearchResult> {
   const client = getClient();
   if (!client) {
     throw new Error('Tavily not configured — TAVILY_API_KEY missing');
   }
 
+  return cachedFetch<TavilySearchResult>({
+    provider:    'tavily',
+    queryKey:    normaliseQueryForKey(query),
+    bypassCache: options.bypassCache ?? false,
+    fetch:       () => liveSearchOnce(client, query, log),
+  });
+}
+
+async function liveSearchOnce(
+  client: NonNullable<ReturnType<typeof getClient>>,
+  query:  string,
+  log:    ReturnType<typeof logger.child>,
+): Promise<TavilySearchResult> {
   let lastErr: unknown;
   for (let i = 0; i < RESEARCH_MAX_ATTEMPTS; i++) {
     try {
