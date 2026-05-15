@@ -272,9 +272,17 @@ export function useStage2Session({
       // state would miss those moves otherwise).
       try {
         await onTurnComplete?.();
-      } catch {
+      } catch (refetchErr) {
         // The refetch is best-effort — a failure there shouldn't bury
         // the chat in an error state since the turn itself succeeded.
+        // Log so the founder team has a breadcrumb if the canvas ever
+        // looks stale after a turn (otherwise the failure is invisible
+        // and very hard to diagnose).
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[useStage2Session] onTurnComplete refetch failed — canvas may be stale',
+          refetchErr,
+        );
       }
     } catch (err) {
       if (controller.signal.aborted) return;
