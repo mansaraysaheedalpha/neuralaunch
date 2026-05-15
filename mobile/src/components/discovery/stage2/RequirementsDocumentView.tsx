@@ -17,25 +17,17 @@
 //
 // Edit-the-canvas affordances live on Stage2Chat, not here.
 
-import { useState } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { ArrowRight, RotateCcw } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { Text, Button, ScreenContainer } from '@/components/ui';
-import { api } from '@/services/api-client';
-import type {
-  RequirementsDocument,
-  ExpectedProfileEntry,
-  ExpectedProfilePushbackAction,
-  StructuralBlockerChoice,
-} from '@/lib/ideation-types';
+import type { RequirementsDocument } from '@/lib/ideation-types';
 import { ExpectedProfileView } from './ExpectedProfileView';
 import { ConstraintsList } from './ConstraintsList';
 import { StructuralBlockerCard } from './StructuralBlockerCard';
 import { RecommendedActionsSection } from './RecommendedActionsSection';
-import type { PushbackResponse } from './PushbackDrawer';
+import { useRequirementsActions } from './useRequirementsActions';
 import { spacing, iconSize, radius } from '@/constants/theme';
 
 interface Props {
@@ -59,76 +51,21 @@ export function RequirementsDocumentView({
 }: Props) {
   const { colors: c } = useTheme();
   const router = useRouter();
-  const [busy,        setBusy]        = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
-
   const readOnly = status === 'committed';
 
-  async function runAction(label: string, fn: () => Promise<unknown>) {
-    if (busy) return;
-    setBusy(true);
-    setActionError(null);
-    try {
-      await fn();
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await onAfterAction();
-    } catch (err) {
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setActionError(err instanceof Error ? err.message : `Could not ${label}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function handleCommit() {
-    void runAction('commit', async () => {
-      await api(`/api/ideation/stage-runs/${stageRunId}/commit`, { method: 'POST' });
-    });
-  }
-
-  function handleRederive() {
-    void runAction('re-derive', async () => {
-      await api(`/api/ideation/stage-runs/${stageRunId}/derive-expected-profile`, {
-        method: 'POST',
-        body:   {},
-      });
-    });
-  }
-
-  async function handleStructuralChoose(
-    choice: StructuralBlockerChoice,
-    notes:  string | null,
-  ) {
-    // Errors thrown out of this handler are caught by StructuralBlockerCard
-    // and displayed inline — keep it raw rather than wrapping in runAction
-    // so the card owns its own busy / error UX.
-    await api(`/api/ideation/stage-runs/${stageRunId}/structural-blocker-choice`, {
-      method: 'POST',
-      body:   { choice, notes },
-    });
-    await onAfterAction();
-  }
-
-  async function handlePushback(args: {
-    entryIndex:   number;
-    message:      string;
-    priorVersion: number;
-  }): Promise<PushbackResponse> {
-    // PushbackDrawer manages its own busy state and surfaces errors
-    // inline, so we throw rather than swallow.
-    const data = await api<{
-      action:  ExpectedProfilePushbackAction;
-      message: string;
-      entry:   ExpectedProfileEntry;
-      version: number;
-      status:  'open' | 'closed';
-    }>(`/api/ideation/stage-runs/${stageRunId}/expected-profile-pushback`, {
-      method: 'POST',
-      body:   args,
-    });
-    await onAfterAction();
-    return data;
-  }
+  // Action handlers live in a dedicated hook so this composer stays
+  // focused on layout — see useRequirementsActions for the network
+  // shape + per-handler busy/error semantics (some handlers go
+  // through runAction, others stay raw because their host components
+  // manage their own UX).
+  const {
+    busy,
+    actionError,
+    handleCommit,
+    handleRederive,
+    handleStructuralChoose,
+    handlePushback,
+  } = useRequirementsActions({ stageRunId, onAfterAction });
 
   return (
     <ScreenContainer scroll={false}>
