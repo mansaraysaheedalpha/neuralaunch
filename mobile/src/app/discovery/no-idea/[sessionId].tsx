@@ -34,6 +34,8 @@ import {
 import { Stage1Banner } from '@/components/discovery/Stage1Banner';
 import { Stage2Placeholder } from '@/components/discovery/Stage2Placeholder';
 import { StageBeyondPlaceholder } from '@/components/discovery/StageBeyondPlaceholder';
+import { Stage2Chat } from '@/components/discovery/stage2/Stage2Chat';
+import { RequirementsDocumentView } from '@/components/discovery/stage2/RequirementsDocumentView';
 import {
   OutcomeDocumentView,
   type OutcomeDocument,
@@ -149,12 +151,71 @@ export default function NoIdeaSessionScreen() {
   }
 
   // Dispatch based on active stage state.
-  // Stage 2 ships on web but not yet on mobile — the Stage2Placeholder
-  // surface deep-links the founder to the web's session URL so they
-  // aren't stranded. Stages 3+ aren't on web yet either, so they fall
-  // back to the generic StageBeyondPlaceholder.
+  //
+  // Stage 2 routing (now live on mobile):
+  //   - authoring                     → Stage2Chat (canvas + chat)
+  //   - output_ready / committed      → RequirementsDocumentView
+  //   - requirements failed to parse  → Stage2Chat with re-derive banner
+  //                                     surfaced via requiresRederivation
+  //                                     so the agent recomposes
+  //   - missing authoring state (would only happen on a stale hydration
+  //     race) → Stage2Placeholder bridge as a safety net
+  //
+  // Stages 3+ aren't on web yet — fall back to StageBeyondPlaceholder.
   if (hydration.active.stageNumber === 2) {
-    return <Stage2Placeholder sessionId={sessionId} />;
+    if (hydration.active.status === 'authoring') {
+      if (!hydration.stage2Authoring) {
+        // The server's safeParseStage2AuthoringState normalises missing
+        // rows into a fresh empty state, so this branch is defensive —
+        // a stale hydration could still slip a null through.
+        return <Stage2Placeholder sessionId={sessionId} />;
+      }
+      return (
+        <Stage2Chat
+          sessionId={sessionId}
+          stageRunId={hydration.active.id}
+          initialMessages={hydration.messages}
+          inventory={hydration.stage2Authoring.workingInventory}
+          hasExpectedProfile={
+            (hydration.stage2Authoring.workingExpectedProfile?.length ?? 0) > 0
+          }
+          requiresRederivation={hydration.stage2Authoring.requiresRederivation}
+          onSessionRefresh={loadSession}
+        />
+      );
+    }
+
+    // output_ready / committed. If the document JSON failed to parse,
+    // route back into Stage2Chat — the agent can recompose against
+    // the working inventory the same way Stage 1 does on
+    // documentLoadError. The cascade snapshot (when present) carries
+    // the prior document for a safe revert.
+    if (hydration.requirementsLoadError || !hydration.requirements) {
+      if (!hydration.stage2Authoring) {
+        return <Stage2Placeholder sessionId={sessionId} />;
+      }
+      return (
+        <Stage2Chat
+          sessionId={sessionId}
+          stageRunId={hydration.active.id}
+          initialMessages={hydration.messages}
+          inventory={hydration.stage2Authoring.workingInventory}
+          hasExpectedProfile={false}
+          requiresRederivation
+          onSessionRefresh={loadSession}
+        />
+      );
+    }
+
+    return (
+      <RequirementsDocumentView
+        stageRunId={hydration.active.id}
+        status={hydration.active.status as 'output_ready' | 'committed'}
+        document={hydration.requirements}
+        requiresRederivation={false}
+        onAfterAction={loadSession}
+      />
+    );
   }
   if (hydration.active.stageNumber >= 3) {
     return <StageBeyondPlaceholder stageNumber={hydration.active.stageNumber} />;
