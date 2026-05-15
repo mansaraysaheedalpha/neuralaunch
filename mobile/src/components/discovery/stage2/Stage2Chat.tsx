@@ -27,6 +27,7 @@
 // the agent's extractor applies tier moves during streaming.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useStage2ChatDispatchers } from './useStage2ChatDispatchers';
 import {
   View,
   StyleSheet,
@@ -100,58 +101,23 @@ export function Stage2Chat({
   }, [stage2.status, onSessionRefresh]);
 
   // After canvas mutations, the hook doesn't auto-refresh — callers
-  // do. We wrap each canvas dispatcher to call refresh on success so
-  // the SkillCanvas sees the persisted state. Memoized via useCallback
-  // so SkillCanvas receives stable callback refs (lets it — and any
-  // future React.memo around it — skip unnecessary re-renders).
-  // Pull the individual dispatchers out so the useCallback deps don't
-  // close over the whole `stage2` object (which is a new literal every
-  // render and would defeat the memoization). The dispatchers
-  // themselves are useCallback'd inside the hook so their refs are
-  // stable across renders.
+  // do. Wrapping logic lives in useStage2ChatDispatchers so each
+  // wrapped callback is stable across renders (lets SkillCanvas — and
+  // any future React.memo around it — skip unnecessary re-renders).
   const {
-    updateSkillTier:       hookUpdateSkillTier,
-    addTeammate:           hookAddTeammate,
-    removeTeammate:        hookRemoveTeammate,
-    renameTeammate:        hookRenameTeammate,
-    deriveExpectedProfile: hookDeriveExpectedProfile,
-  } = stage2;
-
-  const updateSkillTier = useCallback<typeof stage2.updateSkillTier>(
-    async (person, skill, tier) => {
-      await hookUpdateSkillTier(person, skill, tier);
-      await onSessionRefresh();
-    },
-    [hookUpdateSkillTier, onSessionRefresh],
-  );
-  const addTeammate = useCallback<typeof stage2.addTeammate>(
-    async (name) => {
-      await hookAddTeammate(name);
-      await onSessionRefresh();
-    },
-    [hookAddTeammate, onSessionRefresh],
-  );
-  const removeTeammate = useCallback<typeof stage2.removeTeammate>(
-    async (idx) => {
-      await hookRemoveTeammate(idx);
-      await onSessionRefresh();
-    },
-    [hookRemoveTeammate, onSessionRefresh],
-  );
-  const renameTeammate = useCallback<typeof stage2.renameTeammate>(
-    async (idx, name) => {
-      await hookRenameTeammate(idx, name);
-      await onSessionRefresh();
-    },
-    [hookRenameTeammate, onSessionRefresh],
-  );
-  // Derive completion goes through onSessionRefresh too — that's how
-  // the dispatcher transitions into RequirementsDocumentView after
-  // status flips from 'composing' back to 'idle' on success.
-  const deriveExpectedProfile = useCallback(async () => {
-    await hookDeriveExpectedProfile();
-    await onSessionRefresh();
-  }, [hookDeriveExpectedProfile, onSessionRefresh]);
+    updateSkillTier,
+    addTeammate,
+    removeTeammate,
+    renameTeammate,
+    deriveExpectedProfile,
+  } = useStage2ChatDispatchers({
+    updateSkillTier:       stage2.updateSkillTier,
+    addTeammate:           stage2.addTeammate,
+    removeTeammate:        stage2.removeTeammate,
+    renameTeammate:        stage2.renameTeammate,
+    deriveExpectedProfile: stage2.deriveExpectedProfile,
+    onSessionRefresh,
+  });
 
   // Auto-scroll when the message list changes — depend on the array
   // reference (not just length) so stream chunks fire this too. The
