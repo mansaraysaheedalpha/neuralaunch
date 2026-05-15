@@ -14,14 +14,18 @@
 // choice (readOnly).
 
 import { useState } from 'react';
-import { View, Pressable, StyleSheet } from 'react-native';
-import { AlertOctagon, ArrowRight } from 'lucide-react-native';
+import { View, StyleSheet } from 'react-native';
+import { AlertOctagon } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { Text, TextInput } from '@/components/ui';
 import type {
   StructuralBlocker,
   StructuralBlockerChoice,
 } from '@/lib/ideation-types';
+import {
+  StructuralBlockerChoiceRow,
+  type StructuralBlockerChoiceOption,
+} from './StructuralBlockerChoiceRow';
 import { spacing, iconSize, radius } from '@/constants/theme';
 
 interface Props {
@@ -31,13 +35,7 @@ interface Props {
   onChoose:  (choice: StructuralBlockerChoice, notes: string | null) => Promise<void>;
 }
 
-interface ChoiceOption {
-  choice:      StructuralBlockerChoice;
-  label:       string;
-  description: string;
-}
-
-const CHOICES: ChoiceOption[] = [
+const CHOICES: StructuralBlockerChoiceOption[] = [
   {
     choice:      'revisit_outcome',
     label:       'Revisit the outcome',
@@ -104,7 +102,7 @@ export function StructuralBlockerCard({
 
       <View style={styles.choices}>
         {CHOICES.map(opt => (
-          <ChoiceRow
+          <StructuralBlockerChoiceRow
             key={opt.choice}
             option={opt}
             selected={blocker.founderChoice === opt.choice}
@@ -139,45 +137,6 @@ export function StructuralBlockerCard({
   );
 }
 
-interface ChoiceRowProps {
-  option:   ChoiceOption;
-  selected: boolean;
-  disabled: boolean;
-  onPick:   () => void;
-}
-
-function ChoiceRow({ option, selected, disabled, onPick }: ChoiceRowProps) {
-  const { colors: c } = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={option.label}
-      accessibilityState={{ selected, disabled }}
-      disabled={disabled}
-      onPress={onPick}
-      style={({ pressed }) => [
-        styles.choiceRow,
-        {
-          borderColor:     selected ? c.secondary : c.border,
-          backgroundColor: selected ? c.secondaryAlpha20 : c.background,
-        },
-        pressed && { opacity: 0.7 },
-        disabled && { opacity: 0.5 },
-      ]}
-  >
-      <View style={styles.choiceHeader}>
-        {selected && <ArrowRight size={iconSize.xs} color={c.secondary} />}
-        <Text variant="body" color={c.foreground} weight="semibold">
-          {option.label}
-        </Text>
-      </View>
-      <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1] }}>
-        {option.description}
-      </Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   card: {
     padding: spacing[4],
@@ -193,16 +152,6 @@ const styles = StyleSheet.create({
   choices: {
     gap: spacing[2],
     marginBottom: spacing[3],
-  },
-  choiceRow: {
-    padding: spacing[3],
-    borderRadius: radius.sm,
-    borderWidth: 1,
-  },
-  choiceHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing[2],
   },
   notesWrap: {
     gap: spacing[2],
