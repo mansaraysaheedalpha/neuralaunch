@@ -15,9 +15,19 @@
 
 import * as SecureStore from 'expo-secure-store';
 
+// SecureStore.isAvailableAsync() returns a static per-platform value
+// (true on iOS/Android, false on web). Calling it on every read/write
+// is a wasted bridge crossing; cache the promise once and reuse so
+// every preference operation shares the same resolution.
+let availabilityPromise: Promise<boolean> | null = null;
+function isAvailable(): Promise<boolean> {
+  availabilityPromise ??= SecureStore.isAvailableAsync().catch(() => false);
+  return availabilityPromise;
+}
+
 export async function getPref(key: string): Promise<string | null> {
   try {
-    if (!(await SecureStore.isAvailableAsync())) return null;
+    if (!(await isAvailable())) return null;
     return await SecureStore.getItemAsync(key);
   } catch {
     return null;
@@ -26,7 +36,7 @@ export async function getPref(key: string): Promise<string | null> {
 
 export async function setPref(key: string, value: string): Promise<void> {
   try {
-    if (!(await SecureStore.isAvailableAsync())) return;
+    if (!(await isAvailable())) return;
     await SecureStore.setItemAsync(key, value);
   } catch (err) {
     // Best-effort — the surface is non-critical UI state, the worst
@@ -38,7 +48,7 @@ export async function setPref(key: string, value: string): Promise<void> {
 
 export async function clearPref(key: string): Promise<void> {
   try {
-    if (!(await SecureStore.isAvailableAsync())) return;
+    if (!(await isAvailable())) return;
     await SecureStore.deleteItemAsync(key);
   } catch {
     /* swallow */
