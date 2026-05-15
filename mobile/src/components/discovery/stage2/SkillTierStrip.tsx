@@ -78,6 +78,13 @@ export function SkillTierStrip({
   // Pill position as fraction in [0, SEGMENTS - 1]. Tap → animate to
   // target index; drag → set directly to live fraction.
   const indexFraction = useSharedValue(TIER_ORDER.indexOf(tier));
+  // Mirror of the current tier prop into a shared value so the pan
+  // worklet's onEnd can read the up-to-date "previous" tier index
+  // even if a parent re-render happened mid-drag. Without this the
+  // worklet would close over the `tier` prop at gesture-construction
+  // time and a server-pushed tier update during a long drag could
+  // produce a spurious onTierChange on release. Self-review item #3.
+  const currentTierIndex = useSharedValue(TIER_ORDER.indexOf(tier));
 
   // Sync external tier prop into the pill position whenever the server
   // pushes a new value (e.g. after a chat turn the agent updates the
@@ -85,8 +92,9 @@ export function SkillTierStrip({
   useEffect(() => {
     const targetIndex = TIER_ORDER.indexOf(tier);
     if (targetIndex < 0) return;
+    currentTierIndex.value = targetIndex;
     indexFraction.value = withSpring(targetIndex, { damping: 18, stiffness: 240 });
-  }, [tier, indexFraction]);
+  }, [tier, indexFraction, currentTierIndex]);
 
   const pillStyle = useAnimatedStyle(() => {
     const segmentWidth = trackWidth.value / SEGMENTS;
@@ -129,9 +137,12 @@ export function SkillTierStrip({
       'worklet';
       const snapped = Math.round(indexFraction.value);
       indexFraction.value = withTiming(snapped, { duration: 140 });
+      // Read previous tier from the shared value (always fresh) rather
+      // than the React closure (could be stale if the parent re-rendered
+      // during the drag). See currentTierIndex declaration for context.
+      const prevIdx  = currentTierIndex.value;
       const nextTier = TIER_ORDER[snapped];
-      const prevTier = tier;
-      if (nextTier && nextTier !== prevTier) {
+      if (nextTier && snapped !== prevIdx) {
         runOnJS(Haptics.selectionAsync)();
         runOnJS(onTierChange)(nextTier);
       }
