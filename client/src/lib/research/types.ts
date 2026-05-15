@@ -27,6 +27,7 @@ export const RESEARCH_AGENTS = [
   'research-followup',
   'service-packager',
   'stage2-expected-profile',
+  'stage3-pain-scout',
 ] as const;
 export type ResearchAgent = typeof RESEARCH_AGENTS[number];
 
@@ -40,7 +41,7 @@ export type ResearchAgent = typeof RESEARCH_AGENTS[number];
  * Same string-union pattern as agent — adding a third tool later is
  * a code change, not a migration.
  */
-export const RESEARCH_TOOLS = ['exa_search', 'tavily_search'] as const;
+export const RESEARCH_TOOLS = ['exa_search', 'tavily_search', 'community_pulse'] as const;
 export type ResearchTool = typeof RESEARCH_TOOLS[number];
 
 /**

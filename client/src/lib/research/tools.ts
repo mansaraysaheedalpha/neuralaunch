@@ -27,6 +27,7 @@ import { logger } from '@/lib/logger';
 import { isResearchConfigured, searchOnce as tavilySearchOnce } from './tavily-client';
 import { isExaConfigured, exaSearchOnce } from './exa-client';
 import { renderExaSummary, renderTavilySummary, renderToolError } from './render-summaries';
+import { buildCommunityPulseTool } from './free-composite';
 import type { ResearchAgent, ResearchLogEntry } from './types';
 
 // ---------------------------------------------------------------------------
@@ -140,6 +141,16 @@ export function buildResearchTools(input: BuildResearchToolsInput): ResearchTool
       },
     });
   }
+
+  // community_pulse is Stage-3-only — buildCommunityPulseTool
+  // returns {} for any other agent. Spread its result so the tool
+  // list shrinks at registration time when this agent isn't
+  // stage3-pain-scout.
+  Object.assign(tools, buildCommunityPulseTool({
+    agent:       input.agent,
+    contextId:   input.contextId,
+    accumulator: input.accumulator,
+  }));
 
   if (isResearchConfigured()) {
     tools.tavily_search = tool({

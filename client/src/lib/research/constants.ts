@@ -147,4 +147,15 @@ export const RESEARCH_BUDGETS: Record<ResearchAgent, { steps: number; descriptio
     steps:       3,
     description: 'Optional targeted verification of skill demands implied by the Stage 1 OutcomeDocument.',
   },
+  'stage3-pain-scout': {
+    // Stage 3 — No Idea archetype: scout community pain signals
+    // across the free-composite fan-out (community_pulse) + Tavily
+    // + Exa. Budget = 8 gives the agent room for ~5-6 tool calls
+    // (a community_pulse fan-out is one step, can pair with 2-3
+    // targeted Tavily/Exa calls to verify a surfaced complaint)
+    // plus the structured emission. Re-runs are counted against
+    // scoutRunCount (max 5/session); the budget here is per-call.
+    steps:       8,
+    description: 'Community + web research to surface candidate pain points. Free-composite + Tavily + Exa.',
+  },
 } as const;

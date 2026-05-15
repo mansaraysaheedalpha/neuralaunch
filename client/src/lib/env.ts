@@ -66,6 +66,22 @@ const envSchema = z.object({
   TAVILY_API_KEY: z.string().optional(),
   EXA_API_KEY:    z.string().optional(),
 
+  // Stage 3 Pain Scout — free-composite community sources. Each is
+  // optional; missing keys cause the corresponding client to skip
+  // itself out of the fan-out (per SourceClient.isConfigured). The
+  // orchestrator fails open across the remaining clients.
+  //
+  // GITHUB_PAT: a Personal Access Token with public_repo scope. Lifts
+  // the GitHub Issues client from 60/hour to 5000/hour. Without it,
+  // the GitHub client refuses to run (rather than running unauth and
+  // tripping rate limits mid-scout).
+  GITHUB_PAT: z.string().optional(),
+  // DEVTO_API_KEY: Dev.to api-key. Optional — the unauth endpoint
+  // still works at lower rate limits. Authenticated requests get
+  // higher quotas and access to draft articles, neither of which we
+  // need today; the env var is reserved for future use.
+  DEVTO_API_KEY: z.string().optional(),
+
   // Transactional email via Resend. Reintroduced for billing dunning
   // (see src/lib/email/sender.ts — send attempts are gated by whether
   // both keys are set). When unset the email send becomes a no-op
