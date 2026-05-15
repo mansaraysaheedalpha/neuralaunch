@@ -126,15 +126,18 @@ export function Stage2Chat({
     await onSessionRefresh();
   };
 
-  // Auto-scroll on new messages — but only when a message is added,
-  // not on every keystroke during a stream (which would fight with
-  // the founder reading the canvas). Mirroring Stage 1's pattern.
+  // Auto-scroll when the message list changes — depend on the array
+  // reference (not just length) so stream chunks fire this too. The
+  // hook returns a new array on every chunk via setMessages(prev =>
+  // prev.map(...)). The setTimeout + clearTimeout cleanup debounces
+  // to ~50ms after the last update so we don't fire scroll on every
+  // single token. Matches Stage 1's pattern in [sessionId].tsx.
   useEffect(() => {
     const t = setTimeout(() => {
       listRef.current?.scrollToEnd({ animated: true });
     }, 50);
     return () => clearTimeout(t);
-  }, [stage2.messages.length]);
+  }, [stage2.messages]);
 
   const isBusy =
     stage2.status === 'sending' ||
