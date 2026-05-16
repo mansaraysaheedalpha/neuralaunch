@@ -19,19 +19,16 @@
 // can route them through useStage2Session.
 
 import { useMemo, useState } from 'react';
-import { View, StyleSheet, Pressable, Keyboard, Platform } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Sparkles, ChevronRight, Trash2 } from 'lucide-react-native';
+import { Sparkles, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
-import {
-  Text,
-  Button,
-  TextInput,
-  BottomSheet,
-} from '@/components/ui';
+import { Text } from '@/components/ui';
 import type { SkillInventory, SkillKey, SkillTier } from '@/lib/ideation-types';
 import { SkillTierStrip } from './SkillTierStrip';
 import { TeammateTabs } from './TeammateTabs';
+import { AddTeammateRow } from './AddTeammateRow';
+import { EditTeammateSheet } from './EditTeammateSheet';
 import { SKILL_LABELS, SKILL_ORDER } from './labels';
 import { spacing, iconSize, radius } from '@/constants/theme';
 
@@ -68,11 +65,9 @@ export function SkillCanvas({
   hasExpectedProfile,
 }: SkillCanvasProps) {
   const { colors: c } = useTheme();
-  const [selected,       setSelected]       = useState<'founder' | number>('founder');
-  const [isAdding,       setIsAdding]       = useState(false);
-  const [addInput,       setAddInput]       = useState('');
-  const [editingIdx,     setEditingIdx]     = useState<number | null>(null);
-  const [renameInput,    setRenameInput]    = useState('');
+  const [selected,   setSelected]   = useState<'founder' | number>('founder');
+  const [isAdding,   setIsAdding]   = useState(false);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
 
   // Clamp selection if the team list shrinks beneath the index (e.g.
   // we just removed a teammate while it was selected). Falls back to
@@ -105,60 +100,33 @@ export function SkillCanvas({
     void onUpdateSkillTier(selected, skill, tier).catch(() => { /* swallow */ });
   }
 
-  async function handleSubmitAdd() {
-    const name = addInput.trim();
-    if (!name) return;
-    Keyboard.dismiss();
-    try {
-      await onAddTeammate(name);
-      setAddInput('');
-      setIsAdding(false);
-    } catch { /* turnError already set by hook */ }
-  }
-
-  function handleCancelAdd() {
-    Keyboard.dismiss();
-    setAddInput('');
+  async function handleAddSubmit(name: string) {
+    await onAddTeammate(name);
     setIsAdding(false);
   }
 
-  function handleRequestEdit(idx: number) {
-    setEditingIdx(idx);
-    setRenameInput(inventory.team[idx]?.name ?? '');
-  }
-
-  function handleCloseEdit() {
-    setEditingIdx(null);
-    setRenameInput('');
-  }
-
-  async function handleSubmitRename() {
+  async function handleRenameSubmit(next: string) {
     if (editingIdx === null) return;
-    const name = renameInput.trim();
-    if (!name) return;
-    Keyboard.dismiss();
-    try {
-      await onRenameTeammate(editingIdx, name);
-      handleCloseEdit();
-    } catch { /* turnError already set by hook */ }
+    await onRenameTeammate(editingIdx, next);
+    setEditingIdx(null);
   }
 
-  async function handleRemove() {
+  async function handleRemoveTeammate() {
     if (editingIdx === null) return;
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    try {
-      await onRemoveTeammate(editingIdx);
-      // If we just removed the selected teammate, fall back to founder.
-      if (selected === editingIdx) setSelected('founder');
-      // If we removed a teammate whose index was BELOW selected, the
-      // remaining selection now points to the wrong person. Clamp to
-      // founder for safety — the parent's refetch will resolve to the
-      // freshest list shape before the next tier write.
-      else if (typeof selected === 'number' && selected > editingIdx) {
-        setSelected('founder');
-      }
-      handleCloseEdit();
-    } catch { /* turnError already set by hook */ }
+    await onRemoveTeammate(editingIdx);
+    // If we just removed the selected teammate, OR a teammate whose
+    // index sat below the selected index (which now points at the
+    // wrong person after the shift), fall back to founder. The
+    // parent's refetch resolves to the freshest list shape before
+    // the next tier write either way.
+    if (
+      selected === editingIdx ||
+      (typeof selected === 'number' && selected > editingIdx)
+    ) {
+      setSelected('founder');
+    }
+    setEditingIdx(null);
   }
 
   return (
@@ -170,37 +138,15 @@ export function SkillCanvas({
         disabled={busy}
         onSelect={handleSelect}
         onRequestAdd={() => setIsAdding(true)}
-        onRequestEdit={handleRequestEdit}
+        onRequestEdit={setEditingIdx}
       />
 
       {isAdding && (
-        <View style={[styles.addRow, { borderColor: c.border, backgroundColor: c.card }]}>
-          <TextInput
-            value={addInput}
-            onChangeText={setAddInput}
-            placeholder="Teammate name"
-            autoFocus
-            autoCapitalize="words"
-            returnKeyType="done"
-            onSubmitEditing={() => { void handleSubmitAdd(); }}
-            editable={!busy}
-            containerStyle={{ flex: 1 }}
-          />
-          <Button
-            title="Add"
-            onPress={() => { void handleSubmitAdd(); }}
-            variant="primary"
-            size="sm"
-            disabled={busy || !addInput.trim()}
-          />
-          <Button
-            title="Cancel"
-            onPress={handleCancelAdd}
-            variant="ghost"
-            size="sm"
-            disabled={busy}
-          />
-        </View>
+        <AddTeammateRow
+          onSubmit={handleAddSubmit}
+          onCancel={() => setIsAdding(false)}
+          disabled={busy}
+        />
       )}
 
       <View style={styles.rows}>
@@ -255,55 +201,19 @@ export function SkillCanvas({
         )}
       </View>
 
-      <BottomSheet
+      <EditTeammateSheet
         visible={editingIdx !== null}
-        onClose={handleCloseEdit}
-        title={editingIdx !== null ? `Edit ${inventory.team[editingIdx]?.name ?? 'teammate'}` : ''}
-      >
-        <View style={styles.editSheet}>
-          <TextInput
-            value={renameInput}
-            onChangeText={setRenameInput}
-            placeholder="Name"
-            autoCapitalize="words"
-            autoFocus={Platform.OS !== 'android'}
-            editable={!busy}
-            label="Rename"
-          />
-          <Button
-            title="Save name"
-            onPress={() => { void handleSubmitRename(); }}
-            variant="primary"
-            size="md"
-            fullWidth
-            disabled={busy || !renameInput.trim() ||
-              renameInput.trim() === (editingIdx !== null ? inventory.team[editingIdx]?.name : '')}
-          />
-          <Button
-            title="Remove teammate"
-            onPress={() => { void handleRemove(); }}
-            variant="destructive"
-            size="md"
-            fullWidth
-            disabled={busy}
-            icon={<Trash2 size={iconSize.sm} color={c.primaryForeground} />}
-          />
-        </View>
-      </BottomSheet>
+        currentName={editingIdx !== null ? inventory.team[editingIdx]?.name ?? null : null}
+        onClose={() => setEditingIdx(null)}
+        onRename={handleRenameSubmit}
+        onRemove={handleRemoveTeammate}
+        busy={busy}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  addRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: spacing[2],
-    padding: spacing[3],
-    borderWidth: 1,
-    borderRadius: radius.md,
-    marginBottom: spacing[3],
-  },
   rows: {
     gap: spacing[1],
   },
@@ -322,9 +232,5 @@ const styles = StyleSheet.create({
   deriveHint: {
     marginTop: spacing[2],
     paddingHorizontal: spacing[1],
-  },
-  editSheet: {
-    gap: spacing[3],
-    paddingBottom: spacing[6],
   },
 });
