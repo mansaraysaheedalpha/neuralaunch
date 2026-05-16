@@ -7,7 +7,7 @@
 import { View, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { MessageSquare, Send, Search, Package, ArrowRight, type LucideIcon } from 'lucide-react-native';
+import { MessageSquare, Send, Search, Package, FlaskConical, ArrowRight, type LucideIcon } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { Text, Card, Badge, ScreenContainer } from '@/components/ui';
 import { spacing, iconSize } from '@/constants/theme';
@@ -50,6 +50,13 @@ const TOOLS: ToolDefinition[] = [
     description: 'Define your offering — name, target client, tiers, pricing, and a one-page brief you can send to prospects. Combines market research with your costs and time to produce a ready-to-share package.',
     route:       '/tools/packager',
     icon:        Package,
+  },
+  {
+    id:          'validation_tool',
+    title:       'Validation Tool',
+    description: 'Test an offer before you build it. Describe what you want to validate; we generate a focused landing page with a survey hook you can send to your network and measure real interest in 48 hours.',
+    route:       '/tools/validation',
+    icon:        FlaskConical,
   },
 ];
 
