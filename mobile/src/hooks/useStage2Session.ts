@@ -35,8 +35,9 @@
 // caller needing a separate try/catch.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getToken, API_BASE_URL, api } from '@/services/api-client';
+import { getToken, API_BASE_URL } from '@/services/api-client';
 import type { SkillKey, SkillTier } from '@/lib/ideation-types';
+import { useStage2Canvas } from './useStage2Canvas';
 
 export type Stage2Message = {
   id:          string;
@@ -298,98 +299,24 @@ export function useStage2Session({
     }
   }, [messages, sessionId, status, onTurnComplete]);
 
-  // ───────────────────────────────────────────────────────────────────
-  // Canvas action dispatchers
-  // ───────────────────────────────────────────────────────────────────
-  //
-  // All canvas mutations are atomic on the server side (dual-write into
-  // FounderProfile inside a Prisma transaction). Each returns void;
-  // the caller is expected to refetch session state after awaiting so
-  // the canvas re-renders with the persisted shape. Errors land in
-  // turnError so the UI can surface them; the caller can also catch
-  // the thrown error if it wants imperative handling.
-
-  const runAction = useCallback(async (
-    label:   string,
-    invoke:  () => Promise<unknown>,
-  ): Promise<void> => {
-    setTurnError(null);
-    beginCanvasWrite();
-    try {
-      await invoke();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : `Could not ${label}`;
-      setTurnError({ kind: 'action', message });
-      throw err instanceof Error ? err : new Error(message);
-    } finally {
-      endCanvasWrite();
-    }
-  }, [beginCanvasWrite, endCanvasWrite]);
-
-  const updateSkillTier = useCallback(
-    (person: 'founder' | number, skill: SkillKey, tier: SkillTier) =>
-      runAction('update skill tier', () =>
-        api(`/api/ideation/stage-runs/${stageRunId}/skill-tier`, {
-          method: 'POST',
-          body:   { person, skill, tier },
-        }),
-      ),
-    [runAction, stageRunId],
-  );
-
-  const addTeammate = useCallback(
-    (name: string) =>
-      runAction('add teammate', () =>
-        api(`/api/ideation/stage-runs/${stageRunId}/teammate`, {
-          method: 'POST',
-          body:   { op: 'add', name },
-        }),
-      ),
-    [runAction, stageRunId],
-  );
-
-  const removeTeammate = useCallback(
-    (index: number) =>
-      runAction('remove teammate', () =>
-        api(`/api/ideation/stage-runs/${stageRunId}/teammate`, {
-          method: 'POST',
-          body:   { op: 'remove', index },
-        }),
-      ),
-    [runAction, stageRunId],
-  );
-
-  const renameTeammate = useCallback(
-    (index: number, name: string) =>
-      runAction('rename teammate', () =>
-        api(`/api/ideation/stage-runs/${stageRunId}/teammate`, {
-          method: 'POST',
-          body:   { op: 'rename', index, name },
-        }),
-      ),
-    [runAction, stageRunId],
-  );
-
-  const deriveExpectedProfile = useCallback(async () => {
-    // Derive is synchronous on the server (~15s p99 — Expected Profile
-    // agent + research). Mirror the web's UX by flipping status to
-    // 'composing' for the duration so loaders / disable-states fire.
-    setStatus('composing');
-    setTurnError(null);
-    try {
-      await api(`/api/ideation/stage-runs/${stageRunId}/derive-expected-profile`, {
-        method: 'POST',
-        body:   {},
-      });
-      setStatus('idle');
-    } catch (err) {
-      setStatus('error');
-      setTurnError({
-        kind:    'action',
-        message: err instanceof Error ? err.message : 'Derivation failed',
-      });
-    }
-  }, [stageRunId]);
+  // Canvas action dispatchers live in their own hook so this file
+  // stays under CLAUDE.md's 300-line cap and the canvas-write path
+  // is testable in isolation. The chat-streaming machinery above is
+  // the hard-to-decouple piece — canvas writes are mostly
+  // boilerplate around the api() helper, so they're the right cut.
+  const {
+    updateSkillTier,
+    addTeammate,
+    removeTeammate,
+    renameTeammate,
+    deriveExpectedProfile,
+  } = useStage2Canvas({
+    stageRunId,
+    setStatus,
+    setTurnError,
+    beginCanvasWrite,
+    endCanvasWrite,
+  });
 
   return {
     messages,
