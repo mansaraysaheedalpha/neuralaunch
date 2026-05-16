@@ -14,6 +14,7 @@ import {
   safeParseStage1AuthoringState,
   restoreFromEditSnapshot,
   restoreStage2FromCascadeSnapshot,
+  restoreStage3FromCascadeSnapshot,
 } from '@/lib/ideation';
 
 interface RouteContext {
@@ -60,6 +61,9 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     // matching /edit can restore its own snapshot. Idempotent if no
     // Stage 2 row exists or no cascade snapshot was set.
     await restoreStage2FromCascadeSnapshot(run.sessionId, userId);
+    // Stage 3 also discharges 'stage1' from its triggeringStages
+    // list. Restores only if Stage 2 had already discharged too.
+    await restoreStage3FromCascadeSnapshot(run.sessionId, userId, 'stage1');
 
     logger.child({ route: 'POST /api/ideation/stage-runs/[id]/discard-edit', userId, stageRunId: id })
           .debug('Stage 1 edit discarded — restored from snapshot (cascade fired)', {

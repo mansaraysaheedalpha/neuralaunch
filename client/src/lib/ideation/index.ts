@@ -64,10 +64,22 @@ export {
   setStructuralBlockerChoice,
   writeWorkingExpectedProfile,
   writeExpectedProfileEntry,
+  // Stage 3 transitions
+  markStage3OutputReady,
+  markStage3Committed,
+  persistFounderPainPoint,
+  persistReplacePainPoint,
+  persistRemovePainPoint,
+  persistStage3RecommendedAction,
+  persistPainPointPushbackRound,
+  persistPainScoutRunResult,
   // Cross-stage cascades
   cascadeStage1EditToStage2,
   restoreStage2FromCascadeSnapshot,
   clearStage2CascadeSnapshot,
+  cascadeStage1OrStage2EditToStage3,
+  restoreStage3FromCascadeSnapshot,
+  clearStage3CascadeSnapshot,
 } from './stage-run-store';
 
 // ---- Agent (streaming) ----
@@ -94,3 +106,15 @@ export { composeOutcomeDocument } from './stage1-outcome/composer';
 // path can also reach it as `@/lib/ideation/stage2-requirements`.
 
 export * from './stage2-requirements';
+
+// ===========================================================================
+// Stage 3 — Opportunity Identification
+// ===========================================================================
+//
+// Stage 3's public surface is re-exported from its sub-module barrel
+// at './stage3-opportunities'. Client components MUST NOT import
+// from this top-level barrel — use the specific schema.ts /
+// constants.ts paths to avoid pulling server-only modules into
+// client bundles. See docs/stage3-handoff.md § 8.
+
+export * from './stage3-opportunities';

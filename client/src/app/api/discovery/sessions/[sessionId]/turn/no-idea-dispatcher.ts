@@ -13,6 +13,7 @@ import { HttpError } from '@/lib/validation/server-helpers';
 import { getActiveStageRun } from '@/lib/ideation';
 import { handleStage1Turn } from './stage1-handler';
 import { handleStage2Turn } from './stage2-handler';
+import { handleStage3Turn } from './stage3-handler';
 
 export async function handleNoIdeaTurn(args: {
   message:        string;
@@ -33,10 +34,12 @@ export async function handleNoIdeaTurn(args: {
       return handleStage1Turn(args);
     case 2:
       return handleStage2Turn(args);
+    case 3:
+      return handleStage3Turn(args);
     default:
-      // Stages 0, 3, 4, 5 — none should be the active stage during a
+      // Stages 0, 4, 5 — none should be the active stage during a
       // /turn call. Stage 0 commits straight from the mindset page;
-      // 3-5 don't exist yet. Surface as 501 so the client renders
+      // 4-5 don't exist yet. Surface as 501 so the client renders
       // the "coming soon" placeholder rather than a generic error.
       return NextResponse.json(
         { error: 'Stage not implemented', stageNumber: activeStage.stageNumber },

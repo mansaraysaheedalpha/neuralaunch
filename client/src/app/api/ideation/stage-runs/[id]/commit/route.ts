@@ -14,7 +14,9 @@ import {
   requireOwnedStageRun,
   markStage1Committed,
   markStage2Committed,
+  markStage3Committed,
   clearStage2CascadeSnapshot,
+  clearStage3CascadeSnapshot,
   safeParseSkillInventory,
   createEmptySkillInventory,
 } from '@/lib/ideation';
@@ -44,8 +46,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     const { id } = await params;
 
     const run = await requireOwnedStageRun(id, userId);
-    if (run.stageNumber !== 1 && run.stageNumber !== 2) {
-      throw new HttpError(409, 'Commit is supported for Stage 1 and Stage 2 only in this batch');
+    if (run.stageNumber !== 1 && run.stageNumber !== 2 && run.stageNumber !== 3) {
+      throw new HttpError(409, 'Commit is supported for Stage 1, 2, and 3 only in this batch');
     }
     if (run.status === 'authoring') {
       // The founder is editing; commit is meaningless until they
@@ -56,14 +58,15 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
     if (run.stageNumber === 1) {
       await markStage1Committed(id);
-      // Cascade: clear any stale Stage 2 cascadeSnapshot. The Stage 1
-      // recommit changed the upstream OutcomeDocument, so the
-      // snapshot's stage-2 document is no longer reachable from a
+      // Cascade: clear any stale Stage 2 / Stage 3 cascadeSnapshot.
+      // The Stage 1 recommit changed the upstream OutcomeDocument, so
+      // downstream snapshots are no longer reachable from a
       // /discard-edit. Idempotent.
       await clearStage2CascadeSnapshot(run.sessionId, userId);
+      await clearStage3CascadeSnapshot(run.sessionId, userId, 'stage1');
       logger.child({ route: 'POST /api/ideation/stage-runs/[id]/commit', userId, stageRunId: id })
-            .debug('Stage 1 committed (cascade-snapshot cleared)');
-    } else {
+            .debug('Stage 1 committed (cascade-snapshots cleared on 2 + 3)');
+    } else if (run.stageNumber === 2) {
       // Stage 2 commit — snapshot the founder's current FounderProfile
       // skillInventory into the artifact at commit time.
       const profile = await prisma.founderProfile.findUnique({
@@ -74,8 +77,17 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         safeParseSkillInventory(profile?.skillInventory ?? null)
         ?? createEmptySkillInventory();
       await markStage2Committed(id, snapshotInventory);
+      // Stage 2 recommit → clear Stage 3's cascade-snapshot for stage2.
+      await clearStage3CascadeSnapshot(run.sessionId, userId, 'stage2');
       logger.child({ route: 'POST /api/ideation/stage-runs/[id]/commit', userId, stageRunId: id })
-            .debug('Stage 2 committed');
+            .debug('Stage 2 committed (cascade-snapshot cleared on 3)');
+    } else {
+      // Stage 3 commit — no downstream cascade target yet (Stage 4
+      // doesn't exist). The persisted PainInventoryDocument is now
+      // frozen.
+      await markStage3Committed(id);
+      logger.child({ route: 'POST /api/ideation/stage-runs/[id]/commit', userId, stageRunId: id })
+            .debug('Stage 3 committed');
     }
 
     return NextResponse.json({ ok: true });

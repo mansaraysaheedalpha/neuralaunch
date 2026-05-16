@@ -15,6 +15,7 @@ import {
   revertToEdit,
   safeParseOutcomeDocument,
   cascadeStage1EditToStage2,
+  cascadeStage1OrStage2EditToStage3,
 } from '@/lib/ideation';
 
 interface RouteContext {
@@ -78,9 +79,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     // Cascade: revert any committed-or-output-ready Stage 2 row.
     // Idempotent if Stage 2 doesn't exist or is already in authoring.
     await cascadeStage1EditToStage2(run.sessionId, userId);
+    // Cascade further: Stage 3 also reverts on a Stage 1 edit.
+    // Idempotent if Stage 3 doesn't exist or is already in authoring.
+    await cascadeStage1OrStage2EditToStage3(run.sessionId, userId, 'stage1');
 
     logger.child({ route: 'POST /api/ideation/stage-runs/[id]/edit', userId, stageRunId: id })
-          .debug('Stage 1 reverted to editing (cascade fired)', { dimension: parsed.data.dimension, priorStatus: run.status });
+          .debug('Stage 1 reverted to editing (cascade fired to 2 + 3)', { dimension: parsed.data.dimension, priorStatus: run.status });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

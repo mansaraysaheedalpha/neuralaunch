@@ -24,6 +24,14 @@ import {
   safeParseStage2AuthoringState,
   safeParseRequirementsDocument,
 } from '../stage2-requirements/state';
+import type {
+  Stage3AuthoringState,
+  Stage3CascadeSnapshot,
+} from '../stage3-opportunities/schema';
+import {
+  safeParseStage3AuthoringState,
+  safeParsePainInventoryDocument,
+} from '../stage3-opportunities/state';
 
 // ---------------------------------------------------------------------------
 // Helper — find the session's Stage 2 row (if any). Owner-scoped.
@@ -162,6 +170,194 @@ export async function clearStage2CascadeSnapshot(
 
   await prisma.ideationStageRun.updateMany({
     where: { id: stage2.id, stageNumber: 2, status: 'authoring' },
+    data:  { output: toJsonValue(nextAuthoring) },
+  });
+}
+
+// ===========================================================================
+// Stage 3 cross-stage cascade — TWO upstream sources (Stage 1 + Stage 2)
+//
+// Three-rule state machine (see docs/stage3-handoff.md § 2.1):
+//
+//   /edit from Stage X (X ∈ {stage1, stage2})
+//     If Stage 3 has no snapshot:
+//       revert Stage 3 to authoring, snapshot prior document,
+//       triggeringStages = [X], requiresRederivation = true
+//     If Stage 3 already has a snapshot (cascade already in flight):
+//       add X to triggeringStages, snapshot + status unchanged
+//
+//   /discard-edit from Stage X:
+//     Remove X from triggeringStages
+//     If list empties AND snapshot still exists → restore from
+//       snapshot
+//     If list empties AND snapshot is null (cleared by prior
+//       commit) → no-op
+//
+//   /commit (recommit) from Stage X:
+//     If Stage 3 snapshot exists and triggeringStages contains X:
+//       NULL the entire snapshot AND clear triggeringStages.
+//       requiresRederivation stays true — founder must re-derive.
+//
+// Test invariants pinned in cascade-stage3.test.ts.
+// ===========================================================================
+
+type TriggeringStage = 'stage1' | 'stage2';
+
+async function findOwnedStage3Run(
+  sessionId: string,
+  userId:    string,
+): Promise<{ id: string; status: string; output: unknown } | null> {
+  return await prisma.ideationStageRun.findFirst({
+    where:  { sessionId, stageNumber: 3, session: { userId } },
+    select: { id: true, status: true, output: true },
+  });
+}
+
+export async function cascadeStage1OrStage2EditToStage3(
+  sessionId:        string,
+  userId:           string,
+  triggeringStage:  TriggeringStage,
+): Promise<void> {
+  const stage3 = await findOwnedStage3Run(sessionId, userId);
+  if (!stage3) return;
+
+  // Branch A — Stage 3 was committed/output_ready → revert + snapshot.
+  if (stage3.status === 'output_ready' || stage3.status === 'committed') {
+    const priorDocument = safeParsePainInventoryDocument(stage3.output);
+    if (!priorDocument) return;
+
+    const cascadeSnapshot: Stage3CascadeSnapshot = {
+      document:         priorDocument,
+      triggeringStages: [triggeringStage],
+      snapshottedAt:    new Date().toISOString(),
+    };
+
+    const nextAuthoring: Stage3AuthoringState = {
+      agentPainPoints:      [],
+      founderPainPoints:    [],
+      recommendedActions:   priorDocument.recommendedActions,
+      researchLog:          priorDocument.researchLog,
+      scoutRunCount:        0,
+      cascadeSnapshot,
+      requiresRederivation: true,
+    };
+
+    await prisma.ideationStageRun.updateMany({
+      where: { id: stage3.id, stageNumber: 3, status: { in: ['output_ready', 'committed'] } },
+      data:  {
+        status:      'authoring',
+        committedAt: null,
+        output:      toJsonValue(nextAuthoring),
+      },
+    });
+    return;
+  }
+
+  // Branch B — Stage 3 already in authoring with a cascade snapshot
+  // (the OTHER upstream stage already fired). Add this stage to the
+  // triggeringStages list.
+  if (stage3.status === 'authoring') {
+    const authoring = safeParseStage3AuthoringState(stage3.output);
+    if (!authoring.cascadeSnapshot) return; // not in cascade — Stage 3 is normal authoring, no-op
+    if (authoring.cascadeSnapshot.triggeringStages.includes(triggeringStage)) return;
+
+    const nextAuthoring: Stage3AuthoringState = {
+      ...authoring,
+      cascadeSnapshot: {
+        ...authoring.cascadeSnapshot,
+        triggeringStages: [...authoring.cascadeSnapshot.triggeringStages, triggeringStage],
+      },
+      requiresRederivation: true,
+    };
+
+    await prisma.ideationStageRun.updateMany({
+      where: { id: stage3.id, stageNumber: 3, status: 'authoring' },
+      data:  { output: toJsonValue(nextAuthoring) },
+    });
+  }
+}
+
+export async function restoreStage3FromCascadeSnapshot(
+  sessionId:           string,
+  userId:              string,
+  dischargingStage:    TriggeringStage,
+  now:                 Date = new Date(),
+): Promise<void> {
+  const stage3 = await findOwnedStage3Run(sessionId, userId);
+  if (!stage3) return;
+  if (stage3.status !== 'authoring') return;
+
+  const authoring = safeParseStage3AuthoringState(stage3.output);
+  if (!authoring.cascadeSnapshot) return;
+  if (!authoring.cascadeSnapshot.triggeringStages.includes(dischargingStage)) return;
+
+  const remaining = authoring.cascadeSnapshot.triggeringStages.filter(
+    s => s !== dischargingStage,
+  );
+
+  if (remaining.length > 0) {
+    // Other upstream stage still has its edit open — keep the snapshot
+    // but remove this stage from the trigger list.
+    const nextAuthoring: Stage3AuthoringState = {
+      ...authoring,
+      cascadeSnapshot: { ...authoring.cascadeSnapshot, triggeringStages: remaining },
+    };
+    await prisma.ideationStageRun.updateMany({
+      where: { id: stage3.id, stageNumber: 3, status: 'authoring' },
+      data:  { output: toJsonValue(nextAuthoring) },
+    });
+    return;
+  }
+
+  // All upstream stages have discharged → restore from snapshot.
+  await prisma.ideationStageRun.updateMany({
+    where: { id: stage3.id, stageNumber: 3, status: 'authoring' },
+    data:  {
+      status:      'output_ready',
+      // committedAt was null on the snapshotted Stage 3 unless it
+      // had been committed before the cascade. The snapshot itself
+      // doesn't track whether it was 'output_ready' or 'committed'
+      // before the cascade (Stage 3 doesn't surface that
+      // distinction the way Stage 1's discard-edit does — Stage 3's
+      // commit just records committedAt). On restore we always go
+      // back to 'output_ready' and the founder re-clicks commit.
+      // Acceptable simplification documented in handoff brief.
+      committedAt: null,
+      output:      toJsonValue(authoring.cascadeSnapshot.document),
+    },
+  });
+  // The snapshot is now cleared as part of the status transition —
+  // the row's output is the document, no more authoring envelope.
+  void now;
+}
+
+export async function clearStage3CascadeSnapshot(
+  sessionId:        string,
+  userId:           string,
+  triggeringStage:  TriggeringStage,
+): Promise<void> {
+  const stage3 = await findOwnedStage3Run(sessionId, userId);
+  if (!stage3) return;
+  if (stage3.status !== 'authoring') return;
+
+  const authoring = safeParseStage3AuthoringState(stage3.output);
+  if (!authoring.cascadeSnapshot) return;
+  if (!authoring.cascadeSnapshot.triggeringStages.includes(triggeringStage)) return;
+
+  // Per the locked three-rule design: ANY upstream /commit (recommit)
+  // NULLs the entire snapshot and clears triggeringStages — the
+  // founder must re-derive against the new upstream context. We do
+  // NOT preserve the snapshot for the other upstream's eventual
+  // discharge because the underlying document was derived against
+  // stale upstream state.
+  const nextAuthoring: Stage3AuthoringState = {
+    ...authoring,
+    cascadeSnapshot:      null,
+    requiresRederivation: true,
+  };
+
+  await prisma.ideationStageRun.updateMany({
+    where: { id: stage3.id, stageNumber: 3, status: 'authoring' },
     data:  { output: toJsonValue(nextAuthoring) },
   });
 }

@@ -197,7 +197,21 @@ export {
 } from './stage2-transitions';
 
 export {
+  markStage3OutputReady,
+  markStage3Committed,
+  persistFounderPainPoint,
+  persistReplacePainPoint,
+  persistRemovePainPoint,
+  persistStage3RecommendedAction,
+  persistPainPointPushbackRound,
+  persistPainScoutRunResult,
+} from './stage3-transitions';
+
+export {
   cascadeStage1EditToStage2,
   restoreStage2FromCascadeSnapshot,
   clearStage2CascadeSnapshot,
+  cascadeStage1OrStage2EditToStage3,
+  restoreStage3FromCascadeSnapshot,
+  clearStage3CascadeSnapshot,
 } from './cross-stage-cascades';

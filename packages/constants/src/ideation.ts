@@ -287,3 +287,66 @@ export const EXPECTED_PROFILE_PUSHBACK_MODES = [
   'lack_of_belief',
 ] as const;
 export type ExpectedProfilePushbackMode = typeof EXPECTED_PROFILE_PUSHBACK_MODES[number];
+
+// ---------------------------------------------------------------------------
+// Stage 3 — Opportunity Identification: pain-point taxonomy
+// ---------------------------------------------------------------------------
+
+/**
+ * How a founder-side pain point was sourced. Drives the "where did
+ * this come from" framing on the PainPointCard UI and is persisted
+ * in the artifact for later stages to reason about.
+ *
+ *   - own_life              — founder experiences the pain directly
+ *   - close_relationship    — heard from someone close (spouse, friend)
+ *   - industry_observation  — noticed in their professional domain
+ *   - existing_solution_gap — found a current solution that's lacking
+ *
+ * Per Troy's framework: pain points come from the founder's own
+ * life and close circle first; external (agent) monitoring is a
+ * check, not the source.
+ */
+export const FOUNDER_CONTEXT_TAGS = [
+  'own_life',
+  'close_relationship',
+  'industry_observation',
+  'existing_solution_gap',
+] as const;
+export type FounderContextTag = typeof FOUNDER_CONTEXT_TAGS[number];
+
+/**
+ * Lifecycle of one pain point inside the Stage 3 inventory.
+ *
+ *   - pending_rating     — added (by agent or founder), not yet scored
+ *   - rated              — founder has set founderFinalScores
+ *   - rejected_by_founder — founder reviewed and dismissed; kept in
+ *                           the audit trail but excluded from shortlist
+ */
+export const PAIN_POINT_STATUSES = [
+  'pending_rating',
+  'rated',
+  'rejected_by_founder',
+] as const;
+export type PainPointStatus = typeof PAIN_POINT_STATUSES[number];
+
+/**
+ * Score-pushback actions on a per-pain-point basis. Same engine
+ * shape as Stage 2's expected-profile-pushback — same agent moves,
+ * same defend/refine/replace semantics — but scoped to the
+ * agentSuggestedScores object rather than an ExpectedProfileEntry.
+ */
+export const PAIN_SCORE_PUSHBACK_ACTIONS = [
+  'continue_dialogue',
+  'defend',
+  'refine',
+  'replace',
+  'closing',
+] as const;
+export type PainScorePushbackAction = typeof PAIN_SCORE_PUSHBACK_ACTIONS[number];
+
+export const PAIN_SCORE_PUSHBACK_MODES = [
+  'analytical',
+  'fear',
+  'lack_of_belief',
+] as const;
+export type PainScorePushbackMode = typeof PAIN_SCORE_PUSHBACK_MODES[number];
