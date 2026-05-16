@@ -22,97 +22,35 @@
 // (server-side safeParseOutcomeDocument), so no client-side zod is
 // needed — the parallel TS type below describes the wire format.
 
-import { useState } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { ArrowRight, Pencil, RotateCcw } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
-import { api } from '@/services/api-client';
 import { Text, Button, Card } from '@/components/ui';
+import type {
+  OutcomeDocument,
+  FinancialGoalValue,
+} from '@/lib/ideation-types';
+import {
+  DIM_LABELS,
+  labelFor,
+  type EditableDim,
+} from './outcome-labels';
+import { useOutcomeDocumentActions } from './useOutcomeDocumentActions';
 import { spacing, iconSize, radius } from '@/constants/theme';
 
-export type EditableDim = 'timeHorizon' | 'financialGoal' | 'riskTolerance' | 'lifestylePreference';
-
-// Mirrors OutcomeDocument from @/lib/ideation (web) and the parsed
-// response field returned by GET /api/discovery/no-idea/[sessionId].
-// Keep this in lock-step with the zod schema in
-// client/src/lib/ideation/stage1-outcome/schema.ts.
-interface BeliefField<T> {
-  value:       T | null;
-  confidence:  number;
-  extractedAt: string | null;
-}
-
-interface FinancialGoalValue {
-  shape:  string;
-  target: string | null;
-}
-
-export interface OutcomeDocument {
-  dimensions: {
-    timeHorizon:         BeliefField<string>;
-    financialGoal:       BeliefField<FinancialGoalValue>;
-    riskTolerance:       BeliefField<string>;
-    lifestylePreference: BeliefField<string>;
-  };
-  synthesisParagraph: string;
-  rulesOut:           string;
-  recommendedActions: Array<{
-    action:          string;
-    severity:        'strongly_advised' | 'suggested' | string;
-    raisedAt:        string;
-    status:          string;
-    founderResponse: string | null;
-  }>;
-}
+// Re-export the canonical OutcomeDocument type for existing consumers
+// that import it from this module's path. New code should import
+// directly from '@/lib/ideation-types'.
+export type { OutcomeDocument };
 
 interface Props {
-  stageRunId:     string;
-  status:         'output_ready' | 'committed';
-  document:       OutcomeDocument;
+  stageRunId:    string;
+  status:        'output_ready' | 'committed';
+  document:      OutcomeDocument;
   /** Called after commit or edit returns OK. Parent refetches the
    *  session hydration so the dispatcher transitions surfaces. */
-  onAfterAction:  () => Promise<void> | void;
-}
-
-const DIM_LABELS: Record<EditableDim, string> = {
-  timeHorizon:         'Time horizon',
-  financialGoal:       'Financial goal',
-  riskTolerance:       'Risk tolerance',
-  lifestylePreference: 'Lifestyle preference',
-};
-
-// Founder-facing labels for raw enum values. Aligned with the web's
-// labelFor map (OutcomeDocumentView.tsx) — update both when copy moves.
-const VALUE_LABELS: Record<string, string> = {
-  // timeHorizon
-  '<6mo':              'Under 6 months',
-  '6-18mo':            '6-18 months',
-  '18mo-3yr':          '18 months to 3 years',
-  '3yr+':              '3 years or more',
-  'open':              'Open / no fixed horizon',
-  // financialGoal.shape
-  'side_income':       'Side income',
-  'full_replacement':  'Full salary replacement',
-  'modest_growth':     'Modest growth',
-  'wealth_creation':   'Wealth creation',
-  'venture_scale':     'Venture scale',
-  // riskTolerance
-  'minimal':           'Minimal',
-  'moderate':          'Moderate',
-  'high':              'High',
-  'all_in':            'All in',
-  // lifestylePreference
-  'side_hustle':       'Side hustle',
-  'full_time_founder': 'Full-time founder',
-  'lifestyle_business': 'Lifestyle business',
-  'fundable_startup':  'Fundable startup',
-  'contract_freelance': 'Contract / freelance',
-};
-
-function labelFor(value: string): string {
-  return VALUE_LABELS[value] ?? value;
+  onAfterAction: () => Promise<void> | void;
 }
 
 export function OutcomeDocumentView({
@@ -123,39 +61,15 @@ export function OutcomeDocumentView({
 }: Props) {
   const { colors: c } = useTheme();
   const router = useRouter();
-  const [busy,        setBusy]        = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
-
-  async function runAction(label: string, fn: () => Promise<void>) {
-    if (busy) return;
-    setBusy(true);
-    setActionError(null);
-    try {
-      await fn();
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await onAfterAction();
-    } catch (err) {
-      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setActionError(err instanceof Error ? err.message : `Could not ${label}`);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function handleCommit() {
-    void runAction('commit', async () => {
-      await api(`/api/ideation/stage-runs/${stageRunId}/commit`, { method: 'POST' });
-    });
-  }
-
-  function handleEdit(dimension: EditableDim) {
-    void runAction('start edit', async () => {
-      await api(`/api/ideation/stage-runs/${stageRunId}/edit`, {
-        method: 'POST',
-        body:   { dimension },
-      });
-    });
-  }
+  // Action handlers live in a dedicated hook so the view stays
+  // focused on layout — see useOutcomeDocumentActions for the
+  // network shape + busy/error semantics.
+  const {
+    busy,
+    actionError,
+    handleCommit,
+    handleEdit,
+  } = useOutcomeDocumentActions({ stageRunId, onAfterAction });
 
   function renderDimensionValue(key: EditableDim): string {
     const dim = document.dimensions[key];
