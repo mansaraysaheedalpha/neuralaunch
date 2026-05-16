@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, Pencil, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -40,12 +40,32 @@ export function OutcomeDocumentView({
   document,
 }: OutcomeDocumentViewProps) {
   const router = useRouter();
-  const [busy, startTransition] = useTransition();
+  // pendingAction tracks which mutation is in flight so we can disable
+  // EVERY interactive control (every edit pencil + commit + save) until
+  // the mutation resolves AND the page server-component has re-rendered.
+  // Previously this used useTransition with an async callback, but
+  // useTransition's "pending" state only covers the SYNCHRONOUS part of
+  // the callback — the moment `await fetch(...)` is hit, the transition
+  // resolves and the busy flag flips false. That left a window where
+  // a founder could fire a SECOND edit click while the first edit's
+  // network round-trip was still in flight. The first edit reverted
+  // the row to 'authoring'; the second edit then 409'd with "Stage row
+  // is not in a finalised state". Manual state tracking closes the
+  // window. We deliberately do NOT clear pendingAction on success —
+  // router.refresh() triggers a server-component re-render that will
+  // either replace this view entirely (edit → chat surface) or refresh
+  // it with new state (commit → committed-mode). Either way the next
+  // render gets a fresh component with a fresh null pendingAction.
+  type PendingAction = 'commit' | EditableDim;
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const isPending = pendingAction !== null;
 
-  const handleCommit = () => {
-    startTransition(async () => {
-      setActionError(null);
+  const handleCommit = async () => {
+    if (isPending) return;
+    setActionError(null);
+    setPendingAction('commit');
+    try {
       const res = await fetch(`/api/ideation/stage-runs/${stageRunId}/commit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -53,15 +73,23 @@ export function OutcomeDocumentView({
       if (!res.ok) {
         const data = await res.json().catch(() => ({})) as { error?: string };
         setActionError(data.error ?? `Could not commit (HTTP ${res.status})`);
+        setPendingAction(null);
         return;
       }
+      // Don't clear pendingAction — router.refresh re-renders the page;
+      // the new render comes back with a fresh pendingAction = null.
       router.refresh();
-    });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Commit failed');
+      setPendingAction(null);
+    }
   };
 
-  const handleEdit = (target: EditableDim) => {
-    startTransition(async () => {
-      setActionError(null);
+  const handleEdit = async (target: EditableDim) => {
+    if (isPending) return;
+    setActionError(null);
+    setPendingAction(target);
+    try {
       const res = await fetch(`/api/ideation/stage-runs/${stageRunId}/edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -70,10 +98,16 @@ export function OutcomeDocumentView({
       if (!res.ok) {
         const data = await res.json().catch(() => ({})) as { error?: string };
         setActionError(data.error ?? `Could not start edit (HTTP ${res.status})`);
+        setPendingAction(null);
         return;
       }
+      // Same as handleCommit — leave pendingAction set; the upcoming
+      // re-render replaces this component with the chat surface.
       router.refresh();
-    });
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Edit failed');
+      setPendingAction(null);
+    }
   };
 
   const renderDimValue = (key: EditableDim) => {
@@ -116,7 +150,7 @@ export function OutcomeDocumentView({
                     <button
                       type="button"
                       onClick={() => handleEdit(key)}
-                      disabled={busy}
+                      disabled={isPending}
                       aria-label={`Edit ${DIM_LABELS[key]}`}
                       className="rounded p-1 text-muted-foreground hover:text-primary hover:bg-primary/5 disabled:opacity-50 transition-colors"
                     >
@@ -196,19 +230,19 @@ export function OutcomeDocumentView({
             <Button
               variant="ghost"
               onClick={() => router.push('/discovery')}
-              disabled={busy}
+              disabled={isPending}
             >
               Save and come back
             </Button>
             {status === 'output_ready' ? (
-              <Button onClick={handleCommit} disabled={busy} className="ml-auto">
+              <Button onClick={handleCommit} disabled={isPending} className="ml-auto">
                 I&apos;m ready for Stage 2
                 <ArrowRight className="size-4 ml-1" />
               </Button>
             ) : (
               <Button
                 onClick={() => router.refresh()}
-                disabled={busy}
+                disabled={isPending}
                 className="ml-auto"
               >
                 Continue to Stage 2

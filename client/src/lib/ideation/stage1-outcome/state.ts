@@ -94,17 +94,51 @@ export function safeParseOutcomeDocument(value: unknown): OutcomeDocument | null
 const TARGET_MAX_CHARS              = 80;
 const ACTION_MAX_CHARS               = 200;
 const FOUNDER_RESPONSE_MAX_CHARS     = 400;
-// Bumped from 800 → 1200 (2026-05-12). A realistic founder pass
-// produced a clean 3-4 sentence synthesis that got chopped mid-word
-// at 800. We want the clamp to be a runaway-output guard, not a
-// truncator on natural output. The composer prompt itself still
-// targets 3-5 sentences — the cap is just a ceiling.
-const SYNTHESIS_PARAGRAPH_MAX_CHARS = 1200;
+// Bumped 800 → 1200 (2026-05-12), then 1200 → 1800 (2026-05-16).
+// A PM-voice founder produced a dense ~1200-char synthesis that
+// still got chopped mid-word at 1200. We want the cap to be a
+// runaway-output guard, not a truncator on natural output. The
+// composer prompt itself still targets 3-5 sentences — the cap is
+// just a ceiling. Pair this with clampSynthesis below so the rare
+// breach lands on a sentence boundary rather than mid-word.
+const SYNTHESIS_PARAGRAPH_MAX_CHARS = 1800;
 const RULES_OUT_MAX_CHARS           = 500;
 
 function clamp(str: string | null, max: number): string | null {
   if (str === null) return null;
   return str.length <= max ? str : str.slice(0, max).trimEnd();
+}
+
+/**
+ * Same shape as clamp() but, when the cap is breached, finds the
+ * last sentence-ending punctuation (`.`, `!`, `?` followed by a
+ * space) inside the LAST_SENTENCE_SEARCH_WINDOW chars before the
+ * cap and cuts there. Falls back to word-boundary trim if no
+ * sentence end is reachable. Used for the synthesisParagraph so a
+ * breach never produces "...a low-margin, high-volume business
+ * almost always" ending mid-sentence.
+ *
+ * Other clamps (rulesOut, action, founderResponse, target) keep
+ * using plain clamp() — they're short enough that a breach is rare
+ * and acceptable.
+ */
+const LAST_SENTENCE_SEARCH_WINDOW = 200;
+
+function clampSynthesis(str: string | null, max: number): string | null {
+  if (str === null) return null;
+  if (str.length <= max) return str;
+  const cut = str.slice(0, max);
+  const searchFrom = Math.max(0, cut.length - LAST_SENTENCE_SEARCH_WINDOW);
+  const search = cut.slice(searchFrom);
+  const lastEnd = Math.max(
+    search.lastIndexOf('. '),
+    search.lastIndexOf('! '),
+    search.lastIndexOf('? '),
+  );
+  if (lastEnd >= 0) {
+    return cut.slice(0, searchFrom + lastEnd + 1).trimEnd();
+  }
+  return cut.trimEnd();
 }
 
 function clampConfidence(n: number): number {
@@ -148,7 +182,11 @@ function clampAuthoringState(s: Stage1AuthoringState): Stage1AuthoringState {
 function clampOutcomeDocument(d: OutcomeDocument): OutcomeDocument {
   return {
     dimensions:         clampDimensions(d.dimensions),
-    synthesisParagraph: clamp(d.synthesisParagraph, SYNTHESIS_PARAGRAPH_MAX_CHARS) ?? '',
+    // synthesisParagraph uses clampSynthesis so a cap breach lands on
+    // a sentence boundary instead of mid-word. Other fields stay with
+    // plain clamp — they're short enough that a breach is rare and a
+    // mid-word cut is acceptable when it happens.
+    synthesisParagraph: clampSynthesis(d.synthesisParagraph, SYNTHESIS_PARAGRAPH_MAX_CHARS) ?? '',
     rulesOut:           clamp(d.rulesOut, RULES_OUT_MAX_CHARS) ?? '',
     recommendedActions: d.recommendedActions.map(clampAction),
   };
