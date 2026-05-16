@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "dev:webpack": "next dev --webpack",
-    "build": "prisma migrate deploy && prisma generate && cross-env NODE_OPTIONS=--max-old-space-size=4096 next build",
-    "build:webpack": "prisma migrate deploy && prisma generate && cross-env NODE_OPTIONS=--max-old-space-size=4096 next build --webpack",
+    "build": "node scripts/migrate-with-retry.js && prisma generate && cross-env NODE_OPTIONS=--max-old-space-size=4096 next build",
+    "build:webpack": "node scripts/migrate-with-retry.js && prisma generate && cross-env NODE_OPTIONS=--max-old-space-size=4096 next build --webpack",
     "postinstall": "prisma generate && node scripts/fix-prisma-pnpm.js",
     "start": "next start",
     "lint": "eslint",
