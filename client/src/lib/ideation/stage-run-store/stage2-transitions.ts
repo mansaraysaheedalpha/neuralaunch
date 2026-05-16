@@ -27,6 +27,7 @@ import {
   type SkillUpdate,
   type TeammateOp,
 } from '../stage2-requirements/state';
+import { createEmptyStage3AuthoringState } from '../stage3-opportunities/state';
 import type { ResearchLogEntry } from '@/lib/research';
 
 // ---------------------------------------------------------------------------
@@ -54,41 +55,62 @@ export async function markStage2OutputReady(
 }
 
 /**
- * Commit — flips 'output_ready' to 'committed' and stamps committedAt.
- * Idempotent: an already-committed row passes through silently.
+ * Commit — flips 'output_ready' to 'committed' and stamps committedAt,
+ * THEN lazily creates the Stage 3 row in 'authoring' state if it
+ * doesn't already exist. Both writes run inside the same transaction
+ * so either both land or neither does.
  *
  * The brief specifies that at commit time, the founder's CURRENT
  * FounderProfile.skillInventory is copied into the artifact's
  * skillInventorySnapshot. We pass the snapshot in explicitly so the
  * caller can compose it with a freshly-read inventory (avoids a
  * stale read).
+ *
+ * Idempotency:
+ *   - An already-committed Stage 2 row falls through both writes
+ *     silently (the findUnique status filter rejects, and the upsert
+ *     `update: {}` preserves any existing Stage 3 row).
+ *   - Stage 3 upsert keyed on (sessionId, stageNumber=3) — no duplicate
+ *     rows under concurrent commits.
  */
 export async function markStage2Committed(
   stageRunId:       string,
   snapshotInventory: SkillInventory,
   now:              Date = new Date(),
 ): Promise<void> {
-  const result = await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     // Read current output (must be RequirementsDocument shape),
     // overlay the snapshot, write back.
     const run = await tx.ideationStageRun.findUnique({
       where:  { id: stageRunId },
-      select: { output: true, status: true, stageNumber: true },
+      select: { output: true, status: true, stageNumber: true, sessionId: true },
     });
     if (!run || run.stageNumber !== 2 || run.status !== 'output_ready') {
-      return { count: 0 };
+      return;
     }
     // Merge snapshot into the output document.
     const output = (run.output ?? {}) as Record<string, unknown>;
     const merged: Record<string, unknown> = { ...output, skillInventorySnapshot: snapshotInventory };
-    return await tx.ideationStageRun.updateMany({
+    await tx.ideationStageRun.updateMany({
       where: { id: stageRunId, status: 'output_ready', stageNumber: 2 },
       data:  { status: 'committed', committedAt: now, output: toJsonValue(merged) },
     });
+
+    // Lazy-create Stage 3 row. Idempotent via the unique constraint
+    // on (sessionId, stageNumber). `update: {}` so we never overwrite
+    // an existing Stage 3 row's authoring state.
+    await tx.ideationStageRun.upsert({
+      where:  { sessionId_stageNumber: { sessionId: run.sessionId, stageNumber: 3 } },
+      create: {
+        sessionId:   run.sessionId,
+        stageNumber: 3,
+        status:      'authoring',
+        output:      toJsonValue(createEmptyStage3AuthoringState()),
+        startedAt:   now,
+      },
+      update: {},
+    });
   });
-  // Idempotent: count=0 just means another writer beat us. Don't throw —
-  // the founder's commit button is safe to double-tap.
-  void result;
 }
 
 // ---------------------------------------------------------------------------

@@ -36,23 +36,37 @@ vi.mock('@/lib/validation/server-helpers', () => {
 // references must also be hoisted. vi.hoisted() is the canonical way
 // to share mock fns between the factory and the test body.
 type WhereArg = { where?: Record<string, unknown>; data?: Record<string, unknown> };
+type UpsertArg = {
+  where:  Record<string, unknown>;
+  create: Record<string, unknown>;
+  update: Record<string, unknown>;
+};
 
 const mocks = vi.hoisted(() => ({
   updateMany: vi.fn<(arg: WhereArg) => Promise<{ count: number }>>(),
   createMany: vi.fn<(arg: unknown) => Promise<{ count: number }>>(),
+  findUnique: vi.fn<(arg: unknown) => Promise<unknown>>(),
+  upsert:     vi.fn<(arg: UpsertArg) => Promise<unknown>>(),
 }));
 
-vi.mock('@/lib/prisma', () => ({
-  default: {
-    ideationStageRun: {
-      updateMany: mocks.updateMany,
-      createMany: mocks.createMany,
-      findMany:  vi.fn(),
-      findFirst: vi.fn(),
+vi.mock('@/lib/prisma', () => {
+  const ideationStageRun = {
+    updateMany: mocks.updateMany,
+    createMany: mocks.createMany,
+    findMany:   vi.fn(),
+    findFirst:  vi.fn(),
+    findUnique: mocks.findUnique,
+    upsert:     mocks.upsert,
+  };
+  return {
+    default: {
+      ideationStageRun,
+      $transaction: async (cb: (tx: { ideationStageRun: typeof ideationStageRun }) => Promise<unknown>) =>
+        cb({ ideationStageRun }),
     },
-  },
-  toJsonValue: (x: unknown) => x,
-}));
+    toJsonValue: (x: unknown) => x,
+  };
+});
 
 // Re-import after the mock so the store sees our stub. The folder
 // barrel re-exports both the shared helper (from index) and the
@@ -64,7 +78,7 @@ import {
   restoreFromEditSnapshot,
 } from '.';
 
-const { updateMany, createMany } = mocks;
+const { updateMany, createMany, findUnique, upsert } = mocks;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -87,6 +101,8 @@ function makeDocument(): OutcomeDocument {
 beforeEach(() => {
   updateMany.mockReset();
   createMany.mockReset();
+  findUnique.mockReset();
+  upsert.mockReset();
 });
 
 // ---------------------------------------------------------------------------
@@ -115,23 +131,67 @@ describe('createInitialStageRunsForNoIdea', () => {
 });
 
 // ---------------------------------------------------------------------------
-// markStage1Committed — only output_ready → committed
+// markStage1Committed — output_ready → committed + lazy-create Stage 2 row
 // ---------------------------------------------------------------------------
 
 describe('markStage1Committed', () => {
-  it('only matches rows currently in output_ready (idempotent against already-committed)', async () => {
+  it('flips output_ready → committed and upserts the Stage 2 row in one transaction', async () => {
     updateMany.mockResolvedValue({ count: 1 });
+    findUnique.mockResolvedValue({ sessionId: 'sess_1', status: 'committed' });
+    upsert.mockResolvedValue({ id: 'run_2' });
+
     await markStage1Committed('run_1');
 
-    const arg = updateMany.mock.calls[0][0] as WhereArg;
-    expect(arg.where).toMatchObject({ id: 'run_1', status: 'output_ready' });
-    expect(arg.data).toMatchObject({ status: 'committed' });
-    expect(arg.data?.committedAt).toBeInstanceOf(Date);
+    // Stage 1 status write.
+    const updateArg = updateMany.mock.calls[0][0] as WhereArg;
+    expect(updateArg.where).toMatchObject({ id: 'run_1', status: 'output_ready' });
+    expect(updateArg.data).toMatchObject({ status: 'committed' });
+    expect(updateArg.data?.committedAt).toBeInstanceOf(Date);
+
+    // Stage 2 row upsert.
+    expect(upsert).toHaveBeenCalledTimes(1);
+    const upsertArg = upsert.mock.calls[0][0];
+    expect(upsertArg.where).toEqual({
+      sessionId_stageNumber: { sessionId: 'sess_1', stageNumber: 2 },
+    });
+    expect(upsertArg.create).toMatchObject({
+      sessionId:   'sess_1',
+      stageNumber: 2,
+      status:      'authoring',
+    });
+    // The empty Stage 2 authoring state was serialised via toJsonValue.
+    expect(upsertArg.create.output).toBeDefined();
+    // `update: {}` ensures pre-existing Stage 2 rows are never overwritten.
+    expect(upsertArg.update).toEqual({});
   });
 
-  it('no-ops silently when the row is already committed (count=0)', async () => {
+  it('still attempts the Stage 2 upsert when the Stage 1 row is already committed (self-heal)', async () => {
     updateMany.mockResolvedValue({ count: 0 });
-    await expect(markStage1Committed('run_1')).resolves.toBeUndefined();
+    findUnique.mockResolvedValue({ sessionId: 'sess_1', status: 'committed' });
+    upsert.mockResolvedValue({ id: 'run_2' });
+
+    await markStage1Committed('run_1');
+
+    // Stage 2 upsert still fires — the unique constraint keeps it idempotent.
+    expect(upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips the Stage 2 upsert when the row is not in committed status (defensive)', async () => {
+    updateMany.mockResolvedValue({ count: 0 });
+    findUnique.mockResolvedValue({ sessionId: 'sess_1', status: 'authoring' });
+
+    await markStage1Committed('run_1');
+
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("skips the Stage 2 upsert when the row vanished mid-transaction", async () => {
+    updateMany.mockResolvedValue({ count: 1 });
+    findUnique.mockResolvedValue(null);
+
+    await markStage1Committed('run_1');
+
+    expect(upsert).not.toHaveBeenCalled();
   });
 });
 
