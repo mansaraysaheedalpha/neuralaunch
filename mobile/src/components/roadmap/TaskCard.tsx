@@ -12,7 +12,7 @@ import { View, Pressable, StyleSheet, Animated } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { Swipeable } from 'react-native-gesture-handler';
-import { MessageSquare, Send, Search, CheckSquare, Package, CheckCircle2 } from 'lucide-react-native';
+import { MessageSquare, Send, Search, CheckSquare, Package, FlaskConical, CheckCircle2 } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuth } from '@/services/auth';
 import { api } from '@/services/api-client';
@@ -55,14 +55,18 @@ export function TaskCard({
   const isFreeTier = tier === 'free';
 
   const checkInCount = task.checkInHistory?.length ?? 0;
-  const hasCoach    = task.suggestedTools?.includes('conversation_coach');
-  const hasComposer = task.suggestedTools?.includes('outreach_composer');
-  const hasResearch = task.suggestedTools?.includes('research_tool');
-  const hasPackager = task.suggestedTools?.includes('service_packager');
+  const hasCoach      = task.suggestedTools?.includes('conversation_coach');
+  const hasComposer   = task.suggestedTools?.includes('outreach_composer');
+  const hasResearch   = task.suggestedTools?.includes('research_tool');
+  const hasPackager   = task.suggestedTools?.includes('service_packager');
+  // Validation uses 'validation' (not 'validation_tool') in the
+  // canonical enum — see VALIDATION_TOOL_ID in
+  // client/src/lib/roadmap/validation/constants.ts.
+  const hasValidation = task.suggestedTools?.includes('validation');
   // Mirrors the web's free-tier gate: only show the upgrade banner when
   // the task actually suggests one or more paid tools. Generic to-do
   // tasks with no suggestedTools render the check-in-only actions row.
-  const anyToolSuggested = hasCoach || hasComposer || hasResearch || hasPackager;
+  const anyToolSuggested = hasCoach || hasComposer || hasResearch || hasPackager || hasValidation;
 
   async function handleStatusChange(next: TaskStatus) {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -238,6 +242,15 @@ export function TaskCard({
             variant="ghost"
             size="sm"
             icon={<Package size={iconSize.sm} color={c.secondary} />}
+          />
+        )}
+        {!isFreeTier && hasValidation && (
+          <Button
+            title="Validate"
+            onPress={() => navigate(`/roadmap/${roadmapId}/validation?taskId=${taskId}`)}
+            variant="ghost"
+            size="sm"
+            icon={<FlaskConical size={iconSize.sm} color={c.primary} />}
           />
         )}
       </View>
