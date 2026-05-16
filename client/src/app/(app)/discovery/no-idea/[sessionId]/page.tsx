@@ -8,14 +8,18 @@ import {
   safeParseOutcomeDocument,
   safeParseStage2AuthoringState,
   safeParseRequirementsDocument,
+  safeParseStage3AuthoringState,
+  safeParsePainInventoryDocument,
   safeParseSkillInventory,
   createEmptySkillInventory,
 } from '@/lib/ideation';
 import { Stage1ChatClient } from './Stage1ChatClient';
 import { OutcomeDocumentView } from './OutcomeDocumentView';
 import { Stage2ChatClient } from './Stage2ChatClient';
+import { Stage3ChatClient } from './Stage3ChatClient';
 import { StageBeyondPlaceholder } from './StageBeyondPlaceholder';
 import { RequirementsDocumentView } from '@/components/ideation/RequirementsDocumentView';
+import { PainInventoryDocumentView } from '@/components/ideation/stage3/PainInventoryDocumentView';
 
 interface PageProps {
   params: Promise<{ sessionId: string }>;
@@ -33,7 +37,10 @@ interface PageProps {
  *   - Stage 2 authoring     → Stage2ChatClient (canvas + chat)
  *   - Stage 2 output_ready  → RequirementsDocumentView (pre-commit review)
  *   - Stage 2 committed     → RequirementsDocumentView (committed)
- *   - Stage 3+              → Stage2Placeholder ("coming soon")
+ *   - Stage 3 authoring     → Stage3ChatClient (pain inventory + chat)
+ *   - Stage 3 output_ready  → PainInventoryDocumentView (pre-commit)
+ *   - Stage 3 committed     → PainInventoryDocumentView (committed)
+ *   - Stage 4+              → StageBeyondPlaceholder ("coming soon")
  *
  * Guards: auth + flag + ownership (findFirst with userId scope).
  */
@@ -82,8 +89,8 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
 
   if (!active) notFound();
 
-  // Stages 3..5 are not implemented yet — the placeholder gets them.
-  if (active.stageNumber >= 3) {
+  // Stages 4..5 are not implemented yet — the placeholder gets them.
+  if (active.stageNumber >= 4) {
     return <StageBeyondPlaceholder stageNumber={active.stageNumber} />;
   }
 
@@ -102,6 +109,45 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
       content:     m.content,
       inputMethod: m.inputMethod === 'voice' ? ('voice' as const) : null,
     }));
+
+  // ─── Stage 3 ──────────────────────────────────────────────────────────
+  if (active.stageNumber === 3) {
+    if (active.status === 'authoring') {
+      const state = safeParseStage3AuthoringState(active.output);
+      return (
+        <Stage3ChatClient
+          sessionId={sessionId}
+          stageRunId={active.id}
+          firstName={firstName}
+          initialMessages={messages}
+          state={state}
+        />
+      );
+    }
+    // output_ready or committed — render the review surface.
+    const doc = safeParsePainInventoryDocument(active.output);
+    if (!doc) {
+      // Output column failed to parse — fall back to the chat surface
+      // with an empty authoring state so the founder can rebuild.
+      return (
+        <Stage3ChatClient
+          sessionId={sessionId}
+          stageRunId={active.id}
+          firstName={firstName}
+          initialMessages={messages}
+          state={safeParseStage3AuthoringState(null)}
+        />
+      );
+    }
+    return (
+      <PainInventoryDocumentView
+        stageRunId={active.id}
+        sessionId={sessionId}
+        status={active.status as 'output_ready' | 'committed'}
+        document={doc}
+      />
+    );
+  }
 
   // ─── Stage 2 ──────────────────────────────────────────────────────────
   if (active.stageNumber === 2) {

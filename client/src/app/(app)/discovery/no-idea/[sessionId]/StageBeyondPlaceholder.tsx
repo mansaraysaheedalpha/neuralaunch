@@ -6,15 +6,10 @@ interface StageBeyondPlaceholderProps {
 }
 
 /**
- * Renders when the founder has committed past Stage 2 — Stages 3..5
+ * Renders when the founder has committed past Stage 3 — Stages 4 + 5
  * are not yet implemented. Surfaces a clear "coming soon" message so
  * the page never appears broken, and offers a path back to the
  * recommendations / ventures list so the founder is not stranded.
- *
- * TODO(copy): the body text below was written before Stage 2 landed
- * and still references "Outcome Document" (Stage 1's artifact).
- * Update to reference the Stage 2 RequirementsDocument when copy
- * is refreshed.
  */
 export function StageBeyondPlaceholder({ stageNumber }: StageBeyondPlaceholderProps) {
   return (
@@ -29,8 +24,8 @@ export function StageBeyondPlaceholder({ stageNumber }: StageBeyondPlaceholderPr
           </h2>
           <p className="text-sm text-muted-foreground leading-relaxed mb-6">
             You&apos;ve committed everything available so far. The remaining stages — where
-            we surface real-world pain points and evaluate which ones you can credibly go
-            after — are under construction. We&apos;ll email you the moment they&apos;re live.
+            we deepen each shortlisted pain into a concrete opportunity and hand off to
+            execution — are under construction. We&apos;ll email you the moment they&apos;re live.
           </p>
           <Button asChild variant="secondary">
             <Link href="/discovery/recommendations">Return to your ventures</Link>
