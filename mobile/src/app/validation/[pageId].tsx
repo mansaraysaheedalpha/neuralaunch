@@ -19,33 +19,21 @@ import {
   Button,
   Badge,
   ScreenContainer,
-  Separator,
   ListSkeleton,
   ErrorState,
 } from '@/components/ui';
-import { spacing, radius, iconSize } from '@/constants/theme';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface DistributionChannel {
-  channel:        string;
-  message:        string;
-  expectedYield:  string;
-  audienceReason: string;
-}
-
-interface BuildBriefReport {
-  signalStrength:    string;
-  confirmedFeatures: Array<{ taskId: string; title: string; clicks: number; percentage: number; evidence: string }>;
-  rejectedFeatures:  Array<{ taskId: string; title: string; clicks: number; reason: string }>;
-  surveyInsights:    string;
-  buildBrief:        string;
-  nextAction:        string;
-  usedForMvp:        boolean;
-  generatedAt:       string;
-}
+// (Separator and radius were used by the inline distribution /
+// build-brief blocks before the self-review extraction — now owned
+// by DistributionTracker / BuildBriefReportView.)
+import {
+  DistributionTracker,
+  type DistributionChannel,
+} from '@/components/validation/DistributionTracker';
+import {
+  BuildBriefReportView,
+  type BuildBriefReport,
+} from '@/components/validation/BuildBriefReportView';
+import { spacing, iconSize } from '@/constants/theme';
 
 interface ValidationPageDetail {
   id:                string;
@@ -154,6 +142,22 @@ export default function ValidationDetailScreen() {
     } catch { /* silent */ }
   }
 
+  async function handleMarkAsMvp() {
+    setMarkingMvp(true);
+    try {
+      await api(`/api/discovery/validation/${pageId}/report`, {
+        method: 'POST',
+        body:   { usedForMvp: true },
+      });
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      void mutate();
+    } catch {
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setMarkingMvp(false);
+    }
+  }
+
   return (
     <>
       <Stack.Screen
@@ -250,190 +254,22 @@ export default function ValidationDetailScreen() {
           </Card>
         </Pressable>
 
-        {/* Distribution tracker */}
-        {isLive && page.distributionBrief && page.distributionBrief.length > 0 && (
-          <>
-            <Separator />
-            <Text variant="title">Where to share it</Text>
-            <Text variant="caption" color={c.mutedForeground} style={{ marginBottom: spacing[3] }}>
-              {page.channelsCompleted.length} of {page.distributionBrief.length} shared
-            </Text>
-
-            <View style={styles.channelList}>
-              {page.distributionBrief.map((ch, i) => {
-                const isDone = page.channelsCompleted.includes(ch.channel);
-                return (
-                  <Card
-                    key={`${ch.channel}-${i}`}
-                    variant={isDone ? 'primary' : 'default'}
-                    style={styles.channelCard}
-                  >
-                    <View style={styles.channelHeader}>
-                      <View style={{ flex: 1 }}>
-                        <Text variant="label">{ch.channel}</Text>
-                        <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[0.5] }}>
-                          {ch.audienceReason}
-                        </Text>
-                      </View>
-                      <Pressable
-                        accessibilityRole="checkbox"
-                        accessibilityLabel={`${ch.channel} — ${isDone ? 'shared' : 'not shared'}`}
-                        accessibilityState={{ checked: isDone }}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        onPress={() => { void handleToggleChannel(ch.channel, !isDone); }}
-                        style={[
-                          styles.checkbox,
-                          {
-                            borderColor: isDone ? c.primary : c.border,
-                            backgroundColor: isDone ? c.primary : 'transparent',
-                          },
-                        ]}
-                      >
-                        {isDone && <Check size={14} color={c.primaryForeground} strokeWidth={3} />}
-                      </Pressable>
-                    </View>
-
-                    <Text variant="overline" color={c.mutedForeground} style={{ marginTop: spacing[2] }}>
-                      Expected yield
-                    </Text>
-                    <Text variant="caption">{ch.expectedYield}</Text>
-
-                    <View style={[styles.messageBox, { backgroundColor: c.muted, borderColor: c.border }]}>
-                      <Text variant="overline" color={c.mutedForeground}>Message to send</Text>
-                      <Text variant="caption" style={{ marginTop: spacing[1] }}>{ch.message}</Text>
-                      <Pressable
-                        onPress={async () => {
-                          await Clipboard.setStringAsync(ch.message);
-                          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                        }}
-                        style={{ marginTop: spacing[2] }}
-                      >
-                        <Text variant="label" color={c.primary}>Copy message</Text>
-                      </Pressable>
-                    </View>
-                  </Card>
-                );
-              })}
-            </View>
-          </>
+        {isLive && page.distributionBrief && (
+          <DistributionTracker
+            distributionBrief={page.distributionBrief}
+            channelsCompleted={page.channelsCompleted}
+            onToggleChannel={handleToggleChannel}
+          />
         )}
 
-        {/* Build brief */}
         {page.report && (
-          <>
-            <Separator />
-            <View style={styles.briefHeader}>
-              <Text variant="title">Build Brief</Text>
-              <Badge
-                label={`${page.report.signalStrength} signal`}
-                variant={
-                  page.report.signalStrength === 'strong' ? 'success'
-                  : page.report.signalStrength === 'moderate' ? 'warning'
-                  : 'destructive'
-                }
-              />
-            </View>
-
-            <Text variant="caption" color={c.mutedForeground}>
-              Generated {new Date(page.report.generatedAt).toLocaleDateString()}
-            </Text>
-
-            {/* The call */}
-            <Card variant="primary">
-              <Text variant="overline" color={c.primary}>The call</Text>
-              <Text variant="body" style={{ marginTop: spacing[2] }}>{page.report.buildBrief}</Text>
-            </Card>
-
-            {/* Confirmed features */}
-            {page.report.confirmedFeatures.length > 0 && (
-              <View>
-                <Text variant="overline" color={c.mutedForeground}>Build these</Text>
-                <View style={{ gap: spacing[2], marginTop: spacing[1] }}>
-                  {page.report.confirmedFeatures.map(f => (
-                    <Card key={f.taskId}>
-                      <View style={styles.featureHeader}>
-                        <Text variant="label" style={{ flex: 1 }}>{f.title}</Text>
-                        <Text variant="caption" color={c.mutedForeground}>{f.clicks} clicks · {f.percentage}%</Text>
-                      </View>
-                      <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1] }}>
-                        {f.evidence}
-                      </Text>
-                    </Card>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {/* Rejected features */}
-            {page.report.rejectedFeatures.length > 0 && (
-              <View>
-                <Text variant="overline" color={c.mutedForeground}>Cut or defer</Text>
-                <View style={{ gap: spacing[2], marginTop: spacing[1] }}>
-                  {page.report.rejectedFeatures.map(f => (
-                    <Card key={f.taskId} variant="muted">
-                      <View style={styles.featureHeader}>
-                        <Text variant="label" color={c.mutedForeground} style={{ flex: 1, textDecorationLine: 'line-through' }}>
-                          {f.title}
-                        </Text>
-                        <Text variant="caption" color={c.mutedForeground}>{f.clicks}</Text>
-                      </View>
-                      <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1] }}>
-                        {f.reason}
-                      </Text>
-                    </Card>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {/* Survey insights */}
-            {page.report.surveyInsights && (
-              <View>
-                <Text variant="overline" color={c.mutedForeground}>What people said</Text>
-                <Card style={{ marginTop: spacing[1] }}>
-                  <Text variant="caption" style={{ fontStyle: 'italic' }}>{page.report.surveyInsights}</Text>
-                </Card>
-              </View>
-            )}
-
-            {/* Next action */}
-            <Card>
-              <Text variant="overline" color={c.mutedForeground}>Next 48 hours</Text>
-              <Text variant="body" style={{ marginTop: spacing[1] }}>{page.report.nextAction}</Text>
-            </Card>
-
-            {/* MVP handoff */}
-            {page.report.usedForMvp ? (
-              <Card variant="primary">
-                <Text variant="label" color={c.primary} align="center">
-                  This brief is your MVP spec
-                </Text>
-              </Card>
-            ) : (
-              <Button
-                title={markingMvp ? 'Saving…' : 'Use as my MVP spec'}
-                loading={markingMvp}
-                onPress={async () => {
-                  setMarkingMvp(true);
-                  try {
-                    await api(`/api/discovery/validation/${pageId}/report`, {
-                      method: 'POST',
-                      body: { usedForMvp: true },
-                    });
-                    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                    void mutate();
-                  } catch {
-                    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-                  } finally {
-                    setMarkingMvp(false);
-                  }
-                }}
-                size="lg"
-                fullWidth
-              />
-            )}
-          </>
+          <BuildBriefReportView
+            report={page.report}
+            markingMvp={markingMvp}
+            onMarkAsMvp={handleMarkAsMvp}
+          />
         )}
+
       </ScreenContainer>
     </>
   );
@@ -449,42 +285,5 @@ const styles = StyleSheet.create({
     gap: spacing[2],
     marginTop: spacing[3],
     marginBottom: spacing[4],
-  },
-  channelList: {
-    gap: spacing[3],
-  },
-  channelCard: {
-    gap: spacing[1],
-  },
-  channelHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing[3],
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  messageBox: {
-    borderWidth: 1,
-    borderRadius: radius.lg,
-    padding: spacing[3],
-    marginTop: spacing[2],
-  },
-  briefHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing[1],
-  },
-  featureHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: spacing[2],
   },
 });
