@@ -10,7 +10,7 @@ import {
   RATE_LIMITS,
   requireUserId,
 } from '@/lib/validation/server-helpers';
-import { getSession, teeDiscoveryStream } from '@/lib/discovery';
+import { teeDiscoveryStream } from '@/lib/discovery';
 import {
   getActiveStageRun,
   safeParseStage1AuthoringState,
@@ -45,7 +45,11 @@ export const maxDuration = 90;
  *     /turn and /stage1-opening so the founder can't multiply their
  *     quota by hopping endpoints)
  *   - Ownership scope via findFirst with userId
- *   - Scenario lock: lifecycleScenario MUST be 'no_idea'
+ *   - Scenario lock: presence of any IdeationStageRun row proves
+ *     this is a no_idea session. Postgres-backed, survives Redis
+ *     eviction (the previous Redis-state lifecycleScenario check
+ *     broke when Postgres rehydration repopulated state without
+ *     that field).
  *   - Stage gate: active stage run MUST be Stage 1 in 'authoring'
  *   - Termination check
  */
@@ -81,18 +85,16 @@ export async function POST(
       throw new HttpError(403, 'Session terminated');
     }
 
-    // Verify Redis state confirms scenario=no_idea — the Redis state
-    // is the only source of truth for lifecycleScenario.
-    const state = await getSession(sessionId);
-    if (!state) throw new HttpError(404, 'Session state expired');
-    if (state.userId !== userId) throw new HttpError(401, 'Unauthorised');
-    if (state.lifecycleScenario !== 'no_idea') {
+    // Scenario lock via IdeationStageRun presence. Replaces the prior
+    // Redis-backed lifecycleScenario check, which broke after Redis
+    // TTL eviction (Postgres rehydration repopulated state without
+    // lifecycleScenario). dbSession's userId filter already enforces
+    // ownership; no separate Redis userId check needed.
+    const stageRun = await getActiveStageRun(sessionId);
+    if (!stageRun) {
       throw new HttpError(409, 'Edit probe only valid for no_idea sessions');
     }
-
-    // Active stage row must be Stage 1 in 'authoring' AND in edit mode.
-    const stageRun = await getActiveStageRun(sessionId);
-    if (!stageRun || stageRun.stageNumber !== 1 || stageRun.status !== 'authoring') {
+    if (stageRun.stageNumber !== 1 || stageRun.status !== 'authoring') {
       throw new HttpError(409, 'Stage 1 is not in authoring state');
     }
 

@@ -228,11 +228,28 @@ export async function POST(
 
   // ── 'no_idea' archetype — delegate to the ideation stage 1 handler ──
   //
+  // Two pointers to the same answer:
+  //   1. scenario === 'no_idea' — fast path off Redis state when warm.
+  //   2. IdeationStageRun row count — Postgres-backed authoritative
+  //      source; survives Redis eviction.
+  //
+  // The Postgres fallback was added because the Redis-only check broke
+  // after the 15-minute TTL evicted state on returning founders, and
+  // the Postgres rehydration path repopulated state without
+  // lifecycleScenario — sending no_idea sessions through the legacy
+  // first_interview flow.
+  //
   // Lives in a sibling file so this route stays as orchestration. The
   // handler trusts that the safety gate, ownership check, rate limit,
   // and user-message persistence already happened above.
   const scenario = state.lifecycleScenario ?? 'first_interview';
   if (scenario === 'no_idea') {
+    return handleNoIdeaTurn({ message, history, sessionId, userId, conversationId });
+  }
+  const hasIdeationRuns = (await prisma.ideationStageRun.count({
+    where: { sessionId },
+  })) > 0;
+  if (hasIdeationRuns) {
     return handleNoIdeaTurn({ message, history, sessionId, userId, conversationId });
   }
 

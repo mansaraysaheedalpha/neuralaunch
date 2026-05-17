@@ -10,7 +10,7 @@ import {
   RATE_LIMITS,
   requireUserId,
 } from '@/lib/validation/server-helpers';
-import { getSession, teeDiscoveryStream } from '@/lib/discovery';
+import { teeDiscoveryStream } from '@/lib/discovery';
 import {
   getActiveStageRun,
   streamStage1Opening,
@@ -45,11 +45,14 @@ export const maxDuration = 90;
  *     so the founder cannot double their quota by hopping endpoints)
  *   - Ownership scope via findFirst with userId
  *   - Pristine-state check: refuses if the conversation already has
- *     ANY assistant message, OR the Redis session state is missing,
- *     OR the active stage row is not Stage 1 in 'authoring'. The
- *     check is server-side authoritative; the client mount-guard is
- *     purely a UX optimisation.
- *   - Scenario lock: lifecycleScenario MUST be 'no_idea'.
+ *     ANY assistant message OR the active stage row is not Stage 1
+ *     in 'authoring'. The check is server-side authoritative; the
+ *     client mount-guard is purely a UX optimisation.
+ *   - Scenario lock: presence of any IdeationStageRun row proves
+ *     this is a no_idea session. Postgres-backed so it survives Redis
+ *     eviction — the previous Redis-state-based lifecycleScenario
+ *     check broke when Postgres rehydration repopulated the session
+ *     without that field.
  */
 export async function POST(
   req: NextRequest,
@@ -98,18 +101,19 @@ export async function POST(
       throw new HttpError(409, 'Opening probe already fired for this session');
     }
 
-    // Verify Redis state confirms scenario=no_idea. The Redis state
-    // is the only source of truth for lifecycleScenario.
-    const state = await getSession(sessionId);
-    if (!state) throw new HttpError(404, 'Session state expired');
-    if (state.userId !== userId) throw new HttpError(401, 'Unauthorised');
-    if (state.lifecycleScenario !== 'no_idea') {
+    // Scenario lock via IdeationStageRun presence. Replaces the prior
+    // Redis-backed lifecycleScenario check, which broke after the 15-
+    // minute Redis TTL evicted the session and the Postgres rehydration
+    // path repopulated state without lifecycleScenario. The stage rows
+    // are Postgres-backed and unique to no_idea sessions, so their
+    // presence is an authoritative no_idea proof. dbSession's userId
+    // filter above already enforces ownership — no separate Redis
+    // userId check needed.
+    const stageRun = await getActiveStageRun(sessionId);
+    if (!stageRun) {
       throw new HttpError(409, 'Opening probe only valid for no_idea sessions');
     }
-
-    // Active stage row must be Stage 1 in 'authoring'.
-    const stageRun = await getActiveStageRun(sessionId);
-    if (!stageRun || stageRun.stageNumber !== 1 || stageRun.status !== 'authoring') {
+    if (stageRun.stageNumber !== 1 || stageRun.status !== 'authoring') {
       throw new HttpError(409, 'Stage 1 is not in opening state');
     }
 
