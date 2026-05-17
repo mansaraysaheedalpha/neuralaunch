@@ -27,5 +27,5 @@ export const SCORE_AXIS_LABELS: Record<'intensity' | 'frequency' | 'nicheSpecifi
 export const SCORE_AXIS_HINTS: Record<'intensity' | 'frequency' | 'nicheSpecificity', string> = {
   intensity:        'How much does it hurt the people who have it?',
   frequency:        'How often do they hit it?',
-  nicheSpecificity: 'How concentrated in a specific group is the pain?',
+  nicheSpecificity: 'How narrow is the group that feels it?',
 };

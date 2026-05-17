@@ -51,7 +51,7 @@ export function Stage3Banner({ sessionId, forceVisible }: Stage3BannerProps) {
             Stage 3 of 5 — Opportunity Identification
           </p>
           <p>
-            Time to find real pain worth solving. Add pain points you&apos;ve hit yourself, lived with through someone close, or watched an industry struggle with — your own life is the strongest signal. The Pain Scout will surface community signals you might not have seen; treat its picks as a check on yourself, not the answer. Rate what survives on intensity, frequency, and niche specificity. We&apos;ll shortlist up to five for Stage 4.
+            Time to find real pain worth solving. Add pain points you&apos;ve hit yourself, lived with through someone close, or watched an industry struggle with — your own life is the strongest signal. The Pain Scout will surface community signals you might not have seen; treat its picks as a check on yourself, not the answer. Rate what survives on intensity, frequency, and niche specificity. I&apos;ll shortlist up to five for Stage 4.
           </p>
         </div>
         <button

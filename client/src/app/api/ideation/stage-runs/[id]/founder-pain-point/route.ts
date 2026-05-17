@@ -138,7 +138,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
       // founder-edit path — the founder can reject (DELETE) or rate
       // (kind='score') them, but not rewrite their description.
       if (target.source !== 'founder') {
-        throw new HttpError(403, 'Only founder-sourced pain points are editable');
+        throw new HttpError(403, 'You can only edit pain points you added yourself. Push back on agent-surfaced picks instead.');
       }
       const next = {
         ...target,

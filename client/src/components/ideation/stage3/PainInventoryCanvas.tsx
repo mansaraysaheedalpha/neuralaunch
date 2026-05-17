@@ -65,7 +65,7 @@ export function PainInventoryCanvas({
     <div className="space-y-4">
       {showCascadeBanner && (
         <div className="rounded-lg border border-gold/40 bg-gold/5 px-3 py-2 text-xs text-foreground">
-          An upstream stage was updated — the inventory below is stale. Re-run the Pain Scout against your fresh Outcome + Requirements, or add your own pain points to rebuild.
+          You updated Stage 1 or Stage 2 — the picks below are based on what you had before. Re-run the Pain Scout against your fresh outcome + requirements, or add your own pain points to rebuild.
         </div>
       )}
 
@@ -108,7 +108,7 @@ export function PainInventoryCanvas({
           <header>
             <h3 className="text-sm font-semibold text-foreground">Agent-surfaced</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              From community signals. Push back on what the agent got wrong; rate what survives.
+              From community signals. Push back on what I got wrong; rate what survives.
             </p>
           </header>
           {state.agentPainPoints.length === 0 ? (

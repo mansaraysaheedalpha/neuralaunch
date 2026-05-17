@@ -77,12 +77,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       // Pushback presumes the agent has scored. Founder-sourced pain
       // points without an agent-suggested score have nothing to argue
       // with — the founder should either rate or remove instead.
-      throw new HttpError(409, 'Pain point has no agent-suggested scores to push back on');
+      throw new HttpError(409, 'This pain point has no agent-suggested scores. Pushback only applies to ones I surfaced.');
     }
 
     // Defensive cap check (the engine itself coerces to 'closing').
     if (target.scorePushbackHistory.length >= MAX_PAIN_SCORE_PUSHBACK_ROUNDS) {
-      throw new HttpError(409, 'Pushback cap reached for this pain point');
+      throw new HttpError(409, `You've reached the ${MAX_PAIN_SCORE_PUSHBACK_ROUNDS}-round limit on this pain point. Accept the current scores or remove it from the inventory.`);
     }
 
     const result = await runPainScorePushbackRound({

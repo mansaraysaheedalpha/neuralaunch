@@ -25,7 +25,8 @@ export function StageBeyondPlaceholder({ stageNumber }: StageBeyondPlaceholderPr
           <p className="text-sm text-muted-foreground leading-relaxed mb-6">
             You&apos;ve committed everything available so far. The remaining stages — where
             we deepen each shortlisted pain into a concrete opportunity and hand off to
-            execution — are under construction. We&apos;ll email you the moment they&apos;re live.
+            execution — are still being built. You&apos;ll see them appear here the moment
+            they ship.
           </p>
           <Button asChild variant="secondary">
             <Link href="/discovery/recommendations">Return to your ventures</Link>

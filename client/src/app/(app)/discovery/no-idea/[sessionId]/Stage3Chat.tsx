@@ -83,7 +83,7 @@ export function Stage3Chat({
           <section className="lg:col-span-3">
             {!hasMessages && (
               <p className="text-sm text-muted-foreground mb-3">
-                {firstName ? `${firstName}, this is where we hunt.` : 'This is where we hunt.'}
+                {firstName ? `${firstName}, this is where we look for pain worth solving.` : 'This is where we look for pain worth solving.'}
               </p>
             )}
             <PainInventoryCanvas
@@ -109,7 +109,7 @@ export function Stage3Chat({
               </div>
             ) : (
               <div className="flex-1 px-4 py-4 text-xs text-muted-foreground">
-                Talk to the agent here. It will probe vague pain points, ground over-stated ones, recommend founder homework, and call out when you have enough to compose the shortlist.
+                Talk to me here. I&apos;ll probe vague pain points, ground over-stated ones, recommend real-world actions, and tell you when you have enough to compose the shortlist.
               </div>
             )}
           </section>

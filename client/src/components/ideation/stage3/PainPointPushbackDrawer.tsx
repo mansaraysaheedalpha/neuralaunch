@@ -73,7 +73,7 @@ export function PainPointPushbackDrawer({
   return (
     <div className="mt-3 rounded-md border border-border bg-background/60 px-3 py-3" role="region" aria-label="Pain point score pushback drawer">
       <header className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-foreground">Push back on the agent&apos;s scores</span>
+        <span className="text-xs font-medium text-foreground">Push back on my scores</span>
         <button
           type="button"
           onClick={onClose}
@@ -110,7 +110,7 @@ export function PainPointPushbackDrawer({
             disabled={busy}
             maxLength={2000}
             rows={2}
-            placeholder="What is the agent getting wrong about these scores?"
+            placeholder="What did I get wrong about these scores?"
             className="w-full resize-none rounded-md border border-border bg-background/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/40"
           />
           <div className="flex items-center justify-between gap-2">
