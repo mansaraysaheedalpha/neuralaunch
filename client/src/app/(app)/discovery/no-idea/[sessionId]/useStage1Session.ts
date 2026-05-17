@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 export type Stage1Message = {
@@ -62,11 +62,33 @@ export function useStage1Session({
   const clearError = useCallback(() => setTurnError(null), []);
 
   /**
+   * Defensive turnError invalidation: any transition into 'idle' or
+   * 'sending' means a new request is starting OR a turn completed
+   * cleanly. In either case any prior turnError is stale and should
+   * not linger on screen. Callers (sendMessage, fireProbe) also
+   * call setTurnError(null) explicitly at their own entry points —
+   * this is the belt-and-suspenders cleanup against any future
+   * regression where the explicit clear is skipped (bug 11).
+   */
+  useEffect(() => {
+    if (status === 'idle' || status === 'sending') {
+      setTurnError(null);
+    }
+  }, [status]);
+
+  /**
    * Shared text-stream consumer. Appends an empty assistant message
    * upfront, then fills it as chunks arrive. Sets terminal status on
    * its own. Returns true on clean close, false if the stream cut.
    */
   const consumeStream = useCallback(async (body: ReadableStream<Uint8Array>): Promise<boolean> => {
+    // Belt-and-suspenders error invalidation — by the time we have
+    // body chunks ready to render, any prior turnError is provably
+    // stale (the network round-trip succeeded). Mirrors the earlier
+    // setTurnError(null) at sendMessage/fireProbe entry; defends
+    // against the bug-11 class where stale errors render alongside
+    // fresh content.
+    setTurnError(null);
     setStatus('streaming');
     const assistantId = crypto.randomUUID();
     setMessages(prev => [...prev, { id: assistantId, role: 'assistant', content: '', inputMethod: null }]);
@@ -103,6 +125,14 @@ export function useStage1Session({
   const sendMessage = useCallback(async (content: string, inputMethod?: 'voice') => {
     if (status === 'sending' || status === 'streaming') return;
 
+    // Clear any prior turnError FIRST — before any other state write —
+    // so React's batch never renders a frame with both the new pending
+    // status and the stale error. Bug 11: a tight retry after a failed
+    // turn briefly flashed "Server returned 200" alongside the new
+    // sending state because the prior setTurnError(null) was sequenced
+    // after setMessages and the batch let the error survive one frame.
+    setTurnError(null);
+
     const userMsg: Stage1Message = {
       id:          crypto.randomUUID(),
       role:        'user',
@@ -110,7 +140,6 @@ export function useStage1Session({
       inputMethod: inputMethod ?? null,
     };
     setMessages(prev => [...prev, userMsg]);
-    setTurnError(null);
     setStatus('sending');
 
     // Build the rolling history string the server route consumes. Cap
@@ -192,6 +221,9 @@ export function useStage1Session({
   const fireProbe = useCallback(async (path: string) => {
     if (status === 'sending' || status === 'streaming') return;
 
+    // setTurnError BEFORE setStatus, same reasoning as sendMessage —
+    // never render a frame where stale error and new pending state
+    // coexist. Bug 11.
     setTurnError(null);
     setStatus('sending');
     abortRef.current = new AbortController();
