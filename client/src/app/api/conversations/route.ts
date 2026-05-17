@@ -31,21 +31,37 @@ export async function GET(request: Request) {
         // Surface the linked discovery session status so the sidebar
         // can route in-progress sessions to /discovery (live interview)
         // instead of /chat/[id] (read-only transcript).
+        //
+        // Also surface session.id + a single ideationRuns row so the
+        // sidebar knows whether the session is a no_idea archetype
+        // (the only one with ideation stage rows). no_idea sessions
+        // route directly to /discovery/no-idea/[sessionId] rather than
+        // /discovery (which is the archetype picker / generic resume
+        // entry); the generic Conversation viewer at /chat/[id] has
+        // no no_idea-aware surface.
         discoverySession: {
-          select: { status: true },
+          select: {
+            id:           true,
+            status:       true,
+            ideationRuns: { select: { id: true }, take: 1 },
+          },
         },
       },
     });
 
     // Flatten the relation for the client — the sidebar component
     // does not need a nested object.
-    const shaped = conversations.map(c => ({
-      id:              c.id,
-      title:           c.title,
-      createdAt:       c.createdAt,
-      updatedAt:       c.updatedAt,
-      discoveryStatus: c.discoverySession?.status ?? null,
-    }));
+    const shaped = conversations.map(c => {
+      const hasIdeation = (c.discoverySession?.ideationRuns?.length ?? 0) > 0;
+      return {
+        id:               c.id,
+        title:            c.title,
+        createdAt:        c.createdAt,
+        updatedAt:        c.updatedAt,
+        discoveryStatus:  c.discoverySession?.status ?? null,
+        noIdeaSessionId:  hasIdeation ? c.discoverySession?.id ?? null : null,
+      };
+    });
 
     return NextResponse.json(shaped);
   } catch (error) {

@@ -66,6 +66,14 @@ export async function handleStage3Turn(args: Stage3HandlerArgs): Promise<NextRes
   const { message, history, sessionId, userId, conversationId } = args;
   const log = logger.child({ route: 'POST /api/discovery/sessions/[id]/turn', userId, sessionId, scenario: 'no_idea', stage: 3 });
 
+  // Mark the session as recently active so /discovery's resumption
+  // query matches. The query rejects rows with null lastTurnAt; no_idea
+  // turn handlers must bump on every turn to stay discoverable. Fire-
+  // and-forget — a missed update would just lose one resumption.
+  prisma.discoverySession
+    .update({ where: { id: sessionId }, data: { lastTurnAt: new Date() }, select: { id: true } })
+    .catch(() => { /* non-fatal */ });
+
   // ── 1. Load + parse Stage 3 run ─────────────────────────────────────────
   const stageRun = await getActiveStageRun(sessionId);
   if (!stageRun) throw new HttpError(500, 'Ideation stage run missing for no_idea session');

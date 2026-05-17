@@ -88,7 +88,14 @@ export function ConversationList({
       <div className="space-y-1">
         {conversations.map((conversation) => {
           const isInProgress = conversation.discoveryStatus === 'ACTIVE';
-          const href = isInProgress ? '/discovery' : `/chat/${conversation.id}`;
+          // Prefer the no_idea surface when the conversation belongs to
+          // a no_idea session — /discovery is just the archetype picker
+          // and /chat/[id] has no no_idea-aware viewer. Falls through
+          // to the legacy routing for the other five archetypes.
+          const noIdeaHref = conversation.noIdeaSessionId
+            ? `/discovery/no-idea/${conversation.noIdeaSessionId}`
+            : null;
+          const href = noIdeaHref ?? (isInProgress ? '/discovery' : `/chat/${conversation.id}`);
           const isActive = pathname === href || pathname === `/chat/${conversation.id}`;
           return (
             <Link

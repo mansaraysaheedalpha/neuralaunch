@@ -14,6 +14,15 @@ export interface SidebarConversation {
    * the read-only transcript at /chat/[id].
    */
   discoveryStatus?: 'ACTIVE' | 'COMPLETE' | 'EXPIRED' | null;
+  /**
+   * DiscoverySession.id, surfaced when (and only when) the session is
+   * a no_idea archetype (presence of at least one IdeationStageRun).
+   * Non-null routes the conversation tile to
+   * /discovery/no-idea/[sessionId], which is the actual ideation
+   * surface — /discovery is just the archetype picker / generic
+   * resume entry, and /chat/[id] has no no_idea-aware viewer.
+   */
+  noIdeaSessionId?: string | null;
 }
 
 const fetcher = async (url: string): Promise<SidebarConversation[]> => {

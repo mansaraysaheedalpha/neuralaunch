@@ -56,6 +56,13 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       throw new HttpError(409, 'Cannot commit while editing — finish editing first');
     }
 
+    // Keep the session discoverable by /discovery's resumption query —
+    // it filters on lastTurnAt, and a commit means the session is being
+    // actively used. Fire-and-forget; non-fatal.
+    prisma.discoverySession
+      .update({ where: { id: run.sessionId }, data: { lastTurnAt: new Date() }, select: { id: true } })
+      .catch(() => { /* non-fatal */ });
+
     if (run.stageNumber === 1) {
       await markStage1Committed(id);
       // Cascade: clear any stale Stage 2 / Stage 3 cascadeSnapshot.

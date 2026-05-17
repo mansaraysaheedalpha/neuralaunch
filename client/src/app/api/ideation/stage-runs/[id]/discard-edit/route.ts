@@ -1,5 +1,6 @@
 // src/app/api/ideation/stage-runs/[id]/discard-edit/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import {
   enforceSameOrigin,
@@ -49,6 +50,13 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     if (run.status !== 'authoring') {
       throw new HttpError(409, 'No edit in progress to discard');
     }
+
+    // Keep the session discoverable by /discovery's resumption query —
+    // discarding an edit is an active engagement signal. Fire-and-
+    // forget; non-fatal.
+    prisma.discoverySession
+      .update({ where: { id: run.sessionId }, data: { lastTurnAt: new Date() }, select: { id: true } })
+      .catch(() => { /* non-fatal */ });
 
     const authoring = safeParseStage1AuthoringState(run.output);
     if (!authoring.priorCommittedSnapshot) {

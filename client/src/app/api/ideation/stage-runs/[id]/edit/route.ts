@@ -1,6 +1,7 @@
 // src/app/api/ideation/stage-runs/[id]/edit/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import {
   enforceSameOrigin,
@@ -68,6 +69,13 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     if (run.status !== 'output_ready' && run.status !== 'committed') {
       throw new HttpError(409, 'Stage row is not in a finalised state');
     }
+
+    // Keep the session discoverable by /discovery's resumption query —
+    // editing a dimension is an active engagement signal. Fire-and-
+    // forget; non-fatal.
+    prisma.discoverySession
+      .update({ where: { id: run.sessionId }, data: { lastTurnAt: new Date() }, select: { id: true } })
+      .catch(() => { /* non-fatal */ });
 
     const prior = safeParseOutcomeDocument(run.output);
     if (!prior) {
