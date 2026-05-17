@@ -22,8 +22,12 @@ import {
   extractAndPlan,
   streamStage1Message,
   composeOutcomeDocument,
+  MIN_OUTCOME_FIELD_CONFIDENCE,
+  OUTCOME_READINESS_RATIO,
+  DIM_KEYS,
   type Stage1AuthoringState,
   type AgentMove,
+  type OutcomeDimensions,
 } from '@/lib/ideation';
 import type { FallbackStreamResult } from '@/lib/ai/question-stream-fallback';
 
@@ -108,6 +112,13 @@ export async function handleStage1Turn(args: Stage1HandlerArgs): Promise<NextRes
 
   let authoring = safeParseStage1AuthoringState(stageRun.output);
 
+  // Telemetry: capture confidences BEFORE the extraction step so the
+  // log line below shows the delta this turn produced. The readiness
+  // gate constants (MIN_OUTCOME_FIELD_CONFIDENCE 0.65 / OUTCOME_READINESS_RATIO 0.75)
+  // are hard-coded; real-world distributions live here so we can tune
+  // them against actual founder data rather than guesses. Bug 8.
+  const priorConfidences = snapshotConfidences(authoring.dimensions);
+
   // ── 2. Extract + plan ───────────────────────────────────────────────────
   const plan = await extractAndPlan(message, history, authoring);
   log.debug('Stage 1 extract+plan', {
@@ -131,6 +142,20 @@ export async function handleStage1Turn(args: Stage1HandlerArgs): Promise<NextRes
   }
 
   const mechanicallyReady = computeOutcomeReadiness(authoring);
+  const newConfidences  = snapshotConfidences(authoring.dimensions);
+  const meanConfidence  = (newConfidences.timeHorizon + newConfidences.financialGoal +
+                           newConfidences.riskTolerance + newConfidences.lifestylePreference) / 4;
+  const allAboveFloor   = DIM_KEYS.every(k => newConfidences[k] >= MIN_OUTCOME_FIELD_CONFIDENCE);
+  log.debug('Stage 1 readiness gate', {
+    prior:             priorConfidences,
+    next:              newConfidences,
+    mean:              Number(meanConfidence.toFixed(3)),
+    allAboveFloor,
+    meetsRatio:        meanConfidence >= OUTCOME_READINESS_RATIO,
+    mechanicallyReady,
+    agentReady:        plan.readyToCompose,
+    constants:         { floor: MIN_OUTCOME_FIELD_CONFIDENCE, ratio: OUTCOME_READINESS_RATIO },
+  });
 
   // ── 4. Dispatch ─────────────────────────────────────────────────────────
   if (plan.inputType === 'synthesis_request') {
@@ -261,4 +286,20 @@ async function buildStreamResponse(
   response.headers.set('X-Stage',       '1');
   response.headers.set('X-Stage-Move',  move);
   return response;
+}
+
+// ---------------------------------------------------------------------------
+// Telemetry helper — flat per-axis confidence snapshot for the
+// readiness-gate log line. Three-decimal precision keeps the log
+// compact while preserving enough fidelity to read distribution
+// shapes off later.
+// ---------------------------------------------------------------------------
+
+function snapshotConfidences(dims: OutcomeDimensions): Record<typeof DIM_KEYS[number], number> {
+  return {
+    timeHorizon:         Number(dims.timeHorizon.confidence.toFixed(3)),
+    financialGoal:       Number(dims.financialGoal.confidence.toFixed(3)),
+    riskTolerance:       Number(dims.riskTolerance.confidence.toFixed(3)),
+    lifestylePreference: Number(dims.lifestylePreference.confidence.toFixed(3)),
+  };
 }
