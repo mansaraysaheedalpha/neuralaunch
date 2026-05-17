@@ -45,6 +45,10 @@ const ComposerOutputSchema = z.object({
   ),
 });
 
+const COMPOSER_DIMENSION_LOCK = `STAGE BOUNDARY — load-bearing.
+
+The synthesisParagraph and rulesOut paragraphs MUST be derived ONLY from the four captured dimensions (timeHorizon, financialGoal, riskTolerance, lifestylePreference). Do NOT reference skills, prior experience, professional background, what the founder has tried before, or what they're good at — even if the conversation contains that content. Those are Stage 2 territory and must not contaminate the Outcome Document.`;
+
 // ---------------------------------------------------------------------------
 // Public entry point — called from stage1-handler when both the agent
 // returns readyToCompose=true AND computeOutcomeReadiness returns true.
@@ -65,13 +69,14 @@ export async function composeOutcomeDocument(
 ): Promise<OutcomeDocument> {
   const stable = [
     STAGE1_SYSTEM_PROMPT,
+    COMPOSER_DIMENSION_LOCK,
     renderStableContext(state),
     `Conversation so far:\n${renderUserContent(conversationHistory, 4000)}`,
   ].join('\n\n');
 
   const volatile = `Compose the OutcomeDocument now.
 
-Produce synthesisParagraph (3-5 sentences, plain prose, no bullets) and rulesOut (2-3 sentences, concrete) per the schema. The founder has already authored the four dimensions; do not restate them in bullet form — write prose that connects them. Do not invent constraints the founder didn't state. Surface trade-offs the dimensions imply, but stay grounded in what the founder said.`;
+Produce synthesisParagraph (3-5 sentences, plain prose, no bullets) and rulesOut (2-3 sentences, concrete) per the schema. The founder has already authored the four dimensions; do not restate them in bullet form — write prose that connects them. Do not invent constraints the founder didn't state. Surface trade-offs the dimensions imply, but stay grounded in what the founder said. Stage 2 content (skills, prior experience, what they've tried) MUST NOT appear in either paragraph even if it surfaced in the conversation — that's Stage 2 territory and contaminates this artifact.`;
 
   const composed = await withAgentSpan(
     {
