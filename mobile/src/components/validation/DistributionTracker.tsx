@@ -89,11 +89,14 @@ export function DistributionTracker({
                 <Text variant="overline" color={c.mutedForeground}>Message to send</Text>
                 <Text variant="caption" style={{ marginTop: spacing[1] }}>{ch.message}</Text>
                 <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Copy ${ch.channel} message to clipboard`}
+                  hitSlop={6}
                   onPress={async () => {
                     await Clipboard.setStringAsync(ch.message);
                     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                   }}
-                  style={{ marginTop: spacing[2] }}
+                  style={({ pressed }) => [{ marginTop: spacing[2] }, pressed && { opacity: 0.6 }]}
                 >
                   <Text variant="label" color={c.primary}>Copy message</Text>
                 </Pressable>

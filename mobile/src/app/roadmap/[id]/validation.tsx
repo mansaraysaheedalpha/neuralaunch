@@ -57,18 +57,24 @@ export default function TaskScopedValidationScreen() {
   const roadmapId = typeof id === 'string' ? id : '';
   const task      = typeof taskId === 'string' ? taskId : '';
 
-  const [hydrating,  setHydrating]  = useState(true);
-  const [taskStale,  setTaskStale]  = useState(false);
-  const [target,     setTarget]     = useState('');
-  const [busy,       setBusy]       = useState(false);
-  const [error,      setError]      = useState<string | null>(null);
+  const [hydrating,    setHydrating]    = useState(true);
+  const [taskStale,    setTaskStale]    = useState(false);
+  const [paramsMissing, setParamsMissing] = useState(false);
+  const [target,       setTarget]       = useState('');
+  const [busy,         setBusy]         = useState(false);
+  const [error,        setError]        = useState<string | null>(null);
 
   // Check on mount whether the task already has a generated page. If
   // it does, route the founder there — no need to make them re-describe
   // the same offer.
   useEffect(() => {
     let cancelled = false;
+    // Defensive: expo-router always provides both params via this
+    // route's name, but a stale link or broken deep-link could land
+    // here without them. Surface an explicit error instead of letting
+    // the form submit a malformed URL with empty path segments.
     if (!roadmapId || !task) {
+      setParamsMissing(true);
       setHydrating(false);
       return;
     }
@@ -125,6 +131,30 @@ export default function TaskScopedValidationScreen() {
         <Stack.Screen options={{ headerShown: true, headerTitle: 'Validation Tool', headerTintColor: c.foreground, headerStyle: { backgroundColor: c.background }, headerShadowVisible: false }} />
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={c.primary} />
+        </View>
+      </ScreenContainer>
+    );
+  }
+
+  if (paramsMissing) {
+    return (
+      <ScreenContainer>
+        <Stack.Screen options={{ headerShown: true, headerTitle: 'Validation Tool', headerTintColor: c.foreground, headerStyle: { backgroundColor: c.background }, headerShadowVisible: false }} />
+        <View style={styles.centered}>
+          <Text variant="title" align="center">Missing roadmap context</Text>
+          <Text variant="body" color={c.mutedForeground} align="center" style={{ marginTop: spacing[3] }}>
+            We didn't get the roadmap or task identifier needed to scope this validation
+            page. Open the task from the roadmap to try again, or use the standalone
+            Validation Tool from the Tools tab.
+          </Text>
+          <Button
+            title="Back to discovery"
+            onPress={() => router.replace('/discovery' as any)}
+            variant="primary"
+            size="lg"
+            fullWidth
+            style={{ marginTop: spacing[6] }}
+          />
         </View>
       </ScreenContainer>
     );

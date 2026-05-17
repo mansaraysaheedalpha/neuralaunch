@@ -25,8 +25,10 @@ import { Stack, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { FlaskConical, ArrowRight } from 'lucide-react-native';
 import { useTheme } from '@/hooks/useTheme';
+import { useAuth } from '@/services/auth';
 import { api } from '@/services/api-client';
 import { Text, Button, TextInput, ScreenContainer } from '@/components/ui';
+import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
 import { spacing, iconSize, radius } from '@/constants/theme';
 
 const MAX_TARGET_LEN = 2000;
@@ -34,6 +36,11 @@ const MAX_TARGET_LEN = 2000;
 export default function StandaloneValidationToolScreen() {
   const { colors: c } = useTheme();
   const router = useRouter();
+  // Tier-gate locally so a Free founder doesn't fill in the form just to
+  // hit a 403 on submit. The server still enforces; this is the UX
+  // layer the TaskCard already applies to the other paid tools.
+  const tier = useAuth(s => s.user?.tier ?? 'free');
+  const isFreeTier = tier === 'free';
   const [target, setTarget]   = useState('');
   const [busy,   setBusy]     = useState(false);
   const [error,  setError]    = useState<string | null>(null);
@@ -58,6 +65,30 @@ export default function StandaloneValidationToolScreen() {
       setError(err instanceof Error ? err.message : 'Could not generate validation page');
       setBusy(false);
     }
+  }
+
+  if (isFreeTier) {
+    return (
+      <ScreenContainer>
+        <Stack.Screen
+          options={{
+            headerShown: true,
+            headerTitle: 'Validation Tool',
+            headerTintColor: c.foreground,
+            headerStyle: { backgroundColor: c.background },
+            headerShadowVisible: false,
+          }}
+        />
+        <View style={styles.upgradeWrap}>
+          <UpgradePrompt
+            requiredTier="execute"
+            variant="hero"
+            heading="Validate before you build"
+            description="Validation pages are an Execute-tier feature. Upgrade to generate a focused landing page for any offer, gather real-world demand signal, and ship a build brief grounded in visitor behaviour."
+          />
+        </View>
+      </ScreenContainer>
+    );
   }
 
   return (
@@ -155,6 +186,11 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   scrollContent: {
     paddingBottom: spacing[8],
+  },
+  upgradeWrap: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingVertical: spacing[6],
   },
   heroIconWrap: {
     alignItems: 'center',

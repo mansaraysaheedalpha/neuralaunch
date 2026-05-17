@@ -106,10 +106,15 @@ export function useStage2Canvas({
 
   const deriveExpectedProfile = useCallback(async () => {
     // Derive is synchronous on the server (~15s p99 — Expected Profile
-    // agent + research). Flip status to 'composing' for the duration
-    // so the UI can render its loader / disable derive while in flight.
+    // agent + research). Flip status to 'composing' so the UI shows
+    // its loader; ALSO bump the canvas-busy counter so the canvas
+    // lock-out is consistent with the other dispatchers. Without the
+    // counter bump the canvas relies solely on `isBusy` (derived from
+    // status), which is fine today but a latent footgun if anyone
+    // later refactors the parent's `isBusy` derivation.
     setStatus('composing');
     setTurnError(null);
+    beginCanvasWrite();
     try {
       await api(`/api/ideation/stage-runs/${stageRunId}/derive-expected-profile`, {
         method: 'POST',
@@ -122,8 +127,10 @@ export function useStage2Canvas({
         kind:    'action',
         message: err instanceof Error ? err.message : 'Derivation failed',
       });
+    } finally {
+      endCanvasWrite();
     }
-  }, [stageRunId, setStatus, setTurnError]);
+  }, [stageRunId, setStatus, setTurnError, beginCanvasWrite, endCanvasWrite]);
 
   return {
     updateSkillTier,
