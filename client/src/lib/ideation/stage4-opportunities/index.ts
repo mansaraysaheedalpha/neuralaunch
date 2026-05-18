@@ -94,3 +94,12 @@ export {
 
 // ---- Composer ----
 export { composeOpportunityEvaluationsDocument } from './composer';
+
+// ---- Layer A research agent ----
+export { runLayerAResearch, type RunLayerAArgs, type RunLayerAResult } from './layer-a-research-agent';
+
+// ---- Layer B test-script generator ----
+export { runLayerBScript, type RunLayerBArgs } from './layer-b-script-agent';
+
+// ---- Verdict synthesizer ----
+export { synthesizeVerdict, type SynthesizeArgs, type SynthesizeResult } from './verdict-synthesizer';

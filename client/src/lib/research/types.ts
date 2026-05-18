@@ -28,6 +28,7 @@ export const RESEARCH_AGENTS = [
   'service-packager',
   'stage2-expected-profile',
   'stage3-pain-scout',
+  'stage4-opportunity-research',
 ] as const;
 export type ResearchAgent = typeof RESEARCH_AGENTS[number];
 

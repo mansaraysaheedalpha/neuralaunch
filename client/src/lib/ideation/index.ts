@@ -73,6 +73,9 @@ export {
   persistStage3RecommendedAction,
   persistPainPointPushbackRound,
   persistPainScoutRunResult,
+  // Stage 4 transitions
+  persistLayerAResearch,
+  persistLayerBScript,
   // Cross-stage cascades
   cascadeStage1EditToStage2,
   restoreStage2FromCascadeSnapshot,

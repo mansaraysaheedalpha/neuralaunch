@@ -158,4 +158,17 @@ export const RESEARCH_BUDGETS: Record<ResearchAgent, { steps: number; descriptio
     steps:       8,
     description: 'Community + web research to surface candidate pain points. Free-composite + Tavily + Exa.',
   },
+  'stage4-opportunity-research': {
+    // Stage 4 — Layer A per-opportunity research. Each opportunity
+    // gets its own derive-opportunity-research call (the founder
+    // fires one row at a time from the canvas). Budget = 6 buys
+    // ~4-5 targeted tool calls — one community_pulse fan-out plus
+    // 3-4 Tavily/Exa verifications across the four dimensions
+    // (Market Reality / Customer Access / Will People Pay /
+    // Market Size) — plus the structured emission. With at most
+    // 5 opportunities per stage row, the session-wide ceiling
+    // is 30 research steps.
+    steps:       6,
+    description: 'Per-opportunity 4-dimension research across the free-composite + Tavily + Exa.',
+  },
 } as const;

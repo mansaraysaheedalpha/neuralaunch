@@ -205,7 +205,10 @@ export function renderFanOutResult(query: string, result: FanOutResult): string 
 // ---------------------------------------------------------------------------
 
 export interface BuildCommunityPulseToolInput {
-  /** The agent invoking the tool — gated to 'stage3-pain-scout'. */
+  /**
+   * The agent invoking the tool — gated to the Stage 3 + Stage 4
+   * research agents. Every other agent gets an empty ToolSet.
+   */
   agent:       ResearchAgent;
   /** Correlation id for structured logs. */
   contextId:   string;
@@ -218,13 +221,19 @@ export interface BuildCommunityPulseToolInput {
   accumulator: ResearchLogEntry[];
 }
 
+const COMMUNITY_PULSE_ALLOWED_AGENTS: readonly ResearchAgent[] = [
+  'stage3-pain-scout',
+  'stage4-opportunity-research',
+];
+
 /**
- * Build the community_pulse tool for the Stage 3 Pain Scout. Returns
- * an empty ToolSet for every other agent — caller composes this with
- * the existing exa_search + tavily_search tools via spread.
+ * Build the community_pulse tool for the Stage 3 Pain Scout and the
+ * Stage 4 per-opportunity research agent. Returns an empty ToolSet
+ * for every other agent — caller composes this with the existing
+ * exa_search + tavily_search tools via spread.
  */
 export function buildCommunityPulseTool(input: BuildCommunityPulseToolInput): ToolSet {
-  if (input.agent !== 'stage3-pain-scout') {
+  if (!COMMUNITY_PULSE_ALLOWED_AGENTS.includes(input.agent)) {
     // Hard gate — Stage 1 / Stage 2 / other agents NEVER see this tool.
     return {};
   }

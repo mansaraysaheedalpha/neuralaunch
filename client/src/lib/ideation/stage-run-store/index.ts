@@ -208,6 +208,11 @@ export {
 } from './stage3-transitions';
 
 export {
+  persistLayerAResearch,
+  persistLayerBScript,
+} from './stage4-transitions';
+
+export {
   cascadeStage1EditToStage2,
   restoreStage2FromCascadeSnapshot,
   clearStage2CascadeSnapshot,
