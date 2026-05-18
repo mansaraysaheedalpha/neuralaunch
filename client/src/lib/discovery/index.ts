@@ -16,7 +16,13 @@ export { selectNextField, computeOverallCompleteness } from './question-selector
 export type { GuardResult } from './assumption-guard';
 export { canSynthesise, evaluate } from './assumption-guard';
 
-export { runSynthesis, summariseContext, eliminateAlternatives, runFinalSynthesis } from './synthesis-engine';
+export {
+  runSynthesis,
+  summariseContext,
+  eliminateAlternatives,
+  runFinalSynthesis,
+  validateRecommendationOrThrow,
+} from './synthesis-engine';
 
 export { getSession, saveSession, deleteSession, teeDiscoveryStream } from './session-store';
 

@@ -62,11 +62,13 @@ The system must behave correctly under failure. Users trust NeuraLaunch with the
 - Inngest functions are the primary mechanism for durable execution. Any operation that cannot tolerate a serverless timeout must run inside an Inngest step.
 - All AI-generated structured data must be validated through a Zod v4 schema before it touches the database or the client. Never trust raw LLM output.
 - **Zod schemas for LLM output must NOT use `.max()` on string fields.** Anthropic's structured-output endpoint does not consistently enforce string-length constraints during generation — the model produces a longer string, the response is structurally valid JSON, and the AI SDK's post-hoc Zod parse rejects it as `AI_NoObjectGeneratedError`. Put length intent in the `.describe()` copy and enforce bounds via a `.transform()` post-clamp. See `ValidationInterpretationSchema` for the canonical shape.
-- **Zod schemas for LLM output must NOT use `.int()` on numeric fields (which implies a ban on `.min()` / `.max()` on integers too).** Anthropic's structured-output validator rejects integer-type constraints outright: `minimum`, `maximum`, AND the `multipleOf: 1` that Zod v4's `.int()` emits under the hood — all trigger `AI_APICallError: output_config.format.schema: For 'integer' type, properties maximum, minimum are not supported`. Confirmed in prod on the Packager where `clients: z.number().int().min(0)` was the only integer field across every tool's output schema; removing `.min(0)` alone did not fix it — the `.int()` itself had to go because Zod's emitted JSON Schema still carried integer-specific constraints. Remediation: declare the field as plain `z.number()` (JSON Schema `type: number`), put the "non-negative integer" intent in `.describe()`, enforce the shape post-parse via `.transform(n => Math.max(Math.floor(n), MIN))`. The inferred TypeScript type stays `number` so downstream callers keep working. See `PackageRevenueScenarioSchema.clients` for the canonical shape. This rule applies ONLY to schemas passed to `generateObject` / `Output.object` — persistence-only schemas that never reach a provider can still use `.int()` / `.min()` / `.max()` for parse-time validation.
+- **Zod schemas for LLM output must NOT use `.int()` on numeric fields (which implies a ban on `.min()` / `.max()` on integers too).** Anthropic's structured-output validator rejects integer-type constraints outright: `minimum`, `maximum`, AND the `multipleOf: 1` that Zod v4's `.int()` emits under the hood — all trigger `AI_APICallError: output_config.format.schema: For 'integer' type, properties maximum, minimum are not supported`. Confirmed in prod on the Packager where `clients: z.number().int().min(0)` was the only integer field across every tool's output schema; removing `.min(0)` alone did not fix it — the `.int()` itself had to go because Zod's emitted JSON Schema still carried integer-specific constraints. Remediation: declare the field as plain `z.number()` (JSON Schema `type: number`), put the "non-negative integer" intent in `.describe()`, enforce the shape post-parse via `.transform(n => Math.max(Math.floor(n), MIN))`. The inferred TypeScript type stays `number` so downstream callers keep working. See `PackageRevenueScenarioSchema.clients` for the canonical shape. This rule applies ONLY to schemas passed to `Output.object({ schema })` (or the deprecated `generateObject`) — persistence-only schemas that never reach a provider can still use `.int()` / `.min()` / `.max()` for parse-time validation.
 - Use Prisma transactions for any operation that involves more than one write. Partial writes are data corruption.
 - Upstash Redis is ephemeral. Never rely on it as the only store for state that must survive beyond the session TTL. Session reads (`getSession`) MUST fall back to Postgres on Redis miss — a 15-minute pause cannot lose the founder's interview state. See `src/lib/discovery/session-store.ts`.
-- **Every `generateObject` call site must use `withModelFallback()`** from `src/lib/ai/with-model-fallback.ts`. This wraps the call with a single-retry fallback to a smaller model on Anthropic overload (`AI_RetryError`, `AI_APICallError`, or status 529). Never add a bare `generateObject` call without the fallback wrapper.
+- **Every `generateText` call site that uses `output: Output.object(...)` must use `withModelFallback()`** from `src/lib/ai/with-model-fallback.ts`. This wraps the call with a single-retry fallback to a smaller model on Anthropic overload (`AI_RetryError`, `AI_APICallError`, or status 529). Never add a bare structured-output call without the fallback wrapper. (The codebase migrated off `generateObject` to `generateText` + `Output.object` in commit `91b1abb`.)
 - **Every `streamText` call site must use `streamQuestionWithFallback()`** from `src/lib/ai/question-stream-fallback.ts` and pass `maxRetries: 0` to disable the AI SDK's internal retry (our chain owns retry semantics).
+- **Never combine `tools` + `output: Output.object(...)` + `stopWhen: stepCountIs(...)` in a single `generateText` call.** This shape is fragile: the model can emit the schema shape before doing the work, producing a structurally-valid Recommendation/PushbackResponse with empty fields, while every step in the orchestrating function reports success. Confirmed in prod on the discovery synthesis path on 2026-05-18 (`Recommendation.summary` = "Let me research the competitive landscape…", every other field empty) and on the pushback path on 2026-04-20 (commit `6dea256`). The canonical pattern is a two-phase split: Phase 1A `generateText` with `tools` + free-form text output (research + reasoning), Phase 1B a separate `generateText` with `output: Output.object` + NO tools (structured emission only, consumes phase 1A's reasoning). Examples: `src/lib/discovery/synthesis-final.ts`, `src/lib/discovery/pushback-engine.ts`.
+- **Zod schemas for LLM-emitted Recommendations / PushbackResponses need a fail-closed engine-side guard.** The schema accepts empty strings (CLAUDE.md ban on `.max()`/`.min()` on Anthropic structured-output) so a model that emits `{ summary: "", path: "", … }` passes. Wrap the post-emit object in `validateRecommendationOrThrow()` from `src/lib/discovery/synthesis-final.ts` (or an equivalent engine-side helper) before returning to the orchestrator.
 - **Long-running tool calls (Research, Packager, Composer, Coach) must run as durable ToolJob workers.** Synchronous routes that exceed Vercel's 300s ceiling cause silent 504 timeouts and lost work; moving them inside Inngest functions removes that risk entirely. The canonical accept-and-queue route shape is: validate (auth, tier, quota, ownership) → `createToolJob({ userId, roadmapId, toolType, sessionId, taskId? })` → `sendToolJobEvent(job.id, { name: 'tool/<x>.requested', data })` → return 202 with `{ jobId, sessionId }`. The route owns NO LLM calls. The worker function under `src/inngest/functions/tools/` runs the engine in `step.run` blocks (`context_loaded` → `researching` → `emitting` → `persisting`) and writes its result via `persistToolJobResult` from `src/lib/tool-jobs/persistence.ts` — that helper handles both standalone (`roadmap.toolSessions[]`) and task-launched (`task.<x>Session`) shapes through one entry point so all six tool workers share identical persistence logic. The client polls `/api/discovery/roadmaps/[id]/tool-jobs/[jobId]/status` via `useToolJob` (3s/30s foreground/backgrounded) and renders `<ToolJobProgress>` with the right `toolType` until the worker writes the result. See `research-execute-job.ts` as the canonical example. Short LLM calls (chat-style context-confirmation, single-message variations) stay synchronous because the founder needs an immediate reply for the chat UX.
 
 ### 2. Security
@@ -129,7 +131,7 @@ Users are waiting. Every unnecessary millisecond is friction between a person an
 | Styling | Tailwind CSS | 3.4.x | Utility-first. No inline styles. v3 with classic `tailwindcss` PostCSS plugin — NOT v4 + `@tailwindcss/postcss`. v4 upgrade deferred until upstream patches the Turbopack + Oxide arbitrary-value scanner defect. |
 | Components | shadcn/ui | v4 CLI | Chat, Timeline, Stepper blocks for AI UX. |
 | Animation | Motion | v12 | Import from `motion/react`, not `framer-motion`. |
-| AI SDK | Vercel AI SDK | v5.0 | `streamText`, `generateObject` with Zod schemas. |
+| AI SDK | Vercel AI SDK | v5.0 | `streamText` for streaming, `generateText` + `Output.object({ schema })` for structured output with Zod schemas. The codebase migrated off `generateObject` in commit `91b1abb`. |
 | AI Provider | Anthropic | Claude 4.6 | Sonnet 4.6 for execution. Opus 4.6 for deep synthesis. |
 | Orchestration | Inngest | v4 | `useAgent` hook for frontend streaming. |
 | Validation | Zod | v4 | Use `z.toJSONSchema()` for tool definitions. |
@@ -201,7 +203,7 @@ const response = await anthropic.messages.create({
 ### Vercel AI SDK v5
 
 - Use `streamText` for all user-facing conversational responses
-- Use `generateObject` with a Zod schema for all structured data extraction
+- Use `generateText` with `output: Output.object({ schema })` for all structured data extraction. Do not use `generateObject` — the codebase migrated off it in commit `91b1abb`.
 - Tool definitions must be generated via `z.toJSONSchema()` — never handwrite JSON Schema
 - The `useChat` hook is the only client-side hook for conversation state
 
@@ -222,11 +224,12 @@ Choose the shape that matches the call:
 
 ```typescript
 // CORRECT — Vercel AI SDK, two-message split (most common)
-const { object } = await generateObject({
+const result = await generateText({
   model: aiSdkAnthropic(modelId),
-  schema: MySchema,
+  output: Output.object({ schema: MySchema }),
   messages: cachedUserMessages(STABLE_RULES_AND_CONTEXT, VOLATILE_TURN),
 });
+const object = result.output;
 
 // CORRECT — Vercel AI SDK with a system prompt (streaming questions etc.)
 await streamText({
@@ -278,7 +281,8 @@ type DiscoveryContext = z.infer<typeof DiscoveryContextSchema>;
 
 The old multi-agent BaseAgent system was removed in the cleanup. The
 current architecture uses **engine functions** — standalone async
-functions that take typed input, call `generateObject` or `streamText`
+functions that take typed input, call `generateText` (with optional
+`Output.object({ schema })` for structured emission) or `streamText`
 via the Vercel AI SDK, validate the output through a Zod schema, and
 return a typed result. The orchestrating Inngest function or API route
 persists the result; the engine never touches the database directly.
@@ -328,22 +332,22 @@ data: { phases: toJsonValue(roadmap.phases) }
 ### AI call resilience
 
 ```typescript
-// CORRECT: every generateObject call uses withModelFallback
-const result = await withModelFallback(
+// CORRECT: every structured-output call uses withModelFallback
+const object = await withModelFallback(
   'module:function',
   { primary: MODELS.INTERVIEW, fallback: MODELS.INTERVIEW_FALLBACK_1 },
   async (modelId) => {
-    const { object } = await generateObject({
+    const result = await generateText({
       model: aiSdkAnthropic(modelId),
-      schema: MySchema,
+      output: Output.object({ schema: MySchema }),
       messages: [...],
     });
-    return object;
+    return result.output;
   },
 );
 
-// WRONG: bare generateObject with no fallback
-const { object } = await generateObject({ model: ..., schema: ..., messages: [...] });
+// WRONG: bare generateText + Output.object with no fallback
+const result = await generateText({ model: ..., output: Output.object({ schema: ... }), messages: [...] });
 ```
 
 - Engines do not make direct database calls. They return structured results; the orchestrating function persists them.

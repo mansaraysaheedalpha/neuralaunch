@@ -19,6 +19,7 @@ import { PUSHBACK_ACTIONS, PUSHBACK_CONFIG } from './constants';
 import { renderUserContent } from '@/lib/validation/server-helpers';
 import { cachedUserMessages } from '@/lib/ai/prompt-cache';
 import { RecommendationSchema, type Recommendation } from './recommendation-schema';
+import { validateRecommendationOrThrow } from './synthesis-final';
 import type { DiscoveryContext } from './context-schema';
 import {
   buildResearchTools,
@@ -276,13 +277,17 @@ Produce your structured response now.`;
   });
 
   // ---------------------------------------------------------------------------
-  // Pushback is a two-phase call, mirroring the pattern synthesis uses
-  // reliably. Combining tools + Output.object in a single generateText
-  // call is fragile under dense round-4+ context: the model either
-  // runs out of step budget mid-tool-loop (leaving no room for the
-  // structured emission) or truncates the emission itself under the
-  // default maxOutputTokens=4096. Splitting the work makes each call
-  // single-purpose and eliminates the competing concerns.
+  // Pushback is a two-phase call. Combining tools + Output.object in a
+  // single generateText call is fragile under dense round-4+ context:
+  // the model either runs out of step budget mid-tool-loop (leaving no
+  // room for the structured emission) or truncates the emission itself
+  // under the default maxOutputTokens=4096, AND has been observed to
+  // emit the schema shape with empty fields when it short-circuits to
+  // structured output before doing the work. Splitting into a
+  // research+reasoning phase and a separate structured-emission phase
+  // makes each call single-purpose and eliminates the competing
+  // concerns. Discovery synthesis runFinalSynthesis adopted the same
+  // pattern on 2026-05-18 after a prod incident (synthesis-final.ts).
   //
   //   Phase 1A: research + reasoning. Tools attached, free-form text
   //             output, generous step budget. The model researches as
@@ -530,6 +535,11 @@ Produce the updated recommendation now.`;
         },
         ),
       );
+      // Fail closed on empty-but-schema-valid Recommendations — the
+      // same shape risk discovery synthesis hit on 2026-05-18.
+      // Throws if any required field is empty or any array is below
+      // its advertised minimum; Inngest will retry the route step.
+      patch = validateRecommendationOrThrow(patch);
     } catch (err) {
       // The AI SDK wraps the underlying Zod failure inside a `cause`
       // property on AI_NoObjectGeneratedError. Surface it so we are
