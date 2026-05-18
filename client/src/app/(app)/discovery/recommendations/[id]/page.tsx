@@ -6,6 +6,8 @@ import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
 import { RecommendationReveal } from '@/app/(app)/discovery/recommendation/RecommendationReveal';
 import { safeParsePushbackHistory } from '@/lib/discovery/pushback-engine';
+import { isRegenerateAllowed } from '@/lib/discovery/regenerate-allowlist';
+import { RegenerateButton } from './RegenerateButton';
 
 /**
  * RecommendationDetailPage
@@ -49,6 +51,20 @@ export default async function RecommendationDetailPage({
   });
 
   if (!recommendation) notFound();
+
+  // Render the self-service regenerate button only when:
+  //   - the founder's email is in ADMIN_REGENERATE_EMAILS, AND
+  //   - the recommendation has not been accepted (regenerate would
+  //     orphan a downstream roadmap), AND
+  //   - there are no user-side pushback turns (regenerate would
+  //     leave history orphaned against a fresh row).
+  // The route enforces the same invariants — this is purely a UX
+  // affordance so the button doesn't render when it'd be rejected.
+  const pushbackHistoryForGate = safeParsePushbackHistory(recommendation.pushbackHistory);
+  const hasUserPushbackTurns   = pushbackHistoryForGate.some(t => t.role === 'user');
+  const canRegenerate          = isRegenerateAllowed(session.user.email)
+                                && !recommendation.acceptedAt
+                                && !hasUserPushbackTurns;
 
   const conversationId           = recommendation.session?.conversationId ?? null;
   // STALE counts as "ready" for navigation purposes — see comment in
@@ -95,14 +111,17 @@ export default async function RecommendationDetailPage({
         >
           ← All recommendations
         </Link>
-        {conversationId && (
-          <Link
-            href={`/chat/${conversationId}`}
-            className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-          >
-            View interview transcript →
-          </Link>
-        )}
+        <div className="flex items-center gap-4">
+          {canRegenerate && <RegenerateButton recommendationId={recommendation.id} />}
+          {conversationId && (
+            <Link
+              href={`/chat/${conversationId}`}
+              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+            >
+              View interview transcript →
+            </Link>
+          )}
+        </div>
       </div>
       <Suspense fallback={
         <div className="flex-1 flex items-center justify-center">

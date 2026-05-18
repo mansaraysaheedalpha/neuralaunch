@@ -124,6 +124,15 @@ const envSchema = z.object({
   NEXT_PUBLIC_APP_URL:  z.string().url().optional(),
   NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
 
+  // Self-service repair allowlist. Comma-separated email list. Founders
+  // whose session.user.email appears here see a "Regenerate" button on
+  // their Recommendation page that re-runs synthesis on the existing
+  // session. Optional; when unset, no founder is eligible and the
+  // button does not render. Added 2026-05-18 as the founder-facing
+  // half of the diagnosis+fix for recommendation cmpbbtfme0001l304arowe4hs
+  // (empty-but-schema-valid row). Safe to clear once the row is fixed.
+  ADMIN_REGENERATE_EMAILS: z.string().optional(),
+
   // Paddle (Merchant of Record). The server keys are required in every
   // deployed environment so the app refuses to start without them —
   // catching a missing secret at boot beats discovering it on the first
