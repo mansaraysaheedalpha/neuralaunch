@@ -118,3 +118,15 @@ export * from './stage2-requirements';
 // client bundles. See docs/stage3-handoff.md § 8.
 
 export * from './stage3-opportunities';
+
+// ===========================================================================
+// Stage 4 — Opportunity Evaluation & Research
+// ===========================================================================
+//
+// Stage 4's public surface is re-exported from its sub-module barrel
+// at './stage4-opportunities'. Client components MUST NOT import
+// from this top-level barrel — use the specific schema.ts /
+// constants.ts paths to avoid pulling server-only modules into
+// client bundles. Same discipline as Stage 3.
+
+export * from './stage4-opportunities';

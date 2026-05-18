@@ -350,3 +350,131 @@ export const PAIN_SCORE_PUSHBACK_MODES = [
   'lack_of_belief',
 ] as const;
 export type PainScorePushbackMode = typeof PAIN_SCORE_PUSHBACK_MODES[number];
+
+// ---------------------------------------------------------------------------
+// Stage 4 — Opportunity Evaluation & Research
+// ---------------------------------------------------------------------------
+
+/**
+ * The agent's per-opportunity verdict from the two-layer evaluation
+ * (Layer A research + Layer B founder community engagement). Founder
+ * gets the same three-option choice when finalising, hence one shared
+ * enum for both agent and founder verdicts.
+ *
+ *   - pursue              — clear signal; advance to Stage 5
+ *   - pursue_with_caveats — promising but with specific concerns to
+ *                           hold in mind during Stage 5 deepening
+ *   - drop                — research / engagement contradicts the
+ *                           pain hypothesis enough to abandon
+ *
+ * `pending` exists on the agent side for opportunities that haven't
+ * been evaluated yet (Layer A or B not run). It's NOT in this enum
+ * because the founder never picks `pending`; it's a state, not a
+ * verdict.
+ */
+export const OPPORTUNITY_VERDICTS = [
+  'pursue',
+  'pursue_with_caveats',
+  'drop',
+] as const;
+export type OpportunityVerdict = typeof OPPORTUNITY_VERDICTS[number];
+
+/**
+ * Lifecycle of one opportunity inside the Stage 4 evaluation queue.
+ *
+ *   - awaiting_research        — shortlisted from Stage 3; Layer A not
+ *                                yet derived
+ *   - awaiting_engagement      — Layer A done; Layer B script ready
+ *                                but no founder responses captured yet
+ *   - engagement_in_progress   — at least one CommunityResponse logged;
+ *                                more may still arrive
+ *   - evaluated                — both layers complete, agentVerdict set
+ *   - rejected_by_founder      — founder explicitly dropped this row
+ *                                early; kept in the audit trail but
+ *                                excluded from the chosen-#1 candidate
+ */
+export const OPPORTUNITY_STATUSES = [
+  'awaiting_research',
+  'awaiting_engagement',
+  'engagement_in_progress',
+  'evaluated',
+  'rejected_by_founder',
+] as const;
+export type OpportunityStatus = typeof OPPORTUNITY_STATUSES[number];
+
+/**
+ * Aggregate validation signal computed across all CommunityResponse
+ * extractions for one opportunity (Layer B).
+ *
+ *   - strong         — clear positive signal, validating quotes, low
+ *                      contradiction count
+ *   - mixed          — both positive and negative signal present; no
+ *                      clear winner
+ *   - weak           — limited engagement, low comment count, signal
+ *                      is mostly neutral
+ *   - contradictory  — explicit pushback dominates; the pain may not
+ *                      be what the founder thought
+ */
+export const VALIDATION_STRENGTHS = [
+  'strong',
+  'mixed',
+  'weak',
+  'contradictory',
+] as const;
+export type ValidationStrength = typeof VALIDATION_STRENGTHS[number];
+
+/**
+ * How a community-engagement response was captured. Drives the
+ * persistence shape on the CommunityResponse row and the rendering
+ * surface in the UI.
+ *
+ *   - text_paste  — founder pasted comment text directly; no image
+ *   - screenshot  — founder uploaded an image; vision-extractor turned
+ *                   it into structured signal
+ */
+export const COMMUNITY_RESPONSE_SOURCES = [
+  'text_paste',
+  'screenshot',
+] as const;
+export type CommunityResponseSource = typeof COMMUNITY_RESPONSE_SOURCES[number];
+
+/**
+ * Comment-level sentiment from the vision-extractor.
+ *
+ *   - positive — engaged, validating, sharing related pain
+ *   - neutral  — off-topic, clarifying, no clear stance
+ *   - negative — dismissive, contradicting, hostile
+ */
+export const COMMUNITY_COMMENT_SENTIMENTS = [
+  'positive',
+  'neutral',
+  'negative',
+] as const;
+export type CommunityCommentSentiment = typeof COMMUNITY_COMMENT_SENTIMENTS[number];
+
+/**
+ * Verdict-pushback actions for the per-opportunity multi-round
+ * pushback engine. Same shape as Stage 2/3 (continue / defend /
+ * closing) plus a Stage-4-specific `change_verdict` action when the
+ * founder's challenge actually moves the agent's verdict — distinct
+ * from Stage 3's `refine`/`replace` which mutate a numeric score.
+ */
+export const OPPORTUNITY_PUSHBACK_ACTIONS = [
+  'continue_dialogue',
+  'defend',
+  'change_verdict',
+  'closing',
+] as const;
+export type OpportunityPushbackAction = typeof OPPORTUNITY_PUSHBACK_ACTIONS[number];
+
+/**
+ * Same three modes as the Stage 2 + Stage 3 pushback engines — the
+ * shapes a founder challenges an agent verdict with don't change
+ * between stages.
+ */
+export const OPPORTUNITY_PUSHBACK_MODES = [
+  'analytical',
+  'fear',
+  'lack_of_belief',
+] as const;
+export type OpportunityPushbackMode = typeof OPPORTUNITY_PUSHBACK_MODES[number];
