@@ -117,6 +117,7 @@ export function buildCommunityResponse(input:
       extractedAt:      null,
       extractedSignal:  null,
       moderationPassed: true,
+      moderationReason: null,
     });
   }
   return clampResponse({
@@ -130,6 +131,7 @@ export function buildCommunityResponse(input:
     extractedAt:      null,
     extractedSignal:  null,
     moderationPassed: false,
+    moderationReason: null,
   });
 }
 
@@ -246,4 +248,13 @@ export function computeStage4Readiness(s: Stage4AuthoringState): boolean {
   return s.opportunities.filter(
     o => o.status === 'evaluated' && o.founderVerdict !== null && o.founderVerdict !== 'drop',
   ).length >= MIN_EVALUATED_OPPORTUNITIES_FOR_COMMIT;
+}
+
+// ---------------------------------------------------------------------------
+// Tiny lookup helpers — used by routes for existence checks before
+// trusting a founder-supplied opportunityId.
+// ---------------------------------------------------------------------------
+
+export function allOpportunityIds(s: Stage4AuthoringState): string[] {
+  return s.opportunities.map(o => o.id);
 }

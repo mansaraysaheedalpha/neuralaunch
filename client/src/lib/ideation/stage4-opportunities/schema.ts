@@ -135,6 +135,15 @@ export const CommunityResponseSchema = z.object({
   extractedAt:      z.string().nullable(),
   extractedSignal:  ExtractedSignalSchema.nullable(),
   moderationPassed: z.boolean(),
+  /**
+   * Populated when moderationPassed=false. The Haiku moderation gate
+   * returns a short `reason` string when it explicitly fails an
+   * image; the route layer also sets `moderation_call_failed` when
+   * the gate call itself errors (network, quota, SDK throw). Null on
+   * text_paste rows and on screenshot rows where the gate hasn't
+   * fired yet.
+   */
+  moderationReason: z.string().nullable(),
 });
 export type CommunityResponse = z.infer<typeof CommunityResponseSchema>;
 

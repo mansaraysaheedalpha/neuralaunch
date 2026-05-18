@@ -37,8 +37,15 @@ const PUSHBACK_MESSAGE_MAX_CHARS = 1500;
 const ACTION_MAX_CHARS           = 200;
 const FOUNDER_RESPONSE_MAX_CHARS = 400;
 const RATIONALE_MAX_CHARS        = 800;
-const QUOTE_MAX_CHARS            = 400;
+
+// Vision-extractor output caps. Vision can occasionally produce
+// verbose extractions; bound them here so artifact growth stays
+// predictable. CLAUDE.md rule: no .max() on LLM-output Zod strings —
+// these clamps are the post-parse enforcement of the same intent.
+const QUOTE_MAX_CHARS            = 300;
 const CONTRADICTION_MAX_CHARS    = 400;
+const BODY_EXCERPT_MAX_CHARS     = 800;
+const MODERATION_REASON_MAX_CHARS = 200;
 const PASTED_TEXT_MAX_CHARS      = COMMUNITY_COMMENT_EXCERPT_MAX_CHARS * 4;
 
 // ---------------------------------------------------------------------------
@@ -84,7 +91,7 @@ export function clampExtractedSignal(s: ExtractedSignal): ExtractedSignal {
     originalPost: {
       ...s.originalPost,
       voteCount:   clampVoteCount(s.originalPost.voteCount),
-      bodyExcerpt: clamp(s.originalPost.bodyExcerpt, COMMUNITY_COMMENT_EXCERPT_MAX_CHARS) ?? '',
+      bodyExcerpt: clamp(s.originalPost.bodyExcerpt, BODY_EXCERPT_MAX_CHARS) ?? '',
     },
     unparseableNotes: clamp(s.unparseableNotes, REASONING_MAX_CHARS),
   };
@@ -130,8 +137,9 @@ function clampDimension(d: { reasoning: string; confidence: number; citations: {
 export function clampResponse(r: CommunityResponse): CommunityResponse {
   return {
     ...r,
-    pastedText:      clamp(r.pastedText, PASTED_TEXT_MAX_CHARS),
-    extractedSignal: r.extractedSignal && clampExtractedSignal(r.extractedSignal),
+    pastedText:       clamp(r.pastedText, PASTED_TEXT_MAX_CHARS),
+    extractedSignal:  r.extractedSignal && clampExtractedSignal(r.extractedSignal),
+    moderationReason: clamp(r.moderationReason, MODERATION_REASON_MAX_CHARS),
   };
 }
 

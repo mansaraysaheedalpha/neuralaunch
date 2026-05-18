@@ -77,11 +77,20 @@ export {
   applyFounderVerdict,
   appendStage4RecommendedAction,
   computeStage4Readiness,
+  allOpportunityIds,
   // Re-exported from aggregate via state.ts:
   computeAggregateSignal,
   evaluatedNotRejected,
   pickChosenOpportunity,
 } from './state';
+
+// ---- Vision pipeline ----
+export {
+  runModerationGate,
+  extractSignal,
+  type ModerationResult,
+  type ExtractArgs,
+} from './vision-extractor';
 
 // ---- Composer ----
 export { composeOpportunityEvaluationsDocument } from './composer';

@@ -66,6 +66,19 @@ const envSchema = z.object({
   TAVILY_API_KEY: z.string().optional(),
   EXA_API_KEY:    z.string().optional(),
 
+  // Stage 4 Opportunity Evaluation — AWS S3 for founder-uploaded
+  // screenshots of community engagement. Optional at boot: when any
+  // are unset, lib/storage/s3.ts refuses to issue presigned URLs at
+  // runtime (the screenshot-upload flow surfaces a clear error;
+  // text_paste responses still work). Var names match the AWS SDK's
+  // default credential-discovery convention so the S3 client doesn't
+  // need explicit credential config — the SDK picks AWS_ACCESS_KEY_ID
+  // and AWS_SECRET_ACCESS_KEY off process.env automatically.
+  AWS_REGION:            z.string().min(1).optional(),
+  AWS_S3_BUCKET:         z.string().min(1).optional(),
+  AWS_ACCESS_KEY_ID:     z.string().min(1).optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+
   // Stage 3 Pain Scout — free-composite community sources. Each is
   // optional; missing keys cause the corresponding client to skip
   // itself out of the fan-out (per SourceClient.isConfigured). The
