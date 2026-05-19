@@ -103,3 +103,19 @@ export { runLayerBScript, type RunLayerBArgs } from './layer-b-script-agent';
 
 // ---- Verdict synthesizer ----
 export { synthesizeVerdict, type SynthesizeArgs, type SynthesizeResult } from './verdict-synthesizer';
+
+// ---- Verdict pushback engine ----
+export {
+  runVerdictPushbackRound,
+  applyVerdictMutation,
+  MAX_OPPORTUNITY_PUSHBACK_ROUNDS,
+  type RunVerdictPushbackArgs,
+  type RunVerdictPushbackResult,
+} from './verdict-pushback';
+
+// ---- Community-response pipeline ----
+export {
+  runCommunityResponsePipeline,
+  type CommunityResponseInput,
+  type CommunityResponsePipelineResult,
+} from './community-response-pipeline';

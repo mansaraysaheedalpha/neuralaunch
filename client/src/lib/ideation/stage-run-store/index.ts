@@ -210,6 +210,12 @@ export {
 export {
   persistLayerAResearch,
   persistLayerBScript,
+  persistCommunityResponse,
+  updateCommunityResponseExtraction,
+  recomputeOpportunityAggregateSignal,
+  persistAgentVerdict,
+  persistFounderVerdict,
+  persistOpportunityPushbackRound,
 } from './stage4-transitions';
 
 export {

@@ -76,6 +76,12 @@ export {
   // Stage 4 transitions
   persistLayerAResearch,
   persistLayerBScript,
+  persistCommunityResponse,
+  updateCommunityResponseExtraction,
+  recomputeOpportunityAggregateSignal,
+  persistAgentVerdict,
+  persistFounderVerdict,
+  persistOpportunityPushbackRound,
   // Cross-stage cascades
   cascadeStage1EditToStage2,
   restoreStage2FromCascadeSnapshot,

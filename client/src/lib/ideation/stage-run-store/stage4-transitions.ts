@@ -20,12 +20,21 @@ import type {
   Stage4AuthoringState,
   LayerAResearch,
   LayerBScript,
+  CommunityResponse,
+  ExtractedSignal,
+  OpportunityEvaluation,
 } from '../stage4-opportunities/schema';
 import {
   safeParseStage4AuthoringState,
   replaceOpportunityById,
+  appendCommunityResponse,
+  replaceCommunityResponseById,
+  applyAgentVerdict,
+  applyFounderVerdict,
+  computeAggregateSignal,
 } from '../stage4-opportunities/state';
 import { clampOpportunity } from '../stage4-opportunities/clamps';
+import type { OpportunityVerdict } from '@neuralaunch/constants';
 import type { ResearchLogEntry } from '@/lib/research';
 
 // ---------------------------------------------------------------------------
@@ -119,5 +128,148 @@ export async function persistLayerBScript(
     }
     const nextOpp = clampOpportunity({ ...target, layerBScript: script });
     return replaceOpportunityById(state, opportunityId, nextOpp);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Community response — append to pool + link to opportunity. Status
+// transitions awaiting_engagement → engagement_in_progress when the
+// first response for that opportunity lands.
+// ---------------------------------------------------------------------------
+
+export async function persistCommunityResponse(
+  stageRunId: string,
+  userId:     string,
+  response:   CommunityResponse,
+): Promise<void> {
+  await transformAuthoring(stageRunId, userId, (state) => {
+    const target = state.opportunities.find(o => o.id === response.opportunityId);
+    if (!target) {
+      throw new HttpError(404, 'Opportunity not found on this stage run');
+    }
+    const withResponse = appendCommunityResponse(state, response);
+    // Link the response id to the opportunity's layerBResponses pool +
+    // advance status to engagement_in_progress when this is the first.
+    const linkedTarget = withResponse.opportunities.find(o => o.id === response.opportunityId)!;
+    const nextStatus = linkedTarget.status === 'awaiting_engagement'
+      ? 'engagement_in_progress'
+      : linkedTarget.status;
+    const nextOpp = clampOpportunity({
+      ...linkedTarget,
+      layerBResponses: [...linkedTarget.layerBResponses, response.id],
+      status:          nextStatus,
+    });
+    return replaceOpportunityById(withResponse, response.opportunityId, nextOpp);
+  });
+}
+
+/**
+ * Patch a community response after vision extraction completes. The
+ * route fires the vision pipeline asynchronously-ish (inside the
+ * same /community-response request, under the 90s maxDuration); this
+ * helper flips moderationPassed + writes the extracted signal +
+ * stamps extractedAt. moderationReason is set when moderation
+ * rejected the image OR when the moderation call itself threw
+ * (fail-closed path).
+ */
+export async function updateCommunityResponseExtraction(
+  stageRunId:        string,
+  userId:            string,
+  responseId:        string,
+  patch: {
+    moderationPassed: boolean;
+    moderationReason: string | null;
+    extractedSignal:  ExtractedSignal | null;
+  },
+): Promise<void> {
+  await transformAuthoring(stageRunId, userId, (state) => {
+    const target = state.founderCommunityResponses.find(r => r.id === responseId);
+    if (!target) throw new HttpError(404, 'Community response not found');
+    const next: CommunityResponse = {
+      ...target,
+      moderationPassed: patch.moderationPassed,
+      moderationReason: patch.moderationReason,
+      extractedSignal:  patch.extractedSignal,
+      extractedAt:      new Date().toISOString(),
+    };
+    return replaceCommunityResponseById(state, responseId, next);
+  });
+}
+
+/**
+ * Recompute one opportunity's layerBExtractedSignal aggregate from
+ * every CommunityResponse linked to it. Pure derivation; idempotent.
+ * Returns the new aggregate (or null when no responses contribute).
+ */
+export async function recomputeOpportunityAggregateSignal(
+  stageRunId:    string,
+  userId:        string,
+  opportunityId: string,
+): Promise<void> {
+  await transformAuthoring(stageRunId, userId, (state) => {
+    const target = state.opportunities.find(o => o.id === opportunityId);
+    if (!target) throw new HttpError(404, 'Opportunity not found on this stage run');
+    const linked = state.founderCommunityResponses.filter(r => r.opportunityId === opportunityId);
+    const signal = computeAggregateSignal(linked);
+    const nextOpp = clampOpportunity({ ...target, layerBExtractedSignal: signal });
+    return replaceOpportunityById(state, opportunityId, nextOpp);
+  });
+}
+
+/**
+ * Write the agent's verdict + reasoning after verdict-synthesizer
+ * fires. Transitions status to 'evaluated' (via applyAgentVerdict).
+ */
+export async function persistAgentVerdict(
+  stageRunId:    string,
+  userId:        string,
+  opportunityId: string,
+  verdict:       OpportunityVerdict,
+  reasoning:     string,
+): Promise<void> {
+  await transformAuthoring(stageRunId, userId, (state) => {
+    const target = state.opportunities.find(o => o.id === opportunityId);
+    if (!target) throw new HttpError(404, 'Opportunity not found on this stage run');
+    const nextOpp = applyAgentVerdict(target, verdict, reasoning);
+    return replaceOpportunityById(state, opportunityId, nextOpp);
+  });
+}
+
+/**
+ * Write the founder's verdict. `drop` flips status to
+ * 'rejected_by_founder'; everything else stays 'evaluated'.
+ */
+export async function persistFounderVerdict(
+  stageRunId:    string,
+  userId:        string,
+  opportunityId: string,
+  verdict:       OpportunityVerdict,
+): Promise<void> {
+  await transformAuthoring(stageRunId, userId, (state) => {
+    const target = state.opportunities.find(o => o.id === opportunityId);
+    if (!target) throw new HttpError(404, 'Opportunity not found on this stage run');
+    const nextOpp = applyFounderVerdict(target, verdict);
+    return replaceOpportunityById(state, opportunityId, nextOpp);
+  });
+}
+
+/**
+ * Optimistic-locked pushback round write-through. Caller has already
+ * validated priorVersion === opportunity.pushbackVersion; we re-check
+ * here against the freshly-loaded state for safety.
+ */
+export async function persistOpportunityPushbackRound(
+  stageRunId:    string,
+  userId:        string,
+  updatedOpp:    OpportunityEvaluation,
+  priorVersion:  number,
+): Promise<void> {
+  await transformAuthoring(stageRunId, userId, (state) => {
+    const current = state.opportunities.find(o => o.id === updatedOpp.id);
+    if (!current) throw new HttpError(404, 'Opportunity not found on this stage run');
+    if (current.pushbackVersion !== priorVersion) {
+      throw new HttpError(409, 'Opportunity pushback version mismatch');
+    }
+    return replaceOpportunityById(state, updatedOpp.id, updatedOpp);
   });
 }
