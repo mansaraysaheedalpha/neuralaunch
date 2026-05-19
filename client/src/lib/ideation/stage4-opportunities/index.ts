@@ -119,3 +119,20 @@ export {
   type CommunityResponseInput,
   type CommunityResponsePipelineResult,
 } from './community-response-pipeline';
+
+// ---- Chat: extractor + streaming agent (public API) ----
+//
+// The per-move suffix constants + renderers in calibration-prompts.ts
+// are deliberately NOT re-exported here. They collide with Stage 3's
+// same-named exports (PROBE_SUFFIX, GROUND_SUFFIX, etc.) under the
+// top-level barrel's `export *`. Callers inside this module reach
+// them via relative imports; the turn handler only needs the public
+// surface below.
+export type { Stage4AgentMove } from './calibration-prompts';
+export {
+  extractAndPlanStage4,
+  narrowExtractAndPlanStage4Result,
+  type ExtractAndPlanStage4Result,
+  type ExtractAndPlanStage4Raw,
+} from './extractor';
+export { streamStage4Message } from './agent';

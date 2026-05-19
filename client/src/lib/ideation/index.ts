@@ -74,6 +74,8 @@ export {
   persistPainPointPushbackRound,
   persistPainScoutRunResult,
   // Stage 4 transitions
+  markStage4OutputReady,
+  markStage4Committed,
   persistLayerAResearch,
   persistLayerBScript,
   persistCommunityResponse,
@@ -89,6 +91,9 @@ export {
   cascadeStage1OrStage2EditToStage3,
   restoreStage3FromCascadeSnapshot,
   clearStage3CascadeSnapshot,
+  cascadeStage1Or2Or3EditToStage4,
+  restoreStage4FromCascadeSnapshot,
+  clearStage4CascadeSnapshot,
 } from './stage-run-store';
 
 // ---- Agent (streaming) ----

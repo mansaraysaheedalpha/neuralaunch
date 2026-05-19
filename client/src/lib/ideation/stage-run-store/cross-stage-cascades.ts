@@ -32,6 +32,14 @@ import {
   safeParseStage3AuthoringState,
   safeParsePainInventoryDocument,
 } from '../stage3-opportunities/state';
+import type {
+  Stage4AuthoringState,
+  Stage4CascadeSnapshot,
+} from '../stage4-opportunities/schema';
+import {
+  safeParseStage4AuthoringState,
+  safeParseOpportunityEvaluationsDocument,
+} from '../stage4-opportunities/state';
 
 // ---------------------------------------------------------------------------
 // Helper — find the session's Stage 2 row (if any). Owner-scoped.
@@ -358,6 +366,163 @@ export async function clearStage3CascadeSnapshot(
 
   await prisma.ideationStageRun.updateMany({
     where: { id: stage3.id, stageNumber: 3, status: 'authoring' },
+    data:  { output: toJsonValue(nextAuthoring) },
+  });
+}
+
+// ===========================================================================
+// Stage 4 cascade — Stage 1, 2, OR 3 edit invalidates Stage 4
+//
+// Same three-rule state machine as Stage 3's cascade, scaled to three
+// upstream triggers. Stage 4's cascade snapshot's triggeringStages[]
+// can contain any subset of {stage1, stage2, stage3}; the restore
+// only fires when all open triggers discharge.
+//
+// /commit on ANY upstream (recommit) NULLs the entire snapshot
+// (regardless of which upstream is recommitting) and flips
+// requiresRederivation=true — the downstream document was derived
+// against now-stale upstream context, so the founder must re-derive
+// Layer A research per-opportunity and re-collect Layer B engagement
+// against the new frame.
+// ===========================================================================
+
+type Stage4TriggeringStage = 'stage1' | 'stage2' | 'stage3';
+
+async function findOwnedStage4Run(
+  sessionId: string,
+  userId:    string,
+): Promise<{ id: string; status: string; output: unknown } | null> {
+  return await prisma.ideationStageRun.findFirst({
+    where:  { sessionId, stageNumber: 4, session: { userId } },
+    select: { id: true, status: true, output: true },
+  });
+}
+
+export async function cascadeStage1Or2Or3EditToStage4(
+  sessionId:        string,
+  userId:           string,
+  triggeringStage:  Stage4TriggeringStage,
+): Promise<void> {
+  const stage4 = await findOwnedStage4Run(sessionId, userId);
+  if (!stage4) return;
+
+  // Branch A — Stage 4 was committed/output_ready → revert + snapshot.
+  if (stage4.status === 'output_ready' || stage4.status === 'committed') {
+    const priorDocument = safeParseOpportunityEvaluationsDocument(stage4.output);
+    if (!priorDocument) return;
+
+    const cascadeSnapshot: Stage4CascadeSnapshot = {
+      document:         priorDocument,
+      triggeringStages: [triggeringStage],
+      snapshottedAt:    new Date().toISOString(),
+    };
+
+    const nextAuthoring: Stage4AuthoringState = {
+      opportunities:             priorDocument.evaluations,
+      founderCommunityResponses: priorDocument.responsesSnapshot,
+      recommendedActions:        priorDocument.recommendedActions,
+      researchLog:               priorDocument.researchLog,
+      cascadeSnapshot,
+      requiresRederivation:      true,
+    };
+
+    await prisma.ideationStageRun.updateMany({
+      where: { id: stage4.id, stageNumber: 4, status: { in: ['output_ready', 'committed'] } },
+      data:  {
+        status:      'authoring',
+        committedAt: null,
+        output:      toJsonValue(nextAuthoring),
+      },
+    });
+    return;
+  }
+
+  // Branch B — Stage 4 already in cascade authoring → add this stage.
+  if (stage4.status === 'authoring') {
+    const authoring = safeParseStage4AuthoringState(stage4.output);
+    if (!authoring.cascadeSnapshot) return;
+    if (authoring.cascadeSnapshot.triggeringStages.includes(triggeringStage)) return;
+
+    const nextAuthoring: Stage4AuthoringState = {
+      ...authoring,
+      cascadeSnapshot: {
+        ...authoring.cascadeSnapshot,
+        triggeringStages: [...authoring.cascadeSnapshot.triggeringStages, triggeringStage],
+      },
+      requiresRederivation: true,
+    };
+
+    await prisma.ideationStageRun.updateMany({
+      where: { id: stage4.id, stageNumber: 4, status: 'authoring' },
+      data:  { output: toJsonValue(nextAuthoring) },
+    });
+  }
+}
+
+export async function restoreStage4FromCascadeSnapshot(
+  sessionId:        string,
+  userId:           string,
+  dischargingStage: Stage4TriggeringStage,
+): Promise<void> {
+  const stage4 = await findOwnedStage4Run(sessionId, userId);
+  if (!stage4) return;
+  if (stage4.status !== 'authoring') return;
+
+  const authoring = safeParseStage4AuthoringState(stage4.output);
+  if (!authoring.cascadeSnapshot) return;
+  if (!authoring.cascadeSnapshot.triggeringStages.includes(dischargingStage)) return;
+
+  const remaining = authoring.cascadeSnapshot.triggeringStages.filter(s => s !== dischargingStage);
+
+  if (remaining.length > 0) {
+    // Other upstream(s) still have edits open — keep the snapshot,
+    // remove this stage from the trigger list.
+    const nextAuthoring: Stage4AuthoringState = {
+      ...authoring,
+      cascadeSnapshot: { ...authoring.cascadeSnapshot, triggeringStages: remaining },
+    };
+    await prisma.ideationStageRun.updateMany({
+      where: { id: stage4.id, stageNumber: 4, status: 'authoring' },
+      data:  { output: toJsonValue(nextAuthoring) },
+    });
+    return;
+  }
+
+  // All upstreams discharged — restore the snapshot document.
+  await prisma.ideationStageRun.updateMany({
+    where: { id: stage4.id, stageNumber: 4, status: 'authoring' },
+    data:  {
+      status:      'output_ready',
+      committedAt: null,
+      output:      toJsonValue(authoring.cascadeSnapshot.document),
+    },
+  });
+}
+
+export async function clearStage4CascadeSnapshot(
+  sessionId:        string,
+  userId:           string,
+  triggeringStage:  Stage4TriggeringStage,
+): Promise<void> {
+  const stage4 = await findOwnedStage4Run(sessionId, userId);
+  if (!stage4) return;
+  if (stage4.status !== 'authoring') return;
+
+  const authoring = safeParseStage4AuthoringState(stage4.output);
+  if (!authoring.cascadeSnapshot) return;
+  if (!authoring.cascadeSnapshot.triggeringStages.includes(triggeringStage)) return;
+
+  // Per the locked three-rule design — ANY upstream /commit NULLs the
+  // entire snapshot. The downstream document was derived against
+  // stale upstream context; the founder must re-derive.
+  const nextAuthoring: Stage4AuthoringState = {
+    ...authoring,
+    cascadeSnapshot:      null,
+    requiresRederivation: true,
+  };
+
+  await prisma.ideationStageRun.updateMany({
+    where: { id: stage4.id, stageNumber: 4, status: 'authoring' },
     data:  { output: toJsonValue(nextAuthoring) },
   });
 }

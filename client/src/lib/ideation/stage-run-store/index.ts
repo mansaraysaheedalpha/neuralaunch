@@ -208,6 +208,8 @@ export {
 } from './stage3-transitions';
 
 export {
+  markStage4OutputReady,
+  markStage4Committed,
   persistLayerAResearch,
   persistLayerBScript,
   persistCommunityResponse,
@@ -225,4 +227,7 @@ export {
   cascadeStage1OrStage2EditToStage3,
   restoreStage3FromCascadeSnapshot,
   clearStage3CascadeSnapshot,
+  cascadeStage1Or2Or3EditToStage4,
+  restoreStage4FromCascadeSnapshot,
+  clearStage4CascadeSnapshot,
 } from './cross-stage-cascades';

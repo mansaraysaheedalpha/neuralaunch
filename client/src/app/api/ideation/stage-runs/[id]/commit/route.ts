@@ -15,8 +15,10 @@ import {
   markStage1Committed,
   markStage2Committed,
   markStage3Committed,
+  markStage4Committed,
   clearStage2CascadeSnapshot,
   clearStage3CascadeSnapshot,
+  clearStage4CascadeSnapshot,
   safeParseSkillInventory,
   createEmptySkillInventory,
 } from '@/lib/ideation';
@@ -46,8 +48,8 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     const { id } = await params;
 
     const run = await requireOwnedStageRun(id, userId);
-    if (run.stageNumber !== 1 && run.stageNumber !== 2 && run.stageNumber !== 3) {
-      throw new HttpError(409, 'Commit is supported for Stage 1, 2, and 3 only in this batch');
+    if (run.stageNumber !== 1 && run.stageNumber !== 2 && run.stageNumber !== 3 && run.stageNumber !== 4) {
+      throw new HttpError(409, 'Commit is supported for Stage 1, 2, 3, and 4 only in this batch');
     }
     if (run.status === 'authoring') {
       // The founder is editing; commit is meaningless until they
@@ -65,14 +67,15 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
     if (run.stageNumber === 1) {
       await markStage1Committed(id);
-      // Cascade: clear any stale Stage 2 / Stage 3 cascadeSnapshot.
+      // Cascade: clear any stale Stage 2 / 3 / 4 cascadeSnapshot.
       // The Stage 1 recommit changed the upstream OutcomeDocument, so
       // downstream snapshots are no longer reachable from a
       // /discard-edit. Idempotent.
       await clearStage2CascadeSnapshot(run.sessionId, userId);
       await clearStage3CascadeSnapshot(run.sessionId, userId, 'stage1');
+      await clearStage4CascadeSnapshot(run.sessionId, userId, 'stage1');
       logger.child({ route: 'POST /api/ideation/stage-runs/[id]/commit', userId, stageRunId: id })
-            .debug('Stage 1 committed (cascade-snapshots cleared on 2 + 3)');
+            .debug('Stage 1 committed (cascade-snapshots cleared on 2 + 3 + 4)');
     } else if (run.stageNumber === 2) {
       // Stage 2 commit — snapshot the founder's current FounderProfile
       // skillInventory into the artifact at commit time.
@@ -84,17 +87,26 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         safeParseSkillInventory(profile?.skillInventory ?? null)
         ?? createEmptySkillInventory();
       await markStage2Committed(id, snapshotInventory);
-      // Stage 2 recommit → clear Stage 3's cascade-snapshot for stage2.
+      // Stage 2 recommit → clear Stage 3's + Stage 4's snapshots for stage2.
       await clearStage3CascadeSnapshot(run.sessionId, userId, 'stage2');
+      await clearStage4CascadeSnapshot(run.sessionId, userId, 'stage2');
       logger.child({ route: 'POST /api/ideation/stage-runs/[id]/commit', userId, stageRunId: id })
-            .debug('Stage 2 committed (cascade-snapshot cleared on 3)');
-    } else {
-      // Stage 3 commit — no downstream cascade target yet (Stage 4
-      // doesn't exist). The persisted PainInventoryDocument is now
-      // frozen.
+            .debug('Stage 2 committed (cascade-snapshots cleared on 3 + 4)');
+    } else if (run.stageNumber === 3) {
+      // Stage 3 commit — clear Stage 4's snapshot for stage3.
       await markStage3Committed(id);
+      await clearStage4CascadeSnapshot(run.sessionId, userId, 'stage3');
       logger.child({ route: 'POST /api/ideation/stage-runs/[id]/commit', userId, stageRunId: id })
-            .debug('Stage 3 committed');
+            .debug('Stage 3 committed (cascade-snapshot cleared on 4)');
+    } else {
+      // Stage 4 commit — lazily upserts the Stage 5 row inside the
+      // same transaction (see markStage4Committed). Stage 5 is still
+      // a placeholder; the row gets created with null `output` so
+      // "Continue to Stage 5" navigation works even before Stage 5
+      // ships its own surface.
+      await markStage4Committed(id);
+      logger.child({ route: 'POST /api/ideation/stage-runs/[id]/commit', userId, stageRunId: id })
+            .debug('Stage 4 committed (Stage 5 row lazily upserted)');
     }
 
     return NextResponse.json({ ok: true });

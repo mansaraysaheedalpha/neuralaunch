@@ -34,8 +34,74 @@ import {
   computeAggregateSignal,
 } from '../stage4-opportunities/state';
 import { clampOpportunity } from '../stage4-opportunities/clamps';
+import type { OpportunityEvaluationsDocument } from '../stage4-opportunities/schema';
 import type { OpportunityVerdict } from '@neuralaunch/constants';
 import type { ResearchLogEntry } from '@/lib/research';
+
+// ---------------------------------------------------------------------------
+// Status transitions
+// ---------------------------------------------------------------------------
+
+/**
+ * Composer completion — Stage 4 'authoring' → 'output_ready' with the
+ * composed OpportunityEvaluationsDocument in the output column.
+ */
+export async function markStage4OutputReady(
+  stageRunId: string,
+  doc:        OpportunityEvaluationsDocument,
+): Promise<void> {
+  const result = await prisma.ideationStageRun.updateMany({
+    where: { id: stageRunId, status: 'authoring', stageNumber: 4 },
+    data:  { output: toJsonValue(doc), status: 'output_ready' },
+  });
+  if (result.count !== 1) {
+    throw new HttpError(409, 'Stage 4 run is not in authoring state');
+  }
+}
+
+/**
+ * Commit — flips 'output_ready' to 'committed' and stamps committedAt,
+ * THEN lazily creates the Stage 5 row in 'authoring' state if it
+ * doesn't already exist. Mirrors the c1c493e pattern. Both writes
+ * run inside one transaction; both are idempotent (the upsert is
+ * keyed on the (sessionId, stageNumber) unique constraint;
+ * `update: {}` ensures an existing Stage 5 row is never overwritten).
+ *
+ * Stage 5 is still a placeholder — the row gets created with no
+ * `output` payload (the field is nullable on IdeationStageRun, same
+ * way Stage 0 is bootstrapped). When Stage 5 is actually built, its
+ * own safeParse helper will handle the null case.
+ */
+export async function markStage4Committed(
+  stageRunId: string,
+  now:        Date = new Date(),
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.ideationStageRun.updateMany({
+      where: { id: stageRunId, status: 'output_ready', stageNumber: 4 },
+      data:  { status: 'committed', committedAt: now },
+    });
+
+    const row = await tx.ideationStageRun.findUnique({
+      where:  { id: stageRunId },
+      select: { sessionId: true, status: true },
+    });
+    if (!row || row.status !== 'committed') return;
+
+    await tx.ideationStageRun.upsert({
+      where:  { sessionId_stageNumber: { sessionId: row.sessionId, stageNumber: 5 } },
+      // Stage 5 isn't built yet — `output` is omitted so the column
+      // defaults to null. Stage 0's bootstrap follows the same shape.
+      create: {
+        sessionId:   row.sessionId,
+        stageNumber: 5,
+        status:      'authoring',
+        startedAt:   now,
+      },
+      update: {},
+    });
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Read-modify-write — generic Stage 4 transform under the 'authoring'
