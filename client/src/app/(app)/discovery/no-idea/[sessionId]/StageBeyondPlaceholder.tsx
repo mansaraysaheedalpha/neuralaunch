@@ -6,10 +6,13 @@ interface StageBeyondPlaceholderProps {
 }
 
 /**
- * Renders when the founder has committed past Stage 3 — Stages 4 + 5
- * are not yet implemented. Surfaces a clear "coming soon" message so
+ * Renders when the founder has committed past Stage 4 — Stage 5 is
+ * not yet implemented. Surfaces a clear "coming soon" message so
  * the page never appears broken, and offers a path back to the
  * recommendations / ventures list so the founder is not stranded.
+ *
+ * The threshold is `stageNumber >= 5` per page.tsx — Stage 4 has
+ * its own surface as of Stage 4 batch commit #6.
  */
 export function StageBeyondPlaceholder({ stageNumber }: StageBeyondPlaceholderProps) {
   return (

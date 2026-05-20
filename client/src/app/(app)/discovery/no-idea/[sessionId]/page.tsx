@@ -10,6 +10,8 @@ import {
   safeParseRequirementsDocument,
   safeParseStage3AuthoringState,
   safeParsePainInventoryDocument,
+  safeParseStage4AuthoringState,
+  safeParseOpportunityEvaluationsDocument,
   safeParseSkillInventory,
   createEmptySkillInventory,
 } from '@/lib/ideation';
@@ -17,9 +19,11 @@ import { Stage1ChatClient } from './Stage1ChatClient';
 import { OutcomeDocumentView } from './OutcomeDocumentView';
 import { Stage2ChatClient } from './Stage2ChatClient';
 import { Stage3ChatClient } from './Stage3ChatClient';
+import { Stage4ChatClient } from './Stage4ChatClient';
 import { StageBeyondPlaceholder } from './StageBeyondPlaceholder';
 import { RequirementsDocumentView } from '@/components/ideation/RequirementsDocumentView';
 import { PainInventoryDocumentView } from '@/components/ideation/stage3/PainInventoryDocumentView';
+import { OpportunityEvaluationsDocumentView } from '@/components/ideation/stage4/OpportunityEvaluationsDocumentView';
 
 interface PageProps {
   params: Promise<{ sessionId: string }>;
@@ -89,8 +93,9 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
 
   if (!active) notFound();
 
-  // Stages 4..5 are not implemented yet — the placeholder gets them.
-  if (active.stageNumber >= 4) {
+  // Stage 5 is not implemented yet — the placeholder gets it. Stage 4
+  // is handled in the dispatch block below.
+  if (active.stageNumber >= 5) {
     return <StageBeyondPlaceholder stageNumber={active.stageNumber} />;
   }
 
@@ -109,6 +114,44 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
       content:     m.content,
       inputMethod: m.inputMethod === 'voice' ? ('voice' as const) : null,
     }));
+
+  // ─── Stage 4 ──────────────────────────────────────────────────────────
+  if (active.stageNumber === 4) {
+    if (active.status === 'authoring') {
+      const state = safeParseStage4AuthoringState(active.output);
+      return (
+        <Stage4ChatClient
+          sessionId={sessionId}
+          stageRunId={active.id}
+          firstName={firstName}
+          initialMessages={messages}
+          state={state}
+        />
+      );
+    }
+    const doc = safeParseOpportunityEvaluationsDocument(active.output);
+    if (!doc) {
+      // Output column failed to parse — fall back to the chat with an
+      // empty authoring state so the founder can rebuild.
+      return (
+        <Stage4ChatClient
+          sessionId={sessionId}
+          stageRunId={active.id}
+          firstName={firstName}
+          initialMessages={messages}
+          state={safeParseStage4AuthoringState(null)}
+        />
+      );
+    }
+    return (
+      <OpportunityEvaluationsDocumentView
+        stageRunId={active.id}
+        sessionId={sessionId}
+        status={active.status as 'output_ready' | 'committed'}
+        document={doc}
+      />
+    );
+  }
 
   // ─── Stage 3 ──────────────────────────────────────────────────────────
   if (active.stageNumber === 3) {
