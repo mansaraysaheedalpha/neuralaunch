@@ -26,10 +26,6 @@ interface OpportunityEvaluationsDocumentViewProps {
  * chosen #1 prominently, the rationale prose ("why this one and not
  * the others"), all evaluations with their final verdicts, plus the
  * commit-or-continue footer.
- *
- * TODO(copy): heading, chosen-one framing, "Continue to Stage 5"
- * button copy, the "Stage 5 still building" tail line all need
- * product-voice review.
  */
 export function OpportunityEvaluationsDocumentView({
   stageRunId,
@@ -69,7 +65,6 @@ export function OpportunityEvaluationsDocumentView({
               {status === 'committed' ? 'Committed' : 'Pre-commit review'} · Opportunity Evaluations
             </p>
             <h1 className="text-2xl font-semibold text-foreground">
-              {/* TODO(copy): page heading */}
               Your opportunity evaluations — Stage 4 of 5
             </h1>
           </header>
@@ -77,7 +72,6 @@ export function OpportunityEvaluationsDocumentView({
           {chosen && (
             <section>
               <h2 className="text-sm font-semibold text-foreground mb-2">
-                {/* TODO(copy): "chosen one" framing */}
                 Advancing to Stage 5
               </h2>
               <article className="rounded-lg border border-primary/40 bg-primary/5 px-3 py-3">
@@ -130,13 +124,11 @@ export function OpportunityEvaluationsDocumentView({
             </Button>
             {status === 'output_ready' ? (
               <Button onClick={handleCommit} disabled={busy} className="ml-auto">
-                {/* TODO(copy): commit-button copy */}
                 I&apos;m ready for Stage 5
                 <ArrowRight className="size-4 ml-1" />
               </Button>
             ) : (
               <span className="ml-auto text-sm text-muted-foreground">
-                {/* TODO(copy): committed-state tail */}
                 Committed · Stage 5 is still being built
               </span>
             )}

@@ -1,9 +1,7 @@
 // src/components/ideation/stage4/labels.ts
 //
 // Founder-facing labels for Stage 4 UI. Centralised so copy review
-// can sweep them in one pass. Empty-state and error-state strings
-// are deliberately marked with TODO(copy) so the copy-review doc
-// surfaces them for explicit approval.
+// can sweep them in one pass.
 
 import type {
   OpportunityVerdict,

@@ -27,9 +27,6 @@ export interface OpportunityCardProps {
  * + agent verdict + founder verdict + Layer A/B at-a-glance indicators.
  * Click expands into OpportunityEvaluationView. Used as the canvas
  * primary row; founders open one opportunity at a time.
- *
- * TODO(copy): status / verdict text comes from labels.ts; pending
- * state needs explicit copy review.
  */
 export function OpportunityCard({ opportunity, expanded, onToggle }: OpportunityCardProps) {
   const layerA = opportunity.layerAResearch !== null;
@@ -56,10 +53,9 @@ export function OpportunityCard({ opportunity, expanded, onToggle }: Opportunity
             <span>{layerB ? `B ${VALIDATION_STRENGTH_LABELS[layerB]}` : 'B·'}</span>
             <span>·</span>
             <span>
-              {/* TODO(copy): agent / founder verdict chip phrasing */}
-              agent={agentVerdictLabel(opportunity.agentVerdict)}
-              {', '}
-              {founderVerdict ? `you=${VERDICT_SHORT_LABELS[founderVerdict]}` : 'you=—'}
+              Agent: {agentVerdictLabel(opportunity.agentVerdict)}
+              <span className="mx-1">·</span>
+              You: {founderVerdict ? VERDICT_SHORT_LABELS[founderVerdict] : '—'}
             </span>
             {opportunity.layerBExtractedSignal?.validationStrength === 'contradictory' && (
               <AlertCircle className="size-3 text-amber-500" />

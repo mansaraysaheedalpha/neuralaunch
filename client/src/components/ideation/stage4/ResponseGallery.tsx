@@ -17,16 +17,11 @@ export interface ResponseGalleryProps {
  * screenshots show as thumbnails + extracted-comment count or
  * extraction-status state. Failed moderations get an honest, actionable
  * error label rather than a generic "something went wrong".
- *
- * TODO(copy): four error labels (moderation rejection, moderation
- * call failed, extraction failed, unparseable) need product-voice
- * review — see docs/stage4-copy-review.md.
  */
 export function ResponseGallery({ responses, readOnly, onRemove }: ResponseGalleryProps) {
   if (responses.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-border px-3 py-3 text-center text-xs text-muted-foreground">
-        {/* TODO(copy): empty-state for response gallery */}
         No responses captured yet. Post the script above on your own accounts and paste replies or upload screenshots back here.
       </div>
     );
@@ -104,9 +99,8 @@ function ScreenshotSummary({ response }: { response: CommunityResponse }) {
   }
   const sig = response.extractedSignal;
   if (!sig) {
-    // TODO(copy): unusual state — moderation passed but no signal
-    // captured. Real-world this hits when the post-extract write
-    // fails. Honest label rather than generic.
+    // Unusual state — moderation passed but no signal captured.
+    // Real-world this hits when the post-extract write fails.
     return <p className="text-xs italic text-muted-foreground">Screenshot processed but no comments extracted.</p>;
   }
   return (
@@ -125,9 +119,10 @@ function ScreenshotSummary({ response }: { response: CommunityResponse }) {
 }
 
 function ModerationFailureLabel({ reason }: { reason: string | null }) {
-  // TODO(copy): these are the founder-facing labels for vision-pipeline
-  // failures. Honesty + actionability are the design goals here — copy
-  // review will refine.
+  // Founder-facing labels for vision-pipeline failures. Each names
+  // WHERE in the pipeline the failure happened (moderation call vs
+  // moderation rejection vs extraction) and gives an actionable
+  // fallback — paste-as-text is the universal escape hatch.
   let title: string;
   let action: string;
   if (reason === 'moderation_call_failed') {

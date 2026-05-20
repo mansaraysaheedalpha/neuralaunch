@@ -19,9 +19,6 @@ export interface VerdictSectionProps {
  * Per-opportunity verdict surface. Shows the agent's verdict + reasoning,
  * the founder's verdict picker, and a button to open the multi-round
  * pushback drawer against the agent's call.
- *
- * TODO(copy): section header, "agent says" framing, "your call" framing,
- * pending-verdict empty state — all need product-voice review.
  */
 export function VerdictSection({ opportunity, readOnly, onPickVerdict, onPushback }: VerdictSectionProps) {
   const [pushbackOpen, setPushbackOpen] = useState(false);
@@ -31,9 +28,8 @@ export function VerdictSection({ opportunity, readOnly, onPickVerdict, onPushbac
     <section className="space-y-3">
       <header>
         <h3 className="text-sm font-semibold text-foreground">Verdict</h3>
-        {/* TODO(copy): description: how the agent's verdict + founder's verdict combine */}
         <p className="text-xs text-muted-foreground mt-0.5">
-          The agent reads Layer A + Layer B and offers a verdict; your call is what advances to Stage 5.
+          I read Layer A + Layer B and offer a verdict; your call is what advances to Stage 5.
         </p>
       </header>
 
@@ -62,9 +58,8 @@ export function VerdictSection({ opportunity, readOnly, onPickVerdict, onPushbac
             <p className="text-sm text-foreground leading-relaxed">{opportunity.agentReasoning}</p>
           </>
         ) : (
-          // TODO(copy): pending-verdict empty state
           <p className="text-xs italic text-muted-foreground">
-            No agent verdict yet. Once you bring back at least one community response, the agent will read the signal and offer a call.
+            No agent verdict yet. Once you bring back at least one community response, I&apos;ll read the signal and offer a call.
           </p>
         )}
 
@@ -78,20 +73,14 @@ export function VerdictSection({ opportunity, readOnly, onPickVerdict, onPushbac
       </div>
 
       <div>
-        <div className="text-xs text-muted-foreground mb-2">
-          {/* TODO(copy): founder-verdict header */}
-          Your call:
-        </div>
+        <div className="text-xs text-muted-foreground mb-2">Your call:</div>
         {!readOnly && onPickVerdict ? (
           <VerdictPicker
             current={opportunity.founderVerdict}
             onPick={onPickVerdict}
           />
         ) : (
-          <p className="text-sm text-foreground">
-            {/* TODO(copy): read-only verdict display */}
-            {opportunity.founderVerdict ?? 'Not set'}
-          </p>
+          <p className="text-sm text-foreground">{opportunity.founderVerdict ?? 'Not set'}</p>
         )}
       </div>
     </section>

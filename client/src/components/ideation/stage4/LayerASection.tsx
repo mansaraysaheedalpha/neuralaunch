@@ -19,9 +19,6 @@ export interface LayerASectionProps {
  * the founder's path to firing /derive-opportunity-research for this
  * opportunity. When research is in flight, the founder sees a
  * deriving state with a clear "this takes ~30 seconds" hint.
- *
- * TODO(copy): section header, run-button label, deriving-state label,
- * re-run label all need product-voice review.
  */
 export function LayerASection({ research, deriving, readOnly, onDerive }: LayerASectionProps) {
   return (
@@ -30,8 +27,7 @@ export function LayerASection({ research, deriving, readOnly, onDerive }: LayerA
         <div>
           <h3 className="text-sm font-semibold text-foreground">Layer A — agent research</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {/* TODO(copy): one-line description of what Layer A does */}
-            Four dimensions across Tavily + Exa + community sources. Runs in ~30 seconds.
+            Four dimensions, ~30 seconds. I research market signal, customer reachability, willingness to pay, and rough size.
           </p>
         </div>
         {!readOnly && onDerive && (

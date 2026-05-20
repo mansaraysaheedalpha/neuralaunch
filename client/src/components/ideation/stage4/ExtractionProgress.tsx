@@ -3,7 +3,6 @@
 import { Loader2 } from 'lucide-react';
 
 interface ExtractionProgressProps {
-  /** TODO(copy): inline status text. */
   label?: string;
 }
 

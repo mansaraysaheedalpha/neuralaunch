@@ -25,9 +25,6 @@ export interface LayerBSectionProps {
  * via S3 presign), and the gallery of captured responses. Aggregate
  * signal (validationStrength + sentiment counts) is summarised at
  * the bottom when at least one response has been extracted.
- *
- * TODO(copy): section header + description, aggregate summary
- * phrasing all need product-voice review.
  */
 export function LayerBSection({
   opportunity,
@@ -47,7 +44,6 @@ export function LayerBSection({
       <header>
         <h3 className="text-sm font-semibold text-foreground">Layer B — community engagement</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          {/* TODO(copy): one-line description; founder posts personally */}
           You post the script below on your own accounts, then bring back what real people said. Text snippets or screenshots both work.
         </p>
       </header>
@@ -82,7 +78,6 @@ export function LayerBSection({
 
       {sig && (
         <div className="rounded-md border border-border bg-card/30 px-3 py-2 text-xs text-muted-foreground">
-          {/* TODO(copy): aggregate-signal summary phrasing */}
           <span className="text-foreground font-medium">
             Aggregate: {VALIDATION_STRENGTH_LABELS[sig.validationStrength]}
           </span>

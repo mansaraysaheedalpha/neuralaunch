@@ -16,9 +16,6 @@ export interface VerdictPickerProps {
  * Three-button verdict picker — pursue / pursue_with_caveats / drop.
  * Founder can change their pick freely until commit; re-clicking the
  * same verdict is a no-op at the route layer (idempotent persist).
- *
- * TODO(copy): button labels are the short forms from labels.ts;
- * confirm whether "Drop" reads OK or if a softer word fits better.
  */
 export function VerdictPicker({ current, disabled, onPick }: VerdictPickerProps) {
   const handle = (v: OpportunityVerdict) => {

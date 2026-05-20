@@ -16,9 +16,6 @@ export interface TestScriptViewerProps {
 /**
  * Renders the founder's Layer B test-script for one opportunity.
  * Copy-to-clipboard affordances per platform + question.
- *
- * TODO(copy): empty-state ("generate the script"), generating-state
- * label, in-script preamble framing all need product-voice review.
  */
 export function TestScriptViewer({ script, generating, readOnly, onGenerate }: TestScriptViewerProps) {
   const [copied, setCopied] = useState<string | null>(null);
@@ -38,9 +35,8 @@ export function TestScriptViewer({ script, generating, readOnly, onGenerate }: T
   if (script === null) {
     return (
       <div className="rounded-md border border-dashed border-border px-3 py-4 text-center">
-        {/* TODO(copy): empty-state label */}
         <p className="text-xs text-muted-foreground mb-3">
-          No test script generated yet. Generate one to start engaging with real communities.
+          No test script generated yet. Generate one to get started.
         </p>
         {!readOnly && onGenerate && (
           <Button

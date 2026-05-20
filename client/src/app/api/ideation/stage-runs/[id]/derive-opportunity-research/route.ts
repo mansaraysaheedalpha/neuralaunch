@@ -78,7 +78,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     const stage1 = upstream.find(r => r.stageNumber === 1);
     const stage2 = upstream.find(r => r.stageNumber === 2);
     if (!stage1 || !stage2) {
-      throw new HttpError(409, 'Stage 1 and Stage 2 must be committed before Stage 4 research');
+      throw new HttpError(409, 'Commit Stage 1 and Stage 2 first — Layer A research reads them as input.');
     }
     const outcomeDocument      = safeParseOutcomeDocument(stage1.output);
     const requirementsDocument = safeParseRequirementsDocument(stage2.output);

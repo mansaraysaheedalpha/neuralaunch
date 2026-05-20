@@ -24,10 +24,6 @@ interface Stage4ChatProps {
  * shape as Stage3Chat. Every canvas action funnels through
  * useStage4Session which hits the narrow API routes and refreshes
  * the page on success.
- *
- * TODO(copy): first-turn greeting, empty-chat hint, composer
- * placeholder, terminated-state placeholder all need product-voice
- * review.
  */
 export function Stage4Chat({
   sessionId,
@@ -79,8 +75,7 @@ export function Stage4Chat({
           <section className="lg:col-span-3">
             {!hasMessages && (
               <p className="text-sm text-muted-foreground mb-3">
-                {/* TODO(copy): first-turn greeting */}
-                {firstName ? `${firstName}, time to test these.` : 'Time to test these.'}
+                {firstName ? `${firstName}, let's see what holds up.` : 'Let’s see what holds up.'}
               </p>
             )}
             <OpportunityInventoryCanvas
@@ -110,7 +105,6 @@ export function Stage4Chat({
               </div>
             ) : (
               <div className="flex-1 px-4 py-4 text-xs text-muted-foreground">
-                {/* TODO(copy): empty-chat hint */}
                 Talk to me here about what you&apos;re finding. I&apos;ll probe gaps, ground over-confidence, recommend specific real-world actions, and tell you when you have enough to compose.
               </div>
             )}
@@ -127,7 +121,6 @@ export function Stage4Chat({
           value={input}
           onChange={e => setInput(e.target.value)}
           disabled={isBusy || isTerminated}
-          /* TODO(copy): composer placeholders */
           placeholder={isTerminated ? 'Session ended.' : 'Tell me what’s coming back from the communities.'}
           maxRows={5}
           className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none py-2"

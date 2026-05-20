@@ -73,14 +73,14 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
     // Defensive cap check (the engine itself coerces to 'closing').
     if (target.pushbackHistory.length >= MAX_OPPORTUNITY_PUSHBACK_ROUNDS) {
-      throw new HttpError(409, 'Pushback cap reached for this opportunity');
+      throw new HttpError(409, `You've reached the ${MAX_OPPORTUNITY_PUSHBACK_ROUNDS}-round limit on this opportunity. Accept the current verdict, set your own, or drop this opportunity.`);
     }
 
     if (target.agentVerdict === 'pending') {
       // No verdict to push back on yet. Founder must wait for at
       // least one community response to land + verdict synthesis to
       // fire before pushing back.
-      throw new HttpError(409, 'No agent verdict yet on this opportunity. Add a community response or wait for verdict synthesis.');
+      throw new HttpError(409, 'No verdict yet on this opportunity. Add a community response first, then I\'ll have signal to read.');
     }
 
     const result = await runVerdictPushbackRound({

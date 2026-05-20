@@ -15,10 +15,6 @@ export interface DimensionFindingCardProps {
  * the agent's verdict (not the dimension's confidence) flows through
  * the per-opportunity VerdictPushbackDrawer; this card is the
  * evidence the founder reads while deciding.
- *
- * TODO(copy): empty-state copy ("not yet researched"), citation
- * fallback label, confidence rendering — all need product-voice
- * review before launch.
  */
 export function DimensionFindingCard({ dimension, finding }: DimensionFindingCardProps) {
   return (
@@ -33,11 +29,8 @@ export function DimensionFindingCard({ dimension, finding }: DimensionFindingCar
       </header>
 
       {finding === null ? (
-        // TODO(copy): empty-state per dimension. Generic "not researched yet"
-        // is the default; the founder fires Layer A from the opportunity
-        // card to populate this.
         <p className="text-xs italic text-muted-foreground">
-          Not researched yet. Run Layer A on this opportunity to surface findings here.
+          Not researched yet. Run Layer A above.
         </p>
       ) : (
         <>

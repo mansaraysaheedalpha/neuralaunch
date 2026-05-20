@@ -31,9 +31,6 @@ export interface OpportunityInventoryCanvasProps {
  * opens one OpportunityCard at a time to view full Layer A / B /
  * verdict surfaces. Readiness row at top shows the
  * compose-unlocks-at-1 contract.
- *
- * TODO(copy): cascade banner, readiness row text, empty-state when
- * no opportunities yet — all need product-voice review.
  */
 export function OpportunityInventoryCanvas({
   state,
@@ -58,7 +55,6 @@ export function OpportunityInventoryCanvas({
     <div className="space-y-4">
       {state.requiresRederivation && (
         <div className="rounded-lg border border-gold/40 bg-gold/5 px-3 py-2 text-xs text-foreground">
-          {/* TODO(copy): cascade banner */}
           You updated Stage 1, 2, or 3 — the evaluations below are based on what you had before. Re-run Layer A on each opportunity, or commit again to start fresh.
         </div>
       )}
@@ -67,8 +63,7 @@ export function OpportunityInventoryCanvas({
 
       {state.opportunities.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
-          {/* TODO(copy): empty-state when Stage 3 didn't seed opps yet */}
-          No opportunities to evaluate yet. This usually means Stage 3 hasn&apos;t committed.
+          No opportunities to evaluate yet. Commit Stage 3 first to seed this surface.
         </div>
       ) : (
         <ul className="space-y-3">
@@ -118,10 +113,8 @@ function ReadinessRow({ ratedCount }: ReadinessRowProps) {
   return (
     <div className={`rounded-lg border px-3 py-2 text-xs ${cls}`} role="status">
       {ready ? (
-        // TODO(copy): ready-to-compose phrasing
         <>You have <span className="font-mono text-foreground">{ratedCount}</span> opportunities with a verdict — ready to compose.</>
       ) : (
-        // TODO(copy): not-yet-ready phrasing
         <>
           You have <span className="font-mono text-foreground">{ratedCount}</span> verdicts.
           Compose unlocks at <span className="font-mono text-foreground">{MIN_EVALUATED_OPPORTUNITIES_FOR_COMMIT}</span>.

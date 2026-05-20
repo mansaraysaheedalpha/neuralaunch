@@ -30,9 +30,6 @@ export interface VerdictPushbackDrawerProps {
  * lock via the engine's returned version, closes on 'closing' action
  * or hard-cap. Same UX shape so founders who used Stage 3 pushback
  * recognise this surface.
- *
- * TODO(copy): drawer header, reply placeholder, hard-cap closed
- * notice all need product-voice review.
  */
 export function VerdictPushbackDrawer({ opportunity, onPushback, onClose }: VerdictPushbackDrawerProps) {
   const [message, setMessage]                 = useState('');
@@ -69,8 +66,7 @@ export function VerdictPushbackDrawer({ opportunity, onPushback, onClose }: Verd
   return (
     <div className="mt-3 rounded-md border border-border bg-background/60 px-3 py-3" role="region" aria-label="Verdict pushback drawer">
       <header className="flex items-center justify-between mb-2">
-        {/* TODO(copy): drawer header phrasing */}
-        <span className="text-xs font-medium text-foreground">Push back on the verdict</span>
+        <span className="text-xs font-medium text-foreground">Push back on my verdict</span>
         <button
           type="button"
           onClick={onClose}
@@ -107,7 +103,7 @@ export function VerdictPushbackDrawer({ opportunity, onPushback, onClose }: Verd
             disabled={busy}
             maxLength={2000}
             rows={2}
-            placeholder="What is the agent getting wrong about this verdict?"
+            placeholder="What did I get wrong about this verdict?"
             className="w-full resize-none rounded-md border border-border bg-background/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/40"
           />
           <div className="flex items-center justify-between gap-2">
@@ -122,9 +118,8 @@ export function VerdictPushbackDrawer({ opportunity, onPushback, onClose }: Verd
         </form>
       )}
       {(closed || atCap) && (
-        /* TODO(copy): closed-drawer notice */
         <div className="text-xs text-muted-foreground italic">
-          Pushback closed. Set your own verdict above if you accept the agent&apos;s call, or drop this opportunity.
+          Pushback closed. Set your own verdict above if you accept my call, or drop this opportunity.
         </div>
       )}
     </div>

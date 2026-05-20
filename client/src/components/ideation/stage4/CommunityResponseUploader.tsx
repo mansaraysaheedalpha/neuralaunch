@@ -28,9 +28,6 @@ export interface CommunityResponseUploaderProps {
  * the thread. Screenshot flow uses presigned S3 PUT (browser → S3
  * directly; the file never touches our server) and then submits the
  * s3Key + s3Url so the route can fire the vision pipeline.
- *
- * TODO(copy): tab labels, placeholder text, dropzone hint, button
- * labels all need product-voice review.
  */
 export function CommunityResponseUploader({
   opportunityId,
@@ -69,12 +66,10 @@ export function CommunityResponseUploader({
     setError(null);
 
     if (!(ALLOWED_SCREENSHOT_CONTENT_TYPES as readonly string[]).includes(file.type)) {
-      // TODO(copy): file-type error
       setError('Only PNG, JPEG, or WebP screenshots are supported.');
       return;
     }
     if (file.size > MAX_SCREENSHOT_BYTES) {
-      // TODO(copy): size-limit error
       setError(`Screenshot is too large (max ${Math.round(MAX_SCREENSHOT_BYTES / 1024 / 1024)} MB).`);
       return;
     }
@@ -91,7 +86,6 @@ export function CommunityResponseUploader({
         body:    file,
       });
       if (!putRes.ok) {
-        // TODO(copy): S3-PUT failure error
         throw new Error(`Upload failed (HTTP ${putRes.status}). Try again, or paste the comments as text.`);
       }
       await onSubmitImage({ opportunityId, s3Key, s3Url });
