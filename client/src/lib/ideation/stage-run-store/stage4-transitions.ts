@@ -14,6 +14,7 @@
 // (the latter lazily upserts the Stage 5 row, mirroring c1c493e).
 
 import 'server-only';
+import { Prisma } from '@prisma/client';
 import prisma, { toJsonValue } from '@/lib/prisma';
 import { HttpError } from '@/lib/validation/server-helpers';
 import type {
@@ -104,8 +105,16 @@ export async function markStage4Committed(
 }
 
 // ---------------------------------------------------------------------------
-// Read-modify-write — generic Stage 4 transform under the 'authoring'
-// optimistic lock. Mirrors stage3-transitions' transformAuthoring.
+// Read-modify-write — generic Stage 4 transform under Serializable
+// isolation. Mirrors stage3-transitions' transformAuthoring.
+//
+// PostgreSQL detects the read-write conflict between two concurrent
+// transformAuthoring calls and aborts one with a serialization_failure
+// (Prisma error code P2034). We catch that and re-throw as HttpError
+// 409 so the route surfaces a clean "concurrent write" message rather
+// than a generic 500. The updateMany's status='authoring' filter is
+// still a second line of defence against the row leaving authoring
+// mid-transaction.
 // ---------------------------------------------------------------------------
 
 async function transformAuthoring(
@@ -113,21 +122,30 @@ async function transformAuthoring(
   userId:     string,
   transform:  (s: Stage4AuthoringState) => Stage4AuthoringState,
 ): Promise<void> {
-  const row = await prisma.ideationStageRun.findFirst({
-    where:  { id: stageRunId, session: { userId }, status: 'authoring' },
-    select: { output: true },
-  });
-  if (!row) throw new HttpError(409, 'Stage 4 run is not in authoring state');
+  try {
+    await prisma.$transaction(async (tx) => {
+      const row = await tx.ideationStageRun.findFirst({
+        where:  { id: stageRunId, session: { userId }, status: 'authoring' },
+        select: { output: true },
+      });
+      if (!row) throw new HttpError(409, 'Stage 4 run is not in authoring state');
 
-  const current = safeParseStage4AuthoringState(row.output);
-  const next    = transform(current);
+      const current = safeParseStage4AuthoringState(row.output);
+      const next    = transform(current);
 
-  const result = await prisma.ideationStageRun.updateMany({
-    where: { id: stageRunId, status: 'authoring' },
-    data:  { output: toJsonValue(next) },
-  });
-  if (result.count !== 1) {
-    throw new HttpError(409, 'Stage 4 row changed during transform');
+      const result = await tx.ideationStageRun.updateMany({
+        where: { id: stageRunId, status: 'authoring' },
+        data:  { output: toJsonValue(next) },
+      });
+      if (result.count !== 1) {
+        throw new HttpError(409, 'Stage 4 row changed during transform');
+      }
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2034') {
+      throw new HttpError(409, 'Concurrent write detected — please retry.');
+    }
+    throw err;
   }
 }
 

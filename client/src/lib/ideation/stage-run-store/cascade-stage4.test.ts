@@ -213,3 +213,45 @@ describe('clearStage4CascadeSnapshot', () => {
     expect(updateMany).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Branch C — normal authoring without snapshot still flips
+// requiresRederivation so the UI surfaces the stale upstream
+// dependency. Closes the audit gap where mid-Stage-4 authoring after
+// an upstream edit was previously a silent no-op.
+// ---------------------------------------------------------------------------
+
+describe('cascadeStage1Or2Or3EditToStage4 — normal authoring (no snapshot)', () => {
+  function normalAuthoring(): Stage4AuthoringState {
+    return {
+      opportunities:             [],
+      founderCommunityResponses: [],
+      recommendedActions:        [],
+      researchLog:               [],
+      cascadeSnapshot:           null,
+      requiresRederivation:      false,
+    };
+  }
+
+  it('flips requiresRederivation=true when Stage 4 is in normal authoring', async () => {
+    findFirst.mockResolvedValue({ id: 's4', status: 'authoring', output: normalAuthoring() });
+    updateMany.mockResolvedValue({ count: 1 });
+
+    await cascadeStage1Or2Or3EditToStage4('sess', 'u', 'stage1');
+
+    const arg = updateMany.mock.calls[0][0];
+    const written = arg.data?.output as Stage4AuthoringState;
+    expect(written.requiresRederivation).toBe(true);
+    expect(written.cascadeSnapshot).toBeNull();
+  });
+
+  it('is a no-op when requiresRederivation is already true', async () => {
+    findFirst.mockResolvedValue({
+      id: 's4',
+      status: 'authoring',
+      output: { ...normalAuthoring(), requiresRederivation: true },
+    });
+    await cascadeStage1Or2Or3EditToStage4('sess', 'u', 'stage2');
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+});

@@ -69,6 +69,23 @@ export async function cascadeStage1EditToStage2(
 ): Promise<void> {
   const stage2 = await findOwnedStage2Run(sessionId, userId);
   if (!stage2) return;
+
+  // Branch C — Stage 2 in normal authoring (no committed doc to
+  // snapshot). Founder hasn't finalised Stage 2 yet, but their
+  // in-flight inventory + expected profile (if any) were derived
+  // against the now-stale Stage 1 outcome. Flip requiresRederivation
+  // so the UI nudges them to re-run derivation when ready. Snapshot
+  // is left alone (none exists; nothing to revert to).
+  if (stage2.status === 'authoring') {
+    const authoring = safeParseStage2AuthoringState(stage2.output);
+    if (authoring.requiresRederivation) return; // already flagged — no-op
+    await prisma.ideationStageRun.updateMany({
+      where: { id: stage2.id, stageNumber: 2, status: 'authoring' },
+      data:  { output: toJsonValue({ ...authoring, requiresRederivation: true }) },
+    });
+    return;
+  }
+
   if (stage2.status !== 'output_ready' && stage2.status !== 'committed') return;
 
   const priorDocument = safeParseRequirementsDocument(stage2.output);
@@ -261,26 +278,40 @@ export async function cascadeStage1OrStage2EditToStage3(
     return;
   }
 
-  // Branch B — Stage 3 already in authoring with a cascade snapshot
-  // (the OTHER upstream stage already fired). Add this stage to the
-  // triggeringStages list.
+  // Stage 3 in authoring. Two sub-branches:
+  //   B — has a cascade snapshot (the other upstream already fired):
+  //       append this stage to triggeringStages.
+  //   C — normal authoring, no snapshot (founder is mid-Stage-3 after
+  //       a fresh Stage 2 commit; pain scout work is in flight). Flag
+  //       requiresRederivation=true so the UI surfaces the stale
+  //       dependency — the founder's pain points + scoring were done
+  //       against the now-stale upstream context.
   if (stage3.status === 'authoring') {
     const authoring = safeParseStage3AuthoringState(stage3.output);
-    if (!authoring.cascadeSnapshot) return; // not in cascade — Stage 3 is normal authoring, no-op
-    if (authoring.cascadeSnapshot.triggeringStages.includes(triggeringStage)) return;
 
-    const nextAuthoring: Stage3AuthoringState = {
-      ...authoring,
-      cascadeSnapshot: {
-        ...authoring.cascadeSnapshot,
-        triggeringStages: [...authoring.cascadeSnapshot.triggeringStages, triggeringStage],
-      },
-      requiresRederivation: true,
-    };
+    if (authoring.cascadeSnapshot) {
+      // Branch B
+      if (authoring.cascadeSnapshot.triggeringStages.includes(triggeringStage)) return;
+      const nextAuthoring: Stage3AuthoringState = {
+        ...authoring,
+        cascadeSnapshot: {
+          ...authoring.cascadeSnapshot,
+          triggeringStages: [...authoring.cascadeSnapshot.triggeringStages, triggeringStage],
+        },
+        requiresRederivation: true,
+      };
+      await prisma.ideationStageRun.updateMany({
+        where: { id: stage3.id, stageNumber: 3, status: 'authoring' },
+        data:  { output: toJsonValue(nextAuthoring) },
+      });
+      return;
+    }
 
+    // Branch C
+    if (authoring.requiresRederivation) return; // already flagged
     await prisma.ideationStageRun.updateMany({
       where: { id: stage3.id, stageNumber: 3, status: 'authoring' },
-      data:  { output: toJsonValue(nextAuthoring) },
+      data:  { output: toJsonValue({ ...authoring, requiresRederivation: true }) },
     });
   }
 }
@@ -437,24 +468,40 @@ export async function cascadeStage1Or2Or3EditToStage4(
     return;
   }
 
-  // Branch B — Stage 4 already in cascade authoring → add this stage.
+  // Stage 4 in authoring. Two sub-branches:
+  //   B — has a cascade snapshot: append this stage to triggeringStages.
+  //   C — normal authoring, no snapshot (founder is mid-Stage-4 after
+  //       a fresh Stage 3 commit; Layer A research / Layer B
+  //       engagement is in flight). Flag requiresRederivation=true so
+  //       the UI surfaces the stale dependency — per-opportunity Layer
+  //       A research was derived against the now-stale upstream
+  //       context.
   if (stage4.status === 'authoring') {
     const authoring = safeParseStage4AuthoringState(stage4.output);
-    if (!authoring.cascadeSnapshot) return;
-    if (authoring.cascadeSnapshot.triggeringStages.includes(triggeringStage)) return;
 
-    const nextAuthoring: Stage4AuthoringState = {
-      ...authoring,
-      cascadeSnapshot: {
-        ...authoring.cascadeSnapshot,
-        triggeringStages: [...authoring.cascadeSnapshot.triggeringStages, triggeringStage],
-      },
-      requiresRederivation: true,
-    };
+    if (authoring.cascadeSnapshot) {
+      // Branch B
+      if (authoring.cascadeSnapshot.triggeringStages.includes(triggeringStage)) return;
+      const nextAuthoring: Stage4AuthoringState = {
+        ...authoring,
+        cascadeSnapshot: {
+          ...authoring.cascadeSnapshot,
+          triggeringStages: [...authoring.cascadeSnapshot.triggeringStages, triggeringStage],
+        },
+        requiresRederivation: true,
+      };
+      await prisma.ideationStageRun.updateMany({
+        where: { id: stage4.id, stageNumber: 4, status: 'authoring' },
+        data:  { output: toJsonValue(nextAuthoring) },
+      });
+      return;
+    }
 
+    // Branch C
+    if (authoring.requiresRederivation) return; // already flagged
     await prisma.ideationStageRun.updateMany({
       where: { id: stage4.id, stageNumber: 4, status: 'authoring' },
-      data:  { output: toJsonValue(nextAuthoring) },
+      data:  { output: toJsonValue({ ...authoring, requiresRederivation: true }) },
     });
   }
 }

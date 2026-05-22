@@ -90,11 +90,10 @@ describe('cascadeStage1EditToStage2', () => {
     expect(updateMany).not.toHaveBeenCalled();
   });
 
-  it('is a no-op when Stage 2 is already in authoring', async () => {
-    findFirst.mockResolvedValueOnce({ id: 'run_2', status: 'authoring', output: null });
-    await cascadeStage1EditToStage2('sess_1', 'user_1');
-    expect(updateMany).not.toHaveBeenCalled();
-  });
+  // Branch C (no-op-when-in-authoring-without-snapshot) is replaced
+  // by the audit-gap fix below — when Stage 2 is in normal authoring
+  // and an upstream edits, requiresRederivation now flips to true.
+  // See the dedicated describe block at the bottom of this file.
 
   it('reverts output_ready Stage 2 with a cascadeSnapshot carrying priorStatus="output_ready"', async () => {
     const prior = fakeRequirements();
@@ -276,5 +275,50 @@ describe('clearStage2CascadeSnapshot — recommit clears snapshot', () => {
     // requiresRederivation stays true — the founder still needs to
     // re-derive against the recommitted outcome.
     expect(written.requiresRederivation).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Branch C — cascadeStage1EditToStage2 in normal authoring without
+// snapshot. Audit-gap fix: when the founder is mid-Stage-2 after a
+// fresh Stage 1 commit, and Stage 1 edits again, the helper used to
+// be a silent no-op. Now flips requiresRederivation=true so the UI
+// surfaces the stale dependency.
+// ---------------------------------------------------------------------------
+
+describe('cascadeStage1EditToStage2 — normal authoring (no snapshot)', () => {
+  function normalAuthoring(): Stage2AuthoringState {
+    return {
+      workingInventory:                createEmptySkillInventory(),
+      workingExpectedProfile:          null,
+      recommendedActions:              [],
+      teamQuestionAsked:               false,
+      requiresRederivation:            false,
+      cascadeSnapshot:                 null,
+      calibrationTurnsSinceLastUpdate: 0,
+      structuralBlocker:               { triggered: false, founderChoice: 'not_yet_chosen', notes: null },
+      researchLog:                     [],
+    };
+  }
+
+  it('flips requiresRederivation=true when Stage 2 is in normal authoring', async () => {
+    findFirst.mockResolvedValueOnce({ id: 'run_2', status: 'authoring', output: normalAuthoring() });
+    updateMany.mockResolvedValueOnce({ count: 1 });
+
+    await cascadeStage1EditToStage2('sess_1', 'user_1');
+
+    const written = updateMany.mock.calls[0][0].data?.output as Stage2AuthoringState;
+    expect(written.requiresRederivation).toBe(true);
+    expect(written.cascadeSnapshot).toBeNull();
+  });
+
+  it('is a no-op when requiresRederivation is already true', async () => {
+    findFirst.mockResolvedValueOnce({
+      id: 'run_2',
+      status: 'authoring',
+      output: { ...normalAuthoring(), requiresRederivation: true },
+    });
+    await cascadeStage1EditToStage2('sess_1', 'user_1');
+    expect(updateMany).not.toHaveBeenCalled();
   });
 });

@@ -15,6 +15,7 @@ import {
   safeParseStage4AuthoringState,
   runCommunityResponsePipeline,
 } from '@/lib/ideation';
+import { isS3KeyOwnedBy } from '@/lib/storage/s3';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -74,6 +75,16 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     const state = safeParseStage4AuthoringState(run.output);
     if (!state.opportunities.some(o => o.id === parsed.data.opportunityId)) {
       throw new HttpError(404, 'Opportunity not found on this stage run');
+    }
+
+    // Cross-tenant guard for screenshot uploads (see isS3KeyOwnedBy
+    // in lib/storage/s3.ts). The s3Key MUST live under the current
+    // user's own prefix; without this, a malicious founder who somehow
+    // obtained another founder's s3Key could trigger our IAM-credentialed
+    // vision pipeline against the foreign object and land the extracted
+    // comments on their own artifact.
+    if (parsed.data.source === 'screenshot' && !isS3KeyOwnedBy(parsed.data.s3Key, userId)) {
+      throw new HttpError(400, 'Invalid s3Key — does not belong to this user');
     }
 
     const result = await runCommunityResponsePipeline({

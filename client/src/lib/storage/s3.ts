@@ -129,6 +129,22 @@ export class S3NotConfiguredError extends Error {
 }
 
 /**
+ * Cross-tenant guard. Every Stage 4 s3Key the server accepts from a
+ * client MUST live under the submitting user's own prefix. Without
+ * this check, a malicious founder who somehow obtained another
+ * founder's s3Key could trigger our IAM-credentialed read paths
+ * (vision extraction, image rendering) against the foreign object.
+ *
+ * Returns true iff the key starts with the canonical owner-scoped
+ * prefix. Callers should treat false as a 400 Bad Request.
+ */
+export function isS3KeyOwnedBy(s3Key: string, userId: string): boolean {
+  if (typeof s3Key !== 'string' || s3Key.length === 0) return false;
+  if (typeof userId !== 'string' || userId.length === 0) return false;
+  return s3Key.startsWith(`${STAGE4_KEY_PREFIX}/${userId}/`);
+}
+
+/**
  * Issue a presigned PUT URL the browser uploads to directly. The
  * Content-Type and Content-Length conditions are baked into the
  * signature — the upload fails at S3 if the browser uses a

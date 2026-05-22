@@ -96,8 +96,119 @@ inngest.createFunction(
 
 ---
 
-## 3. (Future, not formally added yet)
+## 3. Idempotency on community-response submissions (partial-failure dedup)
+
+**Context:** `runCommunityResponsePipeline` persists the
+CommunityResponse row in step 1, runs vision in step 2, recomputes
+aggregate in step 3, synthesises a fresh verdict in step 4. If step
+4 throws (Anthropic overload after the fallback chain exhausts, or
+a stray exception), the row IS persisted but the route returns 500.
+The founder retries → a SECOND row gets persisted with the same
+content → both contribute to the next aggregate signal. The duplicate
+is FIFO-evicted within `MAX_RESPONSES_PER_OPPORTUNITY = 12`, but
+the signal temporarily double-counts.
+
+**Why this isn't fixed in code today:** the right fix is structural,
+not a guard. Three options:
+
+- **A. Client-supplied idempotency key** — request body carries a
+  `clientRequestId: string`. Server tracks recently-seen IDs per
+  stage row (small LRU in the JSONB output OR a Redis set with a
+  short TTL). Duplicate submissions return the existing response.
+  Adds: client-side UUID generation + server cache eviction policy.
+
+- **B. Content-hash dedup** — server computes SHA256 of the response
+  content (`pastedText` or `s3Key`) and skips duplicate hashes in
+  the same recent window. Works for text-paste retries; doesn't
+  catch screenshot retries because each presign generates a new
+  unique `s3Key`.
+
+- **C. Inngest-backed durable pipeline (recommended)** — split the
+  community-response flow into two Inngest steps:
+  1. Synchronous: persist the response row + return success to the
+     founder.
+  2. Async durable: run vision + aggregate-recompute + verdict-
+     synthesise in an Inngest function. The function is keyed by
+     `(stageRunId, responseId)` so duplicate triggers naturally
+     dedup. Retries become automatic + observable in the Inngest
+     dashboard.
+
+  This also solves the load problem (a 60s sync pipeline is
+  expensive to keep on the Vercel hot path) and matches the pattern
+  the codebase already uses for long-running tool jobs (see
+  `src/inngest/functions/tools/research-execute-job.ts` for the
+  canonical example).
+
+**Recommendation when this gets picked up:** option C. The current
+behavior (FIFO eviction caps the blast radius; founder sees an
+honest 500 and retries) is acceptable until production usage
+surfaces real complaints about double-counting. When that happens,
+build the Inngest function rather than patching the synchronous
+flow.
+
+**Inngest sketch when implemented:**
+
+```ts
+// src/inngest/functions/stage4/process-community-response.ts
+export const processCommunityResponse = inngest.createFunction(
+  {
+    id: 'stage4.process-community-response',
+    // Idempotency: same (stageRunId, responseId) tuple is a no-op
+    // on duplicate triggers.
+    idempotency: 'event.data.stageRunId + "::" + event.data.responseId',
+  },
+  { event: 'stage4/community-response.captured' },
+  async ({ event, step }) => {
+    const { stageRunId, userId, responseId } = event.data;
+
+    await step.run('vision-pipeline', async () => {
+      // moderation + extraction + persist
+    });
+
+    await step.run('recompute-aggregate', async () => {
+      // recomputeOpportunityAggregateSignal
+    });
+
+    await step.run('synthesize-verdict', async () => {
+      // synthesizeVerdict + persistAgentVerdict
+    });
+  },
+);
+```
+
+Route then becomes: persist row + `inngest.send({ name: 'stage4/community-response.captured', ... })` + return 202.
+
+---
+
+## 4. (Future, not formally added yet)
 
 Anything else that surfaces during Stage 4 dev gets appended here
 rather than landing in the brief inline. Keep this file as the
 canonical Stage 4 post-launch checklist.
+
+---
+
+## Already resolved (audit findings folded into commits)
+
+The audit pass that ran after the Stage 4 batch shipped surfaced
+four findings. Three were folded into the code; one was added to
+this backlog (item 3 above). For completeness:
+
+- **Resolved — cross-tenant s3Key acceptance.** Added
+  `isS3KeyOwnedBy(s3Key, userId)` in `lib/storage/s3.ts` + a route-
+  level guard in `/community-response`. Tests in `s3.test.ts` pin
+  the canonical pattern + the prefix-match smuggling defence.
+
+- **Resolved — cascade silent in normal-authoring.** Extended
+  `cascadeStage1EditToStage2`, `cascadeStage1OrStage2EditToStage3`,
+  and `cascadeStage1Or2Or3EditToStage4` to flip
+  `requiresRederivation=true` when the downstream is in normal-
+  authoring without a snapshot. Tests added to all three cascade
+  test files.
+
+- **Resolved — pushback race window.** `transformAuthoring` in
+  Stage 3 + Stage 4 transitions now wraps findFirst + updateMany
+  in `prisma.$transaction` under `Serializable` isolation. P2034
+  serialization_failure errors get caught and re-thrown as
+  HttpError 409 so the route surfaces a clean "concurrent write"
+  message.

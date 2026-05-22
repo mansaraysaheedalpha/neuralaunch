@@ -177,12 +177,10 @@ describe('cascadeStage1OrStage2EditToStage3 — Branch B (already in cascade aut
     expect(updateMany).not.toHaveBeenCalled();
   });
 
-  it("is a no-op when Stage 3 authoring has no snapshot (normal authoring, not cascade)", async () => {
-    const authoring = emptyAuthoring();
-    findFirst.mockResolvedValueOnce({ id: 'run_3', status: 'authoring', output: authoring });
-    await cascadeStage1OrStage2EditToStage3('sess_1', 'user_1', 'stage1');
-    expect(updateMany).not.toHaveBeenCalled();
-  });
+  // The "no-op when authoring has no snapshot" assertion previously
+  // lived here; that behavior was the audit-gap fix target. The new
+  // shape (flip requiresRederivation=true in that case) is covered
+  // by the dedicated describe block at the bottom of this file.
 });
 
 // ===========================================================================
@@ -310,6 +308,45 @@ describe('clearStage3CascadeSnapshot — recommit invalidates the snapshot entir
   it("is a no-op when Stage 3 doesn't exist", async () => {
     findFirst.mockResolvedValueOnce(null);
     await clearStage3CascadeSnapshot('sess_1', 'user_1', 'stage1');
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Branch C — normal authoring without snapshot. Audit-gap fix.
+// ---------------------------------------------------------------------------
+
+describe('cascadeStage1OrStage2EditToStage3 — normal authoring (no snapshot)', () => {
+  function normalAuthoring(): Stage3AuthoringState {
+    return {
+      agentPainPoints:      [],
+      founderPainPoints:    [],
+      recommendedActions:   [],
+      researchLog:          [],
+      scoutRunCount:        0,
+      cascadeSnapshot:      null,
+      requiresRederivation: false,
+    };
+  }
+
+  it('flips requiresRederivation=true when Stage 3 is in normal authoring', async () => {
+    findFirst.mockResolvedValueOnce({ id: 's3', status: 'authoring', output: normalAuthoring() });
+    updateMany.mockResolvedValueOnce({ count: 1 });
+
+    await cascadeStage1OrStage2EditToStage3('sess_1', 'user_1', 'stage1');
+
+    const written = updateMany.mock.calls[0][0].data?.output as Stage3AuthoringState;
+    expect(written.requiresRederivation).toBe(true);
+    expect(written.cascadeSnapshot).toBeNull();
+  });
+
+  it('is a no-op when requiresRederivation is already true', async () => {
+    findFirst.mockResolvedValueOnce({
+      id: 's3',
+      status: 'authoring',
+      output: { ...normalAuthoring(), requiresRederivation: true },
+    });
+    await cascadeStage1OrStage2EditToStage3('sess_1', 'user_1', 'stage2');
     expect(updateMany).not.toHaveBeenCalled();
   });
 });

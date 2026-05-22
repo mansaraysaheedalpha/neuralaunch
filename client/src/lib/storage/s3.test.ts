@@ -61,6 +61,7 @@ import {
   getPresignedUploadUrl,
   getPresignedReadUrl,
   deleteObject,
+  isS3KeyOwnedBy,
   S3NotConfiguredError,
   __testInternals,
 } from './s3';
@@ -186,5 +187,38 @@ describe('key shape internals', () => {
 
   it('prefixes every key with stage4-uploads/ (lifecycle rule target)', () => {
     expect(__testInternals.STAGE4_KEY_PREFIX).toBe('stage4-uploads');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isS3KeyOwnedBy — cross-tenant guard for screenshot s3Key submissions
+// ---------------------------------------------------------------------------
+
+describe('isS3KeyOwnedBy', () => {
+  it('accepts a key under the user\'s own prefix', () => {
+    expect(isS3KeyOwnedBy('stage4-uploads/user_abc/sess_1/opp_1/file.png', 'user_abc')).toBe(true);
+  });
+
+  it("rejects a key under another user's prefix", () => {
+    expect(isS3KeyOwnedBy('stage4-uploads/user_xyz/sess_1/opp_1/file.png', 'user_abc')).toBe(false);
+  });
+
+  it("rejects a key that doesn't start with stage4-uploads/", () => {
+    expect(isS3KeyOwnedBy('other-prefix/user_abc/file.png', 'user_abc')).toBe(false);
+  });
+
+  it('rejects an empty key', () => {
+    expect(isS3KeyOwnedBy('', 'user_abc')).toBe(false);
+  });
+
+  it('rejects an empty userId (defensive — never pass empty)', () => {
+    expect(isS3KeyOwnedBy('stage4-uploads/x/file.png', '')).toBe(false);
+  });
+
+  it('rejects a prefix-match attempt that smuggles foreign user IDs', () => {
+    // The slash is load-bearing — without requiring it, an attacker
+    // with userId 'user_a' could pass a key for user 'user_abc'
+    // (prefix-match without the trailing slash would succeed).
+    expect(isS3KeyOwnedBy('stage4-uploads/user_abc/x/file.png', 'user_a')).toBe(false);
   });
 });
