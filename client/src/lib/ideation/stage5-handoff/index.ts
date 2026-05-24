@@ -60,3 +60,21 @@ export { renderStrategicAnalysis }             from './render-strategic-analysis
 export type { RenderStrategicAnalysisArgs }    from './render-strategic-analysis';
 export { runStage5SynthesisBridge }            from './synthesis-bridge';
 export type { RunStage5SynthesisBridgeArgs }   from './synthesis-bridge';
+
+// ---- Durable job (IdeationStage5Job) ----
+//
+// Server-only helpers live in ./job (import 'server-only'); they re-
+// export through the barrel so the synthesize route + worker can keep
+// imports flat. Client components must not reach in (the barrel is
+// already off-limits per the discipline noted at the top of this file).
+export {
+  STAGE5_JOB_STAGES,
+  STAGE5_TERMINAL_STAGES,
+  Stage5JobStatusSchema,
+  createStage5Job,
+  findOpenStage5Job,
+  updateStage5JobStage,
+  succeedStage5Job,
+  failStage5Job,
+} from './job';
+export type { Stage5JobStage, Stage5JobStatus } from './job';

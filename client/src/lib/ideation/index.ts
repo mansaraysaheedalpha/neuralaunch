@@ -84,6 +84,11 @@ export {
   persistAgentVerdict,
   persistFounderVerdict,
   persistOpportunityPushbackRound,
+  // Stage 5 transitions
+  markStage5OutputReady,
+  seedStage5Inputs,
+  persistStage5SynthesisResult,
+  persistStage5SynthesisFailure,
   // Cross-stage cascades
   cascadeStage1EditToStage2,
   restoreStage2FromCascadeSnapshot,

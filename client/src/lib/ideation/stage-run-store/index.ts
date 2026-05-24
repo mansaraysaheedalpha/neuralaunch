@@ -221,6 +221,13 @@ export {
 } from './stage4-transitions';
 
 export {
+  markStage5OutputReady,
+  seedStage5Inputs,
+  persistStage5SynthesisResult,
+  persistStage5SynthesisFailure,
+} from './stage5-transitions';
+
+export {
   cascadeStage1EditToStage2,
   restoreStage2FromCascadeSnapshot,
   clearStage2CascadeSnapshot,

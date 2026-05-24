@@ -24,6 +24,7 @@ import {
   packagerAdjustJobFunction,
   composerGenerateJobFunction,
   coachPrepareJobFunction,
+  stage5SynthesizeFunction,
 } from '@/inngest/functions';
 
 export const { GET, POST, PUT } = serve({
@@ -51,5 +52,6 @@ export const { GET, POST, PUT } = serve({
     packagerAdjustJobFunction,
     composerGenerateJobFunction,
     coachPrepareJobFunction,
+    stage5SynthesizeFunction,
   ],
 });

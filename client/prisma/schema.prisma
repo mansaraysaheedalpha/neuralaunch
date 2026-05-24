@@ -1607,3 +1607,54 @@ model ToolJob {
   @@index([userId, stage, startedAt(sort: Desc)])
   @@index([roadmapId])
 }
+
+/**
+ * IdeationStage5Job
+ *
+ * Durable-execution row for the Stage 5 (No Idea archetype) synthesis
+ * bridge. Lives separately from ToolJob because ToolJob requires a
+ * non-null `roadmapId` and writes results into `roadmap.toolSessions`
+ * — neither applies to Stage 5, which produces a Recommendation row
+ * directly from the committed Stage 1-4 documents and runs BEFORE any
+ * roadmap exists.
+ *
+ * Lifecycle: route creates row in 'queued' → worker advances through
+ * 'loading_inputs' → 'synthesizing' → 'persisting' → 'succeeded'
+ * (terminal) or 'failed' (terminal). Polled by the founder's Stage 5
+ * client at 3s / 30s via /api/discovery/sessions/[id]/stage5/status.
+ *
+ * Idempotency: at most one in-flight job per sessionId — enforced by
+ * the partial unique index in the migration (`WHERE stage NOT IN
+ * ('succeeded', 'failed')`). Prisma cannot model partial uniques in
+ * the schema; the migration owns it directly.
+ */
+model IdeationStage5Job {
+  id        String @id @default(cuid())
+  userId    String
+  sessionId String
+
+  /// Pipeline stage. Written by the worker before each step.run.
+  /// 'queued' | 'loading_inputs' | 'synthesizing' | 'persisting' |
+  /// 'succeeded' | 'failed'.
+  stage String @default("queued")
+
+  /// Populated on terminal 'failed' state for the founder UI.
+  errorMessage String?
+
+  /// Set when the worker persists the Recommendation. Powers the
+  /// status endpoint's recommendationId response field, which the
+  /// client uses to navigate to the review surface on succeeded.
+  recommendationId String?
+
+  startedAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  /// Polling lookup — primary access pattern is by (sessionId, jobId)
+  /// from the status endpoint. The leading-sessionId composite covers
+  /// both the dedup query ("any open job for this session?") and the
+  /// status read.
+  @@index([sessionId])
+  /// Ownership-scoped lookup for the user's active background jobs.
+  @@index([userId, stage])
+}

@@ -26,3 +26,9 @@ export { packagerGenerateJobFunction }    from './tools/packager-generate-job';
 export { packagerAdjustJobFunction }      from './tools/packager-adjust-job';
 export { composerGenerateJobFunction }    from './tools/composer-generate-job';
 export { coachPrepareJobFunction }        from './tools/coach-prepare-job';
+
+// Stage 5 (No Idea archetype) — synthesis bridge worker. Lives
+// alongside the legacy `discoverySessionFunction` because it produces
+// the same Recommendation row shape via a different upstream input
+// pipeline; the two are mutually exclusive per session.
+export { stage5SynthesizeFunction }       from './ideation-stage5-synthesize-function';

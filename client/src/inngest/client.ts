@@ -362,6 +362,32 @@ export type NeuraLaunchEvents = {
   };
 
   /**
+   * Fired when a founder triggers Stage 5 synthesis on the No Idea
+   * archetype's final review surface. The route returns 202
+   * immediately with a jobId; this event drives the Inngest worker
+   * that loads the committed Stage 1-4 documents, runs the two-phase
+   * synthesis bridge (delegating to `runFinalSynthesis`), upserts the
+   * Recommendation row keyed on sessionId, and flips the Stage 5
+   * IdeationStageRun from 'authoring' to 'output_ready'.
+   *
+   * Sentry distributed-trace headers are propagated so the worker
+   * resumes the parent trace from the synthesize route.
+   *
+   * Consumer: `stage5SynthesizeJobFunction` in
+   * `src/inngest/functions/tools/stage5-synthesize-job.ts`
+   */
+  'ideation/stage5-synthesize.requested': {
+    data: {
+      jobId:        string;
+      userId:       string;
+      sessionId:    string;
+      stageRunId:   string;
+      sentryTrace?: string;
+      baggage?:     string;
+    };
+  };
+
+  /**
    * Fired when a founder confirms account deletion via Settings →
    * Danger zone. The route returns 202 immediately; this event drives
    * the durable saga that cancels Paddle subscriptions, revokes
