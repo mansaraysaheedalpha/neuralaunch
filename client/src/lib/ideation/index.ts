@@ -144,3 +144,18 @@ export * from './stage3-opportunities';
 // client bundles. Same discipline as Stage 3.
 
 export * from './stage4-opportunities';
+
+// ===========================================================================
+// Stage 5 — Validation Handoff
+// ===========================================================================
+//
+// Stage 5's public surface is re-exported from its sub-module barrel
+// at './stage5-handoff'. The bridge to the legacy post-Discovery
+// pipeline — synthesises a Recommendation row from Stage 4's chosen
+// opportunity, stashes the reserves for the continuation brief, and
+// hands off to the existing roadmap-generation flow.
+//
+// Client components MUST NOT import from this top-level barrel —
+// use the specific schema.ts / constants.ts paths.
+
+export * from './stage5-handoff';

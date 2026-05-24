@@ -517,6 +517,22 @@ model Recommendation {
   phaseContext Json?
 
   /**
+   * Stage 5 (No Idea archetype) — snapshot of the 4 reserve
+   * opportunities Stage 4 ranked but did not advance. Read by the
+   * continuation brief Inngest function: when downstream validation
+   * fails for a No Idea recommendation, the brief surfaces these
+   * reserves as forks the founder can pivot to (per the original
+   * framework's "if this idea doesn't validate, here's what else
+   * you scoped" design).
+   *
+   * Null for legacy (non-No-Idea) recommendations; populated by the
+   * Stage 5 synthesize-recommendation route at synthesis time.
+   * Shape validated at the application boundary by
+   * ReserveOpportunitySchema (src/lib/ideation/stage5-handoff/schema.ts).
+   */
+  ideationReserveOpportunities Json?
+
+  /**
    * The most recent validation signal observed for this recommendation.
    * Mirrors the ValidationReport.signalStrength enum exactly:
    * null      — not yet validated (no published page or no report yet)
