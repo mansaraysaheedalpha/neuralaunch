@@ -52,3 +52,11 @@ export { buildReserveOpportunities } from './reserve-builder';
 
 // ---- Composer ----
 export { composeStage5HandoffDocument } from './composer';
+
+// ---- Synthesis bridge ----
+export { renderFounderSummary }                from './render-founder-summary';
+export type { RenderFounderSummaryArgs }       from './render-founder-summary';
+export { renderStrategicAnalysis }             from './render-strategic-analysis';
+export type { RenderStrategicAnalysisArgs }    from './render-strategic-analysis';
+export { runStage5SynthesisBridge }            from './synthesis-bridge';
+export type { RunStage5SynthesisBridgeArgs }   from './synthesis-bridge';
