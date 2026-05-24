@@ -19,6 +19,7 @@ import {
   clearStage2CascadeSnapshot,
   clearStage3CascadeSnapshot,
   clearStage4CascadeSnapshot,
+  clearStage5CascadeSnapshot,
   safeParseSkillInventory,
   createEmptySkillInventory,
 } from '@/lib/ideation';
@@ -67,15 +68,16 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
     if (run.stageNumber === 1) {
       await markStage1Committed(id);
-      // Cascade: clear any stale Stage 2 / 3 / 4 cascadeSnapshot.
+      // Cascade: clear any stale Stage 2 / 3 / 4 / 5 cascadeSnapshot.
       // The Stage 1 recommit changed the upstream OutcomeDocument, so
       // downstream snapshots are no longer reachable from a
       // /discard-edit. Idempotent.
       await clearStage2CascadeSnapshot(run.sessionId, userId);
       await clearStage3CascadeSnapshot(run.sessionId, userId, 'stage1');
       await clearStage4CascadeSnapshot(run.sessionId, userId, 'stage1');
+      await clearStage5CascadeSnapshot(run.sessionId, userId, 'stage1');
       logger.child({ route: 'POST /api/ideation/stage-runs/[id]/commit', userId, stageRunId: id })
-            .debug('Stage 1 committed (cascade-snapshots cleared on 2 + 3 + 4)');
+            .debug('Stage 1 committed (cascade-snapshots cleared on 2 + 3 + 4 + 5)');
     } else if (run.stageNumber === 2) {
       // Stage 2 commit — snapshot the founder's current FounderProfile
       // skillInventory into the artifact at commit time.
@@ -87,17 +89,19 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
         safeParseSkillInventory(profile?.skillInventory ?? null)
         ?? createEmptySkillInventory();
       await markStage2Committed(id, snapshotInventory);
-      // Stage 2 recommit → clear Stage 3's + Stage 4's snapshots for stage2.
+      // Stage 2 recommit → clear Stage 3's + Stage 4's + Stage 5's snapshots for stage2.
       await clearStage3CascadeSnapshot(run.sessionId, userId, 'stage2');
       await clearStage4CascadeSnapshot(run.sessionId, userId, 'stage2');
+      await clearStage5CascadeSnapshot(run.sessionId, userId, 'stage2');
       logger.child({ route: 'POST /api/ideation/stage-runs/[id]/commit', userId, stageRunId: id })
-            .debug('Stage 2 committed (cascade-snapshots cleared on 3 + 4)');
+            .debug('Stage 2 committed (cascade-snapshots cleared on 3 + 4 + 5)');
     } else if (run.stageNumber === 3) {
-      // Stage 3 commit — clear Stage 4's snapshot for stage3.
+      // Stage 3 commit — clear Stage 4's + Stage 5's snapshot for stage3.
       await markStage3Committed(id);
       await clearStage4CascadeSnapshot(run.sessionId, userId, 'stage3');
+      await clearStage5CascadeSnapshot(run.sessionId, userId, 'stage3');
       logger.child({ route: 'POST /api/ideation/stage-runs/[id]/commit', userId, stageRunId: id })
-            .debug('Stage 3 committed (cascade-snapshot cleared on 4)');
+            .debug('Stage 3 committed (cascade-snapshots cleared on 4 + 5)');
     } else {
       // Stage 4 commit — lazily upserts the Stage 5 row inside the
       // same transaction (see markStage4Committed). Stage 5 is still
@@ -105,8 +109,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       // "Continue to Stage 5" navigation works even before Stage 5
       // ships its own surface.
       await markStage4Committed(id);
+      // Stage 4 recommit → clear Stage 5's snapshot for stage4. The
+      // Stage 4 OpportunityEvaluationsDocument changed, so any prior
+      // Stage 5 synthesis must be re-fired against the fresh context.
+      await clearStage5CascadeSnapshot(run.sessionId, userId, 'stage4');
       logger.child({ route: 'POST /api/ideation/stage-runs/[id]/commit', userId, stageRunId: id })
-            .debug('Stage 4 committed (Stage 5 row lazily upserted)');
+            .debug('Stage 4 committed (Stage 5 row lazily upserted; cascade-snapshot cleared on 5)');
     }
 
     return NextResponse.json({ ok: true });

@@ -373,8 +373,8 @@ export type NeuraLaunchEvents = {
    * Sentry distributed-trace headers are propagated so the worker
    * resumes the parent trace from the synthesize route.
    *
-   * Consumer: `stage5SynthesizeJobFunction` in
-   * `src/inngest/functions/tools/stage5-synthesize-job.ts`
+   * Consumer: `stage5SynthesizeFunction` in
+   * `src/inngest/functions/ideation-stage5-synthesize-function.ts`
    */
   'ideation/stage5-synthesize.requested': {
     data: {

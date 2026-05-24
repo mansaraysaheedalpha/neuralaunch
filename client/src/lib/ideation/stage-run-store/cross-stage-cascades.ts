@@ -40,6 +40,14 @@ import {
   safeParseStage4AuthoringState,
   safeParseOpportunityEvaluationsDocument,
 } from '../stage4-opportunities/state';
+import type {
+  Stage5AuthoringState,
+  Stage5CascadeSnapshot,
+} from '../stage5-handoff/schema';
+import {
+  safeParseStage5AuthoringState,
+  safeParseStage5HandoffDocument,
+} from '../stage5-handoff/state';
 
 // ---------------------------------------------------------------------------
 // Helper — find the session's Stage 2 row (if any). Owner-scoped.
@@ -570,6 +578,189 @@ export async function clearStage4CascadeSnapshot(
 
   await prisma.ideationStageRun.updateMany({
     where: { id: stage4.id, stageNumber: 4, status: 'authoring' },
+    data:  { output: toJsonValue(nextAuthoring) },
+  });
+}
+
+// ===========================================================================
+// Stage 5 cascade — Stage 1, 2, 3, OR 4 edit invalidates Stage 5
+//
+// Same three-rule state machine as Stage 4's cascade, scaled to four
+// upstream triggers. Stage 5 is unusual because:
+//   - status='output_ready' carries a Stage5HandoffDocument (the
+//     finalised handoff with a synthesizedRecommendationId)
+//   - status='authoring' carries a Stage5AuthoringState (synthesis lifecycle:
+//     awaiting_synthesis | synthesizing | synthesized | synthesis_failed)
+//   - there is NO 'committed' status — Stage 5 lifts to 'output_ready'
+//     and the legacy /accept route on the Recommendation row owns the
+//     real commit. So the cascade only ever reverts 'output_ready' →
+//     'authoring' (Branch A), or flips authoring-state requiresRederivation
+//     (Branches B/C).
+//
+// The Recommendation row itself is NOT mutated by the cascade. Re-firing
+// /stage5/synthesize after a cascade upserts the existing
+// (sessionId, parentRecommendationId IS NULL) row in place; the founder
+// can never end up with two competing rows for the same session. The
+// stale Recommendation stays in the DB but the Stage 5 row's
+// status='authoring' gates the review UI from surfacing it.
+// ===========================================================================
+
+type Stage5TriggeringStage = 'stage1' | 'stage2' | 'stage3' | 'stage4';
+
+async function findOwnedStage5Run(
+  sessionId: string,
+  userId:    string,
+): Promise<{ id: string; status: string; output: unknown } | null> {
+  return await prisma.ideationStageRun.findFirst({
+    where:  { sessionId, stageNumber: 5, session: { userId } },
+    select: { id: true, status: true, output: true },
+  });
+}
+
+export async function cascadeStage1Or2Or3Or4EditToStage5(
+  sessionId:        string,
+  userId:           string,
+  triggeringStage:  Stage5TriggeringStage,
+): Promise<void> {
+  const stage5 = await findOwnedStage5Run(sessionId, userId);
+  if (!stage5) return;
+
+  // Branch A — Stage 5 was output_ready → revert + snapshot. Stage 5
+  // doesn't have a 'committed' status, so this branch is output_ready-only.
+  if (stage5.status === 'output_ready') {
+    const priorDocument = safeParseStage5HandoffDocument(stage5.output);
+    if (!priorDocument) return;
+
+    const cascadeSnapshot: Stage5CascadeSnapshot = {
+      document:         priorDocument,
+      triggeringStages: [triggeringStage],
+      snapshottedAt:    new Date().toISOString(),
+    };
+
+    // Preserve the synthesizedRecommendationId on the authoring state
+    // so the canvas can surface "previously synthesized" context. The
+    // status is reset to 'awaiting_synthesis' so the founder must
+    // re-fire /stage5/synthesize before the review surface unlocks.
+    const nextAuthoring: Stage5AuthoringState = {
+      chosenOpportunity:           priorDocument.chosenOpportunity,
+      reserveOpportunities:        priorDocument.reserveOpportunities,
+      synthesizedRecommendationId: priorDocument.synthesizedRecommendationId,
+      synthesisStatus:             'awaiting_synthesis',
+      synthesisError:              null,
+      recommendedActions:          priorDocument.recommendedActions,
+      cascadeSnapshot,
+      requiresRederivation:        true,
+    };
+
+    await prisma.ideationStageRun.updateMany({
+      where: { id: stage5.id, stageNumber: 5, status: 'output_ready' },
+      data:  {
+        status: 'authoring',
+        output: toJsonValue(nextAuthoring),
+      },
+    });
+    return;
+  }
+
+  // Stage 5 in authoring. Two sub-branches:
+  //   B — has a cascade snapshot: append this stage to triggeringStages.
+  //   C — normal authoring, no snapshot (founder is mid-Stage-5 or
+  //       has not yet fired synthesis). Flag requiresRederivation=true
+  //       so the canvas surfaces the stale upstream dependency.
+  if (stage5.status === 'authoring') {
+    const authoring = safeParseStage5AuthoringState(stage5.output);
+
+    if (authoring.cascadeSnapshot) {
+      // Branch B
+      if (authoring.cascadeSnapshot.triggeringStages.includes(triggeringStage)) return;
+      const nextAuthoring: Stage5AuthoringState = {
+        ...authoring,
+        cascadeSnapshot: {
+          ...authoring.cascadeSnapshot,
+          triggeringStages: [...authoring.cascadeSnapshot.triggeringStages, triggeringStage],
+        },
+        requiresRederivation: true,
+      };
+      await prisma.ideationStageRun.updateMany({
+        where: { id: stage5.id, stageNumber: 5, status: 'authoring' },
+        data:  { output: toJsonValue(nextAuthoring) },
+      });
+      return;
+    }
+
+    // Branch C
+    if (authoring.requiresRederivation) return; // already flagged
+    await prisma.ideationStageRun.updateMany({
+      where: { id: stage5.id, stageNumber: 5, status: 'authoring' },
+      data:  { output: toJsonValue({ ...authoring, requiresRederivation: true }) },
+    });
+  }
+}
+
+export async function restoreStage5FromCascadeSnapshot(
+  sessionId:        string,
+  userId:           string,
+  dischargingStage: Stage5TriggeringStage,
+): Promise<void> {
+  const stage5 = await findOwnedStage5Run(sessionId, userId);
+  if (!stage5) return;
+  if (stage5.status !== 'authoring') return;
+
+  const authoring = safeParseStage5AuthoringState(stage5.output);
+  if (!authoring.cascadeSnapshot) return;
+  if (!authoring.cascadeSnapshot.triggeringStages.includes(dischargingStage)) return;
+
+  const remaining = authoring.cascadeSnapshot.triggeringStages.filter(s => s !== dischargingStage);
+
+  if (remaining.length > 0) {
+    // Other upstream(s) still have edits open — keep the snapshot,
+    // remove this stage from the trigger list.
+    const nextAuthoring: Stage5AuthoringState = {
+      ...authoring,
+      cascadeSnapshot: { ...authoring.cascadeSnapshot, triggeringStages: remaining },
+    };
+    await prisma.ideationStageRun.updateMany({
+      where: { id: stage5.id, stageNumber: 5, status: 'authoring' },
+      data:  { output: toJsonValue(nextAuthoring) },
+    });
+    return;
+  }
+
+  // All upstreams discharged — restore the snapshot document. Stage 5
+  // has no 'committed' status; the restore always lands on 'output_ready'.
+  await prisma.ideationStageRun.updateMany({
+    where: { id: stage5.id, stageNumber: 5, status: 'authoring' },
+    data:  {
+      status: 'output_ready',
+      output: toJsonValue(authoring.cascadeSnapshot.document),
+    },
+  });
+}
+
+export async function clearStage5CascadeSnapshot(
+  sessionId:        string,
+  userId:           string,
+  triggeringStage:  Stage5TriggeringStage,
+): Promise<void> {
+  const stage5 = await findOwnedStage5Run(sessionId, userId);
+  if (!stage5) return;
+  if (stage5.status !== 'authoring') return;
+
+  const authoring = safeParseStage5AuthoringState(stage5.output);
+  if (!authoring.cascadeSnapshot) return;
+  if (!authoring.cascadeSnapshot.triggeringStages.includes(triggeringStage)) return;
+
+  // Per the locked three-rule design — ANY upstream /commit NULLs the
+  // entire snapshot. The synthesized Recommendation was produced from
+  // now-stale upstream context; the founder must re-synthesise.
+  const nextAuthoring: Stage5AuthoringState = {
+    ...authoring,
+    cascadeSnapshot:      null,
+    requiresRederivation: true,
+  };
+
+  await prisma.ideationStageRun.updateMany({
+    where: { id: stage5.id, stageNumber: 5, status: 'authoring' },
     data:  { output: toJsonValue(nextAuthoring) },
   });
 }

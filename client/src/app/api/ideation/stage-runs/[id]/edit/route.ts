@@ -18,6 +18,7 @@ import {
   cascadeStage1EditToStage2,
   cascadeStage1OrStage2EditToStage3,
   cascadeStage1Or2Or3EditToStage4,
+  cascadeStage1Or2Or3Or4EditToStage5,
 } from '@/lib/ideation';
 
 interface RouteContext {
@@ -94,9 +95,13 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     // Cascade further still: Stage 4. Same three-rule semantics scaled
     // to three triggering stages; idempotent on missing/authoring rows.
     await cascadeStage1Or2Or3EditToStage4(run.sessionId, userId, 'stage1');
+    // Stage 5 last — invalidates the synthesised Recommendation handoff
+    // so a re-fired /stage5/synthesize regenerates against the fresh
+    // upstream context. Idempotent.
+    await cascadeStage1Or2Or3Or4EditToStage5(run.sessionId, userId, 'stage1');
 
     logger.child({ route: 'POST /api/ideation/stage-runs/[id]/edit', userId, stageRunId: id })
-          .debug('Stage 1 reverted to editing (cascade fired to 2 + 3 + 4)', { dimension: parsed.data.dimension, priorStatus: run.status });
+          .debug('Stage 1 reverted to editing (cascade fired to 2 + 3 + 4 + 5)', { dimension: parsed.data.dimension, priorStatus: run.status });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

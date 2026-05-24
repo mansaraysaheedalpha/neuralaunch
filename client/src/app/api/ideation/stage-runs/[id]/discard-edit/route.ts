@@ -17,6 +17,7 @@ import {
   restoreStage2FromCascadeSnapshot,
   restoreStage3FromCascadeSnapshot,
   restoreStage4FromCascadeSnapshot,
+  restoreStage5FromCascadeSnapshot,
 } from '@/lib/ideation';
 
 interface RouteContext {
@@ -76,9 +77,12 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     // Stage 4 same — discharges 'stage1'; restores only when all
     // its triggeringStages have discharged.
     await restoreStage4FromCascadeSnapshot(run.sessionId, userId, 'stage1');
+    // Stage 5 too — discharges 'stage1'; restores the Stage5HandoffDocument
+    // (status 'output_ready') only when all open triggers have discharged.
+    await restoreStage5FromCascadeSnapshot(run.sessionId, userId, 'stage1');
 
     logger.child({ route: 'POST /api/ideation/stage-runs/[id]/discard-edit', userId, stageRunId: id })
-          .debug('Stage 1 edit discarded — restored from snapshot (cascade fired)', {
+          .debug('Stage 1 edit discarded — restored from snapshot (cascade fired through 2-5)', {
             restoredStatus: authoring.priorCommittedSnapshot.priorStatus,
           });
 

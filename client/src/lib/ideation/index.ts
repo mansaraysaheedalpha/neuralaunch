@@ -99,6 +99,9 @@ export {
   cascadeStage1Or2Or3EditToStage4,
   restoreStage4FromCascadeSnapshot,
   clearStage4CascadeSnapshot,
+  cascadeStage1Or2Or3Or4EditToStage5,
+  restoreStage5FromCascadeSnapshot,
+  clearStage5CascadeSnapshot,
 } from './stage-run-store';
 
 // ---- Agent (streaming) ----
