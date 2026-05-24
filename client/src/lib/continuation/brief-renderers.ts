@@ -12,6 +12,7 @@ import 'server-only';
 import { renderUserContent, sanitizeForPrompt } from '@/lib/validation/server-helpers';
 import type { DiscoveryContext } from '@/lib/discovery/context-schema';
 import type { StoredRoadmapPhase, StoredRoadmapTask } from '@/lib/roadmap/checkin-types';
+import type { ReserveOpportunity } from '@/lib/ideation/stage5-handoff/schema';
 import type { ParkingLot } from './parking-lot-schema';
 import type { DiagnosticHistory } from './diagnostic-schema';
 
@@ -237,4 +238,57 @@ export function renderDiagnosticHistory(history: DiagnosticHistory): string {
     lines.push(`[${label}] ${renderUserContent(entry.message, 1500)}`);
   }
   return lines.join('\n') + '\n';
+}
+
+// ---------------------------------------------------------------------------
+// Stage 5 reserve opportunities
+// ---------------------------------------------------------------------------
+//
+// Inserted between PARKING LOT and DIAGNOSTIC CHAT in the brief prompt.
+// Returns '' when reserves is empty so the prompt concatenation drops
+// the block cleanly — legacy Discovery-flow Recommendation rows (column
+// is null / pre-Stage-5) and tenants who didn't surface reserves both
+// land here without altering the prompt shape.
+//
+// Per-field slice budgets mirror the Stage 5 strategic-analysis renderer
+// so the prompt block stays bounded at ~250-350 chars per reserve. Four
+// reserves render at ~1000-1400 chars worst case — acceptable in a brief
+// prompt that already runs ~6000-8000 chars of context.
+
+const SLICE_RESERVE_PAIN_SUMMARY  = 400;
+const SLICE_RESERVE_AGENT_REASON  = 400;
+
+export function renderReserveOpportunitiesBlock(reserves: ReadonlyArray<ReserveOpportunity>): string {
+  if (reserves.length === 0) return '';
+
+  const lines: string[] = [];
+  for (const r of reserves) {
+    lines.push(`- Rank ${r.rank}: ${renderUserContent(r.painPointSummary, SLICE_RESERVE_PAIN_SUMMARY)}`);
+    lines.push(`    Stage 5 agent verdict: ${r.agentVerdict} — ${renderUserContent(r.agentReasoning, SLICE_RESERVE_AGENT_REASON)}`);
+    lines.push(`    Stage 5 founder verdict: ${r.founderVerdict ?? 'did not commit'}`);
+    if (r.layerASummary) {
+      const a = r.layerASummary;
+      lines.push(
+        `    Layer A confidence: market reality ${a.marketReality.confidence.toFixed(2)} / customer access ${a.customerAccess.confidence.toFixed(2)} / will pay ${a.willPeoplePay.confidence.toFixed(2)} / market size ${a.marketSize.confidence.toFixed(2)}`,
+      );
+    }
+    if (r.layerBSummary) {
+      const b = r.layerBSummary;
+      lines.push(
+        `    Layer B aggregate: community engagement ${b.validationStrength} (${b.sentimentBreakdown.positive} positive / ${b.sentimentBreakdown.neutral} neutral / ${b.sentimentBreakdown.negative} negative)`,
+      );
+    }
+    lines.push(`    Reserve id (use as fork.sourceReserveId when pivoting to this reserve): ${r.id}`);
+  }
+
+  return `RESERVE OPPORTUNITIES (from the founder's Stage 5 evaluation):
+The founder evaluated multiple opportunities in Stage 5 and chose the one
+this roadmap implemented. The opportunities below are the honest
+alternatives the founder ranked but did not advance. They were already
+weighed against the chosen path, so a fork that pivots to a reserve is
+NOT a fresh detour — it's a return to a path the founder already
+considered worth keeping in view.
+
+${lines.join('\n')}
+`;
 }

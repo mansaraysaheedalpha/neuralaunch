@@ -185,19 +185,22 @@ export const continuationBriefFunction = inngest.createFunction(
     const briefStep = await step.run('generate-brief', async () => {
       const accumulator: ResearchLogEntry[] = [];
       const brief = await generateContinuationBrief({
-        recommendation:      loaded.recommendation,
-        context:             loaded.context,
-        phases:              loaded.phases,
-        parkingLot:          loaded.parkingLot,
+        recommendation:       loaded.recommendation,
+        context:              loaded.context,
+        phases:               loaded.phases,
+        parkingLot:           loaded.parkingLot,
         metrics,
-        motivationAnchor:    loaded.motivationAnchor,
-        diagnosticHistory:   loaded.diagnosticHistory,
-        researchAccumulator: accumulator,
+        motivationAnchor:     loaded.motivationAnchor,
+        diagnosticHistory:    loaded.diagnosticHistory,
+        researchAccumulator:  accumulator,
         roadmapId,
-        checkinCoverage:     loaded.checkinCoverage,
-        lifecycleBlock:      lifecycleBlock || undefined,
-        validationSignal:    validationSignal ?? null,
-        toolArtifactsBlock:  toolArtifactsBlock || undefined,
+        checkinCoverage:      loaded.checkinCoverage,
+        lifecycleBlock:       lifecycleBlock || undefined,
+        validationSignal:     validationSignal ?? null,
+        toolArtifactsBlock:   toolArtifactsBlock || undefined,
+        // Stage 5 reserves — empty array for legacy Discovery-flow rows;
+        // the generator drops the block cleanly and runs identically.
+        reserveOpportunities: loaded.reserveOpportunities,
       });
       return { brief, researchLog: accumulator };
     });

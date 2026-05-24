@@ -31,6 +31,15 @@ export const ContinuationForkSchema = z.object({
   rightIfCondition: z.string().describe(
     'One sentence: "This fork is right if [condition specific to the founder\'s actual situation]." Never generic — must reference something the founder learned by executing.'
   ),
+  // Optional Stage-5-reserve origin. Set ONLY when the fork was seeded
+  // from a reserve opportunity in the RESERVE OPPORTUNITIES block. The
+  // value MUST match a `ReserveOpportunity.id` from that block. Null
+  // (and absent) for forks that continue the current direction or come
+  // from the parking lot — i.e. for every fork on legacy Discovery-flow
+  // briefs where the block is absent entirely.
+  sourceReserveId: z.string().nullable().optional().describe(
+    'Set to the Stage 5 reserve opportunity id when this fork pivots to a reserve. Null/absent for continuation forks and forks derived from the parking lot. Powers the post-pick analytics and lets the UI render a "pivot to reserve" badge.'
+  ),
 });
 export type ContinuationFork = z.infer<typeof ContinuationForkSchema>;
 

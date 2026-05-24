@@ -36,6 +36,7 @@ import {
 import type { DiscoveryContext } from '@/lib/discovery/context-schema';
 import type { Recommendation } from '@/lib/discovery/recommendation-schema';
 import type { StoredRoadmapPhase } from '@/lib/roadmap/checkin-types';
+import type { ReserveOpportunity } from '@/lib/ideation/stage5-handoff/schema';
 import type { ParkingLot } from './parking-lot-schema';
 import type { ExecutionMetrics } from './speed-calibration';
 import type { DiagnosticHistory } from './diagnostic-schema';
@@ -47,6 +48,7 @@ import {
   renderBeliefDigest,
   renderPhasesWithEvidence,
   renderParkingLot,
+  renderReserveOpportunitiesBlock,
   renderDiagnosticHistory,
 } from './brief-renderers';
 import {
@@ -120,6 +122,16 @@ export interface GenerateBriefInput {
    * shapes it into this string lives in tool-artifact-renderer.ts.
    */
   toolArtifactsBlock?: string;
+  /**
+   * Stage 5 reserve opportunities mirrored onto the Recommendation row
+   * at synthesis time. The brief generator reads these to seed
+   * reserve-derived forks when the executed path's evidence makes one
+   * of the reserves more plausible than it was at Stage 5. Empty array
+   * for legacy Discovery-flow Recommendation rows — the prompt block
+   * drops cleanly via concatenation and the generator runs identically
+   * to the pre-Stage-5 path (backward compatible).
+   */
+  reserveOpportunities?: ReadonlyArray<ReserveOpportunity>;
 }
 
 /**
@@ -141,6 +153,7 @@ export async function generateContinuationBrief(input: GenerateBriefInput): Prom
   const beliefBlock     = renderBeliefDigest(input.context);
   const phasesBlock     = renderPhasesWithEvidence(input.phases);
   const parkingLotBlock = renderParkingLot(input.parkingLot);
+  const reservesBlock   = renderReserveOpportunitiesBlock(input.reserveOpportunities ?? []);
   const diagnosticBlock = renderDiagnosticHistory(input.diagnosticHistory);
   // A8: aggregate every structured signal the check-in agent emitted
   // across the roadmap so the brief generator sees them at the
@@ -223,6 +236,7 @@ CRITICAL RULES:
 - The pace calibration MUST be honoured in fork timeEstimate fields. If the pace label is slower_pace, state the calibration explicitly so the founder reads it as transparency, not silent correction.
 - Do not invent evidence the founder did not produce. If you cannot ground a claim in something above, do not make the claim.
 - When a VALIDATION SIGNAL block is present, reference the specific numbers ("your landing page received 847 visitors with 6% conversion") in What the Evidence Says and What I Got Wrong. If the signal is weak or negative, warn the founder explicitly — do not paper over it. If the signal is absent, do not invent market data.
+- When a RESERVE OPPORTUNITIES block is present, evaluate each reserve against the execution evidence before generating forks. If a reserve now looks more plausible than it did at Stage 5 — because the executed path surfaced a market gap, customer-access failure, or the founder discovered they cannot do what the chosen opportunity required — seed one fork from that reserve. Title it as a pivot ("Pivot to [reserve pain point]"), set fork.sourceReserveId to the matching reserve id from the block, and ground the rationale in BOTH the original Stage 5 reasoning AND the new execution evidence that makes the reserve more relevant today. Do NOT surface every reserve as a fork — three forks remain the cap, and a reserve-derived fork must outrank a "double-down" or "double-back" fork on the strength of the evidence. When no reserve is more plausible than the executed path, leave sourceReserveId null on every fork. When the block is absent, the field is moot — leave it null.
 - Do not end with hedging or "let me know what you think". End with the closing thought as specified.`;
 
       // Volatile suffix: the per-roadmap evidence that changes with
@@ -255,7 +269,7 @@ ${signalsBlock}${input.toolArtifactsBlock ?? ''}EXECUTION METRICS (use the calib
 PARKING LOT (adjacent ideas captured during execution):
 ${parkingLotBlock}
 
-${renderValidationSignalBlock(input.validationSignal)}${diagnosticBlock}
+${reservesBlock}${renderValidationSignalBlock(input.validationSignal)}${diagnosticBlock}
 
 ${(() => {
   const cov = input.checkinCoverage;

@@ -17,6 +17,7 @@ import { safeParseDiscoveryContext, type DiscoveryContext } from '@/lib/discover
 import { RecommendationSchema, safeParseAlternatives, type Recommendation } from '@/lib/discovery/recommendation-schema';
 import { StoredPhasesArraySchema, countTasksWithCheckins, type StoredRoadmapPhase } from '@/lib/roadmap/checkin-types';
 import { safeParseToolSessions, type ToolSessions } from '@/lib/roadmap/coach/schemas';
+import { ReserveOpportunitySchema, type ReserveOpportunity } from '@/lib/ideation/stage5-handoff/schema';
 import { safeParseParkingLot, type ParkingLot } from './parking-lot-schema';
 import { safeParseDiagnosticHistory, type DiagnosticHistory } from './diagnostic-schema';
 
@@ -117,6 +118,18 @@ export interface ContinuationEvidence {
    * walks BOTH locations to produce a complete summary.
    */
   toolSessions:       ToolSessions;
+  /**
+   * Stage 5 reserve opportunities mirrored onto the Recommendation row
+   * at synthesis time. Empty array when:
+   *   - the Recommendation came from the legacy Discovery flow (no
+   *     Stage 5, column is null)
+   *   - the row exists but parsing failed (defence-in-depth — bad
+   *     JSONB doesn't break the brief, just drops the block)
+   * The brief generator reads this to seed reserve-derived forks; the
+   * fork's `sourceReserveId` field carries the chosen reserve.id back
+   * through the schema.
+   */
+  reserveOpportunities: ReserveOpportunity[];
   progress: {
     totalTasks:     number;
     completedTasks: number;
@@ -171,16 +184,17 @@ export async function loadContinuationEvidence(input: {
       recommendationId:   true,
       recommendation: {
         select: {
-          recommendationType:     true,
-          summary:                true,
-          path:                   true,
-          reasoning:              true,
-          firstThreeSteps:        true,
-          timeToFirstResult:      true,
-          risks:                  true,
-          assumptions:            true,
-          whatWouldMakeThisWrong: true,
-          alternativeRejected:    true,
+          recommendationType:           true,
+          summary:                      true,
+          path:                         true,
+          reasoning:                    true,
+          firstThreeSteps:              true,
+          timeToFirstResult:            true,
+          risks:                        true,
+          assumptions:                  true,
+          whatWouldMakeThisWrong:       true,
+          alternativeRejected:          true,
+          ideationReserveOpportunities: true,
           session: { select: { beliefState: true } },
         },
       },
@@ -244,6 +258,23 @@ export async function loadContinuationEvidence(input: {
   const toolSessions      = safeParseToolSessions(row.toolSessions);
   const motivationAnchor  = context.motivationAnchor?.value ?? null;
 
+  // Stage 5 reserves. Returns [] on:
+  //   - null/undefined column (legacy Discovery-flow Recommendation —
+  //     pre-Stage-5; the brief generator drops the reserves block and
+  //     runs identically to the legacy path)
+  //   - non-array JSONB (corrupt; same drop-the-block fallback)
+  //   - any single entry failing schema parse (the bad entry is dropped,
+  //     valid entries are kept — partial corruption is tolerated rather
+  //     than rejecting the whole list)
+  const reserveOpportunities: ReserveOpportunity[] = [];
+  const reservesRaw = row.recommendation.ideationReserveOpportunities;
+  if (Array.isArray(reservesRaw)) {
+    for (const entry of reservesRaw) {
+      const parsed = ReserveOpportunitySchema.safeParse(entry);
+      if (parsed.success) reserveOpportunities.push(parsed.data);
+    }
+  }
+
   return {
     ok: true,
     evidence: {
@@ -260,6 +291,7 @@ export async function loadContinuationEvidence(input: {
       diagnosticHistory,
       motivationAnchor,
       toolSessions,
+      reserveOpportunities,
       progress: {
         totalTasks:     row.progress?.totalTasks     ?? 0,
         completedTasks: row.progress?.completedTasks ?? 0,
