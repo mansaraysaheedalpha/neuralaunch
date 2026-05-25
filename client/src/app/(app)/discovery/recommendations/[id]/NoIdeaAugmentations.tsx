@@ -80,24 +80,26 @@ export async function loadNoIdeaContext(
   const stage4 = rec.session.ideationRuns.find(r => r.stageNumber === 4) ?? null;
   const stage5 = rec.session.ideationRuns.find(r => r.stageNumber === 5) ?? null;
 
-  // Prefer the committed Stage 5 handoff document when the run is in
-  // output_ready (the typical state post-synthesis); fall back to the
-  // authoring state otherwise.
+  // Two row shapes to handle:
+  //   - status='output_ready' → row holds a Stage5HandoffDocument
+  //     (reserves come from doc.reserveOpportunities; requiresRederivation
+  //     does not apply — only the authoring shape carries that flag)
+  //   - status='authoring'   → row holds a Stage5AuthoringState
+  //     (reserves come from state.reserveOpportunities, and
+  //     state.requiresRederivation tells us whether to render the
+  //     cascade-stale banner). The cascade flips an output_ready row
+  //     back to authoring + sets the flag, so this is where staleness
+  //     is observed post-success too.
   let reserves: ReadonlyArray<ReserveOpportunity> = [];
   let requiresRederivation = false;
   if (stage5) {
     if (stage5.status === 'output_ready' || stage5.status === 'committed') {
       const doc = safeParseStage5HandoffDocument(stage5.output);
       if (doc) reserves = doc.reserveOpportunities;
-    }
-    if (reserves.length === 0) {
+    } else {
+      // status === 'authoring' (cascade fired, or pre-synthesis).
       const state = safeParseStage5AuthoringState(stage5.output);
       reserves = state.reserveOpportunities;
-      requiresRederivation = state.requiresRederivation;
-    } else {
-      // Even when reading the document, cascade staleness is still
-      // tracked on the authoring slice when an edit lands post-success.
-      const state = safeParseStage5AuthoringState(stage5.output);
       requiresRederivation = state.requiresRederivation;
     }
   }

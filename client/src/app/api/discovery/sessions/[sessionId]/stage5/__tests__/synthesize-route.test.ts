@@ -21,7 +21,6 @@ vi.mock('server-only', () => ({}));
 const {
   prismaFindMany, prismaDelete, inngestSend, createJob, findOpenJob,
   captureTrace, rateLimit, requireUser, enforceOrigin, HttpErrorStub,
-  safeParseAuthoring,
 } = vi.hoisted(() => {
   class HttpErrorStubInner extends Error {
     public status: number;
@@ -37,7 +36,6 @@ const {
     rateLimit:          vi.fn(),
     requireUser:        vi.fn(),
     enforceOrigin:      vi.fn(),
-    safeParseAuthoring: vi.fn(),
     HttpErrorStub:      HttpErrorStubInner,
   };
 });
@@ -52,12 +50,6 @@ vi.mock('@/inngest/client', () => ({ inngest: { send: inngestSend } }));
 vi.mock('@/lib/ideation/stage5-handoff/job', () => ({
   createStage5Job:    createJob,
   findOpenStage5Job:  findOpenJob,
-}));
-// safeParseStage5AuthoringState returns the parsed state; we stub it to
-// `requiresRederivation=false` by default and override per-test for the
-// cascade-stale gate.
-vi.mock('@/lib/ideation/stage5-handoff/state', () => ({
-  safeParseStage5AuthoringState: safeParseAuthoring,
 }));
 vi.mock('@/lib/observability', () => ({
   captureTraceHeaders: captureTrace,
@@ -116,24 +108,12 @@ beforeEach(() => {
   rateLimit.mockReset().mockResolvedValue(undefined);
   requireUser.mockReset().mockResolvedValue('user_1');
   enforceOrigin.mockReset();
-  // Default authoring state — requiresRederivation false. Per-test
-  // overrides via safeParseAuthoring.mockReturnValueOnce(...).
-  safeParseAuthoring.mockReset().mockReturnValue({
-    chosenOpportunity:           null,
-    reserveOpportunities:        [],
-    synthesizedRecommendationId: null,
-    synthesisStatus:             'awaiting_synthesis',
-    synthesisError:              null,
-    recommendedActions:          [],
-    cascadeSnapshot:             null,
-    requiresRederivation:        false,
-  });
 
   // Default happy path: stage 4 committed + stage 5 authoring, no
   // open job, createJob returns a fresh id, inngest.send resolves.
   prismaFindMany.mockResolvedValue([
-    { id: 'sr_4', stageNumber: 4, status: 'committed', output: {} },
-    { id: 'sr_5', stageNumber: 5, status: 'authoring', output: {} },
+    { id: 'sr_4', stageNumber: 4, status: 'committed' },
+    { id: 'sr_5', stageNumber: 5, status: 'authoring' },
   ]);
   findOpenJob.mockResolvedValue(null);
   createJob.mockResolvedValue({ id: 'job_new' });
@@ -172,8 +152,8 @@ describe('POST /stage5/synthesize — ownership', () => {
 describe('POST /stage5/synthesize — stage-state pre-conditions', () => {
   it('409s with founder-visible copy when Stage 4 is not committed', async () => {
     prismaFindMany.mockResolvedValueOnce([
-      { id: 'sr_4', stageNumber: 4, status: 'output_ready', output: {} },
-      { id: 'sr_5', stageNumber: 5, status: 'authoring', output: {} },
+      { id: 'sr_4', stageNumber: 4, status: 'output_ready' },
+      { id: 'sr_5', stageNumber: 5, status: 'authoring' },
     ]);
     const res = await POST(makeReq(), { params: makeParams() });
     expect(res.status).toBe(409);
@@ -184,7 +164,7 @@ describe('POST /stage5/synthesize — stage-state pre-conditions', () => {
 
   it('409s when Stage 5 row is missing', async () => {
     prismaFindMany.mockResolvedValueOnce([
-      { id: 'sr_4', stageNumber: 4, status: 'committed', output: {} },
+      { id: 'sr_4', stageNumber: 4, status: 'committed' },
     ]);
     const res = await POST(makeReq(), { params: makeParams() });
     expect(res.status).toBe(409);
@@ -192,29 +172,29 @@ describe('POST /stage5/synthesize — stage-state pre-conditions', () => {
 
   it('409s when Stage 5 is already output_ready', async () => {
     prismaFindMany.mockResolvedValueOnce([
-      { id: 'sr_4', stageNumber: 4, status: 'committed', output: {} },
-      { id: 'sr_5', stageNumber: 5, status: 'output_ready', output: {} },
+      { id: 'sr_4', stageNumber: 4, status: 'committed' },
+      { id: 'sr_5', stageNumber: 5, status: 'output_ready' },
     ]);
     const res = await POST(makeReq(), { params: makeParams() });
     expect(res.status).toBe(409);
   });
 
-  it('409s with cascade-stale copy when requiresRederivation is true', async () => {
-    safeParseAuthoring.mockReturnValueOnce({
-      chosenOpportunity:           null,
-      reserveOpportunities:        [],
-      synthesizedRecommendationId: null,
-      synthesisStatus:             'awaiting_synthesis',
-      synthesisError:              null,
-      recommendedActions:          [],
-      cascadeSnapshot:             null,
-      requiresRederivation:        true,
-    });
+  // Regression-prevention: an earlier scaffold had a cascade-stale guard
+  // here that 409'd whenever requiresRederivation was true. That broke
+  // the NoIdeaCascadeBanner's "Re-synthesize" CTA in the normal flow —
+  // the banner only renders precisely when requiresRederivation=true,
+  // so the route refused to process its own banner's primary action.
+  // The route now relies on the Inngest worker's status='committed'
+  // filter on Stage 1-4 reads for input freshness; no flag check here.
+  it('proceeds to 202 even when stale-cascade state would be detectable upstream', async () => {
+    // We can't inspect requiresRederivation in the route any more (the
+    // import is gone), but the regression we're pinning is that the
+    // happy-path findMany shape — Stage 4 committed + Stage 5 authoring —
+    // does NOT 409 regardless of the downstream cascade state. The
+    // worker is the one that validates fresh upstream evidence.
     const res = await POST(makeReq(), { params: makeParams() });
-    expect(res.status).toBe(409);
-    const body = await readBody(res);
-    expect(body.error).toBe('Your evidence changed — revisit Stage 4 before firing the handoff.');
-    expect(inngestSend).not.toHaveBeenCalled();
+    expect(res.status).toBe(202);
+    expect(inngestSend).toHaveBeenCalledTimes(1);
   });
 });
 

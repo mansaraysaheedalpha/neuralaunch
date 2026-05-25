@@ -35,7 +35,6 @@ import {
   createStage5Job,
   findOpenStage5Job,
 } from '@/lib/ideation/stage5-handoff/job';
-import { safeParseStage5AuthoringState } from '@/lib/ideation/stage5-handoff/state';
 
 // Accept-and-queue route — sub-second of orchestration. The Inngest
 // worker owns the long-running synthesis call and runs untethered to
@@ -68,15 +67,13 @@ export async function POST(
     // Ownership-scoped lookup. The session join filter on the stage-run
     // query is what enforces ownership — a row that doesn't exist OR
     // belongs to another user 404s identically (no existence leak).
-    // `output` is selected on Stage 5 only so the cascade-stale guard
-    // below can read requiresRederivation without a second round-trip.
     const stageRuns = await prisma.ideationStageRun.findMany({
       where:  {
         sessionId,
         session:     { userId },
         stageNumber: { in: [4, 5] },
       },
-      select: { id: true, stageNumber: true, status: true, output: true },
+      select: { id: true, stageNumber: true, status: true },
     });
     if (stageRuns.length === 0) {
       throw new HttpError(404, 'Session not found');
@@ -95,15 +92,16 @@ export async function POST(
       throw new HttpError(409, `Stage 5 is in ${stage5.status} state, not authoring`);
     }
 
-    // Defence-in-depth cascade-stale check. The Stage 5 pre-synthesis
-    // banner (§ A.5) should have caught this before the founder hit
-    // the CTA, but the route is the last line of defence — a stale
-    // synthesis would read off pre-edit Stage 1-4 evidence and silently
-    // produce a misaligned Recommendation. Copy per § H.3.
-    const stage5State = safeParseStage5AuthoringState(stage5.output);
-    if (stage5State.requiresRederivation) {
-      throw new HttpError(409, 'Your evidence changed — revisit Stage 4 before firing the handoff.');
-    }
+    // Note on cascade-stale state: when Stage5AuthoringState.requiresRederivation
+    // is true (an upstream Stage 1-4 edit has invalidated the prior
+    // synthesis), the route still proceeds. The Inngest worker's
+    // loadStage5SynthesisInputs filters Stage 1-4 reads on
+    // status='committed', so the input is fresh by construction. Re-firing
+    // synthesis IS the act of refreshing — the flag is meant to be cleared
+    // by a successful run, not gate the run itself. Earlier scaffolding
+    // had a guard here that prevented exactly this; removed because it
+    // broke the NoIdeaCascadeBanner's "Re-synthesize" CTA in the normal
+    // flow (banner shows iff requiresRederivation, route then rejected).
 
     // Idempotency — re-POST while a job is in flight returns the
     // existing jobId. Combines with the partial unique on
