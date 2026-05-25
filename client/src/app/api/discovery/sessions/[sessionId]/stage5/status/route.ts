@@ -27,9 +27,11 @@ import {
 import type { Stage5JobStage } from '@/lib/ideation/stage5-handoff/job';
 
 /**
- * Status payload shape returned to the client. Mirrors the brief's
- * contract exactly — `status` is the simplified 4-state projection
- * the polling loop branches on, NOT the worker's full 6-state stage.
+ * Polling client's branch key. The full worker stage (loading_inputs,
+ * synthesizing, persisting) is mapped to 'running' so existing branches
+ * stay simple; the raw `stage` field is also surfaced below so the
+ * Stage 5 polling UI can render the four-phase vertical checklist
+ * (B.2 in docs/stage5-copy-review.md).
  */
 type Stage5JobPublicStatus = 'queued' | 'running' | 'succeeded' | 'failed';
 
@@ -78,13 +80,16 @@ export async function GET(
     // Build the contract-aligned response. `error` is only set on the
     // failed path; `recommendationId` is only set on the succeeded
     // path. The polling client branches on `status` and reads the
-    // optional fields when present.
+    // optional fields when present. `stage` is the unprojected worker
+    // pipeline phase — exposed so the Stage 5 polling UI can render the
+    // four-phase vertical checklist.
     const body: {
       jobId:             string;
       status:            Stage5JobPublicStatus;
+      stage:             Stage5JobStage;
       error?:            string;
       recommendationId?: string;
-    } = { jobId: job.id, status };
+    } = { jobId: job.id, status, stage: job.stage as Stage5JobStage };
     if (status === 'failed' && job.errorMessage) {
       body.error = job.errorMessage;
     }

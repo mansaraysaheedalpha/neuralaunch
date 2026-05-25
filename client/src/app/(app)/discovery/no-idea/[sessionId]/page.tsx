@@ -12,14 +12,22 @@ import {
   safeParsePainInventoryDocument,
   safeParseStage4AuthoringState,
   safeParseOpportunityEvaluationsDocument,
+  safeParseStage5AuthoringState,
+  buildReserveOpportunities,
   safeParseSkillInventory,
   createEmptySkillInventory,
 } from '@/lib/ideation';
+import type {
+  ChosenOpportunitySnapshot,
+  ReserveOpportunity,
+} from '@/lib/ideation/stage5-handoff/schema';
+import type { OpportunityEvaluationsDocument } from '@/lib/ideation/stage4-opportunities/schema';
 import { Stage1ChatClient } from './Stage1ChatClient';
 import { OutcomeDocumentView } from './OutcomeDocumentView';
 import { Stage2ChatClient } from './Stage2ChatClient';
 import { Stage3ChatClient } from './Stage3ChatClient';
 import { Stage4ChatClient } from './Stage4ChatClient';
+import { Stage5Page } from './Stage5Page';
 import { StageBeyondPlaceholder } from './StageBeyondPlaceholder';
 import { RequirementsDocumentView } from '@/components/ideation/RequirementsDocumentView';
 import { PainInventoryDocumentView } from '@/components/ideation/stage3/PainInventoryDocumentView';
@@ -93,9 +101,98 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
 
   if (!active) notFound();
 
-  // Stage 5 is not implemented yet — the placeholder gets it. Stage 4
-  // is handled in the dispatch block below.
-  if (active.stageNumber >= 5) {
+  // Stage 5 — Validation Handoff (pre-synthesis review surface).
+  // The stage 6+ placeholder kept for future stages (none planned today;
+  // Stage 5 is terminal in the No Idea ladder per stage5-transitions.ts).
+  if (active.stageNumber === 5) {
+    // Stage 5 reaches 'output_ready' only after the synthesis worker
+    // succeeds. Once that happens, the founder belongs on the legacy
+    // Recommendation review surface — Stage 5 has no committed-document
+    // view of its own.
+    if (active.status === 'output_ready') {
+      const stage5State = safeParseStage5AuthoringState(active.output);
+      if (stage5State.synthesizedRecommendationId) {
+        redirect(`/discovery/recommendations/${stage5State.synthesizedRecommendationId}`);
+      }
+      // Defence-in-depth: shouldn't reach here (the worker writes
+      // recommendationId before flipping status). Fall through to the
+      // authoring view so the founder can re-trigger synthesis.
+    }
+
+    // Stage 4 must be committed before we can render the chosen +
+    // reserves. Defence-in-depth — the cross-stage cascades + stage
+    // ladder normally guarantee this.
+    const stage4Committed = discoverySession.ideationRuns.find(
+      r => r.stageNumber === 4 && r.status === 'committed',
+    );
+    const stage4Doc: OpportunityEvaluationsDocument | null = stage4Committed
+      ? safeParseOpportunityEvaluationsDocument(stage4Committed.output)
+      : null;
+    if (!stage4Doc || !stage4Doc.chosenOpportunityId) {
+      return <StageBeyondPlaceholder stageNumber={active.stageNumber} />;
+    }
+
+    // Resolve chosen + reserves. Preferred source is the Stage 5
+    // authoring state seeded by the turn handler / synthesis worker;
+    // fall back to deriving fresh from the committed Stage 4 doc.
+    const stage5State = safeParseStage5AuthoringState(active.output);
+    let chosen: ChosenOpportunitySnapshot | null = stage5State.chosenOpportunity;
+    if (!chosen) {
+      const row = stage4Doc.evaluations.find(e => e.id === stage4Doc.chosenOpportunityId);
+      if (row && row.founderVerdict !== null) {
+        chosen = {
+          id:               row.id,
+          painPointSummary: row.painPointSummary,
+          agentVerdict:     row.agentVerdict,
+          founderVerdict:   row.founderVerdict,
+          agentReasoning:   row.agentReasoning,
+          layerASummary:    row.layerAResearch && {
+            marketReality:  { reasoning: row.layerAResearch.marketReality.reasoning,  confidence: row.layerAResearch.marketReality.confidence },
+            customerAccess: { reasoning: row.layerAResearch.customerAccess.reasoning, confidence: row.layerAResearch.customerAccess.confidence },
+            willPeoplePay:  { reasoning: row.layerAResearch.willPeoplePay.reasoning,  confidence: row.layerAResearch.willPeoplePay.confidence },
+            marketSize:     { reasoning: row.layerAResearch.marketSize.reasoning,     confidence: row.layerAResearch.marketSize.confidence },
+          },
+          layerBSummary:    row.layerBExtractedSignal,
+        };
+      }
+    }
+    if (!chosen) {
+      // Stage 4 chosen exists but founderVerdict is null — shouldn't
+      // happen, the chosen requires a verdict to commit. Fall back.
+      return <StageBeyondPlaceholder stageNumber={active.stageNumber} />;
+    }
+    const reserves: ReserveOpportunity[] = stage5State.reserveOpportunities.length > 0
+      ? stage5State.reserveOpportunities
+      : buildReserveOpportunities(stage4Doc.evaluations, chosen.id);
+
+    // Pick up an existing job if one is still in flight (or just
+    // finished/failed) so the polling client lands ready-to-go.
+    const existingJob = await prisma.ideationStage5Job.findFirst({
+      where:   { sessionId, userId },
+      orderBy: { startedAt: 'desc' },
+      select:  { id: true, stage: true, errorMessage: true },
+    });
+    const existingJobId = existingJob && existingJob.stage !== 'failed' && existingJob.stage !== 'succeeded'
+      ? existingJob.id
+      : null;
+    const lastFailureMessage = existingJob && existingJob.stage === 'failed'
+      ? existingJob.errorMessage ?? stage5State.synthesisError
+      : stage5State.synthesisError;
+
+    return (
+      <Stage5Page
+        sessionId={sessionId}
+        chosen={chosen}
+        reserves={reserves}
+        requiresRederivation={stage5State.requiresRederivation}
+        existingJobId={existingJobId}
+        lastFailureMessage={lastFailureMessage}
+      />
+    );
+  }
+
+  // Stage 6+ — no such stage today; safety net for unexpected rows.
+  if (active.stageNumber > 5) {
     return <StageBeyondPlaceholder stageNumber={active.stageNumber} />;
   }
 

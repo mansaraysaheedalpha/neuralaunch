@@ -6,6 +6,9 @@ import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
 import { RecommendationReveal } from './RecommendationReveal';
 import { safeParsePushbackHistory } from '@/lib/discovery/pushback-engine';
+import { loadNoIdeaContext } from '@/app/(app)/discovery/recommendations/[id]/NoIdeaAugmentations';
+import { NoIdeaCascadeBanner } from '@/app/(app)/discovery/recommendations/[id]/NoIdeaCascadeBanner';
+import { NoIdeaAlternativesSection } from '@/app/(app)/discovery/recommendations/[id]/NoIdeaAlternativesSection';
 
 /**
  * RecommendationPage
@@ -52,6 +55,10 @@ export default async function RecommendationPage({
 
   if (!recommendation) redirect('/discovery');
 
+  // No Idea archetype augmentations — same isolation guard as the
+  // /[id] surface. loadNoIdeaContext is ownership-scoped internally.
+  const noIdea = await loadNoIdeaContext(recommendation.id, userId);
+
   // STALE counts as "ready" for navigation purposes — the founder
   // should still be able to view the roadmap, the STALE banner inside
   // RoadmapView prompts them to regenerate.
@@ -97,21 +104,43 @@ export default async function RecommendationPage({
         >
           Past recommendations
         </Link>
-        {conversationId && (
-          <Link
-            href={`/chat/${conversationId}`}
-            className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-          >
-            View interview transcript →
-          </Link>
-        )}
+        <div className="flex items-center gap-4">
+          {noIdea.isNoIdea && noIdea.sessionId && (
+            <Link
+              href={`/discovery/no-idea/${noIdea.sessionId}`}
+              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+            >
+              Revisit Stage 4
+            </Link>
+          )}
+          {conversationId && (
+            <Link
+              href={`/chat/${conversationId}`}
+              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+            >
+              View interview transcript →
+            </Link>
+          )}
+        </div>
       </div>
+      {noIdea.isNoIdea && noIdea.sessionId && noIdea.requiresRederivation && (
+        <NoIdeaCascadeBanner sessionId={noIdea.sessionId} />
+      )}
       <Suspense fallback={<div className="flex-1 flex items-center justify-center"><span className="text-muted-foreground text-sm">Loading…</span></div>}>
         <RecommendationReveal
           recommendation={recForClient}
           roadmapReady={roadmapReady}
         />
       </Suspense>
+      {noIdea.isNoIdea && noIdea.sessionId && (
+        <div className="px-6 pb-8 max-w-3xl mx-auto w-full">
+          <NoIdeaAlternativesSection
+            reserves={noIdea.reserves}
+            sessionId={noIdea.sessionId}
+            stage4StageRunId={noIdea.stage4StageRunId}
+          />
+        </div>
+      )}
     </div>
   );
 }

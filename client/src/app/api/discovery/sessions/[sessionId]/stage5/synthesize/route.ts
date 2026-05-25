@@ -35,6 +35,7 @@ import {
   createStage5Job,
   findOpenStage5Job,
 } from '@/lib/ideation/stage5-handoff/job';
+import { safeParseStage5AuthoringState } from '@/lib/ideation/stage5-handoff/state';
 
 // Accept-and-queue route — sub-second of orchestration. The Inngest
 // worker owns the long-running synthesis call and runs untethered to
@@ -67,13 +68,15 @@ export async function POST(
     // Ownership-scoped lookup. The session join filter on the stage-run
     // query is what enforces ownership — a row that doesn't exist OR
     // belongs to another user 404s identically (no existence leak).
+    // `output` is selected on Stage 5 only so the cascade-stale guard
+    // below can read requiresRederivation without a second round-trip.
     const stageRuns = await prisma.ideationStageRun.findMany({
       where:  {
         sessionId,
         session:     { userId },
         stageNumber: { in: [4, 5] },
       },
-      select: { id: true, stageNumber: true, status: true },
+      select: { id: true, stageNumber: true, status: true, output: true },
     });
     if (stageRuns.length === 0) {
       throw new HttpError(404, 'Session not found');
@@ -82,13 +85,24 @@ export async function POST(
     const stage4 = stageRuns.find(r => r.stageNumber === 4);
     const stage5 = stageRuns.find(r => r.stageNumber === 5);
     if (!stage4 || stage4.status !== 'committed') {
-      throw new HttpError(409, 'Stage 4 is not committed yet');
+      // Founder-visible copy per docs/stage5-copy-review.md § H.2.
+      throw new HttpError(409, 'Stage 4 must be committed before you can fire the handoff.');
     }
     if (!stage5) {
       throw new HttpError(409, 'Stage 5 row is missing');
     }
     if (stage5.status !== 'authoring') {
       throw new HttpError(409, `Stage 5 is in ${stage5.status} state, not authoring`);
+    }
+
+    // Defence-in-depth cascade-stale check. The Stage 5 pre-synthesis
+    // banner (§ A.5) should have caught this before the founder hit
+    // the CTA, but the route is the last line of defence — a stale
+    // synthesis would read off pre-edit Stage 1-4 evidence and silently
+    // produce a misaligned Recommendation. Copy per § H.3.
+    const stage5State = safeParseStage5AuthoringState(stage5.output);
+    if (stage5State.requiresRederivation) {
+      throw new HttpError(409, 'Your evidence changed — revisit Stage 4 before firing the handoff.');
     }
 
     // Idempotency — re-POST while a job is in flight returns the

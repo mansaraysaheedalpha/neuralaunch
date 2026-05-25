@@ -111,24 +111,24 @@ describe('GET /stage5/status — ownership', () => {
 });
 
 describe('GET /stage5/status — projection of stage → public status', () => {
-  it('projects queued → queued', async () => {
+  it('projects queued → queued + surfaces the raw worker stage', async () => {
     prismaFindFirst.mockResolvedValueOnce({
       id: 'job_1', stage: 'queued', errorMessage: null, recommendationId: null,
     });
     const res = await GET(makeReq(), { params: makeParams() });
     const body = await readBody(res);
-    expect(body).toEqual({ jobId: 'job_1', status: 'queued' });
+    expect(body).toEqual({ jobId: 'job_1', status: 'queued', stage: 'queued' });
   });
 
   it.each(['loading_inputs', 'synthesizing', 'persisting'])(
-    'projects %s → running',
+    'projects %s → running + surfaces the worker stage',
     async (stage) => {
       prismaFindFirst.mockResolvedValueOnce({
         id: 'job_1', stage, errorMessage: null, recommendationId: null,
       });
       const res = await GET(makeReq(), { params: makeParams() });
       const body = await readBody(res);
-      expect(body).toEqual({ jobId: 'job_1', status: 'running' });
+      expect(body).toEqual({ jobId: 'job_1', status: 'running', stage });
     },
   );
 
@@ -138,7 +138,7 @@ describe('GET /stage5/status — projection of stage → public status', () => {
     });
     const res = await GET(makeReq(), { params: makeParams() });
     const body = await readBody(res);
-    expect(body).toEqual({ jobId: 'job_1', status: 'succeeded', recommendationId: 'rec_42' });
+    expect(body).toEqual({ jobId: 'job_1', status: 'succeeded', stage: 'succeeded', recommendationId: 'rec_42' });
   });
 
   it('projects failed → failed + carries error message', async () => {
@@ -147,7 +147,7 @@ describe('GET /stage5/status — projection of stage → public status', () => {
     });
     const res = await GET(makeReq(), { params: makeParams() });
     const body = await readBody(res);
-    expect(body).toEqual({ jobId: 'job_1', status: 'failed', error: 'Anthropic overloaded' });
+    expect(body).toEqual({ jobId: 'job_1', status: 'failed', stage: 'failed', error: 'Anthropic overloaded' });
   });
 
   it('omits error when failed but no errorMessage stored', async () => {
@@ -156,7 +156,7 @@ describe('GET /stage5/status — projection of stage → public status', () => {
     });
     const res = await GET(makeReq(), { params: makeParams() });
     const body = await readBody(res);
-    expect(body).toEqual({ jobId: 'job_1', status: 'failed' });
+    expect(body).toEqual({ jobId: 'job_1', status: 'failed', stage: 'failed' });
   });
 
   it('sets Cache-Control: no-store (polled endpoint, never cached)', async () => {

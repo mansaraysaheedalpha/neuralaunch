@@ -8,6 +8,9 @@ import { RecommendationReveal } from '@/app/(app)/discovery/recommendation/Recom
 import { safeParsePushbackHistory } from '@/lib/discovery/pushback-engine';
 import { isRegenerateAllowed } from '@/lib/discovery/regenerate-allowlist';
 import { RegenerateButton } from './RegenerateButton';
+import { loadNoIdeaContext } from './NoIdeaAugmentations';
+import { NoIdeaCascadeBanner } from './NoIdeaCascadeBanner';
+import { NoIdeaAlternativesSection } from './NoIdeaAlternativesSection';
 
 /**
  * RecommendationDetailPage
@@ -66,6 +69,13 @@ export default async function RecommendationDetailPage({
                                 && !recommendation.acceptedAt
                                 && !hasUserPushbackTurns;
 
+  // No Idea archetype augmentations — gated on whether the recommendation
+  // came through the Stage 5 synthesis worker (i.e., the session has
+  // IdeationStageRun rows). All augmentation rendering is suppressed
+  // when this returns isNoIdea=false so non-no_idea recommendations are
+  // never polluted with the cascade banner / alternatives panel.
+  const noIdea = await loadNoIdeaContext(recommendation.id, userId);
+
   const conversationId           = recommendation.session?.conversationId ?? null;
   // STALE counts as "ready" for navigation purposes — see comment in
   // /discovery/recommendation/page.tsx for context.
@@ -112,6 +122,14 @@ export default async function RecommendationDetailPage({
           ← All recommendations
         </Link>
         <div className="flex items-center gap-4">
+          {noIdea.isNoIdea && noIdea.sessionId && (
+            <Link
+              href={`/discovery/no-idea/${noIdea.sessionId}`}
+              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+            >
+              Revisit Stage 4
+            </Link>
+          )}
           {canRegenerate && <RegenerateButton recommendationId={recommendation.id} />}
           {conversationId && (
             <Link
@@ -123,6 +141,9 @@ export default async function RecommendationDetailPage({
           )}
         </div>
       </div>
+      {noIdea.isNoIdea && noIdea.sessionId && noIdea.requiresRederivation && (
+        <NoIdeaCascadeBanner sessionId={noIdea.sessionId} />
+      )}
       <Suspense fallback={
         <div className="flex-1 flex items-center justify-center">
           <span className="text-muted-foreground text-sm">Loading…</span>
@@ -133,6 +154,15 @@ export default async function RecommendationDetailPage({
           roadmapReady={roadmapReady}
         />
       </Suspense>
+      {noIdea.isNoIdea && noIdea.sessionId && (
+        <div className="px-6 pb-8 max-w-3xl mx-auto w-full">
+          <NoIdeaAlternativesSection
+            reserves={noIdea.reserves}
+            sessionId={noIdea.sessionId}
+            stage4StageRunId={noIdea.stage4StageRunId}
+          />
+        </div>
+      )}
     </div>
   );
 }
