@@ -21,6 +21,7 @@ import {
   replacePainPointById,
   appendStage3RecommendedAction,
 } from '../stage3-opportunities/state';
+import { createEmptyStage4AuthoringState } from '../stage4-opportunities/state';
 import type { RecommendedAction } from '../stage1-outcome/schema';
 
 // ---------------------------------------------------------------------------
@@ -40,13 +41,53 @@ export async function markStage3OutputReady(
   }
 }
 
+/**
+ * Stage 3 commit. Same shape as markStage2Committed (commit f3ae4bc).
+ * The original implementation flipped status but DID NOT lazy-create
+ * the Stage 4 row — every founder who reached Stage 3 commit would
+ * land on a dead-end (dispatcher routes to the highest-numbered row
+ * when nothing is non-committed, which is Stage 3 committed itself).
+ * The lazy-create lives in the same $transaction so a partial write
+ * cannot leave the founder stuck.
+ *
+ * Idempotency:
+ *   - updateMany with status='output_ready' filter no-ops on an already-
+ *     committed row.
+ *   - upsert with update:{} so an existing Stage 4 row's authoring
+ *     state is preserved.
+ *   - upsert keyed on (sessionId, stageNumber=4) — concurrent commits
+ *     cannot produce duplicates.
+ */
 export async function markStage3Committed(
   stageRunId: string,
   now:        Date = new Date(),
 ): Promise<void> {
-  await prisma.ideationStageRun.updateMany({
-    where: { id: stageRunId, status: 'output_ready' },
-    data:  { status: 'committed', committedAt: now },
+  await prisma.$transaction(async (tx) => {
+    await tx.ideationStageRun.updateMany({
+      where: { id: stageRunId, status: 'output_ready' },
+      data:  { status: 'committed', committedAt: now },
+    });
+
+    // Re-read to get sessionId. If the updateMany was a no-op (count=0
+    // — the row was already committed by a prior call), we still want
+    // to make sure Stage 4 exists. Self-healing.
+    const row = await tx.ideationStageRun.findUnique({
+      where:  { id: stageRunId },
+      select: { sessionId: true, status: true },
+    });
+    if (!row || row.status !== 'committed') return;
+
+    await tx.ideationStageRun.upsert({
+      where:  { sessionId_stageNumber: { sessionId: row.sessionId, stageNumber: 4 } },
+      create: {
+        sessionId:   row.sessionId,
+        stageNumber: 4,
+        status:      'authoring',
+        output:      toJsonValue(createEmptyStage4AuthoringState()),
+        startedAt:   now,
+      },
+      update: {},
+    });
   });
 }
 
