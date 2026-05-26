@@ -2,7 +2,6 @@
 "use client";
 
 import Link from "next/link";
-import ThemeSwitcher from "./ThemeSwitcher";
 import { useSession, signOut } from "next-auth/react";
 import Image from "next/image";
 import { motion } from "motion/react";
@@ -68,7 +67,6 @@ export default function LandingHeader() {
             <span>Feedback</span>
             <span>💬</span>
           </Link>
-          <ThemeSwitcher />
           {/* Auth Status Logic */}
           {status === "loading" ? (
             <div className="w-9 h-9 sm:w-10 sm:h-10 bg-muted rounded-full animate-pulse"></div>

@@ -1,5 +1,5 @@
 import type { Config } from "tailwindcss";
-import typography from "@tailwindcss/typography"; // <-- 1. Import the plugin
+import typography from "@tailwindcss/typography";
 
 const config: Config = {
   content: [
@@ -11,6 +11,35 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        /* ===== Institute palette ===================================
+         * Bound directly to the CSS variables declared on :root in
+         * globals.css. These are the canonical tokens going forward.
+         * ============================================================ */
+        bg: "var(--bg)",
+        "bg-2": "var(--bg-2)",
+        "bg-3": "var(--bg-3)",
+        fg: "var(--fg)",
+        "fg-2": "var(--fg-2)",
+        "muted-2": "var(--muted-2)",
+        rule: "var(--rule)",
+        "rule-strong": "var(--rule-strong)",
+        accent: {
+          DEFAULT: "var(--accent)",
+          foreground: "var(--bg)",
+        },
+        amber: "var(--amber)",
+        success: {
+          DEFAULT: "var(--success)",
+          foreground: "var(--bg)",
+        },
+
+        /* ===== Back-compat tokens ==================================
+         * Pre-redesign components still reach for `bg-card`,
+         * `text-foreground`, `border-border`, `text-muted-foreground`,
+         * `bg-primary`, etc. The CSS vars below all alias onto the
+         * Institute scale (see globals.css), so these keep rendering
+         * sane until Prompt 02 migrates the components.
+         * ============================================================ */
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         background: "hsl(var(--background))",
@@ -20,37 +49,17 @@ const config: Config = {
           foreground: "hsl(var(--primary-foreground))",
           light: "hsl(var(--primary-light))",
         },
-        accent: {
-          DEFAULT: "hsl(195 85% 55%)",
-          foreground: "hsl(210 40% 98%)",
-        },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
           foreground: "hsl(var(--secondary-foreground))",
         },
         muted: {
-          DEFAULT: "hsl(var(--muted))",
+          DEFAULT: "var(--muted)",
           foreground: "hsl(var(--muted-foreground))",
         },
         card: {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
-        },
-        // Warm gold — premium accent. Used sparingly on marketing moments,
-        // the committed-summary hero, and the fork picker.
-        gold: "hsl(var(--gold))",
-        // Emerald — success / confirmed state. Replaces scattered
-        // green-500 / emerald-500 Tailwind defaults in status UI.
-        success: {
-          DEFAULT: "hsl(var(--success))",
-          foreground: "hsl(var(--success-foreground))",
-        },
-        // Deep navy scale — brand surfaces for dark-mode background tiers.
-        // 950 = page, 900 = card, 800 = elevated card / hover.
-        navy: {
-          950: "#070F1C",
-          900: "#0A1628",
-          800: "#0D1E38",
         },
       },
       borderRadius: {
@@ -59,13 +68,23 @@ const config: Config = {
         sm: "var(--radius-sm)",
       },
       fontFamily: {
-        sans: ["var(--font-geist-sans)"],
-      },
-      boxShadow: {
-        sm: "var(--shadow-sm)",
-        md: "var(--shadow-md)",
-        lg: "var(--shadow-lg)",
-        xl: "var(--shadow-xl)",
+        sans: [
+          "var(--font-inter-tight)",
+          "system-ui",
+          "-apple-system",
+          "sans-serif",
+        ],
+        serif: [
+          "var(--font-instrument-serif)",
+          "Times New Roman",
+          "serif",
+        ],
+        mono: [
+          "var(--font-jetbrains-mono)",
+          "ui-monospace",
+          "SFMono-Regular",
+          "monospace",
+        ],
       },
       transitionDuration: {
         fast: "150ms",
@@ -93,9 +112,7 @@ const config: Config = {
       },
     },
   },
-  // --- FIX: Use the imported plugin ---
-  plugins: [typography], // <-- 2. Use the imported variable here
-  // ------------------------------------
+  plugins: [typography],
 };
 
 export default config;

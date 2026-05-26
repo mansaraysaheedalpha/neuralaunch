@@ -24,8 +24,8 @@ export function Stage1Banner({ sessionId, forceVisible }: Stage1BannerProps) {
   const [dismissed, setDismissed] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // SSR-safe localStorage read pattern — same as ThemeSwitcher and
-    // other once-per-mount client-state probes in this codebase. The
+    // SSR-safe localStorage read pattern — once-per-mount client-state
+    // probe. The
     // initial null render avoids a hydration mismatch when the banner
     // would otherwise show on the server and not on the client (or
     // vice-versa). Single setState; no cascading render risk.

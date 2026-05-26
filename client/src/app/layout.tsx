@@ -1,13 +1,41 @@
 //client/src/app/layout.tsx
 import type { Metadata, Viewport } from "next";
-import { GeistSans } from "geist/font/sans";
-import "./globals.css"; // Keep global styles
+import { Inter_Tight, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import Providers from "./providers"; // Keep providers (Theme, Session, etc.)
 import { Toaster } from "react-hot-toast";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
 import Script from "next/script";
 import { env } from "@/lib/env";
+import "./globals.css"; // Keep global styles
+
+// The Institute typography stack. Three Google Fonts loaded via
+// next/font/google: Inter Tight (sans, the workhorse), Instrument
+// Serif (italic serif accents inside headings + pull-quotes),
+// JetBrains Mono (eyebrow labels + measurement copy). Each binds a
+// CSS variable on <html>, which globals.css + tailwind.config.ts
+// read as the canonical sans/serif/mono families.
+const interTight = Inter_Tight({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-inter-tight",
+  display: "swap",
+});
+
+const instrumentSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-instrument-serif",
+  display: "swap",
+});
+
+const jetBrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+});
 
 // Canonical site origin. Falls back to the production domain so
 // metadata emitted at build time (sitemap, openGraph URLs, JSON-LD)
@@ -70,10 +98,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#2563EB" },
-    { media: "(prefers-color-scheme: dark)", color: "#070F1C" },
-  ],
+  // The Institute is dark-only. Single themeColor matches --bg.
+  themeColor: "#0a0a0c",
 };
 
 export default function RootLayout({
@@ -116,7 +142,11 @@ export default function RootLayout({
   ];
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${interTight.variable} ${instrumentSerif.variable} ${jetBrainsMono.variable}`}
+    >
       <head>
         {/* Plain inline <script> (not next/script) so the JSON-LD lands
             in the server-rendered HTML at first byte. Google's
@@ -165,7 +195,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${GeistSans.className} antialiased`}>
+      <body className="antialiased">
         {/* Providers wrap everything */}
         <Providers>
           {/* Children are the page content (landing page OR app layout + page) */}
