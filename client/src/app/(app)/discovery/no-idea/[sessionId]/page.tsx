@@ -308,6 +308,7 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
           firstName={firstName}
           initialMessages={messages}
           inventory={authoring.workingInventory}
+          expectedProfile={authoring.workingExpectedProfile}
           hasExpectedProfile={
             authoring.workingExpectedProfile !== null
             && authoring.workingExpectedProfile.length > 0
@@ -336,6 +337,7 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
           firstName={firstName}
           initialMessages={messages}
           inventory={inv}
+          expectedProfile={null}
           hasExpectedProfile={false}
           requiresRederivation={false}
           showEntryPicker={false}

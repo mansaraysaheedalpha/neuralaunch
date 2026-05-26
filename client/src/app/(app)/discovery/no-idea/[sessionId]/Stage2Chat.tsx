@@ -7,9 +7,13 @@ import { Button } from '@/components/ui/button';
 import { MessageList, type ChatMessage } from '@/components/discovery/MessageList';
 import { SkillCanvas } from '@/components/ideation/SkillCanvas';
 import { SkillCanvasEntry, type SkillCanvasEntryMode } from '@/components/ideation/SkillCanvasEntry';
+import { ExpectedProfileView } from '@/components/ideation/ExpectedProfileView';
 import { Stage2Banner } from './Stage2Banner';
 import { useStage2Session, type Stage2Message } from './useStage2Session';
-import type { SkillInventory } from '@/lib/ideation/stage2-requirements/schema';
+import type {
+  SkillInventory,
+  ExpectedProfileEntry,
+} from '@/lib/ideation/stage2-requirements/schema';
 
 interface Stage2ChatProps {
   sessionId:       string;
@@ -17,6 +21,13 @@ interface Stage2ChatProps {
   firstName:       string;
   initialMessages: Stage2Message[];
   inventory:       SkillInventory;
+  /**
+   * Derived Expected Profile entries from the authoring state. Null
+   * before the founder fires the derive route. Rendered read-only
+   * below the canvas once present so the founder can see what the
+   * outcome demands without having to compose first.
+   */
+  expectedProfile: ExpectedProfileEntry[] | null;
   hasExpectedProfile: boolean;
   requiresRederivation: boolean;
   /**
@@ -41,6 +52,7 @@ export function Stage2Chat({
   firstName,
   initialMessages,
   inventory,
+  expectedProfile,
   hasExpectedProfile,
   requiresRederivation,
   showEntryPicker,
@@ -153,6 +165,32 @@ export function Stage2Chat({
                 <Sparkles className="size-4 mr-1" />
                 {status === 'composing' ? 'Deriving Expected Profile…' : 'Derive the Expected Profile'}
               </Button>
+            )}
+
+            {/*
+              Read-only Expected Profile surface. Renders once the
+              founder has fired derive — gives them a visible answer to
+              "what does my outcome actually demand" before they have
+              to compose. The interactive "Question this" pushback
+              affordance lives on the committed RequirementsDocumentView;
+              here `readOnly` suppresses the button so the founder isn't
+              tempted to push back on entries that may still re-derive
+              if Stage 1 changes.
+            */}
+            {expectedProfile && expectedProfile.length > 0 && (
+              <section className="space-y-2">
+                <header>
+                  <h2 className="text-sm font-semibold text-foreground">What your outcome demands</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    The skills I read off your Outcome Document. Compare against your inventory above.
+                  </p>
+                </header>
+                <ExpectedProfileView
+                  entries={expectedProfile}
+                  readOnly
+                  onPushback={() => Promise.reject(new Error('Pushback is not available during Stage 2 authoring'))}
+                />
+              </section>
             )}
           </section>
 

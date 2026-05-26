@@ -2,7 +2,10 @@
 
 import { Stage2Chat } from './Stage2Chat';
 import type { Stage2Message } from './useStage2Session';
-import type { SkillInventory } from '@/lib/ideation/stage2-requirements/schema';
+import type {
+  SkillInventory,
+  ExpectedProfileEntry,
+} from '@/lib/ideation/stage2-requirements/schema';
 
 interface Stage2ChatClientProps {
   sessionId:            string;
@@ -10,6 +13,13 @@ interface Stage2ChatClientProps {
   firstName:            string;
   initialMessages:      Stage2Message[];
   inventory:            SkillInventory;
+  /**
+   * Derived Expected Profile entries from the authoring state. Null
+   * when the founder hasn't fired the derive route yet. Surfaced
+   * read-only inside the canvas column so the founder can compare
+   * their inventory against what the outcome demands.
+   */
+  expectedProfile:      ExpectedProfileEntry[] | null;
   hasExpectedProfile:   boolean;
   requiresRederivation: boolean;
   showEntryPicker:      boolean;

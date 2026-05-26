@@ -128,9 +128,21 @@ export function OpportunityEvaluationsDocumentView({
                 <ArrowRight className="size-4 ml-1" />
               </Button>
             ) : (
-              <span className="ml-auto text-sm text-muted-foreground">
-                Committed · Stage 5 is still being built
-              </span>
+              // Status='committed' is reached after handleCommit; the
+              // router.refresh() that follows usually routes the founder
+              // straight to Stage 5 (the dispatcher finds the freshly-
+              // lazy-created Stage 5 row active). This branch is only
+              // reachable on a stale page render (back-button, cached
+              // RSC), so we surface a navigate-forward link rather than
+              // claim a non-existent build state.
+              <Button
+                onClick={() => router.push(`/discovery/no-idea/${sessionId}`)}
+                disabled={busy}
+                className="ml-auto"
+              >
+                Continue to Stage 5
+                <ArrowRight className="size-4 ml-1" />
+              </Button>
             )}
           </footer>
 
