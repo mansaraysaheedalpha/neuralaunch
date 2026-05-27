@@ -6,11 +6,55 @@
 // right. All NextAuth provider wiring is preserved — only the render
 // changed.
 
+import { useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import { ChevronRight, AlertTriangle, Check } from "lucide-react";
 import { FaGithub, FaLinkedin } from "react-icons/fa";
 import { FcGoogle } from "react-icons/fc";
 import Link from "next/link";
+
+/**
+ * Returning-founder memo — a small breadcrumb of "what you were doing
+ * last time" used to greet a returning founder on the sign-in screen.
+ * Read-only on this surface; the write side lives inside the signed-in
+ * app and lands in a later PR (whenever the founder dashboard wants to
+ * leave the breadcrumb).
+ *
+ * Stored in localStorage — not sensitive enough to need a secure
+ * cookie, not durable enough to belong on the server. Any of the three
+ * fields can be absent; the renderer hides the whole block when the
+ * key is missing or the JSON fails to parse.
+ *
+ * Shape contract (the write side must conform):
+ *   - status:       short cycle/state line, e.g. "Cycle I in flight"
+ *   - venture:      venture name + sector, e.g. "Tabempa Engineering"
+ *   - promptLine:   short next-action prompt, e.g. "Pick up where you left off"
+ */
+const RETURNING_FOUNDER_MEMO_KEY = "neuralaunch:returning-founder-memo";
+
+interface ReturningFounderMemo {
+  status?: string;
+  venture?: string;
+  promptLine?: string;
+}
+
+function readReturningFounderMemo(): ReturningFounderMemo | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(RETURNING_FOUNDER_MEMO_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object") return null;
+    const candidate = parsed as Record<string, unknown>;
+    const status     = typeof candidate.status     === "string" ? candidate.status     : undefined;
+    const venture    = typeof candidate.venture    === "string" ? candidate.venture    : undefined;
+    const promptLine = typeof candidate.promptLine === "string" ? candidate.promptLine : undefined;
+    if (!status && !venture && !promptLine) return null;
+    return { status, venture, promptLine };
+  } catch {
+    return null;
+  }
+}
 
 type Provider = "google" | "linkedin" | "github";
 
@@ -102,6 +146,22 @@ export default function SignInClient({
 /* -------------------------------------------------------------------------- */
 
 function LeftCanvas() {
+  // Returning-founder memo — read on mount, hide the whole block when
+  // no breadcrumb exists. SSR-safe: the initial server render returns
+  // null, the effect reads localStorage post-mount. A first-time
+  // visitor never sees the memo at all.
+  const [memo, setMemo] = useState<ReturningFounderMemo | null>(null);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMemo(readReturningFounderMemo());
+  }, []);
+
+  // Returning founders get a slightly different opening line — the
+  // memo carries the personalisation, the welcome simply acknowledges
+  // the return. First-time visitors see the same welcome, no memo.
+  const isReturning = memo !== null;
+
   return (
     <section className="relative hidden flex-col justify-between border-r border-rule px-10 py-14 lg:flex lg:px-16 lg:py-20">
       <div
@@ -130,23 +190,30 @@ function LeftCanvas() {
       {/* Centred welcome */}
       <div className="relative max-w-[640px]">
         <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-accent">
-          Sign in · continue
+          {isReturning ? "Sign in · continue" : "Sign in · begin"}
         </p>
         <h1 className="mt-7 font-serif text-fg [font-size:clamp(56px,7.4vw,108px)] [font-style:italic] [font-weight:400] [line-height:1] [letter-spacing:-0.025em]">
-          Welcome back,<br />founder.
+          {isReturning ? (
+            <>Welcome back,<br />founder.</>
+          ) : (
+            <>One honest<br />interview.</>
+          )}
         </h1>
         <p className="mt-9 max-w-[480px] text-[17px] leading-[1.5] text-fg-2">
-          Your sessions, recommendations, and roadmaps are right where you left
-          them. Pick the account you signed in with and the engine picks up
-          mid-conversation.
+          {isReturning
+            ? "Your sessions, recommendations, and roadmaps are right where you left them. Pick the account you signed in with and the engine picks up mid-conversation."
+            : "One clear recommendation. A roadmap sized to the hours you actually have. A partner with you through every step. Pick an account to begin."}
         </p>
 
-        {/* Last cycle memo — placeholder structure for future session-continuity wiring. */}
-        <div className="mt-12 grid gap-2.5 border-l border-rule pl-6 font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
-          <span>Last cycle · in flight</span>
-          <span>Recommendation · cycle I</span>
-          <span className="text-accent">Pick up where you left off</span>
-        </div>
+        {memo && (
+          <div className="mt-12 grid gap-2.5 border-l border-rule pl-6 font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+            {memo.status && <span>{memo.status}</span>}
+            {memo.venture && <span>{memo.venture}</span>}
+            {memo.promptLine && (
+              <span className="text-accent">{memo.promptLine}</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Pull-quote — short founder testimonial */}
