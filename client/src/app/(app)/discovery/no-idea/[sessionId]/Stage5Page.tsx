@@ -10,7 +10,7 @@
 // rendering + composition. Copy locked in docs/stage5-copy-review.md
 // § A.
 
-import { Stage5Banner } from './Stage5Banner';
+import { StageBanner } from '@/components/institute';
 import { Stage5ChosenPanel } from './Stage5ChosenPanel';
 import { Stage5ReservesList } from './Stage5ReservesList';
 import { Stage5CascadeBanner } from './Stage5CascadeBanner';
@@ -41,7 +41,13 @@ export function Stage5Page({
 }: Stage5PageProps) {
   return (
     <div className="flex flex-col h-full bg-background">
-      <Stage5Banner sessionId={sessionId} />
+      <StageBanner
+        sessionId={sessionId}
+        stage={5}
+        totalStages={5}
+        title="Validation Handoff"
+        body={STAGE5_BANNER_BODY}
+      />
       <div className="flex-1 overflow-y-auto px-4 py-8">
         <div className="mx-auto w-full max-w-3xl space-y-6">
           <header>
@@ -77,3 +83,10 @@ export function Stage5Page({
     </div>
   );
 }
+
+const STAGE5_BANNER_BODY = (
+  <>
+    You picked your opportunity in Stage 4. I&apos;ll now take everything you&apos;ve built — outcome, requirements, pain inventory, the opportunity itself — and <em>synthesize</em> it into your handoff document. That&apos;s what you&apos;ll take into the next phase to actually validate demand. The alternatives you set aside stay with the handoff in case you need to fork later.
+  </>
+);
+

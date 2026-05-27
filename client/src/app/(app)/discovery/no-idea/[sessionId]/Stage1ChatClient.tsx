@@ -2,12 +2,21 @@
 
 import { Stage1Chat } from './Stage1Chat';
 import type { Stage1Message } from './useStage1Session';
+import type { OutcomeDimensions } from '@/lib/ideation/stage1-outcome/schema';
 
 interface Stage1ChatClientProps {
   sessionId:        string;
   /** Accepted but unused; see Stage1Chat for context. */
   firstName?:       string;
   initialMessages:  Stage1Message[];
+  /**
+   * Initial state of the four outcome dimensions, parsed from the
+   * IdeationStageRun.output column server-side. Threaded through so the
+   * BeliefRail can render captured / live / pending states without a
+   * client-side fetch round-trip. Null when the document failed to
+   * parse (documentLoadError fallback branch).
+   */
+  initialDimensions: OutcomeDimensions | null;
   editingDimension: 'timeHorizon' | 'financialGoal' | 'riskTolerance' | 'lifestylePreference' | null;
   hasPriorSnapshot: boolean;
   /** Active IdeationStageRun id — required for the in-chat

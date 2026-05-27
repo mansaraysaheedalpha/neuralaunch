@@ -6,7 +6,7 @@ import { SendHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MessageList, type ChatMessage } from '@/components/discovery/MessageList';
 import { PainInventoryCanvas } from '@/components/ideation/stage3/PainInventoryCanvas';
-import { Stage3Banner } from './Stage3Banner';
+import { StageBanner } from '@/components/institute';
 import { useStage3Session, type Stage3Message } from './useStage3Session';
 import type { Stage3AuthoringState } from '@/lib/ideation/stage3-opportunities/schema';
 
@@ -70,7 +70,14 @@ export function Stage3Chat({
 
   return (
     <div className="flex flex-col h-full">
-      <Stage3Banner sessionId={sessionId} forceVisible={!hasMessages} />
+      <StageBanner
+        sessionId={sessionId}
+        stage={3}
+        totalStages={5}
+        title="Opportunity Identification"
+        body={STAGE3_BANNER_BODY}
+        forceVisible={!hasMessages}
+      />
 
       {turnError && (
         <div className="border-b border-destructive/40 bg-destructive/5 px-4 py-2 text-xs text-destructive">
@@ -152,3 +159,10 @@ export function Stage3Chat({
     </div>
   );
 }
+
+const STAGE3_BANNER_BODY = (
+  <>
+    Time to find <em>real pain worth solving.</em> Add pain points you&apos;ve hit yourself, lived with through someone close, or watched an industry struggle with — your own life is the strongest signal. The Pain Scout will surface community signals you might not have seen; treat its picks as a check on yourself, not the answer. Rate what survives on intensity, frequency, and niche specificity. I&apos;ll shortlist up to five for Stage 4.
+  </>
+);
+

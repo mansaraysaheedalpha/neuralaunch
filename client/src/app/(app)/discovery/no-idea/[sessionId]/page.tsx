@@ -362,6 +362,7 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
         sessionId={sessionId}
         stageRunId={active.id}
         initialMessages={messages}
+        initialDimensions={initialAuthoring.dimensions}
         editingDimension={initialAuthoring.editTargetDimension}
         hasPriorSnapshot={initialAuthoring.priorCommittedSnapshot !== null}
       />
@@ -380,6 +381,7 @@ export default async function NoIdeaStagePage({ params }: PageProps) {
         sessionId={sessionId}
         stageRunId={active.id}
         initialMessages={[]}
+        initialDimensions={null}
         editingDimension={null}
         hasPriorSnapshot={false}
         documentLoadError

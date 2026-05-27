@@ -6,7 +6,7 @@ import { SendHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { MessageList, type ChatMessage } from '@/components/discovery/MessageList';
 import { OpportunityInventoryCanvas } from '@/components/ideation/stage4/OpportunityInventoryCanvas';
-import { Stage4Banner } from './Stage4Banner';
+import { StageBanner } from '@/components/institute';
 import { useStage4Session, type Stage4Message } from './useStage4Session';
 import type { Stage4AuthoringState } from '@/lib/ideation/stage4-opportunities/schema';
 
@@ -62,7 +62,14 @@ export function Stage4Chat({
 
   return (
     <div className="flex flex-col h-full">
-      <Stage4Banner sessionId={sessionId} forceVisible={!hasMessages} />
+      <StageBanner
+        sessionId={sessionId}
+        stage={4}
+        totalStages={5}
+        title="Opportunity Evaluation"
+        body={STAGE4_BANNER_BODY}
+        forceVisible={!hasMessages}
+      />
 
       {session.turnError && (
         <div className="border-b border-destructive/40 bg-destructive/5 px-4 py-2 text-xs text-destructive">
@@ -148,3 +155,10 @@ export function Stage4Chat({
     </div>
   );
 }
+
+const STAGE4_BANNER_BODY = (
+  <>
+    Time to put your shortlisted pain points to the <em>test.</em> For each opportunity, I&apos;ll research four dimensions (market reality, customer access, willingness to pay, market size) — that&apos;s Layer A. Then you post a test script on your own accounts and bring back what real people say — that&apos;s Layer B. Both layers feed a verdict you can push back on. I&apos;ll advance the strongest one to Stage 5.
+  </>
+);
+

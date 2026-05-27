@@ -8,7 +8,7 @@ import { MessageList, type ChatMessage } from '@/components/discovery/MessageLis
 import { SkillCanvas } from '@/components/ideation/SkillCanvas';
 import { SkillCanvasEntry, type SkillCanvasEntryMode } from '@/components/ideation/SkillCanvasEntry';
 import { ExpectedProfileView } from '@/components/ideation/ExpectedProfileView';
-import { Stage2Banner } from './Stage2Banner';
+import { StageBanner } from '@/components/institute';
 import { useStage2Session, type Stage2Message } from './useStage2Session';
 import type {
   SkillInventory,
@@ -97,7 +97,14 @@ export function Stage2Chat({
   if (mode === null) {
     return (
       <div className="flex flex-col h-full">
-        <Stage2Banner sessionId={sessionId} forceVisible />
+        <StageBanner
+          sessionId={sessionId}
+          stage={2}
+          totalStages={5}
+          title="Outcome Requirements"
+          body={STAGE2_BANNER_BODY}
+          forceVisible
+        />
         <div className="flex-1 overflow-y-auto px-4 py-8">
           <div className="mx-auto max-w-3xl space-y-6">
             <div className="text-sm text-muted-foreground">
@@ -121,7 +128,14 @@ export function Stage2Chat({
 
   return (
     <div className="flex flex-col h-full">
-      <Stage2Banner sessionId={sessionId} forceVisible={!hasMessages} />
+      <StageBanner
+        sessionId={sessionId}
+        stage={2}
+        totalStages={5}
+        title="Outcome Requirements"
+        body={STAGE2_BANNER_BODY}
+        forceVisible={!hasMessages}
+      />
 
       {showRederiveBanner && (
         <div className="border-b border-gold/40 bg-gold/5 px-4 py-2 text-xs text-foreground">
@@ -249,4 +263,11 @@ export function Stage2Chat({
     </div>
   );
 }
+
+const STAGE2_BANNER_BODY = (
+  <>
+    Now we figure out what skills your committed outcome actually <em>demands</em> and rate where you (and any teammates) sit against those demands. The canvas on the left is the truth — drag chips between tiers directly, or talk to me and I&apos;ll move them as we go. At the end you&apos;ll have a Requirements Document: an Expected Profile, the gaps it surfaces, and what they mean for which opportunities Stage 3 can credibly send your way.
+  </>
+);
+
 
