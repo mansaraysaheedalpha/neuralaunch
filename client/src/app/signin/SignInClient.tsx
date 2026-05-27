@@ -1,397 +1,282 @@
 "use client";
 // src/app/signin/SignInClient.tsx
 //
-// The interactive surface of the sign-in page. Receives a
-// `linkedInEnabled` flag from the server-component wrapper so it
-// can hide the LinkedIn provider button when the LinkedIn OAuth
-// vars aren't configured (dev / staging environments without a
-// LinkedIn app set up). Reading the env directly here would force
-// the page to be a server component; instead we keep the
-// interactive surface as a client component and let the parent
-// pass the flag.
+// Institute treatment of the sign-in page. Two-column full-viewport
+// layout: a black editorial canvas on the left, the auth form on the
+// right. All NextAuth provider wiring is preserved — only the render
+// changed.
 
 import { signIn } from "next-auth/react";
-import { motion, useReducedMotion } from "motion/react";
-import { ArrowLeft, Lock, Compass, ArrowRight, ChevronRight, Check, AlertTriangle } from "lucide-react";
+import { ChevronRight, AlertTriangle, Check } from "lucide-react";
 import { FaGithub, FaLinkedin } from "react-icons/fa";
 import { FcGoogle } from "react-icons/fc";
 import Link from "next/link";
-import Image from "next/image";
 
 type Provider = "google" | "linkedin" | "github";
 
-/**
- * NextAuth redirects to /signin?error=<code> on every failed-auth path.
- * Map the documented codes to copy the founder can act on. Unknown
- * codes fall through to a generic message so we never blank out on
- * a future Auth.js error addition.
- *
- * AccessDenied is the most important one for this product: it's what
- * the C3 GitHub email-verification gate raises when the OAuth profile
- * email isn't a verified primary on GitHub. The copy spells out the
- * fix because the founder otherwise has no way to discover it.
- */
 const AUTH_ERROR_COPY: Record<string, { title: string; detail: string }> = {
   AccessDenied: {
-    title: 'Sign-in was rejected',
+    title: "Sign-in was rejected",
     detail:
-      'Your GitHub email is not a verified primary email on GitHub. ' +
-      'Verify it in GitHub Settings → Emails, then try signing in again. ' +
-      'You can also sign in with Google instead.',
+      "Your GitHub email is not a verified primary email on GitHub. " +
+      "Verify it in GitHub Settings → Emails, then try signing in again. " +
+      "You can also sign in with Google instead.",
   },
   Verification: {
-    title: 'Verification link expired',
-    detail: 'The magic link has expired. Sign in again to receive a new one.',
+    title: "Verification link expired",
+    detail: "The magic link has expired. Sign in again to receive a new one.",
   },
   OAuthAccountNotLinked: {
-    title: 'Account already exists',
+    title: "Account already exists",
     detail:
-      'An account with this email already exists, signed in via a different provider. ' +
-      'Sign in with the original provider, then connect other accounts in Settings.',
+      "An account with this email already exists, signed in via a different provider. " +
+      "Sign in with the original provider, then connect other accounts in Settings.",
   },
   Configuration: {
-    title: 'Authentication is misconfigured',
-    detail: 'Something is wrong on our end. Please try again, or contact support if it persists.',
+    title: "Authentication is misconfigured",
+    detail:
+      "Something is wrong on our end. Please try again, or contact support if it persists.",
   },
   OAuthCallback: {
-    title: 'Provider sign-in failed',
-    detail: 'The OAuth provider rejected the sign-in. Please try again.',
+    title: "Provider sign-in failed",
+    detail: "The OAuth provider rejected the sign-in. Please try again.",
   },
   OAuthSignin: {
-    title: 'Provider sign-in failed',
-    detail: 'Could not start the OAuth flow. Please try again.',
+    title: "Provider sign-in failed",
+    detail: "Could not start the OAuth flow. Please try again.",
   },
   CallbackRouteError: {
-    title: 'Sign-in callback failed',
-    detail: 'Something went wrong processing the provider response. Please try again.',
+    title: "Sign-in callback failed",
+    detail:
+      "Something went wrong processing the provider response. Please try again.",
   },
 };
 
 const FALLBACK_AUTH_ERROR = {
-  title:  'Sign-in did not complete',
-  detail: 'Something went wrong. Please try again, or contact support if it persists.',
+  title:  "Sign-in did not complete",
+  detail:
+    "Something went wrong. Please try again, or contact support if it persists.",
 };
 
-function resolveAuthError(code: string | null): { title: string; detail: string } | null {
+function resolveAuthError(
+  code: string | null,
+): { title: string; detail: string } | null {
   if (!code) return null;
   return AUTH_ERROR_COPY[code] ?? FALLBACK_AUTH_ERROR;
 }
 
 interface SignInClientProps {
-  /** True when the page was reached via the account-deletion redirect
-   *  (`/signin?deleted=1`). Renders a confirmation banner so the
-   *  founder sees an explicit ack of the destructive action they just
-   *  triggered, instead of bouncing silently to a fresh signin form. */
+  /** True when the page was reached via the account-deletion redirect. */
   accountDeleted?: boolean;
-  /** NextAuth error code from `?error=<code>`. Mapped to founder-facing
-   *  copy via AUTH_ERROR_COPY; unknown codes use FALLBACK_AUTH_ERROR
-   *  so a future Auth.js code never silently no-ops the banner. */
+  /** NextAuth error code from `?error=<code>`. */
   errorCode?: string | null;
 }
 
-export default function SignInClient({ accountDeleted = false, errorCode = null }: SignInClientProps) {
+export default function SignInClient({
+  accountDeleted = false,
+  errorCode = null,
+}: SignInClientProps) {
   const authError = resolveAuthError(errorCode);
-  const reduce = useReducedMotion();
 
   const handleSignIn = (provider: Provider) => {
     void signIn(provider, { callbackUrl: "/" });
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-navy-950 text-slate-50">
-      {/* Decorative backdrop — same primary radial glow + masked
-          geometric grid we ship on /discovery and /recommendation
-          and /roadmap so a paying user moves between surfaces
-          without a brand discontinuity. The glow is biased to the
-          right (where the sign-in card sits) so the card feels lit. */}
+    <div className="grid min-h-screen grid-cols-1 bg-bg text-fg lg:grid-cols-[3fr_2fr]">
+      {/* Left — editorial canvas */}
+      <LeftCanvas />
+
+      {/* Right — auth form */}
+      <RightForm
+        authError={authError}
+        accountDeleted={accountDeleted}
+        onSignIn={handleSignIn}
+      />
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Left — editorial canvas                                                   */
+/* -------------------------------------------------------------------------- */
+
+function LeftCanvas() {
+  return (
+    <section className="relative hidden flex-col justify-between border-r border-rule px-10 py-14 lg:flex lg:px-16 lg:py-20">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
-      >
-        <div className="absolute right-0 top-0 h-[700px] w-[80%] bg-[radial-gradient(ellipse_at_top_right,_hsl(var(--primary)/0.18),_hsl(var(--primary)/0.04)_55%,transparent_80%)]" />
-        <div className="absolute left-0 bottom-0 h-[420px] w-[55%] bg-[radial-gradient(ellipse_at_bottom_left,_hsl(var(--gold)/0.05),_transparent_70%)]" />
-        <div className="absolute inset-0 opacity-[0.35] [background-image:linear-gradient(to_right,hsl(var(--border)/0.55)_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border)/0.55)_1px,transparent_1px)] [background-size:42px_42px] [mask-image:radial-gradient(ellipse_at_center,black_45%,transparent_88%)]" />
-      </div>
-
-      {/* Back to home — top-left corner. On mobile, sits in its own
-          row above the brand panel content so it doesn't visually
-          collide with the wordmark (both were anchored top-left at
-          sm and overlapped on a 320-375px viewport). */}
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(700px 320px at 20% 30%, rgba(255,90,60,0.10), transparent 60%)",
+        }}
+      />
+      {/* Brand mark — top */}
       <Link
         href="/"
-        className="absolute left-4 top-4 sm:left-6 sm:top-6 z-20 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs sm:text-sm font-medium text-slate-400 transition-colors hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        aria-label="NeuraLaunch home"
+        className="relative inline-flex items-center gap-3.5 font-mono text-[11px] uppercase tracking-[0.14em] text-fg"
       >
-        <ArrowLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-        Back to home
+        <span
+          aria-hidden="true"
+          className="relative inline-block size-[18px] rounded-full bg-accent"
+        >
+          <span className="absolute inset-[5px] rounded-full bg-bg" />
+        </span>
+        NeuraLaunch
       </Link>
 
-      {/* Two-column composition. Brand panel on the left (lg+),
-          sign-in card on the right. Below lg, the brand panel
-          collapses into a tighter header above the card. */}
-      <div className="relative mx-auto grid min-h-screen w-full max-w-7xl grid-cols-1 items-start gap-10 px-5 pt-20 pb-12 sm:px-8 sm:gap-12 lg:grid-cols-12 lg:items-center lg:gap-16 lg:px-12 lg:py-0">
-        <BrandPanel reduce={reduce} />
-        <SignInCard
-          reduce={reduce}
-          onSignIn={handleSignIn}
-          accountDeleted={accountDeleted}
-          authError={authError}
-        />
-      </div>
-    </div>
-  );
-}
+      {/* Centred welcome */}
+      <div className="relative max-w-[640px]">
+        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-accent">
+          Sign in · continue
+        </p>
+        <h1 className="mt-7 font-serif text-fg [font-size:clamp(56px,7.4vw,108px)] [font-style:italic] [font-weight:400] [line-height:1] [letter-spacing:-0.025em]">
+          Welcome back,<br />founder.
+        </h1>
+        <p className="mt-9 max-w-[480px] text-[17px] leading-[1.5] text-fg-2">
+          Your sessions, recommendations, and roadmaps are right where you left
+          them. Pick the account you signed in with and the engine picks up
+          mid-conversation.
+        </p>
 
-/* ---------------------------------------------------------------- */
-/* Brand panel — left column at lg+, header at md/sm                */
-/* ---------------------------------------------------------------- */
-
-function BrandPanel({ reduce }: { reduce: boolean | null }) {
-  const fade = (delay: number) =>
-    reduce
-      ? { initial: false, animate: { opacity: 1, y: 0 } }
-      : {
-          initial: { opacity: 0, y: 8 },
-          animate: { opacity: 1, y: 0 },
-          transition: { delay, duration: 0.45, ease: "easeOut" as const },
-        };
-
-  return (
-    <div className="lg:col-span-5 flex flex-col gap-8 lg:gap-10">
-      {/* Wordmark — links back to /home */}
-      <motion.div {...fade(0.05)}>
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2.5 rounded-md py-1 transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          aria-label="NeuraLaunch home"
-        >
-          <Image
-            src="/neuralaunch_logo.svg"
-            alt=""
-            width={40}
-            height={32}
-            priority
-            className="h-8 w-auto"
-          />
-          <span className="text-lg font-semibold tracking-tight text-white">
-            NeuraLaunch
-          </span>
-        </Link>
-      </motion.div>
-
-      <div className="flex flex-col gap-5 max-w-md">
-        <motion.span
-          {...fade(0.10)}
-          className="inline-flex items-center gap-1.5 self-start rounded-full border border-gold/30 bg-gold/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gold"
-        >
-          <Compass className="size-3" aria-hidden="true" />
-          From lost to launched
-        </motion.span>
-
-        <motion.h1
-          {...fade(0.16)}
-          className="text-2xl sm:text-3xl lg:text-4xl font-semibold tracking-tight leading-[1.15]"
-        >
-          One honest interview.{" "}
-          <span className="text-gold">One clear recommendation.</span>
-        </motion.h1>
-
-        <motion.p
-          {...fade(0.22)}
-          className="text-sm text-slate-300 leading-relaxed"
-        >
-          We interview your situation, commit to one direction with the
-          reasoning laid bare, then walk every task with you until you&rsquo;ve
-          shipped, learned, or decided what comes next.
-        </motion.p>
-      </div>
-
-      {/* 3-stage rhythm — Discovery · Roadmap · Outcome */}
-      <motion.div
-        {...fade(0.30)}
-        className="hidden lg:flex flex-col gap-3"
-      >
-        <div className="flex items-center gap-3">
-          <RhythmTile color="primary" />
-          <div className="h-px w-8 bg-gradient-to-r from-primary/40 to-gold/40" />
-          <RhythmTile color="gold" />
-          <div className="h-px w-8 bg-gradient-to-r from-gold/40 to-success/40" />
-          <RhythmTile color="success" />
+        {/* Last cycle memo — placeholder structure for future session-continuity wiring. */}
+        <div className="mt-12 grid gap-2.5 border-l border-rule pl-6 font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+          <span>Last cycle · in flight</span>
+          <span>Recommendation · cycle I</span>
+          <span className="text-accent">Pick up where you left off</span>
         </div>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-          Discovery · Roadmap · Outcome
-        </p>
-      </motion.div>
+      </div>
 
-      {/* Founder testimonial — only at lg+ to save mobile vertical
-          real estate without losing the message. */}
-      <motion.div
-        {...fade(0.36)}
-        className="hidden lg:flex flex-col gap-2 mt-auto pt-8"
-      >
-        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold">
-          Why founders choose this
-        </p>
-        <p className="text-[13px] italic text-slate-300 leading-relaxed max-w-md">
-          &ldquo;It commits to one direction. No menu. No wishy-washy options.
-          That&rsquo;s what stuck founders actually need.&rdquo;
-        </p>
-        <p className="text-[11px] text-slate-500">
+      {/* Pull-quote — short founder testimonial */}
+      <blockquote className="relative max-w-[480px] border-l-2 border-accent pl-5 font-serif text-[18px] italic leading-[1.45] text-fg-2">
+        &ldquo;It commits to one direction. No menu. No wishy-washy options. That&rsquo;s what
+        stuck founders actually need.&rdquo;
+        <cite className="mt-3 block font-mono text-[10px] not-italic uppercase tracking-[0.14em] text-muted">
           — founder using NeuraLaunch since Apr 2026
-        </p>
-      </motion.div>
-    </div>
+        </cite>
+      </blockquote>
+    </section>
   );
 }
 
-function RhythmTile({ color }: { color: "primary" | "gold" | "success" }) {
-  const styles =
-    color === "primary"
-      ? "border-primary/40 bg-primary/10"
-      : color === "gold"
-        ? "border-gold/40 bg-gold/10"
-        : "border-success/40 bg-success/10";
-  const dot =
-    color === "primary"
-      ? "bg-primary"
-      : color === "gold"
-        ? "bg-gold"
-        : "bg-success";
-  return (
-    <span className={`flex size-8 items-center justify-center rounded-md border ${styles}`} aria-hidden="true">
-      <span className={`size-1.5 rounded-full ${dot}`} />
-    </span>
-  );
-}
+/* -------------------------------------------------------------------------- */
+/*  Right — auth form                                                         */
+/* -------------------------------------------------------------------------- */
 
-/* ---------------------------------------------------------------- */
-/* Sign-in card — right column at lg+, full-width below             */
-/* ---------------------------------------------------------------- */
-
-function SignInCard({
-  reduce,
-  onSignIn,
-  accountDeleted,
+function RightForm({
   authError,
+  accountDeleted,
+  onSignIn,
 }: {
-  reduce:          boolean | null;
-  onSignIn:        (provider: Provider) => void;
-  accountDeleted:  boolean;
-  authError:       { title: string; detail: string } | null;
+  authError: { title: string; detail: string } | null;
+  accountDeleted: boolean;
+  onSignIn: (provider: Provider) => void;
 }) {
-  const fade = (delay: number) =>
-    reduce
-      ? { initial: false, animate: { opacity: 1, y: 0 } }
-      : {
-          initial: { opacity: 0, y: 12 },
-          animate: { opacity: 1, y: 0 },
-          transition: { delay, duration: 0.45, ease: "easeOut" as const },
-        };
-
   return (
-    <motion.div
-      {...fade(0.20)}
-      className="lg:col-span-7 lg:justify-self-end w-full max-w-[460px] mx-auto lg:mx-0"
-    >
-      {authError && (
-        <div
-          role="alert"
-          aria-live="assertive"
-          className="mb-4 flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3"
+    <section className="flex flex-col justify-between bg-bg-2 px-7 py-14 sm:px-12 lg:py-20">
+      {/* Mobile-only brand mark */}
+      <Link
+        href="/"
+        aria-label="NeuraLaunch home"
+        className="inline-flex items-center gap-3.5 font-mono text-[11px] uppercase tracking-[0.14em] text-fg lg:hidden"
+      >
+        <span
+          aria-hidden="true"
+          className="relative inline-block size-[18px] rounded-full bg-accent"
         >
-          <AlertTriangle className="size-4 shrink-0 text-destructive mt-0.5" />
-          <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium text-white">{authError.title}</p>
-            <p className="text-xs text-slate-300 leading-relaxed">{authError.detail}</p>
-          </div>
-        </div>
-      )}
+          <span className="absolute inset-[5px] rounded-full bg-bg" />
+        </span>
+        NeuraLaunch
+      </Link>
 
-      {accountDeleted && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="mb-4 flex items-start gap-3 rounded-xl border border-success/30 bg-success/5 px-4 py-3"
-        >
-          <Check className="size-4 shrink-0 text-success mt-0.5" />
-          <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium text-white">Account deleted</p>
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Your NeuraLaunch account and any active Paddle subscription have been
-              cancelled. You won&rsquo;t be charged again.
+      <div className="mx-auto w-full max-w-[420px] lg:mx-0">
+        {authError && (
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="mb-6 border border-amber px-5 py-4"
+          >
+            <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-amber">
+              <AlertTriangle aria-hidden="true" className="size-3.5" />
+              {authError.title}
+            </p>
+            <p className="mt-2 text-[13px] leading-[1.55] text-fg-2">
+              {authError.detail}
             </p>
           </div>
-        </div>
-      )}
+        )}
 
-      <div className="rounded-xl border border-slate-800 bg-navy-900 px-7 py-9 sm:px-8 sm:py-10 shadow-2xl shadow-black/30">
-        {/* Eyebrow + headline */}
-        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold">
-          Sign in or create your account
+        {accountDeleted && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="mb-6 border border-success px-5 py-4"
+          >
+            <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-success">
+              <Check aria-hidden="true" className="size-3.5" />
+              Account deleted
+            </p>
+            <p className="mt-2 text-[13px] leading-[1.55] text-fg-2">
+              Your NeuraLaunch account and any active Paddle subscription have
+              been cancelled. You won&rsquo;t be charged again.
+            </p>
+          </div>
+        )}
+
+        <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+          Pick your provider
         </p>
-        <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white">
-          Continue your discovery
+        <h2 className="mt-3 font-sans text-[28px] font-medium leading-[1.1] tracking-[-0.015em] text-fg">
+          Continue your discovery.
         </h2>
-        <p className="mt-2 text-[13px] text-slate-400 leading-relaxed max-w-[340px]">
-          Pick the account you&rsquo;ll use to come back. We&rsquo;ll never post
-          on your behalf or share your data.
+        <p className="mt-3 max-w-[360px] text-[14px] leading-[1.5] text-fg-2">
+          We&rsquo;ll never post on your behalf or share your data.
         </p>
 
-        {/* Provider stack */}
-        <div className="mt-7 flex flex-col gap-2.5">
+        <div className="mt-9 grid gap-2.5">
           <ProviderButton
             label="Continue with Google"
-            icon={<FcGoogle className="size-4" />}
+            icon={<FcGoogle className="size-[18px]" />}
             onClick={() => onSignIn("google")}
           />
           <ProviderButton
             label="Continue with LinkedIn"
-            icon={<FaLinkedin className="size-4 text-[#0A66C2]" />}
+            icon={<FaLinkedin className="size-[18px] text-[#0A66C2]" />}
             onClick={() => onSignIn("linkedin")}
           />
           <ProviderButton
             label="Continue with GitHub"
-            icon={<FaGithub className="size-4 text-white" />}
+            icon={<FaGithub className="size-[18px] text-fg" />}
             onClick={() => onSignIn("github")}
           />
         </div>
 
-        {/* Trust line — single 11px row with lock icon. Replaces the
-            prior dedicated "Secure authentication" divider that
-            competed with the providers for visual weight. */}
-        <p className="mt-6 flex items-center justify-center gap-1.5 text-[11px] text-slate-500">
-          <Lock className="size-3" aria-hidden="true" />
-          Encrypted in transit. Your data stays yours.
+        <p className="mt-9 max-w-[360px] font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+          Encrypted in transit · your data stays yours
         </p>
-
-        {/* Legal footer */}
-        <div className="mt-7 border-t border-slate-800/70 pt-5">
-          <p className="text-center text-[11px] text-slate-500 leading-relaxed">
-            By continuing, you agree to our{" "}
-            <Link
-              href="/legal/terms"
-              className="text-slate-400 underline-offset-2 hover:text-slate-300 hover:underline"
-            >
-              Terms of Service
-            </Link>{" "}
-            and{" "}
-            <Link
-              href="/legal/privacy"
-              className="text-slate-400 underline-offset-2 hover:text-slate-300 hover:underline"
-            >
-              Privacy Policy
-            </Link>
-            .
-          </p>
-        </div>
       </div>
 
-      {/* Sub-card return-user reminder */}
-      <p className="mt-5 text-center text-[11px] text-slate-500">
-        Already have an account? Just continue with the same provider —
-        we&rsquo;ll recognise you.{" "}
-        <ArrowRight className="inline size-3 text-slate-500" aria-hidden="true" />
+      {/* Bottom legal */}
+      <p className="mt-12 max-w-[420px] border border-rule px-5 py-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted lg:mx-0">
+        By signing in you agree to the{" "}
+        <Link
+          href="/legal/terms"
+          className="text-fg transition-colors hover:text-accent"
+        >
+          Terms
+        </Link>
+        {" · "}
+        <Link
+          href="/legal/privacy"
+          className="text-fg transition-colors hover:text-accent"
+        >
+          Privacy
+        </Link>
+        .
       </p>
-    </motion.div>
+    </section>
   );
 }
 
@@ -400,32 +285,23 @@ function ProviderButton({
   icon,
   onClick,
 }: {
-  label:   string;
-  icon:    React.ReactNode;
+  label: string;
+  icon: React.ReactNode;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      // text-white at full opacity (was text-foreground/90) — the
-      // dim 90% baseline relied on `hover:text-foreground` lifting
-      // it to full white, which never fires on mobile (no hover
-      // state on touch devices), so labels were rendering as
-      // washed-out grey on phones.
-      // ChevronRight goes from "hover-only on desktop" to "always
-      // visible at low opacity on mobile, full opacity on hover at
-      // desktop" so the row has the same visual richness on every
-      // device.
-      className="group relative flex h-12 w-full items-center justify-center gap-3 rounded-lg border border-slate-800 bg-navy-950 px-4 text-sm font-medium text-white transition-all hover:bg-navy-800 hover:border-slate-700 hover:-translate-y-px focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-900"
+      className="group flex items-center justify-between border border-rule-strong bg-bg px-5 py-4 text-left font-sans text-[14px] font-medium text-fg transition-colors hover:border-accent hover:text-accent focus:outline-none focus-visible:border-accent focus-visible:text-accent"
     >
-      <span className="flex items-center gap-3">
+      <span className="flex items-center gap-3.5">
         {icon}
         <span>{label}</span>
       </span>
       <ChevronRight
-        className="absolute right-3 size-4 text-slate-500 opacity-60 transition-opacity group-hover:opacity-100 group-hover:text-slate-300"
         aria-hidden="true"
+        className="size-4 text-muted transition-colors group-hover:text-accent"
       />
     </button>
   );

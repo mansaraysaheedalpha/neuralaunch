@@ -1,23 +1,27 @@
-﻿import type { Metadata } from "next";
-import Link from "next/link";
-import { ArrowRight, ChevronDown } from "lucide-react";
-import MarketingHeader from "@/components/marketing/MarketingHeader";
-import MarketingFooter from "@/components/marketing/MarketingFooter";
+import type { Metadata } from "next";
+import {
+  EditorialPage,
+  SatelliteHero,
+  SatelliteSection,
+  SatelliteClosing,
+  SatelliteFAQItem,
+} from "@/components/marketing/satellite";
+
+const FAQ_DESCRIPTION =
+  "How NeuraLaunch works — the discovery interview, the one recommendation, the roadmap, the internal tools, the check-ins, and the continuation cycle.";
 
 export const metadata: Metadata = {
-  title: "Questions & Answers â€” NeuraLaunch",
-  description:
-    "How NeuraLaunch works â€” the discovery interview, the one recommendation, the roadmap, the internal tools, the check-ins, and the continuation cycle.",
+  title: "Questions & Answers — NeuraLaunch",
+  description: FAQ_DESCRIPTION,
   openGraph: {
-    title: "Questions & Answers â€” NeuraLaunch",
-    description:
-      "How NeuraLaunch works, from the first interview question through to the continuation brief.",
+    title: "Questions & Answers — NeuraLaunch",
+    description: FAQ_DESCRIPTION,
     type: "website",
     siteName: "NeuraLaunch",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Questions & Answers â€” NeuraLaunch",
+    title: "Questions & Answers — NeuraLaunch",
     description: "How NeuraLaunch works, end to end.",
   },
 };
@@ -33,9 +37,6 @@ interface Category {
   blurb: string;
   items: QA[];
 }
-
-// Apostrophes use the Unicode right-single-quotation-mark (U+2019) so they
-// render as proper curly quotes. Straight ASCII would also work.
 const CATEGORIES: Category[] = [
   {
     id: "getting-started",
@@ -268,185 +269,89 @@ const CATEGORIES: Category[] = [
   },
 ];
 
+
+const ROMAN_LOWER = [
+  "i.", "ii.", "iii.", "iv.", "v.", "vi.", "vii.", "viii.",
+  "ix.", "x.", "xi.", "xii.", "xiii.", "xiv.", "xv.", "xvi.",
+  "xvii.", "xviii.", "xix.", "xx.",
+];
+
 export default function FAQPage() {
   return (
-    <div className="min-h-screen bg-navy-950 text-slate-50 antialiased">
-      <MarketingHeader />
-      <main id="main" className="pt-16">
-        <Hero />
-        <Index />
-        <FAQList />
-        <FinalCTA />
-      </main>
-      <MarketingFooter />
-    </div>
-  );
-}
-
-/* ============================================================
-   HERO
-   ============================================================ */
-function Hero() {
-  return (
-    <section
-      aria-labelledby="faq-hero"
-      className="relative overflow-hidden border-b border-slate-800 bg-gradient-to-b from-navy-950 via-navy-900 to-navy-800"
-    >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 mx-auto h-[400px] max-w-5xl bg-[radial-gradient(ellipse_at_top,_rgba(37,99,235,0.10),_transparent_60%)]"
+    <EditorialPage>
+      <SatelliteHero
+        stamps={[
+          { text: "NeuraLaunch / FAQ" },
+          { text: "Short on purpose", live: true },
+        ]}
+        title={
+          <>
+            Questions we get<br />
+            and the <em>honest answers.</em>
+          </>
+        }
+        standfirst={
+          <>
+            <p>
+              Everything below is a question founders have actually asked us — about the
+              interview, the recommendation, the roadmap, the tools, the check-ins, and
+              what happens at the end of a cycle. <strong>Short on purpose.</strong> If
+              your question isn&rsquo;t here, the best answer is to <em>start a session</em>
+              and ask the engine instead.
+            </p>
+            <p>
+              The FAQ is organised by topic, in the order a founder usually encounters
+              them. Every answer is the truth as we know it today; if our policy
+              changes, this page changes the same day.
+            </p>
+          </>
+        }
       />
-      <div className="relative mx-auto max-w-3xl px-4 pb-16 pt-20 sm:px-6 sm:pb-24 sm:pt-28 lg:px-8 lg:pb-28">
-        <div className="text-center">
-          
-            <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-navy-800/80 px-3.5 py-1.5 text-xs font-medium text-slate-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-              Questions &amp; answers
-            </p>
-          
-          
-            <h1
-              id="faq-hero"
-              className="text-balance text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl md:text-6xl"
-            >
-              How NeuraLaunch works,{" "}
-              <span className="text-gold">end to end.</span>
-            </h1>
-          
-          
-            <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
-              Honest answers to the questions founders actually ask â€” about the
-              interview, the recommendation, the roadmap, the tools, and what
-              happens at the end of a cycle.
-            </p>
-          
-        </div>
-      </div>
-    </section>
+
+      {CATEGORIES.map((cat, ci) => (
+        <SatelliteSection
+          key={cat.id}
+          id={cat.id}
+          num={ROMAN_UPPER[ci] ?? `${ci + 1}.`}
+          stamp={cat.title}
+          heading={<>{cat.blurb}</>}
+        >
+          <div aria-hidden="true" />
+          <ol className="grid">
+            {cat.items.map((qa, qi) => (
+              <SatelliteFAQItem
+                key={qa.question}
+                roman={ROMAN_LOWER[qi] ?? `${qi + 1}.`}
+                question={qa.question}
+                answer={qa.answer}
+              />
+            ))}
+          </ol>
+        </SatelliteSection>
+      ))}
+
+      <SatelliteClosing
+        heading={
+          <>
+            Still uncertain?<br />
+            Talk to the <em>engine instead.</em>
+          </>
+        }
+        body={
+          <>
+            The discovery interview and your first recommendation are free.{" "}
+            <em>Twenty minutes</em> from now, you&rsquo;ll know whether the answer feels
+            right.
+          </>
+        }
+        cta={{ href: "/discovery", label: "Begin Discovery" }}
+        quiet="Free to start · No card · ~12 minutes"
+      />
+    </EditorialPage>
   );
 }
 
-/* ============================================================
-   CATEGORY INDEX
-   ============================================================ */
-function Index() {
-  return (
-    <section
-      aria-label="Question categories"
-      className="border-b border-slate-800 bg-navy-950"
-    >
-      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-        <ul className="flex flex-wrap justify-center gap-2 text-sm">
-          {CATEGORIES.map((cat) => (
-            <li key={cat.id}>
-              <a
-                href={`#${cat.id}`}
-                className="inline-flex items-center rounded-full border border-slate-800 bg-navy-900 px-4 py-2 font-medium text-slate-300 transition-colors hover:border-primary/40 hover:bg-navy-800 hover:text-white"
-              >
-                {cat.title}
-              </a>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </section>
-  );
-}
-
-/* ============================================================
-   FAQ LIST
-   ============================================================ */
-function FAQList() {
-  return (
-    <section
-      aria-label="Frequently asked questions"
-      className="border-b border-slate-800 bg-navy-900"
-    >
-      <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-24">
-        <div className="space-y-16">
-          {CATEGORIES.map((cat) => (
-            <section
-              key={cat.id}
-              id={cat.id}
-              aria-labelledby={`${cat.id}-heading`}
-              className="scroll-mt-24"
-            >
-              
-                <div className="mb-6 border-b border-slate-800 pb-4">
-                  <h2
-                    id={`${cat.id}-heading`}
-                    className="text-2xl font-semibold tracking-tight text-white sm:text-3xl"
-                  >
-                    {cat.title}
-                  </h2>
-                  <p className="mt-2 text-sm text-slate-300">{cat.blurb}</p>
-                </div>
-              
-
-              <div className="space-y-3">
-                {cat.items.map((qa) => (
-                  <details key={qa.question} className="group rounded-lg border border-slate-800 bg-navy-950 transition-colors open:border-slate-700 hover:border-slate-700">
-                      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-900">
-                        <span className="text-base font-medium text-white sm:text-lg">
-                          {qa.question}
-                        </span>
-                        <ChevronDown
-                          className="h-5 w-5 shrink-0 text-slate-400 transition-transform duration-200 group-open:rotate-180"
-                          aria-hidden="true"
-                        />
-                      </summary>
-                      <div className="border-t border-slate-800 px-5 pb-5 pt-4">
-                        <p className="text-sm leading-relaxed text-slate-300 sm:text-base">
-                          {qa.answer}
-                        </p>
-                      </div>
-                    </details>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ============================================================
-   FINAL CTA
-   ============================================================ */
-function FinalCTA() {
-  return (
-    <section
-      aria-labelledby="faq-cta-heading"
-      className="bg-gradient-to-b from-navy-900 to-navy-950"
-    >
-      <div className="mx-auto max-w-4xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-28">
-        
-          <div className="text-center">
-            <h2
-              id="faq-cta-heading"
-              className="text-balance text-3xl font-semibold tracking-tight text-white sm:text-4xl"
-            >
-              Still wondering whether this is for you?{" "}
-              <span className="text-gold">Try it.</span>
-            </h2>
-            <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
-              The discovery interview and your first recommendation are free.
-              Twenty minutes from now, you&rsquo;ll know whether the answer
-              feels right.
-            </p>
-            <div className="mt-10 flex justify-center">
-              <Link
-                href="/discovery"
-                className="group inline-flex items-center gap-2 rounded-md bg-primary px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-primary/20 transition-all hover:bg-blue-700 hover:shadow-xl hover:shadow-primary/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950"
-              >
-                Start Your Discovery
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-              </Link>
-            </div>
-          </div>
-        
-      </div>
-    </section>
-  );
-}
+const ROMAN_UPPER = [
+  "I.", "II.", "III.", "IV.", "V.", "VI.", "VII.", "VIII.",
+  "IX.", "X.", "XI.", "XII.", "XIII.", "XIV.", "XV.",
+];

@@ -5,17 +5,16 @@ import { ChevronDown, List } from 'lucide-react';
 import type { TocEntry } from '@/lib/legal/extract-toc';
 
 /**
- * LegalTableOfContents — two surfaces:
+ * LegalTableOfContents — sticky section index, Institute treatment.
  *
  *  - Desktop (lg+): sticky sidebar that stays in view as the reader
- *    scrolls, highlighting the active section via IntersectionObserver.
- *  - Mobile (< lg): collapsible dropdown at the top of the body
- *    content. Tapping the label toggles the list. Tapping an entry
- *    scrolls to the section and auto-collapses the list.
+ *    scrolls; the active section gets an accent left border and
+ *    --accent text colour.
+ *  - Mobile (< lg): collapsible "Jump to section" hairline dropdown
+ *    above the body content.
  *
  * Entries are rendered as links to the heading IDs emitted by
- * rehype-slug. Smooth scrolling is handled by the `html { scroll-
- * behavior: smooth }` rule set on the root container.
+ * rehype-slug.
  */
 export default function LegalTableOfContents({
   entries,
@@ -25,9 +24,6 @@ export default function LegalTableOfContents({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Mark whichever section is currently in view. We use a viewport
-  // margin pinned near the top so only the section the reader is
-  // actively on is highlighted.
   useEffect(() => {
     if (entries.length === 0) return;
     const observer = new IntersectionObserver(
@@ -39,7 +35,6 @@ export default function LegalTableOfContents({
         }
       },
       {
-        // Trigger when heading is in the top 25% of the viewport
         rootMargin: '-10% 0px -75% 0px',
         threshold: 0,
       },
@@ -55,44 +50,45 @@ export default function LegalTableOfContents({
 
   return (
     <>
-      {/* Mobile toggle — shown below the document header, above the body */}
+      {/* Mobile toggle */}
       <div className="lg:hidden">
         <button
           type="button"
           onClick={() => setMobileOpen((v) => !v)}
           aria-expanded={mobileOpen}
           aria-controls="toc-mobile-list"
-          className="flex w-full items-center justify-between rounded-lg border border-slate-800 bg-navy-900 px-4 py-3 text-sm font-medium text-slate-200 transition-colors hover:border-slate-700 hover:bg-navy-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          className="flex w-full items-center justify-between border border-rule px-4 py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition-colors hover:border-rule-strong hover:text-fg"
         >
           <span className="inline-flex items-center gap-2">
-            <List className="h-4 w-4 text-primary" aria-hidden="true" />
+            <List aria-hidden="true" className="size-4 text-accent" />
             Jump to section
           </span>
           <ChevronDown
-            className={`h-4 w-4 text-slate-400 transition-transform ${
-              mobileOpen ? 'rotate-180' : ''
-            }`}
             aria-hidden="true"
+            className={`size-4 transition-transform ${mobileOpen ? 'rotate-180' : ''}`}
           />
         </button>
         {mobileOpen && (
           <ol
             id="toc-mobile-list"
-            className="mt-2 space-y-0.5 rounded-lg border border-slate-800 bg-navy-900 p-2"
+            className="mt-2 border border-rule"
           >
             {entries.map((entry, i) => (
-              <li key={entry.id}>
+              <li
+                key={entry.id}
+                className="border-b border-rule last:border-b-0"
+              >
                 <a
                   href={`#${entry.id}`}
                   onClick={() => setMobileOpen(false)}
-                  className={`block rounded-md px-3 py-2 text-sm transition-colors ${
+                  className={`block px-4 py-2.5 text-[13px] transition-colors ${
                     activeId === entry.id
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                      ? 'bg-bg-2 text-accent'
+                      : 'text-fg-2 hover:bg-bg-2 hover:text-fg'
                   }`}
                 >
-                  <span className="mr-2 text-xs text-slate-300">
-                    {i + 1}.
+                  <span className="mr-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                    {String(i + 1).padStart(2, '0')}
                   </span>
                   {entry.title}
                 </a>
@@ -104,27 +100,27 @@ export default function LegalTableOfContents({
 
       {/* Desktop sticky sidebar */}
       <nav
-        aria-label="Table of contents"
+        aria-label="Section index"
         className="hidden lg:sticky lg:top-24 lg:block lg:self-start"
       >
-        <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-300">
+        <p className="mb-4 font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
           On this page
         </p>
-        <ol className="space-y-1 border-l border-slate-800">
+        <ol className="border-l border-rule">
           {entries.map((entry, i) => {
             const isActive = activeId === entry.id;
             return (
               <li key={entry.id}>
                 <a
                   href={`#${entry.id}`}
-                  className={`-ml-px block border-l-2 px-4 py-1.5 text-sm transition-colors ${
+                  className={`-ml-px block border-l-2 px-4 py-2 text-[13px] transition-colors ${
                     isActive
-                      ? 'border-primary text-primary'
-                      : 'border-transparent text-slate-400 hover:border-slate-600 hover:text-slate-200'
+                      ? 'border-accent text-accent'
+                      : 'border-transparent text-fg-2 hover:border-rule-strong hover:text-fg'
                   }`}
                 >
-                  <span className="mr-1.5 text-xs text-slate-300">
-                    {i + 1}.
+                  <span className="mr-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                    {String(i + 1).padStart(2, '0')}
                   </span>
                   {entry.title}
                 </a>

@@ -1,6 +1,14 @@
 import type { Metadata } from 'next';
-import LegalDocumentPage from '@/components/legal/LegalDocumentPage';
-import { loadLegalMarkdown, LEGAL_DOCUMENTS, LAST_UPDATED } from '@/lib/legal/load-markdown';
+import { LegalPage } from '@/components/marketing/satellite';
+import MarkdownContent from '@/components/legal/MarkdownContent';
+import LegalTableOfContents from '@/components/legal/LegalTableOfContents';
+import { extractToc } from '@/lib/legal/extract-toc';
+import {
+  loadLegalMarkdown,
+  LEGAL_DOCUMENTS,
+  EFFECTIVE_DATE,
+  LAST_UPDATED,
+} from '@/lib/legal/load-markdown';
 
 export const dynamic = 'force-static';
 
@@ -28,5 +36,20 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   const source = loadLegalMarkdown('privacy');
-  return <LegalDocumentPage slug="privacy" source={source} />;
+  const body = source
+    .replace(/^#\s+.+\n+/, '')
+    .replace(/^\*\*Effective Date:\*\*[^\n]*\n\*\*Last Updated:\*\*[^\n]*\n+/, '')
+    .replace(/^---\n+/, '');
+  const toc = extractToc(source);
+
+  return (
+    <LegalPage
+      slug="privacy"
+      title={DOC.title}
+      effective={EFFECTIVE_DATE}
+      toc={<LegalTableOfContents entries={toc} />}
+    >
+      <MarkdownContent source={body} />
+    </LegalPage>
+  );
 }

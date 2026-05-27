@@ -1,8 +1,15 @@
 import type { Metadata } from 'next';
-import LegalDocumentPage from '@/components/legal/LegalDocumentPage';
-import { loadLegalMarkdown, LEGAL_DOCUMENTS, LAST_UPDATED } from '@/lib/legal/load-markdown';
+import { LegalPage } from '@/components/marketing/satellite';
+import MarkdownContent from '@/components/legal/MarkdownContent';
+import LegalTableOfContents from '@/components/legal/LegalTableOfContents';
+import { extractToc } from '@/lib/legal/extract-toc';
+import {
+  loadLegalMarkdown,
+  LEGAL_DOCUMENTS,
+  EFFECTIVE_DATE,
+  LAST_UPDATED,
+} from '@/lib/legal/load-markdown';
 
-// Statically generated at build time — legal pages change rarely.
 export const dynamic = 'force-static';
 
 const DOC = LEGAL_DOCUMENTS.terms;
@@ -29,5 +36,22 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
   const source = loadLegalMarkdown('terms');
-  return <LegalDocumentPage slug="terms" source={source} />;
+  // Strip the H1 + effective-date front-matter from the raw markdown
+  // before rendering — those become the LegalPage hero.
+  const body = source
+    .replace(/^#\s+.+\n+/, '')
+    .replace(/^\*\*Effective Date:\*\*[^\n]*\n\*\*Last Updated:\*\*[^\n]*\n+/, '')
+    .replace(/^---\n+/, '');
+  const toc = extractToc(source);
+
+  return (
+    <LegalPage
+      slug="terms"
+      title={DOC.title}
+      effective={EFFECTIVE_DATE}
+      toc={<LegalTableOfContents entries={toc} />}
+    >
+      <MarkdownContent source={body} />
+    </LegalPage>
+  );
 }
