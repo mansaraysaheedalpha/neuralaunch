@@ -266,11 +266,9 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
           focus and the page returns to a clean canvas. */}
       {!hasStarted && !stepperVisible && !isSynthesizing && (
         <div className="relative flex-1 flex flex-col items-center justify-center gap-6 px-4 pb-6">
-          {/* Backdrop: subtle radial blue glow + faint geometric grid,
-              same visual language as the marketing HeroProductStack so
-              the user feels they're inside the same product they signed
-              up to. Pointer-events disabled, decorative only. Mask-image
-              fades the grid out toward the edges. */}
+          {/* Backdrop: subtle radial blue glow + faint geometric grid.
+              Pointer-events disabled, decorative only. Mask-image fades
+              the grid out toward the edges. */}
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 overflow-hidden"

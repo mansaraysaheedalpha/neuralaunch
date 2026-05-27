@@ -1,71 +1,45 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Check } from "lucide-react";
-import { motion, useReducedMotion, type Transition } from "motion/react";
+import { ArrowRight } from "lucide-react";
 import { SubscribeButton } from "@/components/SubscribeButton";
 import type { TierDefinition } from "./tier-data";
 import type { TierPricing } from "../PricingSection";
 import { computeAnnualSavings } from "./savings";
 
-const SPRING: Transition = {
-  type:      "spring",
-  stiffness: 240,
-  damping:   28,
-};
-
 type BillingCycle = "monthly" | "annual";
-type ViewerTier   = "free" | "execute" | "compound" | null;
+type ViewerTier = "free" | "execute" | "compound" | null;
 
 interface TierCardProps {
-  tier:           TierDefinition;
-  cycle:          BillingCycle;
+  tier: TierDefinition;
+  cycle: BillingCycle;
   /** TierPricing for paid tiers; null for Free. */
-  pricing:        TierPricing | null;
+  pricing: TierPricing | null;
   /** Set by the orchestrator when the viewer's previously-paid tier
-   *  matches this card — surfaces a "Your previous plan" ring. */
-  isPriorPlan:    boolean;
+   *  matches this card — surfaces an accent border + caption. */
+  isPriorPlan: boolean;
   /** True when the orchestrator should overlay returning-founder copy
    *  on the founding-rate caption. */
   isReturningFounder: boolean;
-  viewerTier:     ViewerTier;
-  /** Stagger index for the viewport-enter motion (Free=0, Execute=1, Compound=2). */
-  staggerIndex:   number;
+  viewerTier: ViewerTier;
+  /** Featured tier renders with the accent sub-gradient + accent CTA.
+   *  Today this is Execute by convention (see TIERS in tier-data.ts). */
+  featured: boolean;
 }
 
-const ACCENT = {
-  muted: {
-    border:    "border-slate-800",
-    bg:        "bg-navy-900",
-    badgeBg:   "bg-primary text-white",
-    check:     "text-success",
-    cta:       "border border-slate-700 bg-transparent text-white hover:border-slate-500 hover:bg-slate-800 focus-visible:ring-slate-500",
-    groupRule: "border-slate-800",
-    groupLbl:  "text-slate-500",
-  },
-  primary: {
-    border:    "border-primary/40 shadow-xl shadow-primary/10",
-    bg:        "bg-navy-800",
-    badgeBg:   "bg-primary text-white",
-    check:     "text-primary",
-    cta:       "bg-primary text-white hover:bg-blue-700 focus-visible:ring-primary",
-    groupRule: "border-slate-800",
-    groupLbl:  "text-primary/80",
-  },
-  gold: {
-    border:    "border-gold/40 shadow-xl shadow-gold/10",
-    bg:        "bg-navy-800",
-    badgeBg:   "bg-gold text-white",
-    check:     "text-gold",
-    cta:       "bg-gold text-white hover:opacity-90 focus-visible:ring-gold",
-    groupRule: "border-slate-800",
-    groupLbl:  "text-gold/80",
-  },
-} as const;
-
+const CELL_BASE =
+  "flex flex-col gap-[18px] border-r border-rule p-9 last:border-r-0";
 const CTA_BASE =
-  "inline-flex w-full items-center justify-center gap-1.5 rounded-md px-4 py-2.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 disabled:opacity-60 disabled:cursor-not-allowed";
+  "mt-auto inline-flex items-center justify-center gap-2.5 px-[18px] py-[13px] font-mono text-[11px] font-medium uppercase tracking-[0.14em] transition-colors disabled:cursor-not-allowed disabled:opacity-50";
 
+/**
+ * Institute-style tier card. Hairline grid cell (no rounded corners,
+ * no shadow, no motion), monospace caps copy, single accent for the
+ * featured tier. Visual grammar: direction-a.html .tier.
+ *
+ * Data layer (tier definition, founding-rate logic, savings math,
+ * SubscribeButton wiring) is unchanged from the previous TierCard.
+ */
 export default function TierCard({
   tier,
   cycle,
@@ -73,26 +47,19 @@ export default function TierCard({
   isPriorPlan,
   isReturningFounder,
   viewerTier,
-  staggerIndex,
+  featured,
 }: TierCardProps) {
-  const reduce = useReducedMotion();
-  const accent = ACCENT[tier.accent];
   const isPaid = tier.id !== "free";
 
-  // Founding-rate display only kicks in on the monthly cycle (annual
-  // founding rate doesn't exist) and only when the resolved TierPricing
-  // says so. The boolean is computed here so the price block stays
-  // declarative.
-  const showFoundingNote = isPaid && pricing?.isFoundingRate === true && cycle === "monthly";
-  const foundingMonthlyRate = tier.id === "execute" ? 19 : tier.id === "compound" ? 29 : 0;
+  const showFoundingNote =
+    isPaid && pricing?.isFoundingRate === true && cycle === "monthly";
+  const foundingMonthlyRate =
+    tier.id === "execute" ? 19 : tier.id === "compound" ? 29 : 0;
 
-  // CTA selection: a viewer already on this tier or a higher one
-  // routes to Settings instead of re-subscribing. This logic is
-  // preserved 1:1 from the original PricingSection so existing
-  // subscribers never see a confusing duplicate-checkout button.
+  // CTA selection mirrors the previous TierCard exactly.
   const tierRank: Record<string, number> = { free: 0, execute: 1, compound: 2 };
-  const cardRank        = tierRank[tier.id] ?? 0;
-  const userRank        = viewerTier ? tierRank[viewerTier] ?? 0 : -1;
+  const cardRank = tierRank[tier.id] ?? 0;
+  const userRank = viewerTier ? tierRank[viewerTier] ?? 0 : -1;
   const alreadyOnOrAbove = userRank >= cardRank && userRank >= 0 && cardRank > 0;
 
   const priceId =
@@ -102,181 +69,150 @@ export default function TierCard({
         : pricing.monthly
       : null;
 
-  const annualSavings = isPaid ? computeAnnualSavings(tier.monthly, tier.annual) : null;
-  // Monthly-equivalent of the annual price. Shown beneath the annual headline
-  // so the user feels the discount viscerally ("$49/mo → $39/mo"). Rendered
-  // with one decimal so $39.17 doesn't get misread as $39 flat — the decimal
-  // signals the figure is a derivation, not a billed amount.
+  const annualSavings = isPaid
+    ? computeAnnualSavings(tier.monthly, tier.annual)
+    : null;
   const monthlyEquivalent = isPaid ? (tier.annual / 12).toFixed(2) : null;
 
+  const ctaClass = featured
+    ? `${CTA_BASE} border border-accent bg-accent text-bg hover:opacity-90`
+    : `${CTA_BASE} border border-rule-strong text-fg hover:border-accent hover:text-accent`;
+
   return (
-    <motion.article
-      initial={reduce ? false : { opacity: 0, y: 16 }}
-      whileInView={reduce ? undefined : { opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-15%" }}
-      transition={reduce ? undefined : { ...SPRING, delay: staggerIndex * 0.08 }}
-      className={`relative flex h-full flex-col rounded-2xl border p-7 lg:p-8 transition-colors ${accent.border} ${accent.bg} ${
-        isPriorPlan ? "ring-2 ring-primary/50 ring-offset-2 ring-offset-navy-950" : ""
-      }`}
+    <article
+      className={[
+        CELL_BASE,
+        featured
+          ? "bg-[linear-gradient(180deg,rgba(255,90,60,0.08),rgba(255,90,60,0)_70%)]"
+          : "",
+        isPriorPlan ? "outline outline-1 outline-accent" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
-      {/* Top badge — "Recommended", "Premium", or "Your previous plan". */}
-      {tier.badge && !isPriorPlan && (
-        <span
-          className={`absolute -top-3 left-7 inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wider ${accent.badgeBg}`}
-        >
-          {tier.badge}
+      {/* Eyebrow row — tier framing + featured / prior-plan accent. */}
+      <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+        <span>{tier.name}</span>
+        <span className={featured || isPriorPlan ? "text-accent" : undefined}>
+          {isPriorPlan
+            ? "Your previous plan"
+            : featured
+              ? "Most chosen"
+              : tier.id === "free"
+                ? "Trust"
+                : "Memory"}
         </span>
-      )}
-      {isPriorPlan && (
-        <span className="absolute -top-3 left-7 inline-flex items-center rounded-full bg-primary px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white">
-          Your previous plan
-        </span>
-      )}
+      </div>
 
-      {/* Header */}
-      <h3 className="text-lg font-semibold text-white">{tier.name}</h3>
-      <p className="mt-1 text-sm text-slate-400">{tier.tagline}</p>
+      {/* Tier headline — large sans, tight letter-spacing. */}
+      <h3 className="font-sans text-[28px] font-medium tracking-[-0.015em] text-fg">
+        {tier.tagline}.
+      </h3>
 
-      {/* Price */}
-      <div className="mt-5">
+      {/* Price block — switches between standard, founding, and annual cycles. */}
+      <div className="font-mono text-[13px] text-fg-2">
         {tier.monthly === 0 ? (
-          <p className="text-3xl font-bold text-white">$0</p>
+          <>
+            <span className="block font-sans text-[40px] font-medium tracking-[-0.025em] text-fg">
+              $0
+            </span>
+            One interview. One recommendation. Yours to keep.
+          </>
         ) : showFoundingNote ? (
           <>
-            {/* Founding-rate clarity:
-                  1. Gold "FOUNDING RATE" eyebrow makes the framing
-                     inescapable. A scanner reads the word before they
-                     read the number, so they cannot misread $19/mo as
-                     the standard price for everyone.
-                  2. Standard rate rendered inline as a strikethrough
-                     immediately to the right of the founding number,
-                     not as a separate caption beneath. The eye reads
-                     "$19 was $29" in one beat — the savings become
-                     felt, not just stated.
-                  3. "Locked in for life — your rate never changes"
-                     removes the contract ambiguity of bare "Locked in
-                     for life" (which a few users could read as "you
-                     can't cancel" rather than "we won't raise your
-                     price"). */}
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold">
+            <span className="block font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
               Founding rate
-            </p>
-            <div className="mt-1 flex items-baseline gap-2">
-              <p className="text-3xl font-bold text-white">
+            </span>
+            <span className="mt-1 flex items-baseline gap-2">
+              <span className="font-sans text-[40px] font-medium tracking-[-0.025em] text-fg">
                 ${foundingMonthlyRate}
-                <span className="text-lg font-medium text-slate-400">/mo</span>
-              </p>
-              <p className="text-sm text-slate-500 line-through decoration-slate-600">
+                <span className="ml-1 font-mono text-[14px] text-muted">/mo</span>
+              </span>
+              <span className="font-mono text-[12px] text-muted-2 line-through decoration-muted">
                 ${tier.monthly}
-              </p>
-            </div>
-            <p className="mt-1 text-xs font-medium text-gold">
+              </span>
+            </span>
+            <span className="mt-1 block font-mono text-[11px] uppercase tracking-[0.14em] text-accent">
               {isReturningFounder
-                ? "Your founding member rate — preserved for life."
-                : "Locked in for life — your rate never changes."}
-            </p>
+                ? "Your rate — preserved for life"
+                : "Locked in for life · rate never changes"}
+            </span>
           </>
         ) : cycle === "annual" && annualSavings ? (
           <>
-            {/* Annual headline — show what is actually charged ($X/year),
-                with the monthly equivalent and savings beneath. The toggle
-                says "Annual" so the headline must reflect that, otherwise
-                the user clicks Annual and sees a /mo price (a soft
-                contradiction). The /mo equivalent stays visible in the
-                subtitle so cross-tier comparison and the felt size of the
-                discount both survive. */}
-            <p className="text-3xl font-bold text-white">
+            <span className="block font-sans text-[40px] font-medium tracking-[-0.025em] text-fg">
               ${tier.annual}
-              <span className="text-lg font-medium text-slate-400">/year</span>
-            </p>
-            <p className="mt-1 text-xs text-slate-400">
-              ${monthlyEquivalent}/mo equivalent{" "}
-              <span className="font-medium text-success">
-                · save ${annualSavings.saved} ({annualSavings.percent}%)
-              </span>
-            </p>
+              <span className="ml-1 font-mono text-[14px] text-muted">/year</span>
+            </span>
+            ${monthlyEquivalent}/mo equivalent · save ${annualSavings.saved} (
+            {annualSavings.percent}%)
           </>
         ) : (
           <>
-            <p className="text-3xl font-bold text-white">
+            <span className="block font-sans text-[40px] font-medium tracking-[-0.025em] text-fg">
               ${tier.monthly}
-              <span className="text-lg font-medium text-slate-400">/mo</span>
-            </p>
-            {annualSavings && annualSavings.saved > 0 && (
-              // Loss-framing: when the founder picks Monthly we
-              // surface what the choice costs them. Honest — the
-              // saving is real and matches the Annual cycle's
-              // headline math. No urgency copy, no hidden trick;
-              // the founder can stay on Monthly and still see what
-              // committing for a year would have saved.
-              <p className="mt-1 text-xs text-slate-400">
-                You&rsquo;d save{" "}
-                <span className="font-medium text-success">
-                  ${annualSavings.saved}/year
-                </span>{" "}
-                on the annual plan.
-              </p>
+              <span className="ml-1 font-mono text-[14px] text-muted">/mo</span>
+            </span>
+            {annualSavings && annualSavings.saved > 0 ? (
+              <>You&rsquo;d save ${annualSavings.saved}/year on the annual plan.</>
+            ) : (
+              <>Per founder. Cancel anytime.</>
             )}
           </>
         )}
-        {isPaid && (
-          <div className="mt-3 space-y-1 text-[11px] leading-relaxed text-slate-400">
-            <p>Renews automatically. Cancel anytime in Settings.</p>
-            {cycle === "annual" && (
-              <p>14-day refund on annual plans. Monthly non-refundable.</p>
-            )}
-          </div>
-        )}
       </div>
 
-      {/* Feature sub-sections */}
-      <div className="mt-7 space-y-6">
-        {tier.groups.map((group, gi) => (
-          <div key={group.label} className={gi > 0 ? `border-t ${accent.groupRule} pt-5` : undefined}>
-            <h4 className={`text-[11px] font-semibold uppercase tracking-wider ${accent.groupLbl}`}>
-              {group.label}
-            </h4>
-            {group.note && (
-              <p className="mt-1.5 text-xs text-slate-400">{group.note}</p>
-            )}
-            {group.items.length > 0 && (
-              <ul role="list" className="mt-3 space-y-2 text-sm">
-                {group.items.map((item) => (
-                  <li key={item} className="flex items-start gap-2.5 text-slate-300">
-                    <Check
-                      className={`mt-0.5 h-4 w-4 shrink-0 ${accent.check}`}
-                      aria-hidden="true"
-                    />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ))}
-      </div>
+      {/* Feature list — flat across groups so the cell reads as one
+          editorial column. Each line is a hairline-accent dash + text.
+          Notes ride the group label as italic sub-copy when present. */}
+      <ul className="grid gap-2.5 border-t border-rule pt-4 text-[14px] leading-[1.5] text-fg-2">
+        {tier.groups.flatMap((group, gi) => {
+          const groupKey = `${tier.id}-g${gi}`;
+          const header =
+            group.items.length === 0 || group.note ? (
+              <li
+                key={`${groupKey}-h`}
+                className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted [&:not(:first-child)]:mt-2"
+              >
+                {group.label}
+                {group.note && (
+                  <span className="ml-2 normal-case tracking-normal text-muted-2">
+                    {group.note}
+                  </span>
+                )}
+              </li>
+            ) : null;
+          const items = group.items.map((item, ii) => (
+            <li
+              key={`${groupKey}-i${ii}`}
+              className="relative pl-5 before:absolute before:left-0 before:top-[10px] before:h-px before:w-2.5 before:bg-accent"
+            >
+              {item}
+            </li>
+          ));
+          return header ? [header, ...items] : items;
+        })}
+      </ul>
 
-      {/* CTA */}
-      <div className="mt-auto pt-8">
-        {alreadyOnOrAbove ? (
-          <Link href="/settings" className={`${CTA_BASE} ${accent.cta}`}>
-            Manage in Settings
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        ) : isPaid && priceId ? (
-          <SubscribeButton
-            priceId={priceId}
-            tierName={tier.name as "Execute" | "Compound"}
-            label={tier.cta}
-            className={`${CTA_BASE} ${accent.cta}`}
-          />
-        ) : (
-          <Link href="/signin" className={`${CTA_BASE} ${accent.cta}`}>
-            {tier.cta}
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        )}
-      </div>
-    </motion.article>
+      {/* CTA — mirrors the previous TierCard's already-on / paid / signin branch. */}
+      {alreadyOnOrAbove ? (
+        <Link href="/settings" className={ctaClass}>
+          Manage in Settings
+          <ArrowRight aria-hidden="true" className="size-3.5" />
+        </Link>
+      ) : isPaid && priceId ? (
+        <SubscribeButton
+          priceId={priceId}
+          tierName={tier.name as "Execute" | "Compound"}
+          label={tier.cta}
+          className={ctaClass}
+        />
+      ) : (
+        <Link href="/signin" className={ctaClass}>
+          {tier.cta}
+          <ArrowRight aria-hidden="true" className="size-3.5" />
+        </Link>
+      )}
+    </article>
   );
 }

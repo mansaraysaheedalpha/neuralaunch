@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -11,14 +11,13 @@ import {
 } from "lucide-react";
 import MarketingHeader from "@/components/marketing/MarketingHeader";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
-import RevealOnScroll from "@/components/marketing/RevealOnScroll";
 
 export const metadata: Metadata = {
-  title: "About — NeuraLaunch",
+  title: "About â€” NeuraLaunch",
   description:
     "Why we built NeuraLaunch. Who's behind it. What we believe about the gap between lost and launched.",
   openGraph: {
-    title: "About — NeuraLaunch",
+    title: "About â€” NeuraLaunch",
     description:
       "Why we built NeuraLaunch. Who's behind it. What we believe about the gap between lost and launched.",
     type: "website",
@@ -26,7 +25,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "About — NeuraLaunch",
+    title: "About â€” NeuraLaunch",
     description:
       "Why we built NeuraLaunch. Who's behind it. What we believe.",
   },
@@ -63,13 +62,13 @@ function Hero() {
       />
       <div className="relative mx-auto max-w-4xl px-4 pb-20 pt-20 sm:px-6 sm:pb-28 sm:pt-28 lg:px-8 lg:pb-36 lg:pt-32">
         <div className="text-center">
-          <RevealOnScroll>
+          
             <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-navy-800/80 px-3.5 py-1.5 text-xs font-medium text-slate-300">
               <span className="h-1.5 w-1.5 rounded-full bg-gold" />
               Our conviction
             </p>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={80}>
+          
+          
             <h1
               id="about-hero"
               className="mx-auto max-w-3xl text-balance text-[clamp(2.25rem,4vw,3.5rem)] font-bold leading-[1.1] tracking-tight text-white"
@@ -79,8 +78,8 @@ function Hero() {
                 should have always existed.
               </span>
             </h1>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={160}>
+          
+          
             <p className="mx-auto mt-7 max-w-2xl text-base leading-relaxed text-slate-300 sm:text-lg">
               The gap between <em className="text-slate-200 not-italic">where someone is</em>{" "}
               and <em className="text-slate-200 not-italic">where they could be</em>{" "}
@@ -88,7 +87,7 @@ function Hero() {
               not their connections, not their geography. NeuraLaunch is our
               answer to that belief.
             </p>
-          </RevealOnScroll>
+          
         </div>
       </div>
     </section>
@@ -105,7 +104,7 @@ function Story() {
       className="border-b border-slate-800 bg-navy-950"
     >
       <div className="mx-auto max-w-4xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
-        <RevealOnScroll>
+        
           <p className="text-sm font-semibold uppercase tracking-wider text-primary">
             Why we built it
           </p>
@@ -116,35 +115,35 @@ function Story() {
             The world has consultants. The world has AI tools. Neither was the
             thing people actually needed.
           </h2>
-        </RevealOnScroll>
+        
 
         <div className="mt-12 space-y-6 text-base leading-relaxed text-slate-300 sm:text-lg">
-          <RevealOnScroll delayMs={80}>
+          
             <p>
               Every day, millions of people wake up stuck. The graduate who
               applied everywhere and got nowhere. The shop owner whose growth
               stalled and who can&rsquo;t see why. The founder with early
               traction who hit a wall. The professional drowning in options.
             </p>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={140}>
+          
+          
             <p>
               What they all share isn&rsquo;t failure. It&rsquo;s the absence
-              of the right guide at the right moment. Consultants exist — but
+              of the right guide at the right moment. Consultants exist â€” but
               they&rsquo;re expensive, generic, and built for companies that
-              already have money. AI tools exist — but they hand you five
+              already have money. AI tools exist â€” but they hand you five
               options when you needed one answer, and they leave you alone the
               moment the answer is delivered.
             </p>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={200}>
+          
+          
             <p>
               Nothing had been built for the moments in between. Nothing
               listened first, committed to one direction, and then stayed
               through the work of making that direction real.
             </p>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={260}>
+          
+          
             <div className="mt-4 overflow-hidden rounded-2xl border border-l-[3px] border-gold/30 border-l-gold bg-gradient-to-br from-navy-800 to-navy-900 p-7 shadow-xl shadow-navy-950/40 lg:p-8">
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">
                 The founding moment
@@ -158,7 +157,7 @@ function Story() {
                 &mdash; The founding team
               </p>
             </div>
-          </RevealOnScroll>
+          
         </div>
       </div>
     </section>
@@ -177,12 +176,12 @@ const BELIEFS: Array<{
   {
     icon: Compass,
     title: "One answer is more useful than five options.",
-    body: "When someone is lost, they don't need more options to evaluate. They need a direction they can trust — and someone willing to defend it, or change their mind when the case is made.",
+    body: "When someone is lost, they don't need more options to evaluate. They need a direction they can trust â€” and someone willing to defend it, or change their mind when the case is made.",
     accent: "gold",
   },
   {
     icon: MessageCircle,
-    title: "The work decides the outcome — not the strategy.",
+    title: "The work decides the outcome â€” not the strategy.",
     body: "The moments that decide whether a founder wins are not the moments code gets written. They're the first cold message, the pricing call, the conversation with the partner you've been avoiding. We built tools for that work.",
     accent: "blue",
   },
@@ -195,7 +194,7 @@ const BELIEFS: Array<{
   {
     icon: Heart,
     title: "Stay through the cycle.",
-    body: "A plan you receive once is a document you'll close in a week. A partner that stays — through the blocks, the wins, the recalibrations — is the difference between a roadmap on paper and a roadmap that ships.",
+    body: "A plan you receive once is a document you'll close in a week. A partner that stays â€” through the blocks, the wins, the recalibrations â€” is the difference between a roadmap on paper and a roadmap that ships.",
     accent: "emerald",
   },
 ];
@@ -226,28 +225,27 @@ function Beliefs() {
     >
       <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
         <div className="mx-auto max-w-3xl text-center">
-          <RevealOnScroll>
+          
             <p className="text-sm font-semibold uppercase tracking-wider text-primary">
               What we believe
             </p>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={60}>
+          
+          
             <h2
               id="beliefs-heading"
               className="mt-3 text-3xl font-semibold tracking-tight text-white sm:text-4xl md:text-5xl"
             >
               Four convictions shape every decision we make.
             </h2>
-          </RevealOnScroll>
+          
         </div>
 
         <div className="mx-auto mt-14 grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-2">
-          {BELIEFS.map((belief, i) => {
+          {BELIEFS.map((belief) => {
             const Icon = belief.icon;
             const accent = ACCENT_STYLES[belief.accent];
             return (
-              <RevealOnScroll key={belief.title} delayMs={i * 80}>
-                <article className="h-full rounded-xl border border-slate-800 bg-navy-950 p-7 transition-colors hover:border-slate-700">
+              <article key={belief.title} className="h-full rounded-xl border border-slate-800 bg-navy-950 p-7 transition-colors hover:border-slate-700">
                   <div
                     className={`flex h-11 w-11 items-center justify-center rounded-lg ring-1 ring-inset ${accent.bg} ${accent.border}`}
                   >
@@ -263,7 +261,6 @@ function Beliefs() {
                     {belief.body}
                   </p>
                 </article>
-              </RevealOnScroll>
             );
           })}
         </div>
@@ -283,7 +280,7 @@ function Company() {
     >
       <div className="mx-auto max-w-5xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
         <div className="rounded-2xl border border-slate-800 bg-navy-950 p-8 sm:p-12 lg:p-16">
-          <RevealOnScroll>
+          
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gold">
               The company
             </p>
@@ -293,17 +290,17 @@ function Company() {
             >
               A product of Tabempa Engineering Limited.
             </h2>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={80}>
+          
+          
             <p className="mt-6 max-w-3xl text-base leading-relaxed text-slate-300 sm:text-lg">
               Tabempa Engineering Limited is the parent company. Headquartered
-              in Freetown, Sierra Leone — a vantage point that informs how we
+              in Freetown, Sierra Leone â€” a vantage point that informs how we
               think about access, constraint, and the difference a single
               clear direction can make for someone whose options are
               genuinely limited.
             </p>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={140}>
+          
+          
             <div className="mt-10 grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-slate-800 bg-slate-800 sm:grid-cols-3">
               <Stat
                 icon={Layers}
@@ -324,7 +321,7 @@ function Company() {
                 accent="emerald"
               />
             </div>
-          </RevealOnScroll>
+          
         </div>
       </div>
     </section>
@@ -370,7 +367,7 @@ function FinalCTA() {
       className="bg-gradient-to-b from-navy-900 to-navy-950"
     >
       <div className="mx-auto max-w-5xl px-4 py-24 sm:px-6 sm:py-28 lg:px-8 lg:py-36">
-        <RevealOnScroll>
+        
           <div className="text-center">
             <h2
               id="about-cta-heading"
@@ -393,7 +390,7 @@ function FinalCTA() {
               </Link>
             </div>
           </div>
-        </RevealOnScroll>
+        
       </div>
     </section>
   );

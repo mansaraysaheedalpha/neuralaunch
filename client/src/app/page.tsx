@@ -1,60 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import {
-  ArrowRight,
-  MessageSquare,
-  Compass,
-  ListChecks,
-  Wrench,
-  RefreshCcw,
-  Mic,
-  Send,
-  Search,
-  Package,
-  Globe,
-  Bell,
-  Brain,
-} from "lucide-react";
-import type { ReactNode } from "react";
+import { ArrowRight } from "lucide-react";
 import MarketingHeader from "@/components/marketing/MarketingHeader";
 import MarketingFooter from "@/components/marketing/MarketingFooter";
-import RevealOnScroll from "@/components/marketing/RevealOnScroll";
-import HeroProductStack from "@/components/marketing/HeroProductStack";
-import { DifferentiationPanel } from "@/components/marketing/differentiation/DifferentiationPanel";
-import { ProblemTabs } from "@/components/marketing/problem/ProblemTabs";
-import {
-  ContinuationBriefMock,
-  InterviewMock,
-  RecommendationPreviewMock,
-  RoadmapMock,
-  TimelineStep,
-  ToolsRowMock,
-} from "@/components/marketing/HowItWorksTimeline";
-import {
-  PushbackLadder,
-  SampleRecommendationCard,
-} from "@/components/marketing/RecommendationAnatomy";
-import {
-  CheckInBeatMock,
-  ContinuationBeatMock,
-  MemoryBeatMock,
-  RecalibrationBeatMock,
-  VentureLifecycleStrip,
-} from "@/components/marketing/StaysWithYouVisuals";
-import ToolCard from "@/components/marketing/ToolCard";
-import {
-  CoachVisual,
-  ComposerVisual,
-  PackagerVisual,
-  ResearchVisual,
-  ValidationVisual,
-} from "@/components/marketing/ToolCardVisuals";
 import { PricingSection } from "@/components/marketing/PricingSection";
-import { StoriesStrip } from "@/components/marketing/stories/StoriesStrip";
 import { getPriceIds } from "@/lib/paddle/founding-members";
 
 const HERO_SUBHEAD =
-  "NeuraLaunch interviews your situation, commits to one clear recommendation, then partners with you through every task — until you've shipped, learned, or decided what comes next.";
+  "NeuraLaunch interviews your situation, commits to one clear recommendation, and partners with you through every task — until you've shipped, learned, or decided what comes next.";
 
 export const metadata: Metadata = {
   title: "NeuraLaunch — From Lost to Launched",
@@ -72,628 +25,535 @@ export const metadata: Metadata = {
   },
 };
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  // Resolve per-tier Paddle price ids server-side. The hidden founding
+  // rate is returned only while slots remain — switching to the standard
+  // monthly the moment the 50-user ceiling is hit.
+  const [execute, compound] = await Promise.all([
+    getPriceIds("execute"),
+    getPriceIds("compound"),
+  ]);
+
   return (
-    <div className="min-h-screen bg-navy-950 text-slate-50 antialiased [scroll-behavior:smooth]">
+    <div className="min-h-screen bg-bg text-fg antialiased">
       <MarketingHeader />
-      <main id="main" className="pt-16">
+      <main id="main">
         <Hero />
-        <Problem />
-        <HowItWorks />
-        <OneRecommendation />
-        <ExecutionTools />
-        <Differentiation />
-        <ItStaysWithYou />
-        <StoriesStrip />
-        <Pricing />
-        <FinalCTA />
+        <Cycle />
+        <Surface />
+        <Toolkit />
+        <Pricing execute={execute} compound={compound} />
+        <Closing />
       </main>
       <MarketingFooter />
     </div>
   );
 }
 
-/* ============================================================
-   SECTION 1 — HERO
-   ============================================================ */
+/* -------------------------------------------------------------------------- */
+/*  Hero                                                                       */
+/* -------------------------------------------------------------------------- */
+
 function Hero() {
   return (
-    <section
-      aria-labelledby="hero-heading"
-      className="relative overflow-hidden border-b border-slate-800 bg-gradient-to-b from-navy-950 via-navy-900 to-navy-800"
-    >
-      {/* subtle radial glow — purely decorative, css-only */}
+    <section aria-labelledby="hero-heading" className="relative border-b border-rule">
+      {/* Radial accent wash — only graphic primitive on the landing. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 mx-auto h-[600px] max-w-5xl bg-[radial-gradient(ellipse_at_top,_rgba(37,99,235,0.15),_transparent_60%)]"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(700px 320px at 20% 30%, rgba(255,90,60,0.10), transparent 60%)",
+        }}
       />
+      <div className="relative mx-auto max-w-[1320px] px-6 pb-20 pt-24 sm:px-10 lg:pb-24 lg:pt-32">
+        {/* Stamp row */}
+        <div className="mb-14 flex flex-wrap items-baseline justify-between gap-6 font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
+          <span>NeuraLaunch · Tabempa Engineering</span>
+          <span className="text-accent">Discovery · Open</span>
+          <span>From lost to launched · 2026</span>
+        </div>
 
-      <div className="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-16 overflow-visible px-4 pb-24 pt-20 sm:px-6 sm:pb-28 sm:pt-28 lg:min-h-[95vh] lg:grid-cols-12 lg:gap-12 lg:px-8 lg:pb-24 lg:pt-24">
-        <div className="lg:col-span-6">
-          <RevealOnScroll>
-            <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-slate-800 bg-navy-800/80 px-3.5 py-1.5 text-xs font-medium text-slate-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-success" />
-              From lost to launched. For everyone.
+        <h1
+          id="hero-heading"
+          className="font-sans font-medium text-fg [font-size:clamp(44px,6vw,96px)] [line-height:0.96] [letter-spacing:-0.03em] max-w-[1100px]"
+        >
+          You know something<br />
+          needs to change.{" "}
+          <span className="text-accent">
+            We&rsquo;ll tell you what —<br />and walk it with you.
+          </span>
+        </h1>
+
+        <div className="mt-14 grid items-end gap-12 lg:grid-cols-2 lg:gap-16">
+          <div>
+            <p className="max-w-[600px] text-[18px] leading-[1.5] text-fg-2">
+              NeuraLaunch interviews your situation, commits to{" "}
+              <strong className="font-medium text-fg">one</strong> clear
+              recommendation, and partners with you through every task — until
+              you&rsquo;ve shipped, learned, or decided what comes next.
             </p>
-          </RevealOnScroll>
-
-          <RevealOnScroll delayMs={80}>
-            <h1
-              id="hero-heading"
-              className="max-w-[560px] text-balance text-[clamp(2rem,3.5vw,3.25rem)] font-bold leading-[1.1] tracking-tight text-white"
-            >
-              You know something needs to change.{" "}
-              <span className="text-gold">
-                We&rsquo;ll tell you what — and walk it with you.
-              </span>
-            </h1>
-          </RevealOnScroll>
-
-          <RevealOnScroll delayMs={160}>
-            <p className="mt-6 max-w-[520px] text-base leading-relaxed text-slate-300 sm:text-lg">
-              {HERO_SUBHEAD}
-            </p>
-          </RevealOnScroll>
-
-          <RevealOnScroll delayMs={240}>
-            <div className="mt-8 flex">
+            <div className="mt-8 flex flex-wrap items-center gap-3.5" id="start">
+              <PrimaryCTA href="/discovery">Begin Discovery</PrimaryCTA>
               <Link
-                href="/discovery"
-                className="group inline-flex items-center gap-2 rounded-md bg-primary px-6 py-3.5 text-base font-semibold text-white shadow-lg shadow-primary/20 ring-1 ring-transparent transition-all hover:bg-blue-700 hover:shadow-xl hover:shadow-primary/30 hover:ring-gold/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950"
+                href="#cycle"
+                className="inline-flex items-center gap-2.5 border border-rule-strong px-[22px] py-[16px] font-mono text-[12px] font-medium uppercase tracking-[0.14em] text-fg transition-colors hover:border-fg"
               >
-                Start Your Discovery
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                Read the cycle
               </Link>
             </div>
-            <p className="mt-4 text-xs text-slate-300">
-              Free to start. No credit card required.
+            <p className="mt-4 font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+              Free to start · No card · ~12 minutes
             </p>
-          </RevealOnScroll>
-        </div>
+          </div>
 
-        <div className="relative mt-12 overflow-visible lg:col-span-6 lg:mt-0 lg:pl-8">
-          <HeroProductStack />
+          <dl className="grid gap-3.5 border-l border-rule pl-7 lg:pl-9">
+            <MeterRow k="Engine" v="Multi-cycle, multi-phase" />
+            <MeterRow k="Models" v="Opus · Sonnet · Haiku" />
+            <MeterRow k="Tools shipped" v="5 · Execute+" />
+            <MeterRow k="Recommendation count" v="One." accent />
+          </dl>
         </div>
       </div>
     </section>
   );
 }
 
-/* ============================================================
-   SECTION 2 — THE PROBLEM
-   ============================================================ */
-function Problem() {
+function MeterRow({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
   return (
-    <section
-      aria-labelledby="problem-heading"
-      className="border-b border-slate-800 bg-navy-950"
-    >
-      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
-        <ProblemTabs />
-      </div>
-    </section>
+    <div className="flex items-baseline justify-between gap-3">
+      <dt className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+        {k}
+      </dt>
+      <dd
+        className={`font-mono text-[13px] ${
+          accent ? "text-accent" : "text-fg"
+        }`}
+      >
+        {v}
+      </dd>
+    </div>
   );
 }
 
-/* ============================================================
-   SECTION 3 — HOW IT WORKS
-   ============================================================ */
-type Step = Omit<
-  React.ComponentProps<typeof TimelineStep>,
-  "index" | "number"
->;
+/* -------------------------------------------------------------------------- */
+/*  § 01 The Cycle                                                             */
+/* -------------------------------------------------------------------------- */
 
-const STEP_ICON_CLASS = "h-4 w-4";
+const CYCLE_STEPS = [
+  {
+    n: "01",
+    title: <>Be heard.</>,
+    body: "A 4-phase interview builds a fifteen-field belief state. Up to fifteen questions. Audience-aware. Capped, so it ends.",
+    annotLab: "Discovery",
+    annotBody:
+      "Orientation → goals → constraints → conviction. Hard cap at 15.",
+  },
+  {
+    n: "02",
+    title: (
+      <>
+        One <span className="text-accent">recommendation.</span>
+      </>
+    ),
+    body: "Synthesised across the full belief state. With reasoning, risks, assumptions you can flag, and the alternatives that were rejected — and why, for you specifically.",
+    annotLab: "Phase 1B emission",
+    annotBody: "Opus 4.6 reasons, Sonnet formats. No menus. No hedge.",
+  },
+  {
+    n: "03",
+    title: <>Push back.</>,
+    body: "Up to ten rounds of real argument. Defend, refine, replace. If you're right and the evidence agrees, the recommendation changes.",
+    annotLab: "Pushback engine",
+    annotBody: "Two-phase. Hard cap triggers a constrained alternative.",
+  },
+  {
+    n: "04",
+    title: (
+      <>
+        A real <span className="text-accent">roadmap.</span>
+      </>
+    ),
+    body: "Phased. Sequenced. Sized to the hours you actually have. Each task carries reasoning, success criteria, and the tools we'll use to get through it.",
+    annotLab: "Roadmap engine",
+    annotBody: "Up to five phases. Up to five tasks per phase.",
+  },
+  {
+    n: "05",
+    title: <>Learn. Continue.</>,
+    body: "At the end of every cycle: what happened, what we got wrong, what the evidence says, the forks ahead, the parking lot. The next cycle starts smarter than the last.",
+    annotLab: "Continuation brief",
+    annotBody: "Five sections. Auto-generated. Ready to read.",
+  },
+] as const;
 
-const STEPS: Step[] = [
-  {
-    icon: <MessageSquare className={STEP_ICON_CLASS} aria-hidden="true" />,
-    eyebrow: "Step 1 · Discovery",
-    title: "Be heard.",
-    body: "A focused interview that builds a real picture of who you are, what you want, what you have, and what you've already tried. Five to fifteen questions, capped at fifteen.",
-    side: "right",
-    color: "primary",
-    visual: <InterviewMock />,
-  },
-  {
-    icon: <Compass className={STEP_ICON_CLASS} aria-hidden="true" />,
-    eyebrow: "Step 2 · Commitment",
-    title: "One recommendation.",
-    body: "Not a menu. One direction — for your specific situation — with the reasoning, risks, and what would make it wrong, all on the table. Push back if you disagree.",
-    side: "left",
-    color: "primary-to-gold",
-    visual: <RecommendationPreviewMock />,
-  },
-  {
-    icon: <ListChecks className={STEP_ICON_CLASS} aria-hidden="true" />,
-    eyebrow: "Step 3 · Roadmap",
-    title: "A real roadmap.",
-    body: "Phased, sequenced, sized to your hours. Up to five phases, up to five tasks per phase. Every task has a reason, a time estimate against your weekly hours, and a concrete success criterion.",
-    side: "right",
-    color: "gold",
-    visual: <RoadmapMock />,
-  },
-  {
-    icon: <Wrench className={STEP_ICON_CLASS} aria-hidden="true" />,
-    eyebrow: "Step 4 · Execution",
-    title: "Execute with tools.",
-    body: "Conversation Coach for the calls. Outreach Composer for the messages. Research Tool for the questions. Service Packager for the offer. Validation Page for the demand. Built for the work that decides whether you win.",
-    side: "left",
-    color: "gold-to-success",
-    visual: <ToolsRowMock />,
-  },
-  {
-    icon: <RefreshCcw className={STEP_ICON_CLASS} aria-hidden="true" />,
-    eyebrow: "Step 5 · Continuation",
-    title: "Learn and continue.",
-    body: "When the cycle ends, NeuraLaunch produces a five-section brief: what happened, what got missed, what the evidence says, the forks ahead, and the parking lot. The next cycle starts smarter than the last.",
-    side: "right",
-    color: "success",
-    visual: <ContinuationBriefMock />,
-  },
-];
-
-function HowItWorks() {
+function Cycle() {
   return (
-    <section
-      aria-labelledby="how-it-works-heading"
-      className="border-b border-slate-800 bg-navy-900"
-    >
-      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
-        <div className="mx-auto max-w-3xl text-center">
-          <RevealOnScroll>
-            <p className="text-sm font-semibold uppercase tracking-wider text-primary">
-              How it works
-            </p>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={60}>
-            <h2
-              id="how-it-works-heading"
-              className="mt-3 text-balance text-heading text-white"
-            >
-              One arc. From first question to first outcome.
-            </h2>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={120}>
-            <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-300 lg:text-lg">
-              Five moments. Each one connects to the next. The work compounds
-              because the system stays.
-            </p>
-          </RevealOnScroll>
-        </div>
+    <section id="cycle" className="border-b border-rule">
+      <div className="mx-auto max-w-[1320px] px-6 py-24 sm:px-10 lg:py-32">
+        <SectionHead num="§ 01" stamp="The cycle">
+          <>
+            One arc. From first question<br />
+            to first <span className="text-accent">outcome.</span>
+          </>
+        </SectionHead>
 
-        <div className="relative mx-auto mt-16 max-w-6xl">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute left-4 top-0 h-full w-px bg-gradient-to-b from-primary via-gold to-success md:left-6 lg:left-1/2 lg:-translate-x-1/2"
-          />
-          <ol role="list" className="space-y-16 lg:space-y-24">
-            {STEPS.map((step, i) => (
-              <TimelineStep
-                key={step.title}
-                index={i}
-                number={i + 1}
-                {...step}
-              />
+        <div className="grid gap-14 lg:grid-cols-[220px_1fr] lg:gap-14">
+          <div aria-hidden="true" />
+          <ol className="grid">
+            {CYCLE_STEPS.map((step, i) => (
+              <li
+                key={step.n}
+                className={[
+                  "grid items-start gap-10 py-9",
+                  "lg:grid-cols-[80px_1fr_280px]",
+                  i === 0
+                    ? "border-t border-rule-strong"
+                    : "border-t border-rule",
+                ].join(" ")}
+              >
+                <span className="font-mono text-[12px] tracking-[0.14em] text-accent">
+                  {step.n}
+                </span>
+                <div>
+                  <h3 className="font-sans font-medium text-fg [font-size:clamp(28px,3vw,40px)] [line-height:1.05] [letter-spacing:-0.02em]">
+                    {step.title}
+                  </h3>
+                  <p className="mt-3 max-w-[520px] text-[15px] leading-[1.55] text-fg-2">
+                    {step.body}
+                  </p>
+                  {/* Stories footnote rides Step V — see judgement-call note. */}
+                  {step.n === "05" && (
+                    <ul className="mt-5 grid max-w-[520px] gap-2.5 border-t border-rule pt-4 font-serif text-[14px] italic leading-[1.5] text-fg-2">
+                      <li className="before:mr-2 before:text-accent before:content-['—']">
+                        &ldquo;The recommendation read me back to myself.&rdquo; — placeholder, backfill from stories archive.
+                      </li>
+                      <li className="before:mr-2 before:text-accent before:content-['—']">
+                        &ldquo;Got the day-job-friendly cycle I needed.&rdquo; — placeholder, backfill from stories archive.
+                      </li>
+                      <li className="before:mr-2 before:text-accent before:content-['—']">
+                        &ldquo;Pushback round 6 changed everything.&rdquo; — placeholder, backfill from stories archive.
+                      </li>
+                    </ul>
+                  )}
+                </div>
+                <div className="font-mono text-[11px] leading-[1.65] tracking-[0.04em] text-muted">
+                  <span className="mb-1 block text-[10px] font-medium uppercase tracking-[0.14em] text-fg">
+                    {step.annotLab}
+                  </span>
+                  {step.annotBody}
+                </div>
+              </li>
             ))}
           </ol>
-          <p className="mt-12 text-center text-sm italic text-slate-400 lg:mt-16">
-            From the first question to the first outcome &mdash; and into the
-            next.
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  § 02 A Recommendation                                                      */
+/* -------------------------------------------------------------------------- */
+
+function Surface() {
+  return (
+    <section id="surface" className="border-b border-rule">
+      <div className="mx-auto max-w-[1320px] px-6 py-24 sm:px-10 lg:py-32">
+        <SectionHead num="§ 02" stamp="A recommendation">
+          <>
+            This is what a real one<br />
+            looks <span className="text-accent">like.</span>
+          </>
+        </SectionHead>
+
+        <div className="grid gap-14 lg:grid-cols-[220px_1fr]">
+          <p className="font-sans font-normal text-fg [font-size:clamp(28px,3vw,40px)] [line-height:1.15] [letter-spacing:-0.015em] max-w-[760px]">
+            <span className="italic text-muted">Not a menu.</span>{" "}
+            One direction, for your specific situation, with reasoning,
+            risks, and what would make it{" "}
+            <span className="text-accent">wrong</span> — all on the table.
           </p>
-        </div>
-      </div>
-    </section>
-  );
-}
 
-/* ============================================================
-   SECTION 4 — ONE RECOMMENDATION. NOT FIVE.
-   ============================================================ */
-function OneRecommendation() {
-  return (
-    <section
-      aria-labelledby="one-rec-heading"
-      className="border-b border-slate-800 bg-navy-950"
-    >
-      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
-        <div className="mx-auto max-w-3xl text-center">
-          <RevealOnScroll>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-gold">
-              The principle
-            </p>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={60}>
-            <h2
-              id="one-rec-heading"
-              className="mt-3 text-balance text-heading text-white"
-            >
-              One recommendation.{" "}
-              <span className="text-gold">Not five.</span>
-            </h2>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={120}>
-            <p className="mx-auto mt-5 max-w-3xl text-base leading-relaxed text-slate-300 lg:text-lg">
-              Every other AI tool is afraid to commit. It gives you options.
-              It hedges. NeuraLaunch listens to your full situation, then
-              commits to one direction &mdash; with the reasoning, the
-              risks, and the assumptions laid bare. Disagree? Argue with it.{" "}
-              <span className="text-white">This is what it looks like.</span>
-            </p>
-          </RevealOnScroll>
-        </div>
+          <article
+            aria-label="Sample recommendation"
+            className="relative overflow-hidden border border-rule-strong bg-[linear-gradient(180deg,#111114_0%,#0e0e10_100%)] before:absolute before:left-0 before:right-0 before:top-0 before:h-[2px] before:bg-accent before:content-['']"
+          >
+            <header className="flex items-center justify-between border-b border-rule px-9 py-7 font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
+              <span>Recommendation · Cycle 01</span>
+              <span className="text-accent">Confidence · High</span>
+            </header>
 
-        <div className="mx-auto mt-14 grid max-w-6xl grid-cols-1 items-stretch gap-8 lg:grid-cols-12 lg:gap-10">
-          <div className="lg:col-span-7">
-            <SampleRecommendationCard />
-          </div>
-          <div className="lg:col-span-5">
-            <PushbackLadder />
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ============================================================
-   SECTION 5 — THE EXECUTION TOOLS
-   ============================================================ */
-type ToolEntry = {
-  icon: ReactNode;
-  name: string;
-  tagline: string;
-  body: string;
-  accent: "blue" | "gold";
-  visual: ReactNode;
-  spanClass: string;
-};
-
-const TOOL_ICON_CLASS = "h-5 w-5";
-
-const TOOLS: ToolEntry[] = [
-  {
-    icon: <Mic className={TOOL_ICON_CLASS} aria-hidden="true" />,
-    name: "Conversation Coach",
-    tagline: "Rehearse the pitch before you walk in.",
-    body: "Tell it who you're talking to and what you're afraid of. It builds the opening, the asks, the objections — then role-plays the other side in character.",
-    accent: "blue",
-    visual: <CoachVisual />,
-    spanClass: "lg:col-span-2",
-  },
-  {
-    icon: <Send className={TOOL_ICON_CLASS} aria-hidden="true" />,
-    name: "Outreach Composer",
-    tagline: "Your messages, written and ready to send.",
-    body: "Single message, batched variations, or a Day 1 / Day 5 / Day 14 sequence across WhatsApp, email, and LinkedIn — each with a short note on why it works.",
-    accent: "blue",
-    visual: <ComposerVisual />,
-    spanClass: "lg:col-span-2",
-  },
-  {
-    icon: <Search className={TOOL_ICON_CLASS} aria-hidden="true" />,
-    name: "Research Tool",
-    tagline: "Find the people, the competitors, the answers.",
-    body: "Ask in plain language. Get back structured findings — businesses, competitors, regulations — with source URLs and a verified / likely / unverified label.",
-    accent: "blue",
-    visual: <ResearchVisual />,
-    spanClass: "lg:col-span-2",
-  },
-  {
-    icon: <Package className={TOOL_ICON_CLASS} aria-hidden="true" />,
-    name: "Service Packager",
-    tagline: "Turn what you do into tiers people can buy.",
-    body: "Builds three priced tiers from your situation — Starter, Pro, Premium — with the features, the price, and the reasoning behind each one.",
-    accent: "gold",
-    visual: <PackagerVisual />,
-    spanClass: "lg:col-span-3",
-  },
-  {
-    icon: <Globe className={TOOL_ICON_CLASS} aria-hidden="true" />,
-    name: "Validation Page",
-    tagline: "A live page to test demand before you build.",
-    body: "Hosts a slug-routed landing page with a survey and analytics, so you learn whether anyone actually wants this — before you write a line of code.",
-    accent: "gold",
-    visual: <ValidationVisual />,
-    spanClass: "lg:col-span-3",
-  },
-];
-
-function ExecutionTools() {
-  return (
-    <section
-      aria-labelledby="tools-heading"
-      className="border-b border-slate-800 bg-navy-900"
-    >
-      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
-        <div className="mx-auto max-w-3xl text-center">
-          <RevealOnScroll>
-            <p className="text-sm font-semibold uppercase tracking-wider text-primary">
-              The toolkit
-            </p>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={60}>
-            <h2 id="tools-heading" className="mt-3 text-heading text-white">
-              Five tools, built for the work that decides whether you win.
-            </h2>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={120}>
-            <p className="mt-5 text-base leading-relaxed text-slate-300 sm:text-lg">
-              The first cold message. The pricing call. The conversation with
-              the partner you&rsquo;ve been avoiding. These moments decide
-              outcomes. We built the tools for them.
-            </p>
-          </RevealOnScroll>
-        </div>
-
-        <div className="mx-auto mt-14 grid max-w-6xl grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-6">
-          {TOOLS.map((tool, i) => (
-            <ToolCard
-              key={tool.name}
-              index={i}
-              icon={tool.icon}
-              name={tool.name}
-              tagline={tool.tagline}
-              body={tool.body}
-              accent={tool.accent}
-              visual={tool.visual}
-              className={tool.spanClass}
-            />
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ============================================================
-   SECTION 6 — WHAT MAKES THIS DIFFERENT
-   ============================================================ */
-function Differentiation() {
-  return (
-    <section
-      aria-labelledby="diff-heading"
-      className="border-b border-slate-800 bg-navy-950"
-    >
-      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
-        <div className="mx-auto max-w-3xl text-center">
-          <RevealOnScroll>
-            <p className="text-sm font-semibold uppercase tracking-wider text-primary">
-              Where they stop
-            </p>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={60}>
-            <h2
-              id="diff-heading"
-              className="mt-3 text-balance text-heading text-white"
-            >
-              The category had a gap. We filled it.
-            </h2>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={120}>
-            <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-300 lg:text-lg">
-              Every tool that exists today helps with one slice of the
-              journey, then stops. NeuraLaunch is the one that stays.
-            </p>
-          </RevealOnScroll>
-        </div>
-        <DifferentiationPanel />
-      </div>
-    </section>
-  );
-}
-
-/* ============================================================
-   SECTION 7 — IT STAYS WITH YOU
-   ============================================================ */
-type BeatEntry = {
-  icon: ReactNode;
-  title: string;
-  body: string;
-  mock: ReactNode;
-};
-
-const BEAT_ICON_CLASS = "h-4 w-4";
-
-const BEATS: BeatEntry[] = [
-  {
-    icon: <Bell className={BEAT_ICON_CLASS} aria-hidden="true" />,
-    title: "It checks in",
-    body: "When a task runs past its time estimate or you've gone quiet, a nudge surfaces — not nagging, not on a schedule. Triggered by your real activity.",
-    mock: <CheckInBeatMock />,
-  },
-  {
-    icon: <Brain className={BEAT_ICON_CLASS} aria-hidden="true" />,
-    title: "It remembers",
-    body: "Every check-in, every blocked task, every parked idea is held in context. Nothing has to be re-explained when you come back.",
-    mock: <MemoryBeatMock />,
-  },
-  {
-    icon: <RefreshCcw className={BEAT_ICON_CLASS} aria-hidden="true" />,
-    title: "It recalibrates",
-    body: "When several check-ins point structurally the same way — and you're at least 40% through — it offers to revisit the recommendation. Without you having to ask.",
-    mock: <RecalibrationBeatMock />,
-  },
-  {
-    icon: <Compass className={BEAT_ICON_CLASS} aria-hidden="true" />,
-    title: "It tells you what's next",
-    body: "At the end of a cycle: a five-section brief on what happened, what got missed, what the evidence says, the forks ahead, and the parking lot — auto-generated, ready to read.",
-    mock: <ContinuationBeatMock />,
-  },
-];
-
-function ItStaysWithYou() {
-  return (
-    <section
-      aria-labelledby="stays-heading"
-      className="border-b border-slate-800 bg-navy-900"
-    >
-      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-24">
-        <div className="mx-auto max-w-3xl text-center">
-          <RevealOnScroll>
-            <p className="inline-flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-success">
-              <span className="h-1.5 w-1.5 rounded-full bg-success" />
-              It stays with you
-            </p>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={60}>
-            <h2
-              id="stays-heading"
-              className="mt-4 text-balance text-heading text-white"
-            >
-              A partner. Not a tool you check.
-            </h2>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={120}>
-            <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-300 lg:text-lg">
-              From the day you accept the recommendation to the day you mark
-              the venture complete &mdash; the system is in the room. It
-              checks in. It remembers. It notices when the direction itself
-              needs to change.
-            </p>
-          </RevealOnScroll>
-        </div>
-
-        <div className="mx-auto mt-10 max-w-6xl">
-          <VentureLifecycleStrip />
-        </div>
-
-        <div className="mx-auto mt-8 grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-2">
-          {BEATS.map((beat, i) => (
-            <Beat key={beat.title} index={i} beat={beat} />
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Beat({ index, beat }: { index: number; beat: BeatEntry }) {
-  return (
-    <RevealOnScroll delayMs={index * 100}>
-      <article className="grid h-full min-h-[220px] grid-cols-1 gap-5 rounded-xl border border-slate-800 bg-navy-900 p-6 shadow-xl shadow-navy-950/50 sm:grid-cols-[1fr_180px]">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-success/10 text-success ring-1 ring-inset ring-success/30">
-              {beat.icon}
-            </span>
-            <h3 className="text-base font-semibold text-white">{beat.title}</h3>
-          </div>
-          <p className="mt-3 text-sm leading-relaxed text-slate-300">
-            {beat.body}
-          </p>
-        </div>
-        <div className="self-center">{beat.mock}</div>
-      </article>
-    </RevealOnScroll>
-  );
-}
-
-/* ============================================================
-   SECTION 8 — PRICING
-   ============================================================ */
-async function Pricing() {
-  // Fetch per-tier price ids at request time. The hidden founding rate
-  // is returned only while slots remain — switching to the standard
-  // monthly price the moment the 50-user ceiling is hit.
-  const [execute, compound] = await Promise.all([
-    getPriceIds('execute'),
-    getPriceIds('compound'),
-  ]);
-
-  return (
-    <section
-      id="pricing"
-      aria-labelledby="pricing-heading"
-      className="border-b border-slate-800 bg-navy-950 scroll-mt-20"
-    >
-      <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-32">
-        <div className="mx-auto max-w-3xl text-center">
-          <RevealOnScroll>
-            <p className="text-sm font-semibold uppercase tracking-wider text-primary">
-              Pricing
-            </p>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={60}>
-            <h2
-              id="pricing-heading"
-              className="mt-3 text-heading text-white"
-            >
-              Each tier unlocks the next layer of the journey.
-            </h2>
-          </RevealOnScroll>
-          <RevealOnScroll delayMs={120}>
-            <p className="mt-5 text-base leading-relaxed text-slate-300 sm:text-lg">
-              Free earns trust with one honest interview and one full
-              recommendation. Execute ships your first venture end to end.
-              Compound runs the system across ventures.
-            </p>
-          </RevealOnScroll>
-        </div>
-
-        <div className="mt-14">
-          <PricingSection execute={execute} compound={compound} />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ============================================================
-   SECTION 9 — FINAL CTA
-   ============================================================ */
-function FinalCTA() {
-  return (
-    <section
-      aria-labelledby="final-cta-heading"
-      className="relative bg-gradient-to-b from-navy-900 to-navy-950"
-    >
-      {/* gold-accent seal — top */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent"
-      />
-      {/* gold-accent seal — bottom (symmetric closure for the page) */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent"
-      />
-
-      <div className="mx-auto max-w-5xl px-4 py-20 sm:px-6 sm:py-24 lg:px-8 lg:py-28">
-        <RevealOnScroll>
-          <div className="text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gold">
-              Eight weeks from today
-            </p>
-            <h2
-              id="final-cta-heading"
-              className="mt-4 text-balance text-heading text-white"
-            >
-              You&rsquo;ll know.
-            </h2>
-            <div className="mx-auto mt-6 max-w-xl space-y-3 text-base leading-relaxed text-slate-300 sm:text-lg">
-              <p>Either you&rsquo;ve shipped.</p>
-              <p>Or you&rsquo;ve learned what to change.</p>
-              <p>
-                Or you&rsquo;ve decided this isn&rsquo;t the path &mdash;
-                with proof.
+            <div className="px-9 pb-9 pt-11">
+              <h3 className="font-sans font-medium text-fg [font-size:clamp(34px,4vw,56px)] [line-height:1.02] [letter-spacing:-0.02em] max-w-[880px]">
+                Spend the next three weeks proving demand for the maternal-care
+                advisory line.{" "}
+                <span className="font-serif font-normal italic text-accent">
+                  Not building the app.
+                </span>
+              </h3>
+              <p className="mb-8 mt-5 max-w-[720px] text-[16px] leading-[1.55] text-fg-2">
+                You have a clinical network, a real WhatsApp following, and a
+                shortage of hours. The app will eat 200 hours before anyone
+                says yes. A three-week paid advisory pilot, run from your
+                existing channel, will tell you within thirty days whether to
+                build at all — and at what price.
               </p>
+
+              <div className="grid border-y border-rule lg:grid-cols-3">
+                <RecCell k="First three steps">
+                  <p>
+                    <b className="font-medium text-fg">① Frame the pilot</b> as
+                    a 30-day paid line.
+                    <br />
+                    <b className="font-medium text-fg">② Recruit</b> ten
+                    existing followers at NLe 200/mo.
+                    <br />
+                    <b className="font-medium text-fg">③ Run</b> consultations
+                    via WhatsApp Business.
+                  </p>
+                </RecCell>
+                <RecCell k="Time to first result">
+                  <p>
+                    <b className="font-medium text-fg">14 days.</b> First paid
+                    consultation booked.
+                  </p>
+                  <p className="mt-3">
+                    Sized against the 8 weekly hours you stated.
+                  </p>
+                </RecCell>
+                <RecCell k="What would make this wrong">
+                  <p>
+                    If &lt; 3 of 10 followers say yes at price, the advisory
+                    frame is wrong — pivot to free-tier triage with
+                    escalation, not a paid line.
+                  </p>
+                </RecCell>
+              </div>
             </div>
-            <p className="mx-auto mt-7 max-w-xl text-base leading-relaxed text-slate-300">
-              Whichever it is, you won&rsquo;t be guessing anymore.
-            </p>
-            <div className="mt-10 flex justify-center">
-              <Link
-                href="/discovery"
-                className="group inline-flex items-center gap-2 rounded-md bg-primary px-7 py-4 text-lg font-semibold text-white shadow-lg shadow-primary/20 ring-1 ring-gold/20 transition-all hover:bg-blue-700 hover:shadow-xl hover:shadow-primary/30 hover:ring-gold/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950"
+
+            <footer className="flex flex-wrap items-center justify-between gap-3.5 px-9 py-7">
+              <div className="flex flex-wrap gap-5 font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+                <span>3 assumptions · flaggable</span>
+                <span>2 alternatives · rejected</span>
+                <span className="text-accent">Push back · 10 rounds</span>
+              </div>
+              <button
+                type="button"
+                disabled
+                aria-disabled="true"
+                className="inline-flex cursor-not-allowed items-center gap-2.5 bg-fg px-5 py-3 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-bg opacity-90"
               >
-                Start Your Discovery
-                <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
-              </Link>
-            </div>
-          </div>
-        </RevealOnScroll>
+                Accept · Build roadmap →
+              </button>
+            </footer>
+          </article>
+        </div>
       </div>
     </section>
+  );
+}
+
+function RecCell({ k, children }: { k: string; children: React.ReactNode }) {
+  return (
+    <div className="border-rule px-0 py-6 first:pl-0 lg:[&:not(:first-child)]:border-l lg:[&:not(:first-child)]:pl-8 lg:[&:not(:last-child)]:pr-8">
+      <div className="mb-2.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+        {k}
+      </div>
+      <div className="text-[14px] leading-[1.55] text-fg-2">{children}</div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  § 03 The Toolkit                                                           */
+/* -------------------------------------------------------------------------- */
+
+const TOOLS = [
+  {
+    idx: "001",
+    name: "Conversation Coach",
+    tag: "Opus",
+    desc: "Rehearse the pitch. Channel-native opening, anticipated objections, fallback positions — then a role-play in character.",
+  },
+  {
+    idx: "002",
+    name: "Outreach Composer",
+    tag: "Sonnet",
+    desc: "WhatsApp, email, LinkedIn. Single, batch, or D1 / D5 / D14 sequence — each with a note on why it works.",
+  },
+  {
+    idx: "003",
+    name: "Research Tool",
+    tag: "Opus · 25 step",
+    desc: "Plain-language query, structured findings, source URLs, confidence labels — verified, likely, unverified.",
+  },
+  {
+    idx: "004",
+    name: "Service Packager",
+    tag: "Sonnet",
+    desc: "Three priced tiers from your situation. Starter, Pro, Premium — with revenue scenarios and reasoning.",
+  },
+  {
+    idx: "005",
+    name: "Validation Page",
+    tag: "Public",
+    desc: "A live landing page with surveys and analytics. Real demand signal before you write a line of code.",
+  },
+] as const;
+
+function Toolkit() {
+  return (
+    <section id="tools" className="border-b border-rule">
+      <div className="mx-auto max-w-[1320px] px-6 py-24 sm:px-10 lg:py-32">
+        <SectionHead num="§ 03" stamp="The toolkit">
+          <>
+            Five tools, for the work<br />
+            that decides the <span className="text-accent">outcome.</span>
+          </>
+        </SectionHead>
+
+        <div className="grid gap-14 lg:grid-cols-[220px_1fr]">
+          <div aria-hidden="true" />
+          <ul className="grid">
+            {TOOLS.map((tool, i) => (
+              <li
+                key={tool.idx}
+                className={[
+                  "group grid items-baseline gap-10 py-7 transition-colors",
+                  "lg:grid-cols-[60px_1.2fr_2fr]",
+                  i === 0
+                    ? "border-t border-rule-strong"
+                    : "border-t border-rule",
+                  "hover:bg-[linear-gradient(180deg,transparent,rgba(255,90,60,0.04))]",
+                ].join(" ")}
+              >
+                <span className="font-mono text-[12px] tracking-[0.14em] text-accent">
+                  {tool.idx}
+                </span>
+                <span className="font-sans font-medium [font-size:clamp(22px,2.3vw,30px)] [letter-spacing:-0.015em] text-fg">
+                  {tool.name}
+                </span>
+                <span className="max-w-[560px] text-[15px] leading-[1.5] text-fg-2">
+                  <span className="mr-2.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                    {tool.tag}
+                  </span>
+                  {tool.desc}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  § 04 Price                                                                 */
+/* -------------------------------------------------------------------------- */
+
+interface TierPricing {
+  monthly: string;
+  annual: string;
+  isFoundingRate: boolean;
+  foundingSlotsRemaining: number;
+  foundingMonthly: string;
+}
+
+function Pricing({
+  execute,
+  compound,
+}: {
+  execute: TierPricing;
+  compound: TierPricing;
+}) {
+  return (
+    <section id="pricing" className="scroll-mt-20 border-b border-rule">
+      <div className="mx-auto max-w-[1320px] px-6 py-24 sm:px-10 lg:py-32">
+        <SectionHead num="§ 04" stamp="Price">
+          <>
+            Each tier unlocks the next<br />
+            layer of the <span className="text-accent">journey.</span>
+          </>
+        </SectionHead>
+
+        <PricingSection execute={execute} compound={compound} />
+      </div>
+    </section>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Closing                                                                    */
+/* -------------------------------------------------------------------------- */
+
+function Closing() {
+  return (
+    <section className="relative">
+      <div className="relative mx-auto max-w-[1320px] px-6 py-32 sm:px-10 lg:py-40">
+        <p className="mb-8 font-mono text-[11px] uppercase tracking-[0.18em] text-accent">
+          Eight weeks from today
+        </p>
+        <h2 className="font-sans font-medium text-fg [font-size:clamp(56px,8vw,132px)] [line-height:0.94] [letter-spacing:-0.03em]">
+          You&rsquo;ll{" "}
+          <span className="font-serif font-normal italic text-accent">
+            know.
+          </span>
+        </h2>
+        <p className="mt-7 max-w-[540px] text-[19px] leading-[1.45] text-fg-2">
+          Either you&rsquo;ve shipped. Or you&rsquo;ve learned what to change.
+          Or you&rsquo;ve decided this isn&rsquo;t the path — with proof.
+          Whichever it is, you won&rsquo;t be guessing anymore.
+        </p>
+        <div className="mt-9">
+          <PrimaryCTA href="/discovery">Begin Discovery</PrimaryCTA>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Shared primitives                                                          */
+/* -------------------------------------------------------------------------- */
+
+function SectionHead({
+  num,
+  stamp,
+  children,
+}: {
+  num: string;
+  stamp: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <header className="mb-16 grid items-end gap-12 lg:mb-20 lg:grid-cols-[220px_1fr] lg:gap-14">
+      <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
+        <span className="mb-1.5 block text-fg">{num}</span>
+        {stamp}
+      </div>
+      <h2 className="font-sans font-medium text-fg [font-size:clamp(44px,5.6vw,80px)] [line-height:0.98] [letter-spacing:-0.025em] max-w-[940px]">
+        {children}
+      </h2>
+    </header>
+  );
+}
+
+function PrimaryCTA({
+  href,
+  children,
+}: {
+  href: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex items-center gap-3 bg-accent px-[22px] py-[16px] font-mono text-[12px] font-medium uppercase tracking-[0.14em] text-bg transition-transform hover:translate-x-0.5"
+    >
+      {children}
+      <ArrowRight aria-hidden="true" className="size-4" />
+    </Link>
   );
 }

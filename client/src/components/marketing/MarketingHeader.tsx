@@ -1,31 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useSession, signOut } from "next-auth/react";
 import { useState } from "react";
-import {
-  Menu,
-  X,
-  ArrowRight,
-  LayoutDashboard,
-  Settings,
-  LogOut,
-  User as UserIcon,
-} from "lucide-react";
+import { Menu, X, LogOut } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 
 /**
- * MarketingHeader — fixed top header for the landing page, about, faq,
- * and legal pages.
+ * MarketingHeader — Institute chrome.
  *
- * Auth-aware CTAs:
- *  - Signed out: "Sign in" (secondary text link) + "Start Your Discovery →"
- *    (primary blue button). Mirrors the convention used by every serious
- *    B2B product site (Stripe, Linear, Vercel, Notion) — returning users
- *    see a clear entry point, newcomers see the primary action.
- *  - Signed in: avatar dropdown with Dashboard / Settings / Sign out.
- *    Never an "Open App" button (reads like a mobile app launcher).
+ * Sticky 22-px-padded bar with a backdrop blur, mono caps copy at 11px,
+ * the accent brand mark on the left, minimal-link nav, an outlined-pill
+ * CTA on the right (or an avatar dropdown for signed-in viewers).
+ * Visual grammar: direction-a.html .nav + about.html .nav.
  */
 export default function MarketingHeader() {
   const { data: session, status } = useSession();
@@ -44,202 +31,174 @@ export default function MarketingHeader() {
     .toUpperCase();
 
   return (
-    <header className="fixed left-0 right-0 top-0 z-50 border-b border-slate-800 bg-navy-950/90 backdrop-blur supports-[backdrop-filter]:bg-navy-950/75">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        {/* Logo */}
+    <header className="sticky top-0 z-50 border-b border-rule bg-[color-mix(in_oklab,var(--bg)_88%,transparent)] backdrop-blur-md">
+      <div className="flex items-center justify-between px-5 py-5 sm:px-10 sm:py-[22px]">
+        {/* Brand */}
         <Link
           href="/"
-          className="flex items-center gap-2.5 transition-opacity hover:opacity-90"
           aria-label="NeuraLaunch home"
+          className="flex items-center gap-3.5 font-mono text-[11px] uppercase tracking-[0.14em] text-fg transition-colors hover:text-accent"
         >
-          <Image
-            src="/neuralaunch_logo.svg"
-            alt=""
-            width={36}
-            height={27}
-            priority
-            className="h-7 w-auto"
-          />
-          <span className="text-lg font-semibold tracking-tight text-white">
-            NeuraLaunch
-          </span>
+          <BrandMark />
+          <span>NeuraLaunch</span>
         </Link>
 
-        {/* Desktop nav */}
+        {/* Desktop nav — minimal links, mono caps. */}
         <nav
-          className="hidden items-center gap-8 md:flex"
           aria-label="Primary"
+          className="hidden items-center gap-7 font-mono text-[11px] uppercase tracking-[0.14em] md:flex"
         >
+          <Link href="/#cycle" className="text-muted transition-colors hover:text-fg">
+            The cycle
+          </Link>
           <Link
-            href="/about"
-            className="text-sm font-medium text-slate-400 transition-colors hover:text-white"
+            href="/#surface"
+            className="text-muted transition-colors hover:text-fg"
           >
-            About
+            A recommendation
+          </Link>
+          <Link href="/#tools" className="text-muted transition-colors hover:text-fg">
+            Tools
           </Link>
           <Link
             href="/#pricing"
-            className="text-sm font-medium text-slate-400 transition-colors hover:text-white"
+            className="text-muted transition-colors hover:text-fg"
           >
-            Pricing
+            Price
           </Link>
-          <Link
-            href="/faq"
-            className="text-sm font-medium text-slate-400 transition-colors hover:text-white"
-          >
-            FAQ
-          </Link>
-        </nav>
 
-        {/* Right-side actions */}
-        <div className="hidden items-center gap-4 md:flex">
           {status === "loading" ? (
-            // Skeleton placeholder to avoid layout shift while the session loads
-            <div className="h-9 w-32 animate-pulse rounded-md bg-slate-800" />
+            <span className="h-7 w-24 bg-rule" aria-hidden="true" />
           ) : isAuthed ? (
-            <UserMenu
-              displayName={displayName}
-              email={user?.email ?? null}
-              image={user?.image ?? null}
-              initials={initials}
-            />
+            <UserMenu displayName={displayName} initials={initials} />
           ) : (
             <>
               <Link
                 href="/signin"
-                className="text-sm font-medium text-slate-300 transition-colors hover:text-white focus:outline-none focus-visible:text-white"
+                className="text-muted transition-colors hover:text-fg"
               >
                 Sign in
               </Link>
               <Link
                 href="/discovery"
-                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950"
+                className="inline-flex items-center rounded-full border border-rule-strong px-4 py-2 text-fg transition-colors hover:border-accent hover:text-accent"
               >
-                Start Your Discovery
-                <ArrowRight className="h-4 w-4" />
+                Begin
               </Link>
             </>
           )}
-        </div>
+        </nav>
 
-        {/* Mobile menu button */}
+        {/* Mobile menu trigger */}
         <button
           type="button"
           onClick={() => setMobileOpen((v) => !v)}
-          className="inline-flex items-center justify-center rounded-md p-2 text-slate-300 hover:bg-slate-800 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-primary md:hidden"
           aria-expanded={mobileOpen}
-          aria-controls="mobile-menu"
+          aria-controls="mobile-marketing-nav"
           aria-label="Toggle navigation menu"
+          className="inline-flex items-center justify-center border border-rule-strong p-2 text-fg transition-colors hover:border-accent hover:text-accent md:hidden"
         >
           {mobileOpen ? (
-            <X className="h-5 w-5" aria-hidden="true" />
+            <X aria-hidden="true" className="size-5" />
           ) : (
-            <Menu className="h-5 w-5" aria-hidden="true" />
+            <Menu aria-hidden="true" className="size-5" />
           )}
         </button>
       </div>
 
-      {/* Mobile menu */}
+      {/* Mobile drawer */}
       {mobileOpen && (
         <div
-          id="mobile-menu"
-          className="border-t border-slate-800 bg-navy-950 md:hidden"
+          id="mobile-marketing-nav"
+          className="border-t border-rule bg-bg px-5 py-5 md:hidden"
         >
-          <div className="space-y-1 px-4 py-4">
-            <Link
-              href="/about"
-              className="block rounded-md px-3 py-2 text-base font-medium text-slate-300 hover:bg-slate-800 hover:text-white"
-              onClick={() => setMobileOpen(false)}
-            >
-              About
-            </Link>
-            <Link
-              href="/#pricing"
-              className="block rounded-md px-3 py-2 text-base font-medium text-slate-300 hover:bg-slate-800 hover:text-white"
-              onClick={() => setMobileOpen(false)}
-            >
-              Pricing
-            </Link>
-            <Link
-              href="/faq"
-              className="block rounded-md px-3 py-2 text-base font-medium text-slate-300 hover:bg-slate-800 hover:text-white"
-              onClick={() => setMobileOpen(false)}
-            >
-              FAQ
-            </Link>
-
-            {isAuthed ? (
-              <>
-                <div className="my-2 border-t border-slate-800" />
-                <div className="px-3 py-2 text-xs uppercase tracking-wider text-slate-300">
-                  Signed in as{" "}
-                  <span className="text-slate-300">{displayName}</span>
-                </div>
-                <Link
-                  href="/discovery"
-                  className="flex items-center gap-2 rounded-md px-3 py-2 text-base font-medium text-slate-300 hover:bg-slate-800 hover:text-white"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
-                  Dashboard
-                </Link>
-                <Link
-                  href="/settings"
-                  className="flex items-center gap-2 rounded-md px-3 py-2 text-base font-medium text-slate-300 hover:bg-slate-800 hover:text-white"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  <Settings className="h-4 w-4" aria-hidden="true" />
-                  Settings
-                </Link>
+          <ul className="grid gap-3.5 font-mono text-[12px] uppercase tracking-[0.14em]">
+            <li>
+              <Link
+                href="/#cycle"
+                onClick={() => setMobileOpen(false)}
+                className="text-muted transition-colors hover:text-fg"
+              >
+                The cycle
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/#surface"
+                onClick={() => setMobileOpen(false)}
+                className="text-muted transition-colors hover:text-fg"
+              >
+                A recommendation
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/#tools"
+                onClick={() => setMobileOpen(false)}
+                className="text-muted transition-colors hover:text-fg"
+              >
+                Tools
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/#pricing"
+                onClick={() => setMobileOpen(false)}
+                className="text-muted transition-colors hover:text-fg"
+              >
+                Price
+              </Link>
+            </li>
+            <li className="mt-2 border-t border-rule pt-4">
+              {isAuthed ? (
                 <button
                   type="button"
                   onClick={() => {
                     setMobileOpen(false);
                     void signOut();
                   }}
-                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-base font-medium text-slate-300 hover:bg-slate-800 hover:text-white"
+                  className="inline-flex items-center gap-2 text-fg"
                 >
-                  <LogOut className="h-4 w-4" aria-hidden="true" />
-                  Sign out
+                  <LogOut aria-hidden="true" className="size-3.5" />
+                  Sign out · {displayName}
                 </button>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/signin"
-                  className="block rounded-md px-3 py-2 text-base font-medium text-slate-300 hover:bg-slate-800 hover:text-white"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  Sign in
-                </Link>
+              ) : (
                 <Link
                   href="/discovery"
-                  className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2.5 text-base font-semibold text-white hover:bg-blue-700"
                   onClick={() => setMobileOpen(false)}
+                  className="inline-flex items-center border border-rule-strong px-4 py-2 text-fg transition-colors hover:border-accent hover:text-accent"
                 >
-                  Start Your Discovery
-                  <ArrowRight className="h-4 w-4" />
+                  Begin
                 </Link>
-              </>
-            )}
-          </div>
+              )}
+            </li>
+          </ul>
         </div>
       )}
     </header>
   );
 }
 
-/* ------------------------------------------------------------------
- * UserMenu — avatar dropdown for signed-in users
- * ------------------------------------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/*  Internals                                                                 */
+/* -------------------------------------------------------------------------- */
+
+function BrandMark() {
+  return (
+    <span
+      aria-hidden="true"
+      className="relative inline-block size-[18px] rounded-full bg-accent"
+    >
+      <span className="absolute inset-[5px] rounded-full bg-bg" />
+    </span>
+  );
+}
+
 function UserMenu({
   displayName,
-  email,
-  image,
   initials,
 }: {
   displayName: string;
-  email: string | null;
-  image: string | null;
   initials: string;
 }) {
   return (
@@ -247,22 +206,13 @@ function UserMenu({
       <DropdownMenu.Trigger asChild>
         <button
           type="button"
-          className="flex items-center gap-2 rounded-full border border-slate-800 p-0.5 pr-3 transition-colors hover:border-slate-700 hover:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950"
           aria-label="Account menu"
+          className="inline-flex items-center gap-2 border border-rule-strong px-3 py-1.5 text-fg transition-colors hover:border-accent hover:text-accent"
         >
-          <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-primary text-xs font-semibold text-white">
-            {image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={image}
-                alt=""
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              initials
-            )}
+          <span className="inline-flex size-5 items-center justify-center rounded-full bg-accent text-[9px] font-medium text-bg">
+            {initials}
           </span>
-          <span className="hidden max-w-[140px] truncate text-sm font-medium text-slate-200 sm:inline">
+          <span className="max-w-[140px] truncate normal-case tracking-normal">
             {displayName}
           </span>
         </button>
@@ -270,65 +220,29 @@ function UserMenu({
       <DropdownMenu.Portal>
         <DropdownMenu.Content
           align="end"
-          sideOffset={8}
-          className="z-50 w-64 rounded-lg border border-slate-800 bg-navy-900 p-1.5 shadow-xl"
+          sideOffset={10}
+          className="z-50 grid w-56 gap-0 border border-rule-strong bg-bg-2 p-0 font-mono text-[11px] uppercase tracking-[0.14em] text-muted shadow-2xl"
         >
-          <div className="flex items-center gap-3 px-2.5 py-2">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary text-xs font-semibold text-white">
-              {image ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={image}
-                  alt=""
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                initials
-              )}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-white">
-                {displayName}
-              </p>
-              {email && (
-                <p className="truncate text-xs text-slate-300">{email}</p>
-              )}
-            </div>
-          </div>
-          <DropdownMenu.Separator className="my-1 h-px bg-slate-800" />
           <DropdownMenu.Item asChild>
             <Link
               href="/discovery"
-              className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-slate-200 outline-none transition-colors hover:bg-slate-800 focus:bg-slate-800"
+              className="block cursor-pointer px-4 py-3 outline-none transition-colors hover:bg-bg-3 hover:text-fg focus:bg-bg-3 focus:text-fg"
             >
-              <LayoutDashboard className="h-4 w-4 text-slate-300" aria-hidden="true" />
-              Dashboard
-            </Link>
-          </DropdownMenu.Item>
-          <DropdownMenu.Item asChild>
-            <Link
-              href="/profile"
-              className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-slate-200 outline-none transition-colors hover:bg-slate-800 focus:bg-slate-800"
-            >
-              <UserIcon className="h-4 w-4 text-slate-300" aria-hidden="true" />
-              Profile
+              Open app
             </Link>
           </DropdownMenu.Item>
           <DropdownMenu.Item asChild>
             <Link
               href="/settings"
-              className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-slate-200 outline-none transition-colors hover:bg-slate-800 focus:bg-slate-800"
+              className="block cursor-pointer border-t border-rule px-4 py-3 outline-none transition-colors hover:bg-bg-3 hover:text-fg focus:bg-bg-3 focus:text-fg"
             >
-              <Settings className="h-4 w-4 text-slate-300" aria-hidden="true" />
               Settings
             </Link>
           </DropdownMenu.Item>
-          <DropdownMenu.Separator className="my-1 h-px bg-slate-800" />
           <DropdownMenu.Item
             onSelect={() => void signOut()}
-            className="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-slate-200 outline-none transition-colors hover:bg-slate-800 focus:bg-slate-800"
+            className="cursor-pointer border-t border-rule px-4 py-3 outline-none transition-colors hover:bg-bg-3 hover:text-accent focus:bg-bg-3 focus:text-accent"
           >
-            <LogOut className="h-4 w-4 text-slate-300" aria-hidden="true" />
             Sign out
           </DropdownMenu.Item>
         </DropdownMenu.Content>
