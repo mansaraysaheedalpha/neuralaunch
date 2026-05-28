@@ -4,8 +4,6 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
-import { isNoIdeaEnabled } from '@/lib/env';
-import { DiscoveryChatClient } from './DiscoveryChatClient';
 import { SessionResumption } from './SessionResumption';
 import { CompoundUpgradeHint } from './CompoundUpgradeHint';
 import { ArchetypePicker } from './ArchetypePicker';
@@ -43,23 +41,20 @@ export default async function DiscoveryPage() {
   // eslint-disable-next-line react-hooks/purity -- async server component, runs once per request
   const now       = Date.now();
 
-  // For Free users we need BOTH the completed count (for the
-  // isFirstSession guide-pulse flag) AND the lifetime count (for the
-  // cap check — includes ACTIVE and abandoned sessions, not just
-  // COMPLETE). Paid users skip the lifetime count since the cap
-  // doesn't apply.
+  // Pull only what the new picker page needs:
+  //   - incomplete: redirect target if the founder has an in-flight session
+  //   - lifetimeCount: Free-tier cap check
+  //   - nonActiveVentureCount: Compound upgrade hint trigger
   //
-  // The incomplete query now also pulls `ideationRuns` so we can
-  // detect no_idea sessions and redirect them to /discovery/no-idea/[id]
-  // instead of showing the Discovery resumption card. FounderProfile
-  // is pulled to decide the picker's default scenario per archetype
-  // (with profile → fresh_start, without → first_interview).
+  // The incomplete query also pulls `ideationRuns` so we can detect
+  // no_idea sessions and redirect them to /discovery/no-idea/[id]
+  // instead of showing the resumption card. The legacy isFirstSession
+  // flag was dropped along with the legacy welcome layer — the new
+  // picker is identical for first-time and returning founders.
   const [
     incomplete,
-    completedCount,
     lifetimeCount,
     nonActiveVentureCount,
-    founderProfile,
   ] = await Promise.all([
     prisma.discoverySession.findFirst({
       where: {
@@ -98,9 +93,6 @@ export default async function DiscoveryPage() {
         ideationRuns:   { select: { stageNumber: true, status: true } },
       },
     }),
-    prisma.discoverySession.count({
-      where: { userId, status: 'COMPLETE' },
-    }),
     tier === 'free' ? countFreeDiscoverySessions(userId) : Promise.resolve(0),
     // Compound-upgrade hint signal — only an Execute founder with at
     // least one paused or completed venture has the "starting another
@@ -111,14 +103,8 @@ export default async function DiscoveryPage() {
           where: { userId, status: { in: ['paused', 'completed'] }, archivedAt: null },
         })
       : Promise.resolve(0),
-    isNoIdeaEnabled()
-      ? prisma.founderProfile.findUnique({ where: { userId }, select: { id: true } })
-      : Promise.resolve(null),
   ]);
 
-  const hasFounderProfile = founderProfile !== null;
-
-  const isFirstSession = completedCount === 0;
   const freeCapReached =
     tier === 'free' && lifetimeCount >= FREE_DISCOVERY_SESSION_LIMIT;
 
@@ -131,9 +117,9 @@ export default async function DiscoveryPage() {
   // is still one click away.
   if (freeCapReached) {
     return (
-      <div className="flex flex-col h-full bg-background">
-        <div className="flex-1 flex items-center justify-center px-4 py-12">
-          <div className="max-w-xl w-full">
+      <div className="flex h-full w-full flex-col">
+        <div className="flex flex-1 items-center justify-center px-6 py-16">
+          <div className="w-full max-w-xl">
             <UpgradePrompt
               requiredTier="execute"
               variant="hero"
@@ -141,12 +127,11 @@ export default async function DiscoveryPage() {
               description={`Free accounts include ${FREE_DISCOVERY_SESSION_LIMIT} discovery interviews so you can try the system twice with different framing. Upgrade to Execute to run unlimited interviews, push back on recommendations, generate execution roadmaps, and unlock the four tools.`}
               primaryLabel="Upgrade to Execute"
             />
-            <p className="mt-6 text-center text-xs text-muted-foreground">
-              Your existing recommendations are always accessible from{' '}
-              <Link href="/discovery/recommendations" className="underline underline-offset-2 hover:text-foreground">
-                Past recommendations
+            <p className="mt-6 text-center font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+              Past recommendations available at{' '}
+              <Link href="/discovery/recommendations" className="text-fg underline underline-offset-2 transition-colors hover:text-accent">
+                /discovery/recommendations
               </Link>
-              .
             </p>
           </div>
         </div>
@@ -170,49 +155,19 @@ export default async function DiscoveryPage() {
     redirect(`/discovery/no-idea/${incomplete.id}`);
   }
 
-  // When the No Idea flag is off, the picker is bypassed — fall back
-  // to today's behaviour so we never strand real users behind a
-  // half-built surface during development.
-  const noIdeaEnabled = isNoIdeaEnabled();
-
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex h-full w-full flex-col">
       {showCompoundHint && <CompoundUpgradeHint />}
-      <Suspense fallback={<DiscoveryChatSkeleton />}>
+      <Suspense fallback={null}>
         {incomplete ? (
           <SessionResumption
             session={{ id: incomplete.id, questionCount: incomplete.questionCount, conversationId: incomplete.conversationId }}
             firstName={firstName}
           />
-        ) : noIdeaEnabled ? (
-          <ArchetypePicker
-            firstName={firstName}
-            hasFounderProfile={hasFounderProfile}
-            isFirstSession={isFirstSession}
-          />
         ) : (
-          <DiscoveryChatClient firstName={firstName} isFirstSession={isFirstSession} />
+          <ArchetypePicker firstName={firstName} />
         )}
       </Suspense>
-    </div>
-  );
-}
-
-function DiscoveryChatSkeleton() {
-  return (
-    <div className="flex flex-col h-full max-w-2xl mx-auto w-full animate-pulse">
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 px-6">
-        <div className="h-8 w-48 rounded-lg bg-muted" />
-        <div className="h-16 w-full max-w-md rounded-xl bg-muted/50" />
-        <div className="flex gap-2">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-8 w-28 rounded-full bg-muted" />
-          ))}
-        </div>
-      </div>
-      <div className="border-t border-border px-4 py-3">
-        <div className="h-9 rounded-lg bg-muted" />
-      </div>
     </div>
   );
 }

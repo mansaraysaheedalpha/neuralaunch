@@ -1,56 +1,11 @@
 // src/app/(app)/layout.tsx
-"use client";
+//
+// Signed-in app shell. Every (app)/* route gets the Institute sidebar
+// + mobile drawer chrome via <AppShell>. The marketing header is not
+// rendered here — signed-in surfaces own their own crumbs.
 
-import { useState } from "react";
-import Sidebar from "@/components/Sidebar";
-import { MobileUpgradePill } from "@/components/sidebar/MobileUpgradePill";
-import { BackgroundJobsBanner } from "@/components/tool-jobs/BackgroundJobsBanner";
-import { Sparkles } from "lucide-react"; // Keep Sparkles icon
+import { AppShell } from '@/components/institute';
 
-// Renamed function to AppLayout for clarity
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const [isSidebarOpen, setSidebarOpen] = useState(true);
-  const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  return (
-    <div className="flex h-dvh w-full bg-background">
-      <Sidebar
-        isSidebarOpen={isSidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-        isMobileMenuOpen={isMobileMenuOpen}
-        setMobileMenuOpen={setMobileMenuOpen}
-      />
-
-      <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-        {/* --- Header component is completely removed --- */}
-
-        {/* Standalone Hamburger Button (Always shown on mobile for app pages) */}
-        <button
-          onClick={() => setMobileMenuOpen(true)}
-          className="md:hidden absolute top-4 left-4 z-30 p-2 rounded-lg hover:bg-muted text-foreground" // Position top-left
-          aria-label="Open menu"
-        >
-          <Sparkles className="w-6 h-6" />
-        </button>
-
-        {/* Mobile upgrade CTA — only renders for authenticated Free-tier
-            users, only on mobile. Keeps the path out of Free one tap
-            away even when the sidebar is closed. */}
-        <MobileUpgradePill />
-
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto pt-16 md:pt-0">
-          {" "}
-          {/* Always add pt-16 on mobile, remove on md+ */}
-          {children}
-        </main>
-
-        {/* Floating background-jobs banner. Polls /tool-jobs/active
-            and surfaces in-flight ToolJob rows so the founder always
-            knows what's running, even after navigating away from the
-            tool page. Auto-hides when no jobs are in flight. */}
-        <BackgroundJobsBanner />
-      </div>
-    </div>
-  );
+  return <AppShell>{children}</AppShell>;
 }

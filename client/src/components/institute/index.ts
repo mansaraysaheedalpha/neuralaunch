@@ -29,3 +29,9 @@ export type {
   BeliefRailFootRight,
   FieldState,
 } from './BeliefRail';
+
+export { default as AppShell } from './AppShell';
+export type { AppShellProps } from './AppShell';
+
+export { default as AppSidebar, AppMobileBar } from './AppSidebar';
+export type { AppSidebarProps } from './AppSidebar';
