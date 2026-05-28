@@ -35,3 +35,13 @@ export type { AppShellProps } from './AppShell';
 
 export { default as AppSidebar, AppMobileBar } from './AppSidebar';
 export type { AppSidebarProps } from './AppSidebar';
+
+export { PhaseLadder } from './PhaseLadder';
+export type { PhaseLadderProps } from './PhaseLadder';
+
+export { SynthesisOverlay } from './SynthesisOverlay';
+export type {
+  SynthesisOverlayProps,
+  SynthesisStep,
+  SynthesisStepState,
+} from './SynthesisOverlay';

@@ -64,6 +64,13 @@ export interface TurnError {
 export interface DiscoverySessionState {
   messages:               ChatMessage[];
   status:                 ChatStatus;
+  /**
+   * The lazily-created session id, or null before the founder's first
+   * message creates it. Surfaced so the Institute belief rail can fetch
+   * the persisted belief state once the session exists. Read-only —
+   * the hook still owns creation.
+   */
+  sessionId:              string | null;
   sessionReady:           boolean;
   isSynthesizing:         boolean;
   synthesisError:         boolean;
@@ -96,6 +103,14 @@ export interface DiscoverySessionState {
    */
   sessionInitError:      string | null;
   clearSessionInitError: () => void;
+  /**
+   * Point-in-time snapshot of the full bidirectional transcript
+   * (agent questions + founder answers). The display `messages` array
+   * intentionally omits the per-turn agent questions (they live only
+   * in the internal history ref), so the transcript modal reads them
+   * from here. Non-reactive — call it when the modal opens.
+   */
+  getTranscript:         () => ChatMessage[];
 }
 
 interface ResumeState {
@@ -507,6 +522,7 @@ export function useDiscoverySession({ onComplete, resume, preseed }: Options): D
   return {
     messages,
     status,
+    sessionId,
     sessionReady:   true,
     isSynthesizing,
     synthesisError,
@@ -523,5 +539,11 @@ export function useDiscoverySession({ onComplete, resume, preseed }: Options): D
     dismissPendingOutcomeAndRetry,
     sessionInitError,
     clearSessionInitError: () => setSessionInitError(null),
+    getTranscript: () =>
+      historyRef.current.map((m, i) => ({
+        id:      `h${i}`,
+        role:    m.role,
+        content: m.content,
+      })),
   };
 }

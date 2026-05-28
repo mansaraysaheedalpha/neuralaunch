@@ -1,13 +1,13 @@
 'use client';
 // src/app/(app)/discovery/standard/StandardDiscoveryClient.tsx
 //
-// Wraps DiscoveryChat with the audience preseed coming from the
-// /discovery picker's archetype param. PR 05 will rebuild this
-// surface; for now it preserves the legacy chat behaviour inside the
-// new app shell.
+// Mounts the Institute standard-discovery shell with the audience
+// preseed + archetype label resolved server-side from the ?archetype=
+// param. Owns only the onComplete routing; all chat behaviour lives in
+// StandardChat + useDiscoverySession.
 
 import { useRouter } from 'next/navigation';
-import { DiscoveryChat } from '@/components/discovery';
+import { StandardChat } from '@/components/discovery/standard/StandardChat';
 import type { AudienceType } from '@/lib/discovery';
 import type { Recommendation } from '@/lib/discovery/client';
 
@@ -16,6 +16,7 @@ interface StandardDiscoveryClientProps {
   isFirstSession: boolean;
   audienceType:   AudienceType;
   scenario:       'first_interview' | 'fresh_start';
+  archetypeLabel: string;
 }
 
 export function StandardDiscoveryClient({
@@ -23,19 +24,26 @@ export function StandardDiscoveryClient({
   isFirstSession,
   audienceType,
   scenario,
+  archetypeLabel,
 }: StandardDiscoveryClientProps) {
   const router = useRouter();
   return (
-    <DiscoveryChat
+    <StandardChat
       firstName={firstName}
       isFirstSession={isFirstSession}
-      onComplete={(rec: Recommendation, conversationId: string) => {
+      audienceType={audienceType}
+      scenario={scenario}
+      archetypeLabel={archetypeLabel}
+      onComplete={(_rec: Recommendation, conversationId: string) => {
+        // Preserve the working recommendation route (?from=conversationId).
+        // PR 06 redesigns + may re-parameterise /discovery/recommendation;
+        // routing here stays on the live shape so synthesis completion
+        // never lands on a 404.
         const dest = conversationId
           ? `/discovery/recommendation?from=${conversationId}`
           : '/discovery/recommendation';
         router.push(dest);
       }}
-      preseed={{ audienceType, scenario }}
     />
   );
 }

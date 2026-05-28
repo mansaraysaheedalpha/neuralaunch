@@ -1,10 +1,10 @@
 // src/app/(app)/discovery/standard/page.tsx
 //
-// Thin stub host for the standard discovery pipeline. Reads the
-// archetype slug from ?archetype= and renders DiscoveryChat with the
-// matching AudienceType preseed. PR 05 will redesign this surface to
-// the Institute treatment; for now we route picker rows III–VI here
-// without changing the underlying chat behaviour.
+// Server entry for the standard 4-phase discovery interview (picker
+// rows III–VI). Reads the archetype slug from ?archetype=, resolves
+// the AudienceType preseed + short crumb label, and mounts the
+// Institute <StandardChat> shell via StandardDiscoveryClient. Auth +
+// archetype guards live here; all chat behaviour lives in the client.
 
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
@@ -33,6 +33,16 @@ export default async function StandardDiscoveryPage({ searchParams }: StandardPa
     redirect('/discovery');
   }
 
+  // Short crumb label per archetype — the full headline is too long for
+  // the top-bar breadcrumb.
+  const CRUMB_LABEL: Record<string, string> = {
+    builder:        'Builder',
+    owner:          'Owner',
+    'early-career': 'Early career',
+    'mid-career':   'Mid-career',
+  };
+  const archetypeLabel = CRUMB_LABEL[arc.id] ?? 'Standard';
+
   // Same FounderProfile lookup the legacy picker used to decide the
   // scenario preseed. With a profile we treat this as a "fresh_start"
   // (subsequent venture); without, it's the founder's "first_interview".
@@ -53,6 +63,7 @@ export default async function StandardDiscoveryPage({ searchParams }: StandardPa
       isFirstSession={isFirstSession}
       audienceType={arc.audienceType}
       scenario={hasFounderProfile ? 'fresh_start' : 'first_interview'}
+      archetypeLabel={archetypeLabel}
     />
   );
 }
