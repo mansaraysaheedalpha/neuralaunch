@@ -1,10 +1,8 @@
 // src/app/(app)/discovery/recommendation/page.tsx
-import { Suspense } from 'react';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
-import { RecommendationReveal } from './RecommendationReveal';
+import { RecommendationView } from './RecommendationView';
 import { safeParsePushbackHistory } from '@/lib/discovery/pushback-engine';
 import { loadNoIdeaContext } from '@/app/(app)/discovery/recommendations/[id]/NoIdeaAugmentations';
 import { NoIdeaCascadeBanner } from '@/app/(app)/discovery/recommendations/[id]/NoIdeaCascadeBanner';
@@ -18,16 +16,10 @@ import { NoIdeaAlternativesSection } from '@/app/(app)/discovery/recommendations
  * Accepts ?from=[conversationId] to surface a link back to the interview transcript.
  * Redirects back to the interview if synthesis is not yet complete.
  */
-export default async function RecommendationPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ from?: string }>;
-}) {
+export default async function RecommendationPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/signin');
   const userId = session.user.id;
-
-  const { from: conversationId } = await searchParams;
 
   const recommendation = await prisma.recommendation.findFirst({
     where:   { userId },
@@ -95,52 +87,36 @@ export default async function RecommendationPage({
     versions,
   };
 
-  return (
-    <div className="flex flex-col h-full">
-      <div className="flex justify-between px-6 pt-4">
-        <Link
-          href="/discovery/recommendations"
-          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-        >
-          Past recommendations
-        </Link>
-        <div className="flex items-center gap-4">
-          {noIdea.isNoIdea && noIdea.sessionId && (
-            <Link
-              href={`/discovery/no-idea/${noIdea.sessionId}`}
-              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-            >
-              Revisit Stage 4
-            </Link>
-          )}
-          {conversationId && (
-            <Link
-              href={`/chat/${conversationId}`}
-              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-            >
-              View interview transcript →
-            </Link>
-          )}
-        </div>
-      </div>
-      {noIdea.isNoIdea && noIdea.sessionId && noIdea.requiresRederivation && (
+  // No-Idea augmentations render inside the content column as header /
+  // footer slots so they sit within the Institute two-column layout.
+  // (They still use the legacy palette — flagged for a later pass.)
+  const headerSlot =
+    noIdea.isNoIdea && noIdea.sessionId && noIdea.requiresRederivation ? (
+      <div className="mb-8">
         <NoIdeaCascadeBanner sessionId={noIdea.sessionId} />
-      )}
-      <Suspense fallback={<div className="flex-1 flex items-center justify-center"><span className="text-muted-foreground text-sm">Loading…</span></div>}>
-        <RecommendationReveal
-          recommendation={recForClient}
-          roadmapReady={roadmapReady}
+      </div>
+    ) : undefined;
+
+  const footerSlot =
+    noIdea.isNoIdea && noIdea.sessionId ? (
+      <div className="mt-12">
+        <NoIdeaAlternativesSection
+          reserves={noIdea.reserves}
+          sessionId={noIdea.sessionId}
+          stage4StageRunId={noIdea.stage4StageRunId}
         />
-      </Suspense>
-      {noIdea.isNoIdea && noIdea.sessionId && (
-        <div className="px-6 pb-8 max-w-3xl mx-auto w-full">
-          <NoIdeaAlternativesSection
-            reserves={noIdea.reserves}
-            sessionId={noIdea.sessionId}
-            stage4StageRunId={noIdea.stage4StageRunId}
-          />
-        </div>
-      )}
-    </div>
+      </div>
+    ) : undefined;
+
+  const shortId = recommendation.id.slice(0, 6);
+
+  return (
+    <RecommendationView
+      recommendation={recForClient}
+      roadmapReady={roadmapReady}
+      shortId={shortId}
+      headerSlot={headerSlot}
+      footerSlot={footerSlot}
+    />
   );
 }

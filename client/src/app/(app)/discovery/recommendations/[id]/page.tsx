@@ -1,10 +1,9 @@
 // src/app/(app)/discovery/recommendations/[id]/page.tsx
-import { Suspense } from 'react';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
-import { RecommendationReveal } from '@/app/(app)/discovery/recommendation/RecommendationReveal';
+import { RecommendationView } from '@/app/(app)/discovery/recommendation/RecommendationView';
 import { safeParsePushbackHistory } from '@/lib/discovery/pushback-engine';
 import { isRegenerateAllowed } from '@/lib/discovery/regenerate-allowlist';
 import { RegenerateButton } from './RegenerateButton';
@@ -112,57 +111,42 @@ export default async function RecommendationDetailPage({
     versions,
   };
 
-  return (
-    <div className="flex flex-col h-full">
-      <div className="flex justify-between px-6 pt-4">
-        <Link
-          href="/discovery/recommendations"
-          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-        >
-          ← All recommendations
-        </Link>
-        <div className="flex items-center gap-4">
-          {noIdea.isNoIdea && noIdea.sessionId && (
-            <Link
-              href={`/discovery/no-idea/${noIdea.sessionId}`}
-              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-            >
-              Revisit Stage 4
-            </Link>
-          )}
+  const headerSlot = (
+    <div className="mb-8 flex flex-col gap-4">
+      {(canRegenerate || conversationId) && (
+        <div className="flex flex-wrap items-center gap-4 font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
           {canRegenerate && <RegenerateButton recommendationId={recommendation.id} />}
           {conversationId && (
-            <Link
-              href={`/chat/${conversationId}`}
-              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-            >
+            <Link href={`/chat/${conversationId}`} className="transition-colors hover:text-fg">
               View interview transcript →
             </Link>
           )}
         </div>
-      </div>
+      )}
       {noIdea.isNoIdea && noIdea.sessionId && noIdea.requiresRederivation && (
         <NoIdeaCascadeBanner sessionId={noIdea.sessionId} />
       )}
-      <Suspense fallback={
-        <div className="flex-1 flex items-center justify-center">
-          <span className="text-muted-foreground text-sm">Loading…</span>
-        </div>
-      }>
-        <RecommendationReveal
-          recommendation={recForClient}
-          roadmapReady={roadmapReady}
-        />
-      </Suspense>
-      {noIdea.isNoIdea && noIdea.sessionId && (
-        <div className="px-6 pb-8 max-w-3xl mx-auto w-full">
-          <NoIdeaAlternativesSection
-            reserves={noIdea.reserves}
-            sessionId={noIdea.sessionId}
-            stage4StageRunId={noIdea.stage4StageRunId}
-          />
-        </div>
-      )}
     </div>
+  );
+
+  const footerSlot =
+    noIdea.isNoIdea && noIdea.sessionId ? (
+      <div className="mt-12">
+        <NoIdeaAlternativesSection
+          reserves={noIdea.reserves}
+          sessionId={noIdea.sessionId}
+          stage4StageRunId={noIdea.stage4StageRunId}
+        />
+      </div>
+    ) : undefined;
+
+  return (
+    <RecommendationView
+      recommendation={recForClient}
+      roadmapReady={roadmapReady}
+      shortId={recommendation.id.slice(0, 6)}
+      headerSlot={headerSlot}
+      footerSlot={footerSlot}
+    />
   );
 }
