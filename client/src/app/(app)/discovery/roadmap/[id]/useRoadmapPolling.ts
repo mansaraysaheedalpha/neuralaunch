@@ -2,7 +2,7 @@
 // src/app/(app)/discovery/roadmap/[id]/useRoadmapPolling.ts
 
 import { useCallback, useEffect, useState } from 'react';
-import type { RoadmapPhase } from '@/lib/roadmap';
+import type { StoredRoadmapPhase } from '@/lib/roadmap/checkin-types';
 import type { ParkingLotItem } from '@/lib/continuation';
 
 export interface RoadmapProgressData {
@@ -24,7 +24,10 @@ export interface RoadmapProgressData {
 export interface RoadmapData {
   id:             string;
   status:         'GENERATING' | 'READY' | 'FAILED' | 'STALE';
-  phases:         RoadmapPhase[];
+  // The roadmap GET endpoint merges per-task progress (status,
+  // startedAt, completedAt, checkInHistory) into the phases, so the
+  // wire shape is StoredRoadmapPhase[], not the bare RoadmapPhase[].
+  phases:         StoredRoadmapPhase[];
   closingThought: string | null;
   weeklyHours:    number | null;
   totalWeeks:     number | null;

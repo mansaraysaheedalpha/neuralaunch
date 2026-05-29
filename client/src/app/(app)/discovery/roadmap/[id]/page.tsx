@@ -1,6 +1,5 @@
 // src/app/(app)/discovery/roadmap/[id]/page.tsx
 import { Suspense } from 'react';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
@@ -33,6 +32,7 @@ export default async function RoadmapPage({
     select: {
       id:         true,
       acceptedAt: true,
+      path:       true,
       session: {
         select: { beliefState: true },
       },
@@ -41,9 +41,10 @@ export default async function RoadmapPage({
       // check-in form, parking lot, What's Next) when the venture is
       // paused, completed, or archived. Without this, the founder
       // could click write actions that only fail at the API layer.
+      // venture.name feeds the Institute top-bar crumb.
       cycle: {
         select: {
-          venture: { select: { status: true, archivedAt: true } },
+          venture: { select: { name: true, status: true, archivedAt: true } },
         },
       },
     },
@@ -93,29 +94,19 @@ export default async function RoadmapPage({
     :               null;
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex justify-between px-6 pt-4">
-        <Link
-          href={`/discovery/recommendations/${recommendationId}`}
-          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-        >
-          ← Back to recommendation
-        </Link>
+    <Suspense fallback={
+      <div className="flex h-full items-center justify-center py-24">
+        <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">Loading…</span>
       </div>
-      <div className="flex-1 overflow-y-auto">
-        <Suspense fallback={
-          <div className="flex items-center justify-center py-24">
-            <span className="text-sm text-muted-foreground">Loading…</span>
-          </div>
-        }>
-          <RoadmapView
-            recommendationId={recommendationId}
-            founderGoal={founderGoal}
-            writable={writable}
-            readOnlyReason={readOnlyReason}
-          />
-        </Suspense>
-      </div>
-    </div>
+    }>
+      <RoadmapView
+        recommendationId={recommendationId}
+        objective={recommendation.path}
+        ventureName={venture?.name ?? null}
+        founderGoal={founderGoal}
+        writable={writable}
+        readOnlyReason={readOnlyReason}
+      />
+    </Suspense>
   );
 }
