@@ -1,14 +1,35 @@
 'use client';
+// src/app/(app)/discovery/no-idea/[sessionId]/Stage3Chat.tsx
+//
+// Stage 3 — Pain Inventory, Institute treatment. Unified ledger with
+// dot-scoring + signal-weighted typography. Render layer only —
+// useStage3Session keeps owning every transport (runPainScout,
+// addFounderPainPoint, scorePainPoint, removePainPoint, sendMessage,
+// runPushbackRound).
 
-import { useState, useRef, type FormEvent } from 'react';
-import TextareaAutosize from 'react-textarea-autosize';
-import { SendHorizontal } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { MessageList, type ChatMessage } from '@/components/discovery/MessageList';
-import { PainInventoryCanvas } from '@/components/ideation/stage3/PainInventoryCanvas';
-import { StageBanner } from '@/components/institute';
+import { useMemo, useState, useTransition, type FormEvent } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
+import { TopBar, Pill, StageBanner } from '@/components/institute';
+import {
+  PainLedger,
+  ScoutStrip,
+  ShortlistPanel,
+  countViable,
+} from '@/components/institute/no-idea';
+import { FOUNDER_CONTEXT_TAGS, type FounderContextTag } from '@neuralaunch/constants';
+import { FOUNDER_CONTEXT_LABELS } from '@/components/ideation/stage3/labels';
+import {
+  MAX_SCOUT_RUNS,
+  MIN_PAIN_POINTS_FOR_COMMIT,
+  SHORTLIST_CAP,
+} from '@/lib/ideation/stage3-opportunities/constants';
+import type {
+  PainPoint,
+  Stage3AuthoringState,
+} from '@/lib/ideation/stage3-opportunities/schema';
 import { useStage3Session, type Stage3Message } from './useStage3Session';
-import type { Stage3AuthoringState } from '@/lib/ideation/stage3-opportunities/schema';
 
 interface Stage3ChatProps {
   sessionId:       string;
@@ -18,151 +39,331 @@ interface Stage3ChatProps {
   state:           Stage3AuthoringState;
 }
 
-/**
- * Stage 3 chat surface. Composes PainInventoryCanvas (left) + chat
- * (right) with the dismissable Stage 3 banner above — same shape as
- * Stage2Chat. Every canvas action funnels through useStage3Session
- * which hits the narrow API routes and refreshes the page on success.
- */
+const STAGE3_BANNER_BODY = (
+  <>
+    The Pain Scout fans out across community signals, Tavily and Exa for pains
+    that match what you&rsquo;re built to execute. <em>Score what survives</em>{' '}
+    on intensity, frequency, and niche specificity, add your own pains from
+    personal observation, and shortlist up to five before composing the
+    inventory.
+  </>
+);
+
 export function Stage3Chat({
   sessionId,
-  stageRunId,
-  firstName,
+  stageRunId: _stageRunId,
+  firstName: _firstName,
   initialMessages,
   state,
 }: Stage3ChatProps) {
-  const [input, setInput] = useState('');
-  const inputRef = useRef<HTMLTextAreaElement>(null);
-
+  const router = useRouter();
   const {
-    messages,
     status,
     turnError,
-    sendMessage,
     runPainScout,
     addFounderPainPoint,
     scorePainPoint,
     removePainPoint,
-    runPushbackRound,
-  } = useStage3Session({ sessionId, stageRunId, initialMessages });
+  } = useStage3Session({ sessionId, stageRunId: _stageRunId, initialMessages });
 
-  const chatMessages: ChatMessage[] = messages.map(m => ({
-    id:          m.id,
-    role:        m.role,
-    content:     m.content,
-    inputMethod: m.inputMethod,
-  }));
+  // Merge agent + founder pains into a single chronological ledger.
+  // Founder pains appended after agent pains so scout-surfaced rows
+  // lead — matches the reference's roman ordering (I-VII scout, then
+  // VIII+ founder-added).
+  const allPains = useMemo<PainPoint[]>(
+    () => [...state.agentPainPoints, ...state.founderPainPoints],
+    [state.agentPainPoints, state.founderPainPoints],
+  );
 
-  const isBusy =
-    status === 'sending' || status === 'streaming' ||
-    status === 'composing' || status === 'scouting';
+  const viableCount  = useMemo(() => countViable(allPains), [allPains]);
+  const canCompose   = viableCount >= MIN_PAIN_POINTS_FOR_COMMIT;
+  const scouting     = status === 'scouting';
+  const isBusy       = status === 'sending' || status === 'streaming' || status === 'composing' || scouting;
   const isTerminated = status === 'terminated';
-  const canSubmit = !isBusy && !isTerminated && input.trim().length > 0;
-  const hasMessages = messages.length > 0;
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!canSubmit) return;
-    const content = input.trim();
-    setInput('');
-    void sendMessage(content);
+  const shortId = sessionId.slice(0, 6);
+
+  const handleScore = (input: { id: string; intensity: number; frequency: number; nicheSpecificity: number }) => {
+    void scorePainPoint(input);
   };
+  const handleRemove = (id: string) => { void removePainPoint(id); };
+  const handleScout  = () => { void runPainScout(null); };
+  const handleAdd    = async (input: {
+    description: string;
+    founderContext: FounderContextTag | null;
+    founderNotes: string | null;
+  }) => addFounderPainPoint(input);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
+      <TopBar
+        crumb={[
+          { label: 'No Idea', accent: true },
+          { label: `Session ${shortId}` },
+          { label: 'Stage III · Pains', current: true },
+        ]}
+        rightStatus={
+          <Pill accent>
+            <span aria-hidden="true" className="mr-2 inline-block size-[6px] animate-pulse rounded-full bg-accent" style={{ animationDuration: '1.6s' }} />
+            {scouting ? 'Scouting' : 'Authoring'}
+          </Pill>
+        }
+        rightActions={
+          <Link href={`/discovery/no-idea/${sessionId}`} className="text-muted transition-colors hover:text-fg">
+            ← Stage II
+          </Link>
+        }
+      />
+
       <StageBanner
         sessionId={sessionId}
         stage={3}
         totalStages={5}
-        title="Opportunity Identification"
+        title="Pain Inventory"
         body={STAGE3_BANNER_BODY}
-        forceVisible={!hasMessages}
+        forceVisible={allPains.length === 0}
       />
 
-      {turnError && (
-        <div className="border-b border-destructive/40 bg-destructive/5 px-4 py-2 text-xs text-destructive">
-          <div className="mx-auto max-w-5xl">{turnError.message}</div>
+      {state.requiresRederivation && (
+        <div className="border-y border-amber/40 bg-amber/[0.05] px-6 py-3 font-serif text-[14px] italic text-fg-2 sm:px-12 lg:px-16">
+          <span className="mr-2 font-mono text-[10px] not-italic uppercase tracking-[0.14em] text-amber">Cascade</span>
+          Stage 1 or 2 changed since these were derived. Re-run the scout to refresh.
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        <div className="mx-auto max-w-6xl grid grid-cols-1 lg:grid-cols-5 gap-6">
-          <section className="lg:col-span-3">
-            {!hasMessages && (
-              <p className="text-sm text-muted-foreground mb-3">
-                {firstName ? `${firstName}, this is where we look for pain worth solving.` : 'This is where we look for pain worth solving.'}
-              </p>
-            )}
-            <PainInventoryCanvas
-              state={state}
-              scouting={status === 'scouting'}
-              readOnly={isTerminated}
-              onScout={runPainScout}
-              onAddFounderPP={addFounderPainPoint}
-              onScore={scorePainPoint}
-              onRemove={removePainPoint}
-              onPushback={runPushbackRound}
-            />
-          </section>
+      {turnError && (
+        <div className="border-b border-amber/40 bg-amber/[0.05] px-6 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-amber sm:px-12 lg:px-16">
+          {turnError.message}
+        </div>
+      )}
 
-          <section className="lg:col-span-2 flex flex-col min-h-[400px] rounded-lg border border-border bg-card/30">
-            {hasMessages ? (
-              <div className="flex-1 overflow-y-auto">
-                <MessageList
-                  messages={chatMessages}
-                  isLoading={status === 'sending'}
-                  isSynthesizing={status === 'composing'}
-                />
-              </div>
-            ) : (
-              <div className="flex-1 px-4 py-4 text-xs text-muted-foreground">
-                Talk to me here. I&apos;ll probe vague pain points, ground over-stated ones, recommend real-world actions, and tell you when you have enough to compose the shortlist.
-              </div>
-            )}
-          </section>
+      <div className="flex-1 overflow-y-auto">
+        {/* Header band */}
+        <header className="border-b border-rule px-6 pb-7 pt-10 sm:px-12 lg:px-16">
+          <div className="mb-6 flex flex-wrap gap-[18px] font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
+            <span>Stage <span className="text-accent">III</span> of V · Pain Inventory</span>
+            <span>Scout runs · {state.scoutRunCount} of {MAX_SCOUT_RUNS}</span>
+            <span>Saved continuously</span>
+          </div>
+          <h1 className="max-w-[1100px] font-sans text-fg [font-size:clamp(38px,5.4vw,72px)] [font-weight:500] [line-height:1] [letter-spacing:-0.025em] [&_em]:font-serif [&_em]:italic [&_em]:font-normal [&_em]:text-accent">
+            Where the <em>real pain</em> is.
+          </h1>
+          <p className="mt-5 max-w-[760px] text-[16px] leading-[1.55] text-fg-2 [&_em]:font-serif [&_em]:italic [&_em]:text-accent [&_strong]:font-medium [&_strong]:text-fg">
+            The Pain Scout has fanned out across <strong>community signals, Tavily and Exa</strong> for pains that match what you&rsquo;re built to execute. Tap each pain to <em>score it,</em> add your own from personal observation, and shortlist up to five before composing the inventory.
+          </p>
+
+          <ScoutStrip
+            runCount={state.scoutRunCount}
+            maxRuns={MAX_SCOUT_RUNS}
+            scouting={scouting}
+            disabled={isTerminated}
+            onScout={handleScout}
+          />
+        </header>
+
+        {/* Canvas */}
+        <div className="grid grid-cols-1 gap-12 px-6 pb-20 pt-8 sm:px-12 lg:grid-cols-[1fr_340px] lg:px-16">
+          <main>
+            <PainLedger
+              pains={allPains}
+              onScore={handleScore}
+              onRemove={handleRemove}
+              readOnly={isTerminated}
+            />
+
+            <AddPainRow disabled={isBusy || isTerminated} onAdd={handleAdd} />
+          </main>
+
+          <aside className="grid content-start gap-6 lg:sticky lg:top-20 lg:self-start">
+            <ShortlistPanel viable={viableCount} floor={MIN_PAIN_POINTS_FOR_COMMIT} cap={SHORTLIST_CAP} />
+
+            <ScoutLogPanel runCount={state.scoutRunCount} maxRuns={MAX_SCOUT_RUNS} />
+
+            <div
+              className="border border-accent px-5 py-[18px]"
+              style={{ background: 'linear-gradient(180deg, rgba(255,90,60,0.08), rgba(255,90,60,0.02))' }}
+            >
+              <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.18em] text-accent">When ready</div>
+              <h4 className="mb-1.5 font-serif text-[22px] font-normal italic leading-[1.15] tracking-[-0.01em] text-fg [&_em]:text-accent">
+                Compose the <em>inventory.</em>
+              </h4>
+              <p className="mb-3.5 text-[12.5px] leading-[1.5] text-fg-2">
+                The composer writes the inventory document. Pre-commit review before Stage IV.
+              </p>
+              <button
+                type="button"
+                disabled={!canCompose || isBusy}
+                onClick={() => {
+                  // Composition is triggered by the agent's output_ready
+                  // event in the existing flow; until an explicit
+                  // founder-driven compose route exists, we surface the
+                  // commit affordance and let the founder navigate
+                  // forward — the page router auto-advances when
+                  // composition completes (router.refresh re-polls).
+                  router.refresh();
+                }}
+                className="flex w-full items-center justify-center gap-2.5 bg-accent px-3 py-3 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-bg disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {isBusy && <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />}
+                Compose inventory
+                {!isBusy && <span aria-hidden="true">→</span>}
+              </button>
+              {!canCompose && (
+                <p className="mt-2 font-mono text-[10px] leading-[1.5] tracking-[0.04em] text-muted">
+                  Need {MIN_PAIN_POINTS_FOR_COMMIT - viableCount} more viable pain{MIN_PAIN_POINTS_FOR_COMMIT - viableCount === 1 ? '' : 's'} ({viableCount}/{MIN_PAIN_POINTS_FOR_COMMIT}).
+                </p>
+              )}
+            </div>
+          </aside>
         </div>
       </div>
-
-      <form
-        onSubmit={handleSubmit}
-        className="flex gap-2 items-end border-t border-border bg-background px-4 py-3"
-      >
-        <TextareaAutosize
-          ref={inputRef}
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          disabled={isBusy || isTerminated}
-          placeholder={isTerminated ? 'Session ended.' : 'Tell me what hurts — yours or theirs.'}
-          maxRows={5}
-          className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none py-2"
-          onKeyDown={e => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              if (canSubmit) {
-                const content = input.trim();
-                setInput('');
-                void sendMessage(content);
-              }
-            }
-          }}
-        />
-        <Button
-          type="submit"
-          size="icon"
-          disabled={!canSubmit}
-          variant="ghost"
-          className={canSubmit ? 'text-primary hover:bg-primary/10 hover:text-primary' : undefined}
-        >
-          <SendHorizontal className="size-4" />
-        </Button>
-      </form>
     </div>
   );
 }
 
-const STAGE3_BANNER_BODY = (
-  <>
-    Time to find <em>real pain worth solving.</em> Add pain points you&apos;ve hit yourself, lived with through someone close, or watched an industry struggle with — your own life is the strongest signal. The Pain Scout will surface community signals you might not have seen; treat its picks as a check on yourself, not the answer. Rate what survives on intensity, frequency, and niche specificity. I&apos;ll shortlist up to five for Stage 4.
-  </>
-);
+/* -------------------------------------------------------------------------- */
+/*  AddPainRow — dashed-border expandable founder-add prompt                  */
+/* -------------------------------------------------------------------------- */
 
+function AddPainRow({
+  disabled,
+  onAdd,
+}: {
+  disabled: boolean;
+  onAdd: (input: {
+    description: string;
+    founderContext: FounderContextTag | null;
+    founderNotes: string | null;
+  }) => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [description, setDescription] = useState('');
+  const [context, setContext] = useState<FounderContextTag | ''>('');
+  const [submitting, startSubmit] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const canSubmit = !disabled && !submitting && description.trim().length > 0 && context !== '';
+
+  const onCancel = () => {
+    setOpen(false);
+    setDescription('');
+    setContext('');
+    setError(null);
+  };
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!canSubmit) return;
+    startSubmit(async () => {
+      setError(null);
+      try {
+        await onAdd({
+          description:    description.trim(),
+          founderContext: (context as FounderContextTag) || null,
+          founderNotes:   null,
+        });
+        setDescription('');
+        setContext('');
+        setOpen(false);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not add the pain.');
+      }
+    });
+  };
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => !disabled && setOpen(true)}
+        disabled={disabled}
+        className="mt-4 grid w-full gap-2.5 border border-dashed border-rule-strong bg-transparent px-6 py-4 text-left font-mono text-[11px] uppercase tracking-[0.14em] text-muted transition-colors hover:border-accent hover:text-fg disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <span><span className="text-accent">+</span> &nbsp; Add a pain you&rsquo;ve observed personally</span>
+      </button>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={submit}
+      className="mt-4 grid gap-2.5 border border-rule bg-bg-2 px-6 py-4"
+    >
+      <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+        Add a pain you&rsquo;ve observed personally
+      </div>
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        maxLength={600}
+        placeholder="Describe the pain in one sentence. What hurts, for whom, in what context."
+        className="w-full resize-y border border-rule bg-transparent px-3 py-2.5 font-sans text-[14.5px] leading-[1.5] text-fg outline-none placeholder:text-muted-2 focus:border-accent"
+        rows={3}
+        disabled={submitting}
+      />
+      <div className="grid items-center gap-2.5 sm:grid-cols-[1fr_auto_auto]">
+        <select
+          value={context}
+          onChange={(e) => setContext(e.target.value as FounderContextTag | '')}
+          disabled={submitting}
+          className="border border-rule bg-bg-3 px-3 py-2 font-sans text-[13px] text-fg"
+        >
+          <option value="">Context · pick one</option>
+          {FOUNDER_CONTEXT_TAGS.map((tag) => (
+            <option key={tag} value={tag}>
+              Context · {FOUNDER_CONTEXT_LABELS[tag].toLowerCase()}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={submitting}
+          className="border border-rule-strong px-3.5 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-2 transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={!canSubmit}
+          className="inline-flex items-center gap-2 bg-accent px-3.5 py-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-bg disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          {submitting && <Loader2 aria-hidden="true" className="size-3 animate-spin" />}
+          Add to inventory →
+        </button>
+      </div>
+      {error && (
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-amber">{error}</p>
+      )}
+    </form>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Scout log panel — right rail                                              */
+/* -------------------------------------------------------------------------- */
+
+function ScoutLogPanel({ runCount, maxRuns }: { runCount: number; maxRuns: number }) {
+  // The schema doesn't persist a per-run log (only `scoutRunCount`).
+  // We surface the count + remaining budget here. A future schema
+  // extension can carry per-run summaries; the panel is shaped to
+  // receive them when they exist.
+  const remaining = Math.max(0, maxRuns - runCount);
+  return (
+    <div className="border border-rule bg-bg-2 px-5 py-[18px]">
+      <div className="mb-3.5 flex justify-between font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+        <span>Scout log</span>
+        <span>{remaining} left</span>
+      </div>
+      {runCount === 0 ? (
+        <p className="font-mono text-[11px] leading-[1.55] tracking-[0.04em] text-muted">
+          The scout hasn&rsquo;t been fired yet. Click <span className="text-accent">Run scout</span> above to surface community signals.
+        </p>
+      ) : (
+        <p className="font-mono text-[11px] leading-[1.55] tracking-[0.04em] text-muted">
+          {runCount} scout run{runCount === 1 ? '' : 's'} fired. Each run drives an 8-step Sonnet loop with Tavily + Exa + community_pulse.
+        </p>
+      )}
+    </div>
+  );
+}
