@@ -93,11 +93,21 @@ export interface StageInterviewProps {
   answerLabel?: string;
   /** Mono label rendered next to the submit button ("Continue" by default). */
   submitLabel?: string;
-  /** Voice mic visible? Default true; set false for tier-gated surfaces. */
+  /**
+   * Custom voice control rendered in the composer action row in place
+   * of the built-in signal mic button. Pass a self-contained recorder
+   * like `<VoiceInputButton onTranscription={…} />` here — when set, the
+   * signal-style voiceState/onVoiceToggle path (and its ⌥V hint) is
+   * suppressed. This is the supported voice integration; the
+   * voiceState/onVoiceToggle props below are the legacy signal API,
+   * kept for back-compat and slated for removal.
+   */
+  voiceSlot?: ReactNode;
+  /** @deprecated Voice mic visible? Default true; set false for tier-gated surfaces. */
   voiceEnabled?: boolean;
-  /** Driven by the consumer's voice state machine. */
+  /** @deprecated Driven by the consumer's voice state machine. */
   voiceState?: VoiceState;
-  /** Fires on mic-tap OR ⌥/Alt+V. No-op when voiceEnabled is false. */
+  /** @deprecated Fires on mic-tap OR ⌥/Alt+V. No-op when voiceEnabled is false. */
   onVoiceToggle?: () => void;
   /**
    * Slot above the textarea for safety blocks, mid-stream cuts, recovery
@@ -134,6 +144,7 @@ export const StageInterview = forwardRef<StageInterviewHandle, StageInterviewPro
       placeholder = 'Type your answer. Press ⌘+↵ when ready.',
       answerLabel = 'Your answer',
       submitLabel = 'Continue',
+      voiceSlot,
       voiceEnabled = true,
       voiceState = 'ready',
       onVoiceToggle,
@@ -143,6 +154,9 @@ export const StageInterview = forwardRef<StageInterviewHandle, StageInterviewPro
     },
     ref,
   ) {
+    // When a custom voice control is provided, the legacy signal path
+    // (state label, ⌥V hint, built-in mic button) is fully suppressed.
+    const showSignalVoice = !voiceSlot && voiceEnabled && voiceState !== 'unsupported';
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
     useImperativeHandle(ref, () => ({
@@ -244,7 +258,7 @@ export const StageInterview = forwardRef<StageInterviewHandle, StageInterviewPro
             <div className="mb-3 flex items-center justify-between font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
               <span>{answerLabel}</span>
               <span className="flex items-center gap-3.5">
-                {voiceEnabled && voiceState !== 'unsupported' && (
+                {showSignalVoice && (
                   <span className="inline-flex items-center gap-1.5 text-fg-2">
                     <VoiceDot state={voiceState} />
                     Voice {voiceLabel(voiceState)}
@@ -277,7 +291,7 @@ export const StageInterview = forwardRef<StageInterviewHandle, StageInterviewPro
                 Submit
                 <KeyHint>⌘</KeyHint>
                 <KeyHint>↵</KeyHint>
-                {voiceEnabled && voiceState !== 'unsupported' && (
+                {showSignalVoice && (
                   <>
                     <span className="mx-2 text-muted-2">·</span>
                     Voice
@@ -287,21 +301,23 @@ export const StageInterview = forwardRef<StageInterviewHandle, StageInterviewPro
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {voiceEnabled && voiceState !== 'unsupported' && onVoiceToggle && (
-                  <button
-                    type="button"
-                    onClick={onVoiceToggle}
-                    aria-label="Toggle voice input"
-                    className={[
-                      'inline-flex h-[42px] w-[42px] items-center justify-center',
-                      'border border-rule-strong text-fg',
-                      'transition-colors hover:border-accent hover:text-accent',
-                      voiceState === 'recording' ? 'border-accent text-accent' : '',
-                    ].filter(Boolean).join(' ')}
-                  >
-                    <Mic className="size-4" aria-hidden="true" />
-                  </button>
-                )}
+                {voiceSlot
+                  ? voiceSlot
+                  : showSignalVoice && onVoiceToggle && (
+                      <button
+                        type="button"
+                        onClick={onVoiceToggle}
+                        aria-label="Toggle voice input"
+                        className={[
+                          'inline-flex h-[42px] w-[42px] items-center justify-center',
+                          'border border-rule-strong text-fg',
+                          'transition-colors hover:border-accent hover:text-accent',
+                          voiceState === 'recording' ? 'border-accent text-accent' : '',
+                        ].filter(Boolean).join(' ')}
+                      >
+                        <Mic className="size-4" aria-hidden="true" />
+                      </button>
+                    )}
                 <button
                   type="button"
                   onClick={fireSubmit}

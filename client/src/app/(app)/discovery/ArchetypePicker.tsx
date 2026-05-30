@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ARCHETYPES, type ArchetypeDefinition } from '@/lib/archetype-status';
+import { startStuckSession } from './stuck/actions';
 
 interface ArchetypePickerProps {
   firstName: string;
@@ -31,6 +32,14 @@ export function ArchetypePicker({ firstName }: ArchetypePickerProps) {
     setPendingId(arc.id);
     if (flashTimer.current) clearTimeout(flashTimer.current);
     flashTimer.current = setTimeout(() => {
+      // Stuck mints a session as a side effect, so it goes through a
+      // server action (POST) rather than a GET navigation — otherwise a
+      // refresh of the destination would duplicate the session. The
+      // action redirects to the owned /discovery/stuck/[sessionId].
+      if (arc.id === 'stuck') {
+        void startStuckSession();
+        return;
+      }
       router.push(arc.destination);
     }, 240);
   };

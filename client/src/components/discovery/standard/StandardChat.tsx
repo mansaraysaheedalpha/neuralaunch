@@ -7,9 +7,8 @@
 // existing useDiscoverySession transport — the hook's streaming /
 // session / synthesis logic is untouched; this file is render only.
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import toast from 'react-hot-toast';
 import {
   TopBar,
   Pill,
@@ -20,6 +19,8 @@ import {
   type StageInterviewQuestion,
   type SynthesisStep,
 } from '@/components/institute';
+import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
+import { canUseVoiceMode, useVoiceTier } from '@/lib/voice/client-tier';
 import { useDiscoverySession } from '@/components/discovery/useDiscoverySession';
 import type { ChatMessage } from '@/components/discovery';
 import type { Recommendation } from '@/lib/discovery/client';
@@ -59,6 +60,14 @@ export function StandardChat({
   const [input, setInput] = useState('');
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [transcriptSnapshot, setTranscriptSnapshot] = useState<ChatMessage[]>([]);
+
+  // Voice — Compound-tier gate (same as the resume path). The mic
+  // transcribes into the answer textarea; no toast stub.
+  const voiceEnabled = canUseVoiceMode(useVoiceTier());
+  const handleTranscription = useCallback((text: string) => {
+    if (!text.trim()) return;
+    setInput((prev) => (prev.trim().length > 0 ? `${prev.trim()} ${text}` : text));
+  }, []);
 
   const {
     messages,
@@ -222,10 +231,10 @@ export function StandardChat({
                 : 'Start anywhere. A sentence is enough to begin.'
             }
             submitLabel={hasStarted ? 'Continue' : 'Begin'}
-            voiceEnabled
-            voiceState="ready"
-            onVoiceToggle={() =>
-              toast('Voice is coming to this surface in a later pass.', { icon: '🎙' })
+            voiceSlot={
+              voiceEnabled ? (
+                <VoiceInputButton onTranscription={handleTranscription} disabled={disabled} />
+              ) : undefined
             }
             errorBanner={errorBanner}
           />

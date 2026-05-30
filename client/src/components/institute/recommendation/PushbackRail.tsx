@@ -3,6 +3,8 @@
 import { forwardRef, useImperativeHandle, useRef, type KeyboardEvent } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 import { ArrowUp } from 'lucide-react';
+import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
+import { canUseVoiceMode, useVoiceTier } from '@/lib/voice/client-tier';
 
 /**
  * A single normalised turn for the rail. The orchestrator maps the
@@ -52,6 +54,10 @@ export const PushbackRail = forwardRef<PushbackRailHandle, PushbackRailProps>(
   ) {
     const taRef = useRef<HTMLTextAreaElement | null>(null);
     useImperativeHandle(ref, () => ({ focusComposer: () => taRef.current?.focus() }), []);
+
+    // Voice — Compound-tier gate; transcript appends into the pushback
+    // textarea via the controlled onChange.
+    const voiceEnabled = canUseVoiceMode(useVoiceTier());
 
     const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -135,14 +141,25 @@ export const PushbackRail = forwardRef<PushbackRailHandle, PushbackRailProps>(
             <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
               {modeHint}
             </span>
-            <button
-              type="submit"
-              disabled={disabled || value.trim().length === 0}
-              className="inline-flex items-center gap-2 bg-accent px-3.5 py-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-bg transition-opacity disabled:opacity-40"
-            >
-              Send
-              <ArrowUp aria-hidden="true" className="size-3" />
-            </button>
+            <div className="flex items-center gap-2">
+              {voiceEnabled && !capReached && (
+                <VoiceInputButton
+                  onTranscription={(text) => {
+                    if (!text.trim()) return;
+                    onChange(value.trim().length > 0 ? `${value.trim()} ${text}` : text);
+                  }}
+                  disabled={disabled}
+                />
+              )}
+              <button
+                type="submit"
+                disabled={disabled || value.trim().length === 0}
+                className="inline-flex items-center gap-2 bg-accent px-3.5 py-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-bg transition-opacity disabled:opacity-40"
+              >
+                Send
+                <ArrowUp aria-hidden="true" className="size-3" />
+              </button>
+            </div>
           </div>
         </form>
       </aside>

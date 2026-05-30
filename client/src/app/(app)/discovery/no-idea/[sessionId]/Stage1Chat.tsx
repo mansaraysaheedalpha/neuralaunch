@@ -12,6 +12,8 @@ import {
   type StageInterviewQuestion,
   type BeliefRailGroup,
 } from '@/components/institute';
+import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
+import { canUseVoiceMode, useVoiceTier } from '@/lib/voice/client-tier';
 import type { Stage1Message } from './useStage1Session';
 import { useStage1Session } from './useStage1Session';
 import type { OutcomeDimensions } from '@/lib/ideation/stage1-outcome/schema';
@@ -57,6 +59,9 @@ export function Stage1Chat({
   const editProbeFiredRef = useRef(false);
   const [discardBusy, startDiscard] = useTransition();
   const [discardError, setDiscardError] = useState<string | null>(null);
+
+  // Voice — Compound-tier gate; mic transcribes into the answer textarea.
+  const voiceEnabled = canUseVoiceMode(useVoiceTier());
 
   const { messages, status, turnError, sendMessage, requestOpening, requestEditProbe } =
     useStage1Session({ sessionId, initialMessages });
@@ -247,15 +252,17 @@ export function Stage1Chat({
               ? 'Session ended.'
               : 'Say what you\'d actually do, not what you\'d plan to do.'
           }
-          voiceEnabled
-          voiceState="ready"
-          onVoiceToggle={() => {
-            // Voice plumbing is not wired for Stage 1 yet — this
-            // no-op keeps the ⌥+V shortcut + button visible so the
-            // shell's surface is honest about its API. Real recording
-            // lands in the No-Idea voice pass.
-            toast('Voice coming in the next pass.', { icon: '🎙' });
-          }}
+          voiceSlot={
+            voiceEnabled ? (
+              <VoiceInputButton
+                onTranscription={(text) => {
+                  if (!text.trim()) return;
+                  setInput((prev) => (prev.trim().length > 0 ? `${prev.trim()} ${text}` : text));
+                }}
+                disabled={disabled}
+              />
+            ) : undefined
+          }
           errorBanner={errorBanner}
           topSlot={
             <StageBanner
