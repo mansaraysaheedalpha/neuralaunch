@@ -16,3 +16,9 @@ export type { ClosingThoughtProps } from './ClosingThought';
 
 export { ForkSelectionBar } from './ForkSelectionBar';
 export type { ForkSelectionBarProps } from './ForkSelectionBar';
+
+export { OverturnedAssumptionList } from './OverturnedAssumption';
+export type { OverturnedAssumptionListProps } from './OverturnedAssumption';
+
+export { EvidenceLedger } from './EvidenceLedger';
+export type { EvidenceLedgerProps } from './EvidenceLedger';

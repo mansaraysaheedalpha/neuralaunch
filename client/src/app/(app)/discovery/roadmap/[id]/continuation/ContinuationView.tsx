@@ -8,7 +8,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import type { ContinuationBrief, ContinuationFork, ParkingLot } from '@/lib/continuation';
+import type {
+  ContinuationBriefAny,
+  ContinuationFork,
+  ParkingLot,
+} from '@/lib/continuation';
+import { isLegacyBrief } from '@/lib/continuation';
 import { TopBar, Pill, SynthesisOverlay } from '@/components/institute';
 import {
   BriefCover,
@@ -17,12 +22,30 @@ import {
   ForkCard,
   ClosingThought,
   ForkSelectionBar,
+  OverturnedAssumptionList,
+  EvidenceLedger,
+  type BriefStat,
 } from '@/components/institute/continuation';
+
+/**
+ * Cover-stats shape returned by the GET resolver. All figures sourced
+ * from the same place the roadmap reads them so the brief reconciles
+ * with the roadmap stats strip without recomputation.
+ */
+interface CoverStats {
+  tasksComplete:       number;
+  tasksTotal:          number;
+  derivedHoursPerWeek: number | null;
+  statedHoursPerWeek:  number | null;
+  paceLabel:           'on_pace' | 'slower_pace' | 'unknown' | null;
+  validationSignal:    'strong' | 'moderate' | 'weak' | 'negative' | 'absent' | null;
+}
 
 interface ContinuationData {
   continuationStatus: string | null;
-  brief:              ContinuationBrief | null;
+  brief:              ContinuationBriefAny | null;
   parkingLot:         ParkingLot;
+  coverStats?:        CoverStats;
 }
 
 const POLL_INTERVAL_MS = 3_000;
@@ -152,6 +175,12 @@ export function ContinuationView({ roadmapId, recommendationId, ventureName }: C
 
   const brief = data.brief;
   const parking = brief.parkingLotItems;
+  const legacy = isLegacyBrief(brief);
+  const coverStats = data.coverStats
+    ? buildBriefStats(data.coverStats)
+    : undefined;
+  // removedForks is V2-only; legacy briefs never have it.
+  const removedForks = !legacy ? brief.removedForks ?? [] : [];
 
   return (
     <div className="flex h-full flex-col">
@@ -169,7 +198,12 @@ export function ContinuationView({ roadmapId, recommendationId, ventureName }: C
       />
 
       <div className="flex-1 overflow-y-auto">
-        <BriefCover cycleRoman="I" progressStamp="Cycle complete" heading={<>What you <em>learned.</em></>} />
+        <BriefCover
+          cycleRoman="I"
+          progressStamp="Cycle complete"
+          heading={<>What you <em>learned.</em></>}
+          stats={coverStats}
+        />
 
         <div className="max-w-[1280px] px-6 pb-28 pt-16 sm:px-12 lg:px-20">
           <BriefSection num="I" stamp="What happened" heading={<>What the cycle <em>showed.</em></>} first>
@@ -177,11 +211,21 @@ export function ContinuationView({ roadmapId, recommendationId, ventureName }: C
           </BriefSection>
 
           <BriefSection num="II" stamp="What I got wrong" heading={<>Where the recommendation <em>missed.</em></>}>
-            <BriefProse text={brief.whatIGotWrong} />
+            {legacy ? (
+              <BriefProse text={brief.whatIGotWrong} />
+            ) : brief.whatIGotWrong.length > 0 ? (
+              <OverturnedAssumptionList items={brief.whatIGotWrong} />
+            ) : (
+              <BriefProse text="Every assumption held — the cycle's evidence didn't overturn any of the recommendation's original commitments." />
+            )}
           </BriefSection>
 
           <BriefSection num="III" stamp="What the evidence says" heading={<>The signals across the <em>cycle.</em></>}>
-            <BriefProse text={brief.whatTheEvidenceSays} />
+            {legacy ? (
+              <BriefProse text={brief.whatTheEvidenceSays} />
+            ) : (
+              <EvidenceLedger rows={brief.whatTheEvidenceSays} />
+            )}
           </BriefSection>
 
           <BriefSection num="IV" stamp="The forks ahead" heading={<>Three honest <em>directions</em> from here.</>}>
@@ -196,6 +240,16 @@ export function ContinuationView({ roadmapId, recommendationId, ventureName }: C
                 />
               ))}
             </div>
+            {removedForks.length > 0 && (
+              <p className="mt-6 max-w-[780px] font-mono text-[11px] leading-[1.5] tracking-[0.04em] text-muted">
+                Note · {removedForks.map((rf) => (
+                  <span key={rf.title}>
+                    the <span className="text-fg">{rf.title.toLowerCase()}</span> fork has been
+                    removed. {rf.reason} It can return if a future cycle surfaces a different signal.
+                  </span>
+                ))}
+              </p>
+            )}
             {pickError && (
               <p className="mt-4 border-l-2 border-amber bg-bg-2 px-4 py-3 font-serif text-[14px] italic text-fg-2">
                 {pickError}
@@ -247,4 +301,58 @@ function formatWhen(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return 'parked';
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
+
+/**
+ * Convert the GET resolver's raw coverStats into the BriefCover stats
+ * grid. Cells reconcile with the roadmap's stats strip because they
+ * read from the same source (Roadmap.progress + Roadmap.executionMetrics
+ * + loadValidationSignal). The "Key outcome metric" cell is omitted
+ * — there is no canonical per-venture outcome metric on the row yet,
+ * and a fabricated value would defeat the reconcile guarantee.
+ */
+function buildBriefStats(stats: CoverStats): BriefStat[] {
+  const cells: BriefStat[] = [
+    {
+      k:   'Tasks complete',
+      v:   `${stats.tasksComplete} / ${stats.tasksTotal}`,
+      sub: stats.tasksTotal === 0 ? 'no tasks' : undefined,
+    },
+  ];
+  if (stats.derivedHoursPerWeek != null) {
+    const stated = stats.statedHoursPerWeek;
+    const delta =
+      stated != null && stated > 0
+        ? Math.round(((stats.derivedHoursPerWeek - stated) / stated) * 100)
+        : null;
+    cells.push({
+      k:      'Pace · derived hours',
+      v:      `${stats.derivedHoursPerWeek} h / wk`,
+      sub:    delta == null
+                ? undefined
+                : `${delta >= 0 ? '+' : ''}${delta}% vs stated ${stated} h`,
+      accent: true,
+    });
+  } else {
+    cells.push({
+      k:   'Pace · derived hours',
+      v:   '—',
+      sub: 'not enough data yet',
+    });
+  }
+  if (stats.validationSignal && stats.validationSignal !== 'absent') {
+    const label =
+      stats.validationSignal === 'strong'   ? 'Strong'
+    : stats.validationSignal === 'moderate' ? 'Moderate'
+    : stats.validationSignal === 'weak'     ? 'Weak'
+    : /* negative */                          'Negative';
+    const accent = stats.validationSignal === 'strong' || stats.validationSignal === 'negative';
+    cells.push({
+      k:      'Validation signal',
+      v:      label,
+      sub:    stats.validationSignal === 'negative' ? 'disconfirmed by data' : 'from landing page',
+      accent,
+    });
+  }
+  return cells;
 }

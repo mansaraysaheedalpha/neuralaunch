@@ -208,13 +208,26 @@ ${getResearchToolGuidance()}
 
 For continuation specifically: this is the highest-stakes single LLM call in the system. You SHOULD research before producing the brief. Cover at least: market changes since the roadmap was created (Tavily for named entities, Exa for new competitors), current traction signals on the recommended path (Tavily), and external context for any parking-lot items mentioning specific entities (Exa for "things like X", Tavily for "facts about X"). You have a step budget of ${RESEARCH_BUDGETS.continuation.steps} model invocations — use them well.
 
-PRODUCE THE BRIEF — five sections, each grounded in the evidence above:
+PRODUCE THE BRIEF — five sections (+ optional removedForks footnote), each grounded in the evidence above:
 
 1. whatHappened — 3 to 4 sentences. Interpret what the founder LEARNED, not what they completed. Reference specific tasks where the learning is clearest. The interpretation quality is the entire value of this brief.
 
-2. whatIGotWrong — Explicitly name where the original recommendation diverged from reality. Compare the original assumptions list against what the execution evidence actually shows. If nothing was wrong, say so honestly. If multiple things were wrong, name the most important one. This is the intellectual honesty section — never paper over.
+2. whatIGotWrong — AN ARRAY of overturned/partially-upheld assumptions. Walk the ORIGINAL ASSUMPTIONS list above. For each assumption the execution evidence overturned or only partially upheld, emit ONE row:
+   - assumption: the original assumption text VERBATIM from the list (paraphrase only if a finding genuinely spans multiple assumptions; keep close to the original wording).
+   - actually: 1-2 sentences naming what the execution evidence ACTUALLY showed. Cite the specific signal — numbers, founder quotes, observed behaviour — that did the overturning.
+   - status: "overturned" when the evidence clearly flipped it; "partially_upheld" when it held in spirit but needs a caveat.
+   Emit 1-4 rows ordered by decision-shifting importance. If every assumption held, emit an EMPTY ARRAY — do NOT invent overturns to pad the section. Never emit prose; the array IS the section.
 
-3. whatTheEvidenceSays — The strongest signal from check-in transcripts, blocker patterns, parking-lot items, and the founder's quoted words. Specific and interpretive — what does the evidence MEAN for the path ahead?
+3. whatTheEvidenceSays — AN ARRAY of signal rows extracted from check-ins, completed tasks, conversation arcs, parking-lot items, and any quoted founder words. Each row:
+   - metric: 2-4-word mono label (e.g. "Conversion to paid", "Price tolerance", "Time-cost reality"). Avoid sentences.
+   - reading: 1-2 sentences interpreting the metric with founder-specific numbers, observations, or direct quotes. Reference the source (a check-in, a task, a parking-lot item).
+   - signal: one of "strong" | "re_aim" | "negative" | "weak" | "capped".
+       strong  — the evidence confirms the direction.
+       re_aim  — the metric points sideways; a course-correct is implied for the next cycle.
+       negative — the evidence DISCONFIRMS something previously assumed.
+       weak    — too little data to draw a conclusion (n too small, coverage too thin).
+       capped  — a ceiling has been hit (throughput, regulation, hours) that constrains the next cycle.
+   Emit 3-7 rows ordered by evidence density. Never emit prose; the array IS the section.
 
 4. forks — 2 to 3 forks. Each is a real decision the founder can make. Each one needs:
    - title: short imperative verb-first phrase
@@ -225,6 +238,8 @@ PRODUCE THE BRIEF — five sections, each grounded in the evidence above:
    At least one fork should be the most natural continuation of the current direction. At least one fork should be a genuine alternative — even if it pulls from the parking lot or the assumptions you got wrong.
 
 5. parkingLotItems — Pass through the parking-lot items provided above VERBATIM. Do not invent new items. Do not edit. If there are no items, return an empty array.
+
+removedForks (optional) — When the execution evidence has DECISIVELY killed a direction that was on the table at synthesis time, surface it here as a single row with { title, reason }. The reason MUST cite the specific signal that did the killing (e.g. "0 of 4 wanted one"). Keep to 0 or 1 entry — this is a signature honesty move, not a place to list every passing thought. Omit the field entirely when nothing was decisively killed. Surfacing a removed fork builds trust; inventing one destroys it.
 
 closingThought — 2 to 3 sentences direct address. The closing thought MUST reference a specific piece of evidence from the execution and state what it means for the founder's next decision. Generic encouragement is not permitted.
 Example of what to produce: "Your strongest signal is that catering companies converted 3x faster than restaurants — the fork you choose will determine whether you build on that signal or start over."

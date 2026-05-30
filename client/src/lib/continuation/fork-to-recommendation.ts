@@ -14,7 +14,7 @@ import prisma, { toJsonValue } from '@/lib/prisma';
 import { buildPhaseContext, PHASES } from '@/lib/phase-context';
 import { createNextCycleForVenture } from '@/lib/lifecycle';
 import { CONTINUATION_STATUSES } from './constants';
-import type { ContinuationBrief, ContinuationFork } from './brief-schema';
+import type { ContinuationBriefAny, ContinuationFork } from './brief-schema';
 
 /**
  * The structured payload the route hands to prisma.recommendation.create.
@@ -46,7 +46,10 @@ export interface ForkRecommendationPayload {
  */
 export function buildForkRecommendationPayload(input: {
   fork:  ContinuationFork;
-  brief: ContinuationBrief;
+  // Accepts both V2 (structured §II/§III) and V1 legacy (prose §II/§III)
+  // briefs — only `forks` is read, and that shape is identical across
+  // both schemas, so the helper is shape-stable across the schema flip.
+  brief: ContinuationBriefAny;
 }): ForkRecommendationPayload {
   const { fork, brief } = input;
 

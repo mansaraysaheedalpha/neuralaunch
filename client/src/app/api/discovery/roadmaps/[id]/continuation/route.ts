@@ -13,7 +13,10 @@ import {
   safeParseContinuationBrief,
   safeParseDiagnosticHistory,
   safeParseParkingLot,
+  loadValidationSignal,
+  type ValidationSignal,
 } from '@/lib/continuation';
+import type { ExecutionMetrics } from '@/lib/continuation';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
 export const maxDuration = 300;
@@ -63,9 +66,36 @@ export async function GET(
         parkingLot:         true,
         executionMetrics:   true,
         parentRoadmapId:    true,
+        ventureId:          true,
+        // Cover-stats source — read from the same place PR 07's
+        // RoadmapView reads from so the brief cover figures reconcile
+        // exactly with the roadmap stats strip.
+        progress: {
+          select: {
+            totalTasks:     true,
+            completedTasks: true,
+          },
+        },
       },
     });
     if (!row) throw new HttpError(404, 'Not found');
+
+    // Cover stats — computed at READ time so they always reflect the
+    // current roadmap (no drift from a frozen snapshot). Derived hours
+    // come from the persisted ExecutionMetrics; validation signal is
+    // loaded from the venture (null when no landing page exists).
+    const metrics = (row.executionMetrics ?? null) as ExecutionMetrics | null;
+    const validation: ValidationSignal | null = row.ventureId
+      ? await loadValidationSignal(row.ventureId)
+      : null;
+    const coverStats = {
+      tasksComplete:       row.progress?.completedTasks ?? 0,
+      tasksTotal:          row.progress?.totalTasks ?? 0,
+      derivedHoursPerWeek: metrics?.derivedWeeklyHours ?? null,
+      statedHoursPerWeek:  metrics?.statedWeeklyHours ?? null,
+      paceLabel:           metrics?.paceLabel ?? null,
+      validationSignal:    validation?.signalStrength ?? null,
+    };
 
     return NextResponse.json({
       id:                row.id,
@@ -75,6 +105,7 @@ export async function GET(
       parkingLot:        safeParseParkingLot(row.parkingLot),
       executionMetrics:  row.executionMetrics ?? null,
       parentRoadmapId:   row.parentRoadmapId,
+      coverStats,
     });
   } catch (err) {
     return httpErrorToResponse(err);

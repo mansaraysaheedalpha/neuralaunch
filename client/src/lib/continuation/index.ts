@@ -33,13 +33,22 @@ export {
 
 export type {
   ContinuationBrief,
+  ContinuationBriefAny,
+  LegacyContinuationBrief,
   ContinuationFork,
+  OverturnedAssumptionItem,
+  EvidenceSignalRow,
+  RemovedFork,
   ParkingLotBriefEntry,
 } from './brief-schema';
 export {
   ContinuationBriefSchema,
   ContinuationForkSchema,
+  OverturnedAssumptionItemSchema,
+  EvidenceSignalRowSchema,
+  RemovedForkSchema,
   safeParseContinuationBrief,
+  isLegacyBrief,
 } from './brief-schema';
 
 export type {
