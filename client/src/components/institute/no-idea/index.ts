@@ -4,6 +4,20 @@
 // Stage 2 Skill Canvas surface; later PRs add Stage 3 (pain inventory),
 // Stage 4 (opportunity evaluation), Stage 5 (recommendation handoff).
 
+export { OpportunityDocket } from './OpportunityDocket';
+export type { OpportunityDocketProps } from './OpportunityDocket';
+export { DocketRow } from './DocketRow';
+export type { DocketRowProps } from './DocketRow';
+export { OpportunityFocus } from './OpportunityFocus';
+export type { OpportunityFocusProps } from './OpportunityFocus';
+export {
+  layerAGlyph,
+  layerBGlyph,
+  isFeatured,
+  countAdvancing,
+} from './signalGlyph';
+export type { GlyphTone, LayerGlyph } from './signalGlyph';
+
 export { PainLedger } from './PainLedger';
 export type { PainLedgerProps } from './PainLedger';
 export { PainRow } from './PainRow';
