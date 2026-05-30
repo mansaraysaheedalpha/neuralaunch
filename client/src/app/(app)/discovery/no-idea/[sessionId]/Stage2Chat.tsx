@@ -1,67 +1,75 @@
 'use client';
+// src/app/(app)/discovery/no-idea/[sessionId]/Stage2Chat.tsx
+//
+// Stage 2 — Requirements / Skill Canvas, Institute treatment.
+// Render layer only — the existing useStage2Session hook owns
+// session/streaming/derive transports; this component just composes
+// the Institute primitives over them.
 
-import { useState, useRef, type FormEvent } from 'react';
-import TextareaAutosize from 'react-textarea-autosize';
-import { SendHorizontal, Sparkles } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { MessageList, type ChatMessage } from '@/components/discovery/MessageList';
-import { SkillCanvas } from '@/components/ideation/SkillCanvas';
-import { SkillCanvasEntry, type SkillCanvasEntryMode } from '@/components/ideation/SkillCanvasEntry';
-import { ExpectedProfileView } from '@/components/ideation/ExpectedProfileView';
-import { StageBanner } from '@/components/institute';
-import { useStage2Session, type Stage2Message } from './useStage2Session';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
+import Link from 'next/link';
+import {
+  TopBar,
+  Pill,
+  StageBanner,
+  StageInterview,
+  type StageInterviewHandle,
+  type StageInterviewQuestion,
+} from '@/components/institute';
+import {
+  SkillGrid,
+  ExpectedProfilePanel,
+  StructuralBlocker,
+  TIER_RANK,
+} from '@/components/institute/no-idea';
+import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
+import { canUseVoiceMode, useVoiceTier } from '@/lib/voice/client-tier';
+import { TeammateForm } from '@/components/ideation/TeammateForm';
+import { SKILL_KEYS, type SkillKey, type SkillTier } from '@neuralaunch/constants';
 import type {
   SkillInventory,
   ExpectedProfileEntry,
 } from '@/lib/ideation/stage2-requirements/schema';
+import { useStage2Session, type Stage2Message } from './useStage2Session';
+import { Trash2, Loader2 } from 'lucide-react';
 
 interface Stage2ChatProps {
-  sessionId:       string;
-  stageRunId:      string;
-  firstName:       string;
-  initialMessages: Stage2Message[];
-  inventory:       SkillInventory;
-  /**
-   * Derived Expected Profile entries from the authoring state. Null
-   * before the founder fires the derive route. Rendered read-only
-   * below the canvas once present so the founder can see what the
-   * outcome demands without having to compose first.
-   */
-  expectedProfile: ExpectedProfileEntry[] | null;
+  sessionId:        string;
+  stageRunId:       string;
+  firstName:        string;
+  initialMessages:  Stage2Message[];
+  inventory:        SkillInventory;
+  expectedProfile:  ExpectedProfileEntry[] | null;
   hasExpectedProfile: boolean;
   requiresRederivation: boolean;
-  /**
-   * When true, render the SkillCanvasEntry mode picker instead of
-   * the canvas + chat. Derived server-side in [sessionId]/page.tsx
-   * (no messages yet AND inventory entirely 'unknown') so the
-   * client doesn't replicate that logic.
-   */
-  showEntryPicker: boolean;
+  /** Kept on the prop surface for compat; the entry mode picker is
+   *  bypassed in the Institute treatment — the founder lands directly
+   *  on the calibration canvas (the chat docks below). */
+  showEntryPicker?: boolean;
 }
 
-/**
- * Stage 2 chat surface. Composes SkillCanvas (left) + chat (right)
- * with the dismissable Stage 2 banner above. On the first turn —
- * no messages, empty inventory — shows the SkillCanvasEntry mode
- * picker instead of the canvas. After the founder picks a mode the
- * canvas takes over.
- */
+const STAGE2_BANNER_BODY = (
+  <>
+    Now we figure out what skills your committed outcome actually <em>demands</em>{' '}
+    and rate where you (and any teammates) sit against those demands. The canvas
+    is the truth — click a lane to set each skill, or talk to me below and I&apos;ll
+    move them as we go.
+  </>
+);
+
 export function Stage2Chat({
   sessionId,
-  stageRunId,
-  firstName,
+  stageRunId: _stageRunId,
+  firstName: _firstName,
   initialMessages,
   inventory,
   expectedProfile,
   hasExpectedProfile,
   requiresRederivation,
-  showEntryPicker,
 }: Stage2ChatProps) {
-  const [mode, setMode] = useState<SkillCanvasEntryMode | null>(
-    showEntryPicker ? null : 'canvas',
-  );
   const [input, setInput] = useState('');
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [activePerson, setActivePerson] = useState<'founder' | number>('founder');
+  const interviewRef = useRef<StageInterviewHandle>(null);
 
   const {
     messages,
@@ -72,202 +80,325 @@ export function Stage2Chat({
     addTeammate,
     removeTeammate,
     deriveExpectedProfile,
-  } = useStage2Session({ sessionId, stageRunId, initialMessages });
-
-  const chatMessages: ChatMessage[] = messages.map(m => ({
-    id:          m.id,
-    role:        m.role,
-    content:     m.content,
-    inputMethod: m.inputMethod,
-  }));
+  } = useStage2Session({ sessionId, stageRunId: _stageRunId, initialMessages });
 
   const isBusy = status === 'sending' || status === 'streaming' || status === 'composing';
   const isTerminated = status === 'terminated';
-  const canSubmit = !isBusy && !isTerminated && input.trim().length > 0;
+  const disabled = isBusy || isTerminated;
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!canSubmit) return;
-    const content = input.trim();
-    setInput('');
-    void sendMessage(content);
-  };
+  const voiceEnabled = canUseVoiceMode(useVoiceTier());
 
-  // Mode picker — first-turn empty state
-  if (mode === null) {
-    return (
-      <div className="flex flex-col h-full">
-        <StageBanner
-          sessionId={sessionId}
-          stage={2}
-          totalStages={5}
-          title="Outcome Requirements"
-          body={STAGE2_BANNER_BODY}
-          forceVisible
-        />
-        <div className="flex-1 overflow-y-auto px-4 py-8">
-          <div className="mx-auto max-w-3xl space-y-6">
-            <div className="text-sm text-muted-foreground">
-              {firstName ? `${firstName}, here's the picture.` : 'Here\'s the picture.'} You committed an Outcome Document in Stage 1. Now we figure out the skills it actually demands and rate where you sit against them.
-            </div>
-            <SkillCanvasEntry onChoose={setMode} />
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Active person's tier map.
+  const currentPerson =
+    activePerson === 'founder'
+      ? inventory.founder
+      : inventory.team[activePerson] ?? inventory.founder;
 
-  const hasMessages = messages.length > 0;
-  // The derive button surfaces once the founder has past the entry
-  // picker AND derivation hasn't run yet. The page.tsx server
-  // component computed `showEntryPicker` from the persisted inventory,
-  // so its inverse here is the canonical "founder has surfaced
-  // tier content" signal.
-  const showDeriveButton = !showEntryPicker && !hasExpectedProfile;
-  const showRederiveBanner = requiresRederivation && hasExpectedProfile;
+  // Expected tier per skill — keyed for SkillRow's ghost marker.
+  const expectedByKey = useMemo<Partial<Record<SkillKey, SkillTier>>>(() => {
+    if (!expectedProfile) return {};
+    const out: Partial<Record<SkillKey, SkillTier>> = {};
+    for (const e of expectedProfile) out[e.skill] = e.requiredTier;
+    return out;
+  }, [expectedProfile]);
+
+  // Structural blocker — count critical demanded-Strong (good) skills
+  // where the across-team-strongest tier sits below adequate (bad or
+  // unknown). Mirrors lib/ideation/stage2-requirements/constraints.ts
+  // logic at the visual-summary level so this surface stays render-only.
+  const blockerCount = useMemo(() => {
+    if (!expectedProfile) return 0;
+    return expectedProfile.filter((e) => {
+      if (!e.critical) return false;
+      if (e.requiredTier !== 'good') return false;
+      const strongest = strongestTier(inventory, e.skill);
+      return TIER_RANK[strongest] < TIER_RANK.acceptable;
+    }).length;
+  }, [expectedProfile, inventory]);
+
+  // Readiness — count of calibrated (non-unknown) tiers for the active person.
+  const calibratedCount = useMemo(
+    () => SKILL_KEYS.reduce((n, k) => n + (currentPerson.tiers[k] !== 'unknown' ? 1 : 0), 0),
+    [currentPerson],
+  );
+  const calibratedPct = Math.round((calibratedCount / SKILL_KEYS.length) * 100);
+
+  // Calibration chat question — the most recent assistant turn becomes
+  // the agent prompt; when none, we surface a soft default.
+  const question = useMemo<StageInterviewQuestion | null>(() => {
+    const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+    if (!lastAssistant) return null;
+    const questionNumber = messages.filter((m) => m.role === 'assistant').length;
+    return {
+      meta: { number: questionNumber, total: '~', phase: 'Calibration' },
+      text: lastAssistant.content,
+    };
+  }, [messages]);
+
+  const errorBanner: ReactNode = turnError ? <span>{turnError.message}</span> : null;
+
+  const shortId = sessionId.slice(0, 6);
+
+  // Derive button label / handler — preserves the existing "derive
+  // Expected Profile" flow. The reference's "Commit Stage II" button
+  // sits in the same slot; until an explicit commit route exists, this
+  // button derives the Expected Profile (which is what currently
+  // advances Stage 2). See PR notes.
+  const deriveLabel = !hasExpectedProfile
+    ? 'Derive Expected Profile'
+    : requiresRederivation
+      ? 'Re-derive Expected Profile'
+      : 'Calibrate further to advance';
+  const canDerive = !isBusy && !isTerminated && (!hasExpectedProfile || requiresRederivation);
+  const canCommit = hasExpectedProfile && !requiresRederivation && calibratedCount >= 12;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full flex-col">
+      <TopBar
+        crumb={[
+          { label: 'No Idea', accent: true },
+          { label: `Session ${shortId}` },
+          { label: 'Stage II · Requirements', current: true },
+        ]}
+        rightStatus={
+          <Pill accent>
+            <span aria-hidden="true" className="mr-2 inline-block size-[6px] animate-pulse rounded-full bg-accent" style={{ animationDuration: '1.6s' }} />
+            {hasExpectedProfile ? 'Calibrating' : 'Authoring'}
+          </Pill>
+        }
+        rightActions={
+          <Link href={`/discovery/no-idea/${sessionId}`} className="text-muted transition-colors hover:text-fg">
+            ← Stage I
+          </Link>
+        }
+      />
+
       <StageBanner
         sessionId={sessionId}
         stage={2}
         totalStages={5}
-        title="Outcome Requirements"
+        title="Requirements"
         body={STAGE2_BANNER_BODY}
-        forceVisible={!hasMessages}
+        forceVisible={messages.length === 0}
       />
 
-      {showRederiveBanner && (
-        <div className="border-b border-gold/40 bg-gold/5 px-4 py-2 text-xs text-foreground">
-          <div className="mx-auto max-w-3xl flex items-center justify-between gap-3">
-            <span>Stage 1 was updated. Re-derive the Expected Profile to align with your new outcome.</span>
-            <Button onClick={() => void deriveExpectedProfile()} disabled={isBusy} size="sm">
-              Re-derive
-            </Button>
+      <div className="flex-1 overflow-y-auto">
+        {/* Header band */}
+        <header className="border-b border-rule px-6 pb-6 pt-10 sm:px-12 lg:px-16">
+          <div className="mb-6 flex flex-wrap gap-[18px] font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
+            <span>Stage <span className="text-accent">II</span> of V · Requirements</span>
+            <span>14 skills · 4 tiers</span>
+            <span>Saved continuously</span>
           </div>
-        </div>
-      )}
+          <h1 className="max-w-[1100px] font-sans text-fg [font-size:clamp(36px,5vw,68px)] [font-weight:500] [line-height:1] [letter-spacing:-0.025em] [&_em]:font-serif [&_em]:italic [&_em]:font-normal [&_em]:text-accent">
+            What you&rsquo;re <em>built to execute.</em>
+          </h1>
+          <p className="mt-4 max-w-[680px] text-[16px] leading-[1.55] text-fg-2 [&_em]:font-serif [&_em]:italic [&_em]:text-accent [&_strong]:font-medium [&_strong]:text-fg">
+            Calibrate each skill <em>honestly.</em> The dashed marker on each row shows what the outcome you committed to <strong>actually demands</strong>. The mismatch is the structural shape Stage III plans around.
+          </p>
 
-      {turnError && (
-        <div className="border-b border-destructive/40 bg-destructive/5 px-4 py-2 text-xs text-destructive">
-          <div className="mx-auto max-w-3xl">{turnError.message}</div>
-        </div>
-      )}
+          {requiresRederivation && (
+            <div className="mt-5 max-w-[920px] border-l-2 border-amber bg-amber/[0.05] px-4 py-3 text-[13.5px] leading-[1.5] text-fg-2">
+              <b className="font-medium text-amber">Stage 1 was updated.</b>{' '}
+              Re-derive the Expected Profile so it matches your new outcome.
+            </div>
+          )}
+        </header>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        <div className="mx-auto max-w-5xl grid grid-cols-1 lg:grid-cols-5 gap-6">
-          {/* Canvas — full width on mobile, 3/5 on desktop */}
-          <section className="lg:col-span-3 space-y-4">
-            <header>
-              <h2 className="text-sm font-semibold text-foreground">Skill inventory</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Drag chips between tiers. Updates save instantly.</p>
-            </header>
-            <SkillCanvas
-              inventory={inventory}
+        {/* Teammate tabs */}
+        <div className="flex max-w-[1400px] flex-wrap items-end gap-0 border-b border-rule px-6 pt-4 sm:px-12 lg:px-16">
+          <PersonTab
+            label="You"
+            roman="I."
+            active={activePerson === 'founder'}
+            onClick={() => setActivePerson('founder')}
+          />
+          {inventory.team.map((t, i) => (
+            <div key={i} className="flex items-center">
+              <PersonTab
+                label={t.name ?? `Teammate ${i + 1}`}
+                roman={`${['II.', 'III.', 'IV.', 'V.'][i] ?? `${i + 2}.`}`}
+                active={activePerson === i}
+                onClick={() => setActivePerson(i)}
+              />
+              {!isTerminated && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void removeTeammate(i);
+                    if (activePerson === i) setActivePerson('founder');
+                  }}
+                  aria-label={`Remove ${t.name ?? `Teammate ${i + 1}`}`}
+                  className="px-2 py-3 text-muted-2 transition-colors hover:text-accent"
+                >
+                  <Trash2 className="size-3" aria-hidden="true" />
+                </button>
+              )}
+            </div>
+          ))}
+          {!isTerminated && (
+            <div className="px-3.5 py-2">
+              <TeammateForm
+                existingNames={inventory.team.map((t) => t.name).filter((n): n is string => !!n)}
+                onAdd={addTeammate}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Canvas: grid (left) + rail (right) */}
+        <div className="grid grid-cols-1 gap-12 px-6 pb-20 pt-8 sm:px-12 lg:grid-cols-[1fr_320px] lg:px-16">
+          <main>
+            <SkillGrid
+              tiers={currentPerson.tiers}
+              expectedByKey={expectedByKey}
+              onSet={(skill, tier) => { void updateSkillTier(activePerson, skill, tier); }}
               readOnly={isTerminated}
-              onTierChange={updateSkillTier}
-              onTeammateAdd={addTeammate}
-              onTeammateRemove={removeTeammate}
             />
-            {showDeriveButton && (
-              <Button
-                type="button"
-                onClick={() => void deriveExpectedProfile()}
-                disabled={isBusy}
-                className="w-full"
-              >
-                <Sparkles className="size-4 mr-1" />
-                {status === 'composing' ? 'Deriving Expected Profile…' : 'Derive the Expected Profile'}
-              </Button>
-            )}
 
-            {/*
-              Read-only Expected Profile surface. Renders once the
-              founder has fired derive — gives them a visible answer to
-              "what does my outcome actually demand" before they have
-              to compose. The interactive "Question this" pushback
-              affordance lives on the committed RequirementsDocumentView;
-              here `readOnly` suppresses the button so the founder isn't
-              tempted to push back on entries that may still re-derive
-              if Stage 1 changes.
-            */}
-            {expectedProfile && expectedProfile.length > 0 && (
-              <section className="space-y-2">
-                <header>
-                  <h2 className="text-sm font-semibold text-foreground">What your outcome demands</h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    The skills I read off your Outcome Document. Compare against your inventory above.
-                  </p>
-                </header>
-                <ExpectedProfileView
-                  entries={expectedProfile}
-                  readOnly
-                  onPushback={() => Promise.reject(new Error('Pushback is not available during Stage 2 authoring'))}
+            {/* Calibration chat — bottom-docked. Reuses StageInterview
+                with no recall block + voiceSlot per the hotfix
+                pattern. Visible once a calibration turn has occurred
+                (or once the founder has calibrated some skills). */}
+            {(question || messages.length === 0) && (
+              <section className="mt-12 border border-rule bg-bg-2 px-7 py-6">
+                <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+                  Calibration · agent prompt
+                </div>
+                <StageInterview
+                  ref={interviewRef}
+                  question={question ?? {
+                    meta: { number: 0, total: '~', phase: 'Calibration' },
+                    text: 'Move chips into lanes, or tell me about a skill — I will calibrate as we go.',
+                  }}
+                  value={input}
+                  onChange={setInput}
+                  onSubmit={async (val) => {
+                    const content = val.trim();
+                    if (!content) return;
+                    setInput('');
+                    await sendMessage(content);
+                  }}
+                  disabled={disabled}
+                  placeholder="Two sentences is enough. The honest one, not the polished one."
+                  voiceSlot={
+                    voiceEnabled ? (
+                      <VoiceInputButton
+                        onTranscription={(text) => {
+                          if (!text.trim()) return;
+                          setInput((prev) => (prev.trim().length > 0 ? `${prev.trim()} ${text}` : text));
+                        }}
+                        disabled={disabled}
+                      />
+                    ) : undefined
+                  }
+                  errorBanner={errorBanner}
                 />
               </section>
             )}
-          </section>
+          </main>
 
-          {/* Chat — full width on mobile, 2/5 on desktop */}
-          <section className="lg:col-span-2 flex flex-col min-h-[400px] rounded-lg border border-border bg-card/30">
-            {hasMessages ? (
-              <div className="flex-1 overflow-y-auto">
-                <MessageList
-                  messages={chatMessages}
-                  isLoading={status === 'sending'}
-                  isSynthesizing={false}
-                />
-              </div>
-            ) : (
-              <div className="flex-1 px-4 py-4 text-xs text-muted-foreground">
-                Talk to the agent here. As you describe your experience, the canvas updates.
-              </div>
+          <aside className="grid content-start gap-6 lg:sticky lg:top-20 lg:self-start">
+            {expectedProfile && expectedProfile.length > 0 && (
+              <ExpectedProfilePanel entries={expectedProfile} />
             )}
-          </section>
+
+            <StructuralBlocker
+              count={blockerCount}
+              onChoose={(choice) => {
+                // Seed the calibration chat with a structured starter
+                // tied to the chosen path. Mirrors the spec's "wire
+                // these to the existing branching logic" — the
+                // existing branching IS the calibration agent.
+                const seed =
+                  choice === 'teammate'
+                    ? 'I want to talk through bringing on a teammate to cover the demanded-Strong skills I am below on.'
+                    : choice === 'use_strengths'
+                      ? 'Show me which directions could lean on my existing strengths instead of demanding the skills I am below on.'
+                      : 'I want to keep this path and build the missing skills — slower start. What does that look like?';
+                setInput(seed);
+                interviewRef.current?.focus();
+              }}
+            />
+
+            {/* Readiness */}
+            <div className="border border-rule bg-bg-2 px-5 py-[18px]">
+              <div className="mb-3.5 flex justify-between font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+                <span>Readiness</span>
+                <span className="text-accent">{calibratedPct}% calibrated</span>
+              </div>
+              <div className="font-serif text-[36px] italic leading-none tracking-[-0.01em] text-accent">
+                {calibratedCount} / {SKILL_KEYS.length}
+              </div>
+              <div className="relative mt-3.5 h-1 bg-rule">
+                <div className="absolute inset-y-0 left-0 bg-accent transition-[width] duration-500" style={{ width: `${calibratedPct}%` }} />
+              </div>
+              <p className="mt-2.5 font-mono text-[10px] leading-[1.6] tracking-[0.04em] text-muted">
+                {SKILL_KEYS.length - calibratedCount > 0
+                  ? `${SKILL_KEYS.length - calibratedCount} unknown${SKILL_KEYS.length - calibratedCount === 1 ? '' : 's'} remain. Mark each tier, then commit.`
+                  : 'All 14 calibrated. Commit to advance.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => { void deriveExpectedProfile(); }}
+                disabled={!canDerive && !canCommit}
+                className="mt-4 flex w-full items-center justify-center gap-2.5 bg-accent px-3 py-3 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-bg disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                {isBusy && <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />}
+                {canCommit ? 'Commit Stage II' : deriveLabel}
+                {!isBusy && <span aria-hidden="true">→</span>}
+              </button>
+            </div>
+          </aside>
         </div>
       </div>
-
-      <form
-        onSubmit={handleSubmit}
-        className="flex gap-2 items-end border-t border-border bg-background px-4 py-3"
-      >
-        <TextareaAutosize
-          ref={inputRef}
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          disabled={isBusy || isTerminated}
-          placeholder={isTerminated ? 'Session ended.' : 'Tell me about a skill — or just react to a chip you moved.'}
-          maxRows={5}
-          className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none py-2"
-          onKeyDown={e => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              if (canSubmit) {
-                const content = input.trim();
-                setInput('');
-                void sendMessage(content);
-              }
-            }
-          }}
-        />
-        <Button
-          type="submit"
-          size="icon"
-          disabled={!canSubmit}
-          variant="ghost"
-          className={canSubmit ? 'text-primary hover:bg-primary/10 hover:text-primary' : undefined}
-        >
-          <SendHorizontal className="size-4" />
-        </Button>
-      </form>
     </div>
   );
 }
 
-const STAGE2_BANNER_BODY = (
-  <>
-    Now we figure out what skills your committed outcome actually <em>demands</em> and rate where you (and any teammates) sit against those demands. The canvas on the left is the truth — drag chips between tiers directly, or talk to me and I&apos;ll move them as we go. At the end you&apos;ll have a Requirements Document: an Expected Profile, the gaps it surfaces, and what they mean for which opportunities Stage 3 can credibly send your way.
-  </>
-);
+/* -------------------------------------------------------------------------- */
+/*  Internals                                                                 */
+/* -------------------------------------------------------------------------- */
 
+function PersonTab({
+  label,
+  roman,
+  active,
+  onClick,
+}: {
+  label:  string;
+  roman:  string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={[
+        'inline-flex items-center gap-2 border-b-2 px-5 py-3.5 font-mono text-[11px] uppercase tracking-[0.14em] transition-colors',
+        active
+          ? 'border-accent text-fg'
+          : 'border-transparent text-muted hover:text-fg',
+      ].join(' ')}
+    >
+      <span className="font-serif text-[14px] italic normal-case tracking-[-0.01em] text-accent">{roman}</span>
+      {label}
+    </button>
+  );
+}
 
+/**
+ * Across-team strongest tier for a skill. Used to compute the
+ * structural blocker count (a venture-level signal, not per-person).
+ */
+function strongestTier(inventory: SkillInventory, skill: SkillKey): SkillTier {
+  const people = [inventory.founder, ...inventory.team];
+  let max: SkillTier = 'unknown';
+  for (const p of people) {
+    const t = (p.tiers as Record<SkillKey, SkillTier>)[skill] ?? 'unknown';
+    if (TIER_RANK[t] > TIER_RANK[max]) max = t;
+  }
+  return max;
+}
