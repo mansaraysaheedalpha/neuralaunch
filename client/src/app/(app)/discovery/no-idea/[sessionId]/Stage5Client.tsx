@@ -1,33 +1,35 @@
 'use client';
 // src/app/(app)/discovery/no-idea/[sessionId]/Stage5Client.tsx
 //
-// Orchestrates the Stage 5 founder surface: the primary "Generate
-// handoff" CTA, the polling client that drives the in-flight progress
-// checklist, and the failure/success transitions.
+// Stage 5 synthesis orchestration in the Institute treatment.
+// Composes:
+//   - <SynthesisCommit> for the "moment" CTA band (replaces the prior
+//     plain primary button).
+//   - <SynthesisOverlay> for the in-flight job (replaces Stage5InFlight).
+//     Stages reduced from the 6-state Stage5JobStage enum to the
+//     reference's 5 display steps; the overlay walks them as the
+//     poll updates.
+//   - Stage5Success (kept unchanged) — terminal redirect via
+//     router.replace to /discovery/recommendations/[id].
+//   - Stage5Failure (kept unchanged) — terminal error surface with
+//     retry + revisit-Stage-4 affordances.
 //
-// Copy locked in docs/stage5-copy-review.md §§ A.6, A.7, B, C, D.
-//
-// The pre-synthesis static panels (banner, chosen, reserves, cascade
-// banner) are server-rendered above this component by Stage5Page; we
-// only own the CTA + dynamic transitions here.
+// Transport unchanged: POST /api/discovery/sessions/[id]/stage5/synthesize
+// fires the job, useStage5Job polls /stage5/status until terminal.
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useStage5Job } from '@/lib/ideation/stage5-handoff/use-stage5-job';
-import { Stage5InFlight } from './Stage5InFlight';
+import { SynthesisOverlay, type SynthesisStep } from '@/components/institute';
+import { SynthesisCommit } from '@/components/institute/no-idea';
+import { useStage5Job, type Stage5JobStage } from '@/lib/ideation/stage5-handoff/use-stage5-job';
 import { Stage5Failure } from './Stage5Failure';
 import { Stage5Success } from './Stage5Success';
 
 interface Stage5ClientProps {
-  sessionId:        string;
-  /** Set when an in-flight or terminal job already exists for this session. */
-  initialJobId:     string | null;
-  /** Set when the founder has previously fired synthesis but it failed. */
+  sessionId:             string;
+  initialJobId:          string | null;
   initialFailureMessage: string | null;
-  /** True when the cascade banner already disabled the CTA (defence-in-depth). */
-  cascadeStale:     boolean;
+  cascadeStale:          boolean;
 }
 
 export function Stage5Client({
@@ -39,25 +41,16 @@ export function Stage5Client({
   const router = useRouter();
   const [busy, startTransition] = useTransition();
   const [acceptError, setAcceptError] = useState<string | null>(null);
-  // Tracks whether we've fired the POST locally this session — flips
-  // polling on. Initial value true when a job already existed when the
-  // page was server-rendered.
   const [pollingEnabled, setPollingEnabled] = useState<boolean>(initialJobId !== null);
-  // Tracks a transient retry state so the "Try again" CTA can show
-  // a spinner while the POST is in flight.
   const [retrying, setRetrying] = useState<boolean>(false);
 
-  const { job, stage, isFailed, isTerminal } = useStage5Job({
-    sessionId,
-    enabled: pollingEnabled,
-  });
+  const { job, stage, isFailed, isTerminal } = useStage5Job({ sessionId, enabled: pollingEnabled });
 
-  // Fire-and-forget POST to the synthesize route. Returns true on 202.
   async function fireSynthesisPost(): Promise<boolean> {
     setAcceptError(null);
     const res = await fetch(`/api/discovery/sessions/${sessionId}/stage5/synthesize`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method:      'POST',
+      headers:     { 'Content-Type': 'application/json' },
       credentials: 'same-origin',
     });
     if (res.status === 202) {
@@ -65,7 +58,7 @@ export function Stage5Client({
       return true;
     }
     const data = (await res.json().catch(() => ({}))) as { error?: string };
-    setAcceptError(data.error ?? `Couldn’t start synthesis (HTTP ${res.status}).`);
+    setAcceptError(data.error ?? `Couldn't start synthesis (HTTP ${res.status}).`);
     return false;
   }
 
@@ -84,10 +77,6 @@ export function Stage5Client({
   }
 
   function handleRevisitStage4() {
-    // No new route — the dispatcher renders Stage 4 automatically once
-    // the founder edits the committed Stage 4 row (which the revisit
-    // surface owns). For now we route back into the dispatcher; the
-    // dispatcher decides the right surface from the active stage.
     router.push(`/discovery/no-idea/${sessionId}`);
   }
 
@@ -101,7 +90,7 @@ export function Stage5Client({
     );
   }
 
-  // ── Failure — error surface ──────────────────────────────────────
+  // ── Failure — error surface (kept as legacy palette; flag) ───────
   if (isFailed && job) {
     return (
       <Stage5Failure
@@ -113,56 +102,58 @@ export function Stage5Client({
     );
   }
 
-  // ── In-flight — polling client ───────────────────────────────────
-  // Show the progress checklist as soon as polling is enabled, even
-  // before the first poll lands (default to 'queued').
+  // ── In-flight — full-page Institute overlay ──────────────────────
   if (pollingEnabled && !isTerminal) {
-    return <Stage5InFlight stage={stage ?? 'queued'} />;
+    return (
+      <div className="fixed inset-0 z-50" style={{ background: 'color-mix(in oklab, var(--bg) 96%, transparent)' }}>
+        <SynthesisOverlay
+          open
+          stamp="Synthesising · Stage V · Opus 4.6 → Sonnet"
+          heading={<>Reading you back to <em>yourself.</em></>}
+          body="One direction, for your specific situation — ready in about ninety seconds."
+          steps={buildStage5Steps(stage ?? 'queued')}
+        />
+      </div>
+    );
   }
 
-  // ── Pre-synthesis CTA + secondary action (A.6 + A.7) ─────────────
-  const ctaDisabled = busy || cascadeStale;
-
+  // ── Pre-synthesis — the "moment" band ────────────────────────────
   return (
-    <div className="space-y-3">
-      {initialFailureMessage && !pollingEnabled && (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-          Last attempt: {initialFailureMessage}
-        </div>
-      )}
-      {acceptError && (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-          {acceptError}
-        </div>
-      )}
-      <div className="flex flex-wrap items-center gap-3 border-t border-border pt-6">
-        <Button
-          variant="ghost"
-          onClick={handleRevisitStage4}
-          disabled={busy}
-          title="Reopens Stage 4 for edits. The handoff hasn't fired yet — nothing to discard."
-        >
-          Revisit Stage 4
-        </Button>
-        <div className="ml-auto flex flex-col items-end gap-1">
-          <Button onClick={handleFire} disabled={ctaDisabled}>
-            {busy ? (
-              <>
-                <Loader2 className="size-4 mr-1 animate-spin" />
-                Generating…
-              </>
-            ) : (
-              <>
-                Generate handoff
-                <ArrowRight className="size-4 ml-1" />
-              </>
-            )}
-          </Button>
-          <p className="text-xs text-muted-foreground max-w-xs text-right">
-            Synthesis takes ~1 minute. I&apos;ll combine your Stage 1-4 evidence into a single recommendation, then take you to the review surface.
-          </p>
-        </div>
-      </div>
-    </div>
+    <SynthesisCommit
+      onCommit={handleFire}
+      onEditVerdicts={handleRevisitStage4}
+      busy={busy}
+      disabled={cascadeStale}
+      error={acceptError ?? (pollingEnabled ? null : initialFailureMessage)}
+    />
   );
+}
+
+/**
+ * Map the 6-state Stage5JobStage enum onto the reference's 5 display
+ * steps. The synthetic "Alternatives · narrowing" step is folded into
+ * the inputs-loading transition so the founder sees a five-step
+ * checklist that matches the audit's "the moment" reading.
+ */
+function buildStage5Steps(stage: Stage5JobStage): SynthesisStep[] {
+  // Numeric position on the worker timeline. Used to compute each
+  // display step's state by comparing against thresholds.
+  const pos: Record<Stage5JobStage, number> = {
+    queued:         0,
+    loading_inputs: 1,
+    synthesizing:   2,
+    persisting:     3,
+    succeeded:      4,
+    failed:         4,
+  };
+  const p = pos[stage];
+  const stateAt = (threshold: number): SynthesisStep['state'] =>
+    p > threshold ? 'done' : p === threshold ? 'active' : 'pending';
+  return [
+    { label: 'Loading inputs · belief state + skill matrix', state: stateAt(1) },
+    { label: 'Alternatives · narrowing',                     state: p >= 2 ? 'done' : p === 1 ? 'active' : 'pending' },
+    { label: 'Phase 1A · Opus reasoning',                    state: stateAt(2) },
+    { label: 'Phase 1B · Sonnet emission',                   state: stateAt(3) },
+    { label: 'Recommendation · written',                     state: stateAt(4) },
+  ];
 }

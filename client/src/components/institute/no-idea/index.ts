@@ -4,6 +4,15 @@
 // Stage 2 Skill Canvas surface; later PRs add Stage 3 (pain inventory),
 // Stage 4 (opportunity evaluation), Stage 5 (recommendation handoff).
 
+export { HandoffCover } from './HandoffCover';
+export type { HandoffCoverProps } from './HandoffCover';
+export { ChosenMemo } from './ChosenMemo';
+export type { ChosenMemoProps } from './ChosenMemo';
+export { ReservesLedger } from './ReservesLedger';
+export type { ReservesLedgerProps } from './ReservesLedger';
+export { SynthesisCommit } from './SynthesisCommit';
+export type { SynthesisCommitProps } from './SynthesisCommit';
+
 export { OpportunityDocket } from './OpportunityDocket';
 export type { OpportunityDocketProps } from './OpportunityDocket';
 export { DocketRow } from './DocketRow';
