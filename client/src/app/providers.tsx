@@ -2,7 +2,6 @@
 "use client";
 
 import { SessionProvider } from "next-auth/react";
-import { ThemeProvider } from "next-themes";
 import { ReactNode } from "react";
 import { PaddleProvider } from "@/components/PaddleProvider";
 
@@ -19,11 +18,9 @@ const PADDLE_ENV: 'sandbox' | 'production' =
 export default function Providers({ children }: Props) {
   return (
     <SessionProvider>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        <PaddleProvider clientToken={PADDLE_CLIENT_TOKEN} environment={PADDLE_ENV}>
-          {children}
-        </PaddleProvider>
-      </ThemeProvider>
+      <PaddleProvider clientToken={PADDLE_CLIENT_TOKEN} environment={PADDLE_ENV}>
+        {children}
+      </PaddleProvider>
     </SessionProvider>
   );
 }
