@@ -13,9 +13,17 @@ import Link from 'next/link';
 
 export interface TaskContextStripProps {
   taskId: string;
+  /**
+   * Roadmap id the launching task lives on. When present, the back
+   * link routes precisely to `/discovery/roadmap/{roadmapId}`; absent
+   * (legacy chips that pre-date PR 16), it falls back to the
+   * recommendations index. Wired through ToolShell from the `?roadmap=`
+   * URL param the task-launcher chips now pass.
+   */
+  roadmapId?: string | null;
 }
 
-export function TaskContextStrip({ taskId }: TaskContextStripProps) {
+export function TaskContextStrip({ taskId, roadmapId }: TaskContextStripProps) {
   // taskIds in this codebase use the `p{N}-t{M}` shape minted by
   // buildTaskId (lib/roadmap/checkin-types). Surface the human-readable
   // shorthand (Phase N · Task M) when the id parses; fall back to the
@@ -25,11 +33,15 @@ export function TaskContextStrip({ taskId }: TaskContextStripProps) {
     ? `Phase ${toRoman(Number(parsed[1]))} · Task ${Number(parsed[2]) + 1}`
     : `Task ${taskId.slice(0, 8)}`;
 
+  const backHref = roadmapId
+    ? `/discovery/roadmap/${roadmapId}`
+    : '/discovery/recommendations';
+
   return (
     <div className="border-b border-rule bg-bg-2 px-6 py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-muted sm:px-12 lg:px-16">
       <span className="text-accent">Serving</span> · {human}
       <Link
-        href="/discovery/recommendations"
+        href={backHref}
         className="ml-3 underline underline-offset-2 transition-colors hover:text-fg"
       >
         ← Back to roadmap

@@ -51,35 +51,32 @@ export function ToolShell({
 }: ToolShellProps) {
   // Read the launched-from-task signal. When present, render the task
   // strip + adjust the crumb to read "Tools / {tool} / Task {short}".
+  // PR 16 added the optional &roadmap= param so the task strip's back
+  // link can route to the precise roadmap rather than the index.
   const params = useSearchParams();
-  const taskId = params.get('task');
+  const taskId     = params.get('task');
+  const roadmapId  = params.get('roadmap');
 
   const crumb: BreadcrumbItem[] = [
     ...(crumbHead ?? [{ label: 'Tools', accent: true, href: '/tools' }]),
     { label: toolName, current: true },
   ];
 
+  // Right-rail action — the All-tools fallback is identical whether
+  // task-scoped or standalone (the precise roadmap link lives in the
+  // task strip below). One link instead of two identical branches.
+  const rightActions = (
+    <Link href="/tools" className="text-muted transition-colors hover:text-fg">
+      ← All tools
+    </Link>
+  );
+
   return (
     <div className="flex h-full flex-col">
       <TopBar
         crumb={crumb}
         rightStatus={<Pill accent>{model}</Pill>}
-        rightActions={
-          taskId ? (
-            // The back link assumes the roadmap-id is the same one the
-            // chip launched from — preserved in the referrer is the
-            // honest path. Until PR 07's chips also pass &roadmap=, we
-            // route to the tools index as the safe fallback for
-            // standalone visits.
-            <Link href="/tools" className="text-muted transition-colors hover:text-fg">
-              ← All tools
-            </Link>
-          ) : (
-            <Link href="/tools" className="text-muted transition-colors hover:text-fg">
-              ← All tools
-            </Link>
-          )
-        }
+        rightActions={rightActions}
       />
 
       <div className="flex-1 overflow-y-auto">
@@ -92,7 +89,7 @@ export function ToolShell({
           lede={lede}
         />
 
-        {taskId && <TaskContextStrip taskId={taskId} />}
+        {taskId && <TaskContextStrip taskId={taskId} roadmapId={roadmapId} />}
 
         <div className="px-6 pb-20 pt-8 sm:px-12 lg:px-16">{children}</div>
       </div>
