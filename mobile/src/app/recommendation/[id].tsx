@@ -157,14 +157,28 @@ export default function RecommendationScreen() {
         <FadeInView delay={220}>
           <CollapsibleSection label="First Three Steps">
           <View style={styles.stepsList}>
-            {r.firstThreeSteps.map((step, i) => (
-              <View key={i} style={styles.stepRow}>
-                <View style={[styles.stepNumber, { backgroundColor: c.primaryAlpha10 }]}>
-                  <Text variant="label" color={c.primary}>{i + 1}</Text>
+            {r.firstThreeSteps.map((step, i) => {
+              // Step may be the legacy string shape or the PR-16-data
+              // structured shape ({ text, estimate?, tool? }). Normalise
+              // inline so the mobile reveal works against either.
+              const text     = typeof step === 'string' ? step : step.text;
+              const estimate = typeof step === 'string' ? undefined : step.estimate;
+              const tool     = typeof step === 'string' ? undefined : step.tool;
+              const meta     = [estimate, tool].filter(Boolean).join(' · ');
+              return (
+                <View key={i} style={styles.stepRow}>
+                  <View style={[styles.stepNumber, { backgroundColor: c.primaryAlpha10 }]}>
+                    <Text variant="label" color={c.primary}>{i + 1}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text variant="body" style={styles.stepText}>{text}</Text>
+                    {meta.length > 0 && (
+                      <Text variant="caption" color={c.mutedForeground} style={{ marginTop: spacing[1] }}>{meta}</Text>
+                    )}
+                  </View>
                 </View>
-                <Text variant="body" style={styles.stepText}>{step}</Text>
-              </View>
-            ))}
+              );
+            })}
           </View>
         </CollapsibleSection>
         </FadeInView>

@@ -7,7 +7,14 @@
 
 export {
   RecommendationSchema,
+  RecommendationStepSchema,
+  RecommendationStepObjectSchema,
   type Recommendation,
+  type RecommendationStep,
+  type RecommendationStepObject,
+  type NormalizedRecommendationStep,
   type AlternativeRejected,
   safeParseAlternatives,
+  normalizeRecommendationSteps,
+  recommendationStepTexts,
 } from '@neuralaunch/api-types';

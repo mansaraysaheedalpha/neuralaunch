@@ -33,6 +33,7 @@ import { MAX_RESERVE_OPPORTUNITIES } from './constants';
  *
  *   founderVerdict='pursue'              → +1000
  *   founderVerdict='pursue_with_caveats' → +500
+ *   founderVerdict='needs_more_evidence' → +200  (deferred — strong reserve candidate)
  *   founderVerdict=null                  → +200  (no founder signal; treat as neutral)
  *   founderVerdict='drop'                → -500  (founder explicitly rejected)
  *   agentVerdict='pursue' agreement      → +100
@@ -45,6 +46,7 @@ function rankReserveCandidate(o: OpportunityEvaluation): number {
   let r = 0;
   if      (o.founderVerdict === 'pursue')              r += 1000;
   else if (o.founderVerdict === 'pursue_with_caveats') r += 500;
+  else if (o.founderVerdict === 'needs_more_evidence') r += 200;
   else if (o.founderVerdict === null)                  r += 200;
   else if (o.founderVerdict === 'drop')                r -= 500;
   if (o.agentVerdict === 'pursue' && o.founderVerdict === 'pursue') r += 100;

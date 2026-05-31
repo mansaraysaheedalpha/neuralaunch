@@ -36,7 +36,7 @@ function avgLayerAConfidence(layerA: ReserveLayerASummary | null): number | null
 
 function agentVerdictLabel(v: ReserveOpportunity['agentVerdict']): string {
   if (v === 'pending') return 'Pending';
-  if (v === 'pursue' || v === 'pursue_with_caveats' || v === 'drop') {
+  if (v === 'pursue' || v === 'pursue_with_caveats' || v === 'drop' || v === 'needs_more_evidence') {
     return VERDICT_LABELS[v];
   }
   return v;

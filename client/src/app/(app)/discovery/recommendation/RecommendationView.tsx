@@ -38,7 +38,7 @@ import {
 import { TranscriptModal } from '@/components/discovery/standard/TranscriptModal';
 import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
 import { hardCapForTier } from '@/lib/discovery/constants';
-import { safeParseAlternatives } from '@/lib/discovery/recommendation-schema';
+import { safeParseAlternatives, normalizeRecommendationSteps, type NormalizedRecommendationStep, type RecommendationStep } from '@/lib/discovery/recommendation-schema';
 import type { PushbackTurn, PushbackTurnAgent } from '@/lib/discovery/pushback-types';
 
 interface RecForView {
@@ -90,7 +90,12 @@ export function RecommendationView({
   const isFreeTier = tier === 'free';
   const maxRounds = hardCapForTier(tier);
 
-  const steps = (r.firstThreeSteps as string[] | null) ?? [];
+  // firstThreeSteps may be the legacy string[] shape or the PR-16-data
+  // structured shape — normalise to {text, estimate?, tool?} once at
+  // the read boundary so the downstream renderer is shape-agnostic.
+  const steps: NormalizedRecommendationStep[] = normalizeRecommendationSteps(
+    (r.firstThreeSteps as RecommendationStep[] | null) ?? [],
+  );
   const risks = (r.risks as RecRisk[] | null) ?? [];
   const assumptions = (r.assumptions as string[] | null) ?? [];
   const alternatives = safeParseAlternatives(r.alternativeRejected) as RecAlternative[];
@@ -199,11 +204,45 @@ export function RecommendationView({
 
       if (data.committed) {
         // refine/replace mutated the recommendation server-side. Toast
-        // the change, then refresh so the anatomy on the left re-renders
-        // with the new content.
-        toast.success(
-          `Recommendation ${data.agent.action === 'replace' ? 'replaced' : 'refined'} · Round ${data.agent.round}`,
-          { duration: 3500 },
+        // the change with an inline Undo affordance, then refresh so
+        // the anatomy on the left re-renders with the new content. PR
+        // 16-data: Undo POSTs /revert — single-level pop off versions[].
+        const label = `Recommendation ${data.agent.action === 'replace' ? 'replaced' : 'refined'} · Round ${data.agent.round}`;
+        const recId = r.id;
+        const undo = () => {
+          void (async () => {
+            try {
+              const r2 = await fetch(`/api/discovery/recommendations/${recId}/revert`, {
+                method:      'POST',
+                credentials: 'same-origin',
+                headers:     { 'Content-Type': 'application/json' },
+              });
+              if (r2.ok) {
+                toast.success('Reverted to the previous version.');
+                router.refresh();
+              } else {
+                const j = await r2.json().catch(() => ({})) as { error?: string };
+                toast.error(j.error ?? 'Could not undo — please try again.');
+              }
+            } catch {
+              toast.error('Network error — could not undo.');
+            }
+          })();
+        };
+        toast.custom(
+          (t) => (
+            <div className="flex items-center gap-3 rounded-md border border-success/40 bg-bg-2 px-4 py-3 shadow-md">
+              <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-success">{label}</span>
+              <button
+                type="button"
+                onClick={() => { undo(); toast.dismiss(t.id); }}
+                className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent underline underline-offset-2 transition-opacity hover:opacity-80"
+              >
+                Undo
+              </button>
+            </div>
+          ),
+          { duration: 6000 },
         );
         router.refresh();
       }

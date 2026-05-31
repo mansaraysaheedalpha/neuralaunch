@@ -27,6 +27,7 @@ import { safeParseStage4AuthoringState, buildCommunityResponse } from './state';
 import { runModerationGate, extractSignal } from './vision-extractor';
 import { synthesizeVerdict } from './verdict-synthesizer';
 import type { OpportunityEvaluation } from './schema';
+import type { OpportunityVerdict } from '@neuralaunch/constants';
 
 export type CommunityResponseInput =
   | { opportunityId: string; source: 'text_paste'; pastedText: string }
@@ -35,7 +36,9 @@ export type CommunityResponseInput =
 export interface CommunityResponsePipelineResult {
   responseId:        string;
   moderationPassed:  boolean | undefined;
-  agentVerdict:      'pursue' | 'pursue_with_caveats' | 'drop';
+  // PR 16-data added 'needs_more_evidence' to OpportunityVerdict; the
+  // synthesizer may return it, so the pipeline result widens too.
+  agentVerdict:      OpportunityVerdict;
   agentReasoning:    string;
 }
 

@@ -30,6 +30,7 @@ import 'server-only';
 import { generateText, stepCountIs, Output } from 'ai';
 import { anthropic as aiSdkAnthropic } from '@ai-sdk/anthropic';
 import { RecommendationSchema, Recommendation } from './recommendation-schema';
+import { normalizeRecommendationSteps } from '@neuralaunch/api-types';
 import type { AudienceType } from './constants';
 import { MODELS } from './constants';
 import { withModelFallback } from '@/lib/ai/with-model-fallback';
@@ -142,8 +143,9 @@ export function validateRecommendationOrThrow(
   if (rec.firstThreeSteps.length < RECOMMENDATION_MIN_COUNTS.firstThreeSteps) {
     issues.push(`firstThreeSteps has ${rec.firstThreeSteps.length} entries, need at least ${RECOMMENDATION_MIN_COUNTS.firstThreeSteps}`);
   }
-  rec.firstThreeSteps.forEach((step, i) => {
-    if (!step || step.trim().length === 0) issues.push(`firstThreeSteps[${i}] is empty`);
+  const normalisedSteps = normalizeRecommendationSteps(rec.firstThreeSteps);
+  normalisedSteps.forEach((step, i) => {
+    if (!step.text || step.text.trim().length === 0) issues.push(`firstThreeSteps[${i}] is empty`);
   });
 
   if (rec.risks.length < RECOMMENDATION_MIN_COUNTS.risks) {
@@ -260,7 +262,10 @@ RULES — you must follow these precisely:
    - 'further_research' when the founder needs more data before any commitment is responsible
    - 'other' when nothing above fits
    Be honest about this classification — it drives downstream tooling and a wrong classification will surface tools the founder does not need.
-9. alternativeRejected MUST contain at least 2 entries. The STRATEGIC ANALYSIS above already identified the top 3 directions and explained why 2 of them do not fit. Those 2 rejected directions should map directly into your alternativeRejected array — do NOT invent new alternatives when the analysis already did the work. Each entry needs the specific alternative path AND why it does not fit THIS person (not a generic reason). If the analysis identified 3 clear directions and rejected 2, use both rejections. Do NOT always produce exactly 1.`;
+9. alternativeRejected MUST contain at least 2 entries. The STRATEGIC ANALYSIS above already identified the top 3 directions and explained why 2 of them do not fit. Those 2 rejected directions should map directly into your alternativeRejected array — do NOT invent new alternatives when the analysis already did the work. Each entry needs the specific alternative path AND why it does not fit THIS person (not a generic reason). If the analysis identified 3 clear directions and rejected 2, use both rejections. Do NOT always produce exactly 1.
+10. confidence MUST be set to one of high / medium / low based on the evidence convergence (belief state + skill profile + opportunity signal). high = all three converge clearly; medium = the path is the best fit but one piece (skill gap, thin signal, time constraint) leaves room for it to wobble; low = inferential, the founder should hold it loosely and test it before committing. Be honest — the reveal renders this as a stamp, and a wrong confidence call breaks trust.
+11. Each entry of risks MUST include severity (high / medium / low). high = could end the venture or burn runway; medium = costs weeks but survivable; low = manageable annoyance. Order risks from highest severity to lowest where you can.
+12. Each entry of firstThreeSteps MUST be a structured object: { text, estimate, tool }. text is the action. estimate is a rough time figure ("30 minutes", "1 hour", "1 weekend") — include it when honestly known, omit when guesswork. tool is the specific surface or doc ("Cal.com", "Notion", "the validation page tool") — include it when there is a concrete one, omit when the step is tool-agnostic. Do NOT emit bare strings.`;
 
         const lifecycleSuffix = input.lifecycleBlock
           ? `\n${input.lifecycleBlock}\nWhen prior cycles exist in this venture, build on what worked and avoid repeating what didn't. Reference specific prior cycles when relevant.\n`
@@ -277,15 +282,16 @@ Do your research if needed, then emit your full reasoning as plain text covering
   path: <the single recommended direction, one or two declarative sentences>
   summary: <2-3 plain sentences — the complete conclusion as described in rule 6>
   reasoning: <2-3+ sentences explaining why this path fits THIS person, referencing specific belief-state details>
+  confidence: <high | medium | low>
   firstThreeSteps:
-    1. <step 1>
-    2. <step 2>
-    3. <step 3 if needed, up to 4>
+    1. text: <step 1>; estimate: <e.g. "30 minutes" or omit>; tool: <e.g. "Cal.com" or omit>
+    2. text: <step 2>; estimate: <…>; tool: <…>
+    3. text: <step 3 if needed, up to 4>; estimate: <…>; tool: <…>
   timeToFirstResult: <realistic timeline>
   risks:
-    - risk: <risk 1>; mitigation: <how to manage it>
-    - risk: <risk 2>; mitigation: <…>
-    (2–5 entries total)
+    - risk: <risk 1>; mitigation: <how to manage it>; severity: <high | medium | low>
+    - risk: <risk 2>; mitigation: <…>; severity: <high | medium | low>
+    (2–5 entries total; order highest severity first where you can)
   assumptions:
     - <assumption 1>
     - <assumption 2>

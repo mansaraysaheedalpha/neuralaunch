@@ -115,6 +115,11 @@ function verdictTone(v: string | null, isFounder: boolean): string {
   if (v === null || v === 'pending') return 'text-muted';
   if (v === 'drop') return 'text-muted';
   if (v === 'pursue_with_caveats') return 'text-amber';
+  // needs_more_evidence (PR 16-data) — also amber, but distinct
+  // semantically: "another Layer B round needed before deciding"
+  // rather than "commit with reservations." Treat the chrome the
+  // same for now; the short label distinguishes the two.
+  if (v === 'needs_more_evidence') return 'text-amber';
   // pursue
   return isFounder ? 'text-accent uppercase tracking-[0.14em]' : 'text-fg uppercase tracking-[0.14em]';
 }

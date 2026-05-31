@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, X, AlertTriangle } from 'lucide-react';
+import { Check, X, AlertTriangle, HelpCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { OPPORTUNITY_VERDICTS, type OpportunityVerdict } from '@neuralaunch/constants';
 import { VERDICT_SHORT_LABELS } from './labels';
@@ -48,5 +48,6 @@ export function VerdictPicker({ current, disabled, onPick }: VerdictPickerProps)
 function iconFor(v: OpportunityVerdict) {
   if (v === 'pursue')              return <Check          className="size-3 mr-1" />;
   if (v === 'pursue_with_caveats') return <AlertTriangle  className="size-3 mr-1" />;
+  if (v === 'needs_more_evidence') return <HelpCircle     className="size-3 mr-1" />;
   return                                  <X              className="size-3 mr-1" />;
 }

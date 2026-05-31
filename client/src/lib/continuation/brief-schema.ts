@@ -47,6 +47,20 @@ export const ContinuationForkSchema = z.object({
   sourceReserveId: z.string().nullable().optional().describe(
     'Set to the Stage 5 reserve opportunity id when this fork pivots to a reserve. Null/absent for continuation forks and forks derived from the parking lot. Powers the post-pick analytics and lets the UI render a "pivot to reserve" badge.'
   ),
+  /**
+   * Shape of the fork relative to the cycle that just completed.
+   *   - deepen  : keep the same direction, narrow the offer
+   *   - widen   : same direction, broader audience or surface
+   *   - package : repackage the same delivery into a different format
+   *   - pivot   : decisively change direction (often a reserve-seeded fork)
+   *   - other   : doesn't fit the above; explain in `rationale`
+   * Optional so V1 / legacy briefs continue to parse. Powers the
+   * cover-stat KIND glyph on the continuation handoff. Added in PR
+   * 16-data.
+   */
+  kind: z.enum(['deepen', 'widen', 'package', 'pivot', 'other']).optional().describe(
+    'Classify the relationship of this fork to the just-completed cycle: deepen (same direction, narrower), widen (same direction, broader), package (same delivery, different format), pivot (decisive change of direction — most reserve-seeded forks land here), other (escape hatch — explain in rationale). Pick exactly one. Omit only when none of the five honestly applies.'
+  ),
 });
 export type ContinuationFork = z.infer<typeof ContinuationForkSchema>;
 

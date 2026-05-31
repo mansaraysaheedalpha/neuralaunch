@@ -88,7 +88,13 @@ export function isFeatured(opp: OpportunityEvaluation): boolean {
   return verdict === 'pursue';
 }
 
-/** Count of opportunities advancing (founderVerdict in pursue / with_caveats). */
+/**
+ * Count of opportunities advancing (founderVerdict in pursue /
+ * with_caveats). `needs_more_evidence` (added in PR 16-data) is
+ * INTENTIONALLY excluded — it means "another Layer B round is needed
+ * before deciding," which is the opposite of an advance. Do not
+ * extend this predicate without changing the dock semantics first.
+ */
 export function countAdvancing(opps: OpportunityEvaluation[]): number {
   return opps.filter((o) => o.founderVerdict === 'pursue' || o.founderVerdict === 'pursue_with_caveats').length;
 }

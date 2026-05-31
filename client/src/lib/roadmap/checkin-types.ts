@@ -228,3 +228,93 @@ export function computeProgressSummary(phases: StoredRoadmapPhase[]): {
   }
   return { totalTasks: total, completedTasks: completed, blockedTasks: blocked };
 }
+
+/**
+ * Compute elapsed-hours from startedAt → completedAt timestamps, with
+ * one decimal of precision. Returns null when either timestamp is
+ * missing or unparsable, or when the result is negative (clock skew /
+ * out-of-order writes — record null instead of a misleading negative).
+ * Added in PR 16-data — used by the mark-complete PATCH route to
+ * populate task.actualHours on the transition into 'completed'.
+ */
+export function computeActualHours(
+  startedAt:   string | null | undefined,
+  completedAt: string | null | undefined,
+): number | null {
+  if (!startedAt || !completedAt) return null;
+  const startMs = Date.parse(startedAt);
+  const endMs   = Date.parse(completedAt);
+  if (Number.isNaN(startMs) || Number.isNaN(endMs)) return null;
+  const hours = (endMs - startMs) / (1000 * 60 * 60);
+  if (hours < 0) return null;
+  return Math.round(hours * 10) / 10;
+}
+
+/**
+ * Find every task whose `dependsOn` list is now fully satisfied by
+ * the set of completed task ids, AND whose current status is
+ * `blocked`. Returns the canonical task ids of those tasks. The
+ * mark-complete route uses this to auto-clear `blockedReason` and
+ * surface the unblocked ids to the client so the UI can flash them.
+ * Tasks with no `dependsOn` are never returned (they were never
+ * blocked by this mechanism). Added in PR 16-data.
+ */
+export function findNewlyUnblockedTaskIds(
+  phases: StoredRoadmapPhase[],
+  completedTaskIds: Set<string>,
+): string[] {
+  const unblocked: string[] = [];
+  for (const phase of phases) {
+    phase.tasks.forEach((task, idx) => {
+      if (task.status !== 'blocked') return;
+      const deps = task.dependsOn ?? [];
+      if (deps.length === 0) return;
+      const allMet = deps.every(d => completedTaskIds.has(d));
+      if (!allMet) return;
+      const id = task.id ?? `phase${phase.phase}-task${idx}`;
+      unblocked.push(id);
+    });
+  }
+  return unblocked;
+}
+
+/**
+ * Collect the canonical task ids of every task currently in
+ * `completed`. Pairs with {@link findNewlyUnblockedTaskIds}. Added
+ * in PR 16-data.
+ */
+export function collectCompletedTaskIds(
+  phases: StoredRoadmapPhase[],
+): Set<string> {
+  const out = new Set<string>();
+  for (const phase of phases) {
+    phase.tasks.forEach((task, idx) => {
+      if (task.status !== 'completed') return;
+      const id = task.id ?? `phase${phase.phase}-task${idx}`;
+      out.add(id);
+    });
+  }
+  return out;
+}
+
+/**
+ * Sum every task's `actualHours` across the roadmap. Returns null
+ * when no task has a recorded actualHours value (so the caller can
+ * decide whether to render "n/a" vs "0h"). Powers the derived
+ * weekly-hours figure on the roadmap GET endpoint. Added in PR
+ * 16-data.
+ */
+export function sumActualHours(phases: StoredRoadmapPhase[]): number | null {
+  let total = 0;
+  let any = false;
+  for (const phase of phases) {
+    for (const task of phase.tasks) {
+      if (typeof task.actualHours === 'number') {
+        total += task.actualHours;
+        any = true;
+      }
+    }
+  }
+  if (!any) return null;
+  return Math.round(total * 10) / 10;
+}

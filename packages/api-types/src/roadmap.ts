@@ -42,6 +42,37 @@ export const RoadmapTaskSchema = z.object({
   suggestedTools:  z.array(z.string()).optional().describe(
     'Internal NeuraLaunch tools that would help the founder execute this task. Only suggest when the tool is genuinely relevant, not as a default. Current tools: conversation_coach (for tasks involving pitching, negotiating, asking for something, confronting someone, delivering difficult news, or requesting a meeting).'
   ),
+  /**
+   * Stable task ids this task waits on. Roadmap-level dependency edges
+   * emitted by the generator (e.g. "phase2-task1 depends on
+   * phase1-task3"). The mark-complete handler reads this on every task
+   * status PATCH and auto-clears blockedReason for any task whose
+   * dependsOn[] is now satisfied. Optional / defaults to [] so legacy
+   * roadmaps stay valid. Added in PR 16-data.
+   */
+  dependsOn:       z.array(z.string()).optional().describe(
+    'Stable task ids this task must wait on. Use the engine-minted `phaseN-taskM` ids. Reference only tasks that appear earlier in the same roadmap. Omit or emit [] when there is no real prerequisite — do NOT invent dependencies to look thorough.'
+  ),
+  /**
+   * Human-readable reason this task is currently blocked, set by the
+   * roadmap UI / engine when an upstream dependency or external
+   * blocker exists. Persisted on read; the LLM never emits this on
+   * generation. Optional / nullable so legacy roadmaps stay valid.
+   * Added in PR 16-data.
+   */
+  blockedReason:   z.string().nullable().optional().describe(
+    'Why this task is currently blocked, in plain language. Only set when the task is actually blocked; clear when work can resume. Engine-managed — generators should not emit this.'
+  ),
+  /**
+   * Real elapsed hours the founder spent on this task, captured at
+   * mark-complete from (completedAt - startedAt) when both are
+   * present. Used to compute the venture's derived weekly hours and
+   * to flag estimate drift. Engine-managed; the LLM never emits this.
+   * Optional / nullable so legacy rows stay valid. Added in PR 16-data.
+   */
+  actualHours:     z.number().nullable().optional().describe(
+    'Real elapsed hours spent on this task, captured on completion. Engine-managed; do not emit on generation.'
+  ),
 });
 
 export const RoadmapPhaseSchema = z.object({

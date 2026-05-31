@@ -18,7 +18,7 @@ import { MODELS } from './constants';
 import { PUSHBACK_ACTIONS, PUSHBACK_CONFIG } from './constants';
 import { renderUserContent } from '@/lib/validation/server-helpers';
 import { cachedUserMessages } from '@/lib/ai/prompt-cache';
-import { RecommendationSchema, type Recommendation } from './recommendation-schema';
+import { RecommendationSchema, type Recommendation, normalizeRecommendationSteps } from './recommendation-schema';
 import { validateRecommendationOrThrow } from './synthesis-final';
 import type { DiscoveryContext } from './context-schema';
 import {
@@ -653,8 +653,12 @@ function renderRecommendationForPrompt(recommendation: Recommendation): string {
   lines.push(`What would make this wrong: ${renderUserContent(recommendation.whatWouldMakeThisWrong, 800)}`);
 
   lines.push('First three steps:');
-  recommendation.firstThreeSteps.forEach((step, i) => {
-    lines.push(`  ${i + 1}. ${renderUserContent(step, 500)}`);
+  normalizeRecommendationSteps(recommendation.firstThreeSteps).forEach((step, i) => {
+    const meta: string[] = [];
+    if (step.estimate) meta.push(`estimate: ${renderUserContent(step.estimate, 80)}`);
+    if (step.tool)     meta.push(`tool: ${renderUserContent(step.tool, 80)}`);
+    const suffix = meta.length > 0 ? ` (${meta.join(' · ')})` : '';
+    lines.push(`  ${i + 1}. ${renderUserContent(step.text, 500)}${suffix}`);
   });
 
   lines.push('Risks:');

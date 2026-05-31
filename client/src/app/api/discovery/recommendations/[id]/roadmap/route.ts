@@ -13,6 +13,7 @@ import {
 } from '@/lib/validation/server-helpers';
 import { z } from 'zod';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
+import { StoredPhasesArraySchema, sumActualHours } from '@/lib/roadmap/checkin-types';
 
 const ParamsSchema = z.object({ id: z.string().min(1) });
 
@@ -198,5 +199,26 @@ export async function GET(
     return NextResponse.json({ status: 'not_started' }, { status: 200 });
   }
 
-  return NextResponse.json(roadmap, { status: 200 });
+  // PR 16-data: derive a weekly-hours figure from the sum of all
+  // `actualHours` written by the mark-complete handler, divided by
+  // the weeks elapsed since the roadmap was created. The field is
+  // strictly informational — the founder's stated availableHours
+  // remains the contract. Null when no task has recorded actualHours
+  // yet (every roadmap before PR 16-data lands here) so the client
+  // can render an explicit "n/a" instead of "0h/wk".
+  const phasesParsed = StoredPhasesArraySchema.safeParse(roadmap.phases);
+  const totalActualHours = phasesParsed.success
+    ? sumActualHours(phasesParsed.data)
+    : null;
+  let derivedHoursPerWeek: number | null = null;
+  if (totalActualHours !== null) {
+    const elapsedMs    = Date.now() - roadmap.createdAt.getTime();
+    const elapsedWeeks = Math.max(1, elapsedMs / (1000 * 60 * 60 * 24 * 7));
+    derivedHoursPerWeek = Math.round((totalActualHours / elapsedWeeks) * 10) / 10;
+  }
+
+  return NextResponse.json(
+    { ...roadmap, derivedHoursPerWeek, totalActualHours },
+    { status: 200 },
+  );
 }

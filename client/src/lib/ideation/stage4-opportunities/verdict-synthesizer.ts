@@ -24,6 +24,13 @@
 //                           with multiple specific contradictions,
 //                           OR both layers are weak with no
 //                           validating evidence.
+//   - needs_more_evidence : Layer A is solid but Layer B is too thin
+//                           (n too small) or mixed enough that one
+//                           more community engagement would change
+//                           the call. Distinct from drop (which has
+//                           evidence to dismiss the pain) and from
+//                           pursue_with_caveats (which commits to
+//                           the direction with reservations).
 //
 // Architecture: single Sonnet call with Output.object. No tools —
 // inputs are already collected; this is pure synthesis. Withholds
@@ -56,7 +63,8 @@ const VerdictOutputSchema = z.object({
   verdict: z.enum(OPPORTUNITY_VERDICTS).describe(
     'pursue when Layer A signal is meaningfully positive AND Layer B is not contradictory. ' +
     'pursue_with_caveats when at least one layer has a clear caveat. ' +
-    'drop when Layer B contradicts the pain hypothesis with specific contradictions OR both layers are weak with no validating evidence.',
+    'drop when Layer B contradicts the pain hypothesis with specific contradictions OR both layers are weak with no validating evidence. ' +
+    'needs_more_evidence when Layer A is solid but Layer B is thin (n very small) or mixed enough that one more engagement would change the call — pick this in preference to pursue_with_caveats when the right move is "do one more round" rather than "commit with reservations".',
   ),
   reasoning: z.string().describe(
     '2-3 sentences explaining what tipped the verdict. Reference Layer A confidence + Layer B validationStrength specifically. The founder reads this on the OpportunityCard; lead with the most decision-relevant signal.',
@@ -69,7 +77,8 @@ YOU DO NOT WEB-SEARCH. Layer A is the research layer. Your job is synthesis — 
 
 VERDICT LADDER:
   pursue              — Layer A signal is meaningfully positive (at least two dimensions at confidence 0.6+) AND Layer B isn't contradictory.
-  pursue_with_caveats — at least one layer has a clear caveat: low Layer A confidence on one dimension, weak Layer B signal, OR contradictions raised in one layer but not the other.
+  pursue_with_caveats — at least one layer has a clear caveat: low Layer A confidence on one dimension, weak Layer B signal, OR contradictions raised in one layer but not the other. Picks this when the founder should COMMIT TO the direction with specific reservations.
+  needs_more_evidence — Layer A is solid AND Layer B is real signal but too thin (very small n, e.g. only 1-2 responses captured) or mixed enough that one more community engagement round would meaningfully change the call. Pick this in preference to pursue_with_caveats when the right move is "do another Layer B round" rather than "commit with reservations". Distinct from drop: there is no evidence to dismiss the pain, just not enough to commit yet.
   drop                — Layer B contradicts the pain hypothesis with multiple specific contradictions (validationStrength='contradictory'), OR both layers are uniformly weak with no validating evidence anywhere.
 
 LAYER B WEIGHT — when Layer A and Layer B disagree, Layer B usually wins. Real people validating the pain in their own words beats public-record signal. The exception: when Layer B has very few responses (validationStrength='weak' from low engagement, NOT from contradictions), defer to Layer A; the founder hasn't yet collected enough signal to override.

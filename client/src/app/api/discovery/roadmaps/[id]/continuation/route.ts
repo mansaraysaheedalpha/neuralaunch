@@ -16,6 +16,7 @@ import {
   loadValidationSignal,
   type ValidationSignal,
 } from '@/lib/continuation';
+import { isLegacyBrief } from '@/lib/continuation/brief-schema';
 import type { ExecutionMetrics } from '@/lib/continuation';
 import { requireTierOrThrow } from '@/lib/auth/require-tier';
 
@@ -88,6 +89,26 @@ export async function GET(
     const validation: ValidationSignal | null = row.ventureId
       ? await loadValidationSignal(row.ventureId)
       : null;
+    const brief = safeParseContinuationBrief(row.continuationBrief);
+
+    // PR 16-data — 4th cover stat. The brief's §III evidence ledger
+    // already ranks signals from highest-density first; lifting the
+    // top row gives the founder a single concrete number / observation
+    // on the cover ("price tolerance · 2 of 4 paid $40"). Null on V1
+    // legacy briefs (whatTheEvidenceSays was prose, not a structured
+    // ledger) and on empty / pre-BRIEF_READY states. Truncated server-
+    // side so the stat card never needs to handle long values.
+    let keyOutcomeMetric: { label: string; value: string } | null = null;
+    if (brief && !isLegacyBrief(brief)) {
+      const firstSignal = brief.whatTheEvidenceSays?.[0];
+      if (firstSignal) {
+        keyOutcomeMetric = {
+          label: firstSignal.metric.slice(0, 60),
+          value: firstSignal.reading.slice(0, 160),
+        };
+      }
+    }
+
     const coverStats = {
       tasksComplete:       row.progress?.completedTasks ?? 0,
       tasksTotal:          row.progress?.totalTasks ?? 0,
@@ -95,12 +116,13 @@ export async function GET(
       statedHoursPerWeek:  metrics?.statedWeeklyHours ?? null,
       paceLabel:           metrics?.paceLabel ?? null,
       validationSignal:    validation?.signalStrength ?? null,
+      keyOutcomeMetric,
     };
 
     return NextResponse.json({
       id:                row.id,
       continuationStatus: row.continuationStatus,
-      brief:             safeParseContinuationBrief(row.continuationBrief),
+      brief,
       diagnosticHistory: safeParseDiagnosticHistory(row.diagnosticHistory),
       parkingLot:        safeParseParkingLot(row.parkingLot),
       executionMetrics:  row.executionMetrics ?? null,

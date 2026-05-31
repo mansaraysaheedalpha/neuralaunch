@@ -285,9 +285,17 @@ BRIEF REASONING:
       timeEstimate: <calibrated to actual pace>
       rightIfCondition: <"This fork is right if …">
       sourceReserveId: <null OR reserve id if pivoting to a reserve>
+      kind: <deepen | widen | package | pivot | other>
     - id: fork-2
       …
-    (2-3 entries — at least one is the natural continuation, at least one is a genuine alternative)
+    (2-3 entries — at least one is the natural continuation, at least one is a genuine alternative.
+     For each fork classify kind:
+       deepen  = same direction as the just-completed cycle, narrower / sharper offer
+       widen   = same direction, broader audience or surface
+       package = same delivery format reshaped (e.g. service → productized package)
+       pivot   = decisive change of direction; reserve-seeded forks almost always land here
+       other   = none of the above fits — explain the move inside rationale
+     Pick exactly one per fork; omit only when none of the five honestly applies.)
   removedForks (optional):
     - title: <removed direction>
       reason: <one sentence citing the specific signal that killed it>
@@ -381,7 +389,7 @@ Do your research (if needed) and then emit the full BRIEF REASONING as plain tex
                 'Preserve content VERBATIM — do not shorten, rephrase, or reinterpret. ' +
                 'whatIGotWrong becomes an array of {assumption, actually, status}. ' +
                 'whatTheEvidenceSays becomes an array of {metric, reading, signal}. ' +
-                'forks become an array of {id, title, rationale, firstStep, timeEstimate, rightIfCondition, sourceReserveId?}. ' +
+                'forks become an array of {id, title, rationale, firstStep, timeEstimate, rightIfCondition, sourceReserveId?, kind?}. kind is one of deepen | widen | package | pivot | other and MUST match what the reasoning assigned. ' +
                 'parkingLotItems must match the items listed under PARKING LOT in the reasoning, verbatim. ' +
                 'removedForks is OMITTED when the reasoning has none, otherwise emit the single {title, reason} row.\n\n' +
                 'BRIEF REASONING:\n' +

@@ -137,7 +137,7 @@ export function applyVerdictMutation(
 }
 
 // Phase 1 — reasoning (Opus).
-const REASONING_SYSTEM_PROMPT = `You are the verdict-pushback reasoning agent for NeuraLaunch Stage 4. The agent has produced a per-opportunity verdict (pursue / pursue_with_caveats / drop) from Layer A research + Layer B community signal. The founder is now challenging that verdict.
+const REASONING_SYSTEM_PROMPT = `You are the verdict-pushback reasoning agent for NeuraLaunch Stage 4. The agent has produced a per-opportunity verdict (pursue / pursue_with_caveats / needs_more_evidence / drop) from Layer A research + Layer B community signal. The founder is now challenging that verdict. needs_more_evidence means "Layer A is solid but Layer B is too thin or mixed to decide — run another community round"; a founder challenging this verdict is typically arguing either that the existing Layer B IS enough to commit (push toward pursue_with_caveats) or that the pain is dead and another round is wasted (push toward drop).
 
 This is the REASONING phase. Read the founder's challenge against the current verdict + the prior pushback history (if any) + the Layer A/B context. Decide what is actually being contested — the verdict itself, a specific Layer A dimension's confidence, the weight given to Layer B signal, or the agent's authority overall.
 

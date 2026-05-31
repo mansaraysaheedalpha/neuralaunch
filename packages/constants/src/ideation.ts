@@ -376,6 +376,15 @@ export const OPPORTUNITY_VERDICTS = [
   'pursue',
   'pursue_with_caveats',
   'drop',
+  /**
+   * Real signal but insufficient — the founder wants to run another
+   * Layer B round before deciding. Does NOT count as advancing in
+   * docket-level progress; verdict-synthesizer chooses this when
+   * Layer A is solid but Layer B is either thin (n too small) or
+   * mixed enough that one more community engagement would change
+   * the call. Added in PR 16-data.
+   */
+  'needs_more_evidence',
 ] as const;
 export type OpportunityVerdict = typeof OPPORTUNITY_VERDICTS[number];
 

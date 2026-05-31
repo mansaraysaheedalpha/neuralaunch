@@ -6,6 +6,7 @@ import { RoadmapSchema, Roadmap } from './roadmap-schema';
 import { ROADMAP_MODELS, MAX_ROADMAP_PHASES, MAX_TASKS_PER_PHASE, WEEKLY_HOURS_MAP } from './constants';
 import { MODELS } from '@/lib/discovery/constants';
 import type { Recommendation } from '@/lib/discovery/recommendation-schema';
+import { normalizeRecommendationSteps } from '@/lib/discovery/recommendation-schema';
 import type { DiscoveryContext } from '@/lib/discovery/context-schema';
 import type { AudienceType } from '@/lib/discovery/constants';
 import { logger } from '@/lib/logger';
@@ -184,8 +185,12 @@ export async function generateRoadmap(
   // step (LLM-generated, schema-validated) — but the synthesis was
   // fed user-typed belief state, so prompt-injection content could
   // theoretically have flowed through. Sanitise on this hop too.
-  const firstStepsBlock = recommendation.firstThreeSteps
-    .map((s: string, i: number) => `${i + 1}. ${sanitizeForPrompt(s, 500)}`)
+  // firstThreeSteps accepts both legacy strings and the PR-16-data
+  // structured shape ({ text, estimate?, tool? }). Normalise to text
+  // for the prompt; estimate/tool meta is dropped because the roadmap
+  // generator only needs the action, not the time/tool hints.
+  const firstStepsBlock = normalizeRecommendationSteps(recommendation.firstThreeSteps)
+    .map((s, i) => `${i + 1}. ${sanitizeForPrompt(s.text, 500)}`)
     .join('\n');
 
   // Compose the `Available tools:` prompt block from the tier-aware
@@ -251,6 +256,7 @@ RULES:
 6. successCriteria must be observable and binary. "Have it or don't." Not "understand" or "feel confident".
 7. durationWeeks must be realistic. At ${weeklyHours} hours/week, a phase with 5 tasks averaging 3 hours each takes at least 2 weeks.
 8. closingThought is addressed directly to this person — use "you", reference their specific situation, and end with the one action they should take today.
+9. Task DEPENDENCIES (the optional dependsOn array on each task): emit a dependency edge ONLY when one task is a real prerequisite for another (the founder physically cannot start B until A is done). Reference earlier tasks by their stable id in the exact form \`phase{N}-task{M}\` where N is the phase number (1-indexed) and M is the task's 0-indexed position within that phase. Example: a Phase-2 task that requires a Phase-1 deliverable would use dependsOn: ["phase1-task2"] for the third task in phase 1. Do NOT invent dependencies just to look thorough — most tasks have NO real prerequisite and should omit dependsOn or emit []. Never reference a task in a later phase from an earlier phase, and never reference a task by title.
 
 INTERNAL TOOLS AVAILABLE TO THE FOUNDER:
 When generating tasks, you may suggest internal tools that help the founder execute. Attach a suggestedTools array to any task where tools would materially help. CRITICAL: Do not just list tools — write explicit instructions in the task description telling the founder HOW to use them and in what ORDER. The founder should never have to figure out the workflow themselves.

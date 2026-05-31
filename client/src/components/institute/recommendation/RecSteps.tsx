@@ -1,13 +1,15 @@
 import { RecSection } from './RecSection';
+import type { NormalizedRecommendationStep } from '@/lib/discovery/recommendation-schema';
 
 /**
  * § II — First steps. Numbered ol with upper-roman serif counters.
- * Each step is a plain string (the synthesis emits string[]); we bold
- * the first sentence for the "what to do" emphasis and render the rest
- * as continuation. No per-step time/tool meta line — the schema does
- * not carry it (see PR notes).
+ * Each step is now a normalised object: { text, estimate?, tool? }
+ * (PR 16-data widened the schema; legacy strings get wrapped at the
+ * read boundary via normalizeRecommendationSteps). The first sentence
+ * of `text` is bolded for the "what to do" emphasis; estimate + tool
+ * are appended as a mono meta line beneath when present.
  */
-export function RecSteps({ steps }: { steps: string[] }) {
+export function RecSteps({ steps }: { steps: NormalizedRecommendationStep[] }) {
   return (
     <RecSection
       num="II."
@@ -16,7 +18,10 @@ export function RecSteps({ steps }: { steps: string[] }) {
     >
       <ol className="grid">
         {steps.map((step, i) => {
-          const { lead, rest } = splitFirstSentence(step);
+          const { lead, rest } = splitFirstSentence(step.text);
+          const metaParts: string[] = [];
+          if (step.estimate) metaParts.push(step.estimate);
+          if (step.tool)     metaParts.push(step.tool);
           return (
             <li
               key={i}
@@ -32,6 +37,11 @@ export function RecSteps({ steps }: { steps: string[] }) {
                 <b className="font-medium text-fg">{lead}</b>
                 {rest ? ` ${rest}` : null}
               </p>
+              {metaParts.length > 0 && (
+                <p className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                  {metaParts.join(' · ')}
+                </p>
+              )}
             </li>
           );
         })}

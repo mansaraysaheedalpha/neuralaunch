@@ -312,7 +312,13 @@ function formatCycle(raw: RawCycle): CycleEvidence {
       reasoning:             rec?.reasoning ?? '',
       recommendationType:    rec?.recommendationType ?? null,
       firstThreeSteps:       Array.isArray(rec?.firstThreeSteps)
-        ? (rec.firstThreeSteps as string[]).filter(s => typeof s === 'string')
+        ? (rec.firstThreeSteps as unknown[]).map(s => {
+            if (typeof s === 'string') return s;
+            if (s && typeof s === 'object' && 'text' in s && typeof (s as { text: unknown }).text === 'string') {
+              return (s as { text: string }).text;
+            }
+            return null;
+          }).filter((s): s is string => typeof s === 'string')
         : [],
       risks:                 rec?.risks ?? [],
       assumptions:           rec?.assumptions ?? [],

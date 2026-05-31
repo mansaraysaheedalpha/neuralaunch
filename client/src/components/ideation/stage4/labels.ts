@@ -14,12 +14,14 @@ export const VERDICT_LABELS: Record<OpportunityVerdict, string> = {
   pursue:              'Pursue',
   pursue_with_caveats: 'Pursue with caveats',
   drop:                'Drop',
+  needs_more_evidence: 'Needs more evidence',
 };
 
 export const VERDICT_SHORT_LABELS: Record<OpportunityVerdict, string> = {
   pursue:              'Pursue',
   pursue_with_caveats: 'With caveats',
   drop:                'Drop',
+  needs_more_evidence: 'More evidence',
 };
 
 export const OPPORTUNITY_STATUS_LABELS: Record<OpportunityStatus, string> = {
