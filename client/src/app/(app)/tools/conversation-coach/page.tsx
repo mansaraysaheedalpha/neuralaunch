@@ -7,8 +7,9 @@
 // conversation from scratch — no task context.
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Loader2, Plus } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import Link from 'next/link';
+import { ToolShell } from '@/components/institute/tools';
 import { CoachHistoryPanel } from './CoachHistoryPanel';
 import { CoachSetupChat } from '@/app/(app)/discovery/roadmap/[id]/coach/CoachSetupChat';
 import { PreparationView } from '@/app/(app)/discovery/roadmap/[id]/coach/PreparationView';
@@ -278,24 +279,27 @@ export default function StandaloneCoachPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-10 flex flex-col gap-6">
-      <div className="flex items-center gap-3">
-        <Link href="/tools" className="text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="size-4 inline mr-1" />
-          Tools
-        </Link>
-        <h1 className="text-lg font-bold text-foreground">Conversation Coach</h1>
-        <button
-          type="button"
-          onClick={handleNewSession}
-          className="ml-auto flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-foreground hover:bg-muted transition-colors"
-        >
-          <Plus className="size-3 shrink-0" />
-          New conversation
-        </button>
-      </div>
+    <ToolShell
+      model="Opus"
+      toolName="Conversation Coach"
+      roman="I"
+      description="Rehearse the conversation that decides the outcome"
+      heading={<>Coach the <em>conversation.</em></>}
+      lede={<>Walk through what you&rsquo;ll say, who you&rsquo;re saying it to, and what you&rsquo;re afraid of. The coach builds a preparation package — opening, objections, fallback positions — then role-plays it with you, <em>in character.</em></>}
+    >
+      <div className="mx-auto flex max-w-5xl flex-col gap-6">
+        <div className="flex items-center justify-end">
+          <button
+            type="button"
+            onClick={handleNewSession}
+            className="flex items-center gap-1.5 rounded-md border border-rule-strong px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-fg hover:border-accent hover:text-accent transition-colors"
+          >
+            <Plus className="size-3 shrink-0" />
+            New conversation
+          </button>
+        </div>
 
-      <UsageMeter tool="coach" refreshKey={meterRefreshKey} />
+        <UsageMeter tool="coach" refreshKey={meterRefreshKey} />
 
       {error && (
         <p className="text-xs text-red-500 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">{error}</p>
@@ -379,6 +383,7 @@ export default function StandaloneCoachPage() {
       )}
         </div>
       </div>
-    </div>
+      </div>
+    </ToolShell>
   );
 }

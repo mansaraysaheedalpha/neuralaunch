@@ -6,8 +6,9 @@
 // state machine — the flow component handles everything.
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Loader2, Plus } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import Link from 'next/link';
+import { ToolShell } from '@/components/institute/tools';
 import { ResearchFlow } from '@/app/(app)/discovery/roadmap/[id]/research/ResearchFlow';
 import { useResearchFlow } from '@/app/(app)/discovery/roadmap/[id]/research/useResearchFlow';
 import {
@@ -111,24 +112,27 @@ function StandaloneResearchPageLoaded({
   }, [flow]);
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-10 flex flex-col gap-6">
-      <div className="flex items-center gap-3">
-        <Link href="/tools" className="text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="size-4 inline mr-1" />
-          Tools
-        </Link>
-        <h1 className="text-lg font-bold text-foreground">Research Tool</h1>
-        <button
-          type="button"
-          onClick={flow.resetToQuery}
-          className="ml-auto flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-foreground hover:bg-muted transition-colors"
-        >
-          <Plus className="size-3 shrink-0" />
-          New research
-        </button>
-      </div>
+    <ToolShell
+      model="Opus"
+      toolName="Research Tool"
+      roman="III"
+      description="Plain-language query → cited findings"
+      heading={<>Research, <em>cited.</em></>}
+      lede={<>Ask any question about your market, competitors, customers, regulations, or pricing. The tool runs a multi-source investigation and returns a structured report with source URLs and confidence labels — <em>verified, likely, unverified.</em></>}
+    >
+      <div className="mx-auto flex max-w-5xl flex-col gap-6">
+        <div className="flex items-center justify-end gap-3">
+          <button
+            type="button"
+            onClick={flow.resetToQuery}
+            className="flex items-center gap-1.5 rounded-md border border-rule-strong px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-fg hover:border-accent hover:text-accent transition-colors"
+          >
+            <Plus className="size-3 shrink-0" />
+            New research
+          </button>
+        </div>
 
-      <UsageMeter tool="research" refreshKey={meterRefreshKey} />
+        <UsageMeter tool="research" refreshKey={meterRefreshKey} />
 
       <div className="flex flex-col lg:flex-row gap-6">
         <aside className="lg:w-72 lg:shrink-0 flex flex-col gap-4">
@@ -153,6 +157,7 @@ function StandaloneResearchPageLoaded({
           />
         </div>
       </div>
-    </div>
+      </div>
+    </ToolShell>
   );
 }

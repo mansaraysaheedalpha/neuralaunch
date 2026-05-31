@@ -1,116 +1,117 @@
 'use client';
 // src/app/(app)/tools/page.tsx
 //
-// Tools listing page. Shows all available tools with a brief
-// description and a launch button. Tools require a completed
-// discovery session with a recommendation and roadmap because
-// their entire value is context-awareness.
-//
-// Tier gate: the four tools are Execute+ entitlements (server-side
-// gating already exists on every /api/discovery/roadmaps/[id]/{coach,
-// composer,research,packager}/* route per the Paddle delivery report).
-// This page mirrors that boundary in the UI so Free users do not see
-// tiles they cannot use — they get an UpgradePrompt instead.
+// Tools index — Institute ledger pattern. Replaces the tile + tinted-
+// icon-square grid with the §-03-Toolkit-row layout from the landing.
+// Roman index, italic-serif name accent, mono model tag, one-line
+// description, arrow on hover. Tier gating (Execute+) preserved.
 
-import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { MessageSquare, Mail, Search, Package, Globe } from 'lucide-react';
+import Link from 'next/link';
+import { TopBar, Pill } from '@/components/institute';
+import { ToolsLedger, type ToolListing } from '@/components/institute/tools';
 import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
 
-const TOOLS = [
+const TOOLS: ToolListing[] = [
   {
-    id:          'conversation-coach',
-    name:        'Conversation Coach',
-    description: 'Prepare for and rehearse high-stakes conversations. Get a structured script, objection handling, fallback positions, and practice with an AI role-play partner.',
-    icon:        MessageSquare,
+    roman:       '001',
+    name:        'Conversation',
+    nameAccent:  'Coach',
+    model:       'Opus',
+    description:
+      'Rehearse a high-stakes conversation. Channel-native opening, anticipated objections, fallback positions — then a role-play in character.',
     href:        '/tools/conversation-coach',
-    status:      'available' as const,
   },
   {
-    id:          'outreach-composer',
-    name:        'Outreach Composer',
-    description: 'Draft ready-to-send outreach messages for WhatsApp, email, and LinkedIn. Three modes: single message to a specific person, batch messages to similar people, and multi-touch follow-up sequences.',
-    icon:        Mail,
+    roman:       '002',
+    name:        'Outreach',
+    nameAccent:  'Composer',
+    model:       'Sonnet',
+    description:
+      'Single message, batch variations, or a D1 / D5 / D14 sequence — WhatsApp, email, LinkedIn. Each with a note on why it works.',
     href:        '/tools/outreach-composer',
-    status:      'available' as const,
   },
   {
-    id:          'research',
-    name:        'Research Tool',
-    description: 'Ask any question about your market, competitors, potential customers, regulations, or pricing. The tool conducts a deep, multi-source investigation and returns a structured, cited report specific to your context.',
-    icon:        Search,
+    roman:       '003',
+    name:        'Research',
+    nameAccent:  'Tool',
+    model:       'Opus · 25 step',
+    description:
+      'Plain-language query, structured findings, source URLs, confidence labels — verified, likely, unverified.',
     href:        '/tools/research',
-    status:      'available' as const,
   },
   {
-    id:          'service-packager',
-    name:        'Service Packager',
-    description: 'Turn your skill into a structured service offering with tiered pricing, revenue scenarios, and a one-page brief you can share with prospects today. Especially useful when your recommendation is to build a service.',
-    icon:        Package,
+    roman:       '004',
+    name:        'Service',
+    nameAccent:  'Packager',
+    model:       'Sonnet',
+    description:
+      'Three priced tiers from your situation. Starter, Pro, Premium — with revenue scenarios and reasoning.',
     href:        '/tools/service-packager',
-    status:      'available' as const,
   },
   {
-    id:          'validation',
-    name:        'Validation Page',
-    description: 'Publish a live landing page for a specific offer — product, service tier, or value proposition — with a CTA, feature-interest tracking, and a short interest survey. Share it with prospects and see real demand signal before investing more time.',
-    icon:        Globe,
+    roman:       '005',
+    name:        'Validation',
+    nameAccent:  'Page',
+    model:       'Public',
+    description:
+      'A live landing page with surveys and analytics. Real demand signal before you write a line of code.',
     href:        '/tools/validation',
-    status:      'available' as const,
   },
 ];
 
 export default function ToolsPage() {
-  // Match the loading-state pattern used in RecommendationReveal:
-  // collapse undefined / loading session to 'free' and let the
-  // UpgradePrompt render. Once the session resolves to execute or
-  // compound, the tiles render. A free user never sees the tiles;
-  // a paid user sees a brief UpgradePrompt flash on cold load that
-  // resolves to the tiles within one render cycle.
+  // Loading-state pattern matches RecommendationReveal: collapse
+  // undefined / loading session to 'free' and let the UpgradePrompt
+  // render. Paid users see the ledger after one render cycle.
   const { data: session } = useSession();
-  const tier        = session?.user?.tier ?? 'free';
-  const isFreeTier  = tier === 'free';
+  const tier = session?.user?.tier ?? 'free';
+  const isFreeTier = tier === 'free';
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-10 flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold text-foreground">Tools</h1>
-        <p className="text-sm text-muted-foreground">
-          Execution tools that use your discovery context to produce ready-to-use outputs.
-        </p>
-      </div>
+    <div className="flex h-full flex-col">
+      <TopBar
+        crumb={[
+          { label: 'Tools', accent: true },
+          { label: 'All', current: true },
+        ]}
+        rightStatus={<Pill accent>● 5 execution tools</Pill>}
+        rightActions={
+          <Link href="/discovery/recommendations" className="text-muted transition-colors hover:text-fg">
+            ← Recommendations
+          </Link>
+        }
+      />
 
-      {isFreeTier ? (
-        <UpgradePrompt
-          requiredTier="execute"
-          variant="hero"
-          heading="Unlock the execution tools"
-          description="Conversation Coach, Outreach Composer, Research Tool, Service Packager, and Validation Page are part of Execute. Upgrade to use them on any task in your roadmap — or open them standalone from this page."
-        />
-      ) : (
-        <div className="flex flex-col gap-3">
-          {TOOLS.map(tool => {
-            const Icon = tool.icon;
-            return (
-              <Link
-                key={tool.id}
-                href={tool.href}
-                className="rounded-xl border border-border bg-card p-4 flex items-start gap-4 hover:border-primary/40 hover:bg-primary/5 transition-colors"
-              >
-                <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-                  <Icon className="w-5 h-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-foreground">{tool.name}</p>
-                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                    {tool.description}
-                  </p>
-                </div>
-              </Link>
-            );
-          })}
+      <div className="flex-1 overflow-y-auto">
+        <header className="border-b border-rule px-6 pb-7 pt-12 sm:px-12 lg:px-16">
+          <div className="mb-5 flex flex-wrap gap-[18px] font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
+            <span>The toolkit · execute tier</span>
+            <span>5 tools · for the work that decides the outcome</span>
+          </div>
+          <h1 className="font-sans text-fg [font-size:clamp(40px,5.2vw,72px)] [font-weight:500] [line-height:1] [letter-spacing:-0.025em] [&_em]:font-serif [&_em]:italic [&_em]:font-normal [&_em]:text-accent">
+            Five tools, for the work<br />that decides the <em>outcome.</em>
+          </h1>
+          <p className="mt-5 max-w-[760px] text-[16px] leading-[1.55] text-fg-2 [&_em]:font-serif [&_em]:italic [&_em]:text-accent">
+            Every tool reads your discovery context and produces a
+            ready-to-use output. Launch from a task in your roadmap to
+            scope a tool to that task, or open one standalone here.
+          </p>
+        </header>
+
+        <div className="px-6 pb-20 pt-12 sm:px-12 lg:px-16">
+          {isFreeTier ? (
+            <UpgradePrompt
+              requiredTier="execute"
+              variant="hero"
+              heading="Unlock the execution tools"
+              description="Conversation Coach, Outreach Composer, Research Tool, Service Packager, and Validation Page are part of Execute. Upgrade to use them on any task in your roadmap — or open them standalone from this page."
+            />
+          ) : (
+            <ToolsLedger tools={TOOLS} />
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

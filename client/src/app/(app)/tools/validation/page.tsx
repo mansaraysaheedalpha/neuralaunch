@@ -8,6 +8,7 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import prisma from '@/lib/prisma';
+import { ToolShell } from '@/components/institute/tools';
 import { StandaloneValidationClient, type RecommendationOption } from './StandaloneValidationClient';
 
 export default async function StandaloneValidationPage() {
@@ -39,17 +40,17 @@ export default async function StandaloneValidationPage() {
   }));
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-10 flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold text-foreground">Validation Page</h1>
-        <p className="text-sm text-muted-foreground leading-relaxed">
-          Publish a live landing page for a specific offer. Share the URL with
-          prospects, then measure their interest from real behaviour — page
-          views, scroll depth, feature-interest clicks, and CTA conversion.
-        </p>
+    <ToolShell
+      model="Public"
+      toolName="Validation Page"
+      roman="V"
+      description="A live landing page · real demand signal"
+      heading={<>Validate <em>before you build.</em></>}
+      lede={<>Publish a live landing page for a specific offer — share the URL with prospects, then measure their interest from real behaviour: page views, scroll depth, feature-interest clicks, and CTA conversion.</>}
+    >
+      <div className="mx-auto max-w-2xl">
+        <StandaloneValidationClient recommendations={options} />
       </div>
-
-      <StandaloneValidationClient recommendations={options} />
-    </div>
+    </ToolShell>
   );
 }

@@ -7,8 +7,9 @@
 // outreach need from scratch — no task context.
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { ToolShell } from '@/components/institute/tools';
 import { ComposerContextChat } from '@/app/(app)/discovery/roadmap/[id]/composer/ComposerContextChat';
 import { ComposerOutputView }  from '@/app/(app)/discovery/roadmap/[id]/composer/ComposerOutputView';
 import { ComposerSessionReview } from '@/app/(app)/discovery/roadmap/[id]/composer/ComposerSessionReview';
@@ -253,22 +254,25 @@ export default function StandaloneComposerPage() {
       : null;
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-10 flex flex-col gap-6">
-      <div className="flex items-center gap-3">
-        <Link href="/tools" className="text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="size-4 inline mr-1" />
-          Tools
-        </Link>
-        <h1 className="text-lg font-bold text-foreground">Outreach Composer</h1>
-        <button
-          type="button"
-          onClick={handleNewSession}
-          className="ml-auto flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-[11px] font-medium text-foreground hover:bg-muted transition-colors"
-        >
-          <Plus className="size-3 shrink-0" />
-          New outreach
-        </button>
-      </div>
+    <ToolShell
+      model="Sonnet"
+      toolName="Outreach Composer"
+      roman="II"
+      description="WhatsApp · email · LinkedIn — with rationale"
+      heading={<>Compose <em>outreach.</em></>}
+      lede={<>Single message, batch variations, or a <em>D1 / D5 / D14</em> sequence. WhatsApp, email, or LinkedIn — each draft comes with a short note on why it works.</>}
+    >
+      <div className="mx-auto flex max-w-5xl flex-col gap-6">
+        <div className="flex items-center justify-end">
+          <button
+            type="button"
+            onClick={handleNewSession}
+            className="flex items-center gap-1.5 rounded-md border border-rule-strong px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-fg hover:border-accent hover:text-accent transition-colors"
+          >
+            <Plus className="size-3 shrink-0" />
+            New outreach
+          </button>
+        </div>
 
       <UsageMeter tool="composer" refreshKey={meterRefreshKey} />
 
@@ -333,6 +337,7 @@ export default function StandaloneComposerPage() {
       )}
         </div>
       </div>
-    </div>
+      </div>
+    </ToolShell>
   );
 }
