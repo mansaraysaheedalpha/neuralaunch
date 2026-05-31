@@ -77,18 +77,18 @@ export function ValidationFlow({ roadmapId, taskId, open, onClose }: ValidationF
   }
 
   return (
-    <div className="mt-2 rounded-xl border border-border bg-card p-4">
+    <div className="mt-2 rounded-xl border border-rule bg-bg-2 p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-foreground">Validation page</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <p className="text-sm font-semibold text-fg">Validation page</p>
+          <p className="mt-0.5 text-xs text-muted">
             A live landing page you can share to measure real market signal before investing more time.
           </p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="rounded-md p-1 text-muted hover:bg-bg-3 hover:text-fg"
           aria-label="Close"
         >
           <X className="size-4" />
@@ -97,7 +97,7 @@ export function ValidationFlow({ roadmapId, taskId, open, onClose }: ValidationF
 
       {phase !== 'success' && (
         <div className="mt-4 flex flex-col gap-2">
-          <label className="text-xs font-medium text-foreground" htmlFor="validation-target">
+          <label className="text-xs font-medium text-fg" htmlFor="validation-target">
             What are you validating for this task?
           </label>
           <textarea
@@ -108,20 +108,20 @@ export function ValidationFlow({ roadmapId, taskId, open, onClose }: ValidationF
             maxLength={2000}
             rows={4}
             placeholder="e.g. A $49/month premium tier for coaches that includes monthly strategy calls and a private Slack channel. I want to see if coaches will sign up before I build the private community."
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
+            className="w-full rounded-md border border-rule bg-bg px-3 py-2 text-sm text-fg placeholder:text-muted/60 outline-none focus:ring-2 focus:ring-accent/40 disabled:opacity-60"
           />
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-[11px] text-muted">
             We&apos;ll generate a draft landing page. You can preview, edit, and publish it from the next screen.
           </p>
 
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="text-xs text-accent">{error}</p>}
 
           <div className="mt-1 flex justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
               disabled={phase === 'generating'}
-              className="rounded-md border border-border bg-transparent px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:opacity-50"
+              className="rounded-md border border-rule bg-transparent px-3 py-1.5 text-xs font-medium text-fg hover:bg-bg-3 disabled:opacity-50"
             >
               Cancel
             </button>
@@ -129,7 +129,7 @@ export function ValidationFlow({ roadmapId, taskId, open, onClose }: ValidationF
               type="button"
               onClick={() => { void handleGenerate(); }}
               disabled={phase === 'generating' || target.trim().length === 0}
-              className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-bg hover:bg-accent/90 disabled:opacity-50"
             >
               {phase === 'generating' ? 'Generating…' : 'Generate page'}
             </button>
@@ -143,13 +143,13 @@ export function ValidationFlow({ roadmapId, taskId, open, onClose }: ValidationF
             <CheckCircle2 className="size-4" aria-hidden="true" />
             {result.alreadyExists ? 'Existing page ready' : 'Validation page drafted'}
           </div>
-          <p className="text-xs text-muted-foreground leading-relaxed">
+          <p className="text-xs text-muted leading-relaxed">
             Open the page editor to preview it, customise the copy, and publish it when you&apos;re
             ready. Once live, share the URL and watch the analytics come back here.
           </p>
           <Link
             href={`/discovery/validation/${result.pageId}`}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+            className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-bg hover:bg-accent/90"
           >
             Open validation page editor →
           </Link>

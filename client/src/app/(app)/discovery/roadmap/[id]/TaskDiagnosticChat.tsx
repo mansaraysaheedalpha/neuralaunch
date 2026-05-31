@@ -110,27 +110,27 @@ export function TaskDiagnosticChat({
           transition={{ duration: 0.2 }}
           className="overflow-hidden"
         >
-          <div className="flex flex-col gap-2 pt-2 border-t border-primary/20">
-            <p className="text-[10px] uppercase tracking-widest text-primary/70 flex items-center gap-1">
+          <div className="flex flex-col gap-2 pt-2 border-t border-accent/20">
+            <p className="text-[10px] uppercase tracking-widest text-accent/70 flex items-center gap-1">
               <HelpCircle className="size-3" />
               Task help
             </p>
 
-            <div className="rounded-lg border border-border bg-background px-3 py-3 flex flex-col gap-2 max-h-60 overflow-y-auto">
+            <div className="rounded-lg border border-rule bg-bg px-3 py-3 flex flex-col gap-2 max-h-60 overflow-y-auto">
               {exchanges.length === 0 && !inconclusive && (
-                <p className="text-[11px] text-muted-foreground italic">
+                <p className="text-[11px] text-muted italic">
                   Tell me what you need help with on this task.
                 </p>
               )}
               {exchanges.map(ex => (
                 <div key={ex.id} className="flex flex-col gap-1">
-                  <div className="self-end rounded-lg bg-primary/10 px-2.5 py-1.5 text-[11px] text-foreground max-w-[85%] break-words">
+                  <div className="self-end rounded-lg bg-accent/10 px-2.5 py-1.5 text-[11px] text-fg max-w-[85%] break-words">
                     {ex.founder}
                   </div>
-                  <div className="self-start rounded-lg bg-muted px-2.5 py-1.5 text-[11px] text-foreground/90 max-w-[90%] break-words whitespace-pre-wrap">
+                  <div className="self-start rounded-lg bg-bg-3 px-2.5 py-1.5 text-[11px] text-fg/90 max-w-[90%] break-words whitespace-pre-wrap">
                     {ex.agent}
                     {ex.followUp && (
-                      <p className="mt-1.5 pt-1.5 border-t border-foreground/10 font-medium">
+                      <p className="mt-1.5 pt-1.5 border-t border-fg/10 font-medium">
                         {ex.followUp}
                       </p>
                     )}
@@ -138,8 +138,8 @@ export function TaskDiagnosticChat({
                 </div>
               ))}
               {inconclusive && (
-                <div className="rounded-lg border border-gold/30 bg-gold/5 p-2 text-[11px] text-foreground/90 whitespace-pre-wrap">
-                  <p className="text-[10px] font-medium text-gold mb-1">Summary</p>
+                <div className="rounded-lg border border-accent/30 bg-accent/5 p-2 text-[11px] text-fg/90 whitespace-pre-wrap">
+                  <p className="text-[10px] font-medium text-accent mb-1">Summary</p>
                   {inconclusive}
                 </div>
               )}
@@ -151,7 +151,7 @@ export function TaskDiagnosticChat({
               </p>
             )}
             {escalate && (
-              <p className="text-[11px] text-gold">
+              <p className="text-[11px] text-accent">
                 This looks like a roadmap-level concern. Try hitting &quot;What&apos;s Next?&quot; to evaluate your overall progress.
               </p>
             )}
@@ -175,7 +175,7 @@ export function TaskDiagnosticChat({
                   type="button"
                   onClick={() => { void handleSend(); }}
                   disabled={draft.trim().length === 0 || submitting}
-                  className="shrink-0 rounded-md bg-primary px-2.5 py-1.5 text-[11px] font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                  className="shrink-0 rounded-md bg-accent px-2.5 py-1.5 text-[11px] font-medium text-bg hover:opacity-90 disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />}
                 </button>
@@ -185,7 +185,7 @@ export function TaskDiagnosticChat({
             <button
               type="button"
               onClick={onClose}
-              className="self-start text-[10px] text-muted-foreground hover:text-foreground underline"
+              className="self-start text-[10px] text-muted hover:text-fg underline"
             >
               Close help
             </button>

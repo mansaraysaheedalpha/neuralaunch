@@ -51,7 +51,7 @@ export default async function TransformationReportPage({
       <div className="flex justify-between px-6 pt-4">
         <Link
           href="/discovery/recommendations"
-          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+          className="text-xs text-muted hover:text-fg underline underline-offset-2 transition-colors"
         >
           ← Back to your ventures
         </Link>

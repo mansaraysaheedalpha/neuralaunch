@@ -20,7 +20,7 @@ import {
 const OUTCOME_DISPLAY: Record<OutcomeLabel, { label: string; classes: string }> = {
   shipped:     { label: 'SHIPPED',     classes: 'border-success/40 bg-success/10 text-success' },
   walked_away: { label: 'WALKED AWAY', classes: 'border-amber-500/40 bg-amber-500/10 text-amber-400' },
-  pivoted:     { label: 'PIVOTED',     classes: 'border-primary/40 bg-primary/10 text-primary' },
+  pivoted:     { label: 'PIVOTED',     classes: 'border-accent/40 bg-accent/10 text-accent' },
   learning:    { label: 'LEARNING',    classes: 'border-slate-700 bg-slate-800/40 text-slate-300' },
 };
 
@@ -118,7 +118,7 @@ export function AdminReviewForm({
 
   return (
     <section className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-navy-900/40 px-6 py-5">
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-bg-2/40 px-6 py-5">
         <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">
           Card content (the public face)
         </h2>
@@ -167,7 +167,7 @@ export function AdminReviewForm({
         </Field>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-navy-900/40 px-6 py-5">
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-bg-2/40 px-6 py-5">
         <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">
           Outcome chip
         </h2>
@@ -195,7 +195,7 @@ export function AdminReviewForm({
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-navy-900/40 px-6 py-5">
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-bg-2/40 px-6 py-5">
         <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">
           Review notes
         </h2>
@@ -268,8 +268,8 @@ export function AdminReviewForm({
 }
 
 const inputClass =
-  'w-full rounded-md border border-slate-800 bg-navy-950/60 px-3 py-2 text-[13px] text-slate-100 ' +
-  'placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-primary/40 ' +
+  'w-full rounded-md border border-slate-800 bg-bg/60 px-3 py-2 text-[13px] text-slate-100 ' +
+  'placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-accent/40 ' +
   'disabled:opacity-50 disabled:cursor-not-allowed resize-none';
 
 function Field({

@@ -35,7 +35,7 @@ export function OutcomeDocumentChat({ sessionId: _sessionId, disabled }: Outcome
       disabled
       title="Coming soon"
       aria-label="Ask a question about this — coming soon"
-      className="text-muted-foreground"
+      className="text-muted"
     >
       <MessageCircle className="size-4 mr-1" />
       Ask a question about this

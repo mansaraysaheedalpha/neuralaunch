@@ -78,13 +78,13 @@ export function VoiceTranscriptionReview({
         aria-label="Voice transcription"
         className={cn(
           'min-h-[96px]',
-          !editing && 'bg-muted/30',
+          !editing && 'bg-bg-3/30',
         )}
       />
 
       {lowConfidence && (
-        <p className="inline-flex items-start gap-1.5 text-xs text-muted-foreground">
-          <AlertTriangle className="size-3.5 mt-0.5 shrink-0 text-destructive/80" aria-hidden />
+        <p className="inline-flex items-start gap-1.5 text-xs text-muted">
+          <AlertTriangle className="size-3.5 mt-0.5 shrink-0 text-accent/80" aria-hidden />
           <span>The transcription may contain errors. Please review before sending.</span>
         </p>
       )}
@@ -119,7 +119,7 @@ export function VoiceTranscriptionReview({
           size="sm"
           onClick={onRecordAgain}
           disabled={disabled}
-          className="ml-auto gap-1.5 text-muted-foreground hover:text-foreground"
+          className="ml-auto gap-1.5 text-muted hover:text-fg"
         >
           <RotateCcw className="size-3.5" aria-hidden />
           Re-record

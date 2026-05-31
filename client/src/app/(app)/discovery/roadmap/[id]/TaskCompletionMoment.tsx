@@ -39,16 +39,16 @@ export function TaskCompletionMoment({
       className="rounded-lg border border-success/30 bg-success/5 p-3 flex flex-col gap-2"
     >
       <p className="text-xs font-medium text-success">✓ {taskTitle}</p>
-      <p className="text-[11px] text-foreground/80 leading-relaxed">
+      <p className="text-[11px] text-fg/80 leading-relaxed">
         You hit the success criteria: <span className="italic">{truncate(successCriteria, 200)}</span>.
       </p>
       {founderGoal && (
-        <p className="text-[11px] text-foreground/80 leading-relaxed">
+        <p className="text-[11px] text-fg/80 leading-relaxed">
           One step closer to your goal: {truncate(founderGoal, 140)}.
         </p>
       )}
       {progress && progress.totalTasks > 0 && (
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-[10px] text-muted">
           {progress.completedTasks} of {progress.totalTasks} tasks complete · {Math.round((progress.completedTasks / progress.totalTasks) * 100)}% through your roadmap
         </p>
       )}
@@ -59,13 +59,13 @@ export function TaskCompletionMoment({
           task with zero outcome data. */}
       {completionPath === 'choice' && (
         <div className="flex flex-col gap-2 pt-1">
-          <p className="text-[11px] text-foreground/90 font-medium">How did this task actually go?</p>
+          <p className="text-[11px] text-fg/90 font-medium">How did this task actually go?</p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               disabled={submitting}
               onClick={onChooseWriting}
-              className="rounded-md bg-primary px-3 py-1.5 text-[11px] font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+              className="rounded-md bg-accent px-3 py-1.5 text-[11px] font-medium text-bg hover:opacity-90 disabled:opacity-50"
             >
               Tell us how it went
             </button>
@@ -73,12 +73,12 @@ export function TaskCompletionMoment({
               type="button"
               disabled={submitting}
               onClick={onChooseAsPlanned}
-              className="rounded-md border border-border bg-background px-3 py-1.5 text-[11px] font-medium text-foreground hover:bg-muted disabled:opacity-50"
+              className="rounded-md border border-rule bg-bg px-3 py-1.5 text-[11px] font-medium text-fg hover:bg-bg-3 disabled:opacity-50"
             >
               It went as planned
             </button>
           </div>
-          <p className="text-[10px] text-muted-foreground italic">
+          <p className="text-[10px] text-muted italic">
             Skipping means the outcome matched the success criteria exactly.
           </p>
         </div>
@@ -88,7 +88,7 @@ export function TaskCompletionMoment({
         <button
           type="button"
           onClick={onDismiss}
-          className="self-start text-[10px] text-muted-foreground hover:text-foreground underline"
+          className="self-start text-[10px] text-muted hover:text-fg underline"
         >
           Dismiss
         </button>

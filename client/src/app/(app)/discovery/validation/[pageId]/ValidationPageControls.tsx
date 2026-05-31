@@ -103,17 +103,17 @@ export function ValidationPageControls({
           'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
           isLive
             ? 'bg-success/10 text-success'
-            : 'bg-gold/10 text-gold',
+            : 'bg-accent/10 text-accent',
         ].join(' ')}>
           {isLive ? 'Live' : 'Draft'}
         </span>
         {isLive && (
-          <span className="text-xs text-muted-foreground truncate max-w-[200px]">{pageUrl}</span>
+          <span className="text-xs text-muted truncate max-w-[200px]">{pageUrl}</span>
         )}
       </div>
 
       {error && (
-        <p className="text-xs text-destructive">{error}</p>
+        <p className="text-xs text-accent">{error}</p>
       )}
 
       {/* Actions */}
@@ -123,7 +123,7 @@ export function ValidationPageControls({
             type="button"
             onClick={() => { void handlePublish(); }}
             disabled={publishing || regenerating}
-            className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-bg transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {publishing ? 'Publishing…' : 'Publish page'}
           </button>
@@ -133,7 +133,7 @@ export function ValidationPageControls({
           <button
             type="button"
             onClick={() => { void handleCopy(); }}
-            className="w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+            className="w-full rounded-lg border border-rule bg-bg-2 px-4 py-2.5 text-sm font-medium text-fg transition-colors hover:bg-bg-3"
           >
             {copied ? '✓ Link copied' : 'Copy link'}
           </button>
@@ -147,14 +147,14 @@ export function ValidationPageControls({
             type="button"
             onClick={() => { void handleRegenerate(); }}
             disabled={regenerating || publishing || isLive}
-            className="w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-40"
+            className="w-full rounded-lg border border-rule bg-bg-2 px-4 py-2.5 text-sm font-medium text-fg transition-colors hover:bg-bg-3 disabled:opacity-40"
           >
             {regenerating ? 'Regenerating…' : 'Regenerate content'}
           </button>
         )}
 
         {isLive && (
-          <p className="text-center text-xs text-muted-foreground">
+          <p className="text-center text-xs text-muted">
             Publish is permanent — archive to regenerate.
           </p>
         )}
@@ -162,9 +162,9 @@ export function ValidationPageControls({
 
       {/* Page URL input (always visible when live) */}
       {isLive && (
-        <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
-          <p className="text-xs text-muted-foreground mb-1">Your page URL</p>
-          <p className="text-xs font-mono text-foreground break-all">{pageUrl}</p>
+        <div className="rounded-lg border border-rule bg-bg-3/40 px-3 py-2">
+          <p className="text-xs text-muted mb-1">Your page URL</p>
+          <p className="text-xs font-mono text-fg break-all">{pageUrl}</p>
         </div>
       )}
     </div>

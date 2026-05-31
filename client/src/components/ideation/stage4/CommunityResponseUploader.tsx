@@ -97,7 +97,7 @@ export function CommunityResponseUploader({
   };
 
   return (
-    <div className="rounded-md border border-border bg-card/40 px-3 py-3 space-y-3">
+    <div className="rounded-md border border-rule bg-bg-2/40 px-3 py-3 space-y-3">
       <div className="flex items-center gap-2">
         <ModeTab active={mode === 'text'}        onClick={() => setMode('text')}        icon={<FileText className="size-3" />}  label="Paste text" />
         <ModeTab active={mode === 'screenshot'}  onClick={() => setMode('screenshot')}  icon={<ImagePlus className="size-3" />} label="Upload screenshot" />
@@ -112,16 +112,16 @@ export function CommunityResponseUploader({
             maxLength={2400}
             rows={3}
             placeholder="Paste the comment text you got back. Keep handles in if they were visible."
-            className="w-full resize-none rounded-md border border-border bg-background/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/40"
+            className="w-full resize-none rounded-md border border-rule bg-bg/60 px-3 py-2 text-sm text-fg placeholder:text-muted outline-none focus:border-accent/40"
           />
-          {error && <div className="text-xs text-destructive">{error}</div>}
+          {error && <div className="text-xs text-accent">{error}</div>}
           <Button type="submit" size="sm" disabled={!canSubmitText} className="w-full">
             {busy ? 'Saving…' : 'Add text response'}
           </Button>
         </form>
       ) : (
         <div className="space-y-2">
-          <label className={`block rounded-md border border-dashed px-3 py-4 text-center text-xs ${disabled || uploading ? 'border-border text-muted-foreground' : 'border-border text-foreground hover:bg-card/30 cursor-pointer'}`}>
+          <label className={`block rounded-md border border-dashed px-3 py-4 text-center text-xs ${disabled || uploading ? 'border-rule text-muted' : 'border-rule text-fg hover:bg-bg-2/30 cursor-pointer'}`}>
             <input
               ref={fileRef}
               type="file"
@@ -131,15 +131,15 @@ export function CommunityResponseUploader({
               className="sr-only"
             />
             {uploading ? (
-              <span className="inline-flex items-center gap-1 text-muted-foreground"><Loader2 className="size-3 animate-spin" /> Uploading…</span>
+              <span className="inline-flex items-center gap-1 text-muted"><Loader2 className="size-3 animate-spin" /> Uploading…</span>
             ) : (
               <>
-                <ImagePlus className="size-5 mx-auto mb-1 text-muted-foreground" />
+                <ImagePlus className="size-5 mx-auto mb-1 text-muted" />
                 <span className="block">Click to upload a screenshot (PNG / JPEG / WebP, up to {Math.round(MAX_SCREENSHOT_BYTES / 1024 / 1024)} MB)</span>
               </>
             )}
           </label>
-          {error && <div className="text-xs text-destructive">{error}</div>}
+          {error && <div className="text-xs text-accent">{error}</div>}
         </div>
       )}
     </div>
@@ -149,7 +149,7 @@ export function CommunityResponseUploader({
 interface ModeTabProps { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }
 function ModeTab({ active, onClick, icon, label }: ModeTabProps) {
   const base = 'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs';
-  const cls  = active ? `${base} bg-primary/10 text-primary font-medium` : `${base} bg-card/40 text-muted-foreground hover:text-foreground`;
+  const cls  = active ? `${base} bg-accent/10 text-accent font-medium` : `${base} bg-bg-2/40 text-muted hover:text-fg`;
   return (
     <button type="button" onClick={onClick} className={cls} aria-pressed={active}>
       {icon}{label}

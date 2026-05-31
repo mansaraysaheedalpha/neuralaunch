@@ -165,10 +165,10 @@ export function OutcomeForm({
   const showInlineConsentCard = consent !== null && consent.consent === false;
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-5">
+    <div className="rounded-xl border border-rule bg-bg-2 p-5 flex flex-col gap-5">
       <div>
-        <h3 className="text-sm font-semibold text-foreground">{heading}</h3>
-        <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+        <h3 className="text-sm font-semibold text-fg">{heading}</h3>
+        <p className="mt-1 text-[11px] text-muted leading-relaxed">
           Pick the option that honestly describes how it went. There is no wrong answer — every result helps NeuraLaunch get better at recommendations for founders in situations like yours.
         </p>
       </div>
@@ -186,17 +186,17 @@ export function OutcomeForm({
               className={[
                 'text-left rounded-lg border px-4 py-3 transition-colors',
                 selected
-                  ? 'border-primary bg-primary/5'
-                  : 'border-border bg-background hover:border-foreground/30',
+                  ? 'border-accent bg-accent/5'
+                  : 'border-rule bg-bg hover:border-fg/30',
               ].join(' ')}
             >
               <p className={[
                 'text-xs font-semibold',
-                selected ? 'text-primary' : 'text-foreground',
+                selected ? 'text-accent' : 'text-fg',
               ].join(' ')}>
                 {c.cardTitle}
               </p>
-              <p className="mt-0.5 text-[11px] text-muted-foreground leading-relaxed">
+              <p className="mt-0.5 text-[11px] text-muted leading-relaxed">
                 {c.cardSubtitle}
               </p>
             </button>
@@ -207,7 +207,7 @@ export function OutcomeForm({
       {/* Free-text follow-up */}
       {outcomeType && copy && (
         <div className="flex flex-col gap-2">
-          <label className="text-[11px] uppercase tracking-widest text-muted-foreground/70">
+          <label className="text-[11px] uppercase tracking-widest text-muted/70">
             {copy.freeTextRequired ? 'Required' : 'Optional'}
           </label>
           <Textarea
@@ -223,7 +223,7 @@ export function OutcomeForm({
       {/* Weak-phases follow-up — only for partial / direction-correct */}
       {outcomeType && copy?.showWeakPhasesFollowup && phaseTitles.length > 0 && (
         <div className="flex flex-col gap-2">
-          <p className="text-[11px] uppercase tracking-widest text-muted-foreground/70">
+          <p className="text-[11px] uppercase tracking-widest text-muted/70">
             Which part of the roadmap needed the most adjustment? (optional, multi-select)
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -243,8 +243,8 @@ export function OutcomeForm({
                   className={[
                     'rounded-full px-3 py-1 text-[11px] font-medium border transition-colors',
                     selected
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-background text-muted-foreground border-border hover:border-foreground/30',
+                      ? 'bg-accent text-bg border-accent'
+                      : 'bg-bg text-muted border-rule hover:border-fg/30',
                   ].join(' ')}
                 >
                   {title}
@@ -258,14 +258,14 @@ export function OutcomeForm({
       {/* Inline consent card — shown only when the founder has not
           yet decided either way. Honest disclosure of the limits. */}
       {showInlineConsentCard && (
-        <div className="rounded-lg border border-border bg-muted/30 p-3 flex flex-col gap-2">
-          <p className="text-[11px] font-medium text-foreground">
+        <div className="rounded-lg border border-rule bg-bg-3/30 p-3 flex flex-col gap-2">
+          <p className="text-[11px] font-medium text-fg">
             Help NeuraLaunch get better at this
           </p>
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
+          <p className="text-[11px] text-muted leading-relaxed">
             If you opt in, an anonymised version of this outcome will be used to help NeuraLaunch give better recommendations to founders in similar situations to yours. We strip names, emails, phone numbers, and bucket your location to country level before storing the anonymised version. Free-text answers may still contain details we cannot automatically detect — if you wrote about a specific person or place, those words may be in the stored version.
           </p>
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
+          <p className="text-[11px] text-muted leading-relaxed">
             Anonymised records are kept for up to 24 months and then deleted automatically. You can change your mind any time in Settings — turning this off also deletes any anonymised records you have already shared.
           </p>
           <label className="inline-flex items-center gap-2 cursor-pointer mt-1">
@@ -274,9 +274,9 @@ export function OutcomeForm({
               checked={consent?.consent ?? false}
               disabled={pendingConsent}
               onChange={e => { void handleConsentToggle(e.target.checked); }}
-              className="rounded border-border"
+              className="rounded border-rule"
             />
-            <span className="text-[11px] text-foreground">
+            <span className="text-[11px] text-fg">
               Yes, use my anonymised outcome to improve recommendations for similar founders
             </span>
           </label>
@@ -285,13 +285,13 @@ export function OutcomeForm({
 
       {/* Already-decided consent reminder (subtle) */}
       {consent !== null && consent.consent === true && (
-        <p className="text-[10px] text-muted-foreground italic">
+        <p className="text-[10px] text-muted italic">
           Your training-data sharing is on. You can change this in Settings → Privacy.
         </p>
       )}
 
       {consentLoadFailed && (
-        <p className="text-[10px] text-gold">
+        <p className="text-[10px] text-accent">
           Could not load your training-data preference. Your outcome will be saved without sharing.
         </p>
       )}
@@ -308,7 +308,7 @@ export function OutcomeForm({
           type="button"
           onClick={() => { void handleSkip(); }}
           disabled={skipping || submitting}
-          className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 disabled:opacity-50"
+          className="text-[11px] text-muted hover:text-fg underline underline-offset-2 disabled:opacity-50"
         >
           {skipping ? 'Skipping…' : 'Skip for now'}
         </button>
@@ -316,7 +316,7 @@ export function OutcomeForm({
           type="button"
           onClick={() => { void handleSubmit(); }}
           disabled={!canSubmit}
-          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+          className="inline-flex items-center gap-1.5 rounded-md bg-accent px-4 py-2 text-xs font-medium text-bg transition-opacity hover:opacity-90 disabled:opacity-40"
         >
           {submitting && <Loader2 className="size-3.5 animate-spin" />}
           {submitting ? 'Submitting…' : 'Share outcome'}

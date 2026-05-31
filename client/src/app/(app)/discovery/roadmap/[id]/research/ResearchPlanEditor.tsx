@@ -42,8 +42,8 @@ export function ResearchPlanEditor({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <p className="text-[11px] font-medium text-foreground">Research plan</p>
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-[11px] font-medium text-fg">Research plan</p>
+        <p className="text-[10px] text-muted">
           Edit the plan directly — add angles, narrow scope, redirect focus. When ready, click Start research.
         </p>
       </div>
@@ -56,7 +56,7 @@ export function ResearchPlanEditor({
         className="min-h-0 resize-none py-2 text-xs leading-relaxed"
       />
 
-      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-[10px] text-muted">
         <Clock className="size-3 shrink-0" />
         <span>Estimated time: {estimatedTime}</span>
       </div>
@@ -66,7 +66,7 @@ export function ResearchPlanEditor({
           type="button"
           onClick={() => onApprove(editedPlan.trim())}
           disabled={editedPlan.trim().length === 0 || loading}
-          className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[11px] font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-opacity"
+          className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[11px] font-medium text-bg hover:opacity-90 disabled:opacity-50 transition-opacity"
         >
           <Play className="size-3 shrink-0" />
           Start research

@@ -69,21 +69,21 @@ export function NoIdeaAlternativesSection({
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between gap-2 text-left rounded-md border border-border bg-card/30 px-3 py-2 hover:bg-card/50 transition-colors"
+        className="w-full flex items-center justify-between gap-2 text-left rounded-md border border-rule bg-bg-2/30 px-3 py-2 hover:bg-bg-2/50 transition-colors"
         aria-expanded={open}
       >
         <div className="flex flex-col items-start gap-0.5">
-          <span className="text-sm font-semibold text-foreground">
+          <span className="text-sm font-semibold text-fg">
             Alternatives considered ({reserves.length})
           </span>
           {!open && (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-muted">
               {reserves.length} {reserves.length === 1 ? 'opportunity' : 'opportunities'} I evaluated alongside this one. Click to expand.
             </span>
           )}
         </div>
         <ChevronDown
-          className={`size-4 text-muted-foreground shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+          className={`size-4 text-muted shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
         />
       </button>
 
@@ -103,24 +103,24 @@ export function NoIdeaAlternativesSection({
                 return (
                   <li
                     key={r.id}
-                    className="rounded-md border border-border bg-card/30 px-3 py-3 text-sm"
+                    className="rounded-md border border-rule bg-bg-2/30 px-3 py-3 text-sm"
                   >
-                    <p className="text-foreground leading-snug mb-2">
+                    <p className="text-fg leading-snug mb-2">
                       Rank {r.rank} · {r.painPointSummary}
                     </p>
-                    <dl className="grid grid-cols-[5.5rem_1fr] gap-y-0.5 text-xs text-muted-foreground">
+                    <dl className="grid grid-cols-[5.5rem_1fr] gap-y-0.5 text-xs text-muted">
                       <dt>Agent verdict:</dt>
-                      <dd className="text-foreground">{agentVerdictLabel(r.agentVerdict)}</dd>
+                      <dd className="text-fg">{agentVerdictLabel(r.agentVerdict)}</dd>
                       <dt>Your verdict:</dt>
-                      <dd className="text-foreground">
+                      <dd className="text-fg">
                         {r.founderVerdict ? VERDICT_LABELS[r.founderVerdict] : 'Not set'}
                       </dd>
                       <dt>Layer A:</dt>
-                      <dd className="text-foreground">
+                      <dd className="text-fg">
                         {avg !== null ? `avg confidence ${avg.toFixed(2)} across 4 dimensions` : 'not captured'}
                       </dd>
                       <dt>Layer B:</dt>
-                      <dd className="text-foreground">
+                      <dd className="text-fg">
                         {r.layerBSummary
                           ? VALIDATION_STRENGTH_LABELS[r.layerBSummary.validationStrength]
                           : 'not captured'}
@@ -128,7 +128,7 @@ export function NoIdeaAlternativesSection({
                     </dl>
                     <a
                       href={buildStage4DeepLink(sessionId, r.id, stage4StageRunId)}
-                      className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+                      className="mt-2 inline-flex items-center gap-1 text-xs text-muted hover:text-fg underline underline-offset-2"
                     >
                       View in Stage 4
                       <ExternalLink className="size-3" />

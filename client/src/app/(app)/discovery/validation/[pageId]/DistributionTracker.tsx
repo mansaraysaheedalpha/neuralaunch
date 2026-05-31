@@ -77,8 +77,8 @@ export function DistributionTracker({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-foreground">Where to share it</h3>
-        <span className="text-xs text-muted-foreground">{doneCount} of {brief.length} shared</span>
+        <h3 className="text-sm font-semibold text-fg">Where to share it</h3>
+        <span className="text-xs text-muted">{doneCount} of {brief.length} shared</span>
       </div>
 
       <div className="flex flex-col gap-3">
@@ -91,14 +91,14 @@ export function DistributionTracker({
               className={[
                 'rounded-xl border p-4 flex flex-col gap-3 transition-colors',
                 isDone
-                  ? 'border-primary/30 bg-primary/5'
-                  : 'border-border bg-card',
+                  ? 'border-accent/30 bg-accent/5'
+                  : 'border-rule bg-bg-2',
               ].join(' ')}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground">{ch.channel}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">{ch.audienceReason}</p>
+                  <p className="text-sm font-medium text-fg">{ch.channel}</p>
+                  <p className="mt-0.5 text-xs text-muted leading-relaxed">{ch.audienceReason}</p>
                 </div>
                 <button
                   type="button"
@@ -108,8 +108,8 @@ export function DistributionTracker({
                   className={[
                     'shrink-0 size-6 rounded-md border flex items-center justify-center transition-colors',
                     isDone
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-border bg-background hover:border-primary/50',
+                      ? 'border-accent bg-accent text-bg'
+                      : 'border-rule bg-bg hover:border-accent/50',
                     isPend ? 'opacity-50' : '',
                   ].join(' ')}
                 >
@@ -117,16 +117,16 @@ export function DistributionTracker({
                 </button>
               </div>
 
-              <p className="text-[10px] uppercase tracking-widest text-muted-foreground/70">Expected yield</p>
-              <p className="-mt-2 text-xs text-foreground/80">{ch.expectedYield}</p>
+              <p className="text-[10px] uppercase tracking-widest text-muted/70">Expected yield</p>
+              <p className="-mt-2 text-xs text-fg/80">{ch.expectedYield}</p>
 
-              <div className="rounded-lg border border-border bg-muted/30 p-3">
-                <p className="mb-2 text-[10px] uppercase tracking-widest text-muted-foreground/70">Message to send</p>
-                <p className="whitespace-pre-wrap text-xs text-foreground/90 leading-relaxed">{ch.message}</p>
+              <div className="rounded-lg border border-rule bg-bg-3/30 p-3">
+                <p className="mb-2 text-[10px] uppercase tracking-widest text-muted/70">Message to send</p>
+                <p className="whitespace-pre-wrap text-xs text-fg/90 leading-relaxed">{ch.message}</p>
                 <button
                   type="button"
                   onClick={() => { void handleCopy(i, ch.message); }}
-                  className="mt-3 text-xs font-medium text-primary hover:underline"
+                  className="mt-3 text-xs font-medium text-accent hover:underline"
                 >
                   {copiedIdx === i ? '✓ Copied' : 'Copy message'}
                 </button>

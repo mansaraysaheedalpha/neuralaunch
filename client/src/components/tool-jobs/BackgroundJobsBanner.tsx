@@ -50,15 +50,15 @@ export function BackgroundJobsBanner() {
           className={cn(
             'fixed bottom-4 right-4 z-40',
             'w-72 max-w-[calc(100vw-2rem)]',
-            'rounded-xl border border-border bg-background shadow-lg',
+            'rounded-xl border border-rule bg-bg shadow-lg',
             'p-3 flex flex-col gap-2',
           )}
           role="status"
           aria-live="polite"
         >
           <div className="flex items-center gap-2">
-            <Sparkles className="size-3.5 text-primary shrink-0" />
-            <p className="text-xs font-semibold text-foreground">
+            <Sparkles className="size-3.5 text-accent shrink-0" />
+            <p className="text-xs font-semibold text-fg">
               {activeJobs.length === 1
                 ? '1 background job running'
                 : `${activeJobs.length} background jobs running`}
@@ -71,23 +71,23 @@ export function BackgroundJobsBanner() {
                 key={job.id}
                 className="flex items-center gap-2 text-[11px]"
               >
-                <Loader2 className="size-3 animate-spin text-primary shrink-0" />
-                <span className="text-foreground font-medium capitalize truncate">
+                <Loader2 className="size-3 animate-spin text-accent shrink-0" />
+                <span className="text-fg font-medium capitalize truncate">
                   {TOOL_DISPLAY_LABELS[job.toolType as ToolJobType]}
                 </span>
-                <span className="text-muted-foreground/70 truncate">
+                <span className="text-muted/70 truncate">
                   · {rowLabel(job)}
                 </span>
               </li>
             ))}
             {activeJobs.length > VISIBLE_ROWS && (
-              <li className="text-[10px] text-muted-foreground/60 pl-5">
+              <li className="text-[10px] text-muted/60 pl-5">
                 +{activeJobs.length - VISIBLE_ROWS} more
               </li>
             )}
           </ul>
 
-          <p className="text-[10px] text-muted-foreground/70 italic">
+          <p className="text-[10px] text-muted/70 italic">
             We&apos;ll send a notification when each one is ready.
           </p>
         </motion.div>

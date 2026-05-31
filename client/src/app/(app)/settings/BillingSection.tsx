@@ -113,15 +113,15 @@ export function BillingSection({
   // path back to subscription is prominent without blocking status.
   const showWelcomeBack = tier === 'free' && lastPaidTier !== null;
   const welcomeAccentClasses = wasFoundingMember
-    ? 'border-gold/30 bg-gold/5'
+    ? 'border-accent/30 bg-accent/5'
     : lastPaidTier === 'compound'
-      ? 'border-gold/30 bg-gold/5'
-      : 'border-primary/30 bg-primary/5';
+      ? 'border-accent/30 bg-accent/5'
+      : 'border-accent/30 bg-accent/5';
   const welcomeHeadingClasses = wasFoundingMember
-    ? 'text-gold'
+    ? 'text-accent'
     : lastPaidTier === 'compound'
-      ? 'text-gold'
-      : 'text-primary';
+      ? 'text-accent'
+      : 'text-accent';
   const welcomePriorTierLabel = lastPaidTier
     ? TIER_LABEL[lastPaidTier]
     : '';
@@ -134,14 +134,14 @@ export function BillingSection({
           <p className={`text-sm font-semibold ${welcomeHeadingClasses}`}>
             Welcome back{userName ? `, ${userName.split(' ')[0]}` : ''}
           </p>
-          <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">
+          <p className="mt-1.5 text-xs text-muted leading-relaxed">
             You were previously on {welcomePriorTierLabel}. Your ventures,
             roadmaps, and progress are preserved. Resubscribe anytime to
             continue where you left off.
             {wasFoundingMember && (
               <>
                 {' '}Your founding member rate (
-                <span className="text-gold font-semibold">
+                <span className="text-accent font-semibold">
                   {welcomeFoundingRate}/month
                 </span>
                 ) is preserved.
@@ -150,29 +150,29 @@ export function BillingSection({
           </p>
           <Link
             href="/#pricing"
-            className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-transparent px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-slate-500 hover:bg-slate-800"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-transparent px-3 py-1.5 text-xs font-medium text-fg transition-colors hover:border-slate-500 hover:bg-slate-800"
           >
             View plans
             <ArrowRight className="size-3.5" aria-hidden="true" />
           </Link>
         </div>
       )}
-    <div className="rounded-lg border border-border bg-card p-5">
+    <div className="rounded-lg border border-rule bg-bg-2 p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-foreground">
+            <h3 className="text-sm font-semibold text-fg">
               {TIER_LABEL[tier]} tier
             </h3>
             {isFoundingMember && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-gold/30 bg-gold/5 px-2 py-0.5 text-[11px] font-semibold text-gold">
+              <span className="inline-flex items-center gap-1 rounded-full border border-accent/30 bg-accent/5 px-2 py-0.5 text-[11px] font-semibold text-accent">
                 <Sparkles className="size-3" aria-hidden="true" />
                 Founding member
               </span>
             )}
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Status: <span className="font-medium text-foreground">{status}</span>
+          <p className="mt-1 text-xs text-muted">
+            Status: <span className="font-medium text-fg">{status}</span>
             {currentPeriodEnd && (tier !== 'free') && (
               <>
                 {' · '}
@@ -210,13 +210,13 @@ export function BillingSection({
           type="button"
           onClick={handleManage}
           disabled={!hasBillingProfile || isPending}
-          className="inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-700 bg-transparent px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-slate-500 hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950"
+          className="inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-700 bg-transparent px-3 py-2 text-sm font-medium text-fg transition-colors hover:border-slate-500 hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg"
         >
           {isPending ? 'Opening portal…' : 'Manage billing'}
           <ExternalLink className="size-4" aria-hidden="true" />
         </button>
         {!hasBillingProfile && tier === 'free' && (
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-[11px] text-muted">
             Complete a paid checkout to unlock billing management.
           </p>
         )}

@@ -98,16 +98,16 @@ export function UsageMeter({ tool, refreshKey, className }: UsageMeterProps) {
       ? `border-amber-500/30 bg-amber-500/5 text-amber-200`
       : nearCap
         ? accent === 'gold'
-          ? `border-gold/30 bg-gold/5 text-gold`
-          : `border-primary/30 bg-primary/5 text-primary`
-        : `border-border bg-card text-muted-foreground`;
+          ? `border-accent/30 bg-accent/5 text-accent`
+          : `border-accent/30 bg-accent/5 text-accent`
+        : `border-rule bg-bg-2 text-muted`;
 
   const barFillCls =
     atCap
       ? 'bg-amber-500'
       : nearCap
-        ? accent === 'gold' ? 'bg-gold' : 'bg-primary'
-        : 'bg-muted-foreground/40';
+        ? accent === 'gold' ? 'bg-accent' : 'bg-accent'
+        : 'bg-bg-3/40';
 
   const reset = formatResetDate(row.resetsAt);
 
@@ -130,7 +130,7 @@ export function UsageMeter({ tool, refreshKey, className }: UsageMeterProps) {
         </span>
       </div>
 
-      <div className="h-1 w-full rounded-full bg-foreground/10 overflow-hidden">
+      <div className="h-1 w-full rounded-full bg-fg/10 overflow-hidden">
         <div
           className={`h-full ${barFillCls} transition-[width]`}
           style={{ width: `${Math.min(100, Math.round(pct * 100))}%` }}

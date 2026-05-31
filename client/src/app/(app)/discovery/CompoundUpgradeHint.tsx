@@ -60,13 +60,13 @@ export function CompoundUpgradeHint() {
           transition={{ duration: 0.18 }}
           className="mx-auto w-full max-w-2xl px-4 pt-3"
         >
-          <div className="rounded-lg border border-primary/30 bg-primary/5 px-4 py-3 flex items-start gap-3">
-            <Sparkles className="size-4 text-primary mt-0.5 shrink-0" />
+          <div className="rounded-lg border border-accent/30 bg-accent/5 px-4 py-3 flex items-start gap-3">
+            <Sparkles className="size-4 text-accent mt-0.5 shrink-0" />
             <div className="flex-1 flex flex-col gap-2">
-              <p className="text-[12px] font-semibold text-foreground leading-tight">
+              <p className="text-[12px] font-semibold text-fg leading-tight">
                 Starting another direction?
               </p>
-              <p className="text-[11px] text-foreground/80 leading-relaxed">
+              <p className="text-[11px] text-fg/80 leading-relaxed">
                 You&apos;re on Execute — one venture at a time, with up to 2
                 paused on the side. If you keep taking on new directions
                 while old ones sit, Compound runs <span className="font-medium">3 ventures in parallel</span> with
@@ -76,14 +76,14 @@ export function CompoundUpgradeHint() {
               <div className="flex items-center gap-2">
                 <Link
                   href="/#pricing"
-                  className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[11px] font-semibold text-bg hover:bg-accent/90 transition-colors"
                 >
                   See Compound
                 </Link>
                 <button
                   type="button"
                   onClick={handleDismiss}
-                  className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+                  className="text-[11px] text-muted hover:text-fg underline underline-offset-2 transition-colors"
                 >
                   Continue with Execute
                 </button>
@@ -93,7 +93,7 @@ export function CompoundUpgradeHint() {
               type="button"
               onClick={handleDismiss}
               aria-label="Dismiss upgrade hint"
-              className="shrink-0 rounded-md p-0.5 text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors"
+              className="shrink-0 rounded-md p-0.5 text-muted/70 hover:text-fg hover:bg-bg-3 transition-colors"
             >
               <X className="size-3.5" />
             </button>

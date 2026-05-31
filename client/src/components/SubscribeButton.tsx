@@ -80,7 +80,7 @@ export function SubscribeButton({
       disabled={disabled}
       className={
         className ??
-        'inline-flex w-full items-center justify-center gap-1.5 rounded-md px-4 py-2.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-navy-950 bg-primary text-white hover:bg-blue-700 focus-visible:ring-primary disabled:opacity-60 disabled:cursor-not-allowed'
+        'inline-flex w-full items-center justify-center gap-1.5 rounded-md px-4 py-2.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-bg bg-accent text-white hover:bg-accent/90 focus-visible:ring-accent disabled:opacity-60 disabled:cursor-not-allowed'
       }
     >
       {isLoading ? 'Loading…' : buttonLabel}

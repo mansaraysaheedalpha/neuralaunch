@@ -41,10 +41,10 @@ export default async function ProfilePage() {
     <div className="container max-w-4xl mx-auto py-8 px-4">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="mb-2 text-3xl font-semibold tracking-tight text-foreground">
+        <h1 className="mb-2 text-3xl font-semibold tracking-tight text-fg">
           Profile settings
         </h1>
-        <p className="text-muted-foreground">
+        <p className="text-muted">
           Manage your account and connected providers.
         </p>
       </div>
@@ -63,15 +63,15 @@ export default async function ProfilePage() {
         <CardContent className="space-y-6">
           {/* Avatar and Name */}
           <div className="flex items-center gap-4">
-            <Avatar className="h-20 w-20 border-2 border-primary/20">
+            <Avatar className="h-20 w-20 border-2 border-accent/20">
               <AvatarImage src={session.user.image || ""} alt={session.user.name || ""} />
-              <AvatarFallback className="bg-primary text-lg font-semibold text-primary-foreground">
+              <AvatarFallback className="bg-accent text-lg font-semibold text-bg">
                 {userInitials}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1">
               <h3 className="text-xl font-semibold">{session.user.name || "User"}</h3>
-              <div className="flex items-center gap-2 text-muted-foreground mt-1">
+              <div className="flex items-center gap-2 text-muted mt-1">
                 <Mail className="w-4 h-4" />
                 <span className="text-sm">{session.user.email}</span>
               </div>
@@ -101,7 +101,7 @@ export default async function ProfilePage() {
                 </div>
                 <div>
                   <h4 className="font-medium">Google</h4>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted">
                     OAuth authentication provider
                   </p>
                 </div>
@@ -112,7 +112,7 @@ export default async function ProfilePage() {
                   Connected
                 </Badge>
               ) : (
-                <Badge variant="outline" className="text-muted-foreground">
+                <Badge variant="outline" className="text-muted">
                   Not Connected
                 </Badge>
               )}
@@ -130,7 +130,7 @@ export default async function ProfilePage() {
                 </div>
                 <div>
                   <h4 className="font-medium">GitHub</h4>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted">
                     Required for repository management and deployments
                   </p>
                 </div>
@@ -141,7 +141,7 @@ export default async function ProfilePage() {
                   Connected
                 </Badge>
               ) : (
-                <Badge variant="outline" className="border-gold/30 bg-gold/10 text-gold">
+                <Badge variant="outline" className="border-accent/30 bg-accent/10 text-accent">
                   Required
                 </Badge>
               )}
@@ -152,10 +152,10 @@ export default async function ProfilePage() {
                 <div className="flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 p-3 text-sm">
                   <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-success" />
                   <div>
-                    <p className="font-medium text-foreground">
+                    <p className="font-medium text-fg">
                       GitHub account connected
                     </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
+                    <p className="mt-1 text-xs text-muted">
                       Your GitHub account is linked and ready for use.
                     </p>
                   </div>

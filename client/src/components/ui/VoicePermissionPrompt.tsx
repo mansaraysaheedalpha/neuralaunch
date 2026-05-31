@@ -82,19 +82,19 @@ export function VoicePermissionPrompt({
       role="dialog"
       aria-label="Microphone permission"
       className={cn(
-        'flex flex-col gap-3 rounded-lg border border-border bg-background p-4 shadow-sm',
+        'flex flex-col gap-3 rounded-lg border border-rule bg-bg p-4 shadow-sm',
         className,
       )}
     >
       <div className="flex items-start gap-3">
-        <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+        <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
           <Mic className="size-4" aria-hidden />
         </span>
         <div className="flex flex-col gap-1">
-          <p className="text-sm font-medium text-foreground">
+          <p className="text-sm font-medium text-fg">
             Microphone access needed
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted">
             NeuraLaunch transcribes your voice to text during recording.
             Audio is not stored.
           </p>
@@ -103,7 +103,7 @@ export function VoicePermissionPrompt({
 
       {permission === 'denied' ? (
         <div className="flex flex-col gap-2">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted">
             Your browser is blocking microphone access for this site. Open the
             site settings (usually the lock icon next to the URL) and switch
             microphone to &ldquo;Allow&rdquo;, then reload the page.

@@ -157,13 +157,13 @@ export function TaskToolLaunchers({ roadmapId, taskId, task }: TaskToolLaunchers
   // Only render the eyebrow when at least one tool is suggested —
   // otherwise the eyebrow would dangle over an empty row.
   return (
-    <div className="flex flex-col gap-2.5 pt-2 border-t border-border">
+    <div className="flex flex-col gap-2.5 pt-2 border-t border-rule">
       {anyToolSuggested && (
         // OPEN WITH eyebrow — sized up to match the CHECK-IN HISTORY
         // and WHY THIS MATTERS eyebrows so the three section labels in
         // the expanded card form a consistent visual rhythm. Was 10px
         // muted before, which read as a footnote.
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/80 mt-1">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80 mt-1">
           Open with
         </p>
       )}

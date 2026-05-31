@@ -76,9 +76,9 @@ function permissiveRead(raw: Record<string, unknown>) {
  *  verified / likely / unverified language used in the marketing card. */
 function confidenceClass(confidence: string | undefined): string {
   if (confidence === 'verified')   return 'bg-success/15 text-success border-success/30';
-  if (confidence === 'likely')     return 'bg-gold/15 text-gold border-gold/30';
-  if (confidence === 'unverified') return 'bg-muted text-muted-foreground border-border';
-  return 'bg-muted text-muted-foreground border-border';
+  if (confidence === 'likely')     return 'bg-accent/15 text-accent border-accent/30';
+  if (confidence === 'unverified') return 'bg-bg-3 text-muted border-rule';
+  return 'bg-bg-3 text-muted border-rule';
 }
 
 export function ResearchSessionReview({ session, onReopen }: ResearchSessionReviewProps) {
@@ -116,22 +116,22 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
   const hasAnyContent = hasReport || plan || followUps.length > 0;
 
   return (
-    <div className="rounded-lg border border-border bg-muted/20 overflow-hidden">
+    <div className="rounded-lg border border-rule bg-bg-3/20 overflow-hidden">
       {/* Collapsed header — always visible. Counts the total findings
           across every round so the founder sees the cumulative result
           at a glance. */}
       <button
         type="button"
         onClick={() => setExpanded(o => !o)}
-        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/40 transition-colors text-left"
+        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-bg-3/40 transition-colors text-left"
       >
         <div className="flex items-start gap-2 min-w-0 flex-1">
-          <Search className="size-3.5 shrink-0 text-muted-foreground mt-0.5" />
+          <Search className="size-3.5 shrink-0 text-muted mt-0.5" />
           <div className="flex flex-col gap-0.5 min-w-0">
-            <p className="text-[11px] font-semibold text-foreground truncate">
+            <p className="text-[11px] font-semibold text-fg truncate">
               Researched: {query}
             </p>
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-[10px] text-muted">
               {totalFindingsAcrossRounds} finding{totalFindingsAcrossRounds !== 1 ? 's' : ''}
               {followUps.length > 0 && ` · ${followUps.length} follow-up${followUps.length !== 1 ? 's' : ''}`}
               {sources.length > 0 && ` · ${sources.length} source${sources.length !== 1 ? 's' : ''}`}
@@ -139,7 +139,7 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
           </div>
         </div>
         <motion.span animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.18 }}>
-          <ChevronDown className="size-3.5 text-muted-foreground shrink-0 ml-2" />
+          <ChevronDown className="size-3.5 text-muted shrink-0 ml-2" />
         </motion.span>
       </button>
 
@@ -153,15 +153,15 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
             transition={{ duration: 0.18 }}
             className="overflow-hidden"
           >
-            <div className="px-3 pb-3 border-t border-border flex flex-col gap-3">
+            <div className="px-3 pb-3 border-t border-rule flex flex-col gap-3">
 
               {/* SUMMARY — almost always present when research completed */}
               {summary && (
                 <div className="pt-2.5">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gold mb-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-accent mb-1">
                     Summary
                   </p>
-                  <p className="text-[11.5px] text-foreground/90 leading-[1.55] whitespace-pre-wrap">
+                  <p className="text-[11.5px] text-fg/90 leading-[1.55] whitespace-pre-wrap">
                     {summary}
                   </p>
                 </div>
@@ -173,7 +173,7 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
                   task card. */}
               {findings.length > 0 && (
                 <div className="pt-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted mb-1.5">
                     Findings ({findings.length})
                   </p>
                   <ul role="list" className="flex flex-col gap-1.5">
@@ -188,12 +188,12 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
                       return (
                         <li
                           key={i}
-                          className="flex items-start gap-2 rounded-md border border-border/60 bg-card/60 px-2.5 py-2"
+                          className="flex items-start gap-2 rounded-md border border-rule/60 bg-bg-2/60 px-2.5 py-2"
                         >
                           <CheckCircle2 className="size-3 text-success/80 shrink-0 mt-0.5" />
                           <div className="flex flex-col gap-0.5 min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <p className="text-[11px] font-medium text-foreground leading-snug truncate">
+                              <p className="text-[11px] font-medium text-fg leading-snug truncate">
                                 {finding.title ?? `Finding ${i + 1}`}
                               </p>
                               {finding.confidence && (
@@ -202,13 +202,13 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
                                 </span>
                               )}
                             </div>
-                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                            <div className="flex items-center gap-2 text-[10px] text-muted">
                               {finding.type && (
                                 <span className="capitalize">{finding.type}</span>
                               )}
                               {finding.location && (
                                 <>
-                                  <span className="text-muted-foreground/40">·</span>
+                                  <span className="text-muted/40">·</span>
                                   <span className="truncate">{finding.location}</span>
                                 </>
                               )}
@@ -217,7 +217,7 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
                                   href={finding.sourceUrl}
                                   target="_blank"
                                   rel="noreferrer noopener"
-                                  className="ml-auto inline-flex items-center gap-0.5 text-primary/80 hover:text-primary"
+                                  className="ml-auto inline-flex items-center gap-0.5 text-accent/80 hover:text-accent"
                                 >
                                   source
                                   <ExternalLink className="size-2.5" />
@@ -230,7 +230,7 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
                     })}
                   </ul>
                   {findings.length > MAX_VISIBLE_FINDINGS && (
-                    <p className="text-[10px] text-muted-foreground/70 italic mt-1.5">
+                    <p className="text-[10px] text-muted/70 italic mt-1.5">
                       +{findings.length - MAX_VISIBLE_FINDINGS} more — open the full session to review them.
                     </p>
                   )}
@@ -242,7 +242,7 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
                   surfaced as a small chip beneath each step. */}
               {suggestedNextSteps.length > 0 && (
                 <div className="pt-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary mb-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-accent mb-1.5">
                     Suggested next steps
                   </p>
                   <ul role="list" className="flex flex-col gap-1.5">
@@ -252,12 +252,12 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
                         suggestedTool?: string;
                       };
                       return (
-                        <li key={i} className="flex items-start gap-2 text-[11px] text-foreground/85 leading-snug">
-                          <ArrowRight className="size-3 text-primary/80 shrink-0 mt-0.5" />
+                        <li key={i} className="flex items-start gap-2 text-[11px] text-fg/85 leading-snug">
+                          <ArrowRight className="size-3 text-accent/80 shrink-0 mt-0.5" />
                           <div className="flex flex-col gap-1 min-w-0 flex-1">
                             <span>{step.action ?? `Step ${i + 1}`}</span>
                             {step.suggestedTool && (
-                              <span className="self-start text-[9px] uppercase tracking-wider rounded-full border border-primary/30 bg-primary/5 text-primary px-1.5 py-px">
+                              <span className="self-start text-[9px] uppercase tracking-wider rounded-full border border-accent/30 bg-accent/5 text-accent px-1.5 py-px">
                                 Open {step.suggestedTool.replace(/_/g, ' ')}
                               </span>
                             )}
@@ -273,11 +273,11 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
                   these findings connect back to the founder's roadmap. */}
               {roadmapConnections && (
                 <div className="pt-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-1 inline-flex items-center gap-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted mb-1 inline-flex items-center gap-1.5">
                     <Compass className="size-2.5" />
                     Roadmap connections
                   </p>
-                  <p className="text-[11px] italic text-foreground/85 leading-relaxed whitespace-pre-wrap">
+                  <p className="text-[11px] italic text-fg/85 leading-relaxed whitespace-pre-wrap">
                     {roadmapConnections}
                   </p>
                 </div>
@@ -288,7 +288,7 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
                   rest collapse to a count line. */}
               {sources.length > 0 && (
                 <div className="pt-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-1.5 inline-flex items-center gap-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted mb-1.5 inline-flex items-center gap-1.5">
                     <Globe className="size-2.5" />
                     Sources ({sources.length})
                   </p>
@@ -297,18 +297,18 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
                       const source = s as { title?: string; url?: string };
                       return (
                         <li key={i} className="flex items-center gap-1.5 text-[10.5px]">
-                          <ExternalLink className="size-2.5 text-muted-foreground/70 shrink-0" />
+                          <ExternalLink className="size-2.5 text-muted/70 shrink-0" />
                           {source.url ? (
                             <a
                               href={source.url}
                               target="_blank"
                               rel="noreferrer noopener"
-                              className="text-primary/80 hover:text-primary truncate"
+                              className="text-accent/80 hover:text-accent truncate"
                             >
                               {source.title ?? source.url}
                             </a>
                           ) : (
-                            <span className="text-muted-foreground truncate">
+                            <span className="text-muted truncate">
                               {source.title ?? 'source'}
                             </span>
                           )}
@@ -317,7 +317,7 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
                     })}
                   </ul>
                   {sources.length > MAX_VISIBLE_SOURCES && (
-                    <p className="text-[10px] text-muted-foreground/70 italic mt-1">
+                    <p className="text-[10px] text-muted/70 italic mt-1">
                       +{sources.length - MAX_VISIBLE_SOURCES} more sources
                     </p>
                   )}
@@ -329,10 +329,10 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
                   or mid-completion). */}
               {plan && !hasReport && (
                 <div className="pt-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-1">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted mb-1">
                     Research plan
                   </p>
-                  <p className="text-[11px] text-foreground/85 leading-relaxed whitespace-pre-wrap">
+                  <p className="text-[11px] text-fg/85 leading-relaxed whitespace-pre-wrap">
                     {plan}
                   </p>
                 </div>
@@ -343,7 +343,7 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
                   out of them". */}
               {followUps.length > 0 && (
                 <div className="pt-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground mb-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted mb-1.5">
                     Follow-up rounds ({followUps.length})
                   </p>
                   <ul role="list" className="flex flex-col gap-1">
@@ -354,11 +354,11 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
                         findings?: unknown[];
                       };
                       return (
-                        <li key={i} className="text-[10.5px] text-foreground/80 leading-snug truncate">
-                          <span className="font-mono text-muted-foreground/70">R{followUp.round ?? i + 1}:</span>{' '}
+                        <li key={i} className="text-[10.5px] text-fg/80 leading-snug truncate">
+                          <span className="font-mono text-muted/70">R{followUp.round ?? i + 1}:</span>{' '}
                           {followUp.query ?? 'Follow-up query'}
                           {Array.isArray(followUp.findings) && (
-                            <span className="text-muted-foreground"> · {followUp.findings.length} finding{followUp.findings.length !== 1 ? 's' : ''}</span>
+                            <span className="text-muted"> · {followUp.findings.length} finding{followUp.findings.length !== 1 ? 's' : ''}</span>
                           )}
                         </li>
                       );
@@ -373,8 +373,8 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
                   an explicit "no results" message so the panel never
                   renders as a literal empty box. */}
               {!hasAnyContent && (
-                <div className="pt-2.5 flex items-start gap-2 text-[11px] text-muted-foreground leading-relaxed">
-                  <AlertCircle className="size-3.5 shrink-0 mt-0.5 text-gold/80" />
+                <div className="pt-2.5 flex items-start gap-2 text-[11px] text-muted leading-relaxed">
+                  <AlertCircle className="size-3.5 shrink-0 mt-0.5 text-accent/80" />
                   <span>
                     The research session completed but produced no findings.
                     The query may have been too narrow, or no public
@@ -394,9 +394,9 @@ export function ResearchSessionReview({ session, onReopen }: ResearchSessionRevi
                 <button
                   type="button"
                   onClick={() => onReopen(sessionId)}
-                  className="self-start mt-1 inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11px] font-medium text-foreground/85 hover:bg-primary/10 hover:text-foreground transition-colors"
+                  className="self-start mt-1 inline-flex items-center gap-1.5 rounded-md border border-accent/30 bg-accent/5 px-2.5 py-1 text-[11px] font-medium text-fg/85 hover:bg-accent/10 hover:text-fg transition-colors"
                 >
-                  <Search className="size-3 text-primary" />
+                  <Search className="size-3 text-accent" />
                   Reopen full session
                 </button>
               )}

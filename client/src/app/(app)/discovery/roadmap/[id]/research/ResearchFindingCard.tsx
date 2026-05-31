@@ -15,7 +15,7 @@ import type { ResearchFinding } from '@/lib/roadmap/research-tool/schemas';
 const CONFIDENCE_BADGE: Record<string, string> = {
   verified:   'bg-success/10 text-success border-success/20',
   likely:     'bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 border-yellow-500/20',
-  unverified: 'bg-muted text-muted-foreground border-border',
+  unverified: 'bg-bg-3 text-muted border-rule',
 };
 
 const TYPE_LABEL: Record<string, string> = {
@@ -41,7 +41,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
     <button
       type="button"
       onClick={() => { void handleCopy(); }}
-      className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+      className="flex items-center gap-1 text-[10px] text-muted hover:text-fg transition-colors"
       title={`Copy ${label}`}
     >
       {copied
@@ -70,30 +70,30 @@ export function ResearchFindingCard({ finding }: ResearchFindingCardProps) {
   const typeLabel  = TYPE_LABEL[finding.type] ?? finding.type;
 
   return (
-    <div className="rounded-lg border border-border bg-card p-3 flex flex-col gap-2.5">
+    <div className="rounded-lg border border-rule bg-bg-2 p-3 flex flex-col gap-2.5">
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-semibold text-foreground leading-snug flex-1 break-words">
+        <p className="text-xs font-semibold text-fg leading-snug flex-1 break-words">
           {finding.title}
         </p>
         <div className="flex items-center gap-1.5 shrink-0">
           <span className={`text-[9px] uppercase tracking-wider font-medium rounded-full border px-1.5 py-0.5 ${badgeClass}`}>
             {finding.confidence}
           </span>
-          <span className="text-[9px] uppercase tracking-wider font-medium text-muted-foreground">
+          <span className="text-[9px] uppercase tracking-wider font-medium text-muted">
             {typeLabel}
           </span>
         </div>
       </div>
 
       {/* Description */}
-      <p className="text-[11px] text-foreground/80 leading-relaxed break-words">
+      <p className="text-[11px] text-fg/80 leading-relaxed break-words">
         {finding.description}
       </p>
 
       {/* Location */}
       {finding.location && (
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+        <div className="flex items-center gap-1 text-[10px] text-muted">
           <MapPin className="size-3 shrink-0" />
           <span>{finding.location}</span>
         </div>
@@ -101,13 +101,13 @@ export function ResearchFindingCard({ finding }: ResearchFindingCardProps) {
 
       {/* Contact info — business/person types */}
       {finding.contactInfo && (
-        <div className="flex flex-wrap gap-2 pt-1 border-t border-border">
+        <div className="flex flex-wrap gap-2 pt-1 border-t border-rule">
           {finding.contactInfo.website && (
             <a
               href={finding.contactInfo.website}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-[10px] text-primary hover:underline"
+              className="flex items-center gap-1 text-[10px] text-accent hover:underline"
             >
               <ExternalLink className="size-3" />
               Website
@@ -128,7 +128,7 @@ export function ResearchFindingCard({ finding }: ResearchFindingCardProps) {
               href={sm.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1 text-[10px] text-primary hover:underline"
+              className="flex items-center gap-1 text-[10px] text-accent hover:underline"
             >
               <ExternalLink className="size-3" />
               {sm.platform} {sm.handle}
@@ -143,7 +143,7 @@ export function ResearchFindingCard({ finding }: ResearchFindingCardProps) {
           href={finding.sourceUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="self-start flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors"
+          className="self-start flex items-center gap-1 text-[10px] text-muted hover:text-accent transition-colors"
         >
           <ExternalLink className="size-3" />
           Source

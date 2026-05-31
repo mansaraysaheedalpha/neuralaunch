@@ -97,17 +97,17 @@ export function QuestionStepper({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 6 }}
           transition={{ duration: 0.2, ease: 'easeOut' }}
-          className="border-t border-border bg-background px-4 pt-3 pb-2"
+          className="border-t border-rule bg-bg px-4 pt-3 pb-2"
         >
           {/* Header row: label + question number + dismiss */}
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs text-muted-foreground uppercase tracking-wider">
+            <span className="text-xs text-muted uppercase tracking-wider">
               Discovery · Question {currentIndex + 1}
             </span>
             <button
               type="button"
               onClick={onDismiss}
-              className="text-muted-foreground hover:text-foreground transition-colors"
+              className="text-muted hover:text-fg transition-colors"
               aria-label="Dismiss stepper"
             >
               <X className="size-3.5" />
@@ -121,14 +121,14 @@ export function QuestionStepper({
           {failure ? (
             <div className="mb-3 flex flex-col gap-2">
               {failure.kind === 'cut_stream' && failure.partial && failure.partial.trim().length > 0 && (
-                <p className="text-sm text-foreground/70 leading-relaxed whitespace-pre-wrap">
+                <p className="text-sm text-fg/70 leading-relaxed whitespace-pre-wrap">
                   {failure.partial}
                 </p>
               )}
-              <div className="flex items-center gap-2 text-[11px] text-gold">
+              <div className="flex items-center gap-2 text-[11px] text-accent">
                 {failure.kind === 'cut_stream' && failure.partial && failure.partial.trim().length > 0 ? (
                   <>
-                    <span className="block h-px w-6 bg-gold/40" />
+                    <span className="block h-px w-6 bg-accent/40" />
                     <span>Response was interrupted</span>
                   </>
                 ) : (
@@ -140,14 +140,14 @@ export function QuestionStepper({
                   type="button"
                   onClick={onRetry}
                   aria-label="Retry question"
-                  className="inline-flex items-center justify-center size-6 rounded-full border border-border bg-background text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+                  className="inline-flex items-center justify-center size-6 rounded-full border border-rule bg-bg text-muted hover:text-fg hover:border-fg/40 transition-colors"
                 >
                   <RotateCcw className="size-3" />
                 </button>
               </div>
             </div>
           ) : (
-            <p className="text-sm text-foreground leading-relaxed mb-3 min-h-[2.5rem]">
+            <p className="text-sm text-fg leading-relaxed mb-3 min-h-[2.5rem]">
               {currentQuestion}
             </p>
           )}
@@ -174,7 +174,7 @@ export function QuestionStepper({
                     if (el.scrollHeight > 72) el.style.overflow = 'auto';
                     else el.style.overflow = 'hidden';
                   }}
-                  className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none py-1.5 min-h-[2rem]"
+                  className="flex-1 bg-transparent text-sm text-fg placeholder:text-muted outline-none py-1.5 min-h-[2rem]"
                 />
                 {voiceEnabled && (
                   <VoiceInputButton
@@ -190,8 +190,8 @@ export function QuestionStepper({
                   className={cn(
                     'flex-shrink-0 size-8 rounded-lg flex items-center justify-center transition-colors',
                     canSubmit
-                      ? 'bg-muted text-foreground hover:bg-border'
-                      : 'bg-muted text-muted-foreground cursor-not-allowed',
+                      ? 'bg-bg-3 text-fg hover:bg-border'
+                      : 'bg-bg-3 text-muted cursor-not-allowed',
                   )}
                   aria-label="Next question"
                 >
@@ -200,7 +200,7 @@ export function QuestionStepper({
               </div>
 
               {/* Keyboard hint */}
-              <p className="text-center text-xs text-muted-foreground/60 mt-2">
+              <p className="text-center text-xs text-muted/60 mt-2">
                 Press Enter to continue · Shift+Enter for new line
               </p>
             </>

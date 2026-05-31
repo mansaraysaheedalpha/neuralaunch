@@ -85,7 +85,7 @@ export function ThinkingPanel({ isVisible, synthesisError, synthesisStep, onRetr
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-            className="text-primary"
+            className="text-accent"
           >
             <Brain className="size-8" />
           </motion.div>
@@ -104,22 +104,22 @@ export function ThinkingPanel({ isVisible, synthesisError, synthesisStep, onRetr
                   className="flex items-center gap-2.5 text-sm"
                 >
                   {isDone ? (
-                    <span className="size-2 rounded-full bg-primary inline-block shrink-0" />
+                    <span className="size-2 rounded-full bg-accent inline-block shrink-0" />
                   ) : isActive ? (
                     <motion.span
                       animate={{ opacity: [1, 0.4, 1] }}
                       transition={{ duration: 1.2, repeat: Infinity }}
-                      className="size-2 rounded-full bg-primary inline-block shrink-0"
+                      className="size-2 rounded-full bg-accent inline-block shrink-0"
                     />
                   ) : (
-                    <span className="size-2 rounded-full bg-muted inline-block shrink-0" />
+                    <span className="size-2 rounded-full bg-bg-3 inline-block shrink-0" />
                   )}
 
-                  <span className={isPending ? 'text-muted-foreground' : 'text-foreground'}>
+                  <span className={isPending ? 'text-muted' : 'text-fg'}>
                     {step.label}
                   </span>
 
-                  {isDone && <span className="text-primary text-xs">✓</span>}
+                  {isDone && <span className="text-accent text-xs">✓</span>}
                 </motion.div>
               );
             })}
@@ -136,8 +136,8 @@ export function ThinkingPanel({ isVisible, synthesisError, synthesisStep, onRetr
           transition={{ duration: 0.3 }}
           className="flex flex-col items-center gap-4 py-8"
         >
-          <AlertCircle className="size-8 text-destructive" />
-          <p className="text-sm text-muted-foreground text-center max-w-xs">
+          <AlertCircle className="size-8 text-accent" />
+          <p className="text-sm text-muted text-center max-w-xs">
             Something went wrong generating your recommendation. Please try again.
           </p>
           <Button variant="outline" size="sm" onClick={onRetry}>

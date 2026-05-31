@@ -46,14 +46,14 @@ export function StructuralBlockerCard({
   };
 
   return (
-    <div className="rounded-lg border border-gold/40 bg-gold/5 px-4 py-4">
+    <div className="rounded-lg border border-accent/40 bg-accent/5 px-4 py-4">
       <header className="flex items-start gap-2 mb-3">
-        <AlertOctagon className="size-5 text-gold shrink-0 mt-0.5" />
+        <AlertOctagon className="size-5 text-accent shrink-0 mt-0.5" />
         <div className="flex-1">
-          <h3 className="text-sm font-semibold text-foreground">
+          <h3 className="text-sm font-semibold text-fg">
             This outcome looks structurally hard to reach with the current inventory
           </h3>
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-xs text-muted mt-1">
             Two or more critical skills in the Expected Profile sit below the tier the outcome demands. That doesn&apos;t mean stop — but it does mean the next stage will be working with a real constraint. Pick the path that fits.
           </p>
         </div>
@@ -87,7 +87,7 @@ export function StructuralBlockerCard({
       </div>
 
       <div className="space-y-2">
-        <label htmlFor="blocker-notes" className="text-xs text-muted-foreground">
+        <label htmlFor="blocker-notes" className="text-xs text-muted">
           Notes (optional) — what your choice actually means for how you&apos;ll proceed.
         </label>
         <textarea
@@ -97,13 +97,13 @@ export function StructuralBlockerCard({
           disabled={readOnly || busy}
           maxLength={800}
           rows={2}
-          className="w-full resize-none rounded-md border border-border bg-background/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-gold/40"
+          className="w-full resize-none rounded-md border border-rule bg-bg/60 px-3 py-2 text-sm text-fg placeholder:text-muted outline-none focus:border-accent/40"
           placeholder="Optional context the next stage should know about your choice."
         />
       </div>
 
       {error && (
-        <div className="mt-3 text-xs text-destructive">{error}</div>
+        <div className="mt-3 text-xs text-accent">{error}</div>
       )}
     </div>
   );
@@ -127,15 +127,15 @@ function ChoiceRow({ choice, label, description, current, disabled, onPick }: Ch
       disabled={disabled}
       className={`group w-full text-left rounded-md border px-3 py-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
         selected
-          ? 'border-gold bg-gold/10'
-          : 'border-border bg-background/40 hover:border-gold/40 hover:bg-gold/5'
+          ? 'border-accent bg-accent/10'
+          : 'border-rule bg-bg/40 hover:border-accent/40 hover:bg-accent/5'
       }`}
     >
-      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-        {selected && <ArrowRight className="size-3 text-gold" />}
+      <div className="flex items-center gap-2 text-sm font-medium text-fg">
+        {selected && <ArrowRight className="size-3 text-accent" />}
         {label}
       </div>
-      <p className="text-xs text-muted-foreground mt-1">{description}</p>
+      <p className="text-xs text-muted mt-1">{description}</p>
     </button>
   );
 }

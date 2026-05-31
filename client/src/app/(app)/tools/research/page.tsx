@@ -58,7 +58,7 @@ export default function StandaloneResearchPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <Loader2 className="size-6 text-primary animate-spin" />
+        <Loader2 className="size-6 text-accent animate-spin" />
       </div>
     );
   }
@@ -66,11 +66,11 @@ export default function StandaloneResearchPage() {
   if (!roadmapId) {
     return (
       <div className="max-w-md mx-auto px-6 py-24 text-center flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted">
           The Research Tool needs your discovery context to produce relevant results.
           Start a discovery session first.
         </p>
-        <Link href="/discovery" className="text-sm text-primary hover:underline">
+        <Link href="/discovery" className="text-sm text-accent hover:underline">
           Start Discovery →
         </Link>
       </div>

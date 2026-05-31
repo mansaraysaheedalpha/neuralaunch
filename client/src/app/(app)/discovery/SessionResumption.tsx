@@ -92,8 +92,8 @@ export function SessionResumption({ session, firstName }: Props) {
       className="flex flex-col items-center justify-center h-full max-w-md mx-auto px-6 gap-6 text-center"
     >
       <div className="flex flex-col gap-2">
-        <h2 className="text-xl font-semibold text-foreground">Your session was paused</h2>
-        <p className="text-sm text-muted-foreground leading-relaxed">
+        <h2 className="text-xl font-semibold text-fg">Your session was paused</h2>
+        <p className="text-sm text-muted leading-relaxed">
           You were partway through your discovery interview.
           {session.questionCount > 0 && ` You had answered ${session.questionCount} question${session.questionCount !== 1 ? 's' : ''}.`}
           {' '}Pick up where you left off — everything is still here.
@@ -103,14 +103,14 @@ export function SessionResumption({ session, firstName }: Props) {
         <button
           onClick={() => { void handleResume(); }}
           disabled={loading}
-          className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60 transition-opacity"
+          className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-bg hover:opacity-90 disabled:opacity-60 transition-opacity"
         >
           {loading ? 'Loading your session…' : 'Continue where you left off'}
         </button>
         <button
           onClick={() => { void handleStartFresh(); }}
           disabled={discarding}
-          className="w-full rounded-lg border border-border px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:border-foreground/30 disabled:opacity-60 transition-colors"
+          className="w-full rounded-lg border border-rule px-4 py-2.5 text-sm text-muted hover:text-fg hover:border-fg/30 disabled:opacity-60 transition-colors"
         >
           Start a new session
         </button>

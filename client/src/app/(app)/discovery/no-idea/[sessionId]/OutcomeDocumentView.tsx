@@ -112,10 +112,10 @@ export function OutcomeDocumentView({
 
   const renderDimValue = (key: EditableDim) => {
     const dim = document.dimensions[key];
-    if (dim.value === null) return <span className="text-muted-foreground">Not captured</span>;
+    if (dim.value === null) return <span className="text-muted">Not captured</span>;
     if (key === 'financialGoal') {
       const v = dim.value as OutcomeDocument['dimensions']['financialGoal']['value'];
-      if (v === null) return <span className="text-muted-foreground">Not captured</span>;
+      if (v === null) return <span className="text-muted">Not captured</span>;
       const target = v.target ? ` — ${v.target}` : '';
       return <span>{labelFor(v.shape)}{target}</span>;
     }
@@ -123,93 +123,93 @@ export function OutcomeDocumentView({
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full bg-bg">
       <div className="flex-1 overflow-y-auto px-4 py-8">
         <div className="mx-auto w-full max-w-2xl">
           <header className="mb-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted mb-1">
               {status === 'committed' ? 'Committed' : 'Pre-commit review'}
             </p>
-            <h1 className="text-2xl font-semibold text-foreground">
+            <h1 className="text-2xl font-semibold text-fg">
               Your outcome — Stage 1 of 5
             </h1>
           </header>
 
           <section className="mb-8">
-            <h2 className="text-sm font-semibold text-foreground mb-3">
+            <h2 className="text-sm font-semibold text-fg mb-3">
               The four dimensions
             </h2>
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {(Object.keys(DIM_LABELS) as EditableDim[]).map(key => (
                 <div
                   key={key}
-                  className="rounded-lg border border-border bg-card/50 px-3 py-3"
+                  className="rounded-lg border border-rule bg-bg-2/50 px-3 py-3"
                 >
-                  <dt className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                  <dt className="flex items-center justify-between text-xs text-muted mb-1">
                     <span>{DIM_LABELS[key]}</span>
                     <button
                       type="button"
                       onClick={() => handleEdit(key)}
                       disabled={isPending}
                       aria-label={`Edit ${DIM_LABELS[key]}`}
-                      className="rounded p-1 text-muted-foreground hover:text-primary hover:bg-primary/5 disabled:opacity-50 transition-colors"
+                      className="rounded p-1 text-muted hover:text-accent hover:bg-accent/5 disabled:opacity-50 transition-colors"
                     >
                       <Pencil className="size-3" />
                     </button>
                   </dt>
-                  <dd className="text-sm text-foreground">{renderDimValue(key)}</dd>
+                  <dd className="text-sm text-fg">{renderDimValue(key)}</dd>
                 </div>
               ))}
             </dl>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-sm font-semibold text-foreground mb-3">
+            <h2 className="text-sm font-semibold text-fg mb-3">
               The whole picture
             </h2>
-            <p className="text-sm text-foreground leading-relaxed">
+            <p className="text-sm text-fg leading-relaxed">
               {document.synthesisParagraph || (
-                <span className="text-muted-foreground">No synthesis written.</span>
+                <span className="text-muted">No synthesis written.</span>
               )}
             </p>
           </section>
 
           <section className="mb-8">
-            <h2 className="text-sm font-semibold text-foreground mb-3">
+            <h2 className="text-sm font-semibold text-fg mb-3">
               What this rules out
             </h2>
-            <p className="text-sm text-foreground leading-relaxed">
+            <p className="text-sm text-fg leading-relaxed">
               {document.rulesOut || (
-                <span className="text-muted-foreground">No exclusions written.</span>
+                <span className="text-muted">No exclusions written.</span>
               )}
             </p>
           </section>
 
           {document.recommendedActions.length > 0 && (
             <section className="mb-8">
-              <h2 className="text-sm font-semibold text-foreground mb-3">
+              <h2 className="text-sm font-semibold text-fg mb-3">
                 Recommended actions
               </h2>
               <ul className="space-y-2">
                 {document.recommendedActions.map((a, i) => (
                   <li
                     key={i}
-                    className="rounded-lg border border-border bg-card/30 px-3 py-2 text-sm"
+                    className="rounded-lg border border-rule bg-bg-2/30 px-3 py-2 text-sm"
                   >
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                    <div className="flex items-center gap-2 text-xs text-muted mb-1">
                       <span className={
                         a.severity === 'strongly_advised'
-                          ? 'text-gold font-medium'
-                          : 'text-muted-foreground'
+                          ? 'text-accent font-medium'
+                          : 'text-muted'
                       }>
                         {a.severity === 'strongly_advised' ? 'Strongly advised' : 'Suggested'}
                       </span>
                       <span>·</span>
                       <span>{a.status}</span>
                     </div>
-                    <div className="text-foreground">{a.action}</div>
+                    <div className="text-fg">{a.action}</div>
                     {a.founderResponse && (
-                      <div className="mt-1 text-xs text-muted-foreground">
+                      <div className="mt-1 text-xs text-muted">
                         You said: {a.founderResponse}
                       </div>
                     )}
@@ -220,12 +220,12 @@ export function OutcomeDocumentView({
           )}
 
           {actionError && (
-            <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            <div className="mb-4 rounded-md border border-accent/40 bg-accent/5 px-3 py-2 text-xs text-accent">
               {actionError}
             </div>
           )}
 
-          <footer className="flex flex-wrap items-center gap-3 border-t border-border pt-6">
+          <footer className="flex flex-wrap items-center gap-3 border-t border-rule pt-6">
             <OutcomeDocumentChat sessionId={sessionId} disabled />
             <Button
               variant="ghost"
@@ -251,7 +251,7 @@ export function OutcomeDocumentView({
             )}
           </footer>
 
-          <p className="mt-6 flex items-center gap-1 text-xs text-muted-foreground">
+          <p className="mt-6 flex items-center gap-1 text-xs text-muted">
             <RotateCcw className="size-3" />
             <span>Editing a dimension reopens the conversation for that field only — you can discard and restore.</span>
           </p>

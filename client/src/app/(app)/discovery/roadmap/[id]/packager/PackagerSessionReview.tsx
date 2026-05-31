@@ -41,27 +41,27 @@ export function PackagerSessionReview({ session }: PackagerSessionReviewProps) {
       : lowestTier ?? '—';
 
   return (
-    <div className="rounded-lg border border-border bg-muted/20 overflow-hidden">
+    <div className="rounded-lg border border-rule bg-bg-3/20 overflow-hidden">
       {/* Collapsed header */}
       <button
         type="button"
         onClick={() => setExpanded(o => !o)}
-        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/40 transition-colors text-left"
+        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-bg-3/40 transition-colors text-left"
       >
         <div className="flex items-center gap-2 min-w-0">
-          <Package className="size-3.5 text-primary shrink-0" />
+          <Package className="size-3.5 text-accent shrink-0" />
           <div className="flex flex-col gap-0.5 min-w-0">
-            <p className="text-[11px] font-semibold text-foreground truncate">
+            <p className="text-[11px] font-semibold text-fg truncate">
               {pkg.serviceName}
             </p>
-            <p className="text-[10px] text-muted-foreground">
+            <p className="text-[10px] text-muted">
               {tiers.length} tier{tiers.length === 1 ? '' : 's'} · {priceRange}
               {adjCount > 0 && ` · ${adjCount} adjustment${adjCount === 1 ? '' : 's'}`}
             </p>
           </div>
         </div>
         <motion.span animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.18 }}>
-          <ChevronDown className="size-3.5 text-muted-foreground shrink-0" />
+          <ChevronDown className="size-3.5 text-muted shrink-0" />
         </motion.span>
       </button>
 
@@ -75,7 +75,7 @@ export function PackagerSessionReview({ session }: PackagerSessionReviewProps) {
             transition={{ duration: 0.18 }}
             className="overflow-hidden"
           >
-            <div className="px-3 pb-3 border-t border-border pt-3">
+            <div className="px-3 pb-3 border-t border-rule pt-3">
               <ServicePackageView pkg={pkg} />
             </div>
           </motion.div>

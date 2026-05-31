@@ -25,8 +25,8 @@ export function LayerASection({ research, deriving, readOnly, onDerive }: LayerA
     <section className="space-y-3">
       <header className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold text-foreground">Layer A — agent research</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <h3 className="text-sm font-semibold text-fg">Layer A — agent research</h3>
+          <p className="text-xs text-muted mt-0.5">
             Four dimensions, ~30 seconds. I research market signal, customer reachability, willingness to pay, and rough size.
           </p>
         </div>

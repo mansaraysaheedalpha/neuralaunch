@@ -72,12 +72,12 @@ export function DangerZoneSection() {
 
   return (
     <>
-      <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+      <div className="flex flex-col gap-3 rounded-lg border border-accent/30 bg-accent/5 p-4">
         <div className="flex items-start gap-2">
-          <AlertTriangle className="size-4 shrink-0 text-destructive mt-0.5" />
+          <AlertTriangle className="size-4 shrink-0 text-accent mt-0.5" />
           <div className="flex flex-col gap-1">
-            <p className="text-sm font-medium text-foreground">Delete account</p>
-            <p className="text-xs text-muted-foreground leading-relaxed">
+            <p className="text-sm font-medium text-fg">Delete account</p>
+            <p className="text-xs text-muted leading-relaxed">
               Permanently removes your NeuraLaunch account, cancels any active
               Paddle subscription, signs you out everywhere, and deletes your
               interview history, recommendations, roadmaps, and validation
@@ -89,7 +89,7 @@ export function DangerZoneSection() {
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="inline-flex items-center justify-center rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive transition-opacity hover:opacity-80"
+            className="inline-flex items-center justify-center rounded-md border border-accent/40 bg-accent/10 px-3 py-2 text-xs font-medium text-accent transition-opacity hover:opacity-80"
           >
             Delete account
           </button>
@@ -105,23 +105,23 @@ export function DangerZoneSection() {
           aria-labelledby="delete-account-title"
         >
           <div
-            className="w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-2xl"
+            className="w-full max-w-md rounded-lg border border-rule bg-bg p-6 shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
-            <h3 id="delete-account-title" className="text-base font-semibold text-foreground">
+            <h3 id="delete-account-title" className="text-base font-semibold text-fg">
               Delete your account?
             </h3>
-            <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+            <p className="mt-2 text-xs text-muted leading-relaxed">
               This will:
             </p>
-            <ul className="mt-2 flex flex-col gap-1 text-xs text-muted-foreground leading-relaxed list-disc pl-5">
+            <ul className="mt-2 flex flex-col gap-1 text-xs text-muted leading-relaxed list-disc pl-5">
               <li>Cancel any active Paddle subscription, immediately.</li>
               <li>Sign you out on every device.</li>
               <li>Delete your discovery sessions, recommendations, roadmaps, validation pages, and tool history.</li>
               <li>Remove your founder profile and all venture data.</li>
             </ul>
-            <p className="mt-4 text-xs text-muted-foreground leading-relaxed">
-              Type <span className="font-mono font-semibold text-foreground">DELETE</span> below to confirm.
+            <p className="mt-4 text-xs text-muted leading-relaxed">
+              Type <span className="font-mono font-semibold text-fg">DELETE</span> below to confirm.
             </p>
             <input
               type="text"
@@ -130,19 +130,19 @@ export function DangerZoneSection() {
               autoComplete="off"
               autoFocus
               disabled={pending}
-              className="mt-2 w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-destructive/40"
+              className="mt-2 w-full rounded-md border border-rule bg-bg px-3 py-2 text-sm font-mono text-fg focus:outline-none focus:ring-2 focus:ring-accent/40"
               placeholder="DELETE"
               aria-label="Type DELETE to confirm"
             />
             {error && (
-              <p className="mt-3 text-xs text-destructive">{error}</p>
+              <p className="mt-3 text-xs text-accent">{error}</p>
             )}
             <div className="mt-5 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={handleClose}
                 disabled={pending}
-                className="rounded-md border border-border bg-background px-3 py-2 text-xs font-medium text-foreground transition-opacity hover:opacity-80 disabled:opacity-50"
+                className="rounded-md border border-rule bg-bg px-3 py-2 text-xs font-medium text-fg transition-opacity hover:opacity-80 disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -150,7 +150,7 @@ export function DangerZoneSection() {
                 type="button"
                 onClick={handleDelete}
                 disabled={!canSubmit}
-                className="inline-flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive px-3 py-2 text-xs font-medium text-destructive-foreground transition-opacity hover:opacity-80 disabled:opacity-50 disabled:hover:opacity-50"
+                className="inline-flex items-center gap-2 rounded-md border border-accent/40 bg-accent px-3 py-2 text-xs font-medium text-bg transition-opacity hover:opacity-80 disabled:opacity-50 disabled:hover:opacity-50"
               >
                 {pending && <Loader2 className="size-3.5 animate-spin" />}
                 {pending ? 'Deleting…' : 'Delete account'}

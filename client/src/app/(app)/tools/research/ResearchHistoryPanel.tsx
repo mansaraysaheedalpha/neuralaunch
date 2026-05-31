@@ -70,16 +70,16 @@ export function ResearchHistoryPanel({
 
   if (isLoading) {
     return (
-      <div className="rounded-xl border border-border bg-background p-4 flex items-center gap-2">
-        <Loader2 className="size-3.5 text-muted-foreground animate-spin" />
-        <span className="text-[11px] text-muted-foreground">Loading recent research…</span>
+      <div className="rounded-xl border border-rule bg-bg p-4 flex items-center gap-2">
+        <Loader2 className="size-3.5 text-muted animate-spin" />
+        <span className="text-[11px] text-muted">Loading recent research…</span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="rounded-xl border border-border bg-background p-4">
+      <div className="rounded-xl border border-rule bg-bg p-4">
         <p className="text-[11px] text-red-500">Could not load recent research.</p>
       </div>
     );
@@ -89,11 +89,11 @@ export function ResearchHistoryPanel({
   if (rows.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-border bg-background overflow-hidden">
-      <div className="flex items-center gap-1.5 px-4 py-3 border-b border-border bg-muted/30">
-        <History className="size-3.5 text-muted-foreground" />
-        <p className="text-xs font-semibold text-foreground">Recent research</p>
-        <span className="text-[10px] text-muted-foreground ml-auto">{rows.length}</span>
+    <div className="rounded-xl border border-rule bg-bg overflow-hidden">
+      <div className="flex items-center gap-1.5 px-4 py-3 border-b border-rule bg-bg-3/30">
+        <History className="size-3.5 text-muted" />
+        <p className="text-xs font-semibold text-fg">Recent research</p>
+        <span className="text-[10px] text-muted ml-auto">{rows.length}</span>
       </div>
 
       <ul className="divide-y divide-border">
@@ -105,16 +105,16 @@ export function ResearchHistoryPanel({
                 type="button"
                 onClick={() => onSelect(row.id)}
                 className={`w-full text-left px-4 py-3 flex flex-col gap-1 transition-colors ${
-                  isActive ? 'bg-primary/5' : 'hover:bg-muted/40'
+                  isActive ? 'bg-accent/5' : 'hover:bg-bg-3/40'
                 }`}
               >
                 <div className="flex items-start gap-2">
-                  <FileText className={`size-3 shrink-0 mt-0.5 ${row.hasReport ? 'text-primary' : 'text-muted-foreground'}`} />
-                  <p className="text-[11px] font-medium text-foreground line-clamp-2 flex-1">
+                  <FileText className={`size-3 shrink-0 mt-0.5 ${row.hasReport ? 'text-accent' : 'text-muted'}`} />
+                  <p className="text-[11px] font-medium text-fg line-clamp-2 flex-1">
                     {row.query}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 text-[10px] text-muted-foreground pl-5">
+                <div className="flex items-center gap-2 text-[10px] text-muted pl-5">
                   <span>{formatWhen(row.updatedAt)}</span>
                   {row.hasReport && <span>• report</span>}
                   {row.followUpCount > 0 && (

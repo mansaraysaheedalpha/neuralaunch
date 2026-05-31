@@ -164,9 +164,9 @@ export function CoachSetupChat({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="rounded-lg border border-border bg-background px-3 py-3 flex flex-col gap-2 max-h-72 overflow-y-auto">
+      <div className="rounded-lg border border-rule bg-bg px-3 py-3 flex flex-col gap-2 max-h-72 overflow-y-auto">
         {exchanges.length === 0 && (
-          <p className="text-[11px] text-muted-foreground italic">
+          <p className="text-[11px] text-muted italic">
             Setting up your preparation — describe the situation and I will
             help you prepare.
           </p>
@@ -181,8 +181,8 @@ export function CoachSetupChat({
               className={[
                 'rounded-lg px-2.5 py-1.5 text-[11px] break-words whitespace-pre-wrap max-w-[88%]',
                 ex.role === 'founder'
-                  ? 'self-end bg-primary/10 text-foreground'
-                  : 'self-start bg-muted text-foreground/90',
+                  ? 'self-end bg-accent/10 text-fg'
+                  : 'self-start bg-bg-3 text-fg/90',
               ].join(' ')}
             >
               {ex.message}
@@ -190,7 +190,7 @@ export function CoachSetupChat({
           ))}
         </AnimatePresence>
         {submitting && (
-          <div className="self-start flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <div className="self-start flex items-center gap-1.5 text-[11px] text-muted">
             <Loader2 className="size-3 animate-spin" />
             <span>Thinking…</span>
           </div>
@@ -228,7 +228,7 @@ export function CoachSetupChat({
           type="button"
           onClick={() => { void handleSend(); }}
           disabled={draft.trim().length === 0 || submitting}
-          className="shrink-0 rounded-md bg-primary px-2.5 py-1.5 text-[11px] font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+          className="shrink-0 rounded-md bg-accent px-2.5 py-1.5 text-[11px] font-medium text-bg hover:opacity-90 disabled:opacity-50"
         >
           {submitting
             ? <Loader2 className="size-3 animate-spin" />
@@ -240,7 +240,7 @@ export function CoachSetupChat({
       <button
         type="button"
         onClick={onCancel}
-        className="self-start text-[10px] text-muted-foreground hover:text-foreground underline"
+        className="self-start text-[10px] text-muted hover:text-fg underline"
       >
         Cancel
       </button>

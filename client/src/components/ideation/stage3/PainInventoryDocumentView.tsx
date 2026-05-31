@@ -54,14 +54,14 @@ export function PainInventoryDocumentView({
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full bg-bg">
       <div className="flex-1 overflow-y-auto px-4 py-8">
         <div className="mx-auto w-full max-w-3xl space-y-6">
           <header>
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted mb-1">
               {status === 'committed' ? 'Committed' : 'Pre-commit review'} · Pain Inventory
             </p>
-            <h1 className="text-2xl font-semibold text-foreground">
+            <h1 className="text-2xl font-semibold text-fg">
               Your pain inventory — Stage 3 of 5
             </h1>
           </header>
@@ -70,27 +70,27 @@ export function PainInventoryDocumentView({
 
           {document.recommendedActions.length > 0 && (
             <section>
-              <h2 className="text-sm font-semibold text-foreground mb-2">Recommended actions</h2>
+              <h2 className="text-sm font-semibold text-fg mb-2">Recommended actions</h2>
               <ul className="space-y-2">
                 {document.recommendedActions.map((a, i) => (
                   <li
                     key={i}
-                    className="rounded-lg border border-border bg-card/30 px-3 py-2 text-sm"
+                    className="rounded-lg border border-rule bg-bg-2/30 px-3 py-2 text-sm"
                   >
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                    <div className="flex items-center gap-2 text-xs text-muted mb-1">
                       <span className={
                         a.severity === 'strongly_advised'
-                          ? 'text-gold font-medium'
-                          : 'text-muted-foreground'
+                          ? 'text-accent font-medium'
+                          : 'text-muted'
                       }>
                         {a.severity === 'strongly_advised' ? 'Strongly advised' : 'Suggested'}
                       </span>
                       <span>·</span>
                       <span>{a.status}</span>
                     </div>
-                    <div className="text-foreground">{a.action}</div>
+                    <div className="text-fg">{a.action}</div>
                     {a.founderResponse && (
-                      <div className="mt-1 text-xs text-muted-foreground">
+                      <div className="mt-1 text-xs text-muted">
                         You said: {a.founderResponse}
                       </div>
                     )}
@@ -101,12 +101,12 @@ export function PainInventoryDocumentView({
           )}
 
           {actionError && (
-            <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            <div className="rounded-md border border-accent/40 bg-accent/5 px-3 py-2 text-xs text-accent">
               {actionError}
             </div>
           )}
 
-          <footer className="flex flex-wrap items-center gap-3 border-t border-border pt-6">
+          <footer className="flex flex-wrap items-center gap-3 border-t border-rule pt-6">
             <Button
               variant="ghost"
               onClick={() => router.push('/discovery')}
@@ -120,7 +120,7 @@ export function PainInventoryDocumentView({
                 <ArrowRight className="size-4 ml-1" />
               </Button>
             ) : (
-              <span className="ml-auto text-sm text-muted-foreground">Committed · Stage 4 coming soon</span>
+              <span className="ml-auto text-sm text-muted">Committed · Stage 4 coming soon</span>
             )}
           </footer>
 

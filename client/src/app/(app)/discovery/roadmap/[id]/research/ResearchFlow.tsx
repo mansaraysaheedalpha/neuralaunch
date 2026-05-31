@@ -82,14 +82,14 @@ export function ResearchFlow({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 8 }}
           transition={{ duration: 0.2 }}
-          className="rounded-xl border border-border bg-background shadow-lg overflow-hidden"
+          className="rounded-xl border border-rule bg-bg shadow-lg overflow-hidden"
         >
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
-            <p className="text-xs font-semibold text-foreground">Research Tool</p>
+          <div className="flex items-center justify-between px-4 py-3 border-b border-rule bg-bg-3/30">
+            <p className="text-xs font-semibold text-fg">Research Tool</p>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="rounded-md p-1 text-muted hover:text-fg hover:bg-bg-3 transition-colors"
             >
               <X className="size-3.5" />
             </button>
@@ -113,7 +113,7 @@ export function ResearchFlow({
             {flow.stage === 'planning' && (
               <div className="flex flex-col items-center gap-3 py-6 text-center">
                 <ResearchProgressIndicator active />
-                <p className="text-[11px] text-muted-foreground">Generating research plan…</p>
+                <p className="text-[11px] text-muted">Generating research plan…</p>
               </div>
             )}
 
@@ -145,8 +145,8 @@ export function ResearchFlow({
                 />
 
                 {flow.followUps.map((fu, i) => (
-                  <div key={i} className="flex flex-col gap-2 pt-2 border-t border-border">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+                  <div key={i} className="flex flex-col gap-2 pt-2 border-t border-rule">
+                    <p className="text-[10px] uppercase tracking-wider text-muted font-semibold">
                       Follow-up {fu.round}: {fu.query}
                     </p>
                     {fu.findings.map((finding, j) => (

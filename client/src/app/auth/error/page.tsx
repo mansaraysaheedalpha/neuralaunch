@@ -75,8 +75,8 @@ function AuthErrorContent() {
     <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-4">
       <Card className="max-w-md w-full">
         <CardHeader className="text-center">
-          <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
-            <AlertCircle className="w-6 h-6 text-destructive" />
+          <div className="mx-auto w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center mb-4">
+            <AlertCircle className="w-6 h-6 text-accent" />
           </div>
           <CardTitle className="text-2xl">{errorInfo.title}</CardTitle>
           <CardDescription className="text-base mt-2">
@@ -109,7 +109,7 @@ function AuthErrorContent() {
           </div>
 
           {error === "Configuration" && (
-            <p className="text-xs text-center text-muted-foreground mt-4">
+            <p className="text-xs text-center text-muted mt-4">
               Error Code: {error}
             </p>
           )}
@@ -125,8 +125,8 @@ export default function AuthErrorPage() {
       <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader className="text-center">
-            <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
-              <AlertCircle className="w-6 h-6 text-muted-foreground animate-pulse" />
+            <div className="mx-auto w-12 h-12 rounded-full bg-bg-3 flex items-center justify-center mb-4">
+              <AlertCircle className="w-6 h-6 text-muted animate-pulse" />
             </div>
             <CardTitle className="text-2xl">Loading...</CardTitle>
           </CardHeader>

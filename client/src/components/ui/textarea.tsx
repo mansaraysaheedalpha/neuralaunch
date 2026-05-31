@@ -21,12 +21,12 @@ function Textarea({
     <textarea
       data-slot="textarea"
       className={cn(
-        "flex min-h-[80px] w-full resize-y rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground shadow-xs transition-colors",
-        "placeholder:text-muted-foreground/70",
-        "outline-none focus-visible:border-primary focus-visible:ring-primary/30 focus-visible:ring-[3px]",
-        "aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40",
+        "flex min-h-[80px] w-full resize-y rounded-lg border border-rule bg-bg px-3 py-2.5 text-sm text-fg shadow-xs transition-colors",
+        "placeholder:text-muted/70",
+        "outline-none focus-visible:border-accent focus-visible:ring-accent/30 focus-visible:ring-[3px]",
+        "aria-invalid:border-accent aria-invalid:ring-accent/20 dark:aria-invalid:ring-accent/40",
         "disabled:cursor-not-allowed disabled:opacity-50",
-        "selection:bg-primary selection:text-primary-foreground",
+        "selection:bg-accent selection:text-bg",
         className,
       )}
       {...props}

@@ -79,8 +79,8 @@ export default async function SettingsPage() {
   return (
     <div className="mx-auto max-w-2xl px-6 py-10 flex flex-col gap-8">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="text-2xl font-bold text-fg">Settings</h1>
+        <p className="mt-1 text-sm text-muted">
           Manage your account and control how NeuraLaunch handles your data.
         </p>
       </div>
@@ -88,8 +88,8 @@ export default async function SettingsPage() {
       {/* Account information */}
       <section className="flex flex-col gap-4">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Account</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <h2 className="text-sm font-semibold text-fg">Account</h2>
+          <p className="mt-0.5 text-xs text-muted">
             Your profile and connected sign-in providers.
           </p>
         </div>
@@ -105,8 +105,8 @@ export default async function SettingsPage() {
       {/* Privacy and data */}
       <section className="flex flex-col gap-4">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Privacy and data</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <h2 className="text-sm font-semibold text-fg">Privacy and data</h2>
+          <p className="mt-0.5 text-xs text-muted">
             What NeuraLaunch is allowed to do with the things you share during interviews and check-ins.
           </p>
         </div>
@@ -125,8 +125,8 @@ export default async function SettingsPage() {
       {/* Billing */}
       <section className="flex flex-col gap-4">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Billing</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <h2 className="text-sm font-semibold text-fg">Billing</h2>
+          <p className="mt-0.5 text-xs text-muted">
             Manage your subscription, update your card, and download invoices.
           </p>
         </div>
@@ -155,8 +155,8 @@ export default async function SettingsPage() {
       {/* Danger zone — account deletion */}
       <section className="flex flex-col gap-4">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Danger zone</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <h2 className="text-sm font-semibold text-fg">Danger zone</h2>
+          <p className="mt-0.5 text-xs text-muted">
             Irreversible account-level actions. Read carefully before confirming.
           </p>
         </div>

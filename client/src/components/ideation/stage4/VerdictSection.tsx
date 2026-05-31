@@ -27,15 +27,15 @@ export function VerdictSection({ opportunity, readOnly, onPickVerdict, onPushbac
   return (
     <section className="space-y-3">
       <header>
-        <h3 className="text-sm font-semibold text-foreground">Verdict</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
+        <h3 className="text-sm font-semibold text-fg">Verdict</h3>
+        <p className="text-xs text-muted mt-0.5">
           I read Layer A + Layer B and offer a verdict; your call is what advances to Stage 5.
         </p>
       </header>
 
-      <div className="rounded-md border border-border bg-card/30 px-3 py-3">
+      <div className="rounded-md border border-rule bg-bg-2/30 px-3 py-3">
         <header className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold text-foreground">Agent says</span>
+          <span className="text-xs font-semibold text-fg">Agent says</span>
           {!readOnly && hasAgentVerdict && onPushback && (
             <Button
               type="button"
@@ -50,15 +50,15 @@ export function VerdictSection({ opportunity, readOnly, onPickVerdict, onPushbac
         </header>
         {hasAgentVerdict ? (
           <>
-            <div className="text-sm text-foreground mb-1">
-              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium uppercase tracking-wider text-primary">
+            <div className="text-sm text-fg mb-1">
+              <span className="rounded bg-accent/10 px-1.5 py-0.5 text-xs font-medium uppercase tracking-wider text-accent">
                 {opportunity.agentVerdict}
               </span>
             </div>
-            <p className="text-sm text-foreground leading-relaxed">{opportunity.agentReasoning}</p>
+            <p className="text-sm text-fg leading-relaxed">{opportunity.agentReasoning}</p>
           </>
         ) : (
-          <p className="text-xs italic text-muted-foreground">
+          <p className="text-xs italic text-muted">
             No agent verdict yet. Once you bring back at least one community response, I&apos;ll read the signal and offer a call.
           </p>
         )}
@@ -73,14 +73,14 @@ export function VerdictSection({ opportunity, readOnly, onPickVerdict, onPushbac
       </div>
 
       <div>
-        <div className="text-xs text-muted-foreground mb-2">Your call:</div>
+        <div className="text-xs text-muted mb-2">Your call:</div>
         {!readOnly && onPickVerdict ? (
           <VerdictPicker
             current={opportunity.founderVerdict}
             onPick={onPickVerdict}
           />
         ) : (
-          <p className="text-sm text-foreground">{opportunity.founderVerdict ?? 'Not set'}</p>
+          <p className="text-sm text-fg">{opportunity.founderVerdict ?? 'Not set'}</p>
         )}
       </div>
     </section>

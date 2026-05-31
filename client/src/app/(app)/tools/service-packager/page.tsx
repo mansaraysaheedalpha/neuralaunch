@@ -289,13 +289,13 @@ export default function StandalonePackagerPage() {
   }, [adjustJob?.stage, roadmapId, sessionId]);
 
   if (stage === 'loading') {
-    return <div className="flex items-center justify-center py-24"><Loader2 className="size-6 text-primary animate-spin" /></div>;
+    return <div className="flex items-center justify-center py-24"><Loader2 className="size-6 text-accent animate-spin" /></div>;
   }
   if (stage === 'no_roadmap') {
     return (
       <div className="max-w-md mx-auto px-6 py-24 text-center flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">The Service Packager needs your discovery context to set pricing and scope. Start a discovery session first.</p>
-        <Link href="/discovery" className="text-sm text-primary hover:underline">Start Discovery →</Link>
+        <p className="text-sm text-muted">The Service Packager needs your discovery context to set pricing and scope. Start a discovery session first.</p>
+        <Link href="/discovery" className="text-sm text-accent hover:underline">Start Discovery →</Link>
       </div>
     );
   }
@@ -340,16 +340,16 @@ export default function StandalonePackagerPage() {
         <div className="flex-1 min-w-0 flex flex-col gap-6">
       {stage === 'intro' && (
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-foreground">What service do you want to package? Describe what you&apos;d offer and who it&apos;s for.</p>
+          <p className="text-sm text-fg">What service do you want to package? Describe what you&apos;d offer and who it&apos;s for.</p>
           <Textarea value={draft} onChange={e => setDraft(e.target.value)} rows={4}
             placeholder="e.g. I want to package a tutoring service for high-school maths students in Lagos. Sessions are 1-on-1, in-person or online."
             className="resize-none" />
           <button type="button" onClick={() => { void sendInitialDescription(); }} disabled={draft.trim().length === 0}
-            className="self-end inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-60">Continue</button>
+            className="self-end inline-flex items-center gap-1.5 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-bg hover:bg-accent/90 disabled:opacity-60">Continue</button>
         </div>
       )}
       {stage === 'loading_context' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 py-12 justify-center text-sm text-muted-foreground">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center gap-2 py-12 justify-center text-sm text-muted">
           <Loader2 className="size-5 animate-spin" /> Building the context the Packager needs…
         </motion.div>
       )}

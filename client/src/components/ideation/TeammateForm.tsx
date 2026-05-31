@@ -55,7 +55,7 @@ export function TeammateForm({ existingNames, onAdd, disabled = false }: Teammat
         size="sm"
         disabled={disabled}
         onClick={() => setOpen(true)}
-        className="text-muted-foreground hover:text-foreground"
+        className="text-muted hover:text-fg"
       >
         <Plus className="size-3 mr-1" />
         Add a teammate
@@ -64,7 +64,7 @@ export function TeammateForm({ existingNames, onAdd, disabled = false }: Teammat
   }
 
   return (
-    <form onSubmit={submit} className="flex items-center gap-2 rounded-md border border-border bg-card/40 px-2 py-1">
+    <form onSubmit={submit} className="flex items-center gap-2 rounded-md border border-rule bg-bg-2/40 px-2 py-1">
       <input
         type="text"
         value={name}
@@ -73,7 +73,7 @@ export function TeammateForm({ existingNames, onAdd, disabled = false }: Teammat
         autoFocus
         maxLength={80}
         placeholder="Teammate's name"
-        className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none px-2 py-1"
+        className="flex-1 bg-transparent text-sm text-fg placeholder:text-muted outline-none px-2 py-1"
       />
       <Button type="submit" size="sm" disabled={busy || disabled || name.trim().length === 0}>
         Add
@@ -83,12 +83,12 @@ export function TeammateForm({ existingNames, onAdd, disabled = false }: Teammat
         onClick={() => { setOpen(false); setName(''); setError(null); }}
         disabled={busy}
         aria-label="Cancel"
-        className="p-1 rounded text-muted-foreground hover:text-foreground"
+        className="p-1 rounded text-muted hover:text-fg"
       >
         <X className="size-3" />
       </button>
       {error && (
-        <span className="text-xs text-destructive ml-2">{error}</span>
+        <span className="text-xs text-accent ml-2">{error}</span>
       )}
     </form>
   );

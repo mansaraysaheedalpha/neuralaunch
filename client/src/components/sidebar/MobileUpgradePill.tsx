@@ -22,7 +22,7 @@ export function MobileUpgradePill() {
   return (
     <Link
       href="/#pricing"
-      className="md:hidden absolute top-4 right-4 z-30 inline-flex items-center gap-1 rounded-full bg-primary text-primary-foreground px-3 py-1.5 text-xs font-semibold shadow-md hover:opacity-90 transition-opacity"
+      className="md:hidden absolute top-4 right-4 z-30 inline-flex items-center gap-1 rounded-full bg-accent text-bg px-3 py-1.5 text-xs font-semibold shadow-md hover:opacity-90 transition-opacity"
       aria-label="Upgrade plan"
     >
       <Sparkles className="size-3.5" aria-hidden="true" />

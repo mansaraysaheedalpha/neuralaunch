@@ -58,16 +58,16 @@ export function SignupForm({
 
   if (submitted) {
     return (
-      <div className="rounded-xl border border-primary/30 bg-primary/5 px-6 py-5 text-center">
-        <p className="text-sm font-medium text-primary">You're on the list.</p>
-        <p className="mt-1 text-xs text-muted-foreground">We'll reach out as soon as we're ready for you.</p>
+      <div className="rounded-xl border border-accent/30 bg-accent/5 px-6 py-5 text-center">
+        <p className="text-sm font-medium text-accent">You're on the list.</p>
+        <p className="mt-1 text-xs text-muted">We'll reach out as soon as we're ready for you.</p>
       </div>
     );
   }
 
   return (
     <div className="w-full max-w-md mx-auto flex flex-col gap-4">
-      <h2 className="text-lg font-semibold text-foreground text-center">{ctaHeadline}</h2>
+      <h2 className="text-lg font-semibold text-fg text-center">{ctaHeadline}</h2>
       <form onSubmit={(e) => { void handleSubmit(e); }} className="flex flex-col gap-3">
         <Input
           type="email"
@@ -77,16 +77,16 @@ export function SignupForm({
           autoComplete="email"
           className="px-4"
         />
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error && <p className="text-xs text-accent">{error}</p>}
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+          className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-bg transition-opacity hover:opacity-90 disabled:opacity-50"
         >
           {loading ? 'Saving…' : ctaButtonLabel}
         </button>
       </form>
-      <p className="text-center text-xs text-muted-foreground">No spam. No obligations. Just early access.</p>
+      <p className="text-center text-xs text-muted">No spam. No obligations. Just early access.</p>
     </div>
   );
 }

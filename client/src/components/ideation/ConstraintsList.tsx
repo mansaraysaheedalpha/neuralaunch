@@ -34,29 +34,29 @@ export function ConstraintsList({ constraints }: ConstraintsListProps) {
     <div className="space-y-4">
       {blind.length > 0 && (
         <ConstraintGroup
-          icon={<HelpCircle className="size-4 text-gold" />}
+          icon={<HelpCircle className="size-4 text-accent" />}
           label="Blind spots"
           subtitle="Required skills where neither you nor your team have a self-assessed level yet."
           items={blind}
-          accent="border-gold/30 bg-gold/5"
+          accent="border-accent/30 bg-accent/5"
         />
       )}
       {structural.length > 0 && (
         <ConstraintGroup
-          icon={<AlertCircle className="size-4 text-destructive" />}
+          icon={<AlertCircle className="size-4 text-accent" />}
           label="Structural constraints"
           subtitle="Gaps wide enough to rule out paths that depend on these skills."
           items={structural}
-          accent="border-destructive/30 bg-destructive/5"
+          accent="border-accent/30 bg-accent/5"
         />
       )}
       {mild.length > 0 && (
         <ConstraintGroup
-          icon={<AlertTriangle className="size-4 text-muted-foreground" />}
+          icon={<AlertTriangle className="size-4 text-muted" />}
           label="Mild constraints"
           subtitle="One tier below — workable, but factor in for opportunity selection."
           items={mild}
-          accent="border-border bg-card/40"
+          accent="border-rule bg-bg-2/40"
         />
       )}
     </div>
@@ -77,25 +77,25 @@ function ConstraintGroup({ icon, label, subtitle, items, accent }: ConstraintGro
       <header className="flex items-start gap-2 mb-3">
         {icon}
         <div className="flex-1">
-          <h3 className="text-sm font-semibold text-foreground">{label}</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
+          <h3 className="text-sm font-semibold text-fg">{label}</h3>
+          <p className="text-xs text-muted mt-0.5">{subtitle}</p>
         </div>
       </header>
       <ul className="space-y-2">
         {items.map((c, i) => (
-          <li key={`${c.skill}-${i}`} className="rounded-md border border-border bg-background/60 px-3 py-2 text-sm">
+          <li key={`${c.skill}-${i}`} className="rounded-md border border-rule bg-bg/60 px-3 py-2 text-sm">
             <div className="flex items-center justify-between gap-2 mb-1">
-              <span className="font-medium text-foreground">
+              <span className="font-medium text-fg">
                 {SKILL_LABELS[c.skill] ?? c.skill}
               </span>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-muted">
                 {TIER_LABEL[c.actualTier] ?? c.actualTier} <span aria-hidden>→</span> needs {TIER_LABEL[c.requiredTier] ?? c.requiredTier}
-                {c.critical && <span className="ml-2 text-gold">critical</span>}
+                {c.critical && <span className="ml-2 text-accent">critical</span>}
               </span>
             </div>
-            <p className="text-xs text-foreground leading-relaxed">
+            <p className="text-xs text-fg leading-relaxed">
               {c.implication || (
-                <span className="text-muted-foreground italic">(no implication generated)</span>
+                <span className="text-muted italic">(no implication generated)</span>
               )}
             </p>
           </li>

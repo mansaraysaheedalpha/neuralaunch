@@ -98,10 +98,10 @@ export function MessageList({
                 className={cn(
                   'rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap',
                   msg.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
+                    ? 'bg-accent text-bg'
                     : isCutStreamHere
-                      ? 'bg-muted text-foreground/80 border border-gold/30'
-                      : 'bg-muted text-foreground',
+                      ? 'bg-bg-3 text-fg/80 border border-accent/30'
+                      : 'bg-bg-3 text-fg',
                 )}
               >
                 {msg.content}
@@ -109,7 +109,7 @@ export function MessageList({
 
               {msg.role === 'user' && msg.inputMethod === 'voice' && (
                 <div
-                  className="flex items-center gap-1 text-[10px] text-muted-foreground/70"
+                  className="flex items-center gap-1 text-[10px] text-muted/70"
                   aria-label="Sent by voice"
                   title="Sent by voice"
                 >
@@ -120,8 +120,8 @@ export function MessageList({
 
               {/* Cut-stream indicator anchored to the trimmed assistant bubble */}
               {isCutStreamHere && (
-                <div className="flex items-center gap-2 text-[11px] text-gold">
-                  <span className="block h-px w-6 bg-gold/40" />
+                <div className="flex items-center gap-2 text-[11px] text-accent">
+                  <span className="block h-px w-6 bg-accent/40" />
                   <span>Response was interrupted</span>
                   <RetryIconButton onClick={onRetryTurn} label="Retry message" />
                 </div>
@@ -140,11 +140,11 @@ export function MessageList({
       </AnimatePresence>
 
       {isLoading && !isSynthesizing && (
-        <div className="flex gap-1.5 items-center px-4 py-3 bg-muted rounded-2xl w-fit">
+        <div className="flex gap-1.5 items-center px-4 py-3 bg-bg-3 rounded-2xl w-fit">
           {[0, 1, 2].map(i => (
             <motion.span
               key={i}
-              className="size-1.5 bg-muted-foreground rounded-full"
+              className="size-1.5 bg-bg-3 rounded-full"
               animate={{ opacity: [0.3, 1, 0.3] }}
               transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
             />
@@ -170,7 +170,7 @@ function RetryIconButton({ onClick, label }: { onClick?: () => void; label: stri
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="inline-flex items-center justify-center size-6 rounded-full border border-border bg-background text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+      className="inline-flex items-center justify-center size-6 rounded-full border border-rule bg-bg text-muted hover:text-fg hover:border-fg/40 transition-colors"
     >
       <RotateCcw className="size-3" />
     </button>

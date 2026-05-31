@@ -30,7 +30,7 @@ export function Stage5Success({ sessionId, recommendationId }: Stage5SuccessProp
 
   return (
     <section className="rounded-lg border border-success/30 bg-success/5 px-4 py-5">
-      <p className="text-sm text-foreground flex items-center gap-2">
+      <p className="text-sm text-fg flex items-center gap-2">
         <Check className="size-4 text-success" />
         Done. Loading your recommendation…
       </p>

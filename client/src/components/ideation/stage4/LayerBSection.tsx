@@ -42,8 +42,8 @@ export function LayerBSection({
   return (
     <section className="space-y-3">
       <header>
-        <h3 className="text-sm font-semibold text-foreground">Layer B — community engagement</h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
+        <h3 className="text-sm font-semibold text-fg">Layer B — community engagement</h3>
+        <p className="text-xs text-muted mt-0.5">
           You post the script below on your own accounts, then bring back what real people said. Text snippets or screenshots both work.
         </p>
       </header>
@@ -65,9 +65,9 @@ export function LayerBSection({
       )}
 
       <div>
-        <h4 className="text-xs font-semibold text-foreground mb-2">
+        <h4 className="text-xs font-semibold text-fg mb-2">
           Captured responses{' '}
-          <span className="text-muted-foreground">({responses.length})</span>
+          <span className="text-muted">({responses.length})</span>
         </h4>
         <ResponseGallery
           responses={responses}
@@ -77,8 +77,8 @@ export function LayerBSection({
       </div>
 
       {sig && (
-        <div className="rounded-md border border-border bg-card/30 px-3 py-2 text-xs text-muted-foreground">
-          <span className="text-foreground font-medium">
+        <div className="rounded-md border border-rule bg-bg-2/30 px-3 py-2 text-xs text-muted">
+          <span className="text-fg font-medium">
             Aggregate: {VALIDATION_STRENGTH_LABELS[sig.validationStrength]}
           </span>
           {' · '}

@@ -86,23 +86,23 @@ export function TierHistorySection({ transitions, wasFoundingMember }: TierHisto
   if (transitions.length === 0) return null;
 
   return (
-    <div className="rounded-lg border border-border bg-card p-5">
+    <div className="rounded-lg border border-rule bg-bg-2 p-5">
       <button
         type="button"
         onClick={() => setExpanded(e => !e)}
         className="flex w-full items-center justify-between text-left focus:outline-none"
         aria-expanded={expanded}
       >
-        <span className="text-sm font-semibold text-foreground">
+        <span className="text-sm font-semibold text-fg">
           Subscription history
         </span>
         <span className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-muted">
             {transitions.length} {transitions.length === 1 ? 'change' : 'changes'}
           </span>
           {expanded
-            ? <ChevronDown className="size-4 text-muted-foreground" aria-hidden="true" />
-            : <ChevronRight className="size-4 text-muted-foreground" aria-hidden="true" />}
+            ? <ChevronDown className="size-4 text-muted" aria-hidden="true" />
+            : <ChevronRight className="size-4 text-muted" aria-hidden="true" />}
         </span>
       </button>
 
@@ -118,13 +118,13 @@ export function TierHistorySection({ transitions, wasFoundingMember }: TierHisto
                 key={entry.id}
                 className="flex flex-col gap-0.5 border-l-2 border-slate-700 pl-3"
               >
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs text-muted">
                   {formatDate(entry.occurredAt)}
                 </p>
-                <p className="text-xs text-foreground">
+                <p className="text-xs text-fg">
                   {describeTransition(entry.fromTier, entry.toTier, entry.paddleEventType)}
                   {isFoundingTransition && (
-                    <span className="ml-2 inline-flex items-center rounded-full border border-gold/30 bg-gold/5 px-1.5 py-0.5 text-[10px] font-semibold text-gold">
+                    <span className="ml-2 inline-flex items-center rounded-full border border-accent/30 bg-accent/5 px-1.5 py-0.5 text-[10px] font-semibold text-accent">
                       Founding member
                     </span>
                   )}

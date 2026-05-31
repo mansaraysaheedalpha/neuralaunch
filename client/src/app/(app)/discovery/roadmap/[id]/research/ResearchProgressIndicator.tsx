@@ -27,7 +27,7 @@ export function ResearchProgressIndicator({ active }: ResearchProgressIndicatorP
         {[0, 1, 2].map(i => (
           <motion.span
             key={i}
-            className="block size-2 rounded-full bg-primary"
+            className="block size-2 rounded-full bg-accent"
             animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.1, 0.8] }}
             transition={{
               duration:   1.2,
@@ -40,8 +40,8 @@ export function ResearchProgressIndicator({ active }: ResearchProgressIndicatorP
       </div>
 
       <div className="text-center">
-        <p className="text-sm font-medium text-foreground">Researching…</p>
-        <p className="text-[11px] text-muted-foreground mt-1">
+        <p className="text-sm font-medium text-fg">Researching…</p>
+        <p className="text-[11px] text-muted mt-1">
           Deep research takes 2–6 minutes. The quality is worth the wait.
         </p>
       </div>

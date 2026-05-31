@@ -46,8 +46,8 @@ export function ToolJobProgress({
         <div className="flex items-start gap-2">
           <AlertCircle className="size-4 text-red-500 shrink-0 mt-0.5" />
           <div className="flex flex-col gap-1 min-w-0 flex-1">
-            <p className="text-xs font-semibold text-foreground">Background work hit a snag</p>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-xs font-semibold text-fg">Background work hit a snag</p>
+            <p className="text-[11px] text-muted">
               {errorMessage ?? 'The job did not complete. You can try again.'}
             </p>
           </div>
@@ -56,7 +56,7 @@ export function ToolJobProgress({
           <button
             type="button"
             onClick={onRetry}
-            className="self-start rounded-md bg-primary px-3 py-1.5 text-[11px] font-medium text-primary-foreground hover:opacity-90"
+            className="self-start rounded-md bg-accent px-3 py-1.5 text-[11px] font-medium text-bg hover:opacity-90"
           >
             Try again
           </button>
@@ -70,8 +70,8 @@ export function ToolJobProgress({
     : -1;
 
   return (
-    <div className="rounded-xl border border-border bg-background p-4 flex flex-col gap-3">
-      {title && <p className="text-xs font-semibold text-foreground">{title}</p>}
+    <div className="rounded-xl border border-rule bg-bg p-4 flex flex-col gap-3">
+      {title && <p className="text-xs font-semibold text-fg">{title}</p>}
       <ol className="flex flex-col gap-1.5">
         {TOOL_JOB_STAGE_ORDER.map((s, i) => {
           const done    = currentIndex > i;
@@ -82,9 +82,9 @@ export function ToolJobProgress({
               <span
                 className={cn(
                   'inline-flex size-4 shrink-0 items-center justify-center rounded-full border',
-                  done    && 'border-primary bg-primary/10 text-primary',
-                  active  && 'border-primary bg-primary/10 text-primary',
-                  pending && 'border-muted-foreground/30 text-muted-foreground/50',
+                  done    && 'border-accent bg-accent/10 text-accent',
+                  active  && 'border-accent bg-accent/10 text-accent',
+                  pending && 'border-rule/30 text-muted/50',
                 )}
                 aria-hidden
               >
@@ -94,9 +94,9 @@ export function ToolJobProgress({
               <span
                 className={cn(
                   'text-[11px]',
-                  done    && 'text-foreground',
-                  active  && 'text-foreground font-medium',
-                  pending && 'text-muted-foreground/60',
+                  done    && 'text-fg',
+                  active  && 'text-fg font-medium',
+                  pending && 'text-muted/60',
                 )}
               >
                 {s === 'emitting' && toolType
@@ -107,7 +107,7 @@ export function ToolJobProgress({
           );
         })}
       </ol>
-      <p className="text-[10px] text-muted-foreground/70 italic">
+      <p className="text-[10px] text-muted/70 italic">
         You can leave this page — your work continues in the background and
         we&apos;ll send a notification when it&apos;s ready.
       </p>

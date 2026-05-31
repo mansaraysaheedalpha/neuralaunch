@@ -32,8 +32,8 @@ const TIPS: Array<{
    *  the eye reads the tips as a triad of priorities, not a wall). */
   color: string;
 }> = [
-  { icon: Target,         text: 'Give specific numbers — time, budget, success metrics', color: 'text-primary' },
-  { icon: AlertTriangle,  text: 'Name failed attempts honestly, including why you stopped', color: 'text-gold' },
+  { icon: Target,         text: 'Give specific numbers — time, budget, success metrics', color: 'text-accent' },
+  { icon: AlertTriangle,  text: 'Name failed attempts honestly, including why you stopped', color: 'text-accent' },
   { icon: ListChecks,     text: 'Answer one question at a time — no compression',           color: 'text-success' },
 ];
 
@@ -82,9 +82,9 @@ export function WelcomeLayer({ firstName, isVisible, isFirstSession = false, onO
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: 'easeOut' }}
-            className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/40 px-3 py-1 text-[11px] font-medium text-muted-foreground"
+            className="inline-flex items-center gap-2 rounded-full border border-rule/60 bg-bg-2/40 px-3 py-1 text-[11px] font-medium text-muted"
           >
-            <Compass className="size-3 text-gold" aria-hidden="true" />
+            <Compass className="size-3 text-accent" aria-hidden="true" />
             Discovery interview
           </motion.p>
 
@@ -92,7 +92,7 @@ export function WelcomeLayer({ firstName, isVisible, isFirstSession = false, onO
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.06, ease: 'easeOut' }}
-            className="text-3xl font-semibold text-foreground tracking-tight text-center"
+            className="text-3xl font-semibold text-fg tracking-tight text-center"
           >
             {greeting}
           </motion.h2>
@@ -101,12 +101,12 @@ export function WelcomeLayer({ firstName, isVisible, isFirstSession = false, onO
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.45, delay: 0.12, ease: 'easeOut' }}
-            className="max-w-md w-full rounded-xl border border-border/70 bg-card/60 px-5 py-4 space-y-2.5 border-l-[3px] border-l-gold shadow-lg shadow-black/10"
+            className="max-w-md w-full rounded-xl border border-rule/70 bg-bg-2/60 px-5 py-4 space-y-2.5 border-l-[3px] border-l-gold shadow-lg shadow-black/10"
           >
-            <p className="text-[10px] font-semibold tracking-[0.18em] uppercase text-gold">
+            <p className="text-[10px] font-semibold tracking-[0.18em] uppercase text-accent">
               Think about this
             </p>
-            <p className="text-[15px] leading-relaxed text-foreground text-center sm:text-left">
+            <p className="text-[15px] leading-relaxed text-fg text-center sm:text-left">
               {question}
             </p>
           </motion.div>
@@ -117,7 +117,7 @@ export function WelcomeLayer({ firstName, isVisible, isFirstSession = false, onO
             transition={{ duration: 0.45, delay: 0.18, ease: 'easeOut' }}
             className="max-w-md w-full space-y-2"
           >
-            <p className="text-[10px] font-semibold tracking-[0.18em] uppercase text-muted-foreground/70 text-center mb-3">
+            <p className="text-[10px] font-semibold tracking-[0.18em] uppercase text-muted/70 text-center mb-3">
               For the best recommendation
             </p>
             <ul role="list" className="space-y-2">
@@ -126,10 +126,10 @@ export function WelcomeLayer({ firstName, isVisible, isFirstSession = false, onO
                 return (
                   <li
                     key={tip.text}
-                    className="flex items-start gap-3 text-xs text-muted-foreground"
+                    className="flex items-start gap-3 text-xs text-muted"
                   >
                     <span
-                      className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-md bg-card/60 ${tip.color}`}
+                      className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-md bg-bg-2/60 ${tip.color}`}
                       aria-hidden="true"
                     >
                       <Icon className="size-3" />
@@ -148,7 +148,7 @@ export function WelcomeLayer({ firstName, isVisible, isFirstSession = false, onO
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.45, delay: 0.24, ease: 'easeOut' }}
-              className="group inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/10 hover:border-primary/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="group inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/5 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/10 hover:border-accent/40 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
               aria-label="Open the 30-second interview guide"
             >
               <BookOpen className="size-3" aria-hidden="true" />

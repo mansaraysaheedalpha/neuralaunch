@@ -69,17 +69,17 @@ function EntryRow({ entryIndex, entry, readOnly, onPushback }: EntryRowProps) {
   const rounds = entry.pushback?.history.length ?? 0;
 
   return (
-    <li className="rounded-lg border border-border bg-card/40 px-4 py-3">
+    <li className="rounded-lg border border-rule bg-bg-2/40 px-4 py-3">
       <header className="flex items-center justify-between gap-2 mb-2">
         <div className="flex items-baseline gap-2">
-          <span className="text-sm font-medium text-foreground">
+          <span className="text-sm font-medium text-fg">
             {SKILL_LABELS[entry.skill] ?? entry.skill}
           </span>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-muted">
             requires {TIER_LABEL[entry.requiredTier] ?? entry.requiredTier}
           </span>
           {entry.critical && (
-            <span className="text-xs font-medium text-gold">critical</span>
+            <span className="text-xs font-medium text-accent">critical</span>
           )}
         </div>
         {!readOnly && !isClosed && (
@@ -92,23 +92,23 @@ function EntryRow({ entryIndex, entry, readOnly, onPushback }: EntryRowProps) {
             <MessageCircle className="size-3 mr-1" />
             Question this
             {rounds > 0 && (
-              <span className="ml-1 text-xs text-muted-foreground">({rounds}/{EXPECTED_PROFILE_PUSHBACK_HARD_CAP_ROUND})</span>
+              <span className="ml-1 text-xs text-muted">({rounds}/{EXPECTED_PROFILE_PUSHBACK_HARD_CAP_ROUND})</span>
             )}
           </Button>
         )}
         {isClosed && (
-          <span className="text-xs text-muted-foreground italic">pushback closed</span>
+          <span className="text-xs text-muted italic">pushback closed</span>
         )}
       </header>
 
-      <p className="text-sm text-foreground leading-relaxed">
-        {entry.reasoning || <span className="text-muted-foreground italic">(no reasoning generated)</span>}
+      <p className="text-sm text-fg leading-relaxed">
+        {entry.reasoning || <span className="text-muted italic">(no reasoning generated)</span>}
       </p>
 
       {entry.sources.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
           {entry.sources.map((s, j) => (
-            <span key={j} className="text-xs rounded-full border border-border bg-background/60 px-2 py-0.5 text-muted-foreground">
+            <span key={j} className="text-xs rounded-full border border-rule bg-bg/60 px-2 py-0.5 text-muted">
               {s}
             </span>
           ))}

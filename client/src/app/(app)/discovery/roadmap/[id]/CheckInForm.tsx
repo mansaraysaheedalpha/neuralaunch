@@ -98,8 +98,8 @@ export function CheckInForm({
           transition={{ duration: 0.2 }}
           className="overflow-hidden"
         >
-          <div className="flex flex-col gap-2 pt-2 border-t border-border">
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground/70">
+          <div className="flex flex-col gap-2 pt-2 border-t border-rule">
+            <p className="text-[10px] uppercase tracking-widest text-muted/70">
               Check in on this task
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -111,8 +111,8 @@ export function CheckInForm({
                   className={[
                     'rounded-full px-2.5 py-1 text-[11px] font-medium border transition-colors',
                     category === c
-                      ? 'bg-primary text-primary-foreground border-primary'
-                      : 'bg-background text-muted-foreground border-border hover:border-foreground/30',
+                      ? 'bg-accent text-bg border-accent'
+                      : 'bg-bg text-muted border-rule hover:border-fg/30',
                   ].join(' ')}
                 >
                   {CHECKIN_CATEGORY_LABELS[c]}
@@ -150,7 +150,7 @@ export function CheckInForm({
                 type="button"
                 onClick={onCancel}
                 disabled={submitting}
-                className="text-[11px] text-muted-foreground hover:text-foreground underline disabled:opacity-50"
+                className="text-[11px] text-muted hover:text-fg underline disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -158,7 +158,7 @@ export function CheckInForm({
                 type="button"
                 onClick={onSubmit}
                 disabled={!canSubmit}
-                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[11px] font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[11px] font-medium text-bg transition-opacity hover:opacity-90 disabled:opacity-40"
               >
                 {submitting && <Loader2 className="size-3 animate-spin" />}
                 {submitting ? 'Sending…' : 'Submit check-in'}

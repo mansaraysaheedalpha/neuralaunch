@@ -57,26 +57,26 @@ export function OpportunityEvaluationsDocumentView({
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full bg-bg">
       <div className="flex-1 overflow-y-auto px-4 py-8">
         <div className="mx-auto w-full max-w-3xl space-y-6">
           <header>
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted mb-1">
               {status === 'committed' ? 'Committed' : 'Pre-commit review'} · Opportunity Evaluations
             </p>
-            <h1 className="text-2xl font-semibold text-foreground">
+            <h1 className="text-2xl font-semibold text-fg">
               Your opportunity evaluations — Stage 4 of 5
             </h1>
           </header>
 
           {chosen && (
             <section>
-              <h2 className="text-sm font-semibold text-foreground mb-2">
+              <h2 className="text-sm font-semibold text-fg mb-2">
                 Advancing to Stage 5
               </h2>
-              <article className="rounded-lg border border-primary/40 bg-primary/5 px-3 py-3">
-                <p className="text-sm text-foreground leading-snug mb-2">{chosen.painPointSummary}</p>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <article className="rounded-lg border border-accent/40 bg-accent/5 px-3 py-3">
+                <p className="text-sm text-fg leading-snug mb-2">{chosen.painPointSummary}</p>
+                <div className="flex items-center gap-2 text-xs text-muted">
                   <span>agent: {agentVerdictLabel(chosen.agentVerdict)}</span>
                   <span>· founder: {chosen.founderVerdict ? VERDICT_SHORT_LABELS[chosen.founderVerdict] : '—'}</span>
                   {chosen.layerBExtractedSignal && (
@@ -88,21 +88,21 @@ export function OpportunityEvaluationsDocumentView({
           )}
 
           <section>
-            <h2 className="text-sm font-semibold text-foreground mb-2">Why this one</h2>
-            <p className="text-sm text-foreground leading-relaxed">{doc.chosenRationale}</p>
+            <h2 className="text-sm font-semibold text-fg mb-2">Why this one</h2>
+            <p className="text-sm text-fg leading-relaxed">{doc.chosenRationale}</p>
           </section>
 
           {others.length > 0 && (
             <section>
-              <h2 className="text-sm font-semibold text-foreground mb-2">
-                Why not the others <span className="text-muted-foreground">({others.length})</span>
+              <h2 className="text-sm font-semibold text-fg mb-2">
+                Why not the others <span className="text-muted">({others.length})</span>
               </h2>
-              <p className="text-sm text-foreground leading-relaxed mb-3">{doc.rejectedRationale}</p>
+              <p className="text-sm text-fg leading-relaxed mb-3">{doc.rejectedRationale}</p>
               <ul className="space-y-2">
                 {others.map(o => (
-                  <li key={o.id} className="rounded-md border border-border bg-card/30 px-3 py-2 text-sm">
-                    <p className="text-foreground leading-snug">{o.painPointSummary}</p>
-                    <div className="mt-1 text-xs text-muted-foreground">
+                  <li key={o.id} className="rounded-md border border-rule bg-bg-2/30 px-3 py-2 text-sm">
+                    <p className="text-fg leading-snug">{o.painPointSummary}</p>
+                    <div className="mt-1 text-xs text-muted">
                       agent: {agentVerdictLabel(o.agentVerdict)} ·
                       {' '}founder: {o.founderVerdict ? VERDICT_SHORT_LABELS[o.founderVerdict] : '—'}
                     </div>
@@ -113,12 +113,12 @@ export function OpportunityEvaluationsDocumentView({
           )}
 
           {actionError && (
-            <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            <div className="rounded-md border border-accent/40 bg-accent/5 px-3 py-2 text-xs text-accent">
               {actionError}
             </div>
           )}
 
-          <footer className="flex flex-wrap items-center gap-3 border-t border-border pt-6">
+          <footer className="flex flex-wrap items-center gap-3 border-t border-rule pt-6">
             <Button variant="ghost" onClick={() => router.push('/discovery')} disabled={busy}>
               Save and come back
             </Button>

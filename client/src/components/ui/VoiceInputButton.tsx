@@ -258,11 +258,11 @@ export function VoiceInputButton({
         role="status"
         aria-live="polite"
         className={cn(
-          'inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground',
+          'inline-flex items-center gap-2 rounded-full border border-rule bg-bg px-3 py-1.5 text-xs text-muted',
           className,
         )}
       >
-        <Loader2 className="size-4 animate-spin text-primary" aria-hidden />
+        <Loader2 className="size-4 animate-spin text-accent" aria-hidden />
         <span>Transcribing…</span>
       </div>
     );
@@ -274,7 +274,7 @@ export function VoiceInputButton({
         role="group"
         aria-label="Recording voice input"
         className={cn(
-          'inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-2 py-1 text-xs text-primary transition-colors duration-fast',
+          'inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/5 px-2 py-1 text-xs text-accent transition-colors duration-fast',
           className,
         )}
       >
@@ -282,14 +282,14 @@ export function VoiceInputButton({
           type="button"
           onClick={cancelRecording}
           aria-label="Cancel recording"
-          className="inline-flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-background/60 hover:text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-primary/30 transition-colors duration-fast"
+          className="inline-flex size-7 items-center justify-center rounded-full text-muted hover:bg-bg/60 hover:text-fg outline-none focus-visible:ring-[3px] focus-visible:ring-accent/30 transition-colors duration-fast"
         >
           <X className="size-4" aria-hidden />
         </button>
         <span className="flex items-center gap-1.5 font-mono tabular-nums">
           <span
             aria-hidden
-            className="inline-block size-2 rounded-full bg-primary animate-pulse"
+            className="inline-block size-2 rounded-full bg-accent animate-pulse"
           />
           {formatElapsed(elapsed)}
         </span>
@@ -297,9 +297,9 @@ export function VoiceInputButton({
           type="button"
           onClick={stopRecording}
           aria-label="Stop recording"
-          className="inline-flex size-7 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 outline-none focus-visible:ring-[3px] focus-visible:ring-primary/30 transition-colors duration-fast"
+          className="inline-flex size-7 items-center justify-center rounded-full bg-accent text-bg hover:bg-accent/90 outline-none focus-visible:ring-[3px] focus-visible:ring-accent/30 transition-colors duration-fast"
         >
-          <span className="block size-2.5 rounded-[2px] bg-primary-foreground" aria-hidden />
+          <span className="block size-2.5 rounded-[2px] bg-bg" aria-hidden />
         </button>
       </div>
     );
@@ -337,9 +337,9 @@ export function VoiceInputButton({
       disabled={disabled}
       aria-label="Record voice input"
       className={cn(
-        'inline-flex size-9 items-center justify-center rounded-full text-muted-foreground',
-        'hover:bg-primary/5 hover:text-primary transition-colors duration-fast',
-        'outline-none focus-visible:ring-[3px] focus-visible:ring-primary/30',
+        'inline-flex size-9 items-center justify-center rounded-full text-muted',
+        'hover:bg-accent/5 hover:text-accent transition-colors duration-fast',
+        'outline-none focus-visible:ring-[3px] focus-visible:ring-accent/30',
         'disabled:cursor-not-allowed disabled:opacity-50',
         className,
       )}

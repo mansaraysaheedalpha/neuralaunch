@@ -59,16 +59,16 @@ export function ResearchFollowUpInput({
   }
 
   return (
-    <div className="flex flex-col gap-2 pt-2 border-t border-border">
+    <div className="flex flex-col gap-2 pt-2 border-t border-rule">
       <div className="flex items-center justify-between">
-        <p className="text-[11px] font-medium text-foreground">Ask a follow-up</p>
-        <span className="text-[10px] text-muted-foreground">
+        <p className="text-[11px] font-medium text-fg">Ask a follow-up</p>
+        <span className="text-[10px] text-muted">
           {round}/{maxRounds} follow-ups used
         </span>
       </div>
 
       {capped ? (
-        <p className="text-[11px] text-muted-foreground italic">
+        <p className="text-[11px] text-muted italic">
           You have used all {maxRounds} follow-up rounds. Start a new research session to continue.
         </p>
       ) : (
@@ -99,7 +99,7 @@ export function ResearchFollowUpInput({
             type="button"
             onClick={handleSubmit}
             disabled={query.trim().length === 0 || disabled || capped}
-            className="shrink-0 flex items-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-[11px] font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-opacity"
+            className="shrink-0 flex items-center gap-1 rounded-md bg-accent px-2.5 py-1.5 text-[11px] font-medium text-bg hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
             <Send className="size-3" />
             Ask

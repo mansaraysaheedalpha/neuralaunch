@@ -16,16 +16,16 @@ interface StageBeyondPlaceholderProps {
  */
 export function StageBeyondPlaceholder({ stageNumber }: StageBeyondPlaceholderProps) {
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full bg-bg">
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="max-w-md w-full text-center">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted mb-3">
             Stage {stageNumber} of 5
           </p>
-          <h2 className="text-xl font-semibold text-foreground mb-3">
+          <h2 className="text-xl font-semibold text-fg mb-3">
             We&apos;re still building this stage
           </h2>
-          <p className="text-sm text-muted-foreground leading-relaxed mb-6">
+          <p className="text-sm text-muted leading-relaxed mb-6">
             You&apos;ve committed everything available so far. The remaining stages — where
             we deepen each shortlisted pain into a concrete opportunity and hand off to
             execution — are still being built. You&apos;ll see them appear here the moment

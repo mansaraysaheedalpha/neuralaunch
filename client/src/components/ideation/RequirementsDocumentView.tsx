@@ -131,23 +131,23 @@ export function RequirementsDocumentView({
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full bg-bg">
       <div className="flex-1 overflow-y-auto px-4 py-8">
         <div className="mx-auto w-full max-w-3xl space-y-6">
           <header>
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted mb-1">
               {status === 'committed' ? 'Committed' : 'Pre-commit review'} · Sessions
             </p>
-            <h1 className="text-2xl font-semibold text-foreground">
+            <h1 className="text-2xl font-semibold text-fg">
               Your requirements — Stage 2 of 5
             </h1>
           </header>
 
           {requiresRederivation && (
-            <div className="rounded-lg border border-gold/40 bg-gold/5 px-4 py-3 flex items-start justify-between gap-3">
+            <div className="rounded-lg border border-accent/40 bg-accent/5 px-4 py-3 flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-sm font-semibold text-foreground">Stage 1 was updated</h3>
-                <p className="text-xs text-muted-foreground mt-1">
+                <h3 className="text-sm font-semibold text-fg">Stage 1 was updated</h3>
+                <p className="text-xs text-muted mt-1">
                   Your Skill Inventory is preserved, but the Expected Profile and Constraints below are derived against the prior Outcome Document. Re-derive to align them with what you just committed.
                 </p>
               </div>
@@ -159,7 +159,7 @@ export function RequirementsDocumentView({
           )}
 
           <section>
-            <h2 className="text-sm font-semibold text-foreground mb-3">
+            <h2 className="text-sm font-semibold text-fg mb-3">
               The expected profile
             </h2>
             <ExpectedProfileView
@@ -170,7 +170,7 @@ export function RequirementsDocumentView({
           </section>
 
           <section>
-            <h2 className="text-sm font-semibold text-foreground mb-3">
+            <h2 className="text-sm font-semibold text-fg mb-3">
               Constraints
             </h2>
             <ConstraintsList constraints={document.constraints} />
@@ -185,12 +185,12 @@ export function RequirementsDocumentView({
           <RecommendedActionsSection actions={document.recommendedActions} />
 
           {actionError && (
-            <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            <div className="rounded-md border border-accent/40 bg-accent/5 px-3 py-2 text-xs text-accent">
               {actionError}
             </div>
           )}
 
-          <footer className="flex flex-wrap items-center gap-3 border-t border-border pt-6">
+          <footer className="flex flex-wrap items-center gap-3 border-t border-rule pt-6">
             <Button
               variant="ghost"
               onClick={() => router.push('/discovery')}
@@ -204,7 +204,7 @@ export function RequirementsDocumentView({
                 <ArrowRight className="size-4 ml-1" />
               </Button>
             ) : (
-              <span className="ml-auto text-sm text-muted-foreground">Committed · Stage 3 coming soon</span>
+              <span className="ml-auto text-sm text-muted">Committed · Stage 3 coming soon</span>
             )}
           </footer>
 

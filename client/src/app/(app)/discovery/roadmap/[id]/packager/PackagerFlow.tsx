@@ -195,11 +195,11 @@ export function PackagerFlow({ roadmapId, taskId, open, onClose }: PackagerFlowP
         <motion.div
           initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
           transition={{ duration: 0.2 }}
-          className="rounded-xl border border-border bg-background shadow-lg overflow-hidden"
+          className="rounded-xl border border-rule bg-bg shadow-lg overflow-hidden"
         >
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
-            <p className="text-xs font-semibold text-foreground">Service Packager</p>
-            <button type="button" onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-rule bg-bg-3/30">
+            <p className="text-xs font-semibold text-fg">Service Packager</p>
+            <button type="button" onClick={onClose} className="rounded-md p-1 text-muted hover:text-fg hover:bg-bg-3">
               <X className="size-3.5" />
             </button>
           </div>
@@ -208,7 +208,7 @@ export function PackagerFlow({ roadmapId, taskId, open, onClose }: PackagerFlowP
               <p className="mb-3 text-[11px] text-red-500 rounded-md bg-red-500/10 border border-red-500/20 px-2.5 py-2">{loadError}</p>
             )}
             {stage === 'loading_context' && (
-              <div className="flex items-center gap-2 py-6 justify-center text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 py-6 justify-center text-xs text-muted">
                 <Loader2 className="size-4 animate-spin" /> Loading the context the Packager already knows…
               </div>
             )}

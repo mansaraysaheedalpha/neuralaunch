@@ -135,8 +135,8 @@ export function TransformationReportView({
   if (!report && !error) {
     return (
       <div className="max-w-2xl mx-auto px-6 py-10 flex flex-col items-center gap-3">
-        <Loader2 className="size-5 text-primary animate-spin" />
-        <p className="text-sm text-muted-foreground">Loading your transformation report…</p>
+        <Loader2 className="size-5 text-accent animate-spin" />
+        <p className="text-sm text-muted">Loading your transformation report…</p>
       </div>
     );
   }
@@ -157,17 +157,17 @@ export function TransformationReportView({
   if (report.stage === 'failed') {
     return (
       <div className="max-w-2xl mx-auto px-6 py-10 flex flex-col gap-4">
-        <h1 className="text-2xl font-bold text-foreground">{report.venture.name}</h1>
+        <h1 className="text-2xl font-bold text-fg">{report.venture.name}</h1>
         <div className="rounded-xl border border-red-500/30 bg-red-500/5 px-5 py-4 flex items-start gap-3">
           <AlertTriangle className="size-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
           <div className="flex flex-col gap-1.5">
-            <p className="text-sm font-semibold text-foreground">
+            <p className="text-sm font-semibold text-fg">
               We couldn&apos;t finish your transformation report.
             </p>
-            <p className="text-xs text-foreground/80 leading-relaxed">
+            <p className="text-xs text-fg/80 leading-relaxed">
               {report.errorMessage ?? 'Something went wrong during generation.'}
             </p>
-            <p className="text-xs text-muted-foreground leading-relaxed mt-2">
+            <p className="text-xs text-muted leading-relaxed mt-2">
               The venture is still marked complete. To regenerate, reopen it (within 24h of marking complete) and mark complete again — that fires a fresh report.
             </p>
           </div>
@@ -181,19 +181,19 @@ export function TransformationReportView({
     return (
       <div className="max-w-2xl mx-auto px-6 py-10 flex flex-col gap-6">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold text-foreground">{report.venture.name}</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-2xl font-bold text-fg">{report.venture.name}</h1>
+          <p className="text-sm text-muted">
             Generating your transformation report.
           </p>
         </div>
 
-        <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 flex flex-col gap-3">
+        <div className="rounded-xl border border-accent/20 bg-accent/5 px-5 py-4 flex flex-col gap-3">
           <div className="flex items-start gap-2">
-            <Sparkles className="size-4 text-primary mt-0.5 shrink-0" />
-            <p className="text-sm text-foreground/90 leading-relaxed">
+            <Sparkles className="size-4 text-accent mt-0.5 shrink-0" />
+            <p className="text-sm text-fg/90 leading-relaxed">
               I&apos;m reading every cycle, every check-in you wrote, and every tool you used to write a personal narrative of how this venture went. Usually takes 1 to 3 minutes.
               <br />
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-muted">
                 You can close this tab — it&apos;ll be ready when you come back, and a notification will fire if you have push enabled.
               </span>
             </p>
@@ -207,12 +207,12 @@ export function TransformationReportView({
               return (
                 <li key={s} className="flex items-center gap-2 text-[12px]">
                   {completed && <Check className="size-3.5 text-success shrink-0" />}
-                  {active    && <Loader2 className="size-3.5 text-primary animate-spin shrink-0" />}
-                  {pending   && <span className="size-3.5 rounded-full border border-muted-foreground/30 shrink-0" />}
+                  {active    && <Loader2 className="size-3.5 text-accent animate-spin shrink-0" />}
+                  {pending   && <span className="size-3.5 rounded-full border border-rule/30 shrink-0" />}
                   <span className={
-                    completed ? 'text-foreground/80'
-                  : active    ? 'text-foreground font-medium'
-                  :             'text-muted-foreground'
+                    completed ? 'text-fg/80'
+                  : active    ? 'text-fg font-medium'
+                  :             'text-muted'
                   }>
                     {STAGE_LABELS[s]}
                   </span>
@@ -229,7 +229,7 @@ export function TransformationReportView({
   if (!report.content) {
     return (
       <div className="max-w-2xl mx-auto px-6 py-10">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted">
           Your transformation report finished generating but the content failed to parse. Try refreshing — if it persists, regenerate by reopening and re-marking the venture complete.
         </p>
       </div>
@@ -413,10 +413,10 @@ function PublishStateBanner({
           ? <Share2 className="size-4 text-success mt-0.5 shrink-0" />
           : <Lock   className="size-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />}
         <div className="flex-1 flex flex-col gap-1.5">
-          <p className="text-[12px] font-semibold text-foreground">
+          <p className="text-[12px] font-semibold text-fg">
             {isPublic ? 'Shared publicly' : 'Pending review for the public archive'}
           </p>
-          <p className="text-[11px] text-foreground/80 leading-relaxed">
+          <p className="text-[11px] text-fg/80 leading-relaxed">
             {isPublic
               ? 'Your redacted story is live in the public archive. The private version above is still just for you.'
               : 'You\'ve submitted this story to the public archive. It\'s waiting on review before going live.'}
@@ -425,7 +425,7 @@ function PublishStateBanner({
             type="button"
             onClick={() => { void onUnpublish(); }}
             disabled={submitting}
-            className="self-start inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-foreground hover:bg-muted disabled:opacity-50"
+            className="self-start inline-flex items-center gap-1.5 rounded-md border border-rule bg-bg px-2.5 py-1 text-[11px] font-medium text-fg hover:bg-bg-3 disabled:opacity-50"
           >
             <EyeOff className="size-3" />
             {submitting ? 'Working…' : 'Unpublish'}
@@ -451,13 +451,13 @@ function SendBackBanner({
       <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3 flex items-start gap-3">
         <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
         <div className="flex-1 flex flex-col gap-1.5">
-          <p className="text-[12px] font-semibold text-foreground">
+          <p className="text-[12px] font-semibold text-fg">
             Your submission needs a revision before it can go on the public archive
           </p>
-          <p className="text-[11px] text-foreground/80 leading-relaxed">
+          <p className="text-[11px] text-fg/80 leading-relaxed">
             <span className="font-medium">Note from review ({reviewed}):</span> {notes}
           </p>
-          <p className="text-[10px] text-muted-foreground leading-relaxed">
+          <p className="text-[10px] text-muted leading-relaxed">
             Edit your redaction choices below, then click &ldquo;Confirm and publish&rdquo; again to re-submit.
           </p>
         </div>
@@ -468,18 +468,18 @@ function SendBackBanner({
 
 function ReadingModeFooter({ onWantToShare }: { onWantToShare: () => void }) {
   return (
-    <div className="mt-12 rounded-xl border border-border bg-card px-5 py-4 flex flex-col gap-2">
-      <p className="text-sm font-semibold text-foreground inline-flex items-center gap-1.5">
-        <Share2 className="size-3.5 text-primary" />
+    <div className="mt-12 rounded-xl border border-rule bg-bg-2 px-5 py-4 flex flex-col gap-2">
+      <p className="text-sm font-semibold text-fg inline-flex items-center gap-1.5">
+        <Share2 className="size-3.5 text-accent" />
         Want to share this with other founders?
       </p>
-      <p className="text-[12px] text-muted-foreground leading-relaxed">
+      <p className="text-[12px] text-muted leading-relaxed">
         Other founders read real journeys on the public archive — yours could help someone deciding whether to keep going. You stay in control: the next step is a redaction editor where you choose exactly what gets published.
       </p>
       <button
         type="button"
         onClick={onWantToShare}
-        className="self-start inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+        className="self-start inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[11px] font-semibold text-bg hover:bg-accent/90 transition-colors"
       >
         Make this story shareable publicly
       </button>
@@ -506,31 +506,31 @@ function PreShareWarning({
       transition={{ duration: 0.2 }}
       className="mt-12 rounded-xl border border-amber-500/40 bg-amber-500/5 px-5 py-4 flex flex-col gap-3"
     >
-      <p className="text-sm font-semibold text-foreground inline-flex items-center gap-1.5">
+      <p className="text-sm font-semibold text-fg inline-flex items-center gap-1.5">
         <Lock className="size-3.5 text-amber-600 dark:text-amber-400" />
         Before you share — you stay in control
       </p>
-      <p className="text-[12px] text-foreground/90 leading-relaxed">
+      <p className="text-[12px] text-fg/90 leading-relaxed">
         This is the kind of story other founders read on the public archive — your real journey, in your own words. <span className="font-semibold">Nothing leaves your account until you confirm the redaction step.</span>
       </p>
-      <p className="text-[12px] text-foreground/90 leading-relaxed">
+      <p className="text-[12px] text-fg/90 leading-relaxed">
         On the next screen you&apos;ll see exactly what will be shared and choose what to redact — names, business names, locations, specific numbers. Continuing only opens the editor; it does not publish.
       </p>
-      <p className="text-[11px] text-muted-foreground italic leading-relaxed">
+      <p className="text-[11px] text-muted italic leading-relaxed">
         Auto-redacted regardless of your choices: emails, phone numbers, full names, your first name, large currency amounts.
       </p>
       <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={onContinue}
-          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[11px] font-semibold text-bg hover:bg-accent/90 transition-colors"
         >
           Continue to redaction editor
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-md border border-rule bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted hover:text-fg hover:bg-bg-3 transition-colors"
         >
           Not yet
         </button>
@@ -597,25 +597,25 @@ function RedactionEditor({
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+          className="inline-flex items-center gap-1 text-[11px] text-muted hover:text-fg"
         >
           <ArrowLeft className="size-3" />
           Back
         </button>
-        <p className="text-[11px] uppercase tracking-widest text-primary/70 font-semibold">
+        <p className="text-[11px] uppercase tracking-widest text-accent/70 font-semibold">
           Redaction editor
         </p>
       </div>
 
-      <div className="rounded-xl border border-border bg-card px-5 py-4 flex flex-col gap-3">
-        <p className="text-sm font-semibold text-foreground">
+      <div className="rounded-xl border border-rule bg-bg-2 px-5 py-4 flex flex-col gap-3">
+        <p className="text-sm font-semibold text-fg">
           Choose what gets shared publicly
         </p>
-        <p className="text-[12px] text-muted-foreground leading-relaxed">
-          Below are the items I&apos;ve flagged as potentially sensitive. For each one, choose to <span className="font-semibold text-foreground">redact</span> (substitute with [redacted]), <span className="font-semibold text-foreground">replace</span> with your own generic phrase, or <span className="font-semibold text-foreground">keep</span> in the public version. Auto-redacted items (emails, phone numbers, full names, large currency) don&apos;t appear here — those are always redacted regardless.
+        <p className="text-[12px] text-muted leading-relaxed">
+          Below are the items I&apos;ve flagged as potentially sensitive. For each one, choose to <span className="font-semibold text-fg">redact</span> (substitute with [redacted]), <span className="font-semibold text-fg">replace</span> with your own generic phrase, or <span className="font-semibold text-fg">keep</span> in the public version. Auto-redacted items (emails, phone numbers, full names, large currency) don&apos;t appear here — those are always redacted regardless.
         </p>
         {candidates.length === 0 && (
-          <p className="text-[12px] text-foreground/80 leading-relaxed italic">
+          <p className="text-[12px] text-fg/80 leading-relaxed italic">
             No additional sensitive content was flagged beyond the auto-redacted baseline. Your story is ready to publish as-is.
           </p>
         )}
@@ -640,7 +640,7 @@ function RedactionEditor({
           type="button"
           onClick={() => { void onPublish(edits); }}
           disabled={submitting}
-          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
+          className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[11px] font-semibold text-bg hover:bg-accent/90 transition-colors disabled:opacity-60"
         >
           {submitting ? <Loader2 className="size-3 animate-spin" /> : <Share2 className="size-3" />}
           Confirm and publish
@@ -649,7 +649,7 @@ function RedactionEditor({
           type="button"
           onClick={() => { void onSaveEdits(edits); }}
           disabled={submitting}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-md border border-rule bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted hover:text-fg hover:bg-bg-3 transition-colors"
         >
           Save and finish later
         </button>
@@ -674,16 +674,16 @@ function CandidateRow({
   onChange:  (entry: RedactionEditEntry) => void;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-background px-3 py-2.5 flex flex-col gap-2">
+    <div className="rounded-lg border border-rule bg-bg px-3 py-2.5 flex flex-col gap-2">
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0 flex flex-col gap-1">
-          <p className="text-[11px] font-semibold text-foreground break-words">
-            <span className="font-mono bg-muted px-1 py-0.5 rounded">{candidate.text}</span>
-            <span className="ml-2 text-[9px] uppercase tracking-wider text-muted-foreground/70">
+          <p className="text-[11px] font-semibold text-fg break-words">
+            <span className="font-mono bg-bg-3 px-1 py-0.5 rounded">{candidate.text}</span>
+            <span className="ml-2 text-[9px] uppercase tracking-wider text-muted/70">
               {candidate.type.replace('_', ' ')}
             </span>
           </p>
-          <p className="text-[10px] text-muted-foreground leading-relaxed">{candidate.rationale}</p>
+          <p className="text-[10px] text-muted leading-relaxed">{candidate.rationale}</p>
         </div>
       </div>
       <div className="flex items-center gap-1.5">
@@ -700,8 +700,8 @@ function CandidateRow({
               })}
               className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[10px] font-medium transition-colors ${
                 active
-                  ? 'border-primary/40 bg-primary/10 text-primary'
-                  : 'border-border bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground'
+                  ? 'border-accent/40 bg-accent/10 text-accent'
+                  : 'border-rule bg-transparent text-muted hover:bg-bg-3 hover:text-fg'
               }`}
             >
               <Icon className="size-2.5" />
@@ -716,7 +716,7 @@ function CandidateRow({
           value={entry.replacement ?? ''}
           onChange={e => onChange({ action: 'replace', replacement: e.target.value })}
           placeholder="Generic substitute (e.g. 'a logistics company in West Africa')"
-          className="rounded-md border border-border bg-background px-2 py-1 text-[11px] text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/30"
+          className="rounded-md border border-rule bg-bg px-2 py-1 text-[11px] text-fg placeholder:text-muted/60 focus:outline-none focus:ring-1 focus:ring-accent/30"
         />
       )}
     </div>
@@ -760,13 +760,13 @@ function NarrativeRender({
       className="max-w-2xl mx-auto px-6 py-10 flex flex-col gap-8"
     >
       <header className="flex flex-col gap-2">
-        <p className="text-[10px] uppercase tracking-widest text-primary/70 font-semibold">
+        <p className="text-[10px] uppercase tracking-widest text-accent/70 font-semibold">
           Your transformation report
         </p>
-        <h1 className="text-3xl font-bold text-foreground leading-tight">
+        <h1 className="text-3xl font-bold text-fg leading-tight">
           {ventureName}
         </h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted">
           A personal narrative of how this venture went, written from your own check-ins, tools, and outcomes.
         </p>
       </header>
@@ -779,7 +779,7 @@ function NarrativeRender({
         <div className="flex flex-col gap-8">
           {content.customSections.map((cs, i) => (
             <section key={i} className="flex flex-col gap-2">
-              <h2 className="text-lg font-semibold text-foreground">{cs.heading}</h2>
+              <h2 className="text-lg font-semibold text-fg">{cs.heading}</h2>
               <Prose body={cs.body} />
             </section>
           ))}
@@ -804,13 +804,13 @@ function DefaultSection({
       if (!pivots || pivots.length === 0) return null;
       return (
         <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+          <h2 className="text-lg font-semibold text-fg">{title}</h2>
           <ul className="flex flex-col gap-4">
             {pivots.map((p, i) => (
-              <li key={i} className="flex flex-col gap-1.5 rounded-lg border border-border bg-card px-4 py-3">
-                <p className="text-sm font-medium text-foreground">{p.moment}</p>
-                <p className="text-[13px] text-foreground/80 leading-relaxed">{p.why}</p>
-                <p className="text-[12px] text-muted-foreground italic leading-relaxed">{p.change}</p>
+              <li key={i} className="flex flex-col gap-1.5 rounded-lg border border-rule bg-bg-2 px-4 py-3">
+                <p className="text-sm font-medium text-fg">{p.moment}</p>
+                <p className="text-[13px] text-fg/80 leading-relaxed">{p.why}</p>
+                <p className="text-[12px] text-muted italic leading-relaxed">{p.change}</p>
               </li>
             ))}
           </ul>
@@ -820,8 +820,8 @@ function DefaultSection({
     case 'closingReflection': {
       const body = content.closingReflection;
       return (
-        <section className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 flex flex-col gap-1.5">
-          <p className="text-[10px] uppercase tracking-widest text-primary/70 font-semibold">
+        <section className="rounded-xl border border-accent/20 bg-accent/5 px-5 py-4 flex flex-col gap-1.5">
+          <p className="text-[10px] uppercase tracking-widest text-accent/70 font-semibold">
             For you
           </p>
           <Prose body={body} />
@@ -833,7 +833,7 @@ function DefaultSection({
       if (typeof body !== 'string' || body.length === 0) return null;
       return (
         <section className="flex flex-col gap-2">
-          <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+          <h2 className="text-lg font-semibold text-fg">{title}</h2>
           <Prose body={body} />
         </section>
       );
@@ -849,7 +849,7 @@ function Prose({ body }: { body: string }) {
   return (
     <div className="flex flex-col gap-3">
       {paragraphs.map((p, i) => (
-        <p key={i} className="text-[14px] text-foreground/90 leading-relaxed whitespace-pre-wrap">
+        <p key={i} className="text-[14px] text-fg/90 leading-relaxed whitespace-pre-wrap">
           {p}
         </p>
       ))}

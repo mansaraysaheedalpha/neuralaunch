@@ -132,10 +132,10 @@ export function ArchivedVenturesSection({
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-baseline justify-between">
-        <h2 className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
+        <h2 className="text-[11px] uppercase tracking-wider text-muted font-semibold">
           Archived
         </h2>
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-[11px] text-muted">
           {archived.length} preserved
         </span>
       </div>
@@ -145,19 +145,19 @@ export function ArchivedVenturesSection({
         return (
           <div
             key={v.id}
-            className={`flex items-start justify-between gap-3 rounded-xl border border-dashed border-border bg-muted/20 p-4 transition-opacity ${
+            className={`flex items-start justify-between gap-3 rounded-xl border border-dashed border-rule bg-bg-3/20 p-4 transition-opacity ${
               isPending ? 'opacity-60' : ''
             }`}
           >
             <div className="flex-1 min-w-0 flex flex-col gap-1">
               <div className="flex items-center gap-2">
-                <Archive className="size-3.5 text-muted-foreground shrink-0" aria-hidden="true" />
-                <p className="text-sm font-medium text-muted-foreground truncate">{v.name}</p>
-                <span className="shrink-0 text-[9px] uppercase tracking-wider font-semibold rounded-full px-2 py-0.5 bg-muted text-muted-foreground">
+                <Archive className="size-3.5 text-muted shrink-0" aria-hidden="true" />
+                <p className="text-sm font-medium text-muted truncate">{v.name}</p>
+                <span className="shrink-0 text-[9px] uppercase tracking-wider font-semibold rounded-full px-2 py-0.5 bg-bg-3 text-muted">
                   Archived
                 </span>
               </div>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-[11px] text-muted">
                 {v.cycleCount === 0
                   ? 'No cycles yet'
                   : `${v.cycleCount} cycle${v.cycleCount === 1 ? '' : 's'}`}
@@ -169,7 +169,7 @@ export function ArchivedVenturesSection({
               type="button"
               onClick={() => handleMakeActive(v)}
               disabled={submitting}
-              className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-transparent px-2.5 py-1.5 text-xs font-medium text-foreground hover:border-slate-500 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-transparent px-2.5 py-1.5 text-xs font-medium text-fg hover:border-slate-500 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <RotateCcw className="size-3" aria-hidden="true" />
               {isPending ? 'Activating…' : 'Make active'}

@@ -81,14 +81,14 @@ export default async function ValidationPreviewPage({ params }: ValidationPrevie
 
   return (
     <div className="flex h-full flex-col gap-0 overflow-y-auto">
-      <div className="flex items-center justify-between border-b border-border px-6 py-3 shrink-0">
+      <div className="flex items-center justify-between border-b border-rule px-6 py-3 shrink-0">
         <Link
           href={`/discovery/recommendations/${page.recommendationId}`}
-          className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+          className="text-xs text-muted hover:text-fg underline underline-offset-2 transition-colors"
         >
           ← Back to recommendation
         </Link>
-        <span className="text-xs text-muted-foreground">Validation Page Preview</span>
+        <span className="text-xs text-muted">Validation Page Preview</span>
       </div>
 
       {/* Top section: fixed-height preview iframe + slim sidebar with
@@ -98,8 +98,8 @@ export default async function ValidationPreviewPage({ params }: ValidationPrevie
           288px sidebar collapses everything to unreadable noodles. */}
       <PreviewFrame slug={page.slug}>
         <div>
-          <h2 className="text-sm font-semibold text-foreground mb-1">Your validation page</h2>
-          <p className="text-xs text-muted-foreground leading-relaxed">
+          <h2 className="text-sm font-semibold text-fg mb-1">Your validation page</h2>
+          <p className="text-xs text-muted leading-relaxed">
             Preview how your page looks to visitors. Publish when you're happy — then share it.
           </p>
         </div>
@@ -118,7 +118,7 @@ export default async function ValidationPreviewPage({ params }: ValidationPrevie
           mobile. Distribution brief is the most actionable post-publish
           content the founder needs to engage with — give it room. */}
       {page.status === 'LIVE' && brief && brief.length > 0 && (
-        <section className="border-b border-border px-6 py-8">
+        <section className="border-b border-rule px-6 py-8">
           <div className="max-w-3xl mx-auto">
             <DistributionTracker
               pageId={page.id}
@@ -135,12 +135,12 @@ export default async function ValidationPreviewPage({ params }: ValidationPrevie
           distribution affordance at all and has no way to know
           anything went wrong. */}
       {page.status === 'LIVE' && (!brief || brief.length === 0) && (
-        <section className="border-b border-border px-6 py-8">
-          <div className="max-w-3xl mx-auto rounded-lg border border-gold/30 bg-gold/5 p-4">
-            <p className="text-[10px] uppercase tracking-widest text-gold mb-2">
+        <section className="border-b border-rule px-6 py-8">
+          <div className="max-w-3xl mx-auto rounded-lg border border-accent/30 bg-accent/5 p-4">
+            <p className="text-[10px] uppercase tracking-widest text-accent mb-2">
               Distribution brief unavailable
             </p>
-            <p className="text-xs text-foreground/80 leading-relaxed">
+            <p className="text-xs text-fg/80 leading-relaxed">
               The personalised distribution brief is missing for this page.
               The page itself is live and accepting visitors — you can
               still share the URL above directly. We are working on a

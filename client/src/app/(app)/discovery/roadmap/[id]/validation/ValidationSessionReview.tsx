@@ -24,33 +24,33 @@ export interface ValidationSessionSummary {
 }
 
 const STATUS_CLASSES: Record<ValidationSessionSummary['status'], string> = {
-  DRAFT:    'bg-gold/10 text-gold',
+  DRAFT:    'bg-accent/10 text-accent',
   LIVE:     'bg-success/10 text-success',
-  ARCHIVED: 'bg-muted text-muted-foreground',
+  ARCHIVED: 'bg-bg-3 text-muted',
 };
 
 export function ValidationSessionReview({ session }: { session: ValidationSessionSummary }) {
   const statusLabel = session.status.charAt(0) + session.status.slice(1).toLowerCase();
 
   return (
-    <div className="mt-2 flex items-start justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3">
+    <div className="mt-2 flex items-start justify-between gap-3 rounded-xl border border-rule bg-bg-3/30 p-3">
       <div className="flex-1 min-w-0 flex flex-col gap-1">
         <div className="flex items-center gap-2">
-          <p className="text-xs font-semibold text-foreground">Validation page</p>
+          <p className="text-xs font-semibold text-fg">Validation page</p>
           <span className={`text-[9px] uppercase tracking-wider font-semibold rounded-full px-1.5 py-0.5 ${STATUS_CLASSES[session.status]}`}>
             {statusLabel}
           </span>
           {session.taskStale && (
-            <span className="text-[9px] uppercase tracking-wider font-semibold rounded-full px-1.5 py-0.5 bg-muted text-muted-foreground">
+            <span className="text-[9px] uppercase tracking-wider font-semibold rounded-full px-1.5 py-0.5 bg-bg-3 text-muted">
               <Archive className="inline size-2.5" aria-hidden="true" /> Task changed
             </span>
           )}
         </div>
-        <p className="text-[11px] text-muted-foreground truncate">/{session.slug}</p>
+        <p className="text-[11px] text-muted truncate">/{session.slug}</p>
       </div>
       <Link
         href={`/discovery/validation/${session.pageId}`}
-        className="shrink-0 inline-flex items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1 text-[11px] font-medium text-foreground hover:bg-muted transition-colors"
+        className="shrink-0 inline-flex items-center gap-1 rounded-md border border-rule bg-bg-2 px-2.5 py-1 text-[11px] font-medium text-fg hover:bg-bg-3 transition-colors"
       >
         Open
         <ExternalLink className="size-3" aria-hidden="true" />

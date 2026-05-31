@@ -60,7 +60,7 @@ export default async function AdminReviewPage({
   const parsedContent = safeParseTransformationReport(row.content);
   if (!parsedContent || row.stage !== 'complete') {
     return (
-      <div className="min-h-screen bg-navy-950 text-slate-50">
+      <div className="min-h-screen bg-bg text-slate-50">
         <main className="mx-auto max-w-3xl px-6 py-12">
           <Link href="/admin/stories" className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200">
             <ArrowLeft className="size-4" />
@@ -94,7 +94,7 @@ export default async function AdminReviewPage({
   const seededOutcome: OutcomeLabel = (row.outcomeLabel as OutcomeLabel | null) ?? 'learning';
 
   return (
-    <div className="min-h-screen bg-navy-950 text-slate-50">
+    <div className="min-h-screen bg-bg text-slate-50">
       <main className="mx-auto max-w-5xl px-6 py-12">
         <Link
           href="/admin/stories"
@@ -123,7 +123,7 @@ export default async function AdminReviewPage({
         <div className="mt-10 grid gap-10 lg:grid-cols-2">
           {/* Left column — the redacted-content preview, exactly
               as a public reader would see it. Read-only. */}
-          <section className="flex flex-col gap-4 rounded-xl border border-slate-800 bg-navy-900/40 px-6 py-5">
+          <section className="flex flex-col gap-4 rounded-xl border border-slate-800 bg-bg-2/40 px-6 py-5">
             <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-400">
               Redacted preview (what readers will see)
             </h2>

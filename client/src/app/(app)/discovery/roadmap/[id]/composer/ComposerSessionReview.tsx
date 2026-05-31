@@ -48,15 +48,15 @@ export function ComposerSessionReview({ session }: ComposerSessionReviewProps) {
   const modeLabel    = MODE_LABELS[mode as string] ?? mode;
 
   return (
-    <div className="rounded-lg border border-border bg-muted/20 overflow-hidden">
+    <div className="rounded-lg border border-rule bg-bg-3/20 overflow-hidden">
       {/* Collapsed header */}
       <button
         type="button"
         onClick={() => setExpanded(o => !o)}
-        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/40 transition-colors text-left"
+        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-bg-3/40 transition-colors text-left"
       >
         <div className="flex flex-col gap-0.5 min-w-0">
-          <p className="text-[11px] font-semibold text-foreground truncate">
+          <p className="text-[11px] font-semibold text-fg truncate">
             Drafted {messages.length} {channelLabel} {modeLabel}
           </p>
           {sentCount > 0 && (
@@ -67,7 +67,7 @@ export function ComposerSessionReview({ session }: ComposerSessionReviewProps) {
           )}
         </div>
         <motion.span animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.18 }}>
-          <ChevronDown className="size-3.5 text-muted-foreground shrink-0" />
+          <ChevronDown className="size-3.5 text-muted shrink-0" />
         </motion.span>
       </button>
 
@@ -81,11 +81,11 @@ export function ComposerSessionReview({ session }: ComposerSessionReviewProps) {
             transition={{ duration: 0.18 }}
             className="overflow-hidden"
           >
-            <div className="px-3 pb-3 border-t border-border">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 pt-3">
+            <div className="px-3 pb-3 border-t border-rule">
+              <p className="text-[10px] uppercase tracking-wider text-muted mb-1 pt-3">
                 First message
               </p>
-              <p className="text-[11px] text-foreground whitespace-pre-wrap rounded-md bg-background border border-border px-2.5 py-2 leading-relaxed">
+              <p className="text-[11px] text-fg whitespace-pre-wrap rounded-md bg-bg border border-rule px-2.5 py-2 leading-relaxed">
                 {firstBody}
               </p>
             </div>

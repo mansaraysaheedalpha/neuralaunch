@@ -68,13 +68,13 @@ export function TrainingConsentSection({
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-4">
+    <div className="rounded-xl border border-rule bg-bg-2 p-5 flex flex-col gap-4">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
-          <p className="text-sm font-medium text-foreground">
+          <p className="text-sm font-medium text-fg">
             Help NeuraLaunch get better at recommendations
           </p>
-          <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+          <p className="mt-1 text-xs text-muted leading-relaxed">
             If this is on, an anonymised version of every outcome you submit will be stored and used to help NeuraLaunch give better recommendations to founders in similar situations to yours.
           </p>
         </div>
@@ -84,32 +84,32 @@ export function TrainingConsentSection({
             checked={consent}
             disabled={pending}
             onChange={e => { void handleToggle(e.target.checked); }}
-            className="size-5 rounded border-border"
+            className="size-5 rounded border-rule"
           />
-          {pending && <Loader2 className="ml-2 size-3 animate-spin text-muted-foreground" />}
+          {pending && <Loader2 className="ml-2 size-3 animate-spin text-muted" />}
         </label>
       </div>
 
-      <div className="border-t border-border pt-4 flex flex-col gap-2">
-        <p className="text-[11px] uppercase tracking-widest text-muted-foreground/70">
+      <div className="border-t border-rule pt-4 flex flex-col gap-2">
+        <p className="text-[11px] uppercase tracking-widest text-muted/70">
           The honest disclosure
         </p>
-        <p className="text-[11px] text-foreground/80 leading-relaxed">
+        <p className="text-[11px] text-fg/80 leading-relaxed">
           We strip names, emails, phone numbers, and bucket your location to country level before storing the anonymised version. Free-text answers may still contain details we cannot automatically detect — if you wrote about a specific person or place, those words may be in the stored version.
         </p>
-        <p className="text-[11px] text-foreground/80 leading-relaxed">
+        <p className="text-[11px] text-fg/80 leading-relaxed">
           Anonymised records are kept for up to 24 months and then deleted automatically. Turning this off also deletes any anonymised records you have already shared — the historical fact that you once consented stays in our audit log, but the payload itself is gone.
         </p>
       </div>
 
       {consentedAt && (
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-[10px] text-muted">
           You opted in on {new Date(consentedAt).toLocaleDateString()}.
         </p>
       )}
 
       {purgedNotice && (
-        <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] text-foreground/80">
+        <div className="rounded-md border border-accent/30 bg-accent/5 px-3 py-2 text-[11px] text-fg/80">
           {purgedNotice}
         </div>
       )}

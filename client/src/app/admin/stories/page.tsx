@@ -72,7 +72,7 @@ export default async function AdminStoriesQueuePage() {
   const sentBackCount = queue.filter(r => r.publishState === 'private').length;
 
   return (
-    <div className="min-h-screen bg-navy-950 text-slate-50">
+    <div className="min-h-screen bg-bg text-slate-50">
       <main className="mx-auto max-w-5xl px-6 py-12">
         <header className="flex flex-col gap-1.5">
           <p className="text-[11px] uppercase tracking-widest text-slate-500">
@@ -87,7 +87,7 @@ export default async function AdminStoriesQueuePage() {
         </header>
 
         {queue.length === 0 ? (
-          <p className="mt-12 rounded-xl border border-slate-800 bg-navy-900/40 px-6 py-10 text-center text-sm text-slate-400">
+          <p className="mt-12 rounded-xl border border-slate-800 bg-bg-2/40 px-6 py-10 text-center text-sm text-slate-400">
             Queue is empty. No founders have submitted stories for review.
           </p>
         ) : (
@@ -103,7 +103,7 @@ export default async function AdminStoriesQueuePage() {
                 <li key={row.id}>
                   <Link
                     href={`/admin/stories/${row.id}`}
-                    className="flex flex-col gap-2 rounded-xl border border-slate-800 bg-navy-900/40 px-5 py-4 transition-colors hover:border-slate-700 hover:bg-navy-900/60"
+                    className="flex flex-col gap-2 rounded-xl border border-slate-800 bg-bg-2/40 px-5 py-4 transition-colors hover:border-slate-700 hover:bg-bg-2/60"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0 flex flex-col gap-1">
@@ -116,7 +116,7 @@ export default async function AdminStoriesQueuePage() {
                           ].join(' ')}>
                             {isSentBack ? 'Sent back' : 'Pending review'}
                           </span>
-                          <p className="text-sm font-semibold text-foreground truncate">
+                          <p className="text-sm font-semibold text-fg truncate">
                             {row.venture.name}
                           </p>
                         </div>

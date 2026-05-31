@@ -135,17 +135,17 @@ export function MicPermissionHelp({ className }: MicPermissionHelpProps) {
     <div
       role="alert"
       className={cn(
-        'rounded-lg border border-border bg-background p-3 flex flex-col gap-2',
+        'rounded-lg border border-rule bg-bg p-3 flex flex-col gap-2',
         className,
       )}
     >
       <div className="flex items-start gap-2">
         <MicOff className="size-4 shrink-0 text-red-500 mt-0.5" aria-hidden />
         <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-          <p className="text-xs font-medium text-foreground">
+          <p className="text-xs font-medium text-fg">
             Microphone is blocked for this site
           </p>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-[11px] text-muted">
             Your browser is not asking for permission because it has been
             blocked previously or the default is set to deny. Here is how
             to re-enable it.
@@ -154,7 +154,7 @@ export function MicPermissionHelp({ className }: MicPermissionHelpProps) {
         <button
           type="button"
           onClick={() => setExpanded(v => !v)}
-          className="text-[11px] font-medium text-primary shrink-0 flex items-center gap-0.5"
+          className="text-[11px] font-medium text-accent shrink-0 flex items-center gap-0.5"
           aria-expanded={expanded}
         >
           {expanded ? 'Hide' : 'Show'} steps
@@ -166,10 +166,10 @@ export function MicPermissionHelp({ className }: MicPermissionHelpProps) {
         <ol className="flex flex-col gap-2 pl-6 mt-1">
           {sections.map((section, i) => (
             <li key={i} className="flex flex-col gap-0.5">
-              <p className="text-[11px] font-semibold text-foreground">{section.title}</p>
-              <ul className="flex flex-col gap-0.5 pl-3 list-disc marker:text-muted-foreground/70">
+              <p className="text-[11px] font-semibold text-fg">{section.title}</p>
+              <ul className="flex flex-col gap-0.5 pl-3 list-disc marker:text-muted/70">
                 {section.steps.map((step, j) => (
-                  <li key={j} className="text-[11px] text-muted-foreground">
+                  <li key={j} className="text-[11px] text-muted">
                     {step}
                   </li>
                 ))}

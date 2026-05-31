@@ -49,20 +49,20 @@ export default async function ValidationDashboardPage() {
     <div className="flex-1 overflow-y-auto">
       <div className="mx-auto max-w-3xl px-6 py-10 flex flex-col gap-6">
         <div>
-          <h1 className="text-xl font-semibold text-foreground">Validation Pages</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-xl font-semibold text-fg">Validation Pages</h1>
+          <p className="mt-1 text-sm text-muted">
             Landing pages you've built to test your ideas with real users.
           </p>
         </div>
 
         {pages.length === 0 ? (
-          <div className="rounded-xl border border-border bg-card p-8 text-center">
-            <p className="text-sm text-muted-foreground">
+          <div className="rounded-xl border border-rule bg-bg-2 p-8 text-center">
+            <p className="text-sm text-muted">
               You haven't built a validation page yet.
             </p>
             <Link
               href="/discovery/recommendations"
-              className="mt-4 inline-block text-sm font-medium text-primary hover:underline"
+              className="mt-4 inline-block text-sm font-medium text-accent hover:underline"
             >
               Start from a recommendation →
             </Link>
@@ -79,14 +79,14 @@ export default async function ValidationDashboardPage() {
                 <Link
                   key={page.id}
                   href={`/discovery/validation/${page.id}`}
-                  className="rounded-xl border border-border bg-card p-5 transition-colors hover:border-primary/30 hover:bg-primary/5"
+                  className="rounded-xl border border-rule bg-bg-2 p-5 transition-colors hover:border-accent/30 hover:bg-accent/5"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <StatusBadge status={page.status} />
                         {hasReport && page.report?.signalStrength !== 'negative' && (
-                          <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-primary">
+                          <span className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-accent">
                             Build brief ready
                           </span>
                         )}
@@ -96,14 +96,14 @@ export default async function ValidationDashboardPage() {
                           </span>
                         )}
                       </div>
-                      <h2 className="mt-2 text-sm font-semibold text-foreground leading-snug truncate">
+                      <h2 className="mt-2 text-sm font-semibold text-fg leading-snug truncate">
                         {page.recommendation?.path ?? 'Untitled validation page'}
                       </h2>
-                      <p className="mt-1 text-xs text-muted-foreground truncate">/lp/{page.slug}</p>
+                      <p className="mt-1 text-xs text-muted truncate">/lp/{page.slug}</p>
                     </div>
                   </div>
 
-                  <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
                     <span>{visitorCount} visitor{visitorCount === 1 ? '' : 's'}</span>
                     {signal && <span>signal: {signal}</span>}
                     {page.status === 'LIVE' && (
@@ -127,9 +127,9 @@ export default async function ValidationDashboardPage() {
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    DRAFT:    'bg-gold/10 text-gold',
+    DRAFT:    'bg-accent/10 text-accent',
     LIVE:     'bg-success/10 text-success',
-    ARCHIVED: 'bg-muted text-muted-foreground',
+    ARCHIVED: 'bg-bg-3 text-muted',
   };
   return (
     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider ${styles[status] ?? styles.DRAFT}`}>

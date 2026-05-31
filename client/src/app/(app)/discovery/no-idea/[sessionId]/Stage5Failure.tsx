@@ -25,17 +25,17 @@ export function Stage5Failure({
   retrying,
 }: Stage5FailureProps) {
   return (
-    <section className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-5 space-y-4">
-      <h2 className="text-base font-semibold text-foreground">
+    <section className="rounded-lg border border-accent/40 bg-accent/5 px-4 py-5 space-y-4">
+      <h2 className="text-base font-semibold text-fg">
         Synthesis didn&apos;t finish
       </h2>
 
-      <p className="text-sm text-foreground">
-        <span className="text-muted-foreground">What happened: </span>
+      <p className="text-sm text-fg">
+        <span className="text-muted">What happened: </span>
         {errorMessage}
       </p>
 
-      <div className="flex flex-wrap items-start gap-3 border-t border-destructive/30 pt-4">
+      <div className="flex flex-wrap items-start gap-3 border-t border-accent/30 pt-4">
         <div className="flex flex-col items-start gap-1">
           <Button onClick={onRetry} disabled={retrying}>
             {retrying ? (
@@ -50,7 +50,7 @@ export function Stage5Failure({
               </>
             )}
           </Button>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-muted">
             Synthesis costs are small. Retrying is the right first move.
           </p>
         </div>
@@ -58,7 +58,7 @@ export function Stage5Failure({
           <Button variant="ghost" onClick={onRevisitStage4} disabled={retrying}>
             Revisit Stage 4
           </Button>
-          <p className="text-xs text-muted-foreground max-w-xs">
+          <p className="text-xs text-muted max-w-xs">
             If retrying keeps failing, the inputs might need a second look. Reopens Stage 4 for edits.
           </p>
         </div>

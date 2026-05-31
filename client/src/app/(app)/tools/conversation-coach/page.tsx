@@ -259,7 +259,7 @@ export default function StandaloneCoachPage() {
   if (stage === 'loading') {
     return (
       <div className="flex items-center justify-center py-24">
-        <Loader2 className="size-6 text-primary animate-spin" />
+        <Loader2 className="size-6 text-accent animate-spin" />
       </div>
     );
   }
@@ -267,11 +267,11 @@ export default function StandaloneCoachPage() {
   if (stage === 'no_roadmap') {
     return (
       <div className="max-w-md mx-auto px-6 py-24 text-center flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted">
           The Conversation Coach needs your discovery context to produce useful outputs.
           Start a discovery session first.
         </p>
-        <Link href="/discovery" className="text-sm text-primary hover:underline">
+        <Link href="/discovery" className="text-sm text-accent hover:underline">
           Start Discovery →
         </Link>
       </div>
@@ -341,8 +341,8 @@ export default function StandaloneCoachPage() {
 
       {stage === 'loading_debrief' && (
         <div className="flex flex-col items-center gap-3 py-16">
-          <Loader2 className="size-6 text-primary animate-spin" />
-          <p className="text-sm text-muted-foreground">Generating your debrief…</p>
+          <Loader2 className="size-6 text-accent animate-spin" />
+          <p className="text-sm text-muted">Generating your debrief…</p>
         </div>
       )}
 
@@ -375,8 +375,8 @@ export default function StandaloneCoachPage() {
 
       {stage === 'done' && (
         <div className="text-center py-10">
-          <p className="text-sm text-foreground mb-3">Your preparation is saved. Good luck with the conversation.</p>
-          <Link href="/tools" className="text-sm text-primary hover:underline">
+          <p className="text-sm text-fg mb-3">Your preparation is saved. Good luck with the conversation.</p>
+          <Link href="/tools" className="text-sm text-accent hover:underline">
             Back to Tools
           </Link>
         </div>

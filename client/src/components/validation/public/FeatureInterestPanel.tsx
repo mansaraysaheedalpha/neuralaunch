@@ -48,12 +48,12 @@ export function FeatureInterestPanel({ features, pageSlug }: FeatureInterestPane
       {features.map((feature, index) => (
         <div
           key={index}
-          className="rounded-xl border border-border bg-card p-5 flex flex-col gap-3"
+          className="rounded-xl border border-rule bg-bg-2 p-5 flex flex-col gap-3"
         >
           <div className="flex flex-col gap-1">
-            <h3 className="text-sm font-semibold text-foreground">{feature.title}</h3>
-            <p className="text-xs text-muted-foreground leading-relaxed">{feature.description}</p>
-            <p className="text-xs text-foreground/70 leading-relaxed">{feature.benefit}</p>
+            <h3 className="text-sm font-semibold text-fg">{feature.title}</h3>
+            <p className="text-xs text-muted leading-relaxed">{feature.description}</p>
+            <p className="text-xs text-fg/70 leading-relaxed">{feature.benefit}</p>
           </div>
           <button
             type="button"
@@ -62,8 +62,8 @@ export function FeatureInterestPanel({ features, pageSlug }: FeatureInterestPane
             className={[
               'self-start rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
               clicked[index]
-                ? 'bg-primary/10 text-primary cursor-default'
-                : 'bg-muted text-foreground hover:bg-primary/10 hover:text-primary',
+                ? 'bg-accent/10 text-accent cursor-default'
+                : 'bg-bg-3 text-fg hover:bg-accent/10 hover:text-accent',
             ].join(' ')}
           >
             {clicked[index] ? '✓ Noted — we\'ll let you know' : 'Notify me when this is ready'}

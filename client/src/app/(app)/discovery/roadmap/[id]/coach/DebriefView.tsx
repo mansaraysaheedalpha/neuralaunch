@@ -27,7 +27,7 @@ export function DebriefView({ debrief, onDone }: DebriefViewProps) {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <p className="text-[10px] uppercase tracking-widest text-muted-foreground mb-3">
+        <p className="text-[10px] uppercase tracking-widest text-muted mb-3">
           Rehearsal debrief
         </p>
 
@@ -43,25 +43,25 @@ export function DebriefView({ debrief, onDone }: DebriefViewProps) {
             {whatWentWell.map((item, i) => (
               <li key={i} className="flex gap-2 items-start">
                 <span className="shrink-0 size-1.5 rounded-full bg-success mt-1.5" />
-                <p className="text-[11px] text-foreground/90 leading-relaxed">{item}</p>
+                <p className="text-[11px] text-fg/90 leading-relaxed">{item}</p>
               </li>
             ))}
           </ul>
         </div>
 
         {/* What to watch for */}
-        <div className="rounded-lg border border-gold/30 bg-gold/5 px-3 py-3 mb-3">
+        <div className="rounded-lg border border-accent/30 bg-accent/5 px-3 py-3 mb-3">
           <div className="flex items-center gap-1.5 mb-2">
-            <AlertTriangle className="size-3.5 text-gold" />
-            <p className="text-xs font-semibold text-gold">
+            <AlertTriangle className="size-3.5 text-accent" />
+            <p className="text-xs font-semibold text-accent">
               What to watch for
             </p>
           </div>
           <ul className="flex flex-col gap-1.5">
             {whatToWatchFor.map((item, i) => (
               <li key={i} className="flex gap-2 items-start">
-                <span className="shrink-0 size-1.5 rounded-full bg-gold mt-1.5" />
-                <p className="text-[11px] text-foreground/90 leading-relaxed">{item}</p>
+                <span className="shrink-0 size-1.5 rounded-full bg-accent mt-1.5" />
+                <p className="text-[11px] text-fg/90 leading-relaxed">{item}</p>
               </li>
             ))}
           </ul>
@@ -79,10 +79,10 @@ export function DebriefView({ debrief, onDone }: DebriefViewProps) {
 
             {revisedSections.openingScript && (
               <div className="mb-3">
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                <p className="text-[10px] uppercase tracking-wider text-muted mb-1">
                   Updated opening script
                 </p>
-                <p className="text-[11px] text-foreground whitespace-pre-wrap rounded-md border border-blue-500/20 bg-background px-2.5 py-2 leading-relaxed">
+                <p className="text-[11px] text-fg whitespace-pre-wrap rounded-md border border-blue-500/20 bg-bg px-2.5 py-2 leading-relaxed">
                   {revisedSections.openingScript}
                 </p>
               </div>
@@ -90,17 +90,17 @@ export function DebriefView({ debrief, onDone }: DebriefViewProps) {
 
             {revisedSections.additionalObjection && (
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                <p className="text-[10px] uppercase tracking-wider text-muted mb-1">
                   New objection surfaced
                 </p>
                 <div className="rounded-md border border-blue-500/20 overflow-hidden">
                   <div className="px-2.5 py-2 bg-blue-500/10 border-b border-blue-500/20">
-                    <p className="text-[11px] font-medium text-foreground/80 italic">
+                    <p className="text-[11px] font-medium text-fg/80 italic">
                       &ldquo;{revisedSections.additionalObjection.objection}&rdquo;
                     </p>
                   </div>
-                  <div className="px-2.5 py-2 bg-background">
-                    <p className="text-[11px] text-foreground leading-relaxed">
+                  <div className="px-2.5 py-2 bg-bg">
+                    <p className="text-[11px] text-fg leading-relaxed">
                       {revisedSections.additionalObjection.response}
                     </p>
                   </div>
@@ -114,7 +114,7 @@ export function DebriefView({ debrief, onDone }: DebriefViewProps) {
       <button
         type="button"
         onClick={onDone}
-        className="rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+        className="rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-bg hover:opacity-90 transition-opacity"
       >
         Done
       </button>

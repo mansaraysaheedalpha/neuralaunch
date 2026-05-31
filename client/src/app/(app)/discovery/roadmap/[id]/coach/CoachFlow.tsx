@@ -146,11 +146,11 @@ export function CoachFlow({ roadmapId, taskId, open, onClose }: CoachFlowProps) 
     <AnimatePresence>
       {open && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}
-          transition={{ duration: 0.2 }} className="rounded-xl border border-border bg-background shadow-lg overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
-            <p className="text-xs font-semibold text-foreground">Conversation Coach</p>
+          transition={{ duration: 0.2 }} className="rounded-xl border border-rule bg-bg shadow-lg overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-rule bg-bg-3/30">
+            <p className="text-xs font-semibold text-fg">Conversation Coach</p>
             <button type="button" onClick={onClose}
-              className="rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+              className="rounded-md p-1 text-muted hover:text-fg hover:bg-bg-3 transition-colors">
               <X className="size-3.5" />
             </button>
           </div>
@@ -204,8 +204,8 @@ export function CoachFlow({ roadmapId, taskId, open, onClose }: CoachFlowProps) 
             {/* Stage: loading_debrief */}
             {stage === 'loading_debrief' && (
               <div className="flex flex-col items-center gap-3 py-8 text-center">
-                <Loader2 className="size-6 animate-spin text-primary" />
-                <p className="text-sm font-medium text-foreground">Generating your debrief…</p>
+                <Loader2 className="size-6 animate-spin text-accent" />
+                <p className="text-sm font-medium text-fg">Generating your debrief…</p>
               </div>
             )}
 
@@ -222,7 +222,7 @@ export function CoachFlow({ roadmapId, taskId, open, onClose }: CoachFlowProps) 
               <div className="flex flex-col gap-4">
                 <CoachSessionReview session={completedSession as Record<string, unknown>} />
                 <button type="button" onClick={onClose}
-                  className="rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted transition-colors">
+                  className="rounded-md border border-rule px-4 py-2 text-sm font-medium text-fg hover:bg-bg-3 transition-colors">
                   Close
                 </button>
               </div>

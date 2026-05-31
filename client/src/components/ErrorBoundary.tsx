@@ -53,17 +53,17 @@ export class ErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="min-h-screen flex items-center justify-center bg-background p-4">
-          <div className="max-w-md w-full bg-card border border-border rounded-xl shadow-lg p-8 text-center">
+        <div className="min-h-screen flex items-center justify-center bg-bg p-4">
+          <div className="max-w-md w-full bg-bg-2 border border-rule rounded-xl shadow-lg p-8 text-center">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 mb-6">
               <AlertCircle className="w-8 h-8 text-red-600 dark:text-red-400" />
             </div>
             
-            <h1 className="text-2xl font-bold text-foreground mb-3">
+            <h1 className="text-2xl font-bold text-fg mb-3">
               Something went wrong
             </h1>
             
-            <p className="text-muted-foreground mb-6">
+            <p className="text-muted mb-6">
               We&apos;re sorry, but something unexpected happened. Please try refreshing
               the page or contact support if the problem persists.
             </p>
@@ -84,7 +84,7 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={this.handleReset}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-accent text-bg rounded-lg font-medium hover:bg-accent/90 transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
                 Try Again
@@ -92,7 +92,7 @@ export class ErrorBoundary extends Component<Props, State> {
               
               <button
                 onClick={() => (window.location.href = "/")}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-border bg-transparent px-4 py-2 font-medium text-foreground transition-colors hover:bg-muted"
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-rule bg-transparent px-4 py-2 font-medium text-fg transition-colors hover:bg-bg-3"
               >
                 Go home
               </button>

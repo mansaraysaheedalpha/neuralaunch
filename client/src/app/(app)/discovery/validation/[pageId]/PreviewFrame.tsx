@@ -47,8 +47,8 @@ export function PreviewFrame({ slug, children }: PreviewFrameProps) {
           publish/status controls. Anything that needs room to breathe
           (distribution brief, build brief panel, report) lives BELOW
           this row in the natural document flow — see page.tsx. */}
-      <div className="flex h-[600px] shrink-0 overflow-hidden border-b border-border">
-        <div className="flex-1 overflow-hidden border-r border-border">
+      <div className="flex h-[600px] shrink-0 overflow-hidden border-b border-rule">
+        <div className="flex-1 overflow-hidden border-r border-rule">
           <iframe
             key={reloadKey}
             src={`/lp/${slug}`}

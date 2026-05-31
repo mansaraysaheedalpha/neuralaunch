@@ -18,25 +18,25 @@ export interface DimensionFindingCardProps {
  */
 export function DimensionFindingCard({ dimension, finding }: DimensionFindingCardProps) {
   return (
-    <article className="rounded-md border border-border bg-card/40 px-3 py-3">
+    <article className="rounded-md border border-rule bg-bg-2/40 px-3 py-3">
       <header className="mb-2">
-        <h4 className="text-sm font-semibold text-foreground">
+        <h4 className="text-sm font-semibold text-fg">
           {LAYER_A_DIMENSION_LABELS[dimension]}
         </h4>
-        <p className="text-xs text-muted-foreground mt-0.5">
+        <p className="text-xs text-muted mt-0.5">
           {LAYER_A_DIMENSION_HINTS[dimension]}
         </p>
       </header>
 
       {finding === null ? (
-        <p className="text-xs italic text-muted-foreground">
+        <p className="text-xs italic text-muted">
           Not researched yet. Run Layer A above.
         </p>
       ) : (
         <>
-          <p className="text-sm text-foreground leading-snug">{finding.reasoning}</p>
-          <div className="mt-1 text-xs text-muted-foreground">
-            Confidence: <span className="font-mono text-foreground">{finding.confidence.toFixed(2)}</span>
+          <p className="text-sm text-fg leading-snug">{finding.reasoning}</p>
+          <div className="mt-1 text-xs text-muted">
+            Confidence: <span className="font-mono text-fg">{finding.confidence.toFixed(2)}</span>
           </div>
           {finding.citations.length > 0 && (
             <ul className="mt-2 space-y-1">
@@ -46,13 +46,13 @@ export function DimensionFindingCard({ dimension, finding }: DimensionFindingCar
                     href={c.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-start gap-1 text-primary hover:underline"
+                    className="inline-flex items-start gap-1 text-accent hover:underline"
                   >
                     <span className="truncate">{c.sourcePlatform}</span>
                     <ExternalLink className="size-3 shrink-0 mt-0.5" />
                   </a>
                   {c.excerpt && (
-                    <blockquote className="mt-0.5 border-l-2 border-border pl-2 text-muted-foreground">
+                    <blockquote className="mt-0.5 border-l-2 border-rule pl-2 text-muted">
                       &ldquo;{c.excerpt}&rdquo;
                     </blockquote>
                   )}

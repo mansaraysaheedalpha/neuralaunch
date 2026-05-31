@@ -45,18 +45,18 @@ export function NudgeBanner({
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col gap-2 rounded-xl border border-gold/30 bg-gold/5 px-4 py-3"
+      className="flex flex-col gap-2 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3"
     >
-      <p className="text-[10px] uppercase tracking-widest text-gold">
+      <p className="text-[10px] uppercase tracking-widest text-accent">
         Quick check-in
       </p>
-      <p className="text-xs text-foreground leading-relaxed">
+      <p className="text-xs text-fg leading-relaxed">
         {taskTitle
           ? `You were working on "${taskTitle}". How did it go?`
           : 'You have not updated your roadmap in a while. How is it going?'}
       </p>
       {taskTitle && (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-[11px] text-muted">
           Tap any task below to share an update or report a blocker.
         </p>
       )}

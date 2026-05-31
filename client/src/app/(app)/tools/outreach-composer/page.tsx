@@ -228,7 +228,7 @@ export default function StandaloneComposerPage() {
   if (stage === 'loading') {
     return (
       <div className="flex items-center justify-center py-24">
-        <Loader2 className="size-6 text-primary animate-spin" />
+        <Loader2 className="size-6 text-accent animate-spin" />
       </div>
     );
   }
@@ -236,11 +236,11 @@ export default function StandaloneComposerPage() {
   if (stage === 'no_roadmap') {
     return (
       <div className="max-w-md mx-auto px-6 py-24 text-center flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted">
           The Outreach Composer needs your discovery context to produce useful messages.
           Start a discovery session first.
         </p>
-        <Link href="/discovery" className="text-sm text-primary hover:underline">
+        <Link href="/discovery" className="text-sm text-accent hover:underline">
           Start Discovery →
         </Link>
       </div>
@@ -330,7 +330,7 @@ export default function StandaloneComposerPage() {
       {stage === 'done' && completedSession && (
         <div className="flex flex-col gap-4">
           <ComposerSessionReview session={completedSession as Record<string, unknown>} />
-          <Link href="/tools" className="text-sm text-primary hover:underline self-start">
+          <Link href="/tools" className="text-sm text-accent hover:underline self-start">
             Back to Tools
           </Link>
         </div>

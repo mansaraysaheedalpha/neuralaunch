@@ -209,7 +209,7 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
       disabled={!sessionReady || isSynthesizing}
       placeholder="Share your thoughts…"
       maxRows={5}
-      className="flex-1 resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none py-2"
+      className="flex-1 resize-none bg-transparent text-sm text-fg placeholder:text-muted outline-none py-2"
       onKeyDown={e => {
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
@@ -232,13 +232,13 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
         <button
           type="button"
           onClick={() => setGuideOpen(true)}
-          className="relative flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1 px-2 rounded-md hover:bg-muted/50"
+          className="relative flex items-center gap-1.5 text-xs text-muted hover:text-fg transition-colors py-1 px-2 rounded-md hover:bg-bg-3/50"
           aria-label="Open interview guide"
         >
           <BookOpen className="size-3.5" />
           <span>Guide</span>
           {isFirstSession && !guideOpen && (
-            <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-primary animate-pulse" />
+            <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-accent animate-pulse" />
           )}
         </button>
       </div>
@@ -291,7 +291,7 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
                 most important interactive surface in the product. */}
             <form
               onSubmit={handleSubmit}
-              className="group/input flex gap-2 items-end w-full max-w-2xl rounded-xl border border-border bg-card/70 backdrop-blur-sm px-4 py-3 shadow-lg shadow-black/10 transition-all focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/15 focus-within:shadow-primary/10"
+              className="group/input flex gap-2 items-end w-full max-w-2xl rounded-xl border border-rule bg-bg-2/70 backdrop-blur-sm px-4 py-3 shadow-lg shadow-black/10 transition-all focus-within:border-accent/40 focus-within:ring-2 focus-within:ring-accent/15 focus-within:shadow-primary/10"
             >
               {inputField}
               {voiceEnabled && (
@@ -306,14 +306,14 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
                 size="icon"
                 disabled={!canSubmit}
                 variant="ghost"
-                className={canSubmit ? 'text-primary hover:bg-primary/10 hover:text-primary' : undefined}
+                className={canSubmit ? 'text-accent hover:bg-accent/10 hover:text-accent' : undefined}
               >
                 <SendHorizontal className="size-4" />
               </Button>
             </form>
             {sessionInitError && (
-              <div className="w-full max-w-2xl rounded-lg border border-gold/30 bg-gold/5 px-4 py-3 flex flex-col gap-3">
-                <p className="text-xs text-gold font-medium leading-relaxed">{sessionInitError}</p>
+              <div className="w-full max-w-2xl rounded-lg border border-accent/30 bg-accent/5 px-4 py-3 flex flex-col gap-3">
+                <p className="text-xs text-accent font-medium leading-relaxed">{sessionInitError}</p>
                 {/* Paid users whose block is the venture cap get a primary
                     CTA to find the venture that's blocking them. The error
                     message itself tells them to "pause or complete your
@@ -325,7 +325,7 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
                   {viewerTier === 'free' ? (
                     <Link
                       href="/#pricing"
-                      className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                      className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-bg hover:bg-accent/90 transition-colors"
                     >
                       <Sparkles className="size-3" aria-hidden="true" />
                       See upgrade options
@@ -334,7 +334,7 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
                     <>
                       <Link
                         href="/discovery/recommendations"
-                        className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+                        className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-bg hover:bg-accent/90 transition-colors"
                       >
                         See your ventures
                         <ArrowRight className="size-3" aria-hidden="true" />
@@ -342,7 +342,7 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
                       {viewerTier === 'execute' && (
                         <Link
                           href="/#pricing"
-                          className="inline-flex items-center gap-1.5 rounded-md border border-gold/40 bg-transparent px-3 py-1.5 text-xs font-semibold text-gold hover:bg-gold/10 transition-colors"
+                          className="inline-flex items-center gap-1.5 rounded-md border border-accent/40 bg-transparent px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/10 transition-colors"
                         >
                           <Sparkles className="size-3" aria-hidden="true" />
                           Upgrade to Compound
@@ -377,7 +377,7 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
       {hasStarted && !stepperVisible && !isSynthesizing && (
         <form
           onSubmit={handleSubmit}
-          className="flex gap-2 items-end border-t border-border bg-background px-4 py-3"
+          className="flex gap-2 items-end border-t border-rule bg-bg px-4 py-3"
         >
           {inputField}
           {voiceEnabled && (
@@ -400,7 +400,7 @@ export function DiscoveryChat({ firstName, onComplete, resume, isFirstSession = 
           paths fall through to dismissPendingOutcomeAndRetry which
           actually creates the new session. */}
       {pendingOutcomeRecommendationId && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center px-4 py-8">
+        <div className="fixed inset-0 z-50 bg-bg/80 backdrop-blur-sm flex items-center justify-center px-4 py-8">
           <div className="w-full max-w-xl max-h-full overflow-y-auto">
             <OutcomeForm
               recommendationId={pendingOutcomeRecommendationId}

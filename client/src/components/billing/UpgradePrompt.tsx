@@ -51,12 +51,12 @@ export function UpgradePrompt({
 
   if (variant === 'compact') {
     return (
-      <div className="flex items-center gap-2 rounded-md border border-gold/20 bg-gold/5 px-3 py-2 text-[11px] text-gold">
+      <div className="flex items-center gap-2 rounded-md border border-accent/20 bg-accent/5 px-3 py-2 text-[11px] text-accent">
         <Sparkles className="size-3.5 shrink-0" aria-hidden="true" />
         <span className="flex-1">{heading ?? copy.compactHeading}</span>
         <Link
           href={href}
-          className="inline-flex items-center gap-1 font-semibold text-gold underline-offset-2 hover:underline"
+          className="inline-flex items-center gap-1 font-semibold text-accent underline-offset-2 hover:underline"
         >
           {primaryLabel ?? copy.primaryLabel}
           <ArrowRight className="size-3" aria-hidden="true" />
@@ -66,22 +66,22 @@ export function UpgradePrompt({
   }
 
   return (
-    <div className="rounded-xl border border-gold/30 bg-gold/5 p-5">
+    <div className="rounded-xl border border-accent/30 bg-accent/5 p-5">
       <div className="flex items-start gap-3">
-        <Sparkles className="mt-0.5 size-5 shrink-0 text-gold" aria-hidden="true" />
+        <Sparkles className="mt-0.5 size-5 shrink-0 text-accent" aria-hidden="true" />
         <div className="flex-1">
-          <p className="text-xs font-semibold uppercase tracking-widest text-gold">
+          <p className="text-xs font-semibold uppercase tracking-widest text-accent">
             {requiredTier === 'compound' ? 'Compound tier' : 'Execute tier'}
           </p>
-          <h3 className="mt-1 text-base font-semibold text-foreground">
+          <h3 className="mt-1 text-base font-semibold text-fg">
             {heading ?? copy.heroHeading}
           </h3>
-          <p className="mt-2 text-sm leading-relaxed text-foreground/80">
+          <p className="mt-2 text-sm leading-relaxed text-fg/80">
             {description ?? copy.heroDescription}
           </p>
           <Link
             href={href}
-            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-bg transition-opacity hover:opacity-90"
           >
             <ArrowRight className="size-4" aria-hidden="true" />
             {primaryLabel ?? copy.primaryLabel}

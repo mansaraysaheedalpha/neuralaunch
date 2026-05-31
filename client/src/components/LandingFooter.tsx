@@ -9,7 +9,7 @@ export default function LandingFooter() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="bg-muted/30 dark:bg-slate-800/30 border-t border-border/50 py-12 sm:py-16 mt-24">
+    <footer className="bg-bg-3/30 dark:bg-slate-800/30 border-t border-rule/50 py-12 sm:py-16 mt-24">
       {" "}
       {/* Added top margin */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-8 text-center md:text-left">
@@ -23,27 +23,27 @@ export default function LandingFooter() {
               height={32}
               className="h-9 w-9 group-hover:opacity-80 transition-opacity"
             />
-            <span className="text-lg font-semibold text-foreground">
+            <span className="text-lg font-semibold text-fg">
               NeuraLaunch
             </span>
           </Link>
-          <p className="text-base text-muted-foreground max-w-xs mx-auto md:mx-0">
+          <p className="text-base text-muted max-w-xs mx-auto md:mx-0">
             AI-powered blueprints and validation sprints for ambitious founders.
           </p>
         </div>
 
         {/* Column 2: Links */}
         <div className="flex flex-col items-center md:items-start space-y-2">
-          <h4 className="text-lg font-bold text-foreground mb-2">Company</h4>
+          <h4 className="text-lg font-bold text-fg mb-2">Company</h4>
           <Link
             href="/about"
-            className="text-base text-muted-foreground hover:text-primary transition-colors"
+            className="text-base text-muted hover:text-accent transition-colors"
           >
             About Us
           </Link>
           <Link
             href="/faq"
-            className="text-base text-muted-foreground hover:text-primary transition-colors"
+            className="text-base text-muted hover:text-accent transition-colors"
           >
             FAQ
           </Link>
@@ -51,7 +51,7 @@ export default function LandingFooter() {
             href="https://forms.gle/WVLZzKtFYLvb7Xkg9"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-base text-muted-foreground hover:text-primary transition-colors"
+            className="text-base text-muted hover:text-accent transition-colors"
           >
             Feedback
           </a>
@@ -65,7 +65,7 @@ export default function LandingFooter() {
               href="https://github.com/mansaraysaheedalpha/ideaspark"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground transition-colors"
+              className="text-muted hover:text-fg transition-colors"
               aria-label="Visit our GitHub repository"
             >
               <FaGithub size={20} />
@@ -74,7 +74,7 @@ export default function LandingFooter() {
               href="https://twitter.com/your-profile"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground transition-colors"
+              className="text-muted hover:text-fg transition-colors"
               aria-label="Follow us on Twitter"
             >
               <FaTwitter size={20} />
@@ -83,13 +83,13 @@ export default function LandingFooter() {
               href="https://linkedin.com/your-profile"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-foreground transition-colors"
+              className="text-muted hover:text-fg transition-colors"
               aria-label="Connect on LinkedIn"
             >
               <FaLinkedin size={20} />
             </a>
           </div>
-          <p className="text-base text-muted-foreground mt-auto">
+          <p className="text-base text-muted mt-auto">
             © {currentYear} NeuraLaunch. All rights reserved.
           </p>
         </div>

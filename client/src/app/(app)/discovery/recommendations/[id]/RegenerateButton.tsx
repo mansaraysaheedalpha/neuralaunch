@@ -59,7 +59,7 @@ export function RegenerateButton({ recommendationId }: RegenerateButtonProps) {
         type="button"
         onClick={() => { void handleClick(); }}
         disabled={status === 'submitting' || status === 'queued'}
-        className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors disabled:opacity-50 disabled:no-underline"
+        className="text-xs text-muted hover:text-fg underline underline-offset-2 transition-colors disabled:opacity-50 disabled:no-underline"
       >
         {label}
       </button>
@@ -67,8 +67,8 @@ export function RegenerateButton({ recommendationId }: RegenerateButtonProps) {
         <span
           className={
             status === 'error'
-              ? 'text-xs text-destructive'
-              : 'text-xs text-muted-foreground'
+              ? 'text-xs text-accent'
+              : 'text-xs text-muted'
           }
         >
           {message}

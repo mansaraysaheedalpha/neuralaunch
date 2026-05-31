@@ -113,17 +113,17 @@ export default async function ChatTranscriptPage({
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border px-6 py-4 shrink-0">
+      <div className="flex items-center justify-between border-b border-rule px-6 py-4 shrink-0">
         <div className="min-w-0 flex-1">
-          <h1 className="text-sm font-semibold text-foreground truncate">{conversation.title}</h1>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
+          <h1 className="text-sm font-semibold text-fg truncate">{conversation.title}</h1>
+          <p className="mt-0.5 text-[11px] text-muted">
             Interview transcript · {conversation.createdAt.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
           </p>
         </div>
         {actionHref && actionLabel && (
           <Link
             href={actionHref}
-            className="shrink-0 text-xs text-primary hover:underline underline-offset-2"
+            className="shrink-0 text-xs text-accent hover:underline underline-offset-2"
           >
             {actionLabel}
           </Link>
@@ -134,11 +134,11 @@ export default async function ChatTranscriptPage({
       <div className="flex-1 overflow-y-auto px-6 py-6">
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
-            <p className="text-sm text-muted-foreground">No messages in this conversation yet.</p>
+            <p className="text-sm text-muted">No messages in this conversation yet.</p>
             {ds && ds.status !== 'COMPLETE' && (
               <Link
                 href="/discovery"
-                className="mt-3 text-xs text-primary hover:underline"
+                className="mt-3 text-xs text-accent hover:underline"
               >
                 Continue the interview →
               </Link>
@@ -158,15 +158,15 @@ export default async function ChatTranscriptPage({
                   className={[
                     'rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap break-words',
                     msg.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-foreground',
+                      ? 'bg-accent text-bg'
+                      : 'bg-bg-3 text-fg',
                   ].join(' ')}
                 >
                   {msg.content}
                 </div>
                 {msg.role === 'user' && msg.inputMethod === 'voice' && (
                   <div
-                    className="flex items-center gap-1 text-[10px] text-muted-foreground/70"
+                    className="flex items-center gap-1 text-[10px] text-muted/70"
                     aria-label="Sent by voice"
                     title="Sent by voice"
                   >
@@ -182,12 +182,12 @@ export default async function ChatTranscriptPage({
                 pushback are stored separately (different parents) but
                 the founder thinks of them as one conversation. */}
             {pushbackTurns.length > 0 && (
-              <div className="mt-8 pt-6 border-t border-border flex flex-col gap-4">
+              <div className="mt-8 pt-6 border-t border-rule flex flex-col gap-4">
                 <div>
-                  <p className="text-[10px] uppercase tracking-widest text-muted-foreground/70">
+                  <p className="text-[10px] uppercase tracking-widest text-muted/70">
                     Pushback discussion
                   </p>
-                  <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                  <p className="mt-1 text-[11px] text-muted leading-relaxed">
                     The back-and-forth that followed your recommendation, before you committed to a path.
                   </p>
                 </div>
@@ -198,8 +198,8 @@ export default async function ChatTranscriptPage({
                     className={[
                       'rounded-2xl px-4 py-3 text-sm leading-relaxed max-w-[85%] whitespace-pre-wrap break-words',
                       turn.role === 'user'
-                        ? 'self-end bg-primary text-primary-foreground'
-                        : 'self-start bg-muted text-foreground',
+                        ? 'self-end bg-accent text-bg'
+                        : 'self-start bg-bg-3 text-fg',
                     ].join(' ')}
                   >
                     {turn.content}

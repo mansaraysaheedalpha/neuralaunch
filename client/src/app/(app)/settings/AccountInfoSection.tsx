@@ -33,7 +33,7 @@ export function AccountInfoSection({
   const hasGithub   = providers.includes('github');
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-5">
+    <div className="rounded-xl border border-rule bg-bg-2 p-5 flex flex-col gap-5">
       {/* Avatar + name + email */}
       <div className="flex items-center gap-4">
         {image ? (
@@ -42,26 +42,26 @@ export function AccountInfoSection({
             alt={name ?? 'Avatar'}
             width={56}
             height={56}
-            className="size-14 rounded-full border-2 border-primary/20 object-cover"
+            className="size-14 rounded-full border-2 border-accent/20 object-cover"
           />
         ) : (
-          <div className="size-14 rounded-full border-2 border-primary/20 bg-primary flex items-center justify-center text-sm font-semibold text-primary-foreground">
+          <div className="size-14 rounded-full border-2 border-accent/20 bg-accent flex items-center justify-center text-sm font-semibold text-bg">
             {initials}
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-foreground truncate">
+          <p className="text-sm font-medium text-fg truncate">
             {name ?? 'User'}
           </p>
           {email && (
-            <p className="text-xs text-muted-foreground truncate">{email}</p>
+            <p className="text-xs text-muted truncate">{email}</p>
           )}
         </div>
       </div>
 
       {/* Connected providers */}
-      <div className="border-t border-border pt-4 flex flex-col gap-3">
-        <p className="text-[11px] uppercase tracking-widest text-muted-foreground/70">
+      <div className="border-t border-rule pt-4 flex flex-col gap-3">
+        <p className="text-[11px] uppercase tracking-widest text-muted/70">
           Connected accounts
         </p>
 
@@ -69,11 +69,11 @@ export function AccountInfoSection({
           <div className="size-8 rounded-lg bg-white dark:bg-slate-800 border flex items-center justify-center">
             <FcGoogle className="size-4" />
           </div>
-          <p className="text-xs text-foreground">Google</p>
+          <p className="text-xs text-fg">Google</p>
           <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full ${
             hasGoogle
               ? 'bg-success/10 text-success'
-              : 'bg-muted text-muted-foreground'
+              : 'bg-bg-3 text-muted'
           }`}>
             {hasGoogle ? 'Connected' : 'Not connected'}
           </span>
@@ -83,11 +83,11 @@ export function AccountInfoSection({
           <div className="size-8 rounded-lg bg-white dark:bg-slate-800 border flex items-center justify-center">
             <FaLinkedin className="size-4 text-[#0A66C2]" />
           </div>
-          <p className="text-xs text-foreground">LinkedIn</p>
+          <p className="text-xs text-fg">LinkedIn</p>
           <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full ${
             hasLinkedIn
               ? 'bg-success/10 text-success'
-              : 'bg-muted text-muted-foreground'
+              : 'bg-bg-3 text-muted'
           }`}>
             {hasLinkedIn ? 'Connected' : 'Not connected'}
           </span>
@@ -97,11 +97,11 @@ export function AccountInfoSection({
           <div className="size-8 rounded-lg bg-gray-900 dark:bg-gray-700 flex items-center justify-center">
             <Github className="size-4 text-white" />
           </div>
-          <p className="text-xs text-foreground">GitHub</p>
+          <p className="text-xs text-fg">GitHub</p>
           <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full ${
             hasGithub
               ? 'bg-success/10 text-success'
-              : 'bg-muted text-muted-foreground'
+              : 'bg-bg-3 text-muted'
           }`}>
             {hasGithub ? 'Connected' : 'Not connected'}
           </span>

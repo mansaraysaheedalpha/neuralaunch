@@ -51,7 +51,7 @@ export function OpportunityEvaluationView(props: OpportunityEvaluationViewProps)
   } = props;
 
   return (
-    <div className="space-y-5 border-t border-border bg-background px-3 py-4 rounded-b-lg">
+    <div className="space-y-5 border-t border-rule bg-bg px-3 py-4 rounded-b-lg">
       <LayerASection
         research={opportunity.layerAResearch}
         deriving={deriving}

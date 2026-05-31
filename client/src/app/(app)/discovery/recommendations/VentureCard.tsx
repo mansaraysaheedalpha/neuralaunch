@@ -19,7 +19,7 @@ import { isWithinReopenWindow } from '@/lib/transformation/constants';
 const STATUS_CLASSES: Record<string, string> = {
   active:    'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
   paused:    'bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  completed: 'bg-muted text-muted-foreground',
+  completed: 'bg-bg-3 text-muted',
 };
 
 interface CycleSummary {
@@ -299,12 +299,12 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
   })();
 
   return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <div className="rounded-xl border border-rule bg-bg-2 overflow-hidden">
       {/* Header — always visible */}
       <button
         type="button"
         onClick={() => { if (!editing) setExpanded(o => !o); }}
-        className="w-full flex items-start justify-between gap-3 p-4 text-left hover:bg-muted/30 transition-colors"
+        className="w-full flex items-start justify-between gap-3 p-4 text-left hover:bg-bg-3/30 transition-colors"
       >
         <div className="flex-1 min-w-0 flex flex-col gap-1.5">
           <div className="flex items-center gap-2">
@@ -317,22 +317,22 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                   onKeyDown={e => { if (e.key === 'Enter') void handleSave(); if (e.key === 'Escape') handleCancel(); }}
                   maxLength={100}
                   disabled={saving}
-                  className="text-sm font-semibold text-foreground bg-background border border-border rounded-md px-2 py-0.5 w-full max-w-[280px] outline-none focus:ring-1 focus:ring-primary/40 disabled:opacity-60"
+                  className="text-sm font-semibold text-fg bg-bg border border-rule rounded-md px-2 py-0.5 w-full max-w-[280px] outline-none focus:ring-1 focus:ring-accent/40 disabled:opacity-60"
                 />
                 <button type="button" onClick={() => { void handleSave(); }} disabled={saving} className="rounded-md p-0.5 text-emerald-600 hover:bg-emerald-500/10">
                   <Check className="size-3.5" />
                 </button>
-                <button type="button" onClick={handleCancel} className="rounded-md p-0.5 text-muted-foreground hover:bg-muted">
+                <button type="button" onClick={handleCancel} className="rounded-md p-0.5 text-muted hover:bg-bg-3">
                   <X className="size-3.5" />
                 </button>
               </div>
             ) : (
               <div className="group flex items-center gap-1.5 min-w-0">
-                <p className="text-sm font-semibold text-foreground truncate">{name}</p>
+                <p className="text-sm font-semibold text-fg truncate">{name}</p>
                 <button
                   type="button"
                   onClick={e => { e.stopPropagation(); setDraft(name); setEditing(true); }}
-                  className="shrink-0 rounded-md p-0.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 hover:text-foreground hover:bg-muted transition-opacity"
+                  className="shrink-0 rounded-md p-0.5 text-muted/50 opacity-0 group-hover:opacity-100 hover:text-fg hover:bg-bg-3 transition-opacity"
                   aria-label="Rename venture"
                 >
                   <Pencil className="size-3" />
@@ -345,7 +345,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
           </div>
 
           {activeCycle && (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-[11px] text-muted">
               Cycle {activeCycle.cycleNumber} of {totalCycles}
               {activeCycle.selectedForkSummary ? ` — "${activeCycle.selectedForkSummary}"` : ''}
             </p>
@@ -353,10 +353,10 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
 
           {pct !== null && progress && (
             <div className="flex items-center gap-2 mt-0.5">
-              <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
-                <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
+              <div className="flex-1 h-1.5 rounded-full bg-bg-3 overflow-hidden">
+                <div className="h-full rounded-full bg-accent transition-all duration-300" style={{ width: `${pct}%` }} />
               </div>
-              <span className="text-[10px] text-muted-foreground shrink-0">
+              <span className="text-[10px] text-muted shrink-0">
                 {pct}% — {progress.completedTasks} of {progress.totalTasks} tasks
               </span>
             </div>
@@ -364,7 +364,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
         </div>
 
         <motion.span animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.18 }} className="mt-1">
-          <ChevronDown className="size-4 text-muted-foreground" />
+          <ChevronDown className="size-4 text-muted" />
         </motion.span>
       </button>
 
@@ -378,34 +378,34 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
       {status === 'completed' && report && report.stage !== 'complete' && report.stage !== 'failed' && (
         <Link
           href={`/discovery/recommendations/${venture.id}/transformation`}
-          className="block border-t border-border bg-primary/5 px-4 py-2.5 hover:bg-primary/10 transition-colors"
+          className="block border-t border-rule bg-accent/5 px-4 py-2.5 hover:bg-accent/10 transition-colors"
         >
           <div className="flex items-start gap-2">
-            <Loader2 className="size-3.5 text-primary mt-0.5 shrink-0 animate-spin" />
+            <Loader2 className="size-3.5 text-accent mt-0.5 shrink-0 animate-spin" />
             <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-              <p className="text-[11px] font-medium text-foreground">
+              <p className="text-[11px] font-medium text-fg">
                 Generating your transformation report…
               </p>
-              <p className="text-[10px] text-muted-foreground leading-relaxed">
+              <p className="text-[10px] text-muted leading-relaxed">
                 Reading every cycle and check-in to write your narrative. Usually 1 to 3 minutes — tap to watch progress, or close the tab and come back.
               </p>
             </div>
-            <ChevronDown className="size-3.5 text-primary mt-0.5 shrink-0 -rotate-90" />
+            <ChevronDown className="size-3.5 text-accent mt-0.5 shrink-0 -rotate-90" />
           </div>
         </Link>
       )}
       {status === 'completed' && report && report.stage === 'complete' && (
         <Link
           href={`/discovery/recommendations/${venture.id}/transformation`}
-          className="block border-t border-border bg-success/5 px-4 py-2.5 hover:bg-success/10 transition-colors"
+          className="block border-t border-rule bg-success/5 px-4 py-2.5 hover:bg-success/10 transition-colors"
         >
           <div className="flex items-start gap-2">
             <Sparkles className="size-3.5 text-success mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-              <p className="text-[11px] font-medium text-foreground">
+              <p className="text-[11px] font-medium text-fg">
                 Your transformation report is ready
               </p>
-              <p className="text-[10px] text-muted-foreground leading-relaxed">
+              <p className="text-[10px] text-muted leading-relaxed">
                 A personal narrative of how this venture went. Tap to read.
               </p>
             </div>
@@ -416,15 +416,15 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
       {status === 'completed' && report && report.stage === 'failed' && (
         <Link
           href={`/discovery/recommendations/${venture.id}/transformation`}
-          className="block border-t border-border bg-red-500/5 px-4 py-2.5 hover:bg-red-500/10 transition-colors"
+          className="block border-t border-rule bg-red-500/5 px-4 py-2.5 hover:bg-red-500/10 transition-colors"
         >
           <div className="flex items-start gap-2">
             <Sparkles className="size-3.5 text-red-500 mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-              <p className="text-[11px] font-medium text-foreground">
+              <p className="text-[11px] font-medium text-fg">
                 Transformation report failed
               </p>
-              <p className="text-[10px] text-muted-foreground leading-relaxed">
+              <p className="text-[10px] text-muted leading-relaxed">
                 Something went wrong generating your narrative. Tap for details.
               </p>
             </div>
@@ -450,13 +450,13 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                 they navigate into the roadmap. The View buttons in the
                 cycle list still work — read access stays open. */}
             {(status === 'paused' || status === 'completed') && (
-              <div className="border-t border-border px-4 py-3 flex items-start gap-2 bg-muted/40">
-                <Lock className="size-3.5 text-muted-foreground mt-0.5 shrink-0" />
+              <div className="border-t border-rule px-4 py-3 flex items-start gap-2 bg-bg-3/40">
+                <Lock className="size-3.5 text-muted mt-0.5 shrink-0" />
                 <div className="flex flex-col gap-0.5">
-                  <p className="text-[11px] font-medium text-foreground">
+                  <p className="text-[11px] font-medium text-fg">
                     {status === 'paused' ? 'Read-only — venture is paused' : 'Read-only — venture is complete'}
                   </p>
-                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  <p className="text-[10px] text-muted leading-relaxed">
                     {status === 'paused'
                       ? 'You can read the roadmap, recommendation, and prior cycles. Check-ins, tools, and new task work are disabled until you resume.'
                       : 'The roadmap, recommendation, and prior cycles stay readable. No new check-ins, tool runs, or status changes will land — completed is terminal.'}
@@ -473,45 +473,45 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                 Published-public reports surface a separate share badge
                 beneath. */}
             {status === 'completed' && report && (
-              <div className="border-t border-border px-4 py-3 flex items-start gap-2 bg-primary/5">
-                <Sparkles className="size-3.5 text-primary mt-0.5 shrink-0" />
+              <div className="border-t border-rule px-4 py-3 flex items-start gap-2 bg-accent/5">
+                <Sparkles className="size-3.5 text-accent mt-0.5 shrink-0" />
                 <div className="flex flex-col gap-0.5 flex-1 min-w-0">
                   {report.stage === 'complete' ? (
                     <>
-                      <p className="text-[11px] font-medium text-foreground">
+                      <p className="text-[11px] font-medium text-fg">
                         Your transformation report is ready
                       </p>
-                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                      <p className="text-[10px] text-muted leading-relaxed">
                         A personal narrative of how this venture went — written from your real check-ins and outcomes. Read it whenever you&apos;re ready.
                       </p>
                       <Link
                         href={`/discovery/recommendations/${venture.id}/transformation`}
-                        className="self-start mt-1 text-[11px] font-medium text-primary hover:text-primary/80 underline underline-offset-2"
+                        className="self-start mt-1 text-[11px] font-medium text-accent hover:text-accent/80 underline underline-offset-2"
                       >
                         Open transformation report →
                       </Link>
                     </>
                   ) : report.stage === 'failed' ? (
                     <>
-                      <p className="text-[11px] font-medium text-foreground">
+                      <p className="text-[11px] font-medium text-fg">
                         Transformation report failed
                       </p>
-                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                      <p className="text-[10px] text-muted leading-relaxed">
                         Something went wrong generating your narrative. The venture is still completed; you can re-trigger the report from the report viewer.
                       </p>
                     </>
                   ) : (
                     <>
-                      <p className="text-[11px] font-medium text-foreground inline-flex items-center gap-1.5">
+                      <p className="text-[11px] font-medium text-fg inline-flex items-center gap-1.5">
                         <Loader2 className="size-3 animate-spin" />
                         Generating your transformation report…
                       </p>
-                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                      <p className="text-[10px] text-muted leading-relaxed">
                         I&apos;m reading every cycle, every check-in, and every tool you used to write a personal narrative of how this went. Usually takes 1 to 3 minutes. You can close this tab — it&apos;ll be ready when you come back.
                       </p>
                       <Link
                         href={`/discovery/recommendations/${venture.id}/transformation`}
-                        className="self-start mt-1 text-[11px] font-medium text-primary hover:text-primary/80 underline underline-offset-2"
+                        className="self-start mt-1 text-[11px] font-medium text-accent hover:text-accent/80 underline underline-offset-2"
                       >
                         Watch progress →
                       </Link>
@@ -521,7 +521,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
               </div>
             )}
 
-            <div className="border-t border-border px-4 py-3 flex flex-col gap-2">
+            <div className="border-t border-rule px-4 py-3 flex flex-col gap-2">
               {venture.cycles.map(cycle => {
                 const isActive = cycle.status === 'in_progress';
                 const dateStr = cycle.completedAt
@@ -531,21 +531,21 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                 return (
                   <div
                     key={cycle.id}
-                    className={`rounded-md px-2.5 py-2 text-[11px] flex flex-col gap-1.5 ${isActive ? 'bg-primary/5' : 'bg-muted/20'}`}
+                    className={`rounded-md px-2.5 py-2 text-[11px] flex flex-col gap-1.5 ${isActive ? 'bg-accent/5' : 'bg-bg-3/20'}`}
                   >
                     <div className="flex items-center gap-2">
-                      <span className={`size-1.5 rounded-full shrink-0 ${isActive ? 'bg-primary' : 'bg-muted-foreground/40'}`} />
-                      <span className={`truncate ${isActive ? 'text-primary font-medium' : 'text-foreground/80'}`}>
+                      <span className={`size-1.5 rounded-full shrink-0 ${isActive ? 'bg-accent' : 'bg-bg-3/40'}`} />
+                      <span className={`truncate ${isActive ? 'text-accent font-medium' : 'text-fg/80'}`}>
                         Cycle {cycle.cycleNumber}{cycle.selectedForkSummary ? `: ${cycle.selectedForkSummary}` : ''}
                       </span>
-                      <span className="ml-auto text-[10px] text-muted-foreground shrink-0">{dateStr}</span>
+                      <span className="ml-auto text-[10px] text-muted shrink-0">{dateStr}</span>
                     </div>
                     {(cycle.recommendationId || cycle.roadmapId) && (
                       <div className="flex items-center flex-wrap gap-1.5 pl-3.5">
                         {cycle.recommendationId && (
                           <Link
                             href={`/discovery/recommendations/${cycle.recommendationId}`}
-                            className="inline-flex items-center gap-1 rounded-md bg-background border border-border px-2 py-1 text-[10px] font-medium text-foreground/70 hover:text-foreground hover:border-foreground/30 transition-colors"
+                            className="inline-flex items-center gap-1 rounded-md bg-bg border border-rule px-2 py-1 text-[10px] font-medium text-fg/70 hover:text-fg hover:border-fg/30 transition-colors"
                           >
                             <FileText className="size-2.5" />
                             View recommendation
@@ -554,7 +554,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                         {cycle.roadmapId && cycle.recommendationId && (
                           <Link
                             href={`/discovery/roadmap/${cycle.recommendationId}`}
-                            className="inline-flex items-center gap-1 rounded-md bg-background border border-border px-2 py-1 text-[10px] font-medium text-foreground/70 hover:text-foreground hover:border-foreground/30 transition-colors"
+                            className="inline-flex items-center gap-1 rounded-md bg-bg border border-rule px-2 py-1 text-[10px] font-medium text-fg/70 hover:text-fg hover:border-fg/30 transition-colors"
                           >
                             <Map className="size-2.5" />
                             View roadmap
@@ -563,13 +563,13 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                       </div>
                     )}
                     {!cycle.recommendationId && !cycle.roadmapId && (
-                      <p className="pl-3.5 text-[10px] text-muted-foreground italic">No linked recommendation or roadmap yet.</p>
+                      <p className="pl-3.5 text-[10px] text-muted italic">No linked recommendation or roadmap yet.</p>
                     )}
                   </div>
                 );
               })}
               {completedCycles.length === 0 && venture.cycles.length === 0 && (
-                <p className="text-[11px] text-muted-foreground italic">No cycles yet.</p>
+                <p className="text-[11px] text-muted italic">No cycles yet.</p>
               )}
             </div>
 
@@ -577,10 +577,10 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                 terminal ventures) plus a Delete button that is always
                 available so the user can hard-clean test data and
                 obsolete ventures regardless of status. */}
-            <div className="border-t border-border px-4 py-3 flex flex-col gap-2">
+            <div className="border-t border-rule px-4 py-3 flex flex-col gap-2">
               {action.kind === 'confirming-pause' && (
                 <div className="flex flex-col gap-2">
-                  <p className="text-[11px] font-semibold text-foreground">
+                  <p className="text-[11px] font-semibold text-fg">
                     Pause this venture?
                   </p>
 
@@ -589,14 +589,14 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                       reflect on a pause they can't actually take. */}
                   {pausedAtCap && (
                     <>
-                      <p className="text-[11px] text-foreground/80 leading-relaxed">
+                      <p className="text-[11px] text-fg/80 leading-relaxed">
                         {pauseGroundedCopy}
                       </p>
                       <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 flex flex-col gap-2">
-                        <p className="text-[11px] font-medium text-foreground">
+                        <p className="text-[11px] font-medium text-fg">
                           You&apos;re at the {pausedCap}-paused-venture limit on {tier === 'execute' ? 'Execute' : 'Compound'}.
                         </p>
-                        <p className="text-[10px] text-muted-foreground leading-relaxed">
+                        <p className="text-[10px] text-muted leading-relaxed">
                           {tier === 'execute'
                             ? 'Compound raises the cap to 4 paused ventures and lets you run 3 in parallel. Or complete or delete one of your paused ventures before pausing this one.'
                             : 'Complete or delete one of your paused ventures before pausing this one.'}
@@ -605,7 +605,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                           {tier === 'execute' && (
                             <Link
                               href="/#pricing"
-                              className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 border border-primary/30 px-3 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/20 transition-colors"
+                              className="inline-flex items-center gap-1.5 rounded-md bg-accent/10 border border-accent/30 px-3 py-1.5 text-[11px] font-semibold text-accent hover:bg-accent/20 transition-colors"
                             >
                               Upgrade to Compound
                             </Link>
@@ -614,7 +614,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                             type="button"
                             onClick={() => { setAction({ kind: 'idle' }); resetPauseDialog(); }}
                             disabled={busy}
-                            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                            className="inline-flex items-center gap-1.5 rounded-md border border-rule bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted hover:text-fg hover:bg-bg-3 transition-colors"
                           >
                             Close
                           </button>
@@ -629,7 +629,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                       to the existing static motivational copy. */}
                   {!pausedAtCap && pauseStep === 'reason' && (
                     <>
-                      <label className="text-[11px] text-foreground/80 leading-relaxed">
+                      <label className="text-[11px] text-fg/80 leading-relaxed">
                         What&apos;s pulling you away? One or two sentences. I&apos;ll read this against your venture history and give you a quick reflection before you confirm.
                       </label>
                       <textarea
@@ -638,9 +638,9 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                         placeholder="e.g. life event came up, motivation has dropped, market signal said no…"
                         rows={3}
                         maxLength={1000}
-                        className="rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/30 resize-none"
+                        className="rounded-md border border-rule bg-bg px-2.5 py-1.5 text-[11px] text-fg placeholder:text-muted/60 focus:outline-none focus:ring-1 focus:ring-accent/30 resize-none"
                       />
-                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                      <p className="text-[10px] text-muted leading-relaxed">
                         While paused: tools, check-ins, and roadmap nudges are disabled.
                         The roadmap and recommendation stay readable.
                         {` This will be paused slot ${pausedSlotNum} of ${pausedCap}.`}
@@ -650,7 +650,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                           type="button"
                           onClick={() => { void runPauseAgent(pauseReasonDraft.trim()); }}
                           disabled={busy || pauseReasonDraft.trim().length === 0}
-                          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-60"
+                          className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[11px] font-semibold text-bg hover:bg-accent/90 transition-colors disabled:opacity-60"
                         >
                           Submit
                         </button>
@@ -663,7 +663,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                             void mutateStatus('paused', { reason: null, mode: 'no_reason' });
                           }}
                           disabled={busy}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-60"
+                          className="inline-flex items-center gap-1.5 rounded-md border border-rule bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted hover:text-fg hover:bg-bg-3 transition-colors disabled:opacity-60"
                         >
                           Continue without saying
                         </button>
@@ -671,7 +671,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                           type="button"
                           onClick={() => { setAction({ kind: 'idle' }); resetPauseDialog(); }}
                           disabled={busy}
-                          className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                          className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-rule bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted hover:text-fg hover:bg-bg-3 transition-colors"
                         >
                           Keep working
                         </button>
@@ -684,9 +684,9 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                       so the founder isn't trapped if the network is
                       slow. */}
                   {!pausedAtCap && pauseStep === 'loading' && (
-                    <div className="rounded-md border border-border bg-muted/30 px-3 py-2 flex items-center gap-2">
-                      <Loader2 className="size-3.5 animate-spin text-primary shrink-0" />
-                      <p className="text-[11px] text-foreground/80 leading-relaxed">
+                    <div className="rounded-md border border-rule bg-bg-3/30 px-3 py-2 flex items-center gap-2">
+                      <Loader2 className="size-3.5 animate-spin text-accent shrink-0" />
+                      <p className="text-[11px] text-fg/80 leading-relaxed">
                         Reading your reason against your venture history…
                       </p>
                     </div>
@@ -701,15 +701,15 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                       reflection block. */}
                   {!pausedAtCap && pauseStep === 'reply' && pauseAgentResult && (
                     <>
-                      <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 flex flex-col gap-1.5">
-                        <p className="text-[10px] uppercase tracking-widest text-primary/70 font-semibold">
+                      <div className="rounded-md border border-accent/20 bg-accent/5 px-3 py-2 flex flex-col gap-1.5">
+                        <p className="text-[10px] uppercase tracking-widest text-accent/70 font-semibold">
                           Reflection
                         </p>
-                        <p className="text-[11px] text-foreground/90 leading-relaxed whitespace-pre-wrap">
+                        <p className="text-[11px] text-fg/90 leading-relaxed whitespace-pre-wrap">
                           {pauseAgentResult.message ?? pauseGroundedCopy}
                         </p>
                       </div>
-                      <p className="text-[10px] text-muted-foreground leading-relaxed">
+                      <p className="text-[10px] text-muted leading-relaxed">
                         While paused: tools, check-ins, and roadmap nudges are disabled.
                         {` This will be paused slot ${pausedSlotNum} of ${pausedCap}.`}
                       </p>
@@ -723,7 +723,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                             });
                           }}
                           disabled={busy}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-foreground hover:border-slate-500 hover:bg-muted transition-colors disabled:opacity-60"
+                          className="inline-flex items-center gap-1.5 rounded-md border border-rule bg-transparent px-3 py-1.5 text-[11px] font-medium text-fg hover:border-slate-500 hover:bg-bg-3 transition-colors disabled:opacity-60"
                         >
                           {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Pause className="size-3" />}
                           Confirm pause
@@ -740,7 +740,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                             setPauseStep('reason');
                           }}
                           disabled={busy}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-60"
+                          className="inline-flex items-center gap-1.5 rounded-md border border-rule bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted hover:text-fg hover:bg-bg-3 transition-colors disabled:opacity-60"
                         >
                           Type a different reason
                         </button>
@@ -748,7 +748,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                           type="button"
                           onClick={() => { setAction({ kind: 'idle' }); resetPauseDialog(); }}
                           disabled={busy}
-                          className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                          className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-rule bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted hover:text-fg hover:bg-bg-3 transition-colors"
                         >
                           Keep working
                         </button>
@@ -760,10 +760,10 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
 
               {action.kind === 'confirming-complete' && (
                 <div className="flex flex-col gap-2">
-                  <p className="text-[11px] font-semibold text-foreground">
+                  <p className="text-[11px] font-semibold text-fg">
                     Mark this venture as completed?
                   </p>
-                  <p className="text-[11px] text-foreground/80 leading-relaxed">
+                  <p className="text-[11px] text-fg/80 leading-relaxed">
                     Completed is terminal. The roadmap, recommendation, and
                     cycle history stay readable forever — but no new
                     check-ins, tool runs, or status changes will ever land
@@ -771,7 +771,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                     done with this direction (shipped, walked away, or
                     pivoted to a new venture).
                   </p>
-                  <p className="text-[10px] text-muted-foreground italic leading-relaxed">
+                  <p className="text-[10px] text-muted italic leading-relaxed">
                     This cannot be reversed. If you&apos;re just stepping
                     away for a while, pause instead.
                   </p>
@@ -789,7 +789,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                       type="button"
                       onClick={() => setAction({ kind: 'idle' })}
                       disabled={busy}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      className="inline-flex items-center gap-1.5 rounded-md border border-rule bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted hover:text-fg hover:bg-bg-3 transition-colors"
                     >
                       Cancel
                     </button>
@@ -799,7 +799,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
 
               {action.kind === 'confirming-delete' && (
                 <div className="flex flex-col gap-2">
-                  <p className="text-[11px] text-foreground leading-relaxed">
+                  <p className="text-[11px] text-fg leading-relaxed">
                     Permanently delete <span className="font-semibold">{name}</span>?
                     This removes every cycle, recommendation, and roadmap
                     inside it. <span className="font-semibold text-red-600 dark:text-red-400">This cannot be undone.</span>
@@ -818,7 +818,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                       type="button"
                       onClick={() => setAction({ kind: 'idle' })}
                       disabled={busy}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      className="inline-flex items-center gap-1.5 rounded-md border border-rule bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted hover:text-fg hover:bg-bg-3 transition-colors"
                     >
                       Cancel
                     </button>
@@ -839,7 +839,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                         setAction({ kind: 'confirming-pause' });
                       }}
                       disabled={busy}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-foreground hover:border-slate-500 hover:bg-muted transition-colors disabled:opacity-60"
+                      className="inline-flex items-center gap-1.5 rounded-md border border-rule bg-transparent px-3 py-1.5 text-[11px] font-medium text-fg hover:border-slate-500 hover:bg-bg-3 transition-colors disabled:opacity-60"
                       title="Pause to free an active-venture slot. The roadmap becomes read-only until you resume."
                     >
                       <Pause className="size-3" />
@@ -851,7 +851,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                       type="button"
                       onClick={() => { void mutateStatus('active'); }}
                       disabled={busy}
-                      className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 border border-primary/30 px-3 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/20 transition-colors disabled:opacity-60"
+                      className="inline-flex items-center gap-1.5 rounded-md bg-accent/10 border border-accent/30 px-3 py-1.5 text-[11px] font-semibold text-accent hover:bg-accent/20 transition-colors disabled:opacity-60"
                       title="Resume — consumes an active-venture slot."
                     >
                       {isSaving ? <Loader2 className="size-3 animate-spin" /> : <Play className="size-3" />}
@@ -863,7 +863,7 @@ export function VentureCard({ venture, progress, tier, pausedCount, pausedCap }:
                       type="button"
                       onClick={() => setAction({ kind: 'confirming-complete' })}
                       disabled={busy}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      className="inline-flex items-center gap-1.5 rounded-md border border-rule bg-transparent px-3 py-1.5 text-[11px] font-medium text-muted hover:text-fg hover:bg-bg-3 transition-colors"
                       title="Mark this venture as done. Terminal — cannot be reopened after 24h."
                     >
                       <Check className="size-3" />

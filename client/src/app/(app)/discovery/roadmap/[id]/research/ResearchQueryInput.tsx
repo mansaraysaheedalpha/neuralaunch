@@ -66,7 +66,7 @@ export function ResearchQueryInput({
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-[11px] text-muted">
         Ask anything about your market, competitors, potential customers,
         regulations, or pricing. Be specific for the best results.
       </p>
@@ -100,7 +100,7 @@ export function ResearchQueryInput({
         type="button"
         onClick={handleSubmit}
         disabled={query.trim().length === 0 || loading}
-        className="self-start flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[11px] font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-opacity"
+        className="self-start flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[11px] font-medium text-bg hover:opacity-90 disabled:opacity-50 transition-opacity"
       >
         <Search className="size-3 shrink-0" />
         Plan my research

@@ -72,17 +72,17 @@ export function ComposerMessageCard({
   }, [activeBody]);
 
   return (
-    <div className="rounded-lg border border-border bg-background flex flex-col gap-0 overflow-hidden">
+    <div className="rounded-lg border border-rule bg-bg flex flex-col gap-0 overflow-hidden">
       {/* Header: subject (email) or placeholder (batch) */}
       {(activeSubject ?? message.recipientPlaceholder) && (
-        <div className="px-3 py-2 border-b border-border bg-muted/30">
+        <div className="px-3 py-2 border-b border-rule bg-bg-3/30">
           {activeSubject && (
-            <p className="text-[11px] font-medium text-foreground">
+            <p className="text-[11px] font-medium text-fg">
               Subject: {activeSubject}
             </p>
           )}
           {message.recipientPlaceholder && !activeSubject && (
-            <p className="text-[11px] font-medium text-foreground">
+            <p className="text-[11px] font-medium text-fg">
               {message.recipientPlaceholder}
             </p>
           )}
@@ -91,24 +91,24 @@ export function ComposerMessageCard({
 
       {/* Send timing (sequence mode) */}
       {message.sendTiming && (
-        <div className="px-3 py-1.5 bg-primary/5 border-b border-primary/10">
-          <p className="text-[10px] uppercase tracking-wider text-primary font-semibold">
+        <div className="px-3 py-1.5 bg-accent/5 border-b border-accent/10">
+          <p className="text-[10px] uppercase tracking-wider text-accent font-semibold">
             {message.sendTiming}
           </p>
           {message.escalationNote && (
-            <p className="text-[10px] text-muted-foreground italic">{message.escalationNote}</p>
+            <p className="text-[10px] text-muted italic">{message.escalationNote}</p>
           )}
         </div>
       )}
 
       {/* Message body */}
       <div className="px-3 py-3">
-        <p className="text-[11px] text-foreground whitespace-pre-wrap leading-relaxed">{activeBody}</p>
+        <p className="text-[11px] text-fg whitespace-pre-wrap leading-relaxed">{activeBody}</p>
       </div>
 
       {/* Annotation */}
       <div className="px-3 pb-2">
-        <p className="text-[10px] text-muted-foreground italic border-t border-border pt-2">
+        <p className="text-[10px] text-muted italic border-t border-rule pt-2">
           {message.annotation}
         </p>
       </div>
@@ -118,7 +118,7 @@ export function ComposerMessageCard({
         <button
           type="button"
           onClick={() => { void handleCopy(); }}
-          className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-[11px] font-medium text-primary-foreground hover:opacity-90 transition-colors"
+          className="flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-[11px] font-medium text-bg hover:opacity-90 transition-colors"
         >
           {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
           {copied ? 'Copied' : 'Copy'}
@@ -129,7 +129,7 @@ export function ComposerMessageCard({
             type="button"
             onClick={() => setRegenOpen(true)}
             disabled={!canRegenerate}
-            className="flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="flex items-center gap-1 rounded-md border border-rule px-2.5 py-1 text-[11px] text-muted hover:text-fg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             <RefreshCw className="size-3" />
             Try a different angle ({remainingLabel})
@@ -142,7 +142,7 @@ export function ComposerMessageCard({
                   key={pick}
                   type="button"
                   onClick={() => { onRegenerate(message.id, pick); setRegenOpen(false); setRegenDraft(''); }}
-                  className="rounded-full px-2 py-0.5 text-[10px] border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                  className="rounded-full px-2 py-0.5 text-[10px] border border-rule text-muted hover:text-fg hover:border-fg/30 transition-colors"
                 >
                   {pick}
                 </button>
@@ -159,7 +159,7 @@ export function ComposerMessageCard({
               <button
                 type="button"
                 onClick={() => { setRegenOpen(false); setRegenDraft(''); }}
-                className="text-[10px] text-muted-foreground hover:text-foreground"
+                className="text-[10px] text-muted hover:text-fg"
               >
                 Cancel
               </button>
@@ -174,7 +174,7 @@ export function ComposerMessageCard({
             'flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] transition-colors',
             isSent
               ? 'border-success/40 bg-success/10 text-success'
-              : 'border-border text-muted-foreground hover:text-foreground',
+              : 'border-rule text-muted hover:text-fg',
           ].join(' ')}
         >
           <SendHorizonal className="size-3" />
@@ -188,7 +188,7 @@ export function ComposerMessageCard({
                 ? `/tools/conversation-coach?fromComposer=${encodeURIComponent(sessionId)}&messageId=${encodeURIComponent(message.id)}&roadmapId=${encodeURIComponent(roadmapId)}`
                 : '/tools/conversation-coach'
             }
-            className="flex items-center gap-1 text-[11px] text-primary hover:underline"
+            className="flex items-center gap-1 text-[11px] text-accent hover:underline"
           >
             <Link2 className="size-3" />
             Prepare for this conversation →

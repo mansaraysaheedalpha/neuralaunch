@@ -44,20 +44,20 @@ export function CoachSessionReview({ session }: CoachSessionReviewProps) {
   const debrief  = typed.debrief;
 
   return (
-    <div className="rounded-lg border border-border bg-muted/20 overflow-hidden">
+    <div className="rounded-lg border border-rule bg-bg-3/20 overflow-hidden">
       {/* Collapsed header */}
       <button
         type="button"
         onClick={() => setExpanded(o => !o)}
-        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/40 transition-colors text-left"
+        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-bg-3/40 transition-colors text-left"
       >
         <div className="flex flex-col gap-0.5 min-w-0">
-          <p className="text-[11px] font-semibold text-foreground truncate">
+          <p className="text-[11px] font-semibold text-fg truncate">
             Prepared for a conversation with {who} via {label}
           </p>
           <div className="flex items-center gap-3">
             {history.length > 0 && (
-              <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <span className="flex items-center gap-1 text-[10px] text-muted">
                 <MessageSquare className="size-3" />
                 Rehearsed: {Math.ceil(history.length / 2)} turn{Math.ceil(history.length / 2) !== 1 ? 's' : ''}
               </span>
@@ -71,7 +71,7 @@ export function CoachSessionReview({ session }: CoachSessionReviewProps) {
           </div>
         </div>
         <motion.span animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.18 }}>
-          <ChevronDown className="size-3.5 text-muted-foreground shrink-0" />
+          <ChevronDown className="size-3.5 text-muted shrink-0" />
         </motion.span>
       </button>
 
@@ -85,13 +85,13 @@ export function CoachSessionReview({ session }: CoachSessionReviewProps) {
             transition={{ duration: 0.18 }}
             className="overflow-hidden"
           >
-            <div className="px-3 pb-3 flex flex-col gap-3 border-t border-border">
+            <div className="px-3 pb-3 flex flex-col gap-3 border-t border-rule">
               {opening && (
                 <div className="pt-3">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                  <p className="text-[10px] uppercase tracking-wider text-muted mb-1">
                     Opening script
                   </p>
-                  <p className="text-[11px] text-foreground whitespace-pre-wrap rounded-md bg-background border border-border px-2.5 py-2 leading-relaxed">
+                  <p className="text-[11px] text-fg whitespace-pre-wrap rounded-md bg-bg border border-rule px-2.5 py-2 leading-relaxed">
                     {opening}
                   </p>
                 </div>
@@ -99,16 +99,16 @@ export function CoachSessionReview({ session }: CoachSessionReviewProps) {
 
               {keyAsks.length > 0 && (
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                  <p className="text-[10px] uppercase tracking-wider text-muted mb-1">
                     Key asks
                   </p>
                   <ol className="flex flex-col gap-1.5">
                     {keyAsks.map((item, i) => (
                       <li key={i} className="flex gap-2 items-start">
-                        <span className="shrink-0 size-4 rounded-full bg-primary/10 text-primary flex items-center justify-center text-[10px] font-bold mt-0.5">
+                        <span className="shrink-0 size-4 rounded-full bg-accent/10 text-accent flex items-center justify-center text-[10px] font-bold mt-0.5">
                           {i + 1}
                         </span>
-                        <p className="text-[11px] text-foreground">{item.ask}</p>
+                        <p className="text-[11px] text-fg">{item.ask}</p>
                       </li>
                     ))}
                   </ol>

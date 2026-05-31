@@ -122,53 +122,53 @@ export function RolePlayChat({
   const nearCap = currentTurn >= ROLEPLAY_WARNING_TURN && !capped;
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border-2 border-gold/40 bg-gold/5 p-3">
+    <div className="flex flex-col gap-3 rounded-lg border-2 border-accent/40 bg-accent/5 p-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Swords className="size-3.5 text-gold" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-gold">
+          <Swords className="size-3.5 text-accent" />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-accent">
             Rehearsal Mode
           </span>
-          <span className="rounded-full bg-gold/20 px-2 py-0.5 text-[10px] font-semibold text-gold">
+          <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-semibold text-accent">
             {turnDisplay}
           </span>
         </div>
         <button
           type="button"
           onClick={onEnd}
-          className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+          className="flex items-center gap-1 text-[10px] text-muted hover:text-fg transition-colors"
         >
           <X className="size-3" />
           End rehearsal
         </button>
       </div>
 
-      <p className="text-[10px] text-gold/70">
+      <p className="text-[10px] text-accent/70">
         Practising with: <span className="font-semibold">{otherPartyName}</span>
       </p>
 
       {/* Message list */}
-      <div ref={scrollRef} className="flex flex-col gap-2 max-h-72 overflow-y-auto rounded-md border border-gold/20 bg-background px-3 py-3">
+      <div ref={scrollRef} className="flex flex-col gap-2 max-h-72 overflow-y-auto rounded-md border border-accent/20 bg-bg px-3 py-3">
         {history.length === 0 && (
-          <p className="text-[11px] text-muted-foreground italic">Start with your opening — type what you would say or send.</p>
+          <p className="text-[11px] text-muted italic">Start with your opening — type what you would say or send.</p>
         )}
         <AnimatePresence initial={false}>
           {history.map((turn, i) => (
             <motion.div key={i} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}
               className={['rounded-lg px-2.5 py-1.5 text-[11px] break-words whitespace-pre-wrap max-w-[88%]',
-                turn.role === 'founder' ? 'self-end bg-primary/10 text-foreground' : 'self-start bg-gold/10 border border-gold/20 text-foreground/90',
+                turn.role === 'founder' ? 'self-end bg-accent/10 text-fg' : 'self-start bg-accent/10 border border-accent/20 text-fg/90',
               ].join(' ')}
             >
               {turn.role === 'other_party' && (
-                <p className="text-[9px] font-semibold text-gold mb-0.5 uppercase tracking-wide">{otherPartyName}</p>
+                <p className="text-[9px] font-semibold text-accent mb-0.5 uppercase tracking-wide">{otherPartyName}</p>
               )}
               {turn.message}
             </motion.div>
           ))}
         </AnimatePresence>
         {submitting && (
-          <div className="self-start flex items-center gap-1.5 text-[11px] text-gold">
+          <div className="self-start flex items-center gap-1.5 text-[11px] text-accent">
             <Loader2 className="size-3 animate-spin" /><span>{otherPartyName} is responding…</span>
           </div>
         )}
@@ -176,12 +176,12 @@ export function RolePlayChat({
 
       {/* Warning / cap banner */}
       {nearCap && (
-        <p className="text-[10px] text-gold font-medium">
+        <p className="text-[10px] text-accent font-medium">
           {ROLEPLAY_HARD_CAP_TURNS - currentTurn + 1} turns remaining.
         </p>
       )}
       {capped && (
-        <div className="rounded-md bg-gold/10 border border-gold/30 px-3 py-2.5 text-[11px] text-gold font-medium">
+        <div className="rounded-md bg-accent/10 border border-accent/30 px-3 py-2.5 text-[11px] text-accent font-medium">
           Rehearsal complete — you&apos;ve used all {ROLEPLAY_HARD_CAP_TURNS} turns.
         </div>
       )}
@@ -196,17 +196,17 @@ export function RolePlayChat({
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}
             placeholder="Type what you would say…" disabled={submitting}
             rows={3}
-            className="min-h-0 flex-1 resize-none border-gold/30 py-2 text-xs leading-relaxed focus-visible:ring-gold/30 focus-visible:border-gold/50"
+            className="min-h-0 flex-1 resize-none border-accent/30 py-2 text-xs leading-relaxed focus-visible:ring-gold/30 focus-visible:border-accent/50"
           />
           <button type="button" onClick={() => { void handleSend(); }} disabled={draft.trim().length === 0 || submitting}
-            className="shrink-0 rounded-md bg-gold px-2.5 py-1.5 text-[11px] font-medium text-white hover:opacity-90 disabled:opacity-50">
+            className="shrink-0 rounded-md bg-accent px-2.5 py-1.5 text-[11px] font-medium text-white hover:opacity-90 disabled:opacity-50">
             {submitting ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />}
           </button>
         </div>
       )}
       {capped && (
         <button type="button" onClick={onEnd}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity">
+          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg hover:opacity-90 transition-opacity">
           Continue to debrief →
         </button>
       )}

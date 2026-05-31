@@ -143,12 +143,12 @@ export default async function RecommendationsPage() {
   return (
     <div className="max-w-2xl mx-auto px-6 py-10 flex flex-col gap-8">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-foreground">
+        <h1 className="text-lg font-semibold text-fg">
           {hasVentures ? 'Your ventures' : 'Past recommendations'}
         </h1>
         <Link
           href="/discovery"
-          className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-bg hover:bg-accent/90 transition-colors"
         >
           Start new discovery →
         </Link>
@@ -159,7 +159,7 @@ export default async function RecommendationsPage() {
           {/* Active ventures */}
           {active.length > 0 && (
             <section className="flex flex-col gap-3">
-              <h2 className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Active</h2>
+              <h2 className="text-[11px] uppercase tracking-wider text-muted font-semibold">Active</h2>
               {active.map(v => (
                 <VentureCard
                   key={v.id}
@@ -196,7 +196,7 @@ export default async function RecommendationsPage() {
           {/* Paused ventures */}
           {paused.length > 0 && (
             <section className="flex flex-col gap-3">
-              <h2 className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Paused</h2>
+              <h2 className="text-[11px] uppercase tracking-wider text-muted font-semibold">Paused</h2>
               {paused.map(v => (
                 <VentureCard
                   key={v.id}
@@ -233,7 +233,7 @@ export default async function RecommendationsPage() {
           {/* Completed ventures */}
           {completed.length > 0 && (
             <section className="flex flex-col gap-3">
-              <h2 className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Completed</h2>
+              <h2 className="text-[11px] uppercase tracking-wider text-muted font-semibold">Completed</h2>
               {completed.map(v => (
                 <VentureCard
                   key={v.id}
@@ -280,9 +280,9 @@ export default async function RecommendationsPage() {
             && paused.length === 0
             && completed.length === 0
             && archived.length === 0 && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted">
               No ventures yet.{' '}
-              <Link href="/discovery" className="underline underline-offset-2 hover:text-foreground">
+              <Link href="/discovery" className="underline underline-offset-2 hover:text-fg">
                 Start your first discovery interview.
               </Link>
             </p>
@@ -291,9 +291,9 @@ export default async function RecommendationsPage() {
       ) : (
         /* Fallback: flat recommendation list (pre-backfill) */
         recommendations.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted">
             No recommendations yet.{' '}
-            <Link href="/discovery" className="underline underline-offset-2 hover:text-foreground">
+            <Link href="/discovery" className="underline underline-offset-2 hover:text-fg">
               Start your first discovery interview.
             </Link>
           </p>
@@ -310,14 +310,14 @@ export default async function RecommendationsPage() {
               // to the founder and the acceptance moment becomes cosmetic.
               const hasRoadmap = rec.roadmap?.status === 'READY' && rec.acceptedAt !== null;
               return (
-                <li key={rec.id} className="flex flex-col gap-0 rounded-lg border border-border overflow-hidden">
-                  <Link href={`/discovery/recommendations/${rec.id}`} className="flex flex-col gap-1 p-4 hover:bg-muted/50 transition-colors">
-                    <span className="text-sm font-medium text-foreground leading-snug">{rec.path}</span>
-                    <span className="text-xs text-muted-foreground">{rec.createdAt.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                <li key={rec.id} className="flex flex-col gap-0 rounded-lg border border-rule overflow-hidden">
+                  <Link href={`/discovery/recommendations/${rec.id}`} className="flex flex-col gap-1 p-4 hover:bg-bg-3/50 transition-colors">
+                    <span className="text-sm font-medium text-fg leading-snug">{rec.path}</span>
+                    <span className="text-xs text-muted">{rec.createdAt.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</span>
                   </Link>
                   {hasRoadmap && (
-                    <Link href={`/discovery/roadmap/${rec.id}`} className="flex items-center gap-1.5 px-4 py-2 border-t border-border bg-muted/30 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors">
-                      <span className="size-1.5 rounded-full bg-primary/60 shrink-0" /> View execution roadmap
+                    <Link href={`/discovery/roadmap/${rec.id}`} className="flex items-center gap-1.5 px-4 py-2 border-t border-rule bg-bg-3/30 text-xs text-muted hover:text-fg hover:bg-bg-3/60 transition-colors">
+                      <span className="size-1.5 rounded-full bg-accent/60 shrink-0" /> View execution roadmap
                     </Link>
                   )}
                 </li>

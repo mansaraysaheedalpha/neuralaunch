@@ -57,15 +57,15 @@ export function ResearchReportView({ report, roadmapId, sessionId }: ResearchRep
   return (
     <div className="flex flex-col gap-5">
       {/* Summary */}
-      <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-        <p className="text-[10px] uppercase tracking-wider text-primary font-semibold mb-1">Summary</p>
-        <p className="text-sm text-foreground leading-relaxed">{report.summary}</p>
+      <div className="rounded-lg border border-accent/20 bg-accent/5 px-4 py-3">
+        <p className="text-[10px] uppercase tracking-wider text-accent font-semibold mb-1">Summary</p>
+        <p className="text-sm text-fg leading-relaxed">{report.summary}</p>
       </div>
 
       {/* Findings */}
       {report.findings.length > 0 && (
         <div className="flex flex-col gap-2">
-          <p className="text-[11px] font-semibold text-foreground">
+          <p className="text-[11px] font-semibold text-fg">
             Findings ({report.findings.length})
           </p>
           <div className="flex flex-col gap-2">
@@ -84,7 +84,7 @@ export function ResearchReportView({ report, roadmapId, sessionId }: ResearchRep
             <p className="text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-semibold">
               Connections to your roadmap
             </p>
-            <p className="text-[11px] text-foreground/90 leading-relaxed">
+            <p className="text-[11px] text-fg/90 leading-relaxed">
               {report.roadmapConnections}
             </p>
           </div>
@@ -94,7 +94,7 @@ export function ResearchReportView({ report, roadmapId, sessionId }: ResearchRep
       {/* Suggested next steps */}
       {report.suggestedNextSteps && report.suggestedNextSteps.length > 0 && (
         <div className="flex flex-col gap-2">
-          <p className="text-[11px] font-semibold text-foreground">Suggested next steps</p>
+          <p className="text-[11px] font-semibold text-fg">Suggested next steps</p>
           <div className="flex flex-col gap-2">
             {report.suggestedNextSteps.map((step, i) => {
               const href = step.suggestedTool ? buildToolHref(step.suggestedTool) : null;
@@ -102,7 +102,7 @@ export function ResearchReportView({ report, roadmapId, sessionId }: ResearchRep
                 <a
                   key={i}
                   href={href}
-                  className="flex items-center gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-[11px] font-medium text-primary hover:bg-primary/10 transition-colors"
+                  className="flex items-center gap-2 rounded-md border border-accent/20 bg-accent/5 px-3 py-2 text-[11px] font-medium text-accent hover:bg-accent/10 transition-colors"
                 >
                   <ArrowRight className="size-3 shrink-0" />
                   {step.action}
@@ -110,9 +110,9 @@ export function ResearchReportView({ report, roadmapId, sessionId }: ResearchRep
               ) : (
                 <div
                   key={i}
-                  className="flex items-start gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-[11px] text-foreground"
+                  className="flex items-start gap-2 rounded-md border border-rule bg-bg-3/30 px-3 py-2 text-[11px] text-fg"
                 >
-                  <ArrowRight className="size-3 shrink-0 mt-0.5 text-muted-foreground" />
+                  <ArrowRight className="size-3 shrink-0 mt-0.5 text-muted" />
                   {step.action}
                 </div>
               );
@@ -123,17 +123,17 @@ export function ResearchReportView({ report, roadmapId, sessionId }: ResearchRep
 
       {/* Sources (collapsible) */}
       {report.sources.length > 0 && (
-        <div className="rounded-lg border border-border overflow-hidden">
+        <div className="rounded-lg border border-rule overflow-hidden">
           <button
             type="button"
             onClick={() => setSourcesOpen(o => !o)}
-            className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-muted/40 transition-colors text-left"
+            className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-bg-3/40 transition-colors text-left"
           >
-            <p className="text-[11px] font-semibold text-foreground">
+            <p className="text-[11px] font-semibold text-fg">
               Sources ({report.sources.length})
             </p>
             <motion.span animate={{ rotate: sourcesOpen ? 180 : 0 }} transition={{ duration: 0.18 }}>
-              <ChevronDown className="size-3.5 text-muted-foreground" />
+              <ChevronDown className="size-3.5 text-muted" />
             </motion.span>
           </button>
           <AnimatePresence initial={false}>
@@ -145,18 +145,18 @@ export function ResearchReportView({ report, roadmapId, sessionId }: ResearchRep
                 transition={{ duration: 0.18 }}
                 className="overflow-hidden"
               >
-                <div className="flex flex-col gap-2 px-3 pb-3 border-t border-border pt-2">
+                <div className="flex flex-col gap-2 px-3 pb-3 border-t border-rule pt-2">
                   {report.sources.map((source, i) => (
                     <div key={i} className="flex flex-col gap-0.5">
                       <a
                         href={source.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[11px] text-primary hover:underline break-all"
+                        className="text-[11px] text-accent hover:underline break-all"
                       >
                         {source.title}
                       </a>
-                      <p className="text-[10px] text-muted-foreground">{source.relevance}</p>
+                      <p className="text-[10px] text-muted">{source.relevance}</p>
                     </div>
                   ))}
                 </div>

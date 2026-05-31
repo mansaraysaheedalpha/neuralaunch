@@ -17,9 +17,9 @@ interface InterviewGuideProps {
 function Tip({ label, detail }: { label: string; detail: string }) {
   return (
     <div className="flex gap-2.5">
-      <span className="shrink-0 text-muted-foreground/40 select-none mt-0.5">→</span>
-      <p className="text-sm text-foreground/80 leading-relaxed">
-        <span className="font-medium text-foreground">{label}.</span>{' '}{detail}
+      <span className="shrink-0 text-muted/40 select-none mt-0.5">→</span>
+      <p className="text-sm text-fg/80 leading-relaxed">
+        <span className="font-medium text-fg">{label}.</span>{' '}{detail}
       </p>
     </div>
   );
@@ -36,7 +36,7 @@ export function InterviewGuide({ open, onOpenChange }: InterviewGuideProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col gap-0 p-0 overflow-hidden">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b border-rule shrink-0">
           <DialogTitle>Getting the most out of your session</DialogTitle>
           <DialogDescription>
             Built from 19 real discovery sessions. The quality of your recommendation depends entirely on the quality of what you share.
@@ -46,8 +46,8 @@ export function InterviewGuide({ open, onOpenChange }: InterviewGuideProps) {
         <div className="overflow-y-auto flex-1 px-6 py-5 space-y-6">
 
           <div className="space-y-1.5">
-            <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest">The core principle</p>
-            <p className="text-sm text-foreground/80 leading-relaxed">
+            <p className="text-[10px] font-medium text-muted/60 uppercase tracking-widest">The core principle</p>
+            <p className="text-sm text-fg/80 leading-relaxed">
               The recommendation you receive will only ever be as specific as the information you provide.
               Vague answers produce general recommendations. Specific answers produce recommendations that
               feel like they were written for you — because they were.
@@ -55,7 +55,7 @@ export function InterviewGuide({ open, onOpenChange }: InterviewGuideProps) {
           </div>
 
           <div className="space-y-3">
-            <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest">What produces the best results</p>
+            <p className="text-[10px] font-medium text-muted/60 uppercase tracking-widest">What produces the best results</p>
             <Tip
               label="Give specific numbers"
               detail={`"Maybe 10 to 12 hours a week" is far more useful than "some time on evenings and weekends." Cover time, money, revenue targets, team size. Approximations are fine — anchors are not optional.`}
@@ -75,7 +75,7 @@ export function InterviewGuide({ open, onOpenChange }: InterviewGuideProps) {
           </div>
 
           <div className="space-y-3">
-            <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest">What to avoid</p>
+            <p className="text-[10px] font-medium text-muted/60 uppercase tracking-widest">What to avoid</p>
             <Tip
               label="Don't give the answer you think the engine wants"
               detail="It has no preference for what your situation is. A founder with Le 300,000 and 25 free hours who answers honestly will receive a better recommendation than someone who overstates their readiness."
@@ -94,8 +94,8 @@ export function InterviewGuide({ open, onOpenChange }: InterviewGuideProps) {
             />
           </div>
 
-          <div className="rounded-lg bg-muted/50 px-4 py-3.5 space-y-2">
-            <p className="text-[10px] font-medium text-muted-foreground/60 uppercase tracking-widest mb-3">Quick reference</p>
+          <div className="rounded-lg bg-bg-3/50 px-4 py-3.5 space-y-2">
+            <p className="text-[10px] font-medium text-muted/60 uppercase tracking-widest mb-3">Quick reference</p>
             {[
               'Specific numbers over approximations',
               'Failed attempts named honestly — what, why, what caused the stop',
@@ -104,8 +104,8 @@ export function InterviewGuide({ open, onOpenChange }: InterviewGuideProps) {
               'One question, one answer — no compression',
               'Your real situation, not the version you wish were true',
             ].map(item => (
-              <div key={item} className="flex gap-2.5 text-sm text-foreground/75">
-                <span className="shrink-0 text-muted-foreground/40 select-none">·</span>
+              <div key={item} className="flex gap-2.5 text-sm text-fg/75">
+                <span className="shrink-0 text-muted/40 select-none">·</span>
                 <span>{item}</span>
               </div>
             ))}

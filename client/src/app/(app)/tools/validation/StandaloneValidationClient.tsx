@@ -86,14 +86,14 @@ export function StandaloneValidationClient({ recommendations }: StandaloneValida
           <CheckCircle2 className="size-4" aria-hidden="true" />
           Validation page drafted
         </div>
-        <p className="text-xs text-muted-foreground leading-relaxed">
+        <p className="text-xs text-muted leading-relaxed">
           Open the page editor to preview it, customise the copy, and publish it
           when you&apos;re ready. Once live, share the URL and watch the
           analytics come back to the editor.
         </p>
         <Link
           href={`/discovery/validation/${result.pageId}`}
-          className="inline-flex items-center justify-center rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+          className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-bg hover:bg-accent/90"
         >
           Open validation page editor →
         </Link>
@@ -102,9 +102,9 @@ export function StandaloneValidationClient({ recommendations }: StandaloneValida
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
+    <div className="flex flex-col gap-4 rounded-xl border border-rule bg-bg-2 p-5">
       <div className="flex flex-col gap-2">
-        <label className="text-xs font-semibold text-foreground" htmlFor="target">
+        <label className="text-xs font-semibold text-fg" htmlFor="target">
           What do you want to validate?
         </label>
         <textarea
@@ -115,13 +115,13 @@ export function StandaloneValidationClient({ recommendations }: StandaloneValida
           maxLength={2000}
           rows={5}
           placeholder="e.g. A $99/month premium coaching community for mid-career engineers — weekly group calls, private Slack, and a resume-review service. I want to see if mid-career engineers will sign up before I build the private community."
-          className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
+          className="w-full rounded-md border border-rule bg-bg px-3 py-2 text-sm text-fg placeholder:text-muted/60 outline-none focus:ring-2 focus:ring-accent/40 disabled:opacity-60"
         />
       </div>
 
       {recommendations.length > 0 && (
         <div className="flex flex-col gap-2">
-          <label className="text-xs font-semibold text-foreground" htmlFor="recommendation">
+          <label className="text-xs font-semibold text-fg" htmlFor="recommendation">
             Tie this to a recommendation (optional)
           </label>
           <select
@@ -129,7 +129,7 @@ export function StandaloneValidationClient({ recommendations }: StandaloneValida
             value={selectedRec}
             onChange={e => setSelectedRec(e.target.value)}
             disabled={phase === 'generating'}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
+            className="w-full rounded-md border border-rule bg-bg px-3 py-2 text-sm text-fg outline-none focus:ring-2 focus:ring-accent/40 disabled:opacity-60"
           >
             <option value="">None — create standalone</option>
             {recommendations.map(r => (
@@ -138,7 +138,7 @@ export function StandaloneValidationClient({ recommendations }: StandaloneValida
               </option>
             ))}
           </select>
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
+          <p className="text-[11px] text-muted leading-relaxed">
             Tying to a recommendation means the page is scored into your
             venture&apos;s market signal for the continuation brief. Standalone
             pages are user-scoped — useful for quick tests outside your
@@ -147,14 +147,14 @@ export function StandaloneValidationClient({ recommendations }: StandaloneValida
         </div>
       )}
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p className="text-xs text-accent">{error}</p>}
 
       <div className="flex justify-end">
         <button
           type="button"
           onClick={() => { void handleGenerate(); }}
           disabled={phase === 'generating' || target.trim().length === 0}
-          className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-bg hover:bg-accent/90 disabled:opacity-50"
         >
           {phase === 'generating' ? 'Generating…' : 'Generate page'}
         </button>

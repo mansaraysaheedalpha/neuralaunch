@@ -45,10 +45,10 @@ export function NoIdeaCascadeBanner({ sessionId }: NoIdeaCascadeBannerProps) {
   }
 
   return (
-    <div className="mx-6 mt-4 rounded-md border border-gold/40 bg-gold/5 px-4 py-3">
+    <div className="mx-6 mt-4 rounded-md border border-accent/40 bg-accent/5 px-4 py-3">
       <div className="flex items-start gap-3">
-        <AlertTriangle className="size-4 text-gold mt-0.5 shrink-0" />
-        <div className="flex-1 text-sm text-foreground leading-relaxed">
+        <AlertTriangle className="size-4 text-accent mt-0.5 shrink-0" />
+        <div className="flex-1 text-sm text-fg leading-relaxed">
           <p>
             Your evidence changed since this recommendation was synthesized. You edited Stage 1, 2, 3, or 4 — the recommendation below was built from the prior state. Re-synthesize to pull your latest evidence in, or accept as-is if the change doesn&apos;t affect this opportunity.
           </p>
@@ -66,12 +66,12 @@ export function NoIdeaCascadeBanner({ sessionId }: NoIdeaCascadeBannerProps) {
                 </>
               )}
             </Button>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted">
               Takes ~1 minute. Replaces the recommendation below with a fresh synthesis from your current Stage 1-4 state.
             </p>
           </div>
           {actionError && (
-            <p className="mt-2 text-xs text-destructive">{actionError}</p>
+            <p className="mt-2 text-xs text-accent">{actionError}</p>
           )}
         </div>
       </div>

@@ -13,14 +13,14 @@ export default function LandingHeader() {
 
   return (
     // Fixed positioning for the landing page header
-    <header className="fixed top-0 left-0 right-0 z-50 p-4 sm:px-6 lg:px-8 py-5 bg-background/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-border/50">
+    <header className="fixed top-0 left-0 right-0 z-50 p-4 sm:px-6 lg:px-8 py-5 bg-bg/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-rule/50">
       <div className="w-full max-w-7xl mx-auto flex items-center justify-between">
         {/* Logo and Title Section */}
         <Link href="/" className="flex items-center space-x-3 group">
           <div className="relative">
             <motion.div // Added motion for subtle hover effect
               whileHover={{ scale: 1.05, rotate: -3 }}
-              className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-primary to-secondary rounded-lg sm:rounded-xl flex items-center justify-center transition-all duration-300 group-hover:shadow-lg group-hover:shadow-primary/30 p-1" // Added padding for image
+              className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-accent to-secondary rounded-lg sm:rounded-xl flex items-center justify-center transition-all duration-300 group-hover:shadow-lg group-hover:shadow-primary/30 p-1" // Added padding for image
             >
               <Image
                 src="/neuralaunch_logo.png" // Your logo file in /public
@@ -34,10 +34,10 @@ export default function LandingHeader() {
           <div className="hidden sm:block">
             {" "}
             {/* Hide text on very small screens */}
-            <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-accent to-secondary bg-clip-text text-transparent">
               NeuraLaunch
             </h1>
-            <p className="text-xs text-muted-foreground">AI Startup Co-Pilot</p>
+            <p className="text-xs text-muted">AI Startup Co-Pilot</p>
           </div>
         </Link>
 
@@ -46,14 +46,14 @@ export default function LandingHeader() {
           {/* About Us Link */}
           <Link
             href="/about"
-            className="hidden md:inline-flex items-center px-3 py-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors"
+            className="hidden md:inline-flex items-center px-3 py-1.5 text-sm font-medium text-fg hover:text-accent transition-colors"
           >
             About Us
           </Link>
           {/* FAQ Link */}
           <Link
             href="/faq"
-            className="hidden md:inline-flex items-center px-3 py-1.5 text-sm font-medium text-foreground hover:text-primary transition-colors"
+            className="hidden md:inline-flex items-center px-3 py-1.5 text-sm font-medium text-fg hover:text-accent transition-colors"
           >
             FAQ
           </Link>
@@ -62,14 +62,14 @@ export default function LandingHeader() {
             href={FEEDBACK_FORM_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-foreground bg-muted hover:bg-border rounded-full transition-colors" // Adjusted style
+            className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-fg bg-bg-3 hover:bg-border rounded-full transition-colors" // Adjusted style
           >
             <span>Feedback</span>
             <span>💬</span>
           </Link>
           {/* Auth Status Logic */}
           {status === "loading" ? (
-            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-muted rounded-full animate-pulse"></div>
+            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-bg-3 rounded-full animate-pulse"></div>
           ) : session ? (
             // User Menu Dropdown
             <DropdownMenu.Root>
@@ -77,7 +77,7 @@ export default function LandingHeader() {
                 <motion.button // Added motion
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 border-border hover:border-primary transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden border-2 border-rule hover:border-accent transition-colors focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
                   aria-label="User menu"
                 >
                   {session.user?.image ? (
@@ -90,7 +90,7 @@ export default function LandingHeader() {
                     />
                   ) : (
                     // Fallback icon
-                    <div className="w-full h-full bg-muted flex items-center justify-center text-muted-foreground">
+                    <div className="w-full h-full bg-bg-3 flex items-center justify-center text-muted">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         width="20"
@@ -111,11 +111,11 @@ export default function LandingHeader() {
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content
-                  className="mt-2 w-48 bg-card border border-border rounded-lg shadow-lg z-50 p-1 text-sm text-foreground"
+                  className="mt-2 w-48 bg-bg-2 border border-rule rounded-lg shadow-lg z-50 p-1 text-sm text-fg"
                   sideOffset={5}
                   align="end"
                 >
-                  <DropdownMenu.Label className="px-3 py-2 text-xs text-muted-foreground truncate">
+                  <DropdownMenu.Label className="px-3 py-2 text-xs text-muted truncate">
                     {session.user?.name || session.user?.email}
                   </DropdownMenu.Label>
                   <DropdownMenu.Separator className="h-px bg-border my-1" />
@@ -123,7 +123,7 @@ export default function LandingHeader() {
                   <DropdownMenu.Item asChild>
                     <Link
                       href="/discovery"
-                      className="flex items-center gap-2 px-3 py-2 rounded hover:bg-muted cursor-pointer outline-none select-none"
+                      className="flex items-center gap-2 px-3 py-2 rounded hover:bg-bg-3 cursor-pointer outline-none select-none"
                     >
                       {/* Rocket Icon */}
                       <svg
@@ -149,7 +149,7 @@ export default function LandingHeader() {
                   <DropdownMenu.Separator className="h-px bg-border my-1" />
                   <DropdownMenu.Item
                     onSelect={() => void signOut()} // Sign out
-                    className="flex items-center gap-2 px-3 py-2 rounded hover:bg-muted cursor-pointer outline-none select-none text-red-500 hover:text-red-600"
+                    className="flex items-center gap-2 px-3 py-2 rounded hover:bg-bg-3 cursor-pointer outline-none select-none text-red-500 hover:text-red-600"
                   >
                     {/* Sign Out Icon */}
                     <svg
@@ -180,9 +180,9 @@ export default function LandingHeader() {
                   boxShadow: "0 10px 25px -5px rgba(139, 92, 246, 0.3)",
                 }}
                 whileTap={{ scale: 0.95 }}
-                className="relative inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-primary via-violet-600 to-secondary rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group"
+                className="relative inline-flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-accent via-violet-600 to-secondary rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group"
               >
-                <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-secondary via-violet-600 to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <span className="absolute inset-0 w-full h-full bg-gradient-to-r from-secondary via-violet-600 to-accent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 <span className="relative z-10">Get Started</span>
                 <svg
                   xmlns="http://www.w3.org/2000/svg"

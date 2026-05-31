@@ -33,9 +33,9 @@ export function ResearchToolButton({
     <button
       type="button"
       onClick={onOpen}
-      className="flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-1.5 text-[11px] font-medium text-foreground/85 hover:bg-primary/10 hover:text-foreground transition-colors"
+      className="flex items-center gap-1.5 rounded-md border border-accent/30 bg-accent/5 px-3 py-1.5 text-[11px] font-medium text-fg/85 hover:bg-accent/10 hover:text-fg transition-colors"
     >
-      <Search className="size-3 shrink-0 text-primary" />
+      <Search className="size-3 shrink-0 text-accent" />
       Research this →
     </button>
   );
