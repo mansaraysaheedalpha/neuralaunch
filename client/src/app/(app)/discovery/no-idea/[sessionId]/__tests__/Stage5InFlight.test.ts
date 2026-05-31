@@ -1,11 +1,10 @@
-// Tests for Stage5InFlight's pure helpers — phase-index calculation
-// and elapsed-time formatting. The full React render is verified by
-// the e2e/visual layer; here we pin the prose-cycling behaviour the
-// brief calls out in B.2 ("the polling component cycles through the
-// four phases correctly").
-//
-// The helpers are duplicated from Stage5InFlight.tsx and kept in sync;
-// the assertions below pin the contract so a drift in the component
+// Tests for the Stage 5 polling pure helpers — phase-index calculation
+// and elapsed-time formatting. Originally pinned Stage5InFlight (the
+// pre-Institute polling surface); PR 13 replaced it with
+// SynthesisOverlay driven by Stage5Client.buildStage5Steps, but the
+// pure stage→position + plural-formatting contracts these tests pin
+// still flow through that path. The helpers are duplicated locally
+// and kept in sync; assertions pin the contract so component drift
 // shows up here.
 
 import { describe, it, expect } from 'vitest';
@@ -37,7 +36,7 @@ function formatElapsed(seconds: number): string {
   return `Elapsed: ${minutes}, ${sec}`;
 }
 
-describe('Stage5InFlight — phaseIndex cycles through the four phases in order', () => {
+describe('Stage 5 polling — phaseIndex cycles through the four phases in order', () => {
   it('maps queued → 0', () => {
     expect(phaseIndex('queued')).toBe(0);
   });
@@ -56,7 +55,7 @@ describe('Stage5InFlight — phaseIndex cycles through the four phases in order'
   });
 });
 
-describe('Stage5InFlight — formatElapsed (B.3 singular/plural rules)', () => {
+describe('Stage 5 polling — formatElapsed (B.3 singular/plural rules)', () => {
   it('renders 0 seconds plural', () => {
     expect(formatElapsed(0)).toBe('Elapsed: 0 seconds');
   });

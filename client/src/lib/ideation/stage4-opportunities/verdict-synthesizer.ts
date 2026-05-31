@@ -3,7 +3,7 @@
 // Stage 4 verdict synthesis. Combines Layer A research findings + the
 // aggregate Layer B signal into the agent's per-opportunity verdict
 // (pursue / pursue_with_caveats / drop) + a 2-3 sentence reasoning
-// paragraph the founder reads on the OpportunityCard.
+// paragraph the founder reads on the docket row + focus view.
 //
 // When this fires: commit #4's community-response route calls it
 // each time a fresh CommunityResponse lands (after vision extraction
@@ -67,11 +67,11 @@ const VerdictOutputSchema = z.object({
     'needs_more_evidence when Layer A is solid but Layer B is thin (n very small) or mixed enough that one more engagement would change the call — pick this in preference to pursue_with_caveats when the right move is "do one more round" rather than "commit with reservations".',
   ),
   reasoning: z.string().describe(
-    '2-3 sentences explaining what tipped the verdict. Reference Layer A confidence + Layer B validationStrength specifically. The founder reads this on the OpportunityCard; lead with the most decision-relevant signal.',
+    '2-3 sentences explaining what tipped the verdict. Reference Layer A confidence + Layer B validationStrength specifically. The founder reads this on the docket row + focus view; lead with the most decision-relevant signal.',
   ),
 });
 
-const SYNTHESIZER_SYSTEM_PROMPT = `You are the Stage 4 verdict synthesizer for NeuraLaunch. You read one opportunity's Layer A research findings + Layer B aggregate signal (from real community engagement) and produce a verdict + reasoning the founder will see on the OpportunityCard.
+const SYNTHESIZER_SYSTEM_PROMPT = `You are the Stage 4 verdict synthesizer for NeuraLaunch. You read one opportunity's Layer A research findings + Layer B aggregate signal (from real community engagement) and produce a verdict + reasoning the founder will see on the docket row + focus view.
 
 YOU DO NOT WEB-SEARCH. Layer A is the research layer. Your job is synthesis — read the inputs you're given, weigh them, return the verdict.
 

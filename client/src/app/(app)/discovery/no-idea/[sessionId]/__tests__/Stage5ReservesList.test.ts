@@ -1,7 +1,11 @@
-// Tests for the Stage5ReservesList pure helpers — avg-confidence
-// math + agent verdict label mapping. The brief asks for "empty-
-// reserves state shows the right copy" coverage; that string is
-// pinned here too via the literal in the source-equivalent function.
+// Tests for the Stage 5 reserves-list pure helpers — avg-confidence
+// math + agent verdict label mapping. PR 13 replaced
+// Stage5ReservesList with the Institute <ReservesLedger> primitive;
+// the same helpers + empty-state copy contract still flow through the
+// new component, so these tests stay valid under a renamed subject.
+// The "empty-reserves state shows the right copy" coverage pins the
+// founder-visible string via the literal in the source-equivalent
+// function.
 
 import { describe, it, expect } from 'vitest';
 
@@ -38,7 +42,7 @@ function agentVerdictLabel(v: V): string {
   return VERDICT_LABELS[v];
 }
 
-describe('Stage5ReservesList — avgLayerAConfidence', () => {
+describe('Stage 5 reserves — avgLayerAConfidence', () => {
   it('returns null when layerA is null', () => {
     expect(avgLayerAConfidence(null)).toBeNull();
   });
@@ -60,7 +64,7 @@ describe('Stage5ReservesList — avgLayerAConfidence', () => {
   });
 });
 
-describe('Stage5ReservesList — agentVerdictLabel', () => {
+describe('Stage 5 reserves — agentVerdictLabel', () => {
   it.each([
     ['pursue',              'Pursue'],
     ['pursue_with_caveats', 'Pursue with caveats'],
@@ -71,7 +75,7 @@ describe('Stage5ReservesList — agentVerdictLabel', () => {
   });
 });
 
-describe('Stage5ReservesList — empty-reserves copy contract', () => {
+describe('Stage 5 reserves — empty-reserves copy contract', () => {
   // Pin the empty-state string so a future refactor doesn't silently
   // change founder-visible copy. The string lives in the source as a
   // literal; we duplicate it here to fail the test if it diverges.
