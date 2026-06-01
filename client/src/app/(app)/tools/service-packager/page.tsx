@@ -9,8 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Loader2, Plus } from 'lucide-react';
-import Link from 'next/link';
-import { ToolShell } from '@/components/institute/tools';
+import { ToolShell, ToolShellLoading, ToolShellNoRoadmap } from '@/components/institute/tools';
 import { PackagerHistoryPanel } from './PackagerHistoryPanel';
 import { Textarea } from '@/components/ui/textarea';
 import { PackagerContextView }    from '@/app/(app)/discovery/roadmap/[id]/packager/PackagerContextView';
@@ -288,27 +287,30 @@ export default function StandalonePackagerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adjustJob?.stage, roadmapId, sessionId]);
 
+  // Per-page Shell metadata, reused for loading + no-roadmap states.
+  const shellProps = {
+    model: 'Sonnet',
+    toolName: 'Service Packager',
+    roman: 'IV' as const,
+    description: 'Three priced tiers · revenue scenarios',
+    heading: <>Package the <em>service.</em></>,
+    lede: <>Three priced tiers from your situation — Starter, Pro, Premium — each with a feature list, a revenue scenario, and the reasoning behind the price.</>,
+  };
+
   if (stage === 'loading') {
-    return <div className="flex items-center justify-center py-24"><Loader2 className="size-6 text-accent animate-spin" /></div>;
+    return <ToolShellLoading {...shellProps} />;
   }
   if (stage === 'no_roadmap') {
     return (
-      <div className="max-w-md mx-auto px-6 py-24 text-center flex flex-col gap-3">
-        <p className="text-sm text-muted">The Service Packager needs your discovery context to set pricing and scope. Start a discovery session first.</p>
-        <Link href="/discovery" className="text-sm text-accent hover:underline">Start Discovery →</Link>
-      </div>
+      <ToolShellNoRoadmap
+        {...shellProps}
+        message="The Service Packager needs your discovery context to set pricing and scope. Start a discovery session first."
+      />
     );
   }
 
   return (
-    <ToolShell
-      model="Sonnet"
-      toolName="Service Packager"
-      roman="IV"
-      description="Three priced tiers · revenue scenarios"
-      heading={<>Package the <em>service.</em></>}
-      lede={<>Three priced tiers from your situation — Starter, Pro, Premium — each with a feature list, a revenue scenario, and the reasoning behind the price.</>}
-    >
+    <ToolShell {...shellProps}>
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
         <div className="flex items-center justify-end">
           <button

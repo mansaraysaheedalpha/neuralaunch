@@ -1,10 +1,9 @@
 // src/components/discovery/index.ts
-// Public re-exports for the discovery UI module.
+//
+// Public re-exports for the discovery UI module. The legacy
+// chat-bubble surface (DiscoveryChat + its WelcomeLayer /
+// InterviewGuide / QuestionStepper / ThinkingPanel / MessageList
+// dependencies) was deleted in PR 16; the Institute shell in
+// `./standard/` is the only render surface.
 
-export { DiscoveryChat }             from './DiscoveryChat';
-export { WelcomeLayer }              from './WelcomeLayer';
-export { InterviewGuide }            from './InterviewGuide';
-export { QuestionStepper }           from './QuestionStepper';
-export { ThinkingPanel }             from './ThinkingPanel';
-export { MessageList }               from './MessageList';
-export type { ChatMessage }          from './MessageList';
+export type { ChatMessage } from './message-types';

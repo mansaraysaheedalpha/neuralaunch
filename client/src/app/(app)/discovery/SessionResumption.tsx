@@ -1,12 +1,20 @@
 'use client';
 // src/app/(app)/discovery/SessionResumption.tsx
+//
+// Shown when the founder returns to /discovery with an incomplete
+// standard-archetype session. Renders an Institute-styled picker
+// card; on "continue" hydrates the prior turns into StandardChat
+// (the Institute interview shell), on "start fresh" deletes the
+// paused session and lets the page re-render.
+//
+// Pre-PR-16 this surface handed off to the legacy DiscoveryChat
+// bubble UI, which jarringly broke design continuity mid-interview.
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'motion/react';
-import { DiscoveryChat } from '@/components/discovery';
+import { StandardChat } from '@/components/discovery/standard/StandardChat';
+import type { ChatMessage } from '@/components/discovery/message-types';
 import type { Recommendation } from '@/lib/discovery/client';
-import type { ChatMessage } from '@/components/discovery/MessageList';
 
 interface IncompleteSession {
   id:            string;
@@ -28,10 +36,11 @@ interface Props {
 /**
  * SessionResumption
  *
- * Shown when the user returns to /discovery with an incomplete session.
- * Offers to continue from where they left off or start fresh.
- * On resume: fetches conversation history and hands off to DiscoveryChat
- * with the existing sessionId and pre-loaded messages.
+ * Picker for a paused standard discovery session. The card renders
+ * in the Institute palette (hairline mono eyebrow, serif italic
+ * heading, accent CTA, ghost secondary). After "continue", the
+ * resumed turns hydrate StandardChat via the new `resume` prop so
+ * the chrome stays consistent.
  */
 export function SessionResumption({ session, firstName }: Props) {
   const router  = useRouter();
@@ -77,44 +86,57 @@ export function SessionResumption({ session, firstName }: Props) {
       }));
 
     return (
-      <DiscoveryChat
+      <StandardChat
         firstName={firstName}
+        isFirstSession={false}
+        archetypeLabel="Standard"
         onComplete={handleComplete}
-        resume={{ sessionId: session.id, conversationId: resumeData.conversationId, messages: priorMessages }}
+        resume={{
+          sessionId:      session.id,
+          conversationId: resumeData.conversationId,
+          messages:       priorMessages,
+        }}
       />
     );
   }
 
+  const answered = session.questionCount;
+  const answeredCopy = answered > 0
+    ? `${answered} answer${answered !== 1 ? 's' : ''} captured`
+    : 'paused mid-interview';
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col items-center justify-center h-full max-w-md mx-auto px-6 gap-6 text-center"
-    >
-      <div className="flex flex-col gap-2">
-        <h2 className="text-xl font-semibold text-fg">Your session was paused</h2>
-        <p className="text-sm text-muted leading-relaxed">
-          You were partway through your discovery interview.
-          {session.questionCount > 0 && ` You had answered ${session.questionCount} question${session.questionCount !== 1 ? 's' : ''}.`}
-          {' '}Pick up where you left off — everything is still here.
-        </p>
+    <section className="mx-auto flex h-full max-w-[640px] flex-col justify-center px-6 py-16">
+      <div className="mb-4 font-mono text-[11px] uppercase tracking-[0.18em] text-accent">
+        Discovery · session paused
       </div>
-      <div className="flex flex-col gap-2 w-full max-w-xs">
+      <h2 className="mb-5 font-sans text-fg [font-size:clamp(32px,4vw,52px)] [font-weight:500] [line-height:1.02] [letter-spacing:-0.025em] [&_em]:font-serif [&_em]:italic [&_em]:font-normal [&_em]:text-accent">
+        Pick up <em>where you stopped.</em>
+      </h2>
+      <p className="mb-8 max-w-[520px] text-[15px] leading-[1.6] text-fg-2">
+        You were partway through your discovery interview — {answeredCopy}.
+        Everything is still here. Continue from the next question, or start a new session.
+      </p>
+
+      <div className="flex flex-wrap items-start gap-3.5">
         <button
+          type="button"
           onClick={() => { void handleResume(); }}
           disabled={loading}
-          className="w-full rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-bg hover:opacity-90 disabled:opacity-60 transition-opacity"
+          className="inline-flex items-center gap-3 bg-accent px-6 py-4 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-bg transition-transform hover:translate-x-0.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-x-0"
         >
           {loading ? 'Loading your session…' : 'Continue where you left off'}
+          {!loading && <span aria-hidden="true">→</span>}
         </button>
         <button
+          type="button"
           onClick={() => { void handleStartFresh(); }}
           disabled={discarding}
-          className="w-full rounded-lg border border-rule px-4 py-2.5 text-sm text-muted hover:text-fg hover:border-fg/30 disabled:opacity-60 transition-colors"
+          className="border border-rule-strong px-6 py-4 font-mono text-[11px] uppercase tracking-[0.14em] text-fg transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
         >
           Start a new session
         </button>
       </div>
-    </motion.div>
+    </section>
   );
 }

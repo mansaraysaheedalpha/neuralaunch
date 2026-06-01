@@ -6,9 +6,8 @@
 // state machine — the flow component handles everything.
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Plus } from 'lucide-react';
-import Link from 'next/link';
-import { ToolShell } from '@/components/institute/tools';
+import { Plus } from 'lucide-react';
+import { ToolShell, ToolShellLoading, ToolShellNoRoadmap } from '@/components/institute/tools';
 import { ResearchFlow } from '@/app/(app)/discovery/roadmap/[id]/research/ResearchFlow';
 import { useResearchFlow } from '@/app/(app)/discovery/roadmap/[id]/research/useResearchFlow';
 import {
@@ -55,25 +54,27 @@ export default function StandaloneResearchPage() {
     })();
   }, []);
 
+  // Shell metadata for the transient states. Kept aligned with the
+  // loaded-page render below so loading-then-loaded has no chrome shift.
+  const shellProps = {
+    model: 'Opus',
+    toolName: 'Research Tool',
+    roman: 'III' as const,
+    description: 'Plain-language query → cited findings',
+    heading: <>Research, <em>cited.</em></>,
+    lede: <>Ask any question about your market, competitors, customers, regulations, or pricing. The tool runs a multi-source investigation and returns a structured report with source URLs and confidence labels — <em>verified, likely, unverified.</em></>,
+  };
+
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="size-6 text-accent animate-spin" />
-      </div>
-    );
+    return <ToolShellLoading {...shellProps} />;
   }
 
   if (!roadmapId) {
     return (
-      <div className="max-w-md mx-auto px-6 py-24 text-center flex flex-col gap-3">
-        <p className="text-sm text-muted">
-          The Research Tool needs your discovery context to produce relevant results.
-          Start a discovery session first.
-        </p>
-        <Link href="/discovery" className="text-sm text-accent hover:underline">
-          Start Discovery →
-        </Link>
-      </div>
+      <ToolShellNoRoadmap
+        {...shellProps}
+        message="The Research Tool needs your discovery context to produce relevant results. Start a discovery session first."
+      />
     );
   }
 

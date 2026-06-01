@@ -22,20 +22,44 @@ import {
 import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
 import { canUseVoiceMode, useVoiceTier } from '@/lib/voice/client-tier';
 import { useDiscoverySession } from '@/components/discovery/useDiscoverySession';
-import type { ChatMessage } from '@/components/discovery';
+import type { ChatMessage } from '@/components/discovery/message-types';
 import type { Recommendation } from '@/lib/discovery/client';
 import type { AudienceType } from '@/lib/discovery';
 import { useBeliefRailState } from './useBeliefRailState';
 import { beliefStateToRail, readinessLabel } from './beliefStateToRail';
 import { TranscriptModal } from './TranscriptModal';
 
+/**
+ * Resume payload — passed from SessionResumption when the founder
+ * picks "Continue where you left off". When set, StandardChat skips
+ * the preseed POST and hydrates the existing session id +
+ * conversationId + prior turns into useDiscoverySession.
+ */
+export interface StandardChatResumePayload {
+  sessionId:      string;
+  conversationId: string | null;
+  messages:       ChatMessage[];
+}
+
 interface StandardChatProps {
   firstName:      string;
   isFirstSession: boolean;
-  audienceType:   AudienceType;
-  scenario:       'first_interview' | 'fresh_start';
+  /**
+   * Pre-seed audience for a NEW session. Required for the fresh-start
+   * flow; omitted (along with `scenario`) when `resume` is set — the
+   * hook reads the audience from the existing belief state instead.
+   */
+  audienceType?:  AudienceType;
+  scenario?:      'first_interview' | 'fresh_start';
   /** Display label for the picked archetype, shown in the top-bar crumb. */
   archetypeLabel: string;
+  /**
+   * When present, render the Institute interview chrome but hydrate
+   * from an in-flight session instead of POSTing a new one. Used by
+   * SessionResumption after the founder picks "continue where you
+   * left off".
+   */
+  resume?:        StandardChatResumePayload;
   onComplete:     (recommendation: Recommendation, conversationId: string) => void;
 }
 
@@ -55,6 +79,7 @@ export function StandardChat({
   audienceType,
   scenario,
   archetypeLabel,
+  resume,
   onComplete,
 }: StandardChatProps) {
   const [input, setInput] = useState('');
@@ -86,7 +111,15 @@ export function StandardChat({
     getTranscript,
   } = useDiscoverySession({
     onComplete,
-    preseed: { audienceType, scenario },
+    // Either hydrate from a paused session (resume) OR pre-seed audience
+    // for a fresh one — the hook ignores `preseed` when `resume` is set,
+    // so passing both would be safe but the conditional keeps intent
+    // visible.
+    ...(resume
+      ? { resume }
+      : audienceType && scenario
+        ? { preseed: { audienceType, scenario } }
+        : {}),
   });
 
   // Belief rail — fetched once the session exists, re-read after each

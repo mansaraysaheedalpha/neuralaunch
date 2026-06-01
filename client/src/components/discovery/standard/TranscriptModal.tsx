@@ -8,7 +8,7 @@
 
 import { useEffect } from 'react';
 import { X } from 'lucide-react';
-import type { ChatMessage } from '@/components/discovery';
+import type { ChatMessage } from '@/components/discovery/message-types';
 
 export interface TranscriptModalProps {
   open: boolean;

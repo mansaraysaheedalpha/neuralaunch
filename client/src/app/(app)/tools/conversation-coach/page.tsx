@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, Plus } from 'lucide-react';
 import Link from 'next/link';
-import { ToolShell } from '@/components/institute/tools';
+import { ToolShell, ToolShellLoading, ToolShellNoRoadmap } from '@/components/institute/tools';
 import { CoachHistoryPanel } from './CoachHistoryPanel';
 import { CoachSetupChat } from '@/app/(app)/discovery/roadmap/[id]/coach/CoachSetupChat';
 import { PreparationView } from '@/app/(app)/discovery/roadmap/[id]/coach/PreparationView';
@@ -256,25 +256,27 @@ export default function StandaloneCoachPage() {
     }
   }, [roadmapId, sessionId, bumpMeter]);
 
+  // Per-page Shell metadata. Reused for the transient loading + "no
+  // roadmap yet" states so the founder always sees Institute chrome.
+  const shellProps = {
+    model: 'Opus',
+    toolName: 'Conversation Coach',
+    roman: 'I' as const,
+    description: 'Rehearse the conversation that decides the outcome',
+    heading: <>Coach the <em>conversation.</em></>,
+    lede: <>Walk through what you&rsquo;ll say, who you&rsquo;re saying it to, and what you&rsquo;re afraid of. The coach builds a preparation package — opening, objections, fallback positions — then role-plays it with you, <em>in character.</em></>,
+  };
+
   if (stage === 'loading') {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="size-6 text-accent animate-spin" />
-      </div>
-    );
+    return <ToolShellLoading {...shellProps} />;
   }
 
   if (stage === 'no_roadmap') {
     return (
-      <div className="max-w-md mx-auto px-6 py-24 text-center flex flex-col gap-3">
-        <p className="text-sm text-muted">
-          The Conversation Coach needs your discovery context to produce useful outputs.
-          Start a discovery session first.
-        </p>
-        <Link href="/discovery" className="text-sm text-accent hover:underline">
-          Start Discovery →
-        </Link>
-      </div>
+      <ToolShellNoRoadmap
+        {...shellProps}
+        message="The Conversation Coach needs your discovery context to produce useful outputs. Start a discovery session first."
+      />
     );
   }
 

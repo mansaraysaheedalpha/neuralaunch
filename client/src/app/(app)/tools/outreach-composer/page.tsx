@@ -7,9 +7,8 @@
 // outreach need from scratch — no task context.
 
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { ToolShell } from '@/components/institute/tools';
+import { ToolShell, ToolShellLoading, ToolShellNoRoadmap } from '@/components/institute/tools';
 import { ComposerContextChat } from '@/app/(app)/discovery/roadmap/[id]/composer/ComposerContextChat';
 import { ComposerOutputView }  from '@/app/(app)/discovery/roadmap/[id]/composer/ComposerOutputView';
 import { ComposerSessionReview } from '@/app/(app)/discovery/roadmap/[id]/composer/ComposerSessionReview';
@@ -225,25 +224,26 @@ export default function StandaloneComposerPage() {
     void handleContextComplete(context, mode, channel);
   }, [context, mode, channel, handleContextComplete]);
 
+  // Per-page Shell metadata, reused for loading + no-roadmap states.
+  const shellProps = {
+    model: 'Sonnet',
+    toolName: 'Outreach Composer',
+    roman: 'II' as const,
+    description: 'WhatsApp · email · LinkedIn — with rationale',
+    heading: <>Compose <em>outreach.</em></>,
+    lede: <>Single message, batch variations, or a <em>D1 / D5 / D14</em> sequence. WhatsApp, email, or LinkedIn — each draft comes with a short note on why it works.</>,
+  };
+
   if (stage === 'loading') {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="size-6 text-accent animate-spin" />
-      </div>
-    );
+    return <ToolShellLoading {...shellProps} />;
   }
 
   if (stage === 'no_roadmap') {
     return (
-      <div className="max-w-md mx-auto px-6 py-24 text-center flex flex-col gap-3">
-        <p className="text-sm text-muted">
-          The Outreach Composer needs your discovery context to produce useful messages.
-          Start a discovery session first.
-        </p>
-        <Link href="/discovery" className="text-sm text-accent hover:underline">
-          Start Discovery →
-        </Link>
-      </div>
+      <ToolShellNoRoadmap
+        {...shellProps}
+        message="The Outreach Composer needs your discovery context to produce useful messages. Start a discovery session first."
+      />
     );
   }
 
@@ -254,14 +254,7 @@ export default function StandaloneComposerPage() {
       : null;
 
   return (
-    <ToolShell
-      model="Sonnet"
-      toolName="Outreach Composer"
-      roman="II"
-      description="WhatsApp · email · LinkedIn — with rationale"
-      heading={<>Compose <em>outreach.</em></>}
-      lede={<>Single message, batch variations, or a <em>D1 / D5 / D14</em> sequence. WhatsApp, email, or LinkedIn — each draft comes with a short note on why it works.</>}
-    >
+    <ToolShell {...shellProps}>
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
         <div className="flex items-center justify-end">
           <button

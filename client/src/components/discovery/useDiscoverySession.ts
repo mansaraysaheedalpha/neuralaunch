@@ -5,7 +5,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import useSWR from 'swr';
 import { logger } from '@/lib/logger';
 import type { Recommendation } from '@/lib/discovery/client';
-import type { ChatMessage } from './MessageList';
+import type { ChatMessage } from './message-types';
 
 type ChatStatus  = 'idle' | 'loading' | 'streaming' | 'error';
 type RecResponse = { recommendation: Recommendation } | { status: 'pending'; synthesisStep: string | null };

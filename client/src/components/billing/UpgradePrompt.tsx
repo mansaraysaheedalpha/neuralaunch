@@ -51,43 +51,40 @@ export function UpgradePrompt({
 
   if (variant === 'compact') {
     return (
-      <div className="flex items-center gap-2 rounded-md border border-accent/20 bg-accent/5 px-3 py-2 text-[11px] text-accent">
-        <Sparkles className="size-3.5 shrink-0" aria-hidden="true" />
-        <span className="flex-1">{heading ?? copy.compactHeading}</span>
+      <div className="flex items-center gap-3 border-l-2 border-accent bg-bg-2 px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.14em] text-fg">
+        <Sparkles aria-hidden="true" className="size-3.5 shrink-0 text-accent" />
+        <span className="flex-1 normal-case tracking-normal font-sans text-[13px] text-fg-2">
+          {heading ?? copy.compactHeading}
+        </span>
         <Link
           href={href}
-          className="inline-flex items-center gap-1 font-semibold text-accent underline-offset-2 hover:underline"
+          className="inline-flex items-center gap-1 text-accent underline underline-offset-2 transition-opacity hover:opacity-80"
         >
           {primaryLabel ?? copy.primaryLabel}
-          <ArrowRight className="size-3" aria-hidden="true" />
+          <ArrowRight aria-hidden="true" className="size-3" />
         </Link>
       </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-accent/30 bg-accent/5 p-5">
-      <div className="flex items-start gap-3">
-        <Sparkles className="mt-0.5 size-5 shrink-0 text-accent" aria-hidden="true" />
-        <div className="flex-1">
-          <p className="text-xs font-semibold uppercase tracking-widest text-accent">
-            {requiredTier === 'compound' ? 'Compound tier' : 'Execute tier'}
-          </p>
-          <h3 className="mt-1 text-base font-semibold text-fg">
-            {heading ?? copy.heroHeading}
-          </h3>
-          <p className="mt-2 text-sm leading-relaxed text-fg/80">
-            {description ?? copy.heroDescription}
-          </p>
-          <Link
-            href={href}
-            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-bg transition-opacity hover:opacity-90"
-          >
-            <ArrowRight className="size-4" aria-hidden="true" />
-            {primaryLabel ?? copy.primaryLabel}
-          </Link>
-        </div>
+    <section className="border-y border-rule bg-bg-2 px-6 py-10 sm:px-12">
+      <div className="mb-[14px] font-mono text-[11px] uppercase tracking-[0.18em] text-accent">
+        {requiredTier === 'compound' ? 'Tier · Compound' : 'Tier · Execute'}
       </div>
-    </div>
+      <h3 className="mb-4 max-w-[640px] font-sans text-fg [font-size:clamp(22px,2.5vw,32px)] [font-weight:500] [line-height:1.1] [letter-spacing:-0.02em] [&_em]:font-serif [&_em]:italic [&_em]:font-normal [&_em]:text-accent">
+        {heading ?? copy.heroHeading}
+      </h3>
+      <p className="mb-7 max-w-[600px] text-[15px] leading-[1.55] text-fg-2">
+        {description ?? copy.heroDescription}
+      </p>
+      <Link
+        href={href}
+        className="inline-flex items-center gap-3 bg-accent px-6 py-4 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-bg transition-transform hover:translate-x-0.5"
+      >
+        {primaryLabel ?? copy.primaryLabel}
+        <ArrowRight aria-hidden="true" className="size-4" />
+      </Link>
+    </section>
   );
 }
