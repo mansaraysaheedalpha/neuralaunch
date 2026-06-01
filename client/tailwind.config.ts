@@ -32,35 +32,11 @@ const config: Config = {
           DEFAULT: "var(--success)",
           foreground: "var(--bg)",
         },
-
-        /* ===== Back-compat tokens ==================================
-         * Pre-redesign components still reach for `bg-card`,
-         * `text-foreground`, `border-border`, `text-muted-foreground`,
-         * `bg-primary`, etc. The CSS vars below all alias onto the
-         * Institute scale (see globals.css), so these keep rendering
-         * sane until Prompt 02 migrates the components.
-         * ============================================================ */
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
-        primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
-          light: "hsl(var(--primary-light))",
-        },
-        secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
-        },
-        muted: {
-          DEFAULT: "var(--muted)",
-          foreground: "hsl(var(--muted-foreground))",
-        },
-        card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
-        },
+        /* The `muted` token name stays bound to the Institute scale —
+         * `text-muted` is the canonical caption / footnote utility.
+         * The old `muted-foreground` alias is gone (consumers migrated
+         * to `text-muted` directly in PR 16 cat B). */
+        muted: "var(--muted)",
       },
       borderRadius: {
         lg: "var(--radius-lg)",

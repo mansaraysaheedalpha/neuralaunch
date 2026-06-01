@@ -205,9 +205,9 @@ export default function RootLayout({
             position="bottom-center"
             toastOptions={{
               style: {
-                background: "hsl(var(--card))",
-                color: "hsl(var(--foreground))",
-                border: "1px solid hsl(var(--border))",
+                background: "var(--bg-2)",
+                color: "var(--fg)",
+                border: "1px solid var(--rule)",
               },
             }}
           />
