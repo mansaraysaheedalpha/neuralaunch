@@ -40,11 +40,13 @@ export function LayerBSection({
   const sig = opportunity.layerBExtractedSignal;
 
   return (
-    <section className="space-y-3">
-      <header>
-        <h3 className="text-sm font-semibold text-fg">Layer B — community engagement</h3>
-        <p className="text-xs text-muted mt-0.5">
-          You post the script below on your own accounts, then bring back what real people said. Text snippets or screenshots both work.
+    <section className="flex flex-col gap-4">
+      <header className="flex flex-col gap-1">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+          Layer B · community engagement
+        </p>
+        <p className="max-w-[680px] text-[13px] leading-[1.55] text-fg-2">
+          Post the script below on your own accounts, then bring back what real people said. Text snippets or screenshots both work.
         </p>
       </header>
 
@@ -65,10 +67,9 @@ export function LayerBSection({
       )}
 
       <div>
-        <h4 className="text-xs font-semibold text-fg mb-2">
-          Captured responses{' '}
-          <span className="text-muted">({responses.length})</span>
-        </h4>
+        <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.18em] text-fg-2">
+          Captured responses · <span className="text-accent">{responses.length}</span>
+        </p>
         <ResponseGallery
           responses={responses}
           readOnly={readOnly}
@@ -77,14 +78,18 @@ export function LayerBSection({
       </div>
 
       {sig && (
-        <div className="rounded-md border border-rule bg-bg-2/30 px-3 py-2 text-xs text-muted">
-          <span className="text-fg font-medium">
-            Aggregate: {VALIDATION_STRENGTH_LABELS[sig.validationStrength]}
+        <div className="border-l-2 border-accent bg-bg px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+          <span className="text-fg">
+            Aggregate · {VALIDATION_STRENGTH_LABELS[sig.validationStrength]}
           </span>
           {' · '}
-          {sig.sentimentBreakdown.positive} positive · {sig.sentimentBreakdown.neutral} neutral · {sig.sentimentBreakdown.negative} negative
+          <span className="text-success">{sig.sentimentBreakdown.positive} positive</span>
+          {' · '}
+          {sig.sentimentBreakdown.neutral} neutral
+          {' · '}
+          <span className="text-amber">{sig.sentimentBreakdown.negative} negative</span>
           {sig.contradictionsRaised.length > 0 && (
-            <span className="ml-1 text-amber-500">· {sig.contradictionsRaised.length} contradictions</span>
+            <span className="ml-1 text-amber">· {sig.contradictionsRaised.length} contradictions</span>
           )}
         </div>
       )}

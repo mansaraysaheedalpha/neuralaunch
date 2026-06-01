@@ -2,7 +2,6 @@
 
 import { useState, useTransition, useRef, type FormEvent, type ChangeEvent } from 'react';
 import { ImagePlus, FileText, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import {
   ALLOWED_SCREENSHOT_CONTENT_TYPES,
   MAX_SCREENSHOT_BYTES,
@@ -97,14 +96,14 @@ export function CommunityResponseUploader({
   };
 
   return (
-    <div className="rounded-md border border-rule bg-bg-2/40 px-3 py-3 space-y-3">
+    <div className="flex flex-col gap-3 border border-rule bg-bg px-4 py-4">
       <div className="flex items-center gap-2">
-        <ModeTab active={mode === 'text'}        onClick={() => setMode('text')}        icon={<FileText className="size-3" />}  label="Paste text" />
-        <ModeTab active={mode === 'screenshot'}  onClick={() => setMode('screenshot')}  icon={<ImagePlus className="size-3" />} label="Upload screenshot" />
+        <ModeTab active={mode === 'text'}        onClick={() => setMode('text')}        icon={<FileText aria-hidden="true" className="size-3" />}  label="Paste text" />
+        <ModeTab active={mode === 'screenshot'}  onClick={() => setMode('screenshot')}  icon={<ImagePlus aria-hidden="true" className="size-3" />} label="Upload screenshot" />
       </div>
 
       {mode === 'text' ? (
-        <form onSubmit={submitText} className="space-y-2">
+        <form onSubmit={submitText} className="flex flex-col gap-3">
           <textarea
             value={text}
             onChange={e => setText(e.target.value)}
@@ -112,16 +111,30 @@ export function CommunityResponseUploader({
             maxLength={2400}
             rows={3}
             placeholder="Paste the comment text you got back. Keep handles in if they were visible."
-            className="w-full resize-none rounded-md border border-rule bg-bg/60 px-3 py-2 text-sm text-fg placeholder:text-muted outline-none focus:border-accent/40"
+            className="w-full resize-none border border-rule bg-bg-2 px-3 py-2 text-[14px] text-fg placeholder:text-muted outline-none focus:border-accent"
           />
-          {error && <div className="text-xs text-accent">{error}</div>}
-          <Button type="submit" size="sm" disabled={!canSubmitText} className="w-full">
+          {error && (
+            <p className="border-l-2 border-amber bg-bg-2 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-amber">
+              {error}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={!canSubmitText}
+            className="inline-flex items-center justify-center gap-2 bg-accent px-3.5 py-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-bg transition-transform hover:translate-x-0.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-x-0"
+          >
             {busy ? 'Saving…' : 'Add text response'}
-          </Button>
+            {!busy && <span aria-hidden="true">→</span>}
+          </button>
         </form>
       ) : (
-        <div className="space-y-2">
-          <label className={`block rounded-md border border-dashed px-3 py-4 text-center text-xs ${disabled || uploading ? 'border-rule text-muted' : 'border-rule text-fg hover:bg-bg-2/30 cursor-pointer'}`}>
+        <div className="flex flex-col gap-3">
+          <label className={[
+            'flex flex-col items-center gap-1.5 border border-dashed px-3 py-6 text-center transition-colors',
+            disabled || uploading
+              ? 'border-rule text-muted cursor-default'
+              : 'border-rule text-fg hover:border-accent hover:text-accent cursor-pointer',
+          ].join(' ')}>
             <input
               ref={fileRef}
               type="file"
@@ -131,15 +144,26 @@ export function CommunityResponseUploader({
               className="sr-only"
             />
             {uploading ? (
-              <span className="inline-flex items-center gap-1 text-muted"><Loader2 className="size-3 animate-spin" /> Uploading…</span>
+              <span className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                <Loader2 aria-hidden="true" className="size-3 animate-spin" /> Uploading…
+              </span>
             ) : (
               <>
-                <ImagePlus className="size-5 mx-auto mb-1 text-muted" />
-                <span className="block">Click to upload a screenshot (PNG / JPEG / WebP, up to {Math.round(MAX_SCREENSHOT_BYTES / 1024 / 1024)} MB)</span>
+                <ImagePlus aria-hidden="true" className="size-5 text-accent" />
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em]">
+                  Click to upload a screenshot
+                </span>
+                <span className="font-mono text-[10px] tracking-[0.08em] text-muted">
+                  PNG · JPEG · WebP · up to {Math.round(MAX_SCREENSHOT_BYTES / 1024 / 1024)} MB
+                </span>
               </>
             )}
           </label>
-          {error && <div className="text-xs text-accent">{error}</div>}
+          {error && (
+            <p className="border-l-2 border-amber bg-bg-2 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-amber">
+              {error}
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -148,8 +172,10 @@ export function CommunityResponseUploader({
 
 interface ModeTabProps { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }
 function ModeTab({ active, onClick, icon, label }: ModeTabProps) {
-  const base = 'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs';
-  const cls  = active ? `${base} bg-accent/10 text-accent font-medium` : `${base} bg-bg-2/40 text-muted hover:text-fg`;
+  const base = 'inline-flex items-center gap-1.5 border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] transition-colors';
+  const cls  = active
+    ? `${base} border-accent bg-accent text-bg`
+    : `${base} border-rule text-fg-2 hover:border-accent hover:text-accent`;
   return (
     <button type="button" onClick={onClick} className={cls} aria-pressed={active}>
       {icon}{label}

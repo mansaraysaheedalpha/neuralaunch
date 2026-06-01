@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { Copy, Check, Sparkles } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import type { LayerBScript } from '@/lib/ideation/stage4-opportunities/schema';
 
 export interface TestScriptViewerProps {
@@ -34,32 +33,35 @@ export function TestScriptViewer({ script, generating, readOnly, onGenerate }: T
 
   if (script === null) {
     return (
-      <div className="rounded-md border border-dashed border-rule px-3 py-4 text-center">
-        <p className="text-xs text-muted mb-3">
-          No test script generated yet. Generate one to get started.
+      <div className="flex flex-col items-start gap-3 border border-dashed border-rule px-5 py-6">
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+          No test script generated yet · generate one to get started.
         </p>
         {!readOnly && onGenerate && (
-          <Button
+          <button
             type="button"
-            size="sm"
             onClick={() => void onGenerate()}
             disabled={generating}
+            className="inline-flex items-center gap-2 bg-accent px-3.5 py-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-bg transition-transform hover:translate-x-0.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-x-0"
           >
-            <Sparkles className="size-3 mr-1" />
+            <Sparkles aria-hidden="true" className="size-3" />
             {generating ? 'Generating…' : 'Generate test script'}
-          </Button>
+            {!generating && <span aria-hidden="true">→</span>}
+          </button>
         )}
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-4">
       <section>
-        <h5 className="text-xs font-semibold text-fg mb-1">Suggested platforms</h5>
-        <ul className="flex flex-wrap gap-1.5">
+        <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+          Suggested platforms
+        </p>
+        <ul className="flex flex-wrap gap-2">
           {script.platforms.map((p, i) => (
-            <li key={i} className="rounded-full bg-bg-2/60 px-2 py-0.5 text-xs text-fg">
+            <li key={i} className="border border-rule px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-fg">
               {p}
             </li>
           ))}
@@ -67,36 +69,40 @@ export function TestScriptViewer({ script, generating, readOnly, onGenerate }: T
       </section>
 
       <section>
-        <div className="flex items-center justify-between mb-1">
-          <h5 className="text-xs font-semibold text-fg">Post wording</h5>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+            Post wording
+          </p>
           <button
             type="button"
             onClick={() => void handleCopy(script.postWording, 'post')}
-            className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
+            className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-accent underline underline-offset-2 transition-opacity hover:opacity-80"
             aria-label="Copy post wording"
           >
-            {copied === 'post' ? <Check className="size-3" /> : <Copy className="size-3" />}
+            {copied === 'post' ? <Check aria-hidden="true" className="size-3" /> : <Copy aria-hidden="true" className="size-3" />}
             {copied === 'post' ? 'Copied' : 'Copy'}
           </button>
         </div>
-        <p className="whitespace-pre-wrap rounded-md border border-rule bg-bg/60 px-3 py-2 text-sm text-fg leading-relaxed">
+        <blockquote className="border-l-2 border-accent bg-bg px-4 py-3 font-serif text-[15px] italic leading-[1.6] text-fg whitespace-pre-wrap">
           {script.postWording}
-        </p>
+        </blockquote>
       </section>
 
       <section>
-        <h5 className="text-xs font-semibold text-fg mb-1">Follow-up questions</h5>
-        <ul className="space-y-1">
+        <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+          Follow-up questions
+        </p>
+        <ul className="flex flex-col gap-1.5">
           {script.questionsToAsk.map((q, i) => (
-            <li key={i} className="flex items-start justify-between gap-2 rounded-md border border-rule bg-bg-2/30 px-2 py-1.5 text-sm">
+            <li key={i} className="flex items-start justify-between gap-3 border border-rule bg-bg px-3 py-2 text-[13px] leading-snug">
               <span className="text-fg">{q}</span>
               <button
                 type="button"
                 onClick={() => void handleCopy(q, `q${i}`)}
-                className="shrink-0 inline-flex items-center gap-1 text-xs text-muted hover:text-accent"
+                className="shrink-0 inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted transition-colors hover:text-accent"
                 aria-label={`Copy question ${i + 1}`}
               >
-                {copied === `q${i}` ? <Check className="size-3" /> : <Copy className="size-3" />}
+                {copied === `q${i}` ? <Check aria-hidden="true" className="size-3" /> : <Copy aria-hidden="true" className="size-3" />}
               </button>
             </li>
           ))}
@@ -104,16 +110,15 @@ export function TestScriptViewer({ script, generating, readOnly, onGenerate }: T
       </section>
 
       {!readOnly && onGenerate && (
-        <Button
+        <button
           type="button"
-          variant="ghost"
-          size="sm"
           onClick={() => void onGenerate()}
           disabled={generating}
+          className="self-start inline-flex items-center gap-2 border border-rule-strong px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
         >
-          <Sparkles className="size-3 mr-1" />
+          <Sparkles aria-hidden="true" className="size-3" />
           {generating ? 'Regenerating…' : 'Regenerate script'}
-        </Button>
+        </button>
       )}
     </div>
   );

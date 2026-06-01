@@ -14,8 +14,8 @@ interface ExtractionProgressProps {
  */
 export function ExtractionProgress({ label }: ExtractionProgressProps) {
   return (
-    <div className="flex items-center gap-2 rounded-md border border-rule bg-bg-2/40 px-3 py-2 text-xs text-muted">
-      <Loader2 className="size-3 animate-spin" />
+    <div className="inline-flex items-center gap-2 border-l-2 border-accent bg-bg-2 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+      <Loader2 aria-hidden="true" className="size-3 animate-spin text-accent" />
       <span>{label ?? 'Reading your screenshot…'}</span>
     </div>
   );

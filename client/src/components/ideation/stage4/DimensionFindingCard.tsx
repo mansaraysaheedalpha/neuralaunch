@@ -18,41 +18,41 @@ export interface DimensionFindingCardProps {
  */
 export function DimensionFindingCard({ dimension, finding }: DimensionFindingCardProps) {
   return (
-    <article className="rounded-md border border-rule bg-bg-2/40 px-3 py-3">
-      <header className="mb-2">
-        <h4 className="text-sm font-semibold text-fg">
+    <article className="border border-rule bg-bg px-4 py-3.5">
+      <header className="mb-2 flex flex-col gap-0.5">
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
           {LAYER_A_DIMENSION_LABELS[dimension]}
-        </h4>
-        <p className="text-xs text-muted mt-0.5">
+        </p>
+        <p className="text-[12.5px] leading-snug text-muted">
           {LAYER_A_DIMENSION_HINTS[dimension]}
         </p>
       </header>
 
       {finding === null ? (
-        <p className="text-xs italic text-muted">
-          Not researched yet. Run Layer A above.
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+          Not researched yet · run Layer A above.
         </p>
       ) : (
         <>
-          <p className="text-sm text-fg leading-snug">{finding.reasoning}</p>
-          <div className="mt-1 text-xs text-muted">
-            Confidence: <span className="font-mono text-fg">{finding.confidence.toFixed(2)}</span>
+          <p className="text-[13.5px] leading-[1.55] text-fg">{finding.reasoning}</p>
+          <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+            Confidence · <span className="text-fg">{finding.confidence.toFixed(2)}</span>
           </div>
           {finding.citations.length > 0 && (
-            <ul className="mt-2 space-y-1">
+            <ul className="mt-3 flex flex-col gap-1.5">
               {finding.citations.map((c, i) => (
-                <li key={i} className="text-xs">
+                <li key={i} className="text-[12px]">
                   <a
                     href={c.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-start gap-1 text-accent hover:underline"
+                    className="inline-flex items-start gap-1 font-mono text-[10px] uppercase tracking-[0.14em] text-accent underline underline-offset-2 transition-opacity hover:opacity-80"
                   >
-                    <span className="truncate">{c.sourcePlatform}</span>
-                    <ExternalLink className="size-3 shrink-0 mt-0.5" />
+                    <span className="truncate normal-case tracking-normal font-sans">{c.sourcePlatform}</span>
+                    <ExternalLink aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
                   </a>
                   {c.excerpt && (
-                    <blockquote className="mt-0.5 border-l-2 border-rule pl-2 text-muted">
+                    <blockquote className="mt-0.5 border-l-2 border-rule pl-2 text-[12.5px] leading-snug text-muted">
                       &ldquo;{c.excerpt}&rdquo;
                     </blockquote>
                   )}

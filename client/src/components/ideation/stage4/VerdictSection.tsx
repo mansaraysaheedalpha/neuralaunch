@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { MessageSquare } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import type { OpportunityEvaluation } from '@/lib/ideation/stage4-opportunities/schema';
 import type { OpportunityVerdict } from '@neuralaunch/constants';
 import { VerdictPicker } from './VerdictPicker';
@@ -25,41 +24,44 @@ export function VerdictSection({ opportunity, readOnly, onPickVerdict, onPushbac
   const hasAgentVerdict = opportunity.agentVerdict !== 'pending';
 
   return (
-    <section className="space-y-3">
-      <header>
-        <h3 className="text-sm font-semibold text-fg">Verdict</h3>
-        <p className="text-xs text-muted mt-0.5">
-          I read Layer A + Layer B and offer a verdict; your call is what advances to Stage 5.
+    <section className="flex flex-col gap-4">
+      <header className="flex flex-col gap-1">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+          Verdict · agent + founder
+        </p>
+        <p className="max-w-[680px] text-[13px] leading-[1.55] text-fg-2">
+          We read Layer A + Layer B and offer a verdict; your call is what advances to Stage 5.
         </p>
       </header>
 
-      <div className="rounded-md border border-rule bg-bg-2/30 px-3 py-3">
-        <header className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold text-fg">Agent says</span>
+      <div className="border border-rule bg-bg px-4 py-3.5">
+        <header className="mb-2 flex items-center justify-between">
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-fg-2">
+            Agent says
+          </p>
           {!readOnly && hasAgentVerdict && onPushback && (
-            <Button
+            <button
               type="button"
-              variant="ghost"
-              size="sm"
               onClick={() => setPushbackOpen(o => !o)}
+              className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-accent underline underline-offset-2 transition-opacity hover:opacity-80"
             >
-              <MessageSquare className="size-3 mr-1" />
+              <MessageSquare aria-hidden="true" className="size-3" />
               {pushbackOpen ? 'Hide pushback' : 'Push back'}
-            </Button>
+            </button>
           )}
         </header>
         {hasAgentVerdict ? (
           <>
-            <div className="text-sm text-fg mb-1">
-              <span className="rounded bg-accent/10 px-1.5 py-0.5 text-xs font-medium uppercase tracking-wider text-accent">
+            <div className="mb-2">
+              <span className="border border-accent px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
                 {opportunity.agentVerdict}
               </span>
             </div>
-            <p className="text-sm text-fg leading-relaxed">{opportunity.agentReasoning}</p>
+            <p className="text-[13.5px] leading-[1.6] text-fg">{opportunity.agentReasoning}</p>
           </>
         ) : (
-          <p className="text-xs italic text-muted">
-            No agent verdict yet. Once you bring back at least one community response, I&apos;ll read the signal and offer a call.
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+            No agent verdict yet · bring back at least one community response and we&rsquo;ll read the signal.
           </p>
         )}
 
@@ -73,14 +75,16 @@ export function VerdictSection({ opportunity, readOnly, onPickVerdict, onPushbac
       </div>
 
       <div>
-        <div className="text-xs text-muted mb-2">Your call:</div>
+        <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+          Your call
+        </p>
         {!readOnly && onPickVerdict ? (
           <VerdictPicker
             current={opportunity.founderVerdict}
             onPick={onPickVerdict}
           />
         ) : (
-          <p className="text-sm text-fg">{opportunity.founderVerdict ?? 'Not set'}</p>
+          <p className="text-[13.5px] text-fg">{opportunity.founderVerdict ?? 'Not set'}</p>
         )}
       </div>
     </section>

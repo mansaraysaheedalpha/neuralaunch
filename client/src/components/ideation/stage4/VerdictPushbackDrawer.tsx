@@ -2,7 +2,6 @@
 
 import { useState, useTransition, type FormEvent } from 'react';
 import { X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import type { OpportunityEvaluation } from '@/lib/ideation/stage4-opportunities/schema';
 import { MAX_VERDICT_PUSHBACK_ROUNDS } from '@/lib/ideation/stage4-opportunities/constants';
 import type {
@@ -64,31 +63,35 @@ export function VerdictPushbackDrawer({ opportunity, onPushback, onClose }: Verd
   };
 
   return (
-    <div className="mt-3 rounded-md border border-rule bg-bg/60 px-3 py-3" role="region" aria-label="Verdict pushback drawer">
-      <header className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-fg">Push back on my verdict</span>
+    <div className="mt-4 border-t border-rule pt-3.5" role="region" aria-label="Verdict pushback drawer">
+      <header className="mb-3 flex items-center justify-between">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+          Push back · on this verdict
+        </p>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close pushback drawer"
-          className="p-1 rounded text-muted hover:text-fg"
+          className="p-1 text-muted transition-colors hover:text-accent"
         >
-          <X className="size-3" />
+          <X aria-hidden="true" className="size-3" />
         </button>
       </header>
 
       {history.length > 0 && (
-        <ol className="space-y-2 mb-3">
+        <ol className="mb-4 flex flex-col gap-2.5">
           {history.map((h, i) => (
-            <li key={i} className="text-xs space-y-1">
-              <div className="text-muted">
-                Round {h.round} <span className="text-xs">({h.agentMode}, {h.agentAction})</span>
+            <li key={i} className="flex flex-col gap-1.5">
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                Round {h.round} · {h.agentMode} · {h.agentAction}
+              </p>
+              <div className="border-l-2 border-accent bg-bg-2 px-3 py-2 text-[13px] leading-snug text-fg">
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">You · </span>
+                {h.founderMessage}
               </div>
-              <div className="rounded bg-bg-2/40 px-2 py-1 text-fg">
-                <span className="text-muted">you:</span> {h.founderMessage}
-              </div>
-              <div className="rounded bg-accent/5 px-2 py-1 text-fg">
-                <span className="text-muted">agent:</span> {h.agentMessage}
+              <div className="border-l-2 border-rule-strong bg-bg-2 px-3 py-2 text-[13px] leading-snug text-fg">
+                <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-fg-2">Agent · </span>
+                {h.agentMessage}
               </div>
             </li>
           ))}
@@ -96,31 +99,40 @@ export function VerdictPushbackDrawer({ opportunity, onPushback, onClose }: Verd
       )}
 
       {!closed && !atCap && (
-        <form onSubmit={submit} className="space-y-2">
+        <form onSubmit={submit} className="flex flex-col gap-3">
           <textarea
             value={message}
             onChange={e => setMessage(e.target.value)}
             disabled={busy}
             maxLength={2000}
             rows={2}
-            placeholder="What did I get wrong about this verdict?"
-            className="w-full resize-none rounded-md border border-rule bg-bg/60 px-3 py-2 text-sm text-fg placeholder:text-muted outline-none focus:border-accent/40"
+            placeholder="What did we get wrong about this verdict?"
+            className="w-full resize-none border border-rule bg-bg px-3 py-2 text-[14px] text-fg placeholder:text-muted outline-none focus:border-accent"
           />
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-muted">
-              Round {history.length + 1} of {MAX_VERDICT_PUSHBACK_ROUNDS}
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+              Round {history.length + 1} / {MAX_VERDICT_PUSHBACK_ROUNDS}
             </span>
-            <Button type="submit" size="sm" disabled={busy || message.trim().length === 0}>
+            <button
+              type="submit"
+              disabled={busy || message.trim().length === 0}
+              className="inline-flex items-center gap-2 bg-accent px-3.5 py-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-bg transition-transform hover:translate-x-0.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-x-0"
+            >
               {busy ? 'Sending…' : 'Send'}
-            </Button>
+              {!busy && <span aria-hidden="true">→</span>}
+            </button>
           </div>
-          {error && <div className="text-xs text-accent">{error}</div>}
+          {error && (
+            <p className="border-l-2 border-amber bg-bg-2 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-amber">
+              {error}
+            </p>
+          )}
         </form>
       )}
       {(closed || atCap) && (
-        <div className="text-xs text-muted italic">
-          Pushback closed. Set your own verdict above if you accept my call, or drop this opportunity.
-        </div>
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+          Pushback closed · set your own verdict above, or drop this opportunity.
+        </p>
       )}
     </div>
   );

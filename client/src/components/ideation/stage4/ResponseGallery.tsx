@@ -21,13 +21,13 @@ export interface ResponseGalleryProps {
 export function ResponseGallery({ responses, readOnly, onRemove }: ResponseGalleryProps) {
   if (responses.length === 0) {
     return (
-      <div className="rounded-md border border-dashed border-rule px-3 py-3 text-center text-xs text-muted">
-        No responses captured yet. Post the script above on your own accounts and paste replies or upload screenshots back here.
+      <div className="border border-dashed border-rule px-4 py-4 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+        No responses captured yet · post the script above on your own accounts and bring replies back here.
       </div>
     );
   }
   return (
-    <ul className="space-y-2">
+    <ul className="flex flex-col gap-2">
       {responses.map(r => (
         <ResponseRow key={r.id} response={r} readOnly={readOnly} onRemove={onRemove} />
       ))}
@@ -55,14 +55,14 @@ function ResponseRow({ response, readOnly, onRemove }: ResponseRowProps) {
   };
 
   return (
-    <li className="rounded-md border border-rule bg-bg-2/30 px-3 py-2">
-      <div className="flex items-start gap-2">
-        <span className="mt-0.5 text-muted" aria-hidden>
+    <li className="border border-rule bg-bg px-3 py-2.5">
+      <div className="flex items-start gap-2.5">
+        <span className="mt-0.5 text-accent" aria-hidden>
           {response.source === 'text_paste' ? <FileText className="size-4" /> : <ImageIcon className="size-4" />}
         </span>
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           {response.source === 'text_paste' ? (
-            <p className="text-sm text-fg leading-snug line-clamp-3 whitespace-pre-wrap">
+            <p className="line-clamp-3 whitespace-pre-wrap text-[13.5px] leading-snug text-fg">
               {response.pastedText}
             </p>
           ) : (
@@ -75,9 +75,9 @@ function ResponseRow({ response, readOnly, onRemove }: ResponseRowProps) {
             onClick={() => void handleRemove()}
             disabled={removing}
             aria-label="Remove response"
-            className="shrink-0 rounded p-1 text-muted hover:text-accent hover:bg-accent/5 disabled:opacity-50"
+            className="shrink-0 p-1 text-muted transition-colors hover:text-accent disabled:opacity-50"
           >
-            <Trash2 className="size-3.5" />
+            <Trash2 aria-hidden="true" className="size-3.5" />
           </button>
         )}
       </div>
@@ -101,18 +101,22 @@ function ScreenshotSummary({ response }: { response: CommunityResponse }) {
   if (!sig) {
     // Unusual state — moderation passed but no signal captured.
     // Real-world this hits when the post-extract write fails.
-    return <p className="text-xs italic text-muted">Screenshot processed but no comments extracted.</p>;
+    return (
+      <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+        Screenshot processed · no comments extracted.
+      </p>
+    );
   }
   return (
-    <div className="text-xs text-muted">
-      <span className="text-fg font-medium">{sig.platformIdentified}</span>
+    <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+      <span className="text-fg">{sig.platformIdentified}</span>
       {' · '}
       {sig.comments.length} {sig.comments.length === 1 ? 'comment' : 'comments'}
       {sig.contradictionsToPain.length > 0 && (
-        <span className="ml-1 text-amber-500">· {sig.contradictionsToPain.length} contradictions</span>
+        <span className="ml-1 text-amber">· {sig.contradictionsToPain.length} contradictions</span>
       )}
       {sig.unparseableNotes && (
-        <p className="mt-1 italic text-amber-500">{sig.unparseableNotes}</p>
+        <p className="mt-1 normal-case tracking-normal font-sans text-[12px] text-amber">{sig.unparseableNotes}</p>
       )}
     </div>
   );
@@ -139,11 +143,11 @@ function ModerationFailureLabel({ reason }: { reason: string | null }) {
     action = 'Try a different screenshot or paste the comments as text.';
   }
   return (
-    <div className="flex items-start gap-1.5">
-      <AlertCircle className="size-3.5 shrink-0 mt-0.5 text-amber-500" />
-      <div className="text-xs">
-        <p className="text-fg font-medium">{title}</p>
-        <p className="text-muted">{action}</p>
+    <div className="flex items-start gap-2">
+      <AlertCircle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-amber" />
+      <div>
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-amber">{title}</p>
+        <p className="text-[12.5px] leading-snug text-muted">{action}</p>
       </div>
     </div>
   );

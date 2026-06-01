@@ -3,7 +3,6 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import type { OpportunityEvaluationsDocument, OpportunityEvaluation } from '@/lib/ideation/stage4-opportunities/schema';
 import type { OpportunityVerdict } from '@neuralaunch/constants';
 import { VERDICT_SHORT_LABELS, VALIDATION_STRENGTH_LABELS } from './labels';
@@ -57,54 +56,56 @@ export function OpportunityEvaluationsDocumentView({
   };
 
   return (
-    <div className="flex flex-col h-full bg-bg">
-      <div className="flex-1 overflow-y-auto px-4 py-8">
-        <div className="mx-auto w-full max-w-3xl space-y-6">
-          <header>
-            <p className="text-xs font-medium uppercase tracking-wider text-muted mb-1">
-              {status === 'committed' ? 'Committed' : 'Pre-commit review'} · Opportunity Evaluations
+    <div className="flex h-full flex-col bg-bg">
+      <div className="flex-1 overflow-y-auto px-6 py-10 sm:px-12">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
+          <header className="flex flex-col gap-2">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+              {status === 'committed' ? 'Committed' : 'Pre-commit review'} · Opportunity Evaluations · Stage IV of V
             </p>
-            <h1 className="text-2xl font-semibold text-fg">
-              Your opportunity evaluations — Stage 4 of 5
+            <h1 className="font-sans text-fg [font-size:clamp(28px,3.5vw,44px)] [font-weight:500] [line-height:1.04] [letter-spacing:-0.02em] [&_em]:font-serif [&_em]:italic [&_em]:font-normal [&_em]:text-accent">
+              Your <em>opportunity evaluations.</em>
             </h1>
           </header>
 
           {chosen && (
-            <section>
-              <h2 className="text-sm font-semibold text-fg mb-2">
-                Advancing to Stage 5
-              </h2>
-              <article className="rounded-lg border border-accent/40 bg-accent/5 px-3 py-3">
-                <p className="text-sm text-fg leading-snug mb-2">{chosen.painPointSummary}</p>
-                <div className="flex items-center gap-2 text-xs text-muted">
-                  <span>agent: {agentVerdictLabel(chosen.agentVerdict)}</span>
-                  <span>· founder: {chosen.founderVerdict ? VERDICT_SHORT_LABELS[chosen.founderVerdict] : '—'}</span>
+            <section className="flex flex-col gap-2">
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+                Advancing to Stage V
+              </p>
+              <article className="border-l-2 border-accent bg-bg-2 px-5 py-4">
+                <p className="mb-2 text-[15px] leading-snug text-fg">{chosen.painPointSummary}</p>
+                <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                  Agent · <span className="text-fg">{agentVerdictLabel(chosen.agentVerdict)}</span>
+                  {' · '}Founder · <span className="text-fg">{chosen.founderVerdict ? VERDICT_SHORT_LABELS[chosen.founderVerdict] : '—'}</span>
                   {chosen.layerBExtractedSignal && (
-                    <span>· Layer B: {VALIDATION_STRENGTH_LABELS[chosen.layerBExtractedSignal.validationStrength]}</span>
+                    <> · Layer B · <span className="text-fg">{VALIDATION_STRENGTH_LABELS[chosen.layerBExtractedSignal.validationStrength]}</span></>
                   )}
                 </div>
               </article>
             </section>
           )}
 
-          <section>
-            <h2 className="text-sm font-semibold text-fg mb-2">Why this one</h2>
-            <p className="text-sm text-fg leading-relaxed">{doc.chosenRationale}</p>
+          <section className="flex flex-col gap-2">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+              Why this one
+            </p>
+            <p className="text-[15px] leading-[1.65] text-fg">{doc.chosenRationale}</p>
           </section>
 
           {others.length > 0 && (
-            <section>
-              <h2 className="text-sm font-semibold text-fg mb-2">
-                Why not the others <span className="text-muted">({others.length})</span>
-              </h2>
-              <p className="text-sm text-fg leading-relaxed mb-3">{doc.rejectedRationale}</p>
-              <ul className="space-y-2">
+            <section className="flex flex-col gap-2">
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+                Why not the others · {others.length}
+              </p>
+              <p className="text-[15px] leading-[1.65] text-fg">{doc.rejectedRationale}</p>
+              <ul className="flex flex-col gap-2 pt-1">
                 {others.map(o => (
-                  <li key={o.id} className="rounded-md border border-rule bg-bg-2/30 px-3 py-2 text-sm">
-                    <p className="text-fg leading-snug">{o.painPointSummary}</p>
-                    <div className="mt-1 text-xs text-muted">
-                      agent: {agentVerdictLabel(o.agentVerdict)} ·
-                      {' '}founder: {o.founderVerdict ? VERDICT_SHORT_LABELS[o.founderVerdict] : '—'}
+                  <li key={o.id} className="border border-rule bg-bg-2 px-4 py-3">
+                    <p className="text-[14px] leading-snug text-fg">{o.painPointSummary}</p>
+                    <div className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                      Agent · <span className="text-fg">{agentVerdictLabel(o.agentVerdict)}</span>
+                      {' · '}Founder · <span className="text-fg">{o.founderVerdict ? VERDICT_SHORT_LABELS[o.founderVerdict] : '—'}</span>
                     </div>
                   </li>
                 ))}
@@ -113,20 +114,30 @@ export function OpportunityEvaluationsDocumentView({
           )}
 
           {actionError && (
-            <div className="rounded-md border border-accent/40 bg-accent/5 px-3 py-2 text-xs text-accent">
+            <p className="border-l-2 border-amber bg-bg-2 px-4 py-3 font-mono text-[10px] uppercase tracking-[0.14em] text-amber">
               {actionError}
-            </div>
+            </p>
           )}
 
           <footer className="flex flex-wrap items-center gap-3 border-t border-rule pt-6">
-            <Button variant="ghost" onClick={() => router.push('/discovery')} disabled={busy}>
+            <button
+              type="button"
+              onClick={() => router.push('/discovery')}
+              disabled={busy}
+              className="border border-rule-strong px-5 py-3 font-mono text-[10px] uppercase tracking-[0.14em] text-fg transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
+            >
               Save and come back
-            </Button>
+            </button>
             {status === 'output_ready' ? (
-              <Button onClick={handleCommit} disabled={busy} className="ml-auto">
-                I&apos;m ready for Stage 5
-                <ArrowRight className="size-4 ml-1" />
-              </Button>
+              <button
+                type="button"
+                onClick={handleCommit}
+                disabled={busy}
+                className="ml-auto inline-flex items-center gap-3 bg-accent px-5 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-bg transition-transform hover:translate-x-0.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-x-0"
+              >
+                I&apos;m ready for Stage V
+                <ArrowRight aria-hidden="true" className="size-3.5" />
+              </button>
             ) : (
               // Status='committed' is reached after handleCommit; the
               // router.refresh() that follows usually routes the founder
@@ -135,14 +146,15 @@ export function OpportunityEvaluationsDocumentView({
               // reachable on a stale page render (back-button, cached
               // RSC), so we surface a navigate-forward link rather than
               // claim a non-existent build state.
-              <Button
+              <button
+                type="button"
                 onClick={() => router.push(`/discovery/no-idea/${sessionId}`)}
                 disabled={busy}
-                className="ml-auto"
+                className="ml-auto inline-flex items-center gap-3 bg-accent px-5 py-3 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-bg transition-transform hover:translate-x-0.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-x-0"
               >
-                Continue to Stage 5
-                <ArrowRight className="size-4 ml-1" />
-              </Button>
+                Continue to Stage V
+                <ArrowRight aria-hidden="true" className="size-3.5" />
+              </button>
             )}
           </footer>
 
