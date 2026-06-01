@@ -35,6 +35,13 @@ export interface ToolShellProps extends ToolHeaderProps {
   model: string;
   /** Display name in the crumb tail + Pill caption. */
   toolName: string;
+  /**
+   * Skip the standard body padding around children. Tools that want
+   * to render a full-bleed multi-column layout (Research's two-column
+   * shell, for example) opt in to this and own their own gutters and
+   * centre rule. Defaults to false.
+   */
+  flush?: boolean;
   /** Children render below the header (and below the optional task strip). */
   children: ReactNode;
 }
@@ -47,6 +54,7 @@ export function ToolShell({
   description,
   heading,
   lede,
+  flush,
   children,
 }: ToolShellProps) {
   // Read the launched-from-task signal. When present, render the task
@@ -91,7 +99,9 @@ export function ToolShell({
 
         {taskId && <TaskContextStrip taskId={taskId} roadmapId={roadmapId} />}
 
-        <div className="px-6 pb-20 pt-8 sm:px-12 lg:px-16">{children}</div>
+        {flush
+          ? <>{children}</>
+          : <div className="px-6 pb-20 pt-8 sm:px-12 lg:px-16">{children}</div>}
       </div>
     </div>
   );
