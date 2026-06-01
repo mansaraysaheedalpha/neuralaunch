@@ -1,10 +1,10 @@
 'use client';
 // src/app/(app)/discovery/roadmap/[id]/research/ResearchToolButton.tsx
 //
-// Renders a "Research this →" entry point on a task card when the
-// task's suggestedTools includes 'research_tool'. Returns null when
-// the tool is not suggested, so callers can render unconditionally.
+// Hairline mono chip linking to the standalone Research Tool with
+// the task + roadmap carried in the URL.
 
+import Link from 'next/link';
 import { Search } from 'lucide-react';
 // Import directly from constants, not the barrel — the barrel
 // re-exports server-only engine modules that webpack traces.
@@ -12,31 +12,25 @@ import { RESEARCH_TOOL_ID } from '@/lib/roadmap/research-tool/constants';
 
 export interface ResearchToolButtonProps {
   suggestedTools?: string[];
-  onOpen:          () => void;
+  taskId:          string;
+  roadmapId:       string;
 }
 
-/**
- * ResearchToolButton
- *
- * Conditional entry-point for the Research Tool. Renders only when
- * `suggestedTools` includes `research_tool`. Delegates the open action
- * to the parent via `onOpen` so the parent controls whether to mount
- * the flow inline or in a modal.
- */
 export function ResearchToolButton({
   suggestedTools,
-  onOpen,
+  taskId,
+  roadmapId,
 }: ResearchToolButtonProps) {
   if (!suggestedTools?.includes(RESEARCH_TOOL_ID)) return null;
 
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="flex items-center gap-1.5 rounded-md border border-accent/30 bg-accent/5 px-3 py-1.5 text-[11px] font-medium text-fg/85 hover:bg-accent/10 hover:text-fg transition-colors"
+    <Link
+      href={`/tools/research?task=${encodeURIComponent(taskId)}&roadmap=${encodeURIComponent(roadmapId)}`}
+      className="inline-flex items-center gap-1.5 border border-rule-strong px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg transition-colors hover:border-accent hover:text-accent"
     >
-      <Search className="size-3 shrink-0 text-accent" />
-      Research this →
-    </button>
+      <Search aria-hidden="true" className="size-3 shrink-0 text-accent" />
+      Research Tool
+      <span aria-hidden="true">→</span>
+    </Link>
   );
 }

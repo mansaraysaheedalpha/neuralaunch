@@ -98,21 +98,21 @@ export function CheckInForm({
           transition={{ duration: 0.2 }}
           className="overflow-hidden"
         >
-          <div className="flex flex-col gap-2 pt-2 border-t border-rule">
-            <p className="text-[10px] uppercase tracking-widest text-muted/70">
-              Check in on this task
+          <div className="flex flex-col gap-3 border-t border-rule pt-4">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+              Check in · this task
             </p>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-2">
               {(Object.keys(CHECKIN_CATEGORY_LABELS) as CheckInCategory[]).map(c => (
                 <button
                   key={c}
                   type="button"
                   onClick={() => onCategoryChange(c)}
                   className={[
-                    'rounded-full px-2.5 py-1 text-[11px] font-medium border transition-colors',
+                    'border px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] transition-colors',
                     category === c
-                      ? 'bg-accent text-bg border-accent'
-                      : 'bg-bg text-muted border-rule hover:border-fg/30',
+                      ? 'border-accent bg-accent text-bg'
+                      : 'border-rule text-fg-2 hover:border-accent hover:text-accent',
                   ].join(' ')}
                 >
                   {CHECKIN_CATEGORY_LABELS[c]}
@@ -129,7 +129,7 @@ export function CheckInForm({
                 }
                 disabled={!category || submitting}
                 rows={3}
-                className="min-h-0 flex-1 resize-none py-2 text-xs"
+                className="min-h-0 flex-1 resize-none rounded-none border border-rule bg-bg py-2 text-[14px] text-fg placeholder:text-muted focus-visible:border-accent focus-visible:ring-0"
               />
               {voiceEnabled && (
                 <VoiceInputButton
@@ -141,16 +141,16 @@ export function CheckInForm({
               )}
             </div>
             {error && (
-              <div className="rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1.5 text-[11px] text-red-700 dark:text-red-400">
+              <p className="border-l-2 border-amber bg-bg-2 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-amber">
                 {error}
-              </div>
+              </p>
             )}
-            <div className="flex items-center gap-2 self-end">
+            <div className="flex items-center gap-3 self-end">
               <button
                 type="button"
                 onClick={onCancel}
                 disabled={submitting}
-                className="text-[11px] text-muted hover:text-fg underline disabled:opacity-50"
+                className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted underline underline-offset-2 transition-colors hover:text-fg disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -158,10 +158,11 @@ export function CheckInForm({
                 type="button"
                 onClick={onSubmit}
                 disabled={!canSubmit}
-                className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[11px] font-medium text-bg transition-opacity hover:opacity-90 disabled:opacity-40"
+                className="inline-flex items-center gap-2 bg-accent px-4 py-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-bg transition-transform hover:translate-x-0.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-x-0"
               >
-                {submitting && <Loader2 className="size-3 animate-spin" />}
+                {submitting && <Loader2 aria-hidden="true" className="size-3 animate-spin" />}
                 {submitting ? 'Sending…' : 'Submit check-in'}
+                {!submitting && <span aria-hidden="true">→</span>}
               </button>
             </div>
           </div>

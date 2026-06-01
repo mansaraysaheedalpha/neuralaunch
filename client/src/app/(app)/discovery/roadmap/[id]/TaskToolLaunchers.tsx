@@ -1,21 +1,18 @@
 'use client';
 // src/app/(app)/discovery/roadmap/[id]/TaskToolLaunchers.tsx
 //
-// Renders the five internal-tool launchers on a task card —
-// Conversation Coach, Outreach Composer, Research Tool, Service
-// Packager, and Validation Page. Each is symmetric: a conditional
-// button (visible only when suggestedTools includes the tool's id),
-// a flow (the inline modal-ish panel), and a session-review summary
-// that persists once the tool has been used. State for each tool's
-// open/close lives here so the parent task card stays close to the
-// 200-line cap.
+// Hairline mono chip cluster for the five internal tools on an
+// expanded task row. PR 16 converted the chips from inline-modal
+// triggers to <Link>s that navigate to the standalone /tools/{slug}
+// surface, passing `?task={taskId}&roadmap={roadmapId}` so the
+// standalone ToolShell can render the task strip + a precise
+// back-link to /discovery/roadmap/{id}.
 //
-// Validation is the odd one out for session-storage reasons: the
-// other four persist their output on the task JSON itself
-// (coachSession, composerSession, etc.); validation persists as a
-// separate ValidationPage row keyed on (roadmapId, taskId). To keep
-// the rendering contract uniform we fetch the validation session
-// lazily on mount when the tool is suggested on this task.
+// Session-review components stay — they surface what the founder
+// produced when a prior tool session is persisted on the task.
+// Validation session lives in a separate ValidationPage row keyed
+// on (roadmapId, taskId), so we lazy-fetch its summary on mount
+// when the tool is suggested on this task.
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
@@ -23,19 +20,14 @@ import type { StoredRoadmapTask } from '@/lib/roadmap/checkin-types';
 import { UpgradePrompt } from '@/components/billing/UpgradePrompt';
 import { useRoadmapWritability } from './RoadmapWritabilityContext';
 import { ConversationCoachButton } from './coach/ConversationCoachButton';
-import { CoachFlow }                from './coach/CoachFlow';
 import { CoachSessionReview }       from './coach/CoachSessionReview';
 import { OutreachComposerButton }   from './composer/OutreachComposerButton';
-import { ComposerFlow }             from './composer/ComposerFlow';
 import { ComposerSessionReview }    from './composer/ComposerSessionReview';
 import { ResearchToolButton }       from './research/ResearchToolButton';
-import { ResearchFlow }             from './research/ResearchFlow';
 import { ResearchSessionReview }    from './research/ResearchSessionReview';
 import { ServicePackagerButton }    from './packager/ServicePackagerButton';
-import { PackagerFlow }             from './packager/PackagerFlow';
 import { PackagerSessionReview }    from './packager/PackagerSessionReview';
 import { ValidationToolButton }     from './validation/ValidationToolButton';
-import { ValidationFlow }           from './validation/ValidationFlow';
 import {
   ValidationSessionReview,
   type ValidationSessionSummary,
@@ -48,30 +40,6 @@ export interface TaskToolLaunchersProps {
 }
 
 export function TaskToolLaunchers({ roadmapId, taskId, task }: TaskToolLaunchersProps) {
-  const [coachOpen,      setCoachOpen]      = useState(false);
-  const [composerOpen,   setComposerOpen]   = useState(false);
-  const [researchOpen,   setResearchOpen]   = useState(false);
-  const [packagerOpen,   setPackagerOpen]   = useState(false);
-  const [validationOpen, setValidationOpen] = useState(false);
-
-  // When the founder clicks "Reopen full session" in the persistent
-  // ResearchSessionReview, we capture the session id here and pass it
-  // to <ResearchFlow initialSessionId={...}>. The flow's hydrate-on-
-  // open effect calls handleLoadSession with this id, so the live
-  // surface lands on the rich report view + follow-up input rather
-  // than a blank query box. Cleared when the flow closes so a
-  // subsequent "open from launcher button" still mounts blank as
-  // expected.
-  const [researchHydrateId, setResearchHydrateId] = useState<string | undefined>(undefined);
-  const handleResearchReopen = (id: string) => {
-    setResearchHydrateId(id);
-    setResearchOpen(true);
-  };
-  const handleResearchClose = () => {
-    setResearchOpen(false);
-    setResearchHydrateId(undefined);
-  };
-
   const { data: session } = useSession();
   const tier = session?.user?.tier ?? 'free';
   const { writable } = useRoadmapWritability();
@@ -82,10 +50,9 @@ export function TaskToolLaunchers({ roadmapId, taskId, task }: TaskToolLaunchers
   const researchSession = (task as { researchSession?: Record<string, unknown> }).researchSession;
   const packagerSession = (task as { packagerSession?: Record<string, unknown> }).packagerSession;
 
-  // Validation stores its state in a separate ValidationPage row
-  // (not on task JSON), so we fetch lazily when the tool is suggested
-  // on this task. null = not yet fetched; undefined = fetched, none
-  // exists; else the summary.
+  // Validation stores its state in a separate ValidationPage row, so
+  // fetch lazily when the tool is suggested on this task. null = not
+  // yet fetched; undefined = fetched, none exists; else the summary.
   const validationSuggested = (suggestedTools ?? []).includes('validation');
   const [validationSession, setValidationSession] =
     useState<ValidationSessionSummary | null | undefined>(null);
@@ -109,18 +76,16 @@ export function TaskToolLaunchers({ roadmapId, taskId, task }: TaskToolLaunchers
           ? { pageId: json.page.id, slug: json.page.slug, status: json.page.status, taskStale: json.taskStale }
           : undefined);
       } catch {
-        // Silent: the button still lets the user create a page.
+        // Silent: the chip still lets the founder navigate to the tool.
         if (!cancelled) setValidationSession(undefined);
       }
     })();
     return () => { cancelled = true; };
-    // Close-and-reopen reloads state via the flow's router.refresh().
-    // Deliberately NOT depending on validationOpen so we don't thrash.
   }, [roadmapId, taskId, validationSuggested]);
 
-  // Free-tier users see an upgrade prompt only when the task actually
-  // suggests one or more of the five tools. Tasks with no suggested
-  // tools (generic to-do items) render nothing here regardless of tier.
+  // Free-tier upgrade prompt only when the task suggests at least one
+  // tool. Tasks with no suggested tools (generic to-do items) render
+  // nothing here regardless of tier.
   const anyToolSuggested = (suggestedTools ?? []).some(
     t => t === 'conversation_coach'
       || t === 'outreach_composer'
@@ -134,10 +99,9 @@ export function TaskToolLaunchers({ roadmapId, taskId, task }: TaskToolLaunchers
     return <UpgradePrompt requiredTier="execute" variant="compact" />;
   }
 
-  // Read-only ventures (paused/completed/archived) keep the prior
-  // tool-session reviews visible (they're informational history) but
-  // hide the launcher buttons + flows entirely. The top-level banner
-  // already tells the founder why; per-task echoes would be noise.
+  // Read-only ventures keep the prior tool-session reviews visible
+  // (informational history) but hide the launcher chips. The
+  // top-level banner already tells the founder why.
   if (!writable) {
     return (
       <>
@@ -150,59 +114,29 @@ export function TaskToolLaunchers({ roadmapId, taskId, task }: TaskToolLaunchers
     );
   }
 
-  // OPEN WITH eyebrow — the launcher row was previously a bare flat
-  // chip cluster with no framing. Wrapping it in an eyebrow + a flex
-  // container gives the row visual identity ("these are the tools
-  // available to do this task") and matches the design tool's spec.
-  // Only render the eyebrow when at least one tool is suggested —
-  // otherwise the eyebrow would dangle over an empty row.
   return (
-    <div className="flex flex-col gap-2.5 pt-2 border-t border-rule">
+    <div className="flex flex-col gap-3 border-t border-rule pt-4">
       {anyToolSuggested && (
-        // OPEN WITH eyebrow — sized up to match the CHECK-IN HISTORY
-        // and WHY THIS MATTERS eyebrows so the three section labels in
-        // the expanded card form a consistent visual rhythm. Was 10px
-        // muted before, which read as a footnote.
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted/80 mt-1">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
           Open with
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        {/* Conversation Coach */}
-        <ConversationCoachButton suggestedTools={suggestedTools} onOpen={() => setCoachOpen(true)} />
-        <CoachFlow roadmapId={roadmapId} taskId={taskId} open={coachOpen} onClose={() => setCoachOpen(false)} />
-
-        {/* Outreach Composer */}
-        <OutreachComposerButton suggestedTools={suggestedTools} onOpen={() => setComposerOpen(true)} />
-        <ComposerFlow roadmapId={roadmapId} taskId={taskId} open={composerOpen} onClose={() => setComposerOpen(false)} />
-
-        {/* Research Tool */}
-        <ResearchToolButton suggestedTools={suggestedTools} onOpen={() => { setResearchHydrateId(undefined); setResearchOpen(true); }} />
-        <ResearchFlow
-          roadmapId={roadmapId}
-          taskId={taskId}
-          open={researchOpen}
-          onClose={handleResearchClose}
-          initialSessionId={researchHydrateId}
-        />
-
-        {/* Service Packager */}
-        <ServicePackagerButton suggestedTools={suggestedTools} onOpen={() => setPackagerOpen(true)} />
-        <PackagerFlow roadmapId={roadmapId} taskId={taskId} open={packagerOpen} onClose={() => setPackagerOpen(false)} />
-
-        {/* Validation Page */}
-        <ValidationToolButton suggestedTools={suggestedTools} onOpen={() => setValidationOpen(true)} />
-        <ValidationFlow roadmapId={roadmapId} taskId={taskId} open={validationOpen} onClose={() => setValidationOpen(false)} />
+        <ConversationCoachButton suggestedTools={suggestedTools} taskId={taskId} roadmapId={roadmapId} />
+        <OutreachComposerButton  suggestedTools={suggestedTools} taskId={taskId} roadmapId={roadmapId} />
+        <ResearchToolButton      suggestedTools={suggestedTools} taskId={taskId} roadmapId={roadmapId} />
+        <ServicePackagerButton   suggestedTools={suggestedTools} taskId={taskId} roadmapId={roadmapId} />
+        <ValidationToolButton    suggestedTools={suggestedTools} taskId={taskId} roadmapId={roadmapId} />
       </div>
 
-      {/* Session reviews render below the launcher row when present
-          and the corresponding flow is closed — keeps the launcher
-          row tight while still surfacing what the founder produced. */}
-      {coachSession      && !coachOpen      && <CoachSessionReview      session={coachSession} />}
-      {composerSession   && !composerOpen   && <ComposerSessionReview   session={composerSession} />}
-      {researchSession   && !researchOpen   && <ResearchSessionReview   session={researchSession} onReopen={handleResearchReopen} />}
-      {packagerSession   && !packagerOpen   && <PackagerSessionReview   session={packagerSession} />}
-      {validationSession && !validationOpen && <ValidationSessionReview session={validationSession} />}
+      {/* Session reviews render below the chip row when a prior
+          session is persisted on this task — keeps the chip row
+          tight while still surfacing the founder's output. */}
+      {coachSession      && <CoachSessionReview      session={coachSession} />}
+      {composerSession   && <ComposerSessionReview   session={composerSession} />}
+      {researchSession   && <ResearchSessionReview   session={researchSession} />}
+      {packagerSession   && <PackagerSessionReview   session={packagerSession} />}
+      {validationSession && <ValidationSessionReview session={validationSession} />}
     </div>
   );
 }

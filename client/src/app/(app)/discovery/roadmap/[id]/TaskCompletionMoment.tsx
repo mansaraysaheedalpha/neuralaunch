@@ -36,49 +36,54 @@ export function TaskCompletionMoment({
     <motion.div
       initial={{ opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-lg border border-success/30 bg-success/5 p-3 flex flex-col gap-2"
+      className="flex flex-col gap-2 border-l-2 border-success bg-bg-2 px-4 py-3"
     >
-      <p className="text-xs font-medium text-success">✓ {taskTitle}</p>
-      <p className="text-[11px] text-fg/80 leading-relaxed">
-        You hit the success criteria: <span className="italic">{truncate(successCriteria, 200)}</span>.
+      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-success">
+        ✓ Completed · {truncate(taskTitle, 60)}
+      </p>
+      <p className="text-[13px] leading-[1.6] text-fg-2">
+        You hit the success criteria: <em className="font-serif text-fg">{truncate(successCriteria, 200)}</em>.
       </p>
       {founderGoal && (
-        <p className="text-[11px] text-fg/80 leading-relaxed">
-          One step closer to your goal: {truncate(founderGoal, 140)}.
+        <p className="text-[13px] leading-[1.6] text-fg-2">
+          One step closer to your goal — {truncate(founderGoal, 140)}.
         </p>
       )}
       {progress && progress.totalTasks > 0 && (
-        <p className="text-[10px] text-muted">
-          {progress.completedTasks} of {progress.totalTasks} tasks complete · {Math.round((progress.completedTasks / progress.totalTasks) * 100)}% through your roadmap
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+          {progress.completedTasks} / {progress.totalTasks} tasks · {Math.round((progress.completedTasks / progress.totalTasks) * 100)}% through the roadmap
         </p>
       )}
 
       {/* A12 two-option outcome capture. Renders only while
-          completionPath === 'choice'. Picking either button moves the
-          founder forward — there is no path that leaves the completed
-          task with zero outcome data. */}
+          completionPath === 'choice'. Either button moves the founder
+          forward — no path leaves the completed task with zero
+          outcome data. */}
       {completionPath === 'choice' && (
-        <div className="flex flex-col gap-2 pt-1">
-          <p className="text-[11px] text-fg/90 font-medium">How did this task actually go?</p>
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2 pt-2">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+            How did this task actually go?
+          </p>
+          <div className="flex flex-wrap gap-2.5">
             <button
               type="button"
               disabled={submitting}
               onClick={onChooseWriting}
-              className="rounded-md bg-accent px-3 py-1.5 text-[11px] font-medium text-bg hover:opacity-90 disabled:opacity-50"
+              className="inline-flex items-center gap-2 bg-accent px-3.5 py-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-bg transition-transform hover:translate-x-0.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-x-0"
             >
               Tell us how it went
+              <span aria-hidden="true">→</span>
             </button>
             <button
               type="button"
               disabled={submitting}
               onClick={onChooseAsPlanned}
-              className="rounded-md border border-rule bg-bg px-3 py-1.5 text-[11px] font-medium text-fg hover:bg-bg-3 disabled:opacity-50"
+              className="border border-rule-strong px-3.5 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-fg transition-colors hover:border-accent hover:text-accent disabled:opacity-50"
             >
               It went as planned
             </button>
           </div>
-          <p className="text-[10px] text-muted italic">
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
             Skipping means the outcome matched the success criteria exactly.
           </p>
         </div>
@@ -88,7 +93,7 @@ export function TaskCompletionMoment({
         <button
           type="button"
           onClick={onDismiss}
-          className="self-start text-[10px] text-muted hover:text-fg underline"
+          className="self-start font-mono text-[10px] uppercase tracking-[0.14em] text-muted underline underline-offset-2 transition-colors hover:text-fg"
         >
           Dismiss
         </button>

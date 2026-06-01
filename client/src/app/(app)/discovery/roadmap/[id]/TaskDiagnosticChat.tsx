@@ -110,27 +110,29 @@ export function TaskDiagnosticChat({
           transition={{ duration: 0.2 }}
           className="overflow-hidden"
         >
-          <div className="flex flex-col gap-2 pt-2 border-t border-accent/20">
-            <p className="text-[10px] uppercase tracking-widest text-accent/70 flex items-center gap-1">
-              <HelpCircle className="size-3" />
-              Task help
+          <div className="flex flex-col gap-3 border-t border-rule pt-4">
+            <p className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
+              <HelpCircle aria-hidden="true" className="size-3" />
+              Task help · diagnostic
             </p>
 
-            <div className="rounded-lg border border-rule bg-bg px-3 py-3 flex flex-col gap-2 max-h-60 overflow-y-auto">
+            <div className="flex max-h-60 flex-col gap-3 overflow-y-auto border border-rule bg-bg px-4 py-3">
               {exchanges.length === 0 && !inconclusive && (
-                <p className="text-[11px] text-muted italic">
-                  Tell me what you need help with on this task.
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+                  Tell us what you need help with on this task.
                 </p>
               )}
               {exchanges.map(ex => (
-                <div key={ex.id} className="flex flex-col gap-1">
-                  <div className="self-end rounded-lg bg-accent/10 px-2.5 py-1.5 text-[11px] text-fg max-w-[85%] break-words">
+                <div key={ex.id} className="flex flex-col gap-1.5">
+                  <div className="max-w-[85%] self-end border-l-2 border-accent bg-bg-2 px-3 py-2 text-[13px] leading-[1.55] text-fg break-words">
+                    <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.14em] text-accent">You</p>
                     {ex.founder}
                   </div>
-                  <div className="self-start rounded-lg bg-bg-3 px-2.5 py-1.5 text-[11px] text-fg/90 max-w-[90%] break-words whitespace-pre-wrap">
+                  <div className="max-w-[90%] self-start border-l-2 border-rule-strong bg-bg-2 px-3 py-2 text-[13px] leading-[1.55] text-fg break-words whitespace-pre-wrap">
+                    <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-2">NeuraLaunch</p>
                     {ex.agent}
                     {ex.followUp && (
-                      <p className="mt-1.5 pt-1.5 border-t border-fg/10 font-medium">
+                      <p className="mt-2 border-t border-rule pt-2 font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
                         {ex.followUp}
                       </p>
                     )}
@@ -138,26 +140,28 @@ export function TaskDiagnosticChat({
                 </div>
               ))}
               {inconclusive && (
-                <div className="rounded-lg border border-accent/30 bg-accent/5 p-2 text-[11px] text-fg/90 whitespace-pre-wrap">
-                  <p className="text-[10px] font-medium text-accent mb-1">Summary</p>
+                <div className="border-l-2 border-accent bg-bg-2 px-3 py-2 text-[13px] leading-[1.55] text-fg whitespace-pre-wrap">
+                  <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.14em] text-accent">Summary</p>
                   {inconclusive}
                 </div>
               )}
             </div>
 
             {resolved && (
-              <p className="text-[11px] text-success font-medium">
-                Glad I could help. Close this panel whenever you are ready.
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-success">
+                Resolved · close this panel whenever you&rsquo;re ready.
               </p>
             )}
             {escalate && (
-              <p className="text-[11px] text-accent">
-                This looks like a roadmap-level concern. Try hitting &quot;What&apos;s Next?&quot; to evaluate your overall progress.
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
+                Roadmap-level concern · try &ldquo;What&rsquo;s Next?&rdquo; to evaluate overall progress.
               </p>
             )}
 
             {error && (
-              <p className="text-[11px] text-red-500">{error}</p>
+              <p className="border-l-2 border-amber bg-bg-2 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-amber">
+                {error}
+              </p>
             )}
 
             {!resolved && !escalate && !inconclusive && (
@@ -169,15 +173,17 @@ export function TaskDiagnosticChat({
                   placeholder="What do you need help with?"
                   disabled={submitting}
                   rows={3}
-                  className="min-h-0 flex-1 resize-none py-2 text-xs leading-relaxed"
+                  className="min-h-0 flex-1 resize-none rounded-none border border-rule bg-bg py-2 text-[14px] text-fg placeholder:text-muted focus-visible:border-accent focus-visible:ring-0"
                 />
                 <button
                   type="button"
                   onClick={() => { void handleSend(); }}
                   disabled={draft.trim().length === 0 || submitting}
-                  className="shrink-0 rounded-md bg-accent px-2.5 py-1.5 text-[11px] font-medium text-bg hover:opacity-90 disabled:opacity-50"
+                  className="inline-flex shrink-0 items-center gap-2 bg-accent px-3 py-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-bg transition-transform hover:translate-x-0.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-x-0"
                 >
-                  {submitting ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />}
+                  {submitting
+                    ? <Loader2 aria-hidden="true" className="size-3 animate-spin" />
+                    : <Send aria-hidden="true" className="size-3" />}
                 </button>
               </div>
             )}
@@ -185,7 +191,7 @@ export function TaskDiagnosticChat({
             <button
               type="button"
               onClick={onClose}
-              className="self-start text-[10px] text-muted hover:text-fg underline"
+              className="self-start font-mono text-[10px] uppercase tracking-[0.14em] text-muted underline underline-offset-2 transition-colors hover:text-fg"
             >
               Close help
             </button>

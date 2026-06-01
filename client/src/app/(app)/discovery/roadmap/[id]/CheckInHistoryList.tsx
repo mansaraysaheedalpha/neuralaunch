@@ -32,111 +32,101 @@ export function CheckInHistoryList({ history }: CheckInHistoryListProps) {
     // captured" without expanding. Native <details>/<summary> for
     // zero-JS keyboard accessibility — Space/Enter on the summary
     // toggles, screen readers announce "expanded" / "collapsed."
-    <details className="group rounded-lg border border-rule bg-bg-2/40">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-lg">
+    <details className="group border border-rule bg-bg">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 focus:outline-none focus-visible:ring-1 focus-visible:ring-accent">
         <div className="flex items-center gap-2.5">
-          <MessageSquare className="size-3.5 text-accent" aria-hidden="true" />
-          {/* CHECK-IN HISTORY eyebrow rendered in gold (was muted slate)
-              to match the design tool spec. The check-in transcript is
-              the founder's own voice on the task — gold framing reads
-              as "this is something the system values," not just a log. */}
-          <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent">
+          <MessageSquare aria-hidden="true" className="size-3.5 text-accent" />
+          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
             Check-in history
           </span>
-          <span className="inline-flex items-center rounded-full bg-accent/10 border border-accent/20 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-accent/90">
+          <span className="font-mono text-[10px] tabular-nums text-muted">
             {history.length} / 5
           </span>
         </div>
-        <span className="flex items-center gap-1 text-[11px] font-medium text-muted/80">
+        <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
           <span className="hidden sm:inline group-open:hidden">expand</span>
           <span className="hidden group-open:inline-flex">collapse</span>
-          <ChevronDown className="size-3.5 transition-transform duration-200 group-open:rotate-180" aria-hidden="true" />
+          <ChevronDown aria-hidden="true" className="size-3.5 transition-transform duration-200 group-open:rotate-180" />
         </span>
       </summary>
-      <div className="flex flex-col gap-2 px-4 pb-3 pt-2 border-t border-rule">
+      <div className="flex flex-col gap-3 border-t border-rule px-4 py-3">
       {history.map(entry => (
         <div key={entry.id} className="flex flex-col gap-1.5">
-          {/* Founder turn — primary left-rail accent + faint primary tint
-              so the chat reads as conversation, not a debugging log.
-              Same role-tinting pattern as the WhatsNextPanel diagnostic. */}
-          <div className="rounded-lg border border-rule bg-accent/[0.04] border-l-[3px] border-l-primary/50 px-3 py-2">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-accent/80 mb-1">
+          {/* Founder turn — accent left rule + mono caps speaker stamp. */}
+          <div className="border-l-2 border-accent bg-bg-2 px-3 py-2">
+            <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
               You · {entry.category}
             </p>
-            <p className="text-[11px] text-fg/90 whitespace-pre-wrap break-words">
+            <p className="whitespace-pre-wrap break-words text-[13px] leading-[1.55] text-fg">
               {entry.freeText}
             </p>
           </div>
-          {/* Agent turn — gold left-rail accent on the standard turn,
-              brighter gold on the adjusted_next_step turn (the "I'm
-              actually changing your roadmap" moment). The agent
-              response now reads as a deliberate voice, not a slate
-              utility card. */}
+          {/* Agent turn — neutral hairline; the adjusted_next_step turn
+              (the "we're actually changing your roadmap" moment) bumps
+              to accent left rule + accent eyebrow. */}
           <div className={[
-            'rounded-lg border border-l-[3px] px-3 py-2',
+            'border-l-2 bg-bg-2 px-3 py-2',
             entry.agentAction === 'adjusted_next_step'
-              ? 'border-accent/30 border-l-gold bg-accent/5'
-              : 'border-rule border-l-gold/40 bg-bg-2/60',
+              ? 'border-accent'
+              : 'border-rule-strong',
           ].join(' ')}>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-accent/80 mb-1">
+            <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-2">
               NeuraLaunch · {entry.agentAction.replace(/_/g, ' ')}
             </p>
-            <p className="text-[11px] text-fg/90 whitespace-pre-wrap break-words">
+            <p className="whitespace-pre-wrap break-words text-[13px] leading-[1.55] text-fg">
               {entry.agentResponse}
             </p>
 
             {entry.proposedChanges && entry.proposedChanges.length > 0 && (
-              <div className="mt-2 pt-2 border-t border-accent/20">
-                <p className="text-[10px] font-medium text-accent mb-1">
+              <div className="mt-3 border-t border-rule pt-2">
+                <p className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-accent">
                   Proposed adjustments
                 </p>
                 <ul className="flex flex-col gap-1.5">
                   {entry.proposedChanges.map((c, i) => (
-                    <li key={i} className="text-[11px] text-fg/80">
-                      <span className="font-medium">{c.taskTitle}:</span> {c.rationale}
+                    <li key={i} className="text-[12.5px] text-fg-2">
+                      <span className="font-medium text-fg">{c.taskTitle}:</span> {c.rationale}
                     </li>
                   ))}
                 </ul>
-                <p className="mt-1.5 text-[10px] text-muted italic">
+                <p className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
                   Read these and apply them by editing the relevant tasks above.
                 </p>
               </div>
             )}
 
             {entry.subSteps && entry.subSteps.length > 0 && (
-              <div className="mt-2 pt-2 border-t border-rule/60">
-                <p className="text-[10px] font-medium text-fg/80 mb-1 flex items-center gap-1">
-                  <Sparkles className="size-3" />
+              <div className="mt-3 border-t border-rule pt-2">
+                <p className="mb-1.5 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-2">
+                  <Sparkles aria-hidden="true" className="size-3 text-accent" />
                   Break it down
                 </p>
-                <ol className="flex flex-col gap-1 list-decimal list-inside marker:text-muted/60">
+                <ol className="flex flex-col gap-1 list-decimal list-inside text-[12.5px] text-fg-2 marker:text-muted">
                   {entry.subSteps.map((step, i) => (
-                    <li key={i} className="text-[11px] text-fg/85 leading-snug">
-                      {step}
-                    </li>
+                    <li key={i} className="leading-snug">{step}</li>
                   ))}
                 </ol>
               </div>
             )}
 
             {entry.recommendedTools && entry.recommendedTools.length > 0 && (
-              <div className="mt-2 pt-2 border-t border-rule/60">
-                <p className="text-[10px] font-medium text-fg/80 mb-1 flex items-center gap-1">
-                  <Wrench className="size-3" />
+              <div className="mt-3 border-t border-rule pt-2">
+                <p className="mb-1.5 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-fg-2">
+                  <Wrench aria-hidden="true" className="size-3 text-accent" />
                   Tools that could help
                 </p>
                 <ul className="flex flex-col gap-1">
                   {entry.recommendedTools.map((tool, i) => (
-                    <li key={i} className="text-[11px] text-fg/85 leading-snug flex flex-wrap gap-1.5 items-baseline">
+                    <li key={i} className="flex flex-wrap items-baseline gap-1.5 text-[12.5px] leading-snug text-fg-2">
                       <span className={[
-                        'rounded px-1.5 py-0.5 font-medium',
+                        'border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em]',
                         tool.isInternal
-                          ? 'bg-accent/15 text-accent'
-                          : 'bg-bg-3 text-fg/80',
+                          ? 'border-accent/40 text-accent'
+                          : 'border-rule text-fg-2',
                       ].join(' ')}>
                         {tool.isInternal ? 'NeuraLaunch · ' : ''}{tool.name}
                       </span>
-                      <span className="text-fg/70">{tool.purpose}</span>
+                      <span className="text-fg-2">{tool.purpose}</span>
                     </li>
                   ))}
                 </ul>
@@ -144,15 +134,15 @@ export function CheckInHistoryList({ history }: CheckInHistoryListProps) {
             )}
 
             {entry.recalibrationOffer && (
-              <div className="mt-2 pt-2 border-t border-orange-500/30">
-                <p className="text-[10px] font-medium text-orange-700 dark:text-orange-400 mb-1 flex items-center gap-1">
-                  <AlertTriangle className="size-3" />
+              <div className="mt-3 border-t border-rule pt-2">
+                <p className="mb-1.5 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-amber">
+                  <AlertTriangle aria-hidden="true" className="size-3" />
                   Possible direction concern
                 </p>
-                <p className="text-[11px] text-fg/85 leading-snug mb-1">
+                <p className="mb-1 text-[12.5px] leading-snug text-fg-2">
                   {entry.recalibrationOffer.reason}
                 </p>
-                <p className="text-[11px] text-fg/85 leading-snug">
+                <p className="text-[12.5px] leading-snug text-fg-2">
                   {entry.recalibrationOffer.framing}
                 </p>
               </div>
