@@ -54,22 +54,21 @@ export function RegenerateButton({ recommendationId }: RegenerateButtonProps) {
     :                         'Regenerate';
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-3">
       <button
         type="button"
         onClick={() => { void handleClick(); }}
         disabled={status === 'submitting' || status === 'queued'}
-        className="text-xs text-muted hover:text-fg underline underline-offset-2 transition-colors disabled:opacity-50 disabled:no-underline"
+        className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted underline underline-offset-2 transition-colors hover:text-accent disabled:opacity-50 disabled:no-underline"
       >
         {label}
       </button>
       {message && (
         <span
-          className={
-            status === 'error'
-              ? 'text-xs text-accent'
-              : 'text-xs text-muted'
-          }
+          className={[
+            'font-mono text-[10px] uppercase tracking-[0.14em]',
+            status === 'error' ? 'text-amber' : 'text-muted',
+          ].join(' ')}
         >
           {message}
         </span>

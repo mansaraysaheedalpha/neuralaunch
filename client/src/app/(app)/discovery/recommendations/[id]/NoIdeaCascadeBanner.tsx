@@ -13,7 +13,6 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertTriangle, RefreshCcw, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 
 interface NoIdeaCascadeBannerProps {
   sessionId: string;
@@ -45,36 +44,38 @@ export function NoIdeaCascadeBanner({ sessionId }: NoIdeaCascadeBannerProps) {
   }
 
   return (
-    <div className="mx-6 mt-4 rounded-md border border-accent/40 bg-accent/5 px-4 py-3">
-      <div className="flex items-start gap-3">
-        <AlertTriangle className="size-4 text-accent mt-0.5 shrink-0" />
-        <div className="flex-1 text-sm text-fg leading-relaxed">
-          <p>
-            Your evidence changed since this recommendation was synthesized. You edited Stage 1, 2, 3, or 4 — the recommendation below was built from the prior state. Re-synthesize to pull your latest evidence in, or accept as-is if the change doesn&apos;t affect this opportunity.
-          </p>
-          <div className="mt-3 flex items-center gap-3 flex-wrap">
-            <Button size="sm" onClick={handleResynthesize} disabled={busy}>
-              {busy ? (
-                <>
-                  <Loader2 className="size-4 mr-1 animate-spin" />
-                  Re-synthesizing…
-                </>
-              ) : (
-                <>
-                  <RefreshCcw className="size-4 mr-1" />
-                  Re-synthesize
-                </>
-              )}
-            </Button>
-            <p className="text-xs text-muted">
-              Takes ~1 minute. Replaces the recommendation below with a fresh synthesis from your current Stage 1-4 state.
-            </p>
-          </div>
-          {actionError && (
-            <p className="mt-2 text-xs text-accent">{actionError}</p>
-          )}
-        </div>
+    <section className="border-l-2 border-amber bg-bg-2 px-5 py-4">
+      <div className="mb-2 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.18em] text-amber">
+        <AlertTriangle aria-hidden="true" className="size-3.5" />
+        Evidence · changed since synthesis
       </div>
-    </div>
+      <p className="mb-4 max-w-[680px] text-[14px] leading-[1.6] text-fg-2">
+        You edited Stage 1, 2, 3, or 4 — the recommendation below was
+        built from the prior state. Re-synthesize to pull your latest
+        evidence in, or accept as-is if the change doesn&rsquo;t affect this
+        opportunity.
+      </p>
+      <div className="flex flex-wrap items-center gap-3.5">
+        <button
+          type="button"
+          onClick={handleResynthesize}
+          disabled={busy}
+          className="inline-flex items-center gap-2 bg-accent px-4 py-2.5 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-bg transition-transform hover:translate-x-0.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-x-0"
+        >
+          {busy
+            ? <><Loader2 aria-hidden="true" className="size-3.5 animate-spin" />Re-synthesizing…</>
+            : <><RefreshCcw aria-hidden="true" className="size-3.5" />Re-synthesize</>}
+          {!busy && <span aria-hidden="true">→</span>}
+        </button>
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+          ~1 minute · replaces with a fresh synthesis from current Stage 1–4 state.
+        </p>
+      </div>
+      {actionError && (
+        <p className="mt-3 border-l-2 border-amber bg-bg px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-amber">
+          {actionError}
+        </p>
+      )}
+    </section>
   );
 }
