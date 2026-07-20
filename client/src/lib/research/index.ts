@@ -28,6 +28,7 @@ export { isExaConfigured }      from './exa-client';
 export type { BuildResearchToolsInput, ResearchTools } from './tools';
 export {
   buildResearchTools,
+  type ResearchToolProgressEvent,
   getResearchToolGuidance,
   RESEARCH_TOOL_USAGE_GUIDANCE,
 } from './tools';

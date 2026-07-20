@@ -174,16 +174,13 @@ function ResearchLoaded({
     typeof window !== "undefined" &&
     new URLSearchParams(window.location.search).get("task") !== null;
 
-  // executingJobComplete drives the StepTrail's freeze + reconciliation.
   const jobStage = flow.executeJob?.stage;
   const executingDone = jobStage === "complete";
 
-  // Surfaced as "Completed in ~N steps" on the synthesis header. The
-  // engine doesn't expose the real researchLog count via
-  // ToolJobStatus.metadata today (a sensible follow-up) so we use the
-  // trail's full budget once the run reports complete — same number
-  // the trail displayed at the moment of completion.
-  const completedSteps = executingDone || isReport ? 25 : 0;
+  // Exact successful provider calls from the server-authored event log.
+  const completedSearches = flow.executeJob?.events.filter(
+    (event) => event.kind === "search" && event.status === "completed",
+  ).length;
 
   return (
     <ToolShell {...SHELL} flush>
@@ -283,8 +280,8 @@ function ResearchLoaded({
                 <StepTrail
                   key={flow.query}
                   query={flow.query}
-                  complete={executingDone}
-                  budget={25}
+                  stage={flow.executeJob?.stage ?? "queued"}
+                  events={flow.executeJob?.events ?? []}
                 />
               )}
             </>
@@ -345,7 +342,7 @@ function ResearchLoaded({
             <FindingsLedger
               query={flow.query}
               report={flow.report}
-              stepCount={completedSteps || 25}
+              searchCount={completedSearches}
               taskScoped={taskScoped}
               onAttachToTask={
                 taskScoped
@@ -465,7 +462,7 @@ function WorkingOutput({ query }: { query: string }) {
           aria-hidden="true"
           className="inline-block size-3 mr-2 animate-spin"
         />
-        Researching · ~25 steps · multi-source
+        Research engine active · server tracked
       </p>
       <p className="max-w-[520px] font-serif text-[16px] italic leading-snug text-fg">
         {query}

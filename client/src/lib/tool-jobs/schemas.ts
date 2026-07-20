@@ -4,6 +4,7 @@
 // system. See docs/inngest-tools-migration-plan-2026-04-24.md.
 
 import { z } from 'zod';
+import { ToolJobProgressEventSchema } from './progress-schema';
 
 /** Pipeline stage. Written by the Inngest function before each step.run. */
 export const TOOL_JOB_STAGES = [
@@ -49,6 +50,7 @@ export const ToolJobStatusSchema = z.object({
   startedAt:    z.string(),
   updatedAt:    z.string(),
   completedAt:  z.string().nullable(),
+  events:       z.array(ToolJobProgressEventSchema).default([]),
 });
 
 export type ToolJobStatus = z.infer<typeof ToolJobStatusSchema>;

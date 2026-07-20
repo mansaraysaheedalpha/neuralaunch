@@ -48,6 +48,14 @@ export async function GET(
         startedAt:    true,
         updatedAt:    true,
         completedAt:  true,
+        progressEvents: {
+          orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }],
+          take: 100,
+          select: {
+            id: true, kind: true, status: true, label: true,
+            source: true, occurredAt: true,
+          },
+        },
       },
     });
     if (!job) throw new HttpError(404, 'Job not found');
@@ -61,6 +69,10 @@ export async function GET(
       startedAt:    job.startedAt.toISOString(),
       updatedAt:    job.updatedAt.toISOString(),
       completedAt:  job.completedAt ? job.completedAt.toISOString() : null,
+      events: job.progressEvents.map((event) => ({
+        ...event,
+        occurredAt: event.occurredAt.toISOString(),
+      })),
     });
 
     return NextResponse.json(payload);

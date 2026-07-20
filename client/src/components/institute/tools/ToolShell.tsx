@@ -16,7 +16,7 @@
 
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import { TopBar, Pill, type BreadcrumbItem } from "@/components/institute";
 import { TaskContextStrip } from "./TaskContextStrip";
 import { ToolHeader, type ToolHeaderProps } from "./ToolHeader";
@@ -61,10 +61,6 @@ export function ToolShell({
   // strip + adjust the crumb to read "Tools / {tool} / Task {short}".
   // PR 16 added the optional &roadmap= param so the task strip's back
   // link can route to the precise roadmap rather than the index.
-  const params = useSearchParams();
-  const taskId = params.get("task");
-  const roadmapId = params.get("roadmap");
-
   const crumb: BreadcrumbItem[] = [
     ...(crumbHead ?? [{ label: "Tools", accent: true, href: "/tools" }]),
     { label: toolName, current: true },
@@ -103,7 +99,9 @@ export function ToolShell({
           lede={lede}
         />
 
-        {taskId && <TaskContextStrip taskId={taskId} roadmapId={roadmapId} />}
+        <Suspense fallback={null}>
+          <TaskContextFromUrl />
+        </Suspense>
 
         {flush ? (
           <>{children}</>
@@ -113,4 +111,11 @@ export function ToolShell({
       </main>
     </div>
   );
+}
+
+function TaskContextFromUrl() {
+  const params = useSearchParams();
+  const taskId = params.get("task");
+  if (!taskId) return null;
+  return <TaskContextStrip taskId={taskId} roadmapId={params.get("roadmap")} />;
 }

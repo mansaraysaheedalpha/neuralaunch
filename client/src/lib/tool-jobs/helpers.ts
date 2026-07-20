@@ -12,6 +12,26 @@ import 'server-only';
 import prisma from '@/lib/prisma';
 import { logger } from '@/lib/logger';
 import type { ToolJobStage, ToolJobType } from './schemas';
+import type { NewToolJobProgressEvent } from './progress-schema';
+
+export async function appendToolJobProgressEvent(
+  jobId: string,
+  event: NewToolJobProgressEvent,
+): Promise<void> {
+  try {
+    await prisma.toolJobProgressEvent.create({
+      data: { toolJobId: jobId, ...event },
+      select: { id: true },
+    });
+  } catch (err) {
+    logger.warn('[ToolJob] progress event write failed', {
+      jobId,
+      kind: event.kind,
+      status: event.status,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
 
 /**
  * Create a new ToolJob row in the 'queued' stage. Called by the

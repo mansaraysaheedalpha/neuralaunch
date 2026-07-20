@@ -11,9 +11,9 @@ import Link from 'next/link';
 import type {
   ContinuationBriefAny,
   ContinuationFork,
-  ParkingLot,
-} from '@/lib/continuation';
-import { isLegacyBrief } from '@/lib/continuation';
+} from '@/lib/continuation/brief-schema';
+import type { ParkingLot } from '@/lib/continuation/parking-lot-schema';
+import { isLegacyBrief } from '@/lib/continuation/brief-schema';
 import { TopBar, Pill, SynthesisOverlay } from '@/components/institute';
 import {
   BriefCover,

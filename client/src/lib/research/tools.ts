@@ -50,6 +50,13 @@ export interface BuildResearchToolsInput {
    * Pass an empty array; the factory mutates it.
    */
   accumulator: ResearchLogEntry[];
+  /** Optional lifecycle sink used by durable jobs for truthful live progress. */
+  onToolProgress?: (event: ResearchToolProgressEvent) => Promise<void>;
+}
+
+export interface ResearchToolProgressEvent {
+  tool: 'exa_search' | 'tavily_search';
+  status: 'started' | 'completed' | 'failed';
 }
 
 /**
@@ -120,6 +127,7 @@ export function buildResearchTools(input: BuildResearchToolsInput): ResearchTool
       }),
       execute: async ({ query, numResults }) => {
         log.info('[Research] exa_search invoked', { query, numResults });
+        await input.onToolProgress?.({ tool: 'exa_search', status: 'started' });
         try {
           const result        = await exaSearchOnce(query, numResults, log);
           const resultSummary = renderExaSummary(query, result);
@@ -130,12 +138,14 @@ export function buildResearchTools(input: BuildResearchToolsInput): ResearchTool
             resultSummary,
             timestamp:     new Date().toISOString(),
           });
+          await input.onToolProgress?.({ tool: 'exa_search', status: 'completed' });
           return resultSummary;
         } catch (err) {
           log.warn('[Research] exa_search failed', {
             query,
             message: err instanceof Error ? err.message : String(err),
           });
+          await input.onToolProgress?.({ tool: 'exa_search', status: 'failed' });
           return renderToolError('exa_search', query, err);
         }
       },
@@ -163,6 +173,7 @@ export function buildResearchTools(input: BuildResearchToolsInput): ResearchTool
       }),
       execute: async ({ query }) => {
         log.info('[Research] tavily_search invoked', { query });
+        await input.onToolProgress?.({ tool: 'tavily_search', status: 'started' });
         try {
           const result        = await tavilySearchOnce(query, log);
           const resultSummary = renderTavilySummary(query, result);
@@ -173,12 +184,14 @@ export function buildResearchTools(input: BuildResearchToolsInput): ResearchTool
             resultSummary,
             timestamp:     new Date().toISOString(),
           });
+          await input.onToolProgress?.({ tool: 'tavily_search', status: 'completed' });
           return resultSummary;
         } catch (err) {
           log.warn('[Research] tavily_search failed', {
             query,
             message: err instanceof Error ? err.message : String(err),
           });
+          await input.onToolProgress?.({ tool: 'tavily_search', status: 'failed' });
           return renderToolError('tavily_search', query, err);
         }
       },

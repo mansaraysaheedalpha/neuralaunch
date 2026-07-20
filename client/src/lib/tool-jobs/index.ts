@@ -22,3 +22,9 @@ export {
   type ToolJobType,
   type ToolJobStatus,
 } from './schemas';
+
+export {
+  ToolJobProgressEventSchema,
+  type ToolJobProgressEvent,
+  type NewToolJobProgressEvent,
+} from './progress-schema';

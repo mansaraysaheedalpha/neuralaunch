@@ -1,12 +1,6 @@
 // src/lib/roadmap/research-tool/execution-engine.ts
 //
-// Step 3 of the Founder Research Tool: deep research execution.
-// Opus receives the approved research plan, the founder's query, and
-// their full context, then conducts a multi-step investigation using
-// exa_search and tavily_search. It evaluates results, identifies gaps,
-// fires targeted follow-up queries, and produces a structured
-// ResearchReport with citations, confidence levels, contact info
-// where publicly available, and suggested next steps.
+// Deep research execution: research-tool loop followed by structured output.
 //
 // This is the highest-value call in the Research Tool — Opus quality
 // justifies the cost and latency. The step budget of 25 is the largest
@@ -35,6 +29,7 @@ import {
   getResearchToolGuidance,
   RESEARCH_BUDGETS,
   type ResearchLogEntry,
+  type ResearchToolProgressEvent,
 } from '@/lib/research';
 import { ResearchReportSchema, type ResearchReport } from './schemas';
 
@@ -60,7 +55,12 @@ export interface RunResearchExecutionInput {
   researchAccumulator?:   ResearchLogEntry[];
   /** Pre-rendered Founder Profile block (L1 lifecycle memory). */
   founderProfileBlock?:   string;
+  onProgress?: (event: ResearchExecutionProgressEvent) => Promise<void>;
 }
+
+export type ResearchExecutionProgressEvent =
+  | ResearchToolProgressEvent
+  | { phase: 'report'; status: 'started' | 'completed' };
 
 // ---------------------------------------------------------------------------
 // Engine
@@ -131,6 +131,7 @@ async function runResearchExecutionInner(
         agent:       'research-execution',
         contextId:   input.roadmapId,
         accumulator,
+        onToolProgress: input.onProgress,
       });
       // Prompt is stable across the tool loop (up to 25 steps — the
       // largest budget in the system). cachedSingleMessage gives every
@@ -239,6 +240,7 @@ Execute the research plan now. A follow-up call will format your writeup into th
   // ResearchReport JSON shape. Uses a smaller / faster model because
   // it's a formatting task not a reasoning task; falls back to the
   // primary if the smaller model fails schema validation.
+  await input.onProgress?.({ phase: 'report', status: 'started' });
   const report = await withAgentSpan(
     {
       name: 'research.execution.phase2',
@@ -285,6 +287,7 @@ Execute the research plan now. A follow-up call will format your writeup into th
     },
     ),
   );
+  await input.onProgress?.({ phase: 'report', status: 'completed' });
 
   log.info('[ResearchExecution] Report generated', {
     findingCount:  report.findings.length,

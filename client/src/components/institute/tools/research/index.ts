@@ -13,8 +13,8 @@ export type { StepTrailProps } from './StepTrail';
 export { PlanReview }         from './PlanReview';
 export type { PlanReviewProps } from './PlanReview';
 
-export { FindingsLedger, InFlightHero } from './FindingsLedger';
-export type { FindingsLedgerProps, InFlightHeroProps } from './FindingsLedger';
+export { FindingsLedger } from './FindingsLedger';
+export type { FindingsLedgerProps } from './FindingsLedger';
 
 export { FindingRow }         from './FindingRow';
 export type { FindingRowProps } from './FindingRow';

@@ -40,6 +40,10 @@ import {
   failToolJob,
 } from '@/lib/tool-jobs/helpers';
 import {
+  createResearchProgressReporter,
+  recordResearchPhase,
+} from '@/lib/tool-jobs/research-progress';
+import {
   notifyToolJobComplete,
   notifyToolJobFailed,
 } from '@/lib/tool-jobs/notifications';
@@ -141,6 +145,7 @@ export const researchExecuteJobFunction = inngest.createFunction(
           }
         }
 
+        await recordResearchPhase(jobId, 'Founder and roadmap context loaded', 'completed');
         return {
           founderProfileBlock,
           beliefState: {
@@ -173,11 +178,8 @@ export const researchExecuteJobFunction = inngest.createFunction(
           taskContext:           context.taskContext,
           roadmapId,
           researchAccumulator:   accumulator,
+          onProgress:            createResearchProgressReporter(jobId),
         });
-        // The two-phase split inside runResearchExecution writes its
-        // own progress; we mark 'emitting' just so the client sees a
-        // distinct stage for the Sonnet-emit phase.
-        await updateToolJobStage(jobId, 'emitting');
         return { report: result, accumulatorEntries: accumulator };
       });
 
@@ -188,6 +190,7 @@ export const researchExecuteJobFunction = inngest.createFunction(
       // -------------------------------------------------------------------
       await step.run('persisting', async () => {
         await updateToolJobStage(jobId, 'persisting');
+        await recordResearchPhase(jobId, 'Saving findings to research history', 'started');
 
         const updatedAt = new Date().toISOString();
         await persistToolJobResult({
@@ -204,6 +207,7 @@ export const researchExecuteJobFunction = inngest.createFunction(
           }),
           researchAccumulator: accumulatorEntries,
         });
+        await recordResearchPhase(jobId, 'Saving findings to research history', 'completed');
       });
 
       // -------------------------------------------------------------------
@@ -219,6 +223,7 @@ export const researchExecuteJobFunction = inngest.createFunction(
           roadmapId,
           sessionId,
         });
+        await recordResearchPhase(jobId, 'Research completed and saved', 'completed');
         await completeToolJob(jobId);
       });
 

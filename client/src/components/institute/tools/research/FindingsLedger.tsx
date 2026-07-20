@@ -9,7 +9,7 @@
 // sub-question structure later, switch on a new optional field.
 
 import { useState, useCallback } from 'react';
-import { ArrowRight, ClipboardCheck, Copy, Loader2 } from 'lucide-react';
+import { ArrowRight, ClipboardCheck, Copy } from 'lucide-react';
 import type { ResearchReport, ResearchFinding } from '@/lib/roadmap/research-tool/schemas';
 import { ConfidenceSummary } from './ConfidenceSummary';
 import { FindingRow } from './FindingRow';
@@ -17,9 +17,8 @@ import { FindingRow } from './FindingRow';
 export interface FindingsLedgerProps {
   query:           string;
   report:          ResearchReport;
-  /** Approximate step count animated during execution — surfaced in the
-   *  synthesis stamp row as "Completed in ~N steps". */
-  stepCount?:      number;
+  /** Exact successful provider searches reported by the durable worker. */
+  searchCount?:    number;
   /** Optional: when the founder launched from a task, show "Attach to task". */
   taskScoped?:     boolean;
   /** Save the current findings to the venture (persisted server-side
@@ -35,7 +34,7 @@ export interface FindingsLedgerProps {
 export function FindingsLedger({
   query,
   report,
-  stepCount,
+  searchCount,
   taskScoped,
   onSaveToVenture,
   onAttachToTask,
@@ -64,8 +63,8 @@ export function FindingsLedger({
         <div className="flex flex-wrap gap-4 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
           <span>Synthesis</span>
           <span>{sources.length} sources · {findings.length} findings</span>
-          {stepCount != null && (
-            <span className="text-accent">Completed in ~{stepCount} steps</span>
+          {searchCount != null && (
+            <span className="text-accent">{searchCount} provider searches completed</span>
           )}
         </div>
         <h2 className="max-w-[680px] font-serif text-[26px] italic leading-[1.25] text-fg [&_em]:not-italic [&_em]:font-normal [&_em]:text-accent">
@@ -137,27 +136,6 @@ export function FindingsLedger({
 }
 
 /* ---- helpers ---- */
-
-export interface InFlightHeroProps { stepCount: number; runningSeconds: number }
-
-/**
- * Tiny mid-job indicator the page can drop into the right column
- * before the report lands — used as a fallback when the founder
- * doesn't want a skeleton or empty state mid-run.
- */
-export function InFlightHero({ stepCount, runningSeconds }: InFlightHeroProps) {
-  return (
-    <div className="flex flex-col items-center gap-3 border border-dashed border-rule-strong px-8 py-14 text-center">
-      <Loader2 aria-hidden="true" className="size-5 text-accent animate-spin" />
-      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">
-        Working… · step {stepCount} / ~25
-      </p>
-      <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
-        {Math.floor(runningSeconds / 60)}m {String(runningSeconds % 60).padStart(2, '0')}s elapsed
-      </p>
-    </div>
-  );
-}
 
 function serialiseReportToMarkdown(query: string, report: ResearchReport): string {
   const lines: string[] = [];
