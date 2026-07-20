@@ -1,16 +1,14 @@
-// src/lib/roadmap/service-packager/schemas.ts
-//
-// Zod schemas for every data shape the Service Packager produces
-// and persists. TypeScript types are inferred from these schemas —
-// never duplicated.
+// Zod schemas for every persisted Service Packager shape.
 
-import { z } from 'zod';
-import { PACKAGER_BRIEF_FORMATS, PACKAGER_TOOL_ID } from './constants';
+import { z } from "zod";
+import { PACKAGER_BRIEF_FORMATS, PACKAGER_TOOL_ID } from "./constants";
+import { PackageDecisionSchema } from "./package-decision-schema";
 
 // CLAUDE.md: .max() on LLM output strings causes AI_NoObjectGeneratedError.
 // Use .transform() post-clamp instead.
 function clampString(max: number) {
-  return (raw: string): string => raw.length <= max ? raw : raw.slice(0, max - 1) + '\u2026';
+  return (raw: string): string =>
+    raw.length <= max ? raw : raw.slice(0, max - 1) + "\u2026";
 }
 
 // ---------------------------------------------------------------------------
@@ -19,26 +17,26 @@ function clampString(max: number) {
 
 export const ServiceContextSchema = z.object({
   /** One-paragraph summary of what the founder is packaging. */
-  serviceSummary:        z.string(),
+  serviceSummary: z.string(),
   /** Who this service is for — audience description. */
-  targetMarket:          z.string(),
+  targetMarket: z.string(),
   /** Competitor pricing range (from Research Tool findings when available). */
-  competitorPricing:     z.string().optional(),
+  competitorPricing: z.string().optional(),
   /** Inferred founder costs (time, materials, transport) from belief state. */
-  founderCosts:          z.string().optional(),
+  founderCosts: z.string().optional(),
   /** Founder's available hours per week, pulled from belief state. */
   availableHoursPerWeek: z.string().optional(),
   /** The originating task description, when launched from a task card. */
-  taskContext:           z.string().optional(),
+  taskContext: z.string().optional(),
   /**
    * Rendered summary of research findings when a researchSession
    * existed on the same task. Includes competitor, business, and
    * datapoint findings pre-digested for the generation prompt.
    */
-  researchFindings:      z.string().optional(),
+  researchFindings: z.string().optional(),
   /** The original research query from the task's researchSession, used
    *  by the UI badge to show "Informed by your research on [query]". */
-  researchQuery:         z.string().optional(),
+  researchQuery: z.string().optional(),
 });
 export type ServiceContext = z.infer<typeof ServiceContextSchema>;
 
@@ -47,30 +45,30 @@ export type ServiceContext = z.infer<typeof ServiceContextSchema>;
 // ---------------------------------------------------------------------------
 
 const PackageIncludedItemSchema = z.object({
-  item:        z.string().transform(clampString(200)),
+  item: z.string().transform(clampString(200)),
   description: z.string().transform(clampString(500)),
 });
 
 const PackageTierSchema = z.object({
   /** Machine-friendly name: 'basic' | 'standard' | 'premium' | custom. */
-  name:          z.string().transform(clampString(50)),
+  name: z.string().transform(clampString(50)),
   /** Customer-facing name, e.g. "PremiumPress Standard". */
-  displayName:   z.string().transform(clampString(100)),
+  displayName: z.string().transform(clampString(100)),
   /** Price as the founder would quote it, e.g. "40 cedis/kg" or "$2,500". */
-  price:         z.string().transform(clampString(100)),
+  price: z.string().transform(clampString(100)),
   /** Billing period, e.g. "per month", "per kg", "per project". */
-  period:        z.string().transform(clampString(100)),
+  period: z.string().transform(clampString(100)),
   /** One-paragraph tier description the client reads. */
-  description:   z.string().transform(clampString(600)),
+  description: z.string().transform(clampString(600)),
   /** Feature list for the tier (3-8 bullets). */
-  features:      z.array(z.string().transform(clampString(300))),
+  features: z.array(z.string().transform(clampString(300))),
   /** One-sentence justification grounded in market/cost/positioning. */
   justification: z.string().transform(clampString(500)),
 });
 
 const PackageRevenueScenarioSchema = z.object({
   /** Label: conservative | moderate | ambitious. */
-  label:          z.string().transform(clampString(50)),
+  label: z.string().transform(clampString(50)),
   /**
    * Anthropic's structured-output validator rejects EVERY form of
    * integer-type constraint: `minimum`, `maximum`, and (empirically)
@@ -85,29 +83,34 @@ const PackageRevenueScenarioSchema = z.object({
    * the shape in the .transform() post-parse. The TS type stays
    * `number` which is exactly what downstream code already expects.
    */
-  clients:        z.number()
-                    .describe('Number of clients at this scenario. Must be a non-negative integer — emit a whole number like 10 or 25, never a decimal.')
-                    .transform(n => Math.max(Math.floor(n), 0)),
+  clients: z
+    .number()
+    .describe(
+      "Number of clients at this scenario. Must be a non-negative integer — emit a whole number like 10 or 25, never a decimal.",
+    )
+    .transform((n) => Math.max(Math.floor(n), 0)),
   /** Which tier(s) these clients are on, e.g. "2 Basic + 1 Standard". */
-  tierMix:        z.string().transform(clampString(200)),
+  tierMix: z.string().transform(clampString(200)),
   /** Monthly revenue at this volume. */
   monthlyRevenue: z.string().transform(clampString(100)),
   /** Weekly hours the founder would spend at this volume. */
-  weeklyHours:    z.string().transform(clampString(100)),
+  weeklyHours: z.string().transform(clampString(100)),
   /** When the founder would need to hire help. Optional. */
-  hiringNote:     z.string().transform(clampString(300)).optional(),
+  hiringNote: z.string().transform(clampString(300)).optional(),
 });
 
 export const ServicePackageSchema = z.object({
-  serviceName:      z.string().transform(clampString(200)),
-  targetClient:     z.string().transform(clampString(500)),
-  included:         z.array(PackageIncludedItemSchema),
-  notIncluded:      z.array(z.string().transform(clampString(300))),
-  tiers:            z.array(PackageTierSchema),
+  serviceName: z.string().transform(clampString(200)),
+  targetClient: z.string().transform(clampString(500)),
+  included: z.array(PackageIncludedItemSchema),
+  notIncluded: z.array(z.string().transform(clampString(300))),
+  tiers: z.array(PackageTierSchema),
   revenueScenarios: z.array(PackageRevenueScenarioSchema),
   /** The final one-page brief — copy-paste ready per briefFormat. */
-  brief:            z.string().transform(clampString(4000)),
-  briefFormat:      z.enum(PACKAGER_BRIEF_FORMATS),
+  brief: z.string().transform(clampString(4000)),
+  briefFormat: z.enum(PACKAGER_BRIEF_FORMATS),
+  /** Optional only so packages generated before decision support remain readable. */
+  decision: PackageDecisionSchema.optional(),
 });
 export type ServicePackage = z.infer<typeof ServicePackageSchema>;
 
@@ -117,7 +120,7 @@ export type ServicePackage = z.infer<typeof ServicePackageSchema>;
 
 export const PackagerAdjustmentSchema = z.object({
   request: z.string(),
-  round:   z.number().int().min(1),
+  round: z.number().int().min(1),
 });
 export type PackagerAdjustment = z.infer<typeof PackagerAdjustmentSchema>;
 
@@ -126,20 +129,22 @@ export type PackagerAdjustment = z.infer<typeof PackagerAdjustmentSchema>;
 // ---------------------------------------------------------------------------
 
 export const PackagerSessionSchema = z.object({
-  id:          z.string(),
-  tool:        z.literal(PACKAGER_TOOL_ID),
-  context:     ServiceContextSchema,
-  package:     ServicePackageSchema,
+  id: z.string(),
+  tool: z.literal(PACKAGER_TOOL_ID),
+  context: ServiceContextSchema,
+  package: ServicePackageSchema,
   adjustments: z.array(PackagerAdjustmentSchema).optional(),
-  createdAt:   z.string(),
-  updatedAt:   z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
 });
 export type PackagerSession = z.infer<typeof PackagerSessionSchema>;
 
 /**
  * Safely parse a packagerSession from a task's passthrough JSONB.
  */
-export function safeParsePackagerSession(value: unknown): PackagerSession | null {
+export function safeParsePackagerSession(
+  value: unknown,
+): PackagerSession | null {
   const parsed = PackagerSessionSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
 }

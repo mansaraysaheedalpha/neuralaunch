@@ -1,37 +1,28 @@
-'use client';
-// src/components/institute/tools/research/ResearchComposer.tsx
-//
-// Left-column query composer: serif italic textarea inside a hairline
-// "query box", an optional sans scope-hint input below a thin rule,
-// then the run row (mono "Run ⌘ ↵" hint + accent Run button), and an
-// example block that hides once research starts. Voice input mounts
-// in via the existing VoiceInputButton when the tier permits.
-
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import toast from 'react-hot-toast';
-import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
-import { canUseVoiceMode, useVoiceTier } from '@/lib/voice/client-tier';
-import { trackVoiceEvent } from '@/lib/voice/analytics';
+"use client";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import toast from "react-hot-toast";
+import { VoiceInputButton } from "@/components/ui/VoiceInputButton";
+import { canUseVoiceMode, useVoiceTier } from "@/lib/voice/client-tier";
+import { trackVoiceEvent } from "@/lib/voice/analytics";
 
 export interface ResearchComposerProps {
   /** Pre-fill the query — e.g. when Packager hands off, or when the
    *  founder picks an example. */
-  initialQuery?:   string;
+  initialQuery?: string;
   /** Fires when the founder commits a query (Run button or ⌘+Enter). */
-  onSubmit:        (query: string, scopeHint: string) => void;
+  onSubmit: (query: string, scopeHint: string) => void;
   /** Plain text — venture-aware examples surface from the page when
    *  it has session context. Fall back to generic suggestions. */
-  examples?:       string[];
+  examples?: string[];
   /** Hide the example block — set after the first run starts. */
-  hideExamples?:   boolean;
-  /** Whether the run is disabled (busy / mid-flight). */
-  busy?:           boolean;
+  hideExamples?: boolean;
+  busy?: boolean;
 }
 
 const DEFAULT_EXAMPLES = [
-  'Who are the existing players serving this market, and how do they price?',
-  'What regulations or licences govern this kind of service in my geography?',
-  'What is the realistic addressable market for a paid service in this niche?',
+  "Who are the existing players serving this market, and how do they price?",
+  "What regulations or licences govern this kind of service in my geography?",
+  "What is the realistic addressable market for a paid service in this niche?",
 ];
 
 export function ResearchComposer({
@@ -41,14 +32,14 @@ export function ResearchComposer({
   hideExamples,
   busy,
 }: ResearchComposerProps) {
-  const [query, setQuery] = useState(initialQuery ?? '');
-  const [scope, setScope] = useState('');
+  const [query, setQuery] = useState(initialQuery ?? "");
+  const [scope, setScope] = useState("");
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Sync if parent supplies a query after mount (e.g. packager handoff
   // resolves async).
   useEffect(() => {
-    if (initialQuery && query === '') setQuery(initialQuery);
+    if (initialQuery && query === "") setQuery(initialQuery);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialQuery]);
 
@@ -56,7 +47,7 @@ export function ResearchComposer({
   useEffect(() => {
     const ta = taRef.current;
     if (!ta) return;
-    ta.style.height = 'auto';
+    ta.style.height = "auto";
     ta.style.height = `${Math.max(ta.scrollHeight, 96)}px`;
   }, [query]);
 
@@ -69,7 +60,7 @@ export function ResearchComposer({
   function handleKey(e: KeyboardEvent<HTMLTextAreaElement>) {
     // ⌘/Ctrl + Enter runs research. Plain Enter inserts a newline so
     // the serif composer feels like writing, not submitting a form.
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       handleRun();
     }
@@ -79,11 +70,16 @@ export function ResearchComposer({
   const voiceEnabled = canUseVoiceMode(useVoiceTier());
   const handleVoiceTranscription = (text: string) => {
     if (!text.trim()) return;
-    setQuery(prev => prev.trim().length > 0 ? `${prev.trim()} ${text}` : text);
-    trackVoiceEvent('voice_transcribed', { surface: 'research' });
+    setQuery((prev) =>
+      prev.trim().length > 0 ? `${prev.trim()} ${text}` : text,
+    );
+    trackVoiceEvent("voice_transcribed", { surface: "research" });
   };
   const handleVoiceError = (message: string) => {
-    trackVoiceEvent('voice_error', { surface: 'research', errorMessage: message });
+    trackVoiceEvent("voice_error", {
+      surface: "research",
+      errorMessage: message,
+    });
     toast.error(message);
   };
 
@@ -93,10 +89,15 @@ export function ResearchComposer({
   return (
     <div className="flex flex-col gap-8">
       <div className="border border-rule bg-bg-2 px-6 py-5 transition-colors focus-within:border-accent">
+        <label htmlFor="research-question" className="sr-only">
+          Research question
+        </label>
         <textarea
+          id="research-question"
+          aria-describedby="research-question-help"
           ref={taRef}
           value={query}
-          onChange={e => setQuery(e.target.value)}
+          onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKey}
           disabled={busy}
           placeholder="What do you want to know? Ask the way you'd ask a sharp analyst — plainly."
@@ -114,7 +115,7 @@ export function ResearchComposer({
             <input
               type="text"
               value={scope}
-              onChange={e => setScope(e.target.value)}
+              onChange={(e) => setScope(e.target.value)}
               disabled={busy}
               placeholder="e.g. focus on 2023–2025 regulation, [authority name]"
               className="mt-1 block w-full border-0 bg-transparent p-0 font-sans text-[14px] text-fg-2 placeholder:text-muted focus:outline-none disabled:opacity-60"
@@ -123,11 +124,24 @@ export function ResearchComposer({
         </div>
 
         {/* Run row */}
-        <div className="mt-[18px] flex items-center justify-between gap-3">
-          <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+        <div className="sticky bottom-0 z-10 -mx-3 mt-[18px] flex items-center justify-between gap-3 border-t border-rule bg-bg-2 px-3 pt-3 [padding-bottom:max(0.75rem,env(safe-area-inset-bottom))] lg:static lg:mx-0 lg:border-t-0 lg:px-0 lg:pb-0 lg:pt-0">
+          <span
+            id="research-question-help"
+            className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-muted"
+          >
             Run
-            <span className="inline-block border border-rule px-1 py-px font-mono text-[9px] text-muted">⌘</span>
-            <span className="inline-block border border-rule px-1 py-px font-mono text-[9px] text-muted">↵</span>
+            <span
+              aria-hidden="true"
+              className="inline-block border border-rule px-1 py-px font-mono text-[9px] text-muted"
+            >
+              ⌘
+            </span>
+            <span
+              aria-hidden="true"
+              className="inline-block border border-rule px-1 py-px font-mono text-[9px] text-muted"
+            >
+              ↵
+            </span>
           </span>
           <div className="flex items-center gap-2.5">
             {voiceEnabled && (
@@ -142,6 +156,7 @@ export function ResearchComposer({
               type="button"
               onClick={handleRun}
               disabled={query.trim().length === 0 || busy}
+              aria-describedby="research-question-help"
               className="inline-flex items-center gap-2 bg-accent px-[22px] py-3.5 font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-bg transition-opacity hover:opacity-90 disabled:opacity-[0.35] disabled:cursor-not-allowed"
             >
               Run
@@ -160,14 +175,20 @@ export function ResearchComposer({
             <button
               key={i}
               type="button"
-              onClick={() => { setQuery(ex); taRef.current?.focus(); }}
+              onClick={() => {
+                setQuery(ex);
+                taRef.current?.focus();
+              }}
               disabled={busy}
               className="group flex items-baseline justify-between gap-3 border border-rule bg-bg px-4 py-3.5 text-left transition-all hover:border-accent hover:pl-5"
             >
               <span className="font-serif italic text-[16px] leading-snug text-fg-2 transition-colors group-hover:text-fg">
                 {ex}
               </span>
-              <span aria-hidden="true" className="font-mono text-[12px] text-muted transition-colors group-hover:text-accent">
+              <span
+                aria-hidden="true"
+                className="font-mono text-[12px] text-muted transition-colors group-hover:text-accent"
+              >
                 →
               </span>
             </button>

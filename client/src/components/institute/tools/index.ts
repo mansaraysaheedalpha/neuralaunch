@@ -3,17 +3,24 @@
 // Public barrel for the Institute tools primitives. Imported by the
 // /tools route segment and each per-tool page wrapper.
 
-export { ToolShell } from './ToolShell';
-export type { ToolShellProps } from './ToolShell';
+export { ToolShell } from "./ToolShell";
+export type { ToolShellProps } from "./ToolShell";
 
-export { ToolHeader } from './ToolHeader';
-export type { ToolHeaderProps } from './ToolHeader';
+export { ToolHeader } from "./ToolHeader";
+export type { ToolHeaderProps } from "./ToolHeader";
 
-export { TaskContextStrip } from './TaskContextStrip';
-export type { TaskContextStripProps } from './TaskContextStrip';
+export { TaskContextStrip } from "./TaskContextStrip";
+export type { TaskContextStripProps } from "./TaskContextStrip";
 
-export { ToolsLedger } from './ToolsLedger';
-export type { ToolListing, ToolsLedgerProps } from './ToolsLedger';
+export { ToolsLedger } from "./ToolsLedger";
+export type { ToolListing, ToolsLedgerProps } from "./ToolsLedger";
 
-export { ToolShellLoading, ToolShellNoRoadmap } from './ToolShellStates';
-export type { ToolShellNoRoadmapProps } from './ToolShellStates';
+export { ToolShellLoading, ToolShellNoRoadmap } from "./ToolShellStates";
+export type { ToolShellNoRoadmapProps } from "./ToolShellStates";
+
+export { DecisionFooter } from "./DecisionFooter";
+export type { DecisionFooterData } from "./DecisionFooter";
+export { ToolRecoveryNotice } from "./ToolRecoveryNotice";
+export type { ToolRecoveryNoticeProps } from "./ToolRecoveryNotice";
+export { ResponsiveToolHistory } from "./ResponsiveToolHistory";
+export { MobileDisclosure } from "./MobileDisclosure";

@@ -7,7 +7,6 @@
 // reads ?fromPackager=<sessionId> to pre-populate its own context.
 
 import Link from 'next/link';
-import { Mail, MessageCircle, Search } from 'lucide-react';
 
 export interface PackagerHandoffButtonsProps {
   roadmapId:        string;
@@ -19,31 +18,28 @@ export function PackagerHandoffButtons({
 }: PackagerHandoffButtonsProps) {
   const qs = `?roadmapId=${encodeURIComponent(roadmapId)}&fromPackager=${encodeURIComponent(packagerSessionId)}`;
   return (
-    <div className="flex flex-col gap-2">
-      <p className="text-[11px] uppercase tracking-wider text-muted">Next steps</p>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+    <section className="border border-rule-strong">
+      <p className="border-b border-rule px-4 py-3 font-mono text-[9px] uppercase tracking-[0.16em] text-muted">Continue the evidence chain</p>
+      <div className="grid">
         <Link
           href={`/tools/outreach-composer${qs}`}
-          className="inline-flex items-center justify-center gap-1.5 rounded-md border border-accent/30 bg-accent/5 px-3 py-2 text-[11px] font-medium text-accent hover:bg-accent/10 transition-colors"
+          className="flex items-center justify-between border-b border-rule px-4 py-3 font-serif text-[15px] italic text-fg hover:bg-accent/[0.04] hover:text-accent"
         >
-          <Mail className="size-3 shrink-0" />
-          Draft outreach with this package →
+          Draft outreach <span className="font-mono text-[10px] not-italic">→</span>
         </Link>
         <Link
           href={`/tools/conversation-coach${qs}`}
-          className="inline-flex items-center justify-center gap-1.5 rounded-md border border-accent/30 bg-accent/5 px-3 py-2 text-[11px] font-medium text-accent hover:bg-accent/10 transition-colors"
+          className="flex items-center justify-between border-b border-rule px-4 py-3 font-serif text-[15px] italic text-fg hover:bg-accent/[0.04] hover:text-accent"
         >
-          <MessageCircle className="size-3 shrink-0" />
-          Prepare to pitch this →
+          Rehearse the pitch <span className="font-mono text-[10px] not-italic">→</span>
         </Link>
         <Link
           href={`/tools/research${qs}`}
-          className="inline-flex items-center justify-center gap-1.5 rounded-md border border-rule bg-bg px-3 py-2 text-[11px] font-medium text-fg hover:bg-bg-3 transition-colors"
+          className="flex items-center justify-between px-4 py-3 font-serif text-[15px] italic text-fg hover:bg-accent/[0.04] hover:text-accent"
         >
-          <Search className="size-3 shrink-0" />
-          Research more about this market →
+          Research the market <span className="font-mono text-[10px] not-italic">→</span>
         </Link>
       </div>
-    </div>
+    </section>
   );
 }

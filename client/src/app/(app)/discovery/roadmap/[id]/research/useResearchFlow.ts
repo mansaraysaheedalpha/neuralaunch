@@ -1,4 +1,4 @@
-'use client';
+"use client";
 // src/app/(app)/discovery/roadmap/[id]/research/useResearchFlow.ts
 //
 // Custom hook encapsulating the Research Tool's server interaction
@@ -12,20 +12,24 @@
 // to load the result. The 'executing' stage and the followUpLoading
 // flag now both correlate with an in-flight ToolJob.
 
-import { useState, useCallback, useEffect } from 'react';
-import type { ResearchReport, ResearchFinding, ResearchSession } from '@/lib/roadmap/research-tool/schemas';
-import { FOLLOWUP_MAX_ROUNDS } from '@/lib/roadmap/research-tool/constants';
-import { useToolJob } from '@/lib/tool-jobs/use-tool-job';
-import type { ToolJobStatus } from '@/lib/tool-jobs';
+import { useState, useCallback, useEffect } from "react";
+import type {
+  ResearchReport,
+  ResearchFinding,
+  ResearchSession,
+} from "@/lib/roadmap/research-tool/schemas";
+import { FOLLOWUP_MAX_ROUNDS } from "@/lib/roadmap/research-tool/constants";
+import { useToolJob } from "@/lib/tool-jobs/use-tool-job";
+import type { ToolJobStatus } from "@/lib/tool-jobs";
 
-type Stage = 'query' | 'planning' | 'plan_review' | 'executing' | 'report';
+type Stage = "query" | "planning" | "plan_review" | "executing" | "report";
 
 export interface UseResearchFlowResult {
-  stage:           Stage;
-  query:           string;
-  plan:            string;
-  estimatedTime:   string;
-  report:          ResearchReport | null;
+  stage: Stage;
+  query: string;
+  plan: string;
+  estimatedTime: string;
+  report: ResearchReport | null;
   /**
    * Standalone research session id, populated after the plan returns
    * a sessionId. Used by Research → Packager cross-tool handoff so
@@ -33,20 +37,24 @@ export interface UseResearchFlowResult {
    * Null on the task-launched flow (the persisted session id lives on
    * task.researchSession.id; not surfaced through this hook).
    */
-  sessionId:       string | null;
-  followUps:       Array<{ query: string; findings: ResearchFinding[]; round: number }>;
-  error:           string | null;
+  sessionId: string | null;
+  followUps: Array<{
+    query: string;
+    findings: ResearchFinding[];
+    round: number;
+  }>;
+  error: string | null;
   followUpLoading: boolean;
   /** In-flight execute job (null when no job is running). Drives the
    *  ToolJobProgress ladder rendered while stage === 'executing'. */
-  executeJob:      ToolJobStatus | null;
+  executeJob: ToolJobStatus | null;
   /** In-flight follow-up job (null when no job is running). Drives the
    *  inline ladder shown beneath the existing report while a follow-up
    *  is still running. */
-  followupJob:     ToolJobStatus | null;
+  followupJob: ToolJobStatus | null;
   handleQuerySubmit: (q: string) => Promise<void>;
   handlePlanApprove: (editedPlan: string) => Promise<void>;
-  handleFollowUp:    (q: string) => Promise<void>;
+  handleFollowUp: (q: string) => Promise<void>;
   /**
    * Retry the in-flight execute job after it failed. Clears the dead
    * jobId, then re-fires handlePlanApprove(plan) to queue a fresh
@@ -66,12 +74,12 @@ export interface UseResearchFlowResult {
    * standalone page's "New research" button after a session has been
    * loaded or completed.
    */
-  resetToQuery:      () => void;
+  resetToQuery: () => void;
 }
 
 export function useResearchFlow(input: {
-  roadmapId:  string;
-  taskId:     string;
+  roadmapId: string;
+  taskId: string;
   standalone?: boolean;
   /**
    * Fired after every quota-consuming call finishes — success OR
@@ -83,22 +91,34 @@ export function useResearchFlow(input: {
 }): UseResearchFlowResult {
   const { roadmapId, taskId, standalone, onToolCallComplete } = input;
 
-  const [stage,        setStage]        = useState<Stage>('query');
-  const [query,        setQuery]        = useState('');
-  const [sessionId,    setSessionId]    = useState<string | null>(null);
-  const [plan,         setPlan]         = useState('');
-  const [estimatedTime, setEstimatedTime] = useState('2–4 minutes');
-  const [report,       setReport]       = useState<ResearchReport | null>(null);
-  const [followUps,    setFollowUps]    = useState<Array<{ query: string; findings: ResearchFinding[]; round: number }>>([]);
-  const [error,        setError]        = useState<string | null>(null);
+  const [stage, setStage] = useState<Stage>("query");
+  const [query, setQuery] = useState("");
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [plan, setPlan] = useState("");
+  const [estimatedTime, setEstimatedTime] = useState("2–4 minutes");
+  const [report, setReport] = useState<ResearchReport | null>(null);
+  const [followUps, setFollowUps] = useState<
+    Array<{ query: string; findings: ResearchFinding[]; round: number }>
+  >([]);
+  const [error, setError] = useState<string | null>(null);
   const [followUpLoading, setFollowUpLoading] = useState(false);
-  const [executeJobId,  setExecuteJobId]  = useState<string | null>(null);
+  const [executeJobId, setExecuteJobId] = useState<string | null>(null);
   const [followupJobId, setFollowupJobId] = useState<string | null>(null);
 
-  const planUrl     = standalone ? `/api/discovery/roadmaps/${roadmapId}/research/plan`     : `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/research/plan`;
-  const executeUrl  = standalone ? `/api/discovery/roadmaps/${roadmapId}/research/execute`  : `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/research/execute`;
-  const followupUrl = standalone ? `/api/discovery/roadmaps/${roadmapId}/research/followup` : `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/research/followup`;
-  const sessionUrl  = (sid: string) => `/api/discovery/roadmaps/${roadmapId}/research/sessions/${sid}`;
+  const planUrl = standalone
+    ? `/api/discovery/roadmaps/${roadmapId}/research/plan`
+    : `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/research/plan`;
+  const executeUrl = standalone
+    ? `/api/discovery/roadmaps/${roadmapId}/research/execute`
+    : `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/research/execute`;
+  const followupUrl = standalone
+    ? `/api/discovery/roadmaps/${roadmapId}/research/followup`
+    : `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/research/followup`;
+  const sessionUrl = useCallback(
+    (sid: string) =>
+      `/api/discovery/roadmaps/${roadmapId}/research/sessions/${sid}`,
+    [roadmapId],
+  );
 
   // Polling hooks for the two long-running operations. Both hooks no-op
   // when their jobId is null (idle state).
@@ -115,23 +135,28 @@ export function useResearchFlow(input: {
   // set lets ToolJobProgress keep rendering the failed ladder.
   useEffect(() => {
     if (!executeJob || !sessionId) return;
-    if (executeJob.stage === 'complete') {
+    if (executeJob.stage === "complete") {
       void (async () => {
         try {
           const res = await fetch(sessionUrl(sessionId));
-          if (res.ok) {
-            const json = await res.json() as { session: ResearchSession };
-            if (json.session.report) {
-              setReport(json.session.report);
-              setFollowUps(json.session.followUps ?? []);
-              setStage('report');
-            }
-          }
-        } catch { /* swallow — UI stays on executing, founder can refresh */ }
-        setExecuteJobId(null);
-        onToolCallComplete?.();
+          if (!res.ok) throw new Error("saved result could not be loaded");
+          const json = (await res.json()) as { session: ResearchSession };
+          if (!json.session.report)
+            throw new Error("saved result is not ready");
+          setReport(json.session.report);
+          setFollowUps(json.session.followUps ?? []);
+          setStage("report");
+          setExecuteJobId(null);
+          setError(null);
+        } catch {
+          setError(
+            "Research completed and was saved, but this page could not load the result. Reload the saved result instead of rerunning the research.",
+          );
+        } finally {
+          onToolCallComplete?.();
+        }
       })();
-    } else if (executeJob.stage === 'failed') {
+    } else if (executeJob.stage === "failed") {
       // Stay on 'executing' so the failed ladder + retry button stays
       // visible. The founder retries via the button (which calls
       // handlePlanApprove(plan) again) or closes the panel to abandon.
@@ -144,21 +169,26 @@ export function useResearchFlow(input: {
   // the followUps array reflects the new round.
   useEffect(() => {
     if (!followupJob || !sessionId) return;
-    if (followupJob.stage === 'complete') {
+    if (followupJob.stage === "complete") {
       void (async () => {
         try {
           const res = await fetch(sessionUrl(sessionId));
-          if (res.ok) {
-            const json = await res.json() as { session: ResearchSession };
-            setFollowUps(json.session.followUps ?? []);
-          }
-        } catch { /* swallow */ }
-        setFollowupJobId(null);
-        setFollowUpLoading(false);
-        onToolCallComplete?.();
+          if (!res.ok) throw new Error("saved follow-up could not be loaded");
+          const json = (await res.json()) as { session: ResearchSession };
+          setFollowUps(json.session.followUps ?? []);
+          setError(null);
+        } catch {
+          setError(
+            "The follow-up completed and was saved, but this page could not reload it. Open the saved session to recover it safely.",
+          );
+        } finally {
+          setFollowupJobId(null);
+          setFollowUpLoading(false);
+          onToolCallComplete?.();
+        }
       })();
-    } else if (followupJob.stage === 'failed') {
-      setError(followupJob.errorMessage ?? 'Follow-up failed.');
+    } else if (followupJob.stage === "failed") {
+      setError(followupJob.errorMessage ?? "Follow-up failed.");
       setFollowupJobId(null);
       setFollowUpLoading(false);
       onToolCallComplete?.();
@@ -166,126 +196,153 @@ export function useResearchFlow(input: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [followupJob?.stage, sessionId]);
 
-  const handleQuerySubmit = useCallback(async (submittedQuery: string) => {
-    setQuery(submittedQuery);
-    setStage('planning');
-    setError(null);
-    try {
-      const res = await fetch(planUrl, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: submittedQuery }),
-      });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({})) as { error?: string };
-        setError(json.error ?? 'Could not generate research plan.');
-        setStage('query');
-        return;
-      }
-      const json = await res.json() as { plan: string; estimatedTime?: string; sessionId?: string };
-      setPlan(json.plan);
-      if (json.estimatedTime) setEstimatedTime(json.estimatedTime);
-      if (json.sessionId) setSessionId(json.sessionId);
-      setStage('plan_review');
-    } catch {
-      setError('Network error — please try again.');
-      setStage('query');
-    } finally {
-      onToolCallComplete?.();
-    }
-  }, [planUrl, onToolCallComplete]);
-
-  const handlePlanApprove = useCallback(async (editedPlan: string) => {
-    setStage('executing');
-    setError(null);
-    try {
-      const res = await fetch(executeUrl, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plan: editedPlan,
-          ...(standalone && sessionId ? { sessionId } : {}),
-        }),
-      });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({})) as { error?: string };
-        setError(json.error ?? 'Could not queue research execution.');
-        setStage('plan_review');
+  const handleQuerySubmit = useCallback(
+    async (submittedQuery: string) => {
+      setQuery(submittedQuery);
+      setStage("planning");
+      setError(null);
+      try {
+        const res = await fetch(planUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: submittedQuery }),
+        });
+        if (!res.ok) {
+          const json = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          setError(json.error ?? "Could not generate research plan.");
+          setStage("query");
+          return;
+        }
+        const json = (await res.json()) as {
+          plan: string;
+          estimatedTime?: string;
+          sessionId?: string;
+        };
+        setPlan(json.plan);
+        if (json.estimatedTime) setEstimatedTime(json.estimatedTime);
+        if (json.sessionId) setSessionId(json.sessionId);
+        setStage("plan_review");
+      } catch {
+        setError("Network error — please try again.");
+        setStage("query");
+      } finally {
         onToolCallComplete?.();
-        return;
       }
-      // 202 — queued. The Inngest worker takes over from here. The
-      // useToolJob effect above flips us to 'report' on completion
-      // (or back to plan_review with an error message on failure).
-      const json = await res.json() as { jobId: string; sessionId: string };
-      setSessionId(json.sessionId);
-      setExecuteJobId(json.jobId);
-      // Note: do NOT call onToolCallComplete here — the meter bumps on
-      // job completion via the effect above so the UsageMeter reflects
-      // actual quota consumption (the route enforced quota on accept,
-      // but the UX matches the perceived "work happened" moment).
-    } catch {
-      setError('Network error — please try again.');
-      setStage('plan_review');
-      onToolCallComplete?.();
-    }
-  }, [executeUrl, standalone, sessionId, onToolCallComplete]);
+    },
+    [planUrl, onToolCallComplete],
+  );
 
-  const handleFollowUp = useCallback(async (followQuery: string) => {
-    if (followUps.length >= FOLLOWUP_MAX_ROUNDS) return;
-    setFollowUpLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(followupUrl, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: followQuery,
-          ...(standalone && sessionId ? { sessionId } : {}),
-        }),
-      });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({})) as { error?: string };
-        setError(json.error ?? 'Could not queue follow-up.');
+  const handlePlanApprove = useCallback(
+    async (editedPlan: string) => {
+      setStage("executing");
+      setError(null);
+      try {
+        const res = await fetch(executeUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            plan: editedPlan,
+            ...(standalone && sessionId ? { sessionId } : {}),
+          }),
+        });
+        if (!res.ok) {
+          const json = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          setError(json.error ?? "Could not queue research execution.");
+          setStage("plan_review");
+          onToolCallComplete?.();
+          return;
+        }
+        // 202 — queued. The Inngest worker takes over from here. The
+        // useToolJob effect above flips us to 'report' on completion
+        // (or back to plan_review with an error message on failure).
+        const json = (await res.json()) as { jobId: string; sessionId: string };
+        setSessionId(json.sessionId);
+        setExecuteJobId(json.jobId);
+        // Note: do NOT call onToolCallComplete here — the meter bumps on
+        // job completion via the effect above so the UsageMeter reflects
+        // actual quota consumption (the route enforced quota on accept,
+        // but the UX matches the perceived "work happened" moment).
+      } catch {
+        setError("Network error — please try again.");
+        setStage("plan_review");
+        onToolCallComplete?.();
+      }
+    },
+    [executeUrl, standalone, sessionId, onToolCallComplete],
+  );
+
+  const handleFollowUp = useCallback(
+    async (followQuery: string) => {
+      if (followUps.length >= FOLLOWUP_MAX_ROUNDS) return;
+      setFollowUpLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(followupUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: followQuery,
+            ...(standalone && sessionId ? { sessionId } : {}),
+          }),
+        });
+        if (!res.ok) {
+          const json = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          setError(json.error ?? "Could not queue follow-up.");
+          setFollowUpLoading(false);
+          onToolCallComplete?.();
+          return;
+        }
+        // 202 — queued. The useToolJob effect above takes over from
+        // here, refreshing followUps when the job completes.
+        const json = (await res.json()) as { jobId: string; sessionId: string };
+        if (!sessionId) setSessionId(json.sessionId);
+        setFollowupJobId(json.jobId);
+      } catch {
+        setError("Network error — please try again.");
         setFollowUpLoading(false);
         onToolCallComplete?.();
-        return;
       }
-      // 202 — queued. The useToolJob effect above takes over from
-      // here, refreshing followUps when the job completes.
-      const json = await res.json() as { jobId: string; sessionId: string };
-      if (!sessionId) setSessionId(json.sessionId);
-      setFollowupJobId(json.jobId);
-    } catch {
-      setError('Network error — please try again.');
-      setFollowUpLoading(false);
-      onToolCallComplete?.();
-    }
-  }, [followupUrl, standalone, sessionId, followUps.length, onToolCallComplete]);
+    },
+    [followupUrl, standalone, sessionId, followUps.length, onToolCallComplete],
+  );
 
-  const handleLoadSession = useCallback(async (sid: string) => {
-    setError(null);
-    setFollowUpLoading(false);
-    try {
-      const res = await fetch(sessionUrl(sid));
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({})) as { error?: string };
-        setError(json.error ?? 'Could not load that research session.');
-        return;
+  const handleLoadSession = useCallback(
+    async (sid: string) => {
+      setError(null);
+      setFollowUpLoading(false);
+      try {
+        const res = await fetch(sessionUrl(sid));
+        if (!res.ok) {
+          const json = (await res.json().catch(() => ({}))) as {
+            error?: string;
+          };
+          setError(json.error ?? "Could not load that research session.");
+          return;
+        }
+        const json = (await res.json()) as { session: ResearchSession };
+        const s = json.session;
+        setSessionId(s.id);
+        setQuery(s.query);
+        setPlan(s.plan ?? "");
+        setReport(s.report ?? null);
+        setFollowUps(s.followUps ?? []);
+        // If the session has a report, jump to the report stage. If it
+        // was abandoned at plan review, drop the founder back there.
+        if (s.report) setStage("report");
+        else if (s.plan) setStage("plan_review");
+        else setStage("query");
+      } catch {
+        setError("Network error — please try again.");
       }
-      const json = await res.json() as { session: ResearchSession };
-      const s = json.session;
-      setSessionId(s.id);
-      setQuery(s.query);
-      setPlan(s.plan ?? '');
-      setReport(s.report ?? null);
-      setFollowUps(s.followUps ?? []);
-      // If the session has a report, jump to the report stage. If it
-      // was abandoned at plan review, drop the founder back there.
-      if (s.report)      setStage('report');
-      else if (s.plan)   setStage('plan_review');
-      else               setStage('query');
-    } catch {
-      setError('Network error — please try again.');
-    }
-  }, [roadmapId]); // eslint-disable-line react-hooks/exhaustive-deps
+    },
+    [sessionUrl],
+  );
 
   const handleRetryExecute = useCallback(() => {
     setExecuteJobId(null);
@@ -294,9 +351,9 @@ export function useResearchFlow(input: {
   }, [handlePlanApprove, plan]);
 
   const resetToQuery = useCallback(() => {
-    setStage('query');
-    setQuery('');
-    setPlan('');
+    setStage("query");
+    setQuery("");
+    setPlan("");
     setReport(null);
     setFollowUps([]);
     setSessionId(null);
@@ -304,11 +361,22 @@ export function useResearchFlow(input: {
   }, []);
 
   return {
-    stage, query, plan, estimatedTime, report, sessionId, followUps,
-    error, followUpLoading,
-    executeJob, followupJob,
-    handleQuerySubmit, handlePlanApprove, handleFollowUp,
+    stage,
+    query,
+    plan,
+    estimatedTime,
+    report,
+    sessionId,
+    followUps,
+    error,
+    followUpLoading,
+    executeJob,
+    followupJob,
+    handleQuerySubmit,
+    handlePlanApprove,
+    handleFollowUp,
     handleRetryExecute,
-    handleLoadSession, resetToQuery,
+    handleLoadSession,
+    resetToQuery,
   };
 }

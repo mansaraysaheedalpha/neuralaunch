@@ -1,42 +1,17 @@
-'use client';
-// src/app/(app)/discovery/roadmap/[id]/composer/ComposerMessageCard.tsx
-//
-// A single outreach message card. Renders body (or latest variation),
-// annotation, subject/placeholder header, sequence timing, and action
-// buttons: copy, regenerate (with remaining count), mark-as-sent toggle,
-// and the Coach handoff link when suggestedTool is present.
+"use client";
 
-import { useState, useCallback } from 'react';
-import { Copy, Check, RefreshCw, SendHorizonal, Link2 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import type { ComposerMessage } from '@/lib/roadmap/composer/schemas';
-import { MAX_REGENERATIONS_PER_MESSAGE } from '@/lib/roadmap/composer/constants';
+import { useCallback, useState } from "react";
+import { MAX_REGENERATIONS_PER_MESSAGE } from "@/lib/roadmap/composer/constants";
+import type { ComposerMessageCardProps } from "./composer-message-types";
+export type { ComposerMessageCardProps } from "./composer-message-types";
 
-export interface ComposerMessageCardProps {
-  message:      ComposerMessage;
-  roadmapId:    string;
-  taskId:       string;
-  /**
-   * When present, the "Prepare for this conversation →" link carries
-   * a Composer → Coach handoff (?fromComposer=<sessionId>&messageId=…)
-   * so the Coach lands pre-populated with recipient + goal + message
-   * body instead of empty. Task-launched callers that don't thread a
-   * sessionId keep the old plain link behaviour.
-   */
-  sessionId?:   string;
-  isSent:       boolean;
-  onMarkSent:   (id: string) => void;
-  onRegenerate: (id: string, instruction: string) => void;
-}
-
-/**
- * ComposerMessageCard
- *
- * Stateless-ish card for one generated outreach message. Copy, regenerate,
- * mark-sent and Coach-handoff actions are surfaced inline. The copy action
- * shows the latest variation body if variations exist.
- */
-const QUICK_PICKS = ['more casual', 'shorter', 'different opening hook', 'more direct', 'less salesy'];
+const QUICK_PICKS = [
+  "More casual",
+  "Shorter",
+  "Different opening",
+  "More direct",
+  "Less salesy",
+];
 
 export function ComposerMessageCard({
   message,
@@ -45,156 +20,172 @@ export function ComposerMessageCard({
   isSent,
   onMarkSent,
   onRegenerate,
+  isRecommended,
 }: ComposerMessageCardProps) {
   const [copied, setCopied] = useState(false);
   const [regenOpen, setRegenOpen] = useState(false);
-  const [regenDraft, setRegenDraft] = useState('');
+  const [instruction, setInstruction] = useState("");
   const variationsUsed = message.variations?.length ?? 0;
-  const canRegenerate  = variationsUsed < MAX_REGENERATIONS_PER_MESSAGE;
-  const remainingLabel = canRegenerate
-    ? `${MAX_REGENERATIONS_PER_MESSAGE - variationsUsed} left`
-    : 'No more';
+  const canRegenerate = variationsUsed < MAX_REGENERATIONS_PER_MESSAGE;
+  const latest = message.variations?.at(-1);
+  const body = latest?.body ?? message.body;
+  const subject = latest?.subject ?? message.subject;
 
-  const activeBody = message.variations?.length
-    ? message.variations[message.variations.length - 1].body
-    : message.body;
-
-  const activeSubject = message.variations?.length
-    ? (message.variations[message.variations.length - 1].subject ?? message.subject)
-    : message.subject;
-
-  const handleCopy = useCallback(async () => {
+  const copy = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(activeBody);
+      await navigator.clipboard.writeText(
+        subject ? `Subject: ${subject}\n\n${body}` : body,
+      );
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch { /* clipboard unavailable */ }
-  }, [activeBody]);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* Clipboard support is optional. */
+    }
+  }, [body, subject]);
+
+  function regenerate(request: string) {
+    if (!request.trim() || !canRegenerate) return;
+    onRegenerate(message.id, request.trim());
+    setInstruction("");
+    setRegenOpen(false);
+  }
 
   return (
-    <div className="rounded-lg border border-rule bg-bg flex flex-col gap-0 overflow-hidden">
-      {/* Header: subject (email) or placeholder (batch) */}
-      {(activeSubject ?? message.recipientPlaceholder) && (
-        <div className="px-3 py-2 border-b border-rule bg-bg-3/30">
-          {activeSubject && (
-            <p className="text-[11px] font-medium text-fg">
-              Subject: {activeSubject}
+    <article className="border border-rule-strong">
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-rule px-5 py-3">
+        <div>
+          {message.sendTiming && (
+            <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-accent">
+              {message.sendTiming}
             </p>
           )}
-          {message.recipientPlaceholder && !activeSubject && (
-            <p className="text-[11px] font-medium text-fg">
-              {message.recipientPlaceholder}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Send timing (sequence mode) */}
-      {message.sendTiming && (
-        <div className="px-3 py-1.5 bg-accent/5 border-b border-accent/10">
-          <p className="text-[10px] uppercase tracking-wider text-accent font-semibold">
-            {message.sendTiming}
+          <p className="font-serif text-[16px] italic text-fg">
+            {subject
+              ? `Subject · ${subject}`
+              : (message.recipientPlaceholder ?? "Ready to send")}
           </p>
-          {message.escalationNote && (
-            <p className="text-[10px] text-muted italic">{message.escalationNote}</p>
+        </div>
+        <div className="flex items-center gap-3 font-mono text-[8px] uppercase tracking-[0.14em]">
+          {isRecommended && (
+            <span className="text-accent">Recommended first</span>
           )}
+          <span className={isSent ? "text-accent" : "text-muted"}>
+            {isSent ? "● Sent" : "○ Draft"}
+          </span>
+        </div>
+      </header>
+      {message.personalisationHook && (
+        <div className="border-b border-rule bg-accent/[0.04] px-5 py-3 text-[12px] text-fg-2">
+          <span className="font-mono text-[8px] uppercase tracking-[0.14em] text-accent">
+            Personalise with
+          </span>
+          <span className="ml-3">{message.personalisationHook}</span>
         </div>
       )}
-
-      {/* Message body */}
-      <div className="px-3 py-3">
-        <p className="text-[11px] text-fg whitespace-pre-wrap leading-relaxed">{activeBody}</p>
-      </div>
-
-      {/* Annotation */}
-      <div className="px-3 pb-2">
-        <p className="text-[10px] text-muted italic border-t border-rule pt-2">
-          {message.annotation}
+      <div className="px-5 py-6">
+        <p className="whitespace-pre-wrap text-[14px] leading-[1.75] text-fg">
+          {body}
         </p>
       </div>
-
-      {/* Actions */}
-      <div className="px-3 pb-3 flex flex-wrap items-center gap-2">
+      <aside className="grid gap-2 border-t border-rule bg-bg-2 px-5 py-4 sm:grid-cols-[110px_1fr]">
+        <span className="font-mono text-[8px] uppercase tracking-[0.14em] text-muted">
+          Why it works
+        </span>
+        <p className="font-serif text-[14px] italic leading-relaxed text-fg-2">
+          {message.annotation}
+        </p>
+        {message.escalationNote && (
+          <>
+            <span className="font-mono text-[8px] uppercase tracking-[0.14em] text-muted">
+              Sequence logic
+            </span>
+            <p className="text-[12px] text-fg-2">{message.escalationNote}</p>
+          </>
+        )}
+      </aside>
+      {regenOpen && (
+        <div
+          id={`message-refinement-${message.id}`}
+          className="border-t border-rule px-5 py-4"
+        >
+          <div className="mb-3 flex flex-wrap gap-2">
+            {QUICK_PICKS.map((pick) => (
+              <button
+                key={pick}
+                type="button"
+                onClick={() => regenerate(pick)}
+                className="border border-rule px-2.5 py-1.5 font-mono text-[8px] uppercase tracking-[0.1em] text-muted hover:border-accent hover:text-accent"
+              >
+                {pick}
+              </button>
+            ))}
+          </div>
+          <div className="flex border border-rule focus-within:border-accent">
+            <label htmlFor={`message-angle-${message.id}`} className="sr-only">
+              Instructions for a new message angle
+            </label>
+            <input
+              id={`message-angle-${message.id}`}
+              value={instruction}
+              onChange={(event) => setInstruction(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") regenerate(instruction);
+              }}
+              placeholder="Describe another angle…"
+              className="min-w-0 flex-1 bg-transparent px-3 py-2 text-[12px] text-fg outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => regenerate(instruction)}
+              className="border-l border-rule px-3 font-mono text-[8px] uppercase text-accent"
+            >
+              Apply →
+            </button>
+          </div>
+        </div>
+      )}
+      <footer className="grid grid-cols-2 items-center gap-2 border-t border-rule px-5 py-3 font-mono text-[8px] uppercase tracking-[0.12em] sm:flex sm:flex-wrap">
         <button
           type="button"
-          onClick={() => { void handleCopy(); }}
-          className="flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-[11px] font-medium text-bg hover:opacity-90 transition-colors"
+          onClick={() => {
+            void copy();
+          }}
+          className="bg-accent px-3 py-2 text-bg"
+          aria-live="polite"
         >
-          {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-          {copied ? 'Copied' : 'Copy'}
+          {copied ? "Copied ✓" : "Copy message"}
         </button>
-
-        {!regenOpen ? (
-          <button
-            type="button"
-            onClick={() => setRegenOpen(true)}
-            disabled={!canRegenerate}
-            className="flex items-center gap-1 rounded-md border border-rule px-2.5 py-1 text-[11px] text-muted hover:text-fg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <RefreshCw className="size-3" />
-            Try a different angle ({remainingLabel})
-          </button>
-        ) : (
-          <div className="flex flex-col gap-1.5 w-full pt-1">
-            <div className="flex flex-wrap gap-1">
-              {QUICK_PICKS.map(pick => (
-                <button
-                  key={pick}
-                  type="button"
-                  onClick={() => { onRegenerate(message.id, pick); setRegenOpen(false); setRegenDraft(''); }}
-                  className="rounded-full px-2 py-0.5 text-[10px] border border-rule text-muted hover:text-fg hover:border-fg/30 transition-colors"
-                >
-                  {pick}
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-1.5">
-              <Input
-                value={regenDraft}
-                onChange={e => setRegenDraft(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && regenDraft.trim()) { onRegenerate(message.id, regenDraft.trim()); setRegenOpen(false); setRegenDraft(''); } }}
-                placeholder="Or type your own..."
-                className="flex-1 px-2 py-1 text-[10px]"
-              />
-              <button
-                type="button"
-                onClick={() => { setRegenOpen(false); setRegenDraft(''); }}
-                className="text-[10px] text-muted hover:text-fg"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
+        <button
+          type="button"
+          onClick={() => setRegenOpen((open) => !open)}
+          disabled={!canRegenerate}
+          aria-expanded={regenOpen}
+          aria-controls={`message-refinement-${message.id}`}
+          className="border border-rule px-3 py-2 text-fg hover:border-accent hover:text-accent disabled:opacity-35"
+        >
+          New angle · {MAX_REGENERATIONS_PER_MESSAGE - variationsUsed} left
+        </button>
         <button
           type="button"
           onClick={() => onMarkSent(message.id)}
-          className={[
-            'flex items-center gap-1 rounded-md border px-2.5 py-1 text-[11px] transition-colors',
-            isSent
-              ? 'border-success/40 bg-success/10 text-success'
-              : 'border-rule text-muted hover:text-fg',
-          ].join(' ')}
+          aria-pressed={isSent}
+          className={`border px-3 py-2 ${isSent ? "border-accent text-accent" : "border-rule text-fg"}`}
         >
-          <SendHorizonal className="size-3" />
-          {isSent ? 'Sent' : 'Mark as sent'}
+          {isSent ? "Marked sent" : "Mark as sent"}
         </button>
-
-        {message.suggestedTool === 'conversation_coach' && (
+        {message.suggestedTool === "conversation_coach" && (
           <a
             href={
               sessionId
                 ? `/tools/conversation-coach?fromComposer=${encodeURIComponent(sessionId)}&messageId=${encodeURIComponent(message.id)}&roadmapId=${encodeURIComponent(roadmapId)}`
-                : '/tools/conversation-coach'
+                : "/tools/conversation-coach"
             }
-            className="flex items-center gap-1 text-[11px] text-accent hover:underline"
+            className="ml-auto text-accent"
           >
-            <Link2 className="size-3" />
-            Prepare for this conversation →
+            Prepare conversation →
           </a>
         )}
-      </div>
-    </div>
+      </footer>
+    </article>
   );
 }

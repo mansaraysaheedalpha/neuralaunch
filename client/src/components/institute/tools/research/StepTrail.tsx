@@ -1,4 +1,4 @@
-'use client';
+"use client";
 // src/components/institute/tools/research/StepTrail.tsx
 //
 // The signature UX of the Research Tool — a live ~25-step trail that
@@ -18,21 +18,30 @@
 // naturally) without needing an effect that sets state. See
 // /tools/research/page.tsx for the wiring.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 
 export interface StepTrailProps {
-  query:    string;
+  query: string;
   /** When true, the trail freezes at the current step and shows "done". */
   complete: boolean;
   /** Approximate total step budget — drives the "/ ~25" denominator. */
-  budget?:  number;
+  budget?: number;
 }
 
-type Phase = 'plan' | 'web' | 'fetch' | 'extract' | 'verify' | 'gap' | 'caution' | 'score' | 'write';
+type Phase =
+  | "plan"
+  | "web"
+  | "fetch"
+  | "extract"
+  | "verify"
+  | "gap"
+  | "caution"
+  | "score"
+  | "write";
 
 interface RepStep {
-  label:  string;
-  phase:  Phase;
+  label: string;
+  phase: Phase;
   source?: string;
 }
 
@@ -45,41 +54,59 @@ interface RepStep {
  * indicator, not a research log.
  */
 const REP_STEPS: RepStep[] = [
-  { phase: 'plan',    label: 'Decompose query into sub-questions' },
-  { phase: 'plan',    label: 'Identify entities + geographic scope' },
-  { phase: 'web',     label: 'Search · primary sources',     source: 'multi-provider' },
-  { phase: 'web',     label: 'Search · industry references', source: 'multi-provider' },
-  { phase: 'fetch',   label: 'Read · authoritative documents' },
-  { phase: 'extract', label: 'Extract · entity boundaries' },
-  { phase: 'web',     label: 'Search · pricing benchmarks',  source: 'multi-provider' },
-  { phase: 'verify',  label: 'Cross-check · multi-source corroboration' },
-  { phase: 'web',     label: 'Search · regulatory disclaimers' },
-  { phase: 'fetch',   label: 'Read · primary regulation drafts' },
-  { phase: 'caution', label: 'Flag · draft-vs-final uncertainty' },
-  { phase: 'web',     label: 'Search · relevant act sections' },
-  { phase: 'fetch',   label: 'Read · cited section in full' },
-  { phase: 'verify',  label: 'Check · edge cases + exceptions' },
-  { phase: 'gap',     label: 'No authoritative ruling found · partial' },
-  { phase: 'web',     label: 'Search · competitor catalogue' },
-  { phase: 'extract', label: 'Extract · competitive offerings' },
-  { phase: 'verify',  label: 'Verify · contact info publicly available' },
-  { phase: 'fetch',   label: 'Read · trade-press coverage' },
-  { phase: 'extract', label: 'Extract · market signals + sentiment' },
-  { phase: 'caution', label: 'Note · coverage thin in target geography' },
-  { phase: 'score',   label: 'Assign · confidence labels (verified / likely / unverified)' },
-  { phase: 'score',   label: 'Score · roadmap connection strength' },
-  { phase: 'write',   label: 'Compose · synthesis + suggested next steps' },
-  { phase: 'write',   label: 'Emit · structured findings JSON' },
+  { phase: "plan", label: "Decompose query into sub-questions" },
+  { phase: "plan", label: "Identify entities + geographic scope" },
+  { phase: "web", label: "Search · primary sources", source: "multi-provider" },
+  {
+    phase: "web",
+    label: "Search · industry references",
+    source: "multi-provider",
+  },
+  { phase: "fetch", label: "Read · authoritative documents" },
+  { phase: "extract", label: "Extract · entity boundaries" },
+  {
+    phase: "web",
+    label: "Search · pricing benchmarks",
+    source: "multi-provider",
+  },
+  { phase: "verify", label: "Cross-check · multi-source corroboration" },
+  { phase: "web", label: "Search · regulatory disclaimers" },
+  { phase: "fetch", label: "Read · primary regulation drafts" },
+  { phase: "caution", label: "Flag · draft-vs-final uncertainty" },
+  { phase: "web", label: "Search · relevant act sections" },
+  { phase: "fetch", label: "Read · cited section in full" },
+  { phase: "verify", label: "Check · edge cases + exceptions" },
+  { phase: "gap", label: "No authoritative ruling found · partial" },
+  { phase: "web", label: "Search · competitor catalogue" },
+  { phase: "extract", label: "Extract · competitive offerings" },
+  { phase: "verify", label: "Verify · contact info publicly available" },
+  { phase: "fetch", label: "Read · trade-press coverage" },
+  { phase: "extract", label: "Extract · market signals + sentiment" },
+  { phase: "caution", label: "Note · coverage thin in target geography" },
+  {
+    phase: "score",
+    label: "Assign · confidence labels (verified / likely / unverified)",
+  },
+  { phase: "score", label: "Score · roadmap connection strength" },
+  { phase: "write", label: "Compose · synthesis + suggested next steps" },
+  { phase: "write", label: "Emit · structured findings JSON" },
 ];
 
 const PHASE_LABEL: Record<Phase, string> = {
-  plan: 'plan', web: 'web', fetch: 'fetch', extract: 'extract',
-  verify: 'verify', gap: 'gap', caution: 'caution', score: 'score', write: 'write',
+  plan: "plan",
+  web: "web",
+  fetch: "fetch",
+  extract: "extract",
+  verify: "verify",
+  gap: "gap",
+  caution: "caution",
+  score: "score",
+  write: "write",
 };
 
 /** Total animation duration target — matches the typical engine run. */
 const TARGET_MS = 90_000;
-const STEP_MS   = Math.floor(TARGET_MS / REP_STEPS.length);
+const STEP_MS = Math.floor(TARGET_MS / REP_STEPS.length);
 
 export function StepTrail({ query, complete, budget = 25 }: StepTrailProps) {
   const [activeIdx, setActiveIdx] = useState(0);
@@ -90,7 +117,9 @@ export function StepTrail({ query, complete, budget = 25 }: StepTrailProps) {
   // The ref is updated in an effect (not during render) so React's
   // strict-mode rules don't flag a render-phase mutation.
   const completeRef = useRef(complete);
-  useEffect(() => { completeRef.current = complete; }, [complete]);
+  useEffect(() => {
+    completeRef.current = complete;
+  }, [complete]);
 
   // Single timer subscription — set up once on mount. The callback
   // checks completeRef each tick: if complete flipped true, it
@@ -100,7 +129,7 @@ export function StepTrail({ query, complete, budget = 25 }: StepTrailProps) {
   // "subscribe for updates from some external system" exception).
   useEffect(() => {
     const id = setInterval(() => {
-      setActiveIdx(prev => {
+      setActiveIdx((prev) => {
         if (completeRef.current) {
           // Engine reported done — jump to the last step and let the
           // outer setInterval keep ticking; below we self-clear.
@@ -129,11 +158,18 @@ export function StepTrail({ query, complete, budget = 25 }: StepTrailProps) {
 
   // Header count — climbing during run, frozen at the displayed step
   // count once the engine reports complete.
-  const headerCount = complete ? visible.length : Math.min(visible.length, budget);
-  const headerSuffix = complete ? `${headerCount} steps · done` : `Step ${headerCount} / ~${budget}`;
+  const headerCount = complete
+    ? visible.length
+    : Math.min(visible.length, budget);
+  const headerSuffix = complete
+    ? `${headerCount} phases · done`
+    : `Estimated phase ${headerCount} / ~${budget}`;
 
   return (
     <div className="flex flex-col">
+      <p className="mb-3 border-l-2 border-accent bg-accent/[0.04] px-3 py-2 font-mono text-[8px] uppercase tracking-[0.12em] text-muted">
+        Estimated workflow · final findings come from the completed research job
+      </p>
       <div className="flex items-baseline justify-between gap-4 border-b border-rule pb-3.5">
         <p className="max-w-[80%] truncate font-serif italic text-[18px] leading-snug text-fg">
           {query}
@@ -146,17 +182,19 @@ export function StepTrail({ query, complete, budget = 25 }: StepTrailProps) {
       <ol className="flex flex-col" aria-live="polite">
         {visible.map((s, i) => {
           const isActive = !complete && i === activeIdx;
-          const isDone   = complete || i < activeIdx;
+          const isDone = complete || i < activeIdx;
           return (
             <li
               key={i}
               className="grid grid-cols-[24px_1fr_auto] items-baseline gap-3 border-b border-rule py-[11px] animate-in fade-in slide-in-from-bottom-1 duration-300"
             >
               <Glyph active={isActive} done={isDone} />
-              <span className={[
-                'text-[13.5px] leading-snug',
-                isDone ? 'text-fg' : 'text-fg-2',
-              ].join(' ')}>
+              <span
+                className={[
+                  "text-[13.5px] leading-snug",
+                  isDone ? "text-fg" : "text-fg-2",
+                ].join(" ")}
+              >
                 {s.label}
                 {s.source && (
                   <span className="ml-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
@@ -164,11 +202,17 @@ export function StepTrail({ query, complete, budget = 25 }: StepTrailProps) {
                   </span>
                 )}
               </span>
-              <span className={[
-                'font-mono text-[9px] uppercase tracking-[0.10em]',
-                isActive ? 'text-accent' : isDone ? 'text-muted' : 'text-muted-2',
-              ].join(' ')}>
-                {isDone && !isActive ? 'done' : PHASE_LABEL[s.phase]}
+              <span
+                className={[
+                  "font-mono text-[9px] uppercase tracking-[0.10em]",
+                  isActive
+                    ? "text-accent"
+                    : isDone
+                      ? "text-muted"
+                      : "text-muted-2",
+                ].join(" ")}
+              >
+                {isDone && !isActive ? "done" : PHASE_LABEL[s.phase]}
               </span>
             </li>
           );
@@ -184,14 +228,28 @@ function Glyph({ active, done }: { active: boolean; done: boolean }) {
       <span
         aria-hidden="true"
         className="inline-block font-mono text-[10px] text-accent"
-        style={{ animation: 'pulse 1.2s ease-in-out infinite' }}
+        style={{ animation: "pulse 1.2s ease-in-out infinite" }}
       >
         ◐
       </span>
     );
   }
   if (done) {
-    return <span aria-hidden="true" className="inline-block font-mono text-[10px] text-accent">●</span>;
+    return (
+      <span
+        aria-hidden="true"
+        className="inline-block font-mono text-[10px] text-accent"
+      >
+        ●
+      </span>
+    );
   }
-  return <span aria-hidden="true" className="inline-block font-mono text-[10px] text-muted-2">○</span>;
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-block font-mono text-[10px] text-muted-2"
+    >
+      ○
+    </span>
+  );
 }

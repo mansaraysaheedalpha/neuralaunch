@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NeuraLaunch — Stage V · Handoff</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0c; --bg-2:#111114; --bg-3:#16161a;
+    --fg:#f5f4f1; --fg-2:#c9c7c2; --muted:#7d7c78; --muted-2:#5e5d59;
+    --rule:rgba(255,255,255,.10); --rule-strong:rgba(255,255,255,.22);
+    --accent:#ff5a3c; --green:#34d399; --amber:#fbbf24;
+    --sans:"Inter Tight",system-ui,sans-serif;
+    --serif:"Instrument Serif","Times New Roman",serif;
+    --mono:"JetBrains Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--bg);color:var(--fg);min-height:100%;}
+  body{font-family:var(--sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;font-feature-settings:"ss01";}
+  ::selection{background:var(--accent);color:var(--bg);}
+  a,button{color:inherit;text-decoration:none;font:inherit;cursor:pointer;background:none;border:none;text-align:left;}
+
+  .bar{position:sticky;top:0;z-index:50;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:color-mix(in oklab,var(--bg) 90%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .bar .left{display:flex;gap:18px;align-items:center;}
+  .mark{width:14px;height:14px;border-radius:50%;background:var(--accent);position:relative;}
+  .mark::after{content:"";position:absolute;inset:4px;background:var(--bg);border-radius:50%;}
+  .bar .crumb .acc{color:var(--accent);}
+  .bar .right{display:flex;gap:18px;align-items:center;}
+  .bar .pill{padding:5px 10px;border:1px solid var(--rule-strong);}
+  .bar .pill.acc{color:var(--accent);border-color:var(--accent);}
+
+  /* Cover */
+  .cover{padding:80px 80px 60px;border-bottom:1px solid var(--rule);max-width:1320px;}
+  .cover .stamp{display:flex;gap:18px;font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:32px;}
+  .cover .stamp .dot{display:inline-flex;align-items:center;gap:7px;color:var(--green);}
+  .cover .stamp .dot::before{content:"";width:6px;height:6px;background:var(--green);border-radius:50%;}
+  .cover h1{font-family:var(--sans);font-weight:500;font-size:clamp(48px,7vw,116px);line-height:.94;letter-spacing:-.03em;}
+  .cover h1 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+
+  /* Cascade strip */
+  .cascade{padding:10px 18px;border-top:1px solid var(--amber);background:rgba(251,191,36,.05);font-family:var(--serif);font-style:italic;font-size:14px;color:var(--fg-2);max-width:1320px;display:none;}
+  .cascade.on{display:block;}
+  .cascade em{color:var(--amber);font-style:normal;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin-right:8px;}
+
+  /* Body */
+  .body{padding:80px;max-width:1320px;display:grid;grid-template-columns:1.4fr 1fr;gap:80px;}
+
+  /* Chosen — full memo */
+  .chosen .lab{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;}
+  .chosen .lab .acc{color:var(--accent);}
+  .chosen h2{font-family:var(--sans);font-weight:500;font-size:clamp(36px,4.4vw,60px);line-height:1.02;letter-spacing:-.025em;margin-bottom:24px;}
+  .chosen h2 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+  .chosen .pain{font-family:var(--serif);font-style:italic;font-size:18px;line-height:1.4;color:var(--fg-2);padding-left:18px;border-left:2px solid var(--accent);max-width:580px;margin-bottom:32px;}
+  .chosen .pain em{color:var(--fg);font-style:normal;font-family:var(--sans);font-weight:500;}
+
+  .dims{border-top:1px solid var(--rule);}
+  .dim{display:grid;grid-template-columns:160px 1fr;gap:24px;padding:20px 0;border-bottom:1px solid var(--rule);}
+  .dim .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .dim .k .r{font-family:var(--serif);font-style:italic;font-size:16px;color:var(--accent);letter-spacing:-.01em;text-transform:none;margin-right:6px;}
+  .dim .v{font-size:15.5px;color:var(--fg-2);line-height:1.55;}
+  .dim .v b{color:var(--fg);font-weight:500;}
+  .dim .v .acc{color:var(--accent);font-style:italic;font-family:var(--serif);font-size:16px;}
+
+  /* Reserves */
+  .reserves{padding-top:8px;}
+  .reserves .lab{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:18px;display:flex;justify-content:space-between;}
+  .reserves .lab .acc{color:var(--accent);}
+  .reserves h3{font-family:var(--serif);font-style:italic;font-weight:400;font-size:24px;line-height:1.2;letter-spacing:-.015em;margin-bottom:18px;}
+  .reserves h3 em{color:var(--accent);}
+  .reserves .list{display:grid;border-top:1px solid var(--rule);}
+  .reserve{padding:18px 0;border-bottom:1px solid var(--rule);display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:baseline;}
+  .reserve .n{font-family:var(--serif);font-style:italic;font-size:20px;color:var(--accent);letter-spacing:-.01em;line-height:1;}
+  .reserve .name{font-family:var(--serif);font-style:italic;font-size:18px;color:var(--fg);line-height:1.25;}
+  .reserve .name .src{display:block;margin-top:4px;font-family:var(--mono);font-style:normal;font-size:9px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;}
+  .reserve .strength{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;}
+  .reserve .strength.green{color:var(--green);}
+  .reserve .strength.amber{color:var(--amber);}
+  .reserves .note{margin-top:18px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--muted);line-height:1.6;}
+
+  /* Synthesis bar */
+  .synth-bar{padding:48px 80px;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);background:linear-gradient(180deg,rgba(255,90,60,.04),transparent);max-width:1320px;}
+  .synth-bar .lab{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:18px;}
+  .synth-bar h3{font-family:var(--sans);font-weight:500;font-size:clamp(32px,4vw,52px);line-height:1.02;letter-spacing:-.025em;margin-bottom:18px;max-width:920px;}
+  .synth-bar h3 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+  .synth-bar p{max-width:600px;font-size:16px;color:var(--fg-2);line-height:1.55;margin-bottom:28px;}
+  .synth-bar p strong{color:var(--fg);}
+  .synth-bar .actions{display:flex;gap:14px;align-items:center;flex-wrap:wrap;}
+  .synth-bar .actions .primary{padding:16px 24px;background:var(--accent);color:var(--bg);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:500;display:inline-flex;gap:12px;align-items:center;}
+  .synth-bar .actions .primary::after{content:"→";font-family:var(--sans);font-size:15px;}
+  .synth-bar .actions .ghost{padding:16px 22px;border:1px solid var(--rule-strong);color:var(--fg);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;}
+  .synth-bar .actions .ghost:hover{border-color:var(--accent);color:var(--accent);}
+  .synth-bar .meta{margin-top:18px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .synth-bar .meta .acc{color:var(--accent);}
+
+  /* In-flight overlay (synthesis running) */
+  .synth-overlay{position:fixed;inset:0;background:color-mix(in oklab,var(--bg) 96%,transparent);backdrop-filter:blur(6px);z-index:100;display:none;align-items:center;justify-content:center;padding:24px;}
+  .synth-overlay.on{display:flex;}
+  .synth-overlay .panel{max-width:520px;width:100%;border:1px solid var(--accent);padding:40px 44px;background:var(--bg-2);}
+  .synth-overlay .stamp{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:18px;display:flex;align-items:center;gap:8px;}
+  .synth-overlay .stamp::before{content:"";width:8px;height:8px;background:var(--accent);border-radius:50%;animation:pulse 1.4s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .synth-overlay h3{font-family:var(--sans);font-weight:500;font-size:32px;line-height:1.05;letter-spacing:-.025em;margin-bottom:14px;}
+  .synth-overlay h3 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+  .synth-overlay p{font-family:var(--serif);font-style:italic;font-size:17px;line-height:1.4;color:var(--fg-2);margin-bottom:26px;}
+  .synth-overlay .stages{display:grid;gap:10px;}
+  .synth-overlay .stages .s{display:flex;align-items:center;gap:14px;padding:10px 0;font-family:var(--mono);font-size:11.5px;letter-spacing:.04em;color:var(--muted);border-bottom:1px solid var(--rule);}
+  .synth-overlay .stages .s:last-child{border-bottom:none;}
+  .synth-overlay .stages .s .ic{width:14px;height:14px;border:1px solid var(--rule-strong);border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8px;}
+  .synth-overlay .stages .s.done{color:var(--fg);}
+  .synth-overlay .stages .s.done .ic{background:var(--accent);border-color:var(--accent);color:var(--bg);}
+  .synth-overlay .stages .s.done .ic::before{content:"✓";font-family:var(--sans);font-weight:700;}
+  .synth-overlay .stages .s.now{color:var(--accent);}
+  .synth-overlay .stages .s.now .ic{border-color:var(--accent);}
+  .synth-overlay .stages .s.now .ic::before{content:"";width:6px;height:6px;background:var(--accent);border-radius:50%;animation:pulse 1.2s infinite;}
+  .synth-overlay .stages .s .when{margin-left:auto;font-size:10px;color:var(--muted-2);letter-spacing:.04em;}
+
+  @media (max-width:1100px){
+    .cover{padding:48px 22px 36px;}
+    .body{padding:48px 22px;grid-template-columns:1fr;gap:40px;}
+    .synth-bar{padding:36px 22px;}
+    .dim{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="left">
+    <div class="mark"></div>
+    <span class="crumb"><span class="acc">No Idea</span> &nbsp;/&nbsp; Session 0501 &nbsp;/&nbsp; <span style="color:var(--fg);">Stage V · Handoff</span></span>
+  </div>
+  <div class="right">
+    <span class="pill acc">● Pre-synthesis review</span>
+    <a href="stage-4.html" style="color:var(--muted);">← Stage IV</a>
+  </div>
+</header>
+
+<section class="cover">
+  <div class="stamp">
+    <span>Stage <span style="color:var(--accent);">V</span> of V · Validation Handoff</span>
+    <span>Pre-synthesis review</span>
+    <span class="dot">Ready to commit</span>
+  </div>
+  <h1>One chosen.<br/><em>Four held.</em></h1>
+</section>
+
+<!-- Cascade strip -->
+<div class="cascade" id="cascade">
+  <em>Cascade</em>Stage 1, 2 or 3 changed since this was prepared — re-derive before committing.
+</div>
+
+<div class="body">
+
+  <!-- Chosen — main column -->
+  <main class="chosen">
+    <div class="lab"><span class="acc">Your chosen path</span> &nbsp;·&nbsp; Validation strength · ●●●● verified</div>
+    <h2>Maternal-care WhatsApp <em>advisory.</em></h2>
+    <p class="pain">A small paid line for <em>expecting and post-natal mothers</em> in Sierra Leone, run from your existing channel — to answer the small questions between visits, before they become the dangerous ones.</p>
+
+    <div class="dims">
+      <div class="dim">
+        <div class="k"><span class="r">i.</span>Pain it solves</div>
+        <div class="v">Mothers cannot reach an OB-GYN within a day's travel <span class="acc">and</span> have nowhere to ask small questions between visits. The small ones become the dangerous ones.</div>
+      </div>
+      <div class="dim">
+        <div class="k"><span class="r">ii.</span>Layer A signal</div>
+        <div class="v"><b>~4,800 expecting mothers / yr</b> in addressable area · <b>one direct competitor</b> (no WhatsApp-native) · <b>NLe 150–300 / consult</b> tolerable across 60% of segment · channel regulator-permitted with disclaimer.</div>
+      </div>
+      <div class="dim">
+        <div class="k"><span class="r">iii.</span>Layer B signal</div>
+        <div class="v"><b>8 of 10 contacts</b> said yes when asked to pay NLe 200 / month. <span class="acc">Strong verified.</span> Two of the yeses came with a price-shape suggestion (subscription, not per-consult).</div>
+      </div>
+      <div class="dim">
+        <div class="k"><span class="r">iv.</span>Fit to your outcome</div>
+        <div class="v"><b>Part-time, async-friendly, sub-NLe 5,000 capital.</b> Sits inside the Stage I envelope. Leans on your strong skills — sales, conversation, writing — and avoids the weak ones — code, legal, design.</div>
+      </div>
+      <div class="dim" style="border-bottom:none;">
+        <div class="k"><span class="r">v.</span>What synthesis produces</div>
+        <div class="v">A normal <b>Recommendation</b> row — phased roadmap, first three steps, risks, assumptions, what would make this wrong. Same shape as legacy Discovery. You can push back on any of it for ten rounds.</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Reserves — side column -->
+  <aside class="reserves">
+    <div class="lab"><span>Held for continuation · 4</span><span class="acc">Snapshotted</span></div>
+    <h3>The four <em>reserves.</em></h3>
+    <div class="list">
+      <div class="reserve">
+        <span class="n">ii.</span>
+        <span class="name">Post-natal small-question line.
+          <span class="src">From: nowhere to ask between visits</span>
+        </span>
+        <span class="strength green">●●●● Verified</span>
+      </div>
+      <div class="reserve">
+        <span class="n">iii.</span>
+        <span class="name">Lab result delivery service.
+          <span class="src">From: 2-week return on results</span>
+        </span>
+        <span class="strength amber">●●●○ Likely</span>
+      </div>
+      <div class="reserve">
+        <span class="n">iv.</span>
+        <span class="name">Antenatal scheduling concierge.
+          <span class="src">From: unreliable scheduling</span>
+        </span>
+        <span class="strength">●○○○ Contra.</span>
+      </div>
+      <div class="reserve" style="border-bottom:none;">
+        <span class="n">v.</span>
+        <span class="name">Daycare scheduling tool.
+          <span class="src">From: drop-off conflicts</span>
+        </span>
+        <span class="strength">○○○○ Not run</span>
+      </div>
+    </div>
+    <p class="note">Held in the continuation brief — surfaced as forks when Cycle I ends. Reserves do not run synthesis now; they wait.</p>
+  </aside>
+
+</div>
+
+<!-- Synthesis commit bar -->
+<section class="synth-bar">
+  <div class="lab">The moment</div>
+  <h3>Commit to synthesis.<br/><em>About 90 seconds.</em></h3>
+  <p>Opus reasons across everything you've committed — your outcome, your skill profile, the pain inventory, the chosen opportunity's Layer A and Layer B signals. Sonnet formats. The output is your first <strong>Recommendation</strong>.</p>
+  <div class="actions">
+    <button class="primary" id="commitBtn">Commit · run synthesis</button>
+    <a class="ghost" href="stage-4.html">← Edit verdicts</a>
+    <span style="font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);">Opus 4.6 · Sonnet bridge · resumable</span>
+  </div>
+</section>
+
+<!-- In-flight overlay -->
+<div class="synth-overlay" id="synthOverlay">
+  <div class="panel">
+    <div class="stamp">Synthesising · Stage V job · Opus 4.6 → Sonnet</div>
+    <h3>Reading you back to <em>yourself.</em></h3>
+    <p>One direction, for your specific situation — ready in about 90 seconds.</p>
+    <div class="stages">
+      <div class="s done" data-s="queued"><div class="ic"></div>Job queued<span class="when">2s</span></div>
+      <div class="s done" data-s="loading"><div class="ic"></div>Loading inputs · belief state + skill matrix<span class="when">8s</span></div>
+      <div class="s now" data-s="synth"><div class="ic"></div>Phase 1A · Opus reasoning<span class="when">~ 45s</span></div>
+      <div class="s" data-s="emit"><div class="ic"></div>Phase 1B · Sonnet emission<span class="when">~ 15s</span></div>
+      <div class="s" data-s="persist"><div class="ic"></div>Recommendation written<span class="when">~ 2s</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const overlay = document.getElementById('synthOverlay');
+  const stages = [...document.querySelectorAll('.synth-overlay .s')];
+
+  document.getElementById('commitBtn').addEventListener('click', () => {
+    overlay.classList.add('on');
+    // Walk through stages with realistic timings, then redirect to recommendation.html
+    let cur = 2; // start at synth (already 2 done)
+    const advance = () => {
+      if (cur > 0) stages[cur].classList.remove('now');
+      stages[cur].classList.add('done');
+      cur++;
+      if (cur < stages.length) {
+        stages[cur].classList.add('now');
+        const delay = cur === 3 ? 8000 : (cur === 4 ? 3000 : 1500);
+        setTimeout(advance, delay);
+      } else {
+        setTimeout(() => window.location.href = 'recommendation.html', 900);
+      }
+    };
+    setTimeout(advance, 4500);
+  });
+</script>
+
+</body>
+</html>

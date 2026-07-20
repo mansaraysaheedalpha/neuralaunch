@@ -1,4 +1,4 @@
-'use client';
+"use client";
 // src/app/(app)/tools/outreach-composer/ComposerHistoryPanel.tsx
 //
 // Recent-outreach sidebar for the standalone Composer page. Same
@@ -8,15 +8,15 @@
 // ?sessionId=. The messages were never deleted; they were just
 // unreachable.
 
-import useSWR from 'swr';
-import { Mail, History, Loader2 } from 'lucide-react';
-import type { ComposerSessionListRow } from '@/app/api/discovery/roadmaps/[id]/composer/sessions/route';
+import useSWR from "swr";
+import { Loader2 } from "lucide-react";
+import type { ComposerSessionListRow } from "@/app/api/discovery/roadmaps/[id]/composer/sessions/route";
 
 export interface ComposerHistoryPanelProps {
-  roadmapId:       string;
+  roadmapId: string;
   activeSessionId: string | null;
-  onSelect:        (sessionId: string) => void;
-  refreshKey?:     number;
+  onSelect: (sessionId: string) => void;
+  refreshKey?: number;
 }
 
 interface SessionsListResponse {
@@ -24,22 +24,22 @@ interface SessionsListResponse {
 }
 
 const fetcher = async (url: string): Promise<SessionsListResponse> => {
-  const res = await fetch(url, { credentials: 'same-origin' });
+  const res = await fetch(url, { credentials: "same-origin" });
   if (!res.ok) throw new Error(`sessions fetch failed: ${res.status}`);
   return (await res.json()) as SessionsListResponse;
 };
 
 function formatWhen(iso: string): string {
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
+  if (Number.isNaN(d.getTime())) return "";
   const diffMs = Date.now() - d.getTime();
   const diffMin = Math.floor(diffMs / 60_000);
-  if (diffMin < 1)  return 'just now';
+  if (diffMin < 1) return "just now";
   if (diffMin < 60) return `${diffMin} min ago`;
   const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24)  return `${diffHr} hr ago`;
+  if (diffHr < 24) return `${diffHr} hr ago`;
   const diffDay = Math.floor(diffHr / 24);
-  if (diffDay < 7)  return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`;
+  if (diffDay < 7) return `${diffDay} day${diffDay === 1 ? "" : "s"} ago`;
   return d.toLocaleDateString();
 }
 
@@ -50,24 +50,28 @@ export function ComposerHistoryPanel({
   refreshKey,
 }: ComposerHistoryPanelProps) {
   const { data, error, isLoading } = useSWR<SessionsListResponse, Error>(
-    `/api/discovery/roadmaps/${roadmapId}/composer/sessions?k=${refreshKey ?? ''}`,
+    `/api/discovery/roadmaps/${roadmapId}/composer/sessions?k=${refreshKey ?? ""}`,
     fetcher,
     { revalidateOnFocus: false, shouldRetryOnError: false },
   );
 
   if (isLoading) {
     return (
-      <div className="rounded-xl border border-rule bg-bg p-4 flex items-center gap-2">
+      <div className="flex items-center gap-2 border border-rule p-4">
         <Loader2 className="size-3.5 text-muted animate-spin" />
-        <span className="text-[11px] text-muted">Loading recent outreach…</span>
+        <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted">
+          Loading dispatch ledger…
+        </span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="rounded-xl border border-rule bg-bg p-4">
-        <p className="text-[11px] text-red-500">Could not load recent outreach.</p>
+      <div className="border border-rule p-4">
+        <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-accent">
+          Dispatch ledger unavailable
+        </p>
       </div>
     );
   }
@@ -76,38 +80,47 @@ export function ComposerHistoryPanel({
   if (rows.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-rule bg-bg overflow-hidden">
-      <div className="flex items-center gap-1.5 px-4 py-3 border-b border-rule bg-bg-3/30">
-        <History className="size-3.5 text-muted" />
-        <p className="text-xs font-semibold text-fg">Recent outreach</p>
-        <span className="text-[10px] text-muted ml-auto">{rows.length}</span>
+    <section className="border border-rule-strong">
+      <div className="flex items-center border-b border-rule px-4 py-3 font-mono text-[9px] uppercase tracking-[0.16em] text-muted">
+        <p>Dispatch ledger</p>
+        <span className="ml-auto text-accent">{rows.length} saved</span>
       </div>
 
-      <ul className="divide-y divide-border">
-        {rows.map(row => {
+      <ul>
+        {rows.map((row) => {
           const isActive = row.id === activeSessionId;
           return (
             <li key={row.id}>
               <button
                 type="button"
                 onClick={() => onSelect(row.id)}
-                className={`w-full text-left px-4 py-3 flex flex-col gap-1 transition-colors ${
-                  isActive ? 'bg-accent/5' : 'hover:bg-bg-3/40'
+                aria-current={isActive ? "true" : undefined}
+                aria-label={`${isActive ? "Current outreach" : "Open outreach"}: ${row.targetDescription || `${row.channel} ${row.mode}`}`}
+                className={`flex w-full flex-col gap-2 border-b border-rule px-4 py-3 text-left last:border-b-0 ${
+                  isActive ? "bg-accent/[0.06]" : "hover:bg-bg-2"
                 }`}
               >
-                <div className="flex items-start gap-2">
-                  <Mail className={`size-3 shrink-0 mt-0.5 ${row.hasOutput ? 'text-accent' : 'text-muted'}`} />
-                  <p className="text-[11px] font-medium text-fg line-clamp-2 flex-1">
+                <div className="flex items-start gap-3">
+                  <span
+                    aria-hidden="true"
+                    className={`font-mono text-[9px] ${row.hasOutput ? "text-accent" : "text-muted"}`}
+                  >
+                    {isActive ? "●" : "○"}
+                  </span>
+                  <p className="line-clamp-2 flex-1 font-serif text-[15px] italic leading-snug text-fg">
                     {row.targetDescription || `(${row.channel} · ${row.mode})`}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 text-[10px] text-muted pl-5">
+                <div className="flex items-center gap-2 pl-6 font-mono text-[8px] uppercase tracking-[0.1em] text-muted">
                   <span>{formatWhen(row.updatedAt)}</span>
-                  <span>• {row.channel}</span>
+                  <span>· {row.channel}</span>
                   {row.hasOutput ? (
-                    <span>• {row.messageCount} msg{row.messageCount === 1 ? '' : 's'}</span>
+                    <span>
+                      · {row.messageCount} msg
+                      {row.messageCount === 1 ? "" : "s"}
+                    </span>
                   ) : (
-                    <span>• draft</span>
+                    <span>· draft</span>
                   )}
                 </div>
               </button>
@@ -115,6 +128,6 @@ export function ComposerHistoryPanel({
           );
         })}
       </ul>
-    </div>
+    </section>
   );
 }

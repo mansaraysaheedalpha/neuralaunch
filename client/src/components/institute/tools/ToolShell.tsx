@@ -1,4 +1,4 @@
-'use client';
+"use client";
 // src/components/institute/tools/ToolShell.tsx
 //
 // Shared Institute chrome for every tool page (/tools/*). Renders the
@@ -14,12 +14,12 @@
 // would need a dedicated GET endpoint; this PR keeps the strip light
 // (short task id only) and flags the fuller resolution for later.
 
-import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import type { ReactNode } from 'react';
-import { TopBar, Pill, type BreadcrumbItem } from '@/components/institute';
-import { TaskContextStrip } from './TaskContextStrip';
-import { ToolHeader, type ToolHeaderProps } from './ToolHeader';
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import type { ReactNode } from "react";
+import { TopBar, Pill, type BreadcrumbItem } from "@/components/institute";
+import { TaskContextStrip } from "./TaskContextStrip";
+import { ToolHeader, type ToolHeaderProps } from "./ToolHeader";
 
 export interface ToolShellProps extends ToolHeaderProps {
   /**
@@ -62,11 +62,11 @@ export function ToolShell({
   // PR 16 added the optional &roadmap= param so the task strip's back
   // link can route to the precise roadmap rather than the index.
   const params = useSearchParams();
-  const taskId     = params.get('task');
-  const roadmapId  = params.get('roadmap');
+  const taskId = params.get("task");
+  const roadmapId = params.get("roadmap");
 
   const crumb: BreadcrumbItem[] = [
-    ...(crumbHead ?? [{ label: 'Tools', accent: true, href: '/tools' }]),
+    ...(crumbHead ?? [{ label: "Tools", accent: true, href: "/tools" }]),
     { label: toolName, current: true },
   ];
 
@@ -80,14 +80,20 @@ export function ToolShell({
   );
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="tool-a11y flex h-full flex-col">
+      <a
+        href="#tool-workspace"
+        className="sr-only z-50 bg-accent px-4 py-3 text-bg focus:not-sr-only focus:absolute focus:left-3 focus:top-3"
+      >
+        Skip to tool workspace
+      </a>
       <TopBar
         crumb={crumb}
         rightStatus={<Pill accent>{model}</Pill>}
         rightActions={rightActions}
       />
 
-      <div className="flex-1 overflow-y-auto">
+      <main id="tool-workspace" className="flex-1 overflow-y-auto">
         <ToolHeader
           roman={roman}
           name={toolName}
@@ -99,10 +105,12 @@ export function ToolShell({
 
         {taskId && <TaskContextStrip taskId={taskId} roadmapId={roadmapId} />}
 
-        {flush
-          ? <>{children}</>
-          : <div className="px-6 pb-20 pt-8 sm:px-12 lg:px-16">{children}</div>}
-      </div>
+        {flush ? (
+          <>{children}</>
+        ) : (
+          <div className="px-6 pb-20 pt-8 sm:px-12 lg:px-16">{children}</div>
+        )}
+      </main>
     </div>
   );
 }

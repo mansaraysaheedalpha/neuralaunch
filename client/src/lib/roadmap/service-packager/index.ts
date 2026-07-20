@@ -8,7 +8,7 @@ export {
   MAX_ADJUSTMENT_ROUNDS,
   CONTEXT_MAX_EXCHANGES,
   type PackagerBriefFormat,
-} from './constants';
+} from "./constants";
 
 export {
   ServiceContextSchema,
@@ -20,26 +20,33 @@ export {
   type ServicePackage,
   type PackagerAdjustment,
   type PackagerSession,
-} from './schemas';
+} from "./schemas";
+
+export { GeneratedServicePackageSchema } from "./generated-package-schema";
+export {
+  PackageDecisionSchema,
+  validatePackageDecision,
+  type PackageDecision,
+} from "./package-decision-schema";
 
 export {
   runPackagerContext,
   type RunPackagerContextInput,
   type ContextResponse,
-} from './context-engine';
+} from "./context-engine";
 
 export {
   runPackagerGeneration,
   type RunPackagerGenerationInput,
-} from './generation-engine';
+} from "./generation-engine";
 
 export {
   runPackagerAdjustment,
   type RunPackagerAdjustmentInput,
-} from './adjustment-engine';
+} from "./adjustment-engine";
 
 export {
   digestResearchSessionForPackager,
   buildPrePopulatedContextFromTask,
   buildPrePopulatedContextStandalone,
-} from './context-helpers';
+} from "./context-helpers";

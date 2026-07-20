@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NeuraLaunch — Recommendation No. 0427</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --bg-2: #111114;
+    --bg-3: #16161a;
+    --bg-4: #1c1c20;
+    --fg: #f5f4f1;
+    --fg-2: #c9c7c2;
+    --muted: #7d7c78;
+    --muted-2: #5e5d59;
+    --rule: rgba(255,255,255,.10);
+    --rule-strong: rgba(255,255,255,.22);
+    --accent: #ff5a3c;
+    --green: #34d399;
+    --amber: #fbbf24;
+    --sans: "Inter Tight", system-ui, sans-serif;
+    --serif: "Instrument Serif", "Times New Roman", serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--fg); height: 100%; }
+  body {
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "ss01";
+  }
+  ::selection { background: var(--accent); color: var(--bg); }
+  a, button { color: inherit; text-decoration: none; font: inherit; cursor: pointer; background: none; border: none; text-align: left; }
+
+  /* ---------- Top bar ---------- */
+  .bar {
+    position: sticky; top: 0; z-index: 50;
+    height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 36px;
+    background: color-mix(in oklab, var(--bg) 90%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+  }
+  .bar .left { display: flex; gap: 18px; align-items: center; }
+  .mark { width: 16px; height: 16px; border-radius: 50%; background: var(--accent); position: relative; }
+  .mark::after { content: ""; position: absolute; inset: 4px; background: var(--bg); border-radius: 50%; }
+  .bar .crumb .acc { color: var(--accent); }
+  .bar .right { display: flex; gap: 22px; align-items: center; }
+  .bar a:hover { color: var(--fg); }
+  .bar .pill {
+    padding: 5px 10px;
+    border: 1px solid var(--rule-strong);
+  }
+  .bar .pill.acc { color: var(--accent); border-color: var(--accent); }
+
+  /* ---------- Page layout ---------- */
+  .page {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    min-height: calc(100vh - 56px);
+  }
+  .content {
+    border-right: 1px solid var(--rule);
+    padding: 64px 80px 120px;
+    max-width: 980px;
+  }
+  .rail {
+    background: var(--bg-2);
+    position: sticky; top: 56px;
+    height: calc(100vh - 56px);
+    display: grid; grid-template-rows: auto 1fr auto;
+    overflow: hidden;
+  }
+
+  /* ---------- Reveal — the headline ---------- */
+  .reveal {
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 56px;
+    margin-bottom: 56px;
+    position: relative;
+  }
+  .reveal .stamp {
+    display: flex; gap: 16px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted);
+    margin-bottom: 32px;
+  }
+  .reveal .stamp .acc { color: var(--accent); }
+  .reveal .stamp .dot {
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .reveal .stamp .dot::before {
+    content: ""; width: 6px; height: 6px; background: var(--green); border-radius: 50%;
+  }
+  .reveal h1 {
+    font-family: var(--sans);
+    font-weight: 500;
+    font-size: clamp(40px, 5.6vw, 76px);
+    line-height: 1;
+    letter-spacing: -.025em;
+    margin-bottom: 30px;
+  }
+  .reveal h1 em {
+    font-family: var(--serif);
+    font-style: italic;
+    font-weight: 400;
+    color: var(--accent);
+  }
+  .reveal .reflection {
+    columns: 2;
+    column-gap: 40px;
+    column-rule: 1px solid var(--rule);
+    max-width: 800px;
+    color: var(--fg-2);
+    font-size: 17px;
+    line-height: 1.6;
+  }
+  .reveal .reflection p + p { margin-top: 12px; }
+  .reveal .reflection p::first-letter {
+    font-family: var(--serif); font-size: 1.4em;
+  }
+  .reveal .reflection strong { color: var(--fg); font-weight: 500; }
+  .reveal .conf {
+    position: absolute; top: 0; right: 0;
+    text-align: right;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+  }
+  .reveal .conf .v {
+    font-family: var(--serif); font-size: 32px; font-style: italic; color: var(--accent);
+    letter-spacing: -.01em; display: block; margin-top: 4px;
+  }
+
+  /* ---------- Anatomy sections ---------- */
+  section.field {
+    padding: 36px 0;
+    border-top: 1px solid var(--rule);
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 56px;
+  }
+  section.field:first-of-type { border-top: none; padding-top: 0; }
+  section.field .lab {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  section.field .lab .num {
+    display: block; color: var(--accent); margin-bottom: 6px;
+    font-family: var(--serif); font-style: italic; font-size: 24px; letter-spacing: -.01em;
+  }
+  section.field h2 {
+    font-family: var(--serif); font-style: italic; font-weight: 400;
+    font-size: 30px; line-height: 1.1; letter-spacing: -.015em;
+    color: var(--fg);
+    margin-bottom: 18px;
+  }
+  section.field p, section.field li { font-size: 16px; line-height: 1.6; color: var(--fg-2); }
+  section.field p + p { margin-top: 12px; }
+  section.field p strong { color: var(--fg); font-weight: 500; }
+
+  /* numbered steps */
+  ol.steps { list-style: none; counter-reset: step; }
+  ol.steps li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 60px;
+    padding-bottom: 22px;
+    border-bottom: 1px dashed var(--rule);
+    margin-bottom: 22px;
+  }
+  ol.steps li:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+  ol.steps li::before {
+    content: counter(step, upper-roman) ".";
+    position: absolute; left: 0; top: -2px;
+    font-family: var(--serif); font-style: italic; color: var(--accent);
+    font-size: 28px; line-height: 1; letter-spacing: -.01em;
+  }
+  ol.steps li b { color: var(--fg); font-weight: 500; }
+  ol.steps li .meta {
+    margin-top: 6px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .04em; color: var(--muted);
+  }
+  ol.steps li .meta .acc { color: var(--accent); }
+
+  /* assumptions — each flaggable */
+  .assumption {
+    border: 1px solid var(--rule);
+    padding: 18px 22px;
+    margin-bottom: 12px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 18px;
+    align-items: center;
+    transition: border-color .25s;
+  }
+  .assumption:hover { border-color: var(--rule-strong); }
+  .assumption.flagged { border-color: var(--accent); background: rgba(255,90,60,.05); }
+  .assumption .text { font-size: 15.5px; color: var(--fg-2); }
+  .assumption .text b { color: var(--fg); font-weight: 500; }
+  .assumption .flag {
+    display: inline-flex; gap: 8px; align-items: center;
+    padding: 8px 12px;
+    border: 1px solid var(--rule-strong);
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .assumption .flag:hover { color: var(--accent); border-color: var(--accent); }
+  .assumption.flagged .flag { color: var(--accent); border-color: var(--accent); background: rgba(255,90,60,.10); }
+  .assumption .delta {
+    grid-column: 1 / -1;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--rule);
+    font-size: 14.5px;
+    color: var(--fg-2);
+    line-height: 1.55;
+    display: none;
+  }
+  .assumption.flagged .delta { display: block; }
+  .assumption .delta b { color: var(--accent); font-weight: 500; }
+
+  /* risks — small ledger */
+  .risks { display: grid; gap: 0; border: 1px solid var(--rule); }
+  .risk {
+    display: grid; grid-template-columns: 80px 1fr 100px;
+    align-items: baseline;
+    gap: 20px;
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .risk:last-child { border-bottom: none; }
+  .risk .sev {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+  }
+  .risk .sev.high { color: var(--accent); }
+  .risk .sev.med { color: var(--amber); }
+  .risk .sev.low { color: var(--muted); }
+  .risk .desc { font-size: 14.5px; color: var(--fg-2); line-height: 1.55; }
+  .risk .desc b { color: var(--fg); font-weight: 500; }
+  .risk .when { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: right; }
+
+  /* rejected alternatives */
+  .alt {
+    padding: 22px 26px;
+    border: 1px solid var(--rule);
+    margin-bottom: 12px;
+    position: relative;
+  }
+  .alt::before {
+    content: "✕";
+    position: absolute; top: 22px; right: 26px;
+    font-family: var(--serif); color: var(--muted); font-size: 24px;
+  }
+  .alt h4 {
+    font-family: var(--serif); font-weight: 400; font-size: 22px; letter-spacing: -.01em;
+    color: var(--fg-2);
+    text-decoration: line-through;
+    text-decoration-color: var(--muted-2);
+    margin-bottom: 8px;
+  }
+  .alt p { font-size: 14.5px; color: var(--fg-2); line-height: 1.55; max-width: 540px; }
+  .alt p .acc { color: var(--accent); }
+
+  /* wrong condition — boxed */
+  .wrong {
+    padding: 22px 26px;
+    border-left: 2px solid var(--accent);
+    background: rgba(255,90,60,.06);
+  }
+  .wrong p { color: var(--fg); font-size: 16px; }
+  .wrong p b { color: var(--accent); font-weight: 500; }
+
+  /* ---------- Accept bar ---------- */
+  .accept-bar {
+    margin-top: 56px;
+    border: 1px solid var(--accent);
+    background: linear-gradient(180deg, rgba(255,90,60,.10), rgba(255,90,60,.02));
+    padding: 22px 28px;
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 18px; flex-wrap: wrap;
+  }
+  .accept-bar .left h3 {
+    font-family: var(--sans); font-weight: 500; font-size: 22px; letter-spacing: -.01em;
+  }
+  .accept-bar .left p {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .accept-bar .actions { display: flex; gap: 12px; align-items: center; }
+  .accept-bar .btn {
+    display: inline-flex; gap: 12px; align-items: center;
+    padding: 14px 22px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+    font-weight: 500;
+  }
+  .accept-bar .btn.primary { background: var(--accent); color: var(--bg); }
+  .accept-bar .btn.primary::after { content: "→"; font-family: var(--sans); font-size: 14px; }
+  .accept-bar .btn.ghost { border: 1px solid var(--rule-strong); color: var(--fg); }
+  .accept-bar .btn.ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ---------- Pushback rail ---------- */
+  .rail .r-head {
+    padding: 22px 26px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .rail .r-head .t {
+    display: flex; justify-content: space-between;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+  }
+  .rail .r-head .t .acc { color: var(--accent); }
+  .rail .r-head h3 {
+    margin-top: 8px;
+    font-family: var(--serif); font-weight: 400; font-size: 28px; letter-spacing: -.015em;
+  }
+  .rail .r-head h3 em { font-style: italic; color: var(--accent); }
+  .rail .r-head .rounds {
+    margin-top: 14px;
+    display: flex; gap: 4px; align-items: center;
+  }
+  .rail .r-head .rounds .pip {
+    width: 16px; height: 4px; background: var(--rule);
+  }
+  .rail .r-head .rounds .pip.used { background: var(--accent); }
+  .rail .r-head .rounds .lab {
+    margin-left: 10px;
+    font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: .04em;
+  }
+
+  .rail .r-body {
+    padding: 20px 26px;
+    overflow-y: auto;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .rail .r-body::-webkit-scrollbar { width: 6px; }
+  .rail .r-body::-webkit-scrollbar-thumb { background: var(--rule); }
+  .turn {
+    font-size: 14px; line-height: 1.55;
+    color: var(--fg-2);
+  }
+  .turn .who {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted-2);
+    margin-bottom: 6px;
+  }
+  .turn.you .who { color: var(--accent); }
+  .turn .what { padding: 10px 14px; background: var(--bg-3); border-left: 2px solid var(--rule); }
+  .turn.you .what { border-left-color: var(--accent); background: rgba(255,90,60,.06); }
+  .turn .mode-tag {
+    display: inline-block;
+    font-family: var(--mono); font-size: 9px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted-2);
+    margin-top: 6px;
+  }
+  .turn .mode-tag b { color: var(--accent); font-weight: 500; }
+
+  .rail .r-foot {
+    border-top: 1px solid var(--rule);
+    padding: 18px 26px 22px;
+    display: grid; gap: 12px;
+  }
+  .rail .r-foot .lab {
+    display: flex; justify-content: space-between;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+  }
+  .rail .r-foot textarea {
+    width: 100%;
+    background: var(--bg-3);
+    border: 1px solid var(--rule);
+    padding: 12px 14px;
+    font: inherit; color: var(--fg);
+    font-size: 14.5px; line-height: 1.5;
+    min-height: 80px;
+    outline: none; resize: vertical;
+  }
+  .rail .r-foot textarea:focus { border-color: var(--accent); }
+  .rail .r-foot textarea::placeholder { color: var(--muted-2); }
+  .rail .r-foot .actions { display: flex; justify-content: space-between; align-items: center; }
+  .rail .r-foot .actions .hint {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em; color: var(--muted); text-transform: uppercase;
+  }
+  .rail .r-foot .actions button.send {
+    background: var(--accent); color: var(--bg);
+    padding: 9px 14px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; font-weight: 500;
+    display: inline-flex; gap: 8px;
+  }
+  .rail .r-foot .actions button.send::after { content: "↑"; }
+
+  @media (max-width: 1100px) {
+    .page { grid-template-columns: 1fr; }
+    .rail { position: relative; height: auto; top: auto; border-top: 1px solid var(--rule); }
+    .content { padding: 36px 24px 60px; border-right: none; }
+    section.field { grid-template-columns: 1fr; gap: 16px; }
+    .reveal .reflection { columns: 1; column-rule: none; }
+    .reveal .conf { position: relative; top: auto; right: auto; text-align: left; margin-top: 18px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="left">
+    <div class="mark" aria-hidden="true"></div>
+    <span class="crumb"><span class="acc">Discovery</span> &nbsp;/&nbsp; Session 0427 &nbsp;/&nbsp; <span style="color:var(--fg);">Recommendation</span></span>
+  </div>
+  <div class="right">
+    <span class="pill acc">● Synthesised · Opus 4.6</span>
+    <span>11 turns · 14 q's</span>
+    <a href="archetype.html">← Sessions</a>
+  </div>
+</header>
+
+<div class="page">
+
+  <main class="content">
+
+    <!-- ============================================================
+         REVEAL
+         ============================================================ -->
+    <section class="reveal">
+      <div class="stamp">
+        <span>Recommendation No. <span class="acc">0427</span></span>
+        <span>Cycle I · Path I (No Idea)</span>
+        <span class="dot">Ready</span>
+      </div>
+
+      <h1>
+        Spend the next three weeks proving demand for the maternal-care advisory line.
+        <em>Not building the app.</em>
+      </h1>
+
+      <div class="conf">
+        <span>Confidence</span>
+        <span class="v">High</span>
+      </div>
+
+      <div class="reflection">
+        <p>You came in with an app idea and a stalled clinic. Eleven turns
+          in, the picture that emerged is different — and clearer.
+          <strong>You have a clinical network, a real WhatsApp following,
+          and a shortage of hours.</strong> The app eats two hundred hours
+          before anyone says yes.</p>
+        <p>A three-week paid advisory pilot, run from your existing
+          channel, will tell you within thirty days whether to build at
+          all — and at what price. The build question becomes answerable.
+          You will not be guessing anymore.</p>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         WHY THIS, FOR YOU
+         ============================================================ -->
+    <section class="field">
+      <div class="lab"><span class="num">I.</span>Reasoning</div>
+      <div>
+        <h2>Why this — <em>for you</em> — and not anyone with the same idea.</h2>
+        <p>You have the rarest input the app concept needs: <strong>warm,
+          local clinical authority</strong> in a market where that is
+          scarce. Most people pitching maternal-care apps in Sierra
+          Leone have neither the credentialing nor the existing audience.
+          You have both.</p>
+        <p>What you do not have is two hundred unfunded engineering
+          hours. The roadmap you came in expecting — design, build,
+          launch — assumes time you have repeatedly told us you do not
+          have. <strong>Eight hours a week, for six months, fits an
+          advisory pilot. It does not fit an app build.</strong></p>
+        <p>The pilot also creates the input the app would need anyway.
+          Real customers, at real prices, saying real things. That data
+          is what makes a future build de-risked. Skipping it makes the
+          build a bet.</p>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         FIRST THREE STEPS
+         ============================================================ -->
+    <section class="field">
+      <div class="lab"><span class="num">II.</span>First three steps</div>
+      <div>
+        <h2>Where you'll be by <em>Friday week.</em></h2>
+        <ol class="steps">
+          <li>
+            <b>Frame the pilot as a 30-day paid advisory line.</b>
+            One page: who it's for, what they get, what it costs. Not a
+            website — a WhatsApp-broadcast-able pitch.
+            <div class="meta">Est. <span class="acc">2 hours</span> · uses Service Packager</div>
+          </li>
+          <li>
+            <b>Recruit ten existing followers at NLe 200 / month.</b>
+            From your existing list. Not strangers. Use the Conversation
+            Coach to rehearse the recruit message before you send it.
+            <div class="meta">Est. <span class="acc">4 hours over 1 week</span> · uses Outreach Composer · Conversation Coach</div>
+          </li>
+          <li>
+            <b>Run the first paid consultations via WhatsApp Business.</b>
+            Booked, paid, delivered. Capture what they asked, what they
+            paid for, what they actually wanted.
+            <div class="meta">Est. <span class="acc">6 hours / week × 3</span> · check-ins after each</div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         TIME TO RESULT
+         ============================================================ -->
+    <section class="field">
+      <div class="lab"><span class="num">III.</span>Time to first result</div>
+      <div>
+        <h2><em>Fourteen days</em> — first paid consultation booked.</h2>
+        <p>Sized against the eight weekly hours you stated. If a follower
+          says yes within the first batch of ten outreach messages —
+          which the prior is high enough to expect — the booking is live
+          inside two weeks. If they don't, you know inside two weeks.
+          Either result is useful.</p>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         ASSUMPTIONS — interactive
+         ============================================================ -->
+    <section class="field">
+      <div class="lab"><span class="num">IV.</span>Assumptions</div>
+      <div>
+        <p style="margin-bottom: 22px; color: var(--fg-2);">Three assumptions this recommendation rests on. <strong>Flag any one</strong> to see how the recommendation changes if it turns out to be false.</p>
+
+        <div class="assumption" data-flag>
+          <div class="text">Your existing WhatsApp following includes at least <b>thirty active mothers or expecting mothers</b> who would consider paying for advisory.</div>
+          <button class="flag">⚐ Flag</button>
+          <div class="delta">
+            <b>If false:</b> The recruitment phase becomes the work — we'd reframe Phase 1 around audience-building (referral-driven) before pricing. Time to first paid consult moves from 14 days to ~28.
+          </div>
+        </div>
+
+        <div class="assumption" data-flag>
+          <div class="text">You can <b>run consultations from WhatsApp Business</b> without violating clinical regulations in Sierra Leone.</div>
+          <button class="flag">⚐ Flag</button>
+          <div class="delta">
+            <b>If false:</b> We'd pivot the channel to a regulated tele-health partner (Aspen, mPharma) and use the pilot to validate price, not channel. Build the partner conversation in front of the customer one.
+          </div>
+        </div>
+
+        <div class="assumption" data-flag>
+          <div class="text">The audience values <b>availability and warmth</b> over clinical depth at this price point.</div>
+          <button class="flag">⚐ Flag</button>
+          <div class="delta">
+            <b>If false:</b> The price drops to NLe 100 and the offer becomes triage-with-escalation, not advisory. Different positioning entirely — closer to a free-tier with paid escalation.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         RISKS
+         ============================================================ -->
+    <section class="field">
+      <div class="lab"><span class="num">V.</span>Risks</div>
+      <div>
+        <div class="risks">
+          <div class="risk">
+            <span class="sev high">● High</span>
+            <span class="desc"><b>Audience cold to paid offers.</b> The current following may consume free content but balk at paying for advisory. The pilot is structured to surface this inside the first week.</span>
+            <span class="when">Week 1</span>
+          </div>
+          <div class="risk">
+            <span class="sev med">● Medium</span>
+            <span class="desc"><b>Regulatory grey zone.</b> Distance consultation isn't explicitly forbidden but isn't explicitly allowed either. Run the first batch quietly while you check.</span>
+            <span class="when">Ongoing</span>
+          </div>
+          <div class="risk">
+            <span class="sev low">● Low</span>
+            <span class="desc"><b>Time slippage.</b> Eight hours / week is a stated number, not a measured one. If actual hours are five, the pilot still works — it just runs four weeks instead of three.</span>
+            <span class="when">Weeks 2–4</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         WHAT WOULD MAKE THIS WRONG
+         ============================================================ -->
+    <section class="field">
+      <div class="lab"><span class="num">VI.</span>What would make this wrong</div>
+      <div>
+        <h2>The condition for <em>changing course.</em></h2>
+        <div class="wrong">
+          <p>If fewer than <b>three of the first ten outreached followers</b> say yes at price — even with the Conversation-Coach-prepared message — the advisory frame is wrong, not the channel. Pivot to free-tier triage with escalation to a paid clinic visit, not a paid advisory line.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         ALTERNATIVES REJECTED
+         ============================================================ -->
+    <section class="field">
+      <div class="lab"><span class="num">VII.</span>Considered &amp; rejected</div>
+      <div>
+        <div class="alt">
+          <h4>Build the app first, then find customers.</h4>
+          <p>Rejected because the build absorbs <span class="acc">200+ hours you do not have</span>, and because the app's core assumption — that the audience will pay for guided maternal advice — is the exact thing the pilot tests for free.</p>
+        </div>
+        <div class="alt">
+          <h4>Open a second physical clinic location.</h4>
+          <p>Rejected because the constraint that stalled the first clinic — your time — is not solved by adding capacity. <span class="acc">More chairs do not help a sole practitioner.</span></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         ACCEPT
+         ============================================================ -->
+    <div class="accept-bar">
+      <div class="left">
+        <h3>Accept this recommendation?</h3>
+        <p>This becomes your roadmap · Cycle I begins on accept</p>
+      </div>
+      <div class="actions">
+        <a class="btn ghost" href="#pushback" onclick="document.querySelector('.rail textarea').focus();">⚐ Push back instead</a>
+        <a class="btn primary" href="roadmap.html">Accept &amp; build roadmap</a>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ============================================================
+       PUSHBACK RAIL
+       ============================================================ -->
+  <aside class="rail" id="pushback">
+    <div class="r-head">
+      <div class="t"><span>Push back</span><span class="acc" id="roundLabel">Round 0 of 10</span></div>
+      <h3>Disagree? <em>Argue.</em></h3>
+      <div class="rounds" aria-label="Round counter">
+        <div class="pip" data-r="1"></div>
+        <div class="pip" data-r="2"></div>
+        <div class="pip" data-r="3"></div>
+        <div class="pip" data-r="4"></div>
+        <div class="pip" data-r="5"></div>
+        <div class="pip" data-r="6"></div>
+        <div class="pip" data-r="7"></div>
+        <div class="pip" data-r="8"></div>
+        <div class="pip" data-r="9"></div>
+        <div class="pip" data-r="10"></div>
+        <span class="lab">10 rounds available</span>
+      </div>
+    </div>
+
+    <div class="r-body" id="turns">
+      <div class="turn">
+        <div class="who">NeuraLaunch · Synthesis</div>
+        <div class="what">The recommendation above is what I committed to after eleven turns. If something in it feels wrong — or you can see a fear, an assumption, or a constraint I missed — say so. I'll defend where I should, refine where you're right, and replace it entirely if the evidence agrees with you.</div>
+        <div class="mode-tag">Mode · <b>Open</b></div>
+      </div>
+    </div>
+
+    <form class="r-foot" id="pushForm">
+      <div class="lab">
+        <span>Your pushback</span>
+        <span>⌘ + ↵ to send</span>
+      </div>
+      <textarea id="pushInput" placeholder="What feels wrong? A specific assumption, a fear we didn't account for, a constraint that's changed."></textarea>
+      <div class="actions">
+        <span class="hint" id="modeHint">Phase 1A · Opus + research</span>
+        <button class="send" type="submit">Send</button>
+      </div>
+    </form>
+
+  </aside>
+
+</div>
+
+<script>
+  // Pushback interaction — round counter + canned agent reply patterns
+  const turns = document.getElementById('turns');
+  const input = document.getElementById('pushInput');
+  const form = document.getElementById('pushForm');
+  const roundLabel = document.getElementById('roundLabel');
+  const modeHint = document.getElementById('modeHint');
+
+  let round = 0;
+  const MAX = 10;
+  const replies = [
+    {
+      mode: 'Defend',
+      text: "I hear the discomfort, but the reasoning still holds. The eight-hour constraint is the binding one — and an app build at that rate is twelve months, not three. The pilot fits the hours; the build doesn't."
+    },
+    {
+      mode: 'Refine',
+      text: "Fair. I'll lift the recruit target from ten followers to fifteen — your conversion intuition is closer to mine than I credited, and the cushion makes the wrong-condition tighter. Reasoning stands; numbers updated."
+    },
+    {
+      mode: 'Refine',
+      text: "Good catch. The clinical-regulation assumption was thinner than I let it sound. Adding a 24-hour 'check the regulator' task as Step 0 before recruitment. Everything downstream shifts by one day."
+    },
+    {
+      mode: 'Defend',
+      text: "Different fear, same structure. Building first is faster only if you have the hours, which you don't. I'd rather be wrong in two weeks than in two hundred."
+    },
+    {
+      mode: 'Replace',
+      text: "You're right. If the followers list is mostly post-natal — not pregnant — the advisory frame doesn't fit. Replacing the recommendation now: a paid post-natal check-in pack, three months for NLe 600, run weekly. Same channel, different offer. Rewriting the page."
+    },
+  ];
+
+  // Flag interactions on assumptions
+  document.querySelectorAll('.assumption').forEach((a) => {
+    const btn = a.querySelector('.flag');
+    btn.addEventListener('click', () => {
+      a.classList.toggle('flagged');
+      btn.textContent = a.classList.contains('flagged') ? '✕ Unflag' : '⚐ Flag';
+    });
+  });
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const value = input.value.trim();
+    if (!value || round >= MAX) return;
+    round++;
+
+    // user turn
+    const yourEl = document.createElement('div');
+    yourEl.className = 'turn you';
+    yourEl.innerHTML = `<div class="who">You · Round ${round}</div><div class="what"></div>`;
+    yourEl.querySelector('.what').textContent = value;
+    turns.appendChild(yourEl);
+
+    input.value = '';
+
+    // counter + pip
+    roundLabel.textContent = `Round ${round} of ${MAX}`;
+    const pip = document.querySelector(`.pip[data-r="${round}"]`);
+    if (pip) pip.classList.add('used');
+
+    // simulate Opus thinking, then agent reply
+    modeHint.textContent = 'Phase 1A · Researching…';
+    setTimeout(() => {
+      const r = replies[(round - 1) % replies.length];
+      const agentEl = document.createElement('div');
+      agentEl.className = 'turn';
+      agentEl.innerHTML = `<div class="who">NeuraLaunch · Round ${round}</div><div class="what"></div><div class="mode-tag">Mode · <b>${r.mode}</b></div>`;
+      agentEl.querySelector('.what').textContent = r.text;
+      turns.appendChild(agentEl);
+      turns.scrollTop = turns.scrollHeight;
+      modeHint.textContent = `Phase 1B · ${r.mode} · ready`;
+    }, 1200);
+
+    turns.scrollTop = turns.scrollHeight;
+  });
+
+  // ⌘+Enter shortcut
+  input.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      form.requestSubmit();
+    }
+  });
+</script>
+
+</body>
+</html>

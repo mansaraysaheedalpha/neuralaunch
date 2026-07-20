@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NeuraLaunch — Stage III · Pain Inventory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0c; --bg-2:#111114; --bg-3:#16161a;
+    --fg:#f5f4f1; --fg-2:#c9c7c2; --muted:#7d7c78; --muted-2:#5e5d59;
+    --rule:rgba(255,255,255,.10); --rule-strong:rgba(255,255,255,.22);
+    --accent:#ff5a3c; --green:#34d399; --amber:#fbbf24;
+    --sans:"Inter Tight",system-ui,sans-serif;
+    --serif:"Instrument Serif","Times New Roman",serif;
+    --mono:"JetBrains Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--bg);color:var(--fg);min-height:100%;}
+  body{font-family:var(--sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;font-feature-settings:"ss01";}
+  ::selection{background:var(--accent);color:var(--bg);}
+  a,button{color:inherit;text-decoration:none;font:inherit;cursor:pointer;background:none;border:none;text-align:left;}
+
+  .bar{position:sticky;top:0;z-index:50;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:color-mix(in oklab,var(--bg) 90%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .bar .left{display:flex;gap:18px;align-items:center;}
+  .mark{width:14px;height:14px;border-radius:50%;background:var(--accent);position:relative;}
+  .mark::after{content:"";position:absolute;inset:4px;background:var(--bg);border-radius:50%;}
+  .bar .crumb .acc{color:var(--accent);}
+  .bar .right{display:flex;gap:18px;align-items:center;}
+  .bar .pill{padding:5px 10px;border:1px solid var(--rule-strong);}
+  .bar .pill.acc{color:var(--accent);border-color:var(--accent);}
+
+  /* Header */
+  .header{padding:48px 64px 28px;border-bottom:1px solid var(--rule);max-width:1400px;}
+  .header .stamp{display:flex;gap:18px;font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:24px;}
+  .header .stamp .acc{color:var(--accent);}
+  .header h1{font-family:var(--sans);font-weight:500;font-size:clamp(42px,5.6vw,76px);line-height:1;letter-spacing:-.025em;max-width:1100px;}
+  .header h1 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+  .header .lede{margin-top:20px;max-width:760px;font-size:16px;line-height:1.55;color:var(--fg-2);}
+  .header .lede em{font-family:var(--serif);font-style:italic;color:var(--accent);}
+  .header .lede strong{color:var(--fg);}
+
+  /* Scout control strip */
+  .scout-strip{margin-top:28px;display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center;padding:16px 22px;border:1px solid var(--rule);background:var(--bg-2);max-width:1100px;}
+  .scout-strip .text{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .scout-strip .text .acc{color:var(--accent);}
+  .scout-strip .text .next{font-family:var(--serif);font-style:italic;font-size:18px;letter-spacing:-.01em;color:var(--fg);text-transform:none;margin-right:8px;}
+  .scout-strip button{padding:11px 18px;background:var(--accent);color:var(--bg);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:500;display:inline-flex;gap:10px;align-items:center;}
+  .scout-strip button::after{content:"⊙";font-family:var(--sans);font-size:14px;}
+  .scout-strip button:disabled{opacity:.4;cursor:not-allowed;}
+
+  /* Layout */
+  .canvas{padding:32px 64px 100px;max-width:1400px;display:grid;grid-template-columns:1fr 340px;gap:48px;}
+
+  /* Ledger headings */
+  .ledger-head{display:grid;grid-template-columns:60px 1fr 200px 80px;gap:20px;padding-bottom:14px;border-bottom:1px solid var(--rule);align-items:end;font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);}
+  .ledger-head .acc{color:var(--accent);}
+
+  /* Pain row */
+  .pain{display:grid;grid-template-columns:60px 1fr 200px 80px;gap:20px;padding:18px 0;border-bottom:1px solid var(--rule);align-items:center;transition:background .2s;cursor:pointer;}
+  .pain:hover{background:rgba(255,255,255,.02);}
+  .pain.viable{background:rgba(255,90,60,.03);}
+
+  /* Number column — roman with source */
+  .pain .n{
+    display:flex;flex-direction:column;align-items:flex-start;gap:2px;
+  }
+  .pain .n .roman{font-family:var(--serif);font-style:italic;font-size:24px;color:var(--accent);letter-spacing:-.01em;line-height:1;}
+  .pain .n .src{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+
+  /* Statement column */
+  .pain .stmt{display:grid;gap:8px;}
+  .pain .stmt b{
+    font-family:var(--sans);font-weight:500;
+    color:var(--fg);
+    line-height:1.3;
+    letter-spacing:-.005em;
+  }
+  /* Type weight by signal strength */
+  .pain[data-signal="heavy"] .stmt b{font-size:21px;}
+  .pain[data-signal="medium"] .stmt b{font-size:17px;}
+  .pain[data-signal="light"] .stmt b{font-size:15px;color:var(--fg-2);font-style:italic;font-family:var(--serif);font-weight:400;}
+  .pain .stmt .meta{
+    display:flex;gap:14px;
+    font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--muted);
+  }
+  .pain .stmt .meta .signal{color:var(--accent);}
+  .pain .stmt .meta .signal.weak{color:var(--muted);}
+
+  /* Scores — interactive dot rows */
+  .pain .scores{display:grid;gap:6px;}
+  .axis{display:grid;grid-template-columns:60px 1fr;gap:8px;align-items:center;font-family:var(--mono);font-size:9px;letter-spacing:.04em;color:var(--muted);text-transform:uppercase;}
+  .axis .dots{display:flex;gap:3px;}
+  .axis .dot{width:9px;height:9px;border:1px solid var(--rule-strong);border-radius:50%;cursor:pointer;transition:all .15s;}
+  .axis .dot:hover{border-color:var(--accent);}
+  .axis .dot.on{background:var(--accent);border-color:var(--accent);}
+
+  /* Verdict column */
+  .pain .verdict{text-align:right;}
+  .pain .verdict .badge{display:inline-block;padding:4px 9px;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;border:1px solid var(--rule-strong);color:var(--muted);}
+  .pain .verdict .badge.viable{color:var(--accent);border-color:var(--accent);background:rgba(255,90,60,.06);}
+  .pain .verdict .badge.weak{color:var(--muted-2);}
+  .pain .verdict .remove{display:block;margin-top:6px;font-family:var(--mono);font-size:9px;letter-spacing:.04em;color:var(--muted-2);}
+  .pain .verdict .remove:hover{color:var(--accent);}
+
+  /* Add founder pain */
+  .add-pain{margin-top:16px;padding:18px 22px;border:1px dashed var(--rule-strong);background:transparent;display:grid;gap:10px;cursor:pointer;}
+  .add-pain.open{cursor:default;background:var(--bg-2);border-style:solid;}
+  .add-pain .label{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .add-pain .label .acc{color:var(--accent);}
+  .add-pain.open .label .acc{display:none;}
+  .add-pain .form{display:none;gap:10px;}
+  .add-pain.open .form{display:grid;}
+  .add-pain textarea{width:100%;background:transparent;border:1px solid var(--rule);padding:10px 12px;color:var(--fg);font-family:var(--sans);font-size:14.5px;line-height:1.5;resize:vertical;min-height:60px;outline:none;}
+  .add-pain textarea:focus{border-color:var(--accent);}
+  .add-pain .row{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;}
+  .add-pain select{background:var(--bg-3);border:1px solid var(--rule);padding:8px 12px;color:var(--fg);font-family:var(--sans);font-size:13px;}
+  .add-pain button{padding:9px 14px;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;}
+  .add-pain button.primary{background:var(--accent);color:var(--bg);font-weight:500;}
+  .add-pain button.ghost{border:1px solid var(--rule-strong);color:var(--fg-2);}
+
+  /* Rail */
+  .rail{position:sticky;top:80px;align-self:start;display:grid;gap:24px;}
+  .rail .block{border:1px solid var(--rule);padding:18px 20px;background:var(--bg-2);}
+  .rail .block .lab{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;display:flex;justify-content:space-between;}
+  .rail .block .lab .acc{color:var(--accent);}
+
+  .shortlist h4{font-family:var(--serif);font-style:italic;font-weight:400;font-size:20px;letter-spacing:-.01em;line-height:1.15;margin-bottom:6px;}
+  .shortlist h4 em{color:var(--accent);}
+  .shortlist .big{font-family:var(--serif);font-style:italic;font-size:48px;color:var(--accent);letter-spacing:-.02em;line-height:1;}
+  .shortlist .big .denom{color:var(--muted);font-size:24px;}
+  .shortlist .meter{height:4px;background:var(--rule);margin-top:16px;position:relative;}
+  .shortlist .meter .fill{position:absolute;left:0;top:0;bottom:0;background:var(--accent);transition:width .6s;}
+  .shortlist p{margin-top:12px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--muted);line-height:1.6;}
+
+  .scout-log .lab .acc{color:var(--muted);}
+  .scout-log .run{padding:10px 0;border-bottom:1px solid var(--rule);font-size:12.5px;color:var(--fg-2);}
+  .scout-log .run:last-child{border-bottom:none;}
+  .scout-log .run .head{display:flex;justify-content:space-between;align-items:baseline;}
+  .scout-log .run .head .n{font-family:var(--serif);font-style:italic;font-size:14px;color:var(--accent);}
+  .scout-log .run .head .when{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.04em;}
+  .scout-log .run .what{margin-top:4px;font-family:var(--mono);font-size:10px;color:var(--muted);line-height:1.5;letter-spacing:.04em;}
+
+  .commit-block{padding:18px 20px;border:1px solid var(--accent);background:linear-gradient(180deg,rgba(255,90,60,.08),rgba(255,90,60,.02));}
+  .commit-block h4{font-family:var(--serif);font-style:italic;font-weight:400;font-size:22px;letter-spacing:-.01em;line-height:1.15;margin-bottom:6px;}
+  .commit-block h4 em{color:var(--accent);}
+  .commit-block p{font-size:12.5px;color:var(--fg-2);line-height:1.5;margin-bottom:14px;}
+  .commit-block button{width:100%;background:var(--accent);color:var(--bg);padding:13px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:500;display:flex;justify-content:center;gap:10px;}
+  .commit-block button::after{content:"→";font-family:var(--sans);}
+  .commit-block button:disabled{opacity:.35;cursor:not-allowed;}
+
+  /* Cascade banner */
+  .cascade{padding:10px 18px;border-top:1px solid var(--amber);background:rgba(251,191,36,.05);font-family:var(--serif);font-style:italic;font-size:14px;color:var(--fg-2);max-width:1400px;display:none;}
+  .cascade.on{display:block;}
+  .cascade em{color:var(--amber);font-style:normal;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin-right:8px;}
+
+  @media (max-width:1100px){
+    .header{padding:32px 22px 22px;}
+    .scout-strip{margin-left:22px;margin-right:22px;}
+    .canvas{padding:24px 22px 60px;grid-template-columns:1fr;gap:24px;}
+    .rail{position:relative;top:auto;}
+    .ledger-head{grid-template-columns:50px 1fr 140px 70px;gap:12px;}
+    .pain{grid-template-columns:50px 1fr 140px 70px;gap:12px;}
+    .pain .scores{font-size:8.5px;}
+  }
+  @media (max-width:700px){
+    .pain{grid-template-columns:40px 1fr;gap:10px;}
+    .pain .scores,.pain .verdict{grid-column:1/-1;padding-left:40px;}
+    .ledger-head{grid-template-columns:40px 1fr;}
+    .ledger-head .col:nth-child(3),.ledger-head .col:nth-child(4){display:none;}
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="left">
+    <div class="mark"></div>
+    <span class="crumb"><span class="acc">No Idea</span> &nbsp;/&nbsp; Session 0501 &nbsp;/&nbsp; <span style="color:var(--fg);">Stage III · Pains</span></span>
+  </div>
+  <div class="right">
+    <span class="pill acc">● Authoring</span>
+    <a href="stage-2.html" style="color:var(--muted);">← Stage II</a>
+    <a href="stage-4.html" style="color:var(--muted);">Stage IV →</a>
+  </div>
+</header>
+
+<section class="header">
+  <div class="stamp">
+    <span>Stage <span class="acc">III</span> of V · Pain Inventory</span>
+    <span>Scout runs · 2 of 5</span>
+    <span>Saved continuously</span>
+  </div>
+  <h1>Where the <em>real pain</em> is.</h1>
+  <p class="lede">
+    The Pain Scout has fanned out across <strong>community signals, Tavily and Exa</strong> for pains that match what you're built to execute. Tap each pain to <em>score it,</em> add your own from personal observation, and shortlist up to five before composing the inventory.
+  </p>
+
+  <!-- Scout strip -->
+  <div class="scout-strip">
+    <div class="text">
+      <span class="next">Run No. III ·</span>
+      Pain Scout · 8-step Sonnet · Tavily &middot; Exa &middot; <span class="acc">community_pulse</span>
+    </div>
+    <button id="runScout">Run scout</button>
+  </div>
+</section>
+
+<!-- Cascade banner (visible if needed) -->
+<div class="cascade" id="cascade">
+  <em>Cascade</em>Stage 1 or 2 changed since these were derived. Re-run the scout to refresh.
+</div>
+
+<div class="canvas">
+
+  <main>
+
+    <!-- Ledger -->
+    <div class="ledger-head">
+      <div class="col">Pain · 11 surfaced</div>
+      <div class="col">Statement &middot; <span class="acc">signal strength by weight</span></div>
+      <div class="col">Intensity · Frequency · Niche</div>
+      <div class="col">Verdict</div>
+    </div>
+
+    <div id="ledger">
+
+      <article class="pain viable" data-signal="heavy" data-i="5" data-f="5" data-n="3">
+        <div class="n"><span class="roman">i.</span><span class="src">Scout · 28 sigs</span></div>
+        <div class="stmt">
+          <b>Rural mothers cannot reach an OB-GYN within a day's travel.</b>
+          <div class="meta"><span>3 community threads</span><span>2 Tavily</span><span class="signal">●●●●●</span></div>
+        </div>
+        <div class="scores">
+          <div class="axis"><span>Intensity</span><div class="dots" data-axis="i"><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div></div></div>
+          <div class="axis"><span>Frequency</span><div class="dots" data-axis="f"><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div></div></div>
+          <div class="axis"><span>Niche</span><div class="dots" data-axis="n"><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot"></div><div class="dot"></div></div></div>
+        </div>
+        <div class="verdict">
+          <span class="badge viable">● Viable</span>
+          <button class="remove">remove</button>
+        </div>
+      </article>
+
+      <article class="pain viable" data-signal="heavy" data-i="4" data-f="4" data-n="4">
+        <div class="n"><span class="roman">ii.</span><span class="src">Scout · 14 sigs</span></div>
+        <div class="stmt">
+          <b>Antenatal scheduling is unreliable; women travel for nothing.</b>
+          <div class="meta"><span>5 Reddit-equiv</span><span>1 Tavily</span><span class="signal">●●●●○</span></div>
+        </div>
+        <div class="scores">
+          <div class="axis"><span>Intensity</span><div class="dots" data-axis="i"><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot"></div></div></div>
+          <div class="axis"><span>Frequency</span><div class="dots" data-axis="f"><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot"></div></div></div>
+          <div class="axis"><span>Niche</span><div class="dots" data-axis="n"><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot"></div></div></div>
+        </div>
+        <div class="verdict">
+          <span class="badge viable">● Viable</span>
+          <button class="remove">remove</button>
+        </div>
+      </article>
+
+      <article class="pain" data-signal="medium" data-i="4" data-f="2" data-n="4">
+        <div class="n"><span class="roman">iii.</span><span class="src">Scout · 4 sigs</span></div>
+        <div class="stmt">
+          <b>Lab results take two weeks to return — patients lose confidence.</b>
+          <div class="meta"><span>2 Tavily</span><span class="signal">●●●○○</span></div>
+        </div>
+        <div class="scores">
+          <div class="axis"><span>Intensity</span><div class="dots" data-axis="i"><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot"></div></div></div>
+          <div class="axis"><span>Frequency</span><div class="dots" data-axis="f"><div class="dot on"></div><div class="dot on"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>
+          <div class="axis"><span>Niche</span><div class="dots" data-axis="n"><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot"></div></div></div>
+        </div>
+        <div class="verdict">
+          <span class="badge">○ Rate</span>
+          <button class="remove">remove</button>
+        </div>
+      </article>
+
+      <article class="pain viable" data-signal="heavy" data-i="4" data-f="5" data-n="3">
+        <div class="n"><span class="roman">iv.</span><span class="src">You · personal obs.</span></div>
+        <div class="stmt">
+          <b>Post-natal mothers have nowhere to ask a "small question" — and the small ones become the dangerous ones.</b>
+          <div class="meta"><span>founder-added</span><span class="signal">●●●●</span></div>
+        </div>
+        <div class="scores">
+          <div class="axis"><span>Intensity</span><div class="dots" data-axis="i"><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot"></div></div></div>
+          <div class="axis"><span>Frequency</span><div class="dots" data-axis="f"><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div></div></div>
+          <div class="axis"><span>Niche</span><div class="dots" data-axis="n"><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot"></div><div class="dot"></div></div></div>
+        </div>
+        <div class="verdict">
+          <span class="badge viable">● Viable</span>
+          <button class="remove">remove</button>
+        </div>
+      </article>
+
+      <article class="pain" data-signal="medium" data-i="3" data-f="3" data-n="4">
+        <div class="n"><span class="roman">v.</span><span class="src">Scout · 6 sigs</span></div>
+        <div class="stmt">
+          <b>Daycare drop-off times conflict with most working women's schedules.</b>
+          <div class="meta"><span>3 community</span><span>1 Exa</span><span class="signal">●●●○○</span></div>
+        </div>
+        <div class="scores">
+          <div class="axis"><span>Intensity</span><div class="dots" data-axis="i"><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot"></div><div class="dot"></div></div></div>
+          <div class="axis"><span>Frequency</span><div class="dots" data-axis="f"><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot"></div><div class="dot"></div></div></div>
+          <div class="axis"><span>Niche</span><div class="dots" data-axis="n"><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot"></div></div></div>
+        </div>
+        <div class="verdict">
+          <span class="badge">○ Rate</span>
+          <button class="remove">remove</button>
+        </div>
+      </article>
+
+      <article class="pain" data-signal="light" data-i="2" data-f="2" data-n="3">
+        <div class="n"><span class="roman">vi.</span><span class="src">Scout · 2 sigs</span></div>
+        <div class="stmt">
+          <b>Pharmacy stockouts of prenatal vitamins are unpredictable.</b>
+          <div class="meta"><span>1 Tavily</span><span class="signal weak">●●○○○</span></div>
+        </div>
+        <div class="scores">
+          <div class="axis"><span>Intensity</span><div class="dots" data-axis="i"><div class="dot on"></div><div class="dot on"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>
+          <div class="axis"><span>Frequency</span><div class="dots" data-axis="f"><div class="dot on"></div><div class="dot on"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>
+          <div class="axis"><span>Niche</span><div class="dots" data-axis="n"><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot"></div><div class="dot"></div></div></div>
+        </div>
+        <div class="verdict">
+          <span class="badge weak">— too light</span>
+          <button class="remove">remove</button>
+        </div>
+      </article>
+
+      <article class="pain" data-signal="light" data-i="3" data-f="2" data-n="2">
+        <div class="n"><span class="roman">vii.</span><span class="src">Scout · 1 sig</span></div>
+        <div class="stmt">
+          <b>Insurance claim processing for clinics is slow.</b>
+          <div class="meta"><span>1 Tavily</span><span class="signal weak">●○○○○</span></div>
+        </div>
+        <div class="scores">
+          <div class="axis"><span>Intensity</span><div class="dots" data-axis="i"><div class="dot on"></div><div class="dot on"></div><div class="dot on"></div><div class="dot"></div><div class="dot"></div></div></div>
+          <div class="axis"><span>Frequency</span><div class="dots" data-axis="f"><div class="dot on"></div><div class="dot on"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>
+          <div class="axis"><span>Niche</span><div class="dots" data-axis="n"><div class="dot on"></div><div class="dot on"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div></div>
+        </div>
+        <div class="verdict">
+          <span class="badge weak">— too light</span>
+          <button class="remove">remove</button>
+        </div>
+      </article>
+
+    </div>
+
+    <!-- Add founder pain -->
+    <div class="add-pain" id="addPain">
+      <div class="label"><span class="acc">+</span> &nbsp;Add a pain you've observed personally</div>
+      <div class="form">
+        <textarea placeholder="Describe the pain in one sentence. What hurts, for whom, in what context. 'Mothers cannot get an answer to a small question between visits' is fine."></textarea>
+        <div class="row">
+          <select>
+            <option>Context · personal observation</option>
+            <option>Context · past employment</option>
+            <option>Context · friend or family</option>
+            <option>Context · adjacent industry</option>
+          </select>
+          <button class="ghost" type="button" id="cancelPain">Cancel</button>
+          <button class="primary" type="button">Add to inventory →</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Rail -->
+  <aside class="rail">
+
+    <div class="block shortlist">
+      <div class="lab"><span>Shortlist</span><span class="acc">Cap 5</span></div>
+      <div class="big" id="shortlistBig">3<span class="denom"> / 5</span></div>
+      <h4 style="margin-top:8px;">Three pains <em>viable.</em> Two slots open.</h4>
+      <div class="meter"><div class="fill" id="shortlistFill" style="width:60%;"></div></div>
+      <p>Rate at least one more pain at <span style="color:var(--accent);">≥ 3 / 3 / 3</span> to advance. Composition unlocks at 3.</p>
+    </div>
+
+    <div class="block scout-log">
+      <div class="lab"><span>Scout log</span><span class="acc">3 left</span></div>
+      <div class="run">
+        <div class="head"><span class="n">II.</span><span class="when">12 min ago</span></div>
+        <div class="what">8 steps · Tavily + Exa + community_pulse · 5 new pains surfaced.</div>
+      </div>
+      <div class="run">
+        <div class="head"><span class="n">I.</span><span class="when">38 min ago</span></div>
+        <div class="what">8 steps · 4 pains surfaced · 1 discarded (out-of-region).</div>
+      </div>
+    </div>
+
+    <div class="block commit-block">
+      <div class="lab" style="color:var(--accent);">When ready</div>
+      <h4>Compose the <em>inventory.</em></h4>
+      <p>The composer writes the inventory document. Pre-commit review before Stage IV.</p>
+      <button id="compose">Compose inventory</button>
+    </div>
+
+  </aside>
+
+</div>
+
+<script>
+  // Dot interaction — click to set score, recompute viability
+  const SCORE_THRESHOLD = 3; // each axis ≥ 3
+  function recompute(row) {
+    const dotsRows = row.querySelectorAll('.axis .dots');
+    let mins = [];
+    dotsRows.forEach(d => {
+      const on = d.querySelectorAll('.dot.on').length;
+      mins.push(on);
+    });
+    const viable = mins.every(v => v >= SCORE_THRESHOLD);
+    row.classList.toggle('viable', viable);
+    const badge = row.querySelector('.verdict .badge');
+    if (viable) {
+      badge.className = 'badge viable';
+      badge.textContent = '● Viable';
+    } else if (mins.every(v => v <= 2)) {
+      badge.className = 'badge weak';
+      badge.textContent = '— too light';
+    } else {
+      badge.className = 'badge';
+      badge.textContent = '○ Rate';
+    }
+    // signal strength → typography weight based on sum
+    const sum = mins.reduce((a, b) => a + b, 0);
+    row.dataset.signal = sum >= 12 ? 'heavy' : (sum >= 8 ? 'medium' : 'light');
+    refreshShortlist();
+  }
+
+  function refreshShortlist() {
+    const viables = document.querySelectorAll('.pain.viable').length;
+    const big = document.getElementById('shortlistBig');
+    big.innerHTML = `${viables}<span class="denom"> / 5</span>`;
+    document.getElementById('shortlistFill').style.width = `${Math.min(100, viables*20)}%`;
+    document.getElementById('compose').disabled = viables < 3;
+  }
+
+  document.querySelectorAll('.dots').forEach(group => {
+    group.querySelectorAll('.dot').forEach((dot, i) => {
+      dot.addEventListener('click', e => {
+        e.stopPropagation();
+        const dots = [...group.querySelectorAll('.dot')];
+        const wasOn = dot.classList.contains('on');
+        const onCount = group.querySelectorAll('.dot.on').length;
+        const target = (wasOn && onCount === i + 1) ? i : (i + 1);
+        dots.forEach((d, idx) => d.classList.toggle('on', idx < target));
+        recompute(dot.closest('.pain'));
+      });
+    });
+  });
+
+  // Add pain form
+  const addPain = document.getElementById('addPain');
+  addPain.addEventListener('click', () => addPain.classList.add('open'));
+  document.getElementById('cancelPain').addEventListener('click', e => {
+    e.stopPropagation();
+    addPain.classList.remove('open');
+  });
+
+  // Scout
+  const runScoutBtn = document.getElementById('runScout');
+  runScoutBtn.addEventListener('click', () => {
+    runScoutBtn.disabled = true;
+    runScoutBtn.innerHTML = 'Scouting · 8-step Sonnet';
+    setTimeout(() => {
+      runScoutBtn.disabled = false;
+      runScoutBtn.innerHTML = 'Run scout';
+    }, 1800);
+  });
+
+  // Compose
+  document.getElementById('compose').addEventListener('click', () => {
+    if (document.getElementById('compose').disabled) return;
+    window.location.href = 'stage-4.html';
+  });
+
+  refreshShortlist();
+</script>
+
+</body>
+</html>

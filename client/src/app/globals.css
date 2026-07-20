@@ -22,7 +22,7 @@
   --muted-2: #5e5d59;
 
   /* Rules / hairlines */
-  --rule: rgba(255, 255, 255, 0.10);
+  --rule: rgba(255, 255, 255, 0.1);
   --rule-strong: rgba(255, 255, 255, 0.22);
 
   /* Single brand accent — replaces the legacy dual-accent system. */
@@ -60,7 +60,11 @@ body {
 body {
   background: var(--bg);
   color: var(--fg);
-  font-family: var(--font-inter-tight), system-ui, -apple-system, sans-serif;
+  font-family:
+    var(--font-inter-tight),
+    system-ui,
+    -apple-system,
+    sans-serif;
   font-size: 16px;
   line-height: 1.55;
   font-feature-settings: "ss01", "cv11";
@@ -105,7 +109,11 @@ body {
    ============================================ */
 @layer components {
   .t-display {
-    font-family: var(--font-inter-tight), system-ui, -apple-system, sans-serif;
+    font-family:
+      var(--font-inter-tight),
+      system-ui,
+      -apple-system,
+      sans-serif;
     font-weight: 500;
     font-size: clamp(56px, 8vw, 132px);
     line-height: 0.94;
@@ -113,7 +121,11 @@ body {
   }
 
   .t-h1 {
-    font-family: var(--font-inter-tight), system-ui, -apple-system, sans-serif;
+    font-family:
+      var(--font-inter-tight),
+      system-ui,
+      -apple-system,
+      sans-serif;
     font-weight: 500;
     font-size: clamp(40px, 5.6vw, 76px);
     line-height: 1;
@@ -121,7 +133,11 @@ body {
   }
 
   .t-h2 {
-    font-family: var(--font-inter-tight), system-ui, -apple-system, sans-serif;
+    font-family:
+      var(--font-inter-tight),
+      system-ui,
+      -apple-system,
+      sans-serif;
     font-weight: 500;
     font-size: clamp(30px, 3.6vw, 48px);
     line-height: 1.05;
@@ -138,7 +154,11 @@ body {
   }
 
   .t-body {
-    font-family: var(--font-inter-tight), system-ui, -apple-system, sans-serif;
+    font-family:
+      var(--font-inter-tight),
+      system-ui,
+      -apple-system,
+      sans-serif;
     font-weight: 400;
     font-size: 16px;
     line-height: 1.55;
@@ -190,6 +210,28 @@ body {
 /* ============================================
    ACCESSIBILITY
    ============================================ */
+:where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 3px !important;
+}
+
+.tool-a11y .text-\[8px\] {
+  font-size: 0.625rem !important;
+}
+
+.tool-a11y .text-\[9px\] {
+  font-size: 0.6875rem !important;
+}
+
+.tool-a11y :where(button, select, input:not([type="hidden"]), [role="button"]) {
+  min-height: 2.75rem;
+}
+
+.tool-a11y :disabled {
+  cursor: not-allowed;
+  opacity: 0.55 !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

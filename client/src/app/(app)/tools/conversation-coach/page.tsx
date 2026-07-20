@@ -1,391 +1,70 @@
-'use client';
-// src/app/(app)/tools/conversation-coach/page.tsx
-//
-// Standalone Conversation Coach page. Auto-loads the founder's most
-// recent roadmap ID so the standalone coach routes can read the
-// belief state and recommendation context. The founder describes the
-// conversation from scratch — no task context.
+"use client";
 
-import { useCallback, useEffect, useState } from 'react';
-import { Loader2, Plus } from 'lucide-react';
-import Link from 'next/link';
-import { ToolShell, ToolShellLoading, ToolShellNoRoadmap } from '@/components/institute/tools';
-import { CoachHistoryPanel } from './CoachHistoryPanel';
-import { CoachSetupChat } from '@/app/(app)/discovery/roadmap/[id]/coach/CoachSetupChat';
-import { PreparationView } from '@/app/(app)/discovery/roadmap/[id]/coach/PreparationView';
-import { RolePlayChat } from '@/app/(app)/discovery/roadmap/[id]/coach/RolePlayChat';
-import { DebriefView } from '@/app/(app)/discovery/roadmap/[id]/coach/DebriefView';
-import type { ConversationSetup, PreparationPackage, Debrief, CoachSession } from '@/lib/roadmap/coach';
 import {
-  readPackagerHandoffParams,
-  fetchPackagerHandoff,
-  buildCoachSeedMessage,
-} from '@/app/(app)/tools/packager-handoff';
-import {
-  readComposerHandoffParams,
-  fetchComposerHandoff,
-  buildCoachSeedFromComposerMessage,
-} from '@/app/(app)/tools/composer-handoff';
-import { UsageMeter } from '@/components/billing/UsageMeter';
-import { useToolJob } from '@/lib/tool-jobs/use-tool-job';
-import { ToolJobProgress } from '@/components/tool-jobs/ToolJobProgress';
+  ToolShell,
+  ToolShellLoading,
+  ToolShellNoRoadmap,
+} from "@/components/institute/tools";
+import { CoachWorkspace } from "./CoachWorkspace";
+import { useCoachController } from "./use-coach-controller";
 
-type Stage = 'loading' | 'no_roadmap' | 'setup' | 'loading_preparation' | 'preparation' | 'roleplay' | 'loading_debrief' | 'debrief' | 'done';
+const SHELL = {
+  model: "Opus",
+  toolName: "Conversation Coach",
+  roman: "I" as const,
+  description: "Rehearse the conversation that decides the outcome",
+  heading: (
+    <>
+      Coach the <em>conversation.</em>
+    </>
+  ),
+  lede: (
+    <>
+      Build the opening, objections, and fallback positions—then rehearse the
+      conversation <em>in character.</em>
+    </>
+  ),
+};
 
 export default function StandaloneCoachPage() {
-  const [roadmapId, setRoadmapId] = useState<string | null>(null);
-  const [stage, setStage]         = useState<Stage>('loading');
-  const [setup, setSetup]         = useState<ConversationSetup | null>(null);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [preparation, setPrep]    = useState<PreparationPackage | null>(null);
-  const [debrief, setDebrief]     = useState<Debrief | null>(null);
-  const [error, setError]         = useState<string | null>(null);
-  const [seedDraft, setSeedDraft] = useState<string | undefined>(undefined);
-  const [meterRefreshKey, setMeterRefreshKey] = useState(0);
-  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
-  const [prepareJobId, setPrepareJobId] = useState<string | null>(null);
-  const bumpMeter = useCallback(() => {
-    setMeterRefreshKey(k => k + 1);
-    setHistoryRefreshKey(k => k + 1);
-  }, []);
-
-  const { job: prepareJob } = useToolJob({ jobId: prepareJobId, roadmapId });
-
-  const handleSelectSession = useCallback(async (targetSessionId: string) => {
-    if (!roadmapId) return;
-    try {
-      const res = await fetch(
-        `/api/discovery/roadmaps/${roadmapId}/coach/sessions/${targetSessionId}`,
-      );
-      if (!res.ok) return;
-      const json = await res.json() as { session: CoachSession };
-      setSessionId(json.session.id);
-      setSetup(json.session.setup);
-      if (json.session.debrief) {
-        setDebrief(json.session.debrief);
-        setStage('debrief');
-      } else if (json.session.rolePlayHistory && json.session.rolePlayHistory.length > 0) {
-        if (json.session.preparation) setPrep(json.session.preparation);
-        setStage('roleplay');
-      } else if (json.session.preparation) {
-        setPrep(json.session.preparation);
-        setStage('preparation');
-      } else {
-        setStage('setup');
-      }
-      const url = new URL(window.location.href);
-      url.searchParams.set('sessionId', json.session.id);
-      window.history.replaceState({}, '', url.toString());
-    } catch { /* silent — user can retry click */ }
-  }, [roadmapId]);
-
-  const handleNewSession = useCallback(() => {
-    setSetup(null);
-    setSessionId(null);
-    setPrep(null);
-    setDebrief(null);
-    setSeedDraft(undefined);
-    setError(null);
-    setStage('setup');
-    const url = new URL(window.location.href);
-    url.searchParams.delete('sessionId');
-    window.history.replaceState({}, '', url.toString());
-  }, []);
-
-  // Auto-detect the most recent roadmap, any inbound packager handoff,
-  // and (on refresh) a sessionId query param for restoring a prior
-  // setup → preparation → roleplay → debrief progression.
-  useEffect(() => {
-    void (async () => {
-      try {
-        const res = await fetch('/api/discovery/roadmaps/has-any');
-        if (!res.ok) { setStage('no_roadmap'); return; }
-        const json = await res.json() as { hasRoadmap: boolean; roadmapId?: string };
-        if (!json.hasRoadmap || !json.roadmapId) { setStage('no_roadmap'); return; }
-        setRoadmapId(json.roadmapId);
-
-        if (typeof window !== 'undefined') {
-          const urlSessionId = new URLSearchParams(window.location.search).get('sessionId');
-          if (urlSessionId) {
-            try {
-              const sRes = await fetch(
-                `/api/discovery/roadmaps/${json.roadmapId}/coach/sessions/${urlSessionId}`,
-              );
-              if (sRes.ok) {
-                const sJson = await sRes.json() as { session: CoachSession };
-                setSessionId(urlSessionId);
-                setSetup(sJson.session.setup);
-                if (sJson.session.debrief) {
-                  setDebrief(sJson.session.debrief);
-                  setStage('debrief');
-                  return;
-                }
-                if (sJson.session.rolePlayHistory && sJson.session.rolePlayHistory.length > 0) {
-                  if (sJson.session.preparation) setPrep(sJson.session.preparation);
-                  setStage('roleplay');
-                  return;
-                }
-                if (sJson.session.preparation) {
-                  setPrep(sJson.session.preparation);
-                  setStage('preparation');
-                  return;
-                }
-                setStage('setup');
-                return;
-              }
-            } catch { /* fall through to fresh start */ }
-          }
-        }
-
-        // Composer → Coach handoff takes priority over Packager → Coach.
-        const composerHandoffParams = readComposerHandoffParams();
-        if (composerHandoffParams) {
-          const handoff = await fetchComposerHandoff(
-            composerHandoffParams.roadmapId,
-            composerHandoffParams.sessionId,
-            composerHandoffParams.messageId,
-          );
-          if (handoff) {
-            setSeedDraft(buildCoachSeedFromComposerMessage(handoff));
-          }
-        } else {
-          const handoffParams = readPackagerHandoffParams();
-          if (handoffParams) {
-            const handoff = await fetchPackagerHandoff(handoffParams.roadmapId, handoffParams.sessionId);
-            if (handoff) setSeedDraft(buildCoachSeedMessage(handoff));
-          }
-        }
-
-        setStage('setup');
-      } catch {
-        setStage('no_roadmap');
-      }
-    })();
-  }, []);
-
-  const handleSetupComplete = useCallback(async (
-    completed: ConversationSetup,
-    setupSessionId?: string,
-  ) => {
-    if (!roadmapId || !setupSessionId) {
-      setError('Setup completed but no session was returned.');
-      return;
-    }
-    setSetup(completed);
-    setSessionId(setupSessionId);
-    setStage('loading_preparation');
-    setError(null);
-
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.set('sessionId', setupSessionId);
-      window.history.replaceState({}, '', url.toString());
-    }
-
-    try {
-      const res = await fetch(`/api/discovery/roadmaps/${roadmapId}/coach/prepare`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: setupSessionId }),
-      });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({})) as { error?: string };
-        setError(json.error ?? 'Could not queue preparation.');
-        setStage('setup');
-        bumpMeter();
-        return;
-      }
-      // 202 — queued. Completion useEffect handles loading the prep.
-      const json = await res.json() as { jobId: string; sessionId: string };
-      setPrepareJobId(json.jobId);
-    } catch {
-      setError('Network error.');
-      setStage('setup');
-      bumpMeter();
-    }
-  }, [roadmapId, bumpMeter]);
-
-  // Job completion: refetch the persisted session to load the prep.
-  useEffect(() => {
-    if (!prepareJob || !roadmapId || !sessionId) return;
-    if (prepareJob.stage === 'complete') {
-      void (async () => {
-        try {
-          const res = await fetch(`/api/discovery/roadmaps/${roadmapId}/coach/sessions/${sessionId}`);
-          if (res.ok) {
-            const json = await res.json() as { session: CoachSession };
-            if (json.session.preparation) {
-              setPrep(json.session.preparation);
-              setStage('preparation');
-            }
-          }
-        } catch { /* swallow — refresh recovers */ }
-        setPrepareJobId(null);
-        bumpMeter();
-      })();
-    }
-    // 'failed' keeps founder on loading_preparation; failed ladder +
-    // retry button is the recovery path.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prepareJob?.stage, roadmapId, sessionId]);
-
-  const handleRetryPrepare = useCallback(() => {
-    if (!setup || !sessionId) return;
-    setPrepareJobId(null);
-    setError(null);
-    void handleSetupComplete(setup, sessionId);
-  }, [setup, sessionId, handleSetupComplete]);
-
-  const handleRolePlayEnd = useCallback(async () => {
-    if (!roadmapId || !sessionId) return;
-    setStage('loading_debrief');
-    try {
-      const res = await fetch(`/api/discovery/roadmaps/${roadmapId}/coach/debrief`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId }),
-      });
-      if (!res.ok) { setStage('roleplay'); return; }
-      const json = await res.json() as { debrief: Debrief };
-      setDebrief(json.debrief);
-      setStage('debrief');
-    } catch {
-      setStage('roleplay');
-    } finally {
-      bumpMeter();
-    }
-  }, [roadmapId, sessionId, bumpMeter]);
-
-  // Per-page Shell metadata. Reused for the transient loading + "no
-  // roadmap yet" states so the founder always sees Institute chrome.
-  const shellProps = {
-    model: 'Opus',
-    toolName: 'Conversation Coach',
-    roman: 'I' as const,
-    description: 'Rehearse the conversation that decides the outcome',
-    heading: <>Coach the <em>conversation.</em></>,
-    lede: <>Walk through what you&rsquo;ll say, who you&rsquo;re saying it to, and what you&rsquo;re afraid of. The coach builds a preparation package — opening, objections, fallback positions — then role-plays it with you, <em>in character.</em></>,
-  };
-
-  if (stage === 'loading') {
-    return <ToolShellLoading {...shellProps} />;
-  }
-
-  if (stage === 'no_roadmap') {
+  const c = useCoachController();
+  if (c.stage === "no_roadmap")
     return (
       <ToolShellNoRoadmap
-        {...shellProps}
-        message="The Conversation Coach needs your discovery context to produce useful outputs. Start a discovery session first."
+        {...SHELL}
+        message="The Conversation Coach needs your discovery context. Start a discovery session first."
       />
     );
-  }
-
+  if (c.stage === "loading" || !c.roadmapId)
+    return <ToolShellLoading {...SHELL} />;
   return (
-    <ToolShell
-      model="Opus"
-      toolName="Conversation Coach"
-      roman="I"
-      description="Rehearse the conversation that decides the outcome"
-      heading={<>Coach the <em>conversation.</em></>}
-      lede={<>Walk through what you&rsquo;ll say, who you&rsquo;re saying it to, and what you&rsquo;re afraid of. The coach builds a preparation package — opening, objections, fallback positions — then role-plays it with you, <em>in character.</em></>}
-    >
-      <div className="mx-auto flex max-w-5xl flex-col gap-6">
-        <div className="flex items-center justify-end">
-          <button
-            type="button"
-            onClick={handleNewSession}
-            className="flex items-center gap-1.5 rounded-md border border-rule-strong px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] text-fg hover:border-accent hover:text-accent transition-colors"
-          >
-            <Plus className="size-3 shrink-0" />
-            New conversation
-          </button>
-        </div>
-
-        <UsageMeter tool="coach" refreshKey={meterRefreshKey} />
-
-      {error && (
-        <p className="text-xs text-red-500 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2">{error}</p>
-      )}
-
-      <div className="flex flex-col lg:flex-row gap-6">
-        <aside className="lg:w-72 lg:shrink-0 flex flex-col gap-4">
-          {roadmapId && (
-            <CoachHistoryPanel
-              roadmapId={roadmapId}
-              activeSessionId={sessionId}
-              onSelect={(sid) => { void handleSelectSession(sid); }}
-              refreshKey={historyRefreshKey}
-            />
-          )}
-        </aside>
-
-        <div className="flex-1 min-w-0 flex flex-col gap-6">
-      {stage === 'setup' && roadmapId && (
-        <CoachSetupChat
-          roadmapId={roadmapId}
-          taskId="standalone"
-          standalone
-          initialDraft={seedDraft}
-          onSetupComplete={(completed, sid) => { void handleSetupComplete(completed, sid); }}
-          onCancel={() => { window.location.href = '/tools'; }}
-        />
-      )}
-
-      {stage === 'loading_preparation' && (
-        <ToolJobProgress
-          title="Generating your preparation package"
-          stage={prepareJob?.stage ?? 'queued'}
-          errorMessage={prepareJob?.errorMessage}
-          toolType="coach_prepare"
-          onRetry={handleRetryPrepare}
-        />
-      )}
-
-      {stage === 'loading_debrief' && (
-        <div className="flex flex-col items-center gap-3 py-16">
-          <Loader2 className="size-6 text-accent animate-spin" />
-          <p className="text-sm text-muted">Generating your debrief…</p>
-        </div>
-      )}
-
-      {stage === 'preparation' && preparation && (
-        <PreparationView
-          preparation={preparation}
-          channel={setup?.channel ?? 'whatsapp'}
-          onStartReplay={() => setStage('roleplay')}
-        />
-      )}
-
-      {stage === 'roleplay' && roadmapId && sessionId && (
-        <RolePlayChat
-          roadmapId={roadmapId}
-          taskId="standalone"
-          standalone
-          sessionId={sessionId}
-          otherPartyName={setup?.who ?? 'The other party'}
-          onEnd={() => { void handleRolePlayEnd(); }}
-          onToolCallComplete={bumpMeter}
-        />
-      )}
-
-      {stage === 'debrief' && debrief && (
-        <DebriefView
-          debrief={debrief}
-          onDone={() => setStage('done')}
-        />
-      )}
-
-      {stage === 'done' && (
-        <div className="text-center py-10">
-          <p className="text-sm text-fg mb-3">Your preparation is saved. Good luck with the conversation.</p>
-          <Link href="/tools" className="text-sm text-accent hover:underline">
-            Back to Tools
-          </Link>
-        </div>
-      )}
-        </div>
-      </div>
-      </div>
+    <ToolShell {...SHELL} flush>
+      <CoachWorkspace
+        stage={c.stage}
+        roadmapId={c.roadmapId}
+        sessionId={c.sessionId}
+        setup={c.setup}
+        preparation={c.preparation}
+        debrief={c.debrief}
+        seedDraft={c.seedDraft}
+        error={c.error}
+        meterRefreshKey={c.meterRefreshKey}
+        historyRefreshKey={c.historyRefreshKey}
+        prepareJob={c.prepareJob}
+        onNew={c.newSession}
+        onSelect={(id) => {
+          void c.selectSession(id);
+        }}
+        onPrepare={(setup, id) => {
+          void c.prepare(setup, id);
+        }}
+        onRetry={c.retryPrepare}
+        onRolePlayEnd={() => {
+          void c.endRolePlay();
+        }}
+        onUsage={c.refreshUsageAndHistory}
+        onStage={c.setStage}
+      />
     </ToolShell>
   );
 }

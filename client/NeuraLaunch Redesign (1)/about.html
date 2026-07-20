@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NeuraLaunch — About</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0c; --bg-2:#111114; --bg-3:#16161a;
+    --fg:#f5f4f1; --fg-2:#c9c7c2; --muted:#7d7c78; --muted-2:#5e5d59;
+    --rule:rgba(255,255,255,.10); --rule-strong:rgba(255,255,255,.22);
+    --accent:#ff5a3c; --green:#34d399;
+    --sans:"Inter Tight",system-ui,sans-serif;
+    --serif:"Instrument Serif","Times New Roman",serif;
+    --mono:"JetBrains Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--bg);color:var(--fg);min-height:100%;}
+  body{font-family:var(--sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;font-feature-settings:"ss01";}
+  ::selection{background:var(--accent);color:var(--bg);}
+  a,button{color:inherit;text-decoration:none;font:inherit;cursor:pointer;background:none;border:none;text-align:left;}
+
+  /* Marketing header (same shape as direction-a) */
+  .nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:22px 40px;background:color-mix(in oklab,var(--bg) 88%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;}
+  .nav .left{display:flex;align-items:center;gap:14px;}
+  .mark{width:18px;height:18px;border-radius:50%;background:var(--accent);position:relative;}
+  .mark::after{content:"";position:absolute;inset:5px;background:var(--bg);border-radius:50%;}
+  .nav .right{display:flex;gap:28px;align-items:center;color:var(--muted);}
+  .nav .right a:hover{color:var(--fg);}
+  .nav .right .on{color:var(--fg);}
+  .nav .cta{padding:9px 16px;border:1px solid var(--rule-strong);border-radius:999px;color:var(--fg);}
+  .nav .cta:hover{border-color:var(--accent);color:var(--accent);}
+
+  .wrap{max-width:1320px;margin:0 auto;padding:0 40px;}
+
+  /* ---------- HERO ---------- */
+  .hero{position:relative;padding:140px 0 100px;border-bottom:1px solid var(--rule);}
+  .hero::after{content:"";position:absolute;inset:0;background:radial-gradient(700px 320px at 25% 30%,rgba(255,90,60,.10),transparent 60%);pointer-events:none;}
+  .hero .stamp{display:flex;gap:18px;font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:32px;position:relative;}
+  .hero .stamp .dot{display:inline-flex;align-items:center;gap:7px;color:var(--green);}
+  .hero .stamp .dot::before{content:"";width:6px;height:6px;background:var(--green);border-radius:50%;}
+  .hero h1{position:relative;font-family:var(--sans);font-weight:500;font-size:clamp(56px,8vw,128px);line-height:.94;letter-spacing:-.03em;max-width:1180px;}
+  .hero h1 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+  .hero .standfirst{position:relative;margin-top:48px;columns:2;column-gap:48px;column-rule:1px solid var(--rule);max-width:880px;font-size:17px;line-height:1.65;color:var(--fg-2);}
+  .hero .standfirst p + p{margin-top:14px;}
+  .hero .standfirst p::first-letter{font-family:var(--serif);font-size:1.4em;}
+  .hero .standfirst em{font-family:var(--serif);font-style:italic;color:var(--fg);}
+  .hero .standfirst strong{color:var(--fg);font-weight:500;}
+
+  /* ---------- STORY ---------- */
+  .section{padding:120px 0;border-bottom:1px solid var(--rule);}
+  .section .head{display:grid;grid-template-columns:240px 1fr;gap:64px;margin-bottom:60px;align-items:end;padding-bottom:30px;border-bottom:1px solid var(--rule);}
+  .section .head .stamp{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);}
+  .section .head .stamp .num{display:block;color:var(--accent);font-family:var(--serif);font-style:italic;font-size:24px;letter-spacing:-.01em;margin-bottom:6px;}
+  .section .head h2{font-family:var(--sans);font-weight:500;font-size:clamp(40px,5.2vw,72px);line-height:1;letter-spacing:-.025em;}
+  .section .head h2 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+
+  .story{display:grid;grid-template-columns:240px 1fr;gap:64px;}
+  .story .body{max-width:780px;}
+  .story .body p{font-size:18px;line-height:1.65;color:var(--fg-2);}
+  .story .body p + p{margin-top:18px;}
+  .story .body p:first-of-type::first-letter{font-family:var(--serif);font-size:3.2em;font-style:italic;float:left;line-height:.9;margin:6px 12px 0 0;color:var(--accent);}
+  .story .body p strong{color:var(--fg);font-weight:500;}
+  .story .body p em{font-family:var(--serif);font-style:italic;color:var(--accent);}
+
+  /* Founding moment — editorial pull-quote */
+  .pull{margin-top:48px;padding:36px 0;border-top:1px solid var(--accent);border-bottom:1px solid var(--rule);}
+  .pull .lab{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:16px;}
+  .pull blockquote{font-family:var(--serif);font-style:italic;font-size:clamp(28px,3.6vw,44px);line-height:1.2;letter-spacing:-.015em;max-width:880px;}
+  .pull blockquote em{font-style:normal;color:var(--accent);}
+  .pull cite{display:block;margin-top:18px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-style:normal;}
+
+  /* ---------- BELIEFS ---------- */
+  .beliefs{display:grid;}
+  .belief{display:grid;grid-template-columns:120px 1fr 280px;gap:56px;padding:48px 0;border-top:1px solid var(--rule);align-items:start;}
+  .belief:first-child{border-top:1px solid var(--rule-strong);}
+  .belief:last-child{border-bottom:1px solid var(--rule-strong);}
+  .belief .n{font-family:var(--serif);font-style:italic;font-size:72px;color:var(--accent);letter-spacing:-.02em;line-height:.9;}
+  .belief h3{font-family:var(--serif);font-style:italic;font-weight:400;font-size:clamp(30px,3.4vw,44px);line-height:1.1;letter-spacing:-.015em;margin-bottom:18px;color:var(--fg);}
+  .belief h3 em{color:var(--accent);}
+  .belief p{font-size:16px;color:var(--fg-2);line-height:1.6;max-width:560px;}
+  .belief p strong{color:var(--fg);font-weight:500;}
+  .belief .keyword{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);line-height:1.7;}
+  .belief .keyword b{display:block;color:var(--accent);font-weight:500;margin-bottom:6px;font-size:10px;letter-spacing:.18em;}
+
+  /* ---------- COMPANY ---------- */
+  .company{display:grid;grid-template-columns:240px 1fr;gap:64px;}
+  .company .body p{font-size:17px;color:var(--fg-2);line-height:1.6;max-width:680px;margin-bottom:24px;}
+  .company .body p strong{color:var(--fg);font-weight:500;}
+  .company .body p em{font-family:var(--serif);font-style:italic;color:var(--accent);}
+
+  /* Facts table — no icon squares, just hairline grid */
+  .facts{margin-top:36px;display:grid;grid-template-columns:repeat(2,1fr);gap:0;border:1px solid var(--rule);max-width:840px;}
+  .facts .f{padding:22px 26px;border-right:1px solid var(--rule);border-bottom:1px solid var(--rule);}
+  .facts .f:nth-child(2n){border-right:none;}
+  .facts .f:nth-last-child(-n+2){border-bottom:none;}
+  .facts .k{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+  .facts .v{font-family:var(--serif);font-style:italic;font-size:28px;color:var(--fg);letter-spacing:-.015em;line-height:1.1;}
+  .facts .v .acc{color:var(--accent);}
+
+  /* The team — three founders */
+  .team{margin-top:48px;display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid var(--rule-strong);border-bottom:1px solid var(--rule-strong);max-width:1000px;}
+  .team .person{padding:28px 28px 32px;border-right:1px solid var(--rule);}
+  .team .person:last-child{border-right:none;}
+  .team .person .role{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:10px;}
+  .team .person .name{font-family:var(--sans);font-weight:500;font-size:20px;line-height:1.15;letter-spacing:-.01em;margin-bottom:6px;}
+  .team .person .note{font-family:var(--serif);font-style:italic;font-size:15px;color:var(--fg-2);line-height:1.4;}
+
+  /* ---------- CLOSING ---------- */
+  .closing{padding:160px 0 120px;}
+  .closing .grid{display:grid;grid-template-columns:240px 1fr;gap:64px;}
+  .closing .stamp{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);}
+  .closing h2{font-family:var(--sans);font-weight:500;font-size:clamp(56px,8vw,140px);line-height:.94;letter-spacing:-.03em;}
+  .closing h2 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+  .closing p{margin-top:36px;color:var(--fg-2);font-size:18px;max-width:540px;line-height:1.5;}
+  .closing p em{font-family:var(--serif);font-style:italic;color:var(--fg);}
+  .closing .actions{margin-top:48px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;}
+  .closing .btn{display:inline-flex;align-items:center;gap:12px;background:var(--accent);color:var(--bg);padding:16px 24px;font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:500;}
+  .closing .btn::after{content:"→";font-family:var(--sans);font-size:16px;}
+  .closing .quiet{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+
+  footer{border-top:1px solid var(--rule);padding:50px 40px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:24px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  footer a:hover{color:var(--fg);}
+
+  @media (max-width:1000px){
+    .nav{padding:16px 22px;}
+    .wrap{padding:0 22px;}
+    .hero{padding:80px 0 60px;}
+    .hero .standfirst{columns:1;}
+    .section{padding:70px 0;}
+    .section .head{grid-template-columns:1fr;gap:18px;margin-bottom:40px;}
+    .story,.company{grid-template-columns:1fr;gap:24px;}
+    .story .body p:first-of-type::first-letter{font-size:2.4em;}
+    .belief{grid-template-columns:60px 1fr;gap:18px;padding:32px 0;}
+    .belief .keyword{grid-column:1/-1;padding-left:78px;}
+    .facts{grid-template-columns:1fr;}
+    .facts .f{border-right:none;}
+    .team{grid-template-columns:1fr;}
+    .team .person{border-right:none;border-bottom:1px solid var(--rule);}
+    .team .person:last-child{border-bottom:none;}
+    .closing{padding:80px 0 60px;}
+    .closing .grid{grid-template-columns:1fr;gap:24px;}
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="left">
+    <div class="mark"></div>
+    <span>NeuraLaunch</span>
+  </div>
+  <div class="right">
+    <a href="direction-a.html">Home</a>
+    <a class="on" href="about.html">About</a>
+    <a href="#">FAQ</a>
+    <a href="#">Stories</a>
+    <a class="cta" href="discovery-a.html">Begin Discovery</a>
+  </div>
+</nav>
+
+<main>
+
+<!-- ============================================================
+     HERO
+     ============================================================ -->
+<section class="hero">
+  <div class="wrap">
+    <div class="stamp">
+      <span>NeuraLaunch &nbsp;/&nbsp; About</span>
+      <span class="dot">Our conviction</span>
+      <span>Tabempa Engineering · Freetown</span>
+    </div>
+
+    <h1>The gap between<br/><em>where someone is</em><br/>and <em>where they could be</em><br/>should not be decided<br/>by what they already have.</h1>
+
+    <div class="standfirst">
+      <p>Not their money. Not their connections. Not their geography. <strong>NeuraLaunch is our answer to that belief</strong> — built by three people in Freetown, Sierra Leone, with the conviction that the right guide at the right moment can change a life.</p>
+      <p>We are not a corporation. We are not a VC-backed team of fifty. We are a small group of people who believe the gap between <em>lost</em> and <em>launched</em> should not be a function of accident of birth — and that an AI partner, given the right shape, can close it.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     I — THE STORY
+     ============================================================ -->
+<section class="section" id="story">
+  <div class="wrap">
+    <div class="head">
+      <div class="stamp"><span class="num">I.</span>Why we built it</div>
+      <h2>The world has consultants.<br/>The world has AI tools.<br/><em>Neither was the thing.</em></h2>
+    </div>
+
+    <div class="story">
+      <div></div>
+      <div class="body">
+        <p>Every day, millions of people wake up stuck. The graduate who applied everywhere and got nowhere. The shop owner whose growth stalled and who can't see why. The founder with early traction who hit a wall. The professional drowning in options.</p>
+        <p>What they share isn't <em>failure.</em> It's the absence of the right guide at the right moment. <strong>Consultants exist</strong> — but they're expensive, generic, and built for companies that already have money. <strong>AI tools exist</strong> — but they hand you five options when you needed one answer, and they leave you alone the moment the answer is delivered.</p>
+        <p>Nothing had been built for the moments <em>in between.</em> Nothing listened first, committed to one direction, and then stayed through the work of making that direction real.</p>
+
+        <div class="pull">
+          <div class="lab">The founding moment</div>
+          <blockquote>So we built it. <em>Two engineers and an operator</em>, working from Freetown, with the conviction that the right guide at the right moment can change a life.</blockquote>
+          <cite>— The founding team · Tabempa Engineering Limited</cite>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     II — BELIEFS
+     ============================================================ -->
+<section class="section" id="beliefs">
+  <div class="wrap">
+    <div class="head">
+      <div class="stamp"><span class="num">II.</span>What we believe</div>
+      <h2>Four convictions<br/>shape <em>every decision.</em></h2>
+    </div>
+
+    <div class="beliefs">
+
+      <article class="belief">
+        <div class="n">i.</div>
+        <div>
+          <h3>One answer is more useful than <em>five options.</em></h3>
+          <p>When someone is lost, they don't need more options to evaluate — they need a direction they can <strong>trust.</strong> And someone willing to defend it, or change their mind when the case is made. Indecision dressed up as choice is the most expensive kind of advice.</p>
+        </div>
+        <div class="keyword">
+          <b>The principle</b>
+          Commitment over hedge<br/>
+          One recommendation, defended<br/>
+          Argued with, not menu'd
+        </div>
+      </article>
+
+      <article class="belief">
+        <div class="n">ii.</div>
+        <div>
+          <h3>The <em>work</em> decides the outcome — not the strategy.</h3>
+          <p>The moments that decide whether a founder wins are <strong>not the moments code gets written.</strong> They're the first cold message. The pricing call. The conversation with the partner you've been avoiding. We built tools for that work, not for the autogenerated MVP that ships nothing.</p>
+        </div>
+        <div class="keyword">
+          <b>The principle</b>
+          Conversations before code<br/>
+          Coach · Composer · Research<br/>
+          Validation before build
+        </div>
+      </article>
+
+      <article class="belief">
+        <div class="n">iii.</div>
+        <div>
+          <h3>Listen <em>before</em> you recommend.</h3>
+          <p>The quality of the answer is <strong>bounded by the quality of the understanding.</strong> NeuraLaunch interviews the situation, notices when the surface answer isn't the real one, and earns the right to recommend by asking first. Up to fifteen questions. Capped, so it ends.</p>
+        </div>
+        <div class="keyword">
+          <b>The principle</b>
+          Context before conclusion<br/>
+          15-field belief state<br/>
+          Audience-aware
+        </div>
+      </article>
+
+      <article class="belief">
+        <div class="n">iv.</div>
+        <div>
+          <h3>Stay through the <em>cycle.</em></h3>
+          <p>A plan you receive once is a document you'll close in a week. A partner that <strong>stays</strong> — through the blocks, the wins, the recalibrations — is the difference between a roadmap on paper and a roadmap that ships. The continuation brief at the end of each cycle is the proof.</p>
+        </div>
+        <div class="keyword">
+          <b>The principle</b>
+          Partner, not tool<br/>
+          Check-ins · recalibration<br/>
+          The next cycle is smarter
+        </div>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     III — THE COMPANY
+     ============================================================ -->
+<section class="section" id="company">
+  <div class="wrap">
+    <div class="head">
+      <div class="stamp"><span class="num">III.</span>The company</div>
+      <h2>A product of<br/><em>Tabempa Engineering Limited.</em></h2>
+    </div>
+
+    <div class="company">
+      <div></div>
+      <div class="body">
+        <p>Headquartered in <strong>Freetown, Sierra Leone</strong> — a vantage point that informs how we think about access, constraint, and the difference a single clear direction can make for someone whose options are <em>genuinely limited.</em></p>
+        <p>Built by three people, held to the engineering standards of a senior team at a world-class technology company. We are small, we are deliberate, and we are not in a hurry.</p>
+
+        <div class="facts">
+          <div class="f">
+            <div class="k">Founded</div>
+            <div class="v"><span class="acc">2026</span></div>
+          </div>
+          <div class="f">
+            <div class="k">Built from</div>
+            <div class="v">Freetown, <span class="acc">Sierra Leone</span></div>
+          </div>
+          <div class="f">
+            <div class="k">Team</div>
+            <div class="v">Three. <span class="acc">No outside capital.</span></div>
+          </div>
+          <div class="f">
+            <div class="k">Built for</div>
+            <div class="v"><span class="acc">Everyone</span> stuck.</div>
+          </div>
+        </div>
+
+        <div class="team">
+          <div class="person">
+            <div class="role">I. Founder &amp; CEO</div>
+            <div class="name">Alpha Saheed Mansaray</div>
+            <div class="note">The believer.</div>
+          </div>
+          <div class="person">
+            <div class="role">II. Co-founder &amp; Chief Engineer</div>
+            <div class="name">Saheed Alpha Mansaray</div>
+            <div class="note">The builder.</div>
+          </div>
+          <div class="person">
+            <div class="role">III. Chief Operating Officer</div>
+            <div class="name">John Bismark Sesay</div>
+            <div class="note">The operator.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     CLOSING
+     ============================================================ -->
+<section class="closing">
+  <div class="wrap">
+    <div class="grid">
+      <div class="stamp">In closing</div>
+      <div>
+        <h2>The best way to understand what we're building is to <em>use it.</em></h2>
+        <p>One honest interview. One clear direction. A partner with you through <em>the work that follows.</em></p>
+        <div class="actions">
+          <a class="btn" href="discovery-a.html">Begin Discovery</a>
+          <span class="quiet">Free to start · No card · ~12 minutes</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <span>NeuraLaunch · Tabempa Engineering · 2026</span>
+  <span><a href="direction-a.html">← Home</a> &nbsp;·&nbsp; <a href="index.html">Audit</a></span>
+  <span>From lost to launched. For everyone.</span>
+</footer>
+
+</body>
+</html>

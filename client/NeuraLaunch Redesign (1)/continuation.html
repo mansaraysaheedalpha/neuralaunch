@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NeuraLaunch — Continuation Brief · Cycle I</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0c; --bg-2:#111114; --bg-3:#16161a; --bg-4:#1c1c20;
+    --fg:#f5f4f1; --fg-2:#c9c7c2; --muted:#7d7c78; --muted-2:#5e5d59;
+    --rule:rgba(255,255,255,.10); --rule-strong:rgba(255,255,255,.22);
+    --accent:#ff5a3c; --green:#34d399; --amber:#fbbf24;
+    --sans:"Inter Tight",system-ui,sans-serif;
+    --serif:"Instrument Serif","Times New Roman",serif;
+    --mono:"JetBrains Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--bg);color:var(--fg);min-height:100%;}
+  body{font-family:var(--sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;font-feature-settings:"ss01";}
+  ::selection{background:var(--accent);color:var(--bg);}
+  a,button{color:inherit;text-decoration:none;font:inherit;cursor:pointer;background:none;border:none;text-align:left;}
+
+  .bar{position:sticky;top:0;z-index:50;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 36px;background:color-mix(in oklab,var(--bg) 90%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .bar .left{display:flex;gap:18px;align-items:center;}
+  .mark{width:16px;height:16px;border-radius:50%;background:var(--accent);position:relative;}
+  .mark::after{content:"";position:absolute;inset:4px;background:var(--bg);border-radius:50%;}
+  .bar .crumb .acc{color:var(--accent);}
+  .bar .right{display:flex;gap:22px;align-items:center;}
+  .bar .pill{padding:5px 10px;border:1px solid var(--rule-strong);}
+  .bar .pill.acc{color:var(--accent);border-color:var(--accent);}
+
+  /* Cover page */
+  .cover{padding:80px 80px 60px;border-bottom:1px solid var(--rule);max-width:1280px;}
+  .cover .stamp{display:flex;gap:18px;font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:32px;}
+  .cover .stamp .dot{display:inline-flex;align-items:center;gap:7px;color:var(--green);}
+  .cover .stamp .dot::before{content:"";width:6px;height:6px;background:var(--green);border-radius:50%;}
+  .cover h1{font-family:var(--sans);font-weight:500;font-size:clamp(56px,8vw,128px);line-height:.94;letter-spacing:-.03em;}
+  .cover h1 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+
+  .cover .grid{margin-top:48px;display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--rule);}
+  .cover .grid .c{padding:22px 24px;border-right:1px solid var(--rule);}
+  .cover .grid .c:last-child{border-right:none;}
+  .cover .grid .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+  .cover .grid .v{font-family:var(--serif);font-style:italic;font-size:32px;color:var(--fg);letter-spacing:-.01em;line-height:1;}
+  .cover .grid .v.acc{color:var(--accent);}
+  .cover .grid .sub{margin-top:6px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--muted-2);}
+
+  /* Body */
+  .body{padding:80px 80px 120px;max-width:1280px;}
+
+  /* Section */
+  section.section{padding:56px 0;border-top:1px solid var(--rule);display:grid;grid-template-columns:220px 1fr;gap:64px;}
+  section.section:first-of-type{border-top:none;padding-top:0;}
+  section.section .lab{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);}
+  section.section .lab .num{display:block;color:var(--accent);font-family:var(--serif);font-style:italic;font-size:32px;letter-spacing:-.01em;margin-bottom:6px;}
+  section.section h2{font-family:var(--serif);font-style:italic;font-weight:400;font-size:clamp(34px,4vw,52px);line-height:1.05;letter-spacing:-.015em;margin-bottom:24px;color:var(--fg);}
+  section.section h2 .acc{color:var(--accent);}
+  section.section p{font-size:17px;line-height:1.65;color:var(--fg-2);max-width:780px;}
+  section.section p + p{margin-top:14px;}
+  section.section p strong{color:var(--fg);font-weight:500;}
+  section.section p em{font-family:var(--serif);font-style:italic;color:var(--fg);}
+
+  /* What I got wrong — list of overturned assumptions */
+  .wrong-list{display:grid;gap:14px;margin-top:20px;}
+  .wrong-item{padding:20px 24px;border:1px solid var(--rule);position:relative;background:var(--bg-2);}
+  .wrong-item::before{content:"✕";position:absolute;top:18px;right:24px;font-family:var(--serif);font-style:italic;color:var(--accent);font-size:24px;}
+  .wrong-item .pref{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+  .wrong-item .pref .acc{color:var(--accent);}
+  .wrong-item .said{font-family:var(--serif);font-size:18px;line-height:1.4;color:var(--fg-2);text-decoration:line-through;text-decoration-color:var(--muted-2);max-width:660px;margin-bottom:10px;}
+  .wrong-item .actually{font-size:15px;color:var(--fg);line-height:1.55;max-width:680px;}
+  .wrong-item .actually b{color:var(--accent);font-weight:500;}
+
+  /* Evidence — metric ledger */
+  .evidence{display:grid;gap:14px;margin-top:18px;}
+  .ev-row{display:grid;grid-template-columns:180px 1fr 160px;gap:24px;padding:18px 0;border-bottom:1px solid var(--rule);align-items:baseline;}
+  .ev-row:first-child{border-top:1px solid var(--rule);}
+  .ev-row .k{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .ev-row .read{font-size:16px;color:var(--fg-2);line-height:1.5;max-width:560px;}
+  .ev-row .read b{color:var(--fg);font-weight:500;}
+  .ev-row .read .acc{color:var(--accent);font-weight:500;}
+  .ev-row .signal{font-family:var(--serif);font-style:italic;font-size:24px;color:var(--accent);letter-spacing:-.01em;text-align:right;line-height:1;}
+  .ev-row .signal.green{color:var(--green);}
+  .ev-row .signal.amber{color:var(--amber);}
+  .ev-row .signal.muted{color:var(--muted);font-size:18px;}
+
+  /* Forks — 3 options as cards */
+  .forks{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:24px;}
+  .fork{display:flex;flex-direction:column;border:1px solid var(--rule);padding:22px 24px 24px;background:var(--bg-2);transition:border-color .25s,transform .25s;cursor:pointer;position:relative;overflow:hidden;}
+  .fork:hover{border-color:var(--rule-strong);transform:translateY(-2px);}
+  .fork.selected{border-color:var(--accent);background:linear-gradient(180deg,rgba(255,90,60,.10),var(--bg-2) 60%);}
+  .fork.selected::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent);}
+  .fork .stamp{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;}
+  .fork .stamp .acc{color:var(--accent);}
+  .fork .stamp .ix{font-family:var(--serif);font-style:italic;font-size:18px;color:var(--accent);letter-spacing:-.01em;text-transform:none;}
+  .fork h3{font-family:var(--sans);font-weight:500;font-size:22px;line-height:1.15;letter-spacing:-.015em;margin-bottom:12px;}
+  .fork h3 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+  .fork .rationale{font-size:14px;color:var(--fg-2);line-height:1.55;margin-bottom:18px;flex:1;}
+  .fork .grid{display:grid;gap:10px;padding-top:14px;border-top:1px solid var(--rule);}
+  .fork .grid .row{display:grid;grid-template-columns:120px 1fr;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--muted);line-height:1.45;}
+  .fork .grid .row b{color:var(--fg);font-weight:500;}
+  .fork .grid .row .right-if{font-family:var(--serif);font-style:italic;color:var(--fg-2);text-transform:none;letter-spacing:0;font-size:13px;line-height:1.4;}
+  .fork .pick{margin-top:18px;display:inline-flex;align-items:center;justify-content:space-between;padding:11px 14px;border:1px solid var(--rule-strong);font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--fg);}
+  .fork .pick::after{content:"→";font-family:var(--sans);}
+  .fork.selected .pick{background:var(--accent);color:var(--bg);border-color:var(--accent);}
+
+  /* Parking lot — small italic list */
+  .parking{display:grid;gap:8px;margin-top:20px;border-left:2px solid var(--accent);padding-left:24px;}
+  .parking .item{padding:10px 0;border-bottom:1px dashed var(--rule);font-family:var(--serif);font-size:18px;line-height:1.4;color:var(--fg);font-style:italic;}
+  .parking .item:last-child{border-bottom:none;}
+  .parking .item q{quotes:"\201C" "\201D";}
+  .parking .item .when{display:block;margin-top:4px;font-family:var(--mono);font-size:10px;color:var(--muted);font-style:normal;letter-spacing:.08em;}
+
+  /* Closing thought */
+  .closing-thought{margin-top:64px;padding:48px 56px;border:1px solid var(--rule);background:linear-gradient(180deg,rgba(255,90,60,.04),transparent 80%);text-align:center;}
+  .closing-thought .lab{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:18px;}
+  .closing-thought blockquote{font-family:var(--serif);font-style:italic;font-size:clamp(28px,3.4vw,44px);line-height:1.2;letter-spacing:-.015em;max-width:780px;margin:0 auto;}
+  .closing-thought blockquote em{font-style:normal;color:var(--accent);}
+  .closing-thought cite{display:block;margin-top:22px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-style:normal;}
+
+  /* Pick fork bar */
+  .pick-bar{position:sticky;bottom:0;display:flex;justify-content:space-between;align-items:center;padding:18px 80px;background:color-mix(in oklab,var(--bg) 94%,transparent);backdrop-filter:blur(12px);border-top:1px solid var(--rule);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);z-index:40;}
+  .pick-bar .status{display:flex;gap:16px;align-items:center;}
+  .pick-bar .status .acc{color:var(--accent);}
+  .pick-bar .actions{display:flex;gap:10px;}
+  .pick-bar button{padding:12px 18px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:500;}
+  .pick-bar .ghost{border:1px solid var(--rule-strong);color:var(--fg);}
+  .pick-bar .ghost:hover{border-color:var(--accent);color:var(--accent);}
+  .pick-bar .primary{background:var(--accent);color:var(--bg);display:inline-flex;gap:10px;align-items:center;}
+  .pick-bar .primary:disabled{opacity:.3;cursor:not-allowed;}
+  .pick-bar .primary::after{content:"→";font-family:var(--sans);font-size:14px;}
+
+  @media (max-width:1100px){
+    .cover{padding:48px 28px 40px;}
+    .cover .grid{grid-template-columns:repeat(2,1fr);}
+    .cover .grid .c{border-bottom:1px solid var(--rule);}
+    .body{padding:48px 28px 80px;}
+    section.section{grid-template-columns:1fr;gap:18px;}
+    .forks{grid-template-columns:1fr;}
+    .closing-thought{padding:36px 28px;}
+    .pick-bar{padding:14px 24px;flex-wrap:wrap;gap:12px;}
+  }
+  @media (max-width:700px){
+    .ev-row{grid-template-columns:1fr;}
+    .ev-row .signal{text-align:left;}
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="left">
+    <div class="mark"></div>
+    <span class="crumb"><span class="acc">Maternal-care advisory</span> &nbsp;/&nbsp; Cycle I &nbsp;/&nbsp; <span style="color:var(--fg);">Continuation Brief</span></span>
+  </div>
+  <div class="right">
+    <span class="pill acc">● Brief ready · Opus 4.6</span>
+    <a href="roadmap.html">← Roadmap</a>
+  </div>
+</header>
+
+<!-- ============================================================
+     COVER PAGE
+     ============================================================ -->
+<section class="cover">
+  <div class="stamp">
+    <span>Continuation Brief · Cycle <span class="acc" style="color:var(--accent);">I</span></span>
+    <span>Day 21 of 21 · cycle complete</span>
+    <span class="dot">Ready to read</span>
+  </div>
+
+  <h1>What you<br/><em>learned.</em></h1>
+
+  <div class="grid">
+    <div class="c"><div class="k">Tasks complete</div><div class="v">8 / 9</div><div class="sub">1 blocked by Meta · resolved Day 19</div></div>
+    <div class="c"><div class="k">Pace · derived hours</div><div class="v acc">9.1 h / wk</div><div class="sub">+14% over stated 8 h</div></div>
+    <div class="c"><div class="k">Paid consultations</div><div class="v">4</div><div class="sub">Target: ≥ 3 · cleared</div></div>
+    <div class="c"><div class="k">Validation signal</div><div class="v acc">Strong</div><div class="sub">For advisory · weak for app</div></div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SECTIONS — the five-part brief
+     ============================================================ -->
+<div class="body">
+
+  <!-- I. WHAT HAPPENED -->
+  <section class="section" id="happened">
+    <div class="lab"><span class="num">I.</span>What happened</div>
+    <div>
+      <h2>The pilot <span class="acc">worked.</span> Just not the way I expected.</h2>
+      <p>Twenty-one days in, the picture is clear: you booked <strong>four paid consultations</strong> against a target of three. The wrong-condition we set up front did not trigger. You held pace at 9.1 hours per week — better than the eight you stated. The first revenue is real.</p>
+      <p>What surprised both of us is <em>who said yes.</em> The recruiter message worked best on followers who were not yet pregnant — women planning, not women three months in. The Conversation Coach prep was load-bearing on objection three, which I had marked as low-priority but turned out to be the deciding moment in three of the four conversations.</p>
+      <p>Eight tasks complete. One blocked by Meta's verification process, resolved on Day 19 without changing the plan. No recalibration offers triggered. No tasks fell more than 24 hours behind estimate. <strong>This is what executing a recommendation looks like when the recommendation was correct.</strong></p>
+    </div>
+  </section>
+
+  <!-- II. WHAT I GOT WRONG -->
+  <section class="section" id="wrong">
+    <div class="lab"><span class="num">II.</span>What I got wrong</div>
+    <div>
+      <h2>Three assumptions <span class="acc">did not survive.</span></h2>
+      <p>I committed to one recommendation. That recommendation rested on assumptions. Here are the ones the evidence overturned — and what they mean for the next cycle.</p>
+
+      <div class="wrong-list">
+        <div class="wrong-item">
+          <div class="pref">Assumption <span class="acc">overturned</span></div>
+          <p class="said">"The audience values <b>availability and warmth</b> over clinical depth at this price point."</p>
+          <p class="actually"><b>Actually:</b> they wanted <strong>concrete answers, not warmth.</strong> The two conversations that converted at full price did so because you gave a specific clinical opinion. The two that hesitated did so when you stayed neutral. <b>This shifts the offer — and the next cycle's positioning.</b></p>
+        </div>
+
+        <div class="wrong-item">
+          <div class="pref">Assumption <span class="acc">overturned</span></div>
+          <p class="said">"Existing WhatsApp following includes at least thirty active mothers <b>or expecting mothers</b> who would consider paying for advisory."</p>
+          <p class="actually"><b>Actually:</b> the active list was closer to eighteen — but the qualifying pool was wider than that, because <strong>planning mothers</strong> (a group I did not separate) responded better than expecting ones. The audience is bigger than I sized for, in a direction I did not anticipate.</p>
+        </div>
+
+        <div class="wrong-item">
+          <div class="pref">Assumption <span class="acc">partially upheld</span></div>
+          <p class="said">"You can run consultations from WhatsApp Business without violating clinical regulations in Sierra Leone."</p>
+          <p class="actually"><b>Actually:</b> you can — but only with disclaimers I had not anticipated. Disclaimer text is now part of every consultation. <strong>Time per session went from 45 minutes to 60 minutes</strong> as a result. Sizing the next cycle accordingly.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- III. WHAT THE EVIDENCE SAYS -->
+  <section class="section" id="evidence">
+    <div class="lab"><span class="num">III.</span>What the evidence says</div>
+    <div>
+      <h2>The signals across <span class="acc">twenty-one days.</span></h2>
+      <p>Drawn from your check-ins, completed tasks, conversation arcs, and the actual outcome of every consultation booked.</p>
+
+      <div class="evidence">
+        <div class="ev-row">
+          <span class="k">Conversion to paid</span>
+          <span class="read"><b>4 of 10</b> followers reached out → paid. Two more are warm, not yet booked. <span class="acc">Above wrong-condition (3 of 10).</span></span>
+          <span class="signal green">Strong</span>
+        </div>
+        <div class="ev-row">
+          <span class="k">Price tolerance</span>
+          <span class="read">Full NLe 200 sustained for 3 of 4. One asked for sliding scale and was granted NLe 150. <span class="acc">Pricing is not the binding constraint.</span></span>
+          <span class="signal green">Strong</span>
+        </div>
+        <div class="ev-row">
+          <span class="k">Repeat intent</span>
+          <span class="read">All 4 said they'd come back. 2 of 4 referred a friend within 72 hours. <strong>Pull is organic.</strong></span>
+          <span class="signal green">Strong</span>
+        </div>
+        <div class="ev-row">
+          <span class="k">Audience type</span>
+          <span class="read">Planning > expecting > post-natal, in that order, by conversion. <span class="acc">Counter to the prior.</span></span>
+          <span class="signal amber">Re-aim</span>
+        </div>
+        <div class="ev-row">
+          <span class="k">App-build signal</span>
+          <span class="read">Asked all 4 if an app would help. <b>0 of 4 said yes</b>. Three said "this works, why would I need an app." <strong>The app idea is rejected by the data.</strong></span>
+          <span class="signal">Negative</span>
+        </div>
+        <div class="ev-row">
+          <span class="k">Time-cost reality</span>
+          <span class="read">60 minutes per session with disclaimers, not 45. <strong>Throughput is 8 sessions / week max</strong>, not 12.</span>
+          <span class="signal amber">Cap'd</span>
+        </div>
+        <div class="ev-row">
+          <span class="k">Geographic reach</span>
+          <span class="read">3 of 4 from Freetown. 1 from Bo. <span class="acc">Channel works outside the capital.</span></span>
+          <span class="signal muted">Weak — n=1 outside</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- IV. FORKS -->
+  <section class="section" id="forks">
+    <div class="lab"><span class="num">IV.</span>The forks ahead</div>
+    <div>
+      <h2>Three honest <span class="acc">directions</span> from here.</h2>
+      <p>Each fork starts the next cycle. The first step is real. The time estimate is sized against your actual pace from this cycle — <strong>9.1 hours per week</strong> — not the eight you stated coming in. Pick one and Cycle II begins.</p>
+
+      <div class="forks" id="forks">
+
+        <button class="fork" data-fork="a">
+          <div class="stamp"><span class="ix">A.</span><span>Deepen</span></div>
+          <h3>Re-position toward <em>planning mothers.</em></h3>
+          <p class="rationale">Same channel, same price, same delivery — but reframe the offer for women planning a pregnancy, not women already expecting. Triple the addressable pool. Lowest-risk path; smallest learnings.</p>
+          <div class="grid">
+            <div class="row"><b>First step</b><span style="color:var(--fg-2);">Rewrite the pitch + 5 follow-up Outreach messages</span></div>
+            <div class="row"><b>Estimate</b><span style="color:var(--fg-2);">3 weeks · 27 hours total</span></div>
+            <div class="row"><b>Right if</b><span class="right-if">"I want to grow the same business, smarter."</span></div>
+          </div>
+          <span class="pick">Choose A</span>
+        </button>
+
+        <button class="fork" data-fork="b">
+          <div class="stamp"><span class="ix">B.</span><span>Widen</span></div>
+          <h3>Open a <em>second channel</em> — Bo and Makeni.</h3>
+          <p class="rationale">One Bo consultation suggests the channel travels. Spend 3 weeks running a parallel pilot outside Freetown with a regional partner. If conversion holds, the business is national, not local.</p>
+          <div class="grid">
+            <div class="row"><b>First step</b><span style="color:var(--fg-2);">Identify and brief a Bo-based partner clinic</span></div>
+            <div class="row"><b>Estimate</b><span style="color:var(--fg-2);">3 weeks · 28 hours total</span></div>
+            <div class="row"><b>Right if</b><span class="right-if">"The wider opportunity matters more than depth."</span></div>
+          </div>
+          <span class="pick">Choose B</span>
+        </button>
+
+        <button class="fork" data-fork="c">
+          <div class="stamp"><span class="ix">C.</span><span class="acc">Package</span></div>
+          <h3>Productise into a <em>3-session pack.</em></h3>
+          <p class="rationale">All four converts said they'd come back. Turn one-off advisory into a NLe 500 three-session pack with a defined arc. Predictable revenue. Less recruitment overhead. Use Service Packager to structure tiers.</p>
+          <div class="grid">
+            <div class="row"><b>First step</b><span style="color:var(--fg-2);">Design the 3-session arc with Service Packager</span></div>
+            <div class="row"><b>Estimate</b><span style="color:var(--fg-2);">4 weeks · 35 hours total</span></div>
+            <div class="row"><b>Right if</b><span class="right-if">"I want stable monthly revenue, not more conversations."</span></div>
+          </div>
+          <span class="pick">Choose C</span>
+        </button>
+
+      </div>
+
+      <p style="margin-top:24px;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--muted);">
+        Note · the app fork has been removed. The data rejected it (0 of 4 wanted one). It can return if Cycle II surfaces a different signal.
+      </p>
+    </div>
+  </section>
+
+  <!-- V. PARKING LOT -->
+  <section class="section" id="parking">
+    <div class="lab"><span class="num">V.</span>The parking lot</div>
+    <div>
+      <h2>Ideas you raised <span class="acc">along the way.</span></h2>
+      <p>Things you said while running the pilot that didn't belong in the cycle but were worth holding. Available to surface inside the next cycle if any feels relevant.</p>
+
+      <div class="parking">
+        <div class="item">
+          <q>Could the same pilot work for diabetic care?</q>
+          <span class="when">Day 4 · during recruit</span>
+        </div>
+        <div class="item">
+          <q>If price is the issue, could it be subsidised by a partner pharmacy?</q>
+          <span class="when">Day 5 · check-in</span>
+        </div>
+        <div class="item">
+          <q>What if I partner with the local pharmacy for referrals?</q>
+          <span class="when">Day 6 · check-in</span>
+        </div>
+        <div class="item">
+          <q>Maybe a podcast for planning mothers — same audience, asynchronous.</q>
+          <span class="when">Day 18 · post-consultation</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CLOSING -->
+  <div class="closing-thought">
+    <div class="lab">Closing thought</div>
+    <blockquote>
+      You came in convinced you needed an app. You leave with four paid customers, a margin, and a clear next direction. The work that decided this was <em>not</em> the technology — it was the first ten conversations.
+    </blockquote>
+    <cite>— NeuraLaunch · Continuation engine · Cycle I</cite>
+  </div>
+
+</div>
+
+<!-- Pick-fork sticky bar -->
+<footer class="pick-bar">
+  <div class="status">
+    <span>Cycle II begins on fork selection</span>
+    <span class="acc" id="status">No fork chosen</span>
+  </div>
+  <div class="actions">
+    <button class="ghost">Reopen diagnostic</button>
+    <button class="primary" id="commit" disabled>Begin Cycle II</button>
+  </div>
+</footer>
+
+<script>
+  let chosen = null;
+  const status = document.getElementById('status');
+  const commit = document.getElementById('commit');
+  document.querySelectorAll('.fork').forEach(f => {
+    f.addEventListener('click', () => {
+      document.querySelectorAll('.fork').forEach(x => x.classList.remove('selected'));
+      f.classList.add('selected');
+      chosen = f.dataset.fork.toUpperCase();
+      const titleEl = f.querySelector('h3');
+      const title = titleEl ? titleEl.innerText.replace(/\s+/g, ' ').trim() : '';
+      status.textContent = `Fork ${chosen} · selected`;
+      status.classList.add('acc');
+      const pickEl = f.querySelector('.pick');
+      if (pickEl) pickEl.innerHTML = '✓ Selected';
+      // Reset other picks
+      document.querySelectorAll('.fork').forEach(x => {
+        if (x !== f) {
+          const p = x.querySelector('.pick');
+          const letter = x.dataset.fork.toUpperCase();
+          if (p) p.innerHTML = `Choose ${letter}`;
+        }
+      });
+      commit.disabled = false;
+    });
+  });
+  commit.addEventListener('click', () => {
+    if (!chosen) return;
+    window.location.href = 'roadmap.html';
+  });
+</script>
+
+</body>
+</html>

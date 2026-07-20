@@ -1,0 +1,990 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NeuraLaunch — The Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f4efe6;
+    --paper-2: #ede7da;
+    --ink: #0e1116;
+    --ink-2: #2a2e36;
+    --muted: #6e6a60;
+    --rule: rgba(14,17,22,.14);
+    --rule-strong: rgba(14,17,22,.32);
+    --accent: #b1331f;     /* burnt sienna — single editorial accent */
+    --highlight: rgba(177,51,31,.10);
+    --sans: "Inter Tight", system-ui, -apple-system, sans-serif;
+    --serif: "Instrument Serif", "Times New Roman", serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--paper); color: var(--ink); }
+  body {
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "ss01", "cv11";
+  }
+  ::selection { background: var(--ink); color: var(--paper); }
+  a { color: inherit; text-decoration: none; }
+
+  /* ---------- Top bar ---------- */
+  .bar {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 40px;
+    background: color-mix(in oklab, var(--paper) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--rule);
+    font-size: 13px;
+  }
+  .bar .left { display: flex; align-items: center; gap: 14px; }
+  .mark {
+    width: 22px; height: 22px;
+    border: 1.4px solid var(--ink);
+    border-radius: 50%;
+    position: relative;
+  }
+  .mark::after {
+    content: "";
+    position: absolute; inset: 5px;
+    background: var(--ink);
+    border-radius: 50%;
+  }
+  .bar .right { display: flex; gap: 26px; color: var(--muted); }
+  .bar .right a:hover { color: var(--ink); }
+  .bar .stamp {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .04em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  /* ---------- Page rhythm ---------- */
+  main { padding: 0; }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 0 40px; }
+  .row { display: grid; grid-template-columns: 220px 1fr; gap: 56px; padding: 80px 0; border-bottom: 1px solid var(--rule); }
+  .row:last-child { border-bottom: none; }
+  .row > .meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding-top: 6px;
+  }
+  .row > .meta .num {
+    color: var(--ink);
+    font-weight: 500;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  /* ---------- Hero ---------- */
+  .hero { padding: 90px 0 120px; border-bottom: 1px solid var(--rule); }
+  .hero h1 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(56px, 9vw, 144px);
+    line-height: .94;
+    letter-spacing: -.025em;
+    margin-bottom: 36px;
+  }
+  .hero h1 em {
+    font-style: italic;
+    color: var(--accent);
+  }
+  .hero .lede {
+    max-width: 640px;
+    font-size: 19px;
+    line-height: 1.5;
+    color: var(--ink-2);
+  }
+  .hero .lede strong { font-weight: 500; color: var(--ink); }
+  .hero .stamp-row {
+    display: flex; gap: 32px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 40px;
+  }
+  .hero .stamp-row span { display: flex; gap: 8px; align-items: center; }
+  .dot { width: 5px; height: 5px; background: var(--accent); border-radius: 50%; }
+
+  /* ---------- Verdict block ---------- */
+  .verdict {
+    font-family: var(--serif);
+    font-size: clamp(28px, 3.6vw, 44px);
+    line-height: 1.15;
+    letter-spacing: -.01em;
+    max-width: 880px;
+  }
+  .verdict em { font-style: italic; color: var(--accent); }
+  .verdict + p { margin-top: 28px; max-width: 640px; color: var(--ink-2); font-size: 17px; }
+
+  /* ---------- Finding cards ---------- */
+  .findings { display: grid; gap: 0; }
+  .finding {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 64px;
+    padding: 56px 0;
+    border-top: 1px solid var(--rule);
+    align-items: start;
+  }
+  .finding:first-child { border-top: none; padding-top: 0; }
+  .finding h3 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(28px, 3vw, 40px);
+    line-height: 1.05;
+    letter-spacing: -.015em;
+    margin-bottom: 16px;
+  }
+  .finding h3 em { font-style: italic; color: var(--accent); }
+  .finding .label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .finding p { color: var(--ink-2); font-size: 16px; max-width: 460px; }
+  .finding p + p { margin-top: 12px; }
+  .finding .fix {
+    margin-top: 22px;
+    padding: 14px 16px;
+    border-left: 2px solid var(--accent);
+    background: var(--highlight);
+    font-size: 14px;
+    color: var(--ink);
+    line-height: 1.55;
+  }
+  .finding .fix b {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 500;
+  }
+
+  /* visuals — small recreations of current UI for the "before" */
+  .visual {
+    border: 1px solid var(--rule);
+    background: #fff;
+    border-radius: 2px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .visual::before {
+    content: "BEFORE";
+    position: absolute;
+    top: 10px; right: 12px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: .18em;
+    color: var(--muted);
+  }
+
+  /* recreation: current dark hero */
+  .rc-hero-dark {
+    background: #0d1e38;
+    color: #fff;
+    padding: 28px 22px;
+    border-radius: 2px;
+  }
+  .rc-hero-dark .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,.04); color: #cbd5e1;
+    padding: 4px 10px; border-radius: 999px;
+    font-size: 10px; border: 1px solid rgba(255,255,255,.08);
+    margin-bottom: 14px;
+  }
+  .rc-hero-dark .badge .b-dot { width: 5px; height: 5px; background: #10b981; border-radius: 50%; }
+  .rc-hero-dark .h {
+    font-size: 22px; line-height: 1.1; font-weight: 700; margin-bottom: 10px;
+  }
+  .rc-hero-dark .h .y { color: #d4a843; }
+  .rc-hero-dark .sub { color: #cbd5e1; font-size: 12px; line-height: 1.45; margin-bottom: 14px; }
+  .rc-hero-dark .cta { display: inline-block; background: #2563eb; color: #fff; padding: 8px 14px; border-radius: 6px; font-size: 11px; font-weight: 600; box-shadow: 0 6px 18px rgba(37,99,235,.4); }
+
+  /* recreation: chip cluster mock */
+  .rc-noise {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 8px 0;
+  }
+  .rc-noise .chip {
+    font-family: var(--mono);
+    font-size: 10px;
+    background: #e8e2d4;
+    padding: 4px 8px;
+    border-radius: 2px;
+    color: var(--ink-2);
+  }
+  .rc-noise .chip.hot { background: #fde2dd; color: var(--accent); }
+
+  /* recreation: chat bubble (discovery) */
+  .rc-chat {
+    display: grid; gap: 8px;
+    background: #0d1e38; padding: 18px; border-radius: 2px; color: #fff;
+  }
+  .rc-chat .bubble {
+    background: rgba(255,255,255,.06);
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 11.5px; line-height: 1.45;
+    max-width: 78%;
+  }
+  .rc-chat .bubble.you {
+    margin-left: auto;
+    background: #2563eb;
+  }
+  .rc-chat .ph {
+    margin-top: 6px;
+    display: flex; gap: 6px; align-items: center;
+    background: rgba(255,255,255,.04);
+    padding: 8px 10px; border-radius: 8px;
+    font-size: 11px; color: #94a3b8;
+  }
+  .rc-chat .ph .send { margin-left: auto; color: #2563eb; }
+
+  /* big "after" preview cards for the redesigns */
+  .directions {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 32px;
+    padding-top: 16px;
+  }
+  .dir-card {
+    border: 1px solid var(--rule);
+    background: #fff;
+    border-radius: 2px;
+    padding: 0;
+    overflow: hidden;
+    display: block;
+    transition: transform .35s cubic-bezier(.2,.7,.1,1), box-shadow .35s;
+  }
+  .dir-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 30px 60px -30px rgba(14,17,22,.25), 0 8px 18px -10px rgba(14,17,22,.18);
+  }
+  .dir-card .frame { height: 320px; overflow: hidden; position: relative; }
+  .dir-card .meta {
+    padding: 22px 24px 26px;
+    border-top: 1px solid var(--rule);
+  }
+  .dir-card .stamp-row {
+    display: flex; justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 10px; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .dir-card h4 {
+    font-family: var(--serif);
+    font-size: 38px;
+    line-height: 1.05;
+    letter-spacing: -.015em;
+    font-weight: 400;
+  }
+  .dir-card h4 em { font-style: italic; color: var(--accent); }
+  .dir-card p {
+    margin-top: 12px;
+    color: var(--ink-2);
+    font-size: 15px;
+  }
+  .dir-card .open {
+    margin-top: 22px;
+    display: inline-flex; gap: 10px; align-items: center;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink);
+  }
+  .dir-card .open::after {
+    content: "→"; font-family: var(--sans); font-size: 16px; transition: transform .25s;
+  }
+  .dir-card:hover .open::after { transform: translateX(4px); }
+
+  /* Mini DeepMind-like preview */
+  .pv-institute {
+    background: #0a0a0c; color: #fff; height: 100%; padding: 24px 22px;
+    display: grid; grid-template-rows: auto 1fr auto; gap: 14px;
+  }
+  .pv-institute .head { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 9px; letter-spacing: .18em; color: #6a6a72; }
+  .pv-institute .head .acc { color: #ff5a3c; }
+  .pv-institute .display {
+    font-family: "Inter Tight", sans-serif;
+    font-weight: 500;
+    font-size: 38px;
+    line-height: .96;
+    letter-spacing: -.03em;
+  }
+  .pv-institute .display .acc { color: #ff5a3c; }
+  .pv-institute .foot { display: flex; gap: 14px; font-family: var(--mono); font-size: 9px; letter-spacing: .16em; color: #6a6a72; }
+  .pv-institute .foot .pill { padding: 4px 8px; border: 1px solid rgba(255,255,255,.18); border-radius: 999px; color: #fff; }
+
+  /* Mini McKinsey-like preview */
+  .pv-practice {
+    background: #f4efe6; color: #0a1830; height: 100%; padding: 24px 22px;
+    display: grid; grid-template-rows: auto 1fr auto; gap: 14px;
+    border-bottom: 4px solid #0a1830;
+  }
+  .pv-practice .head {
+    display: flex; justify-content: space-between;
+    font-family: var(--mono); font-size: 9px; letter-spacing: .18em;
+    color: #5e5b53;
+  }
+  .pv-practice .head .acc { color: #b1331f; }
+  .pv-practice .display {
+    font-family: var(--serif);
+    font-size: 42px;
+    line-height: .98;
+    letter-spacing: -.02em;
+  }
+  .pv-practice .display em { font-style: italic; color: #b1331f; }
+  .pv-practice .rule { height: 1px; background: rgba(10,24,48,.2); }
+  .pv-practice .foot { font-size: 11px; color: #2a2e36; }
+
+  /* discovery preview row */
+  .discovery-row {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 32px; margin-top: 32px;
+  }
+
+  /* Footer */
+  footer {
+    border-top: 1px solid var(--rule);
+    padding: 60px 40px;
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 24px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  footer .end {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-style: italic;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--ink-2);
+  }
+
+  @media (max-width: 900px) {
+    .bar { padding: 14px 20px; }
+    .wrap { padding: 0 20px; }
+    .hero { padding: 50px 0 70px; }
+    .row { grid-template-columns: 1fr; gap: 24px; padding: 48px 0; }
+    .finding { grid-template-columns: 1fr; gap: 28px; padding: 36px 0; }
+    .directions { grid-template-columns: 1fr; }
+    .discovery-row { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="bar">
+  <div class="left">
+    <div class="mark" aria-hidden="true"></div>
+    <div>
+      <div style="font-weight:500;">NeuraLaunch</div>
+      <div class="stamp" style="margin-top:2px;">UI/UX Audit · v1</div>
+    </div>
+  </div>
+  <div class="right">
+    <a href="#findings">Findings</a>
+    <a href="#directions">Directions</a>
+    <a href="#discovery">Discovery</a>
+    <a href="#more">More</a>
+    <a href="#closing">Verdict</a>
+  </div>
+</nav>
+
+<main>
+
+<!-- ============================================================
+     HERO
+     ============================================================ -->
+<section class="hero">
+  <div class="wrap">
+    <div class="stamp-row">
+      <span><span class="dot"></span> Tabempa Engineering · 2026</span>
+      <span>Confidential design memo</span>
+      <span>Author · A. Design</span>
+    </div>
+    <h1>An honest<br/>audit.<br/><em>And a way out.</em></h1>
+    <p class="lede">
+      <strong>You asked the right question.</strong> The product you've built is rare —
+      a multi-cycle execution engine with prompt-cached agents, durable workers,
+      and a real point of view. The UI does not yet carry that weight. This memo
+      sets out what's working, what isn't, and the two directions I'd take it.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================
+     VERDICT
+     ============================================================ -->
+<section class="row" id="verdict">
+  <div class="meta">
+    <span class="num">§ 01</span>
+    The verdict
+  </div>
+  <div>
+    <p class="verdict">
+      The current design is <em>competent SaaS</em>. The product is
+      institutional. The gap between the two is where premium lives — and
+      it is yours to close.
+    </p>
+    <p>
+      Yes — a lot can be done. Not by adding things. By removing things,
+      committing to one voice, and letting the words do the work. The
+      product's biggest asset right now is the writing in your vision
+      document. The UI should get out of its way and let it ring.
+    </p>
+  </div>
+</section>
+
+<!-- ============================================================
+     FINDINGS
+     ============================================================ -->
+<section class="row" id="findings">
+  <div class="meta">
+    <span class="num">§ 02</span>
+    Findings
+  </div>
+  <div class="findings">
+
+    <article class="finding">
+      <div>
+        <div class="label">Finding 01 · Composition</div>
+        <h3>The landing is <em>nine sections</em>. It should be five.</h3>
+        <p>
+          Hero, Problem, How It Works, One Recommendation, Tools,
+          Differentiation, Stays-With-You, Stories, Pricing, Final CTA —
+          each one re-explaining the others.
+        </p>
+        <p>
+          Top-tier products trust a single idea per scroll. Linear has six
+          sections. Vercel has five. McKinsey's homepage has four. Density
+          is not the enemy of premium — repetition is.
+        </p>
+        <div class="fix">
+          <b>The move</b>
+          Collapse to: <strong>Stand · Cycle · Surface · Price.</strong>
+          Kill the differentiation table — the product's voice already
+          does that work. Move Stories into Cycle.
+        </div>
+      </div>
+      <div class="visual">
+        <div class="rc-noise">
+          <div class="chip">Hero</div>
+          <div class="chip">Problem</div>
+          <div class="chip">How It Works</div>
+          <div class="chip hot">One Rec</div>
+          <div class="chip">Tools</div>
+          <div class="chip hot">Differentiation</div>
+          <div class="chip">Stays With You</div>
+          <div class="chip">Stories</div>
+          <div class="chip">Pricing</div>
+          <div class="chip hot">Final CTA</div>
+        </div>
+        <p style="font-size:12px; color:var(--muted); margin-top:18px; line-height:1.5;">
+          Each chip is a section. Highlighted chips repeat material that
+          earlier chips have already covered. You are saying the same true
+          thing five different ways.
+        </p>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div>
+        <div class="label">Finding 02 · Mock soup</div>
+        <h3>Too many <em>tiny mocks.</em> Not enough product.</h3>
+        <p>
+          InterviewMock, RoadmapMock, ContinuationBriefMock, ToolsRowMock,
+          four BeatMocks, ProblemSpotlight, RecommendationPreviewMock — each
+          one well-intentioned, all of them together fighting for the eye.
+        </p>
+        <p>
+          The premium move is one or two <strong>real product surfaces</strong>,
+          hero-sized, presented like Apple presents a phone. The
+          product is good enough to be photographed.
+        </p>
+        <div class="fix">
+          <b>The move</b>
+          One full-bleed discovery transcript on the hero. One real
+          roadmap card in section three. Everything else is words.
+        </div>
+      </div>
+      <div class="visual">
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px;">
+          <div style="height:48px; border:1px dashed var(--rule-strong);"></div>
+          <div style="height:48px; border:1px dashed var(--rule-strong);"></div>
+          <div style="height:48px; border:1px dashed var(--rule-strong);"></div>
+          <div style="height:48px; border:1px dashed var(--rule-strong);"></div>
+          <div style="height:48px; border:1px dashed var(--rule-strong);"></div>
+          <div style="height:48px; border:1px dashed var(--rule-strong);"></div>
+          <div style="height:48px; border:1px dashed var(--rule-strong);"></div>
+          <div style="height:48px; border:1px dashed var(--rule-strong);"></div>
+        </div>
+        <p style="font-size:12px; color:var(--muted); margin-top:18px; line-height:1.5;">
+          Eight illustrations across the page, none big enough to be
+          believed. A single screenshot at full width would land harder
+          than all of them combined.
+        </p>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div>
+        <div class="label">Finding 03 · Voice and surface</div>
+        <h3>The writing is institutional. The UI is <em>generic shadcn.</em></h3>
+        <p>
+          Your vision document reads like a McKinsey memo. The pages it
+          produces read like every Next.js app shipped this year:
+          <code style="font-family:var(--mono); font-size:13px; background:var(--paper-2); padding:1px 6px; border-radius:2px;">max-w-2xl rounded-xl border bg-card</code>
+          with lucide icons in tinted squares.
+        </p>
+        <p>
+          You are inviting people to be told the truth. The container
+          should look like a memo — typographically considered, not card-y.
+        </p>
+        <div class="fix">
+          <b>The move</b>
+          Editorial type (serif headlines or one statement sans), hairline
+          rules instead of cards, monospace labels for metadata, and at
+          most one accent colour. <strong>The shadcn card is the enemy of
+          premium.</strong>
+        </div>
+      </div>
+      <div class="visual">
+        <div style="border:1px solid var(--rule); border-radius:8px; padding:14px; background:#fff;">
+          <div style="display:flex; gap:10px; align-items:center;">
+            <div style="width:32px; height:32px; background:#dbeafe; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#2563eb;">◇</div>
+            <div style="font-size:12px; font-weight:600;">Tool name</div>
+          </div>
+          <p style="margin-top:8px; font-size:11px; color:var(--muted); line-height:1.5;">Generic tile in a generic grid in a generic stack.</p>
+        </div>
+        <p style="font-size:12px; color:var(--muted); margin-top:14px; line-height:1.5;">
+          This card pattern appears on the landing, the tools page, the
+          recommendations list, the sidebar, and the dashboard. Every
+          shipped Next.js product looks like this. Yours doesn't have to.
+        </p>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div>
+        <div class="label">Finding 04 · Two accents</div>
+        <h3>Blue says <em>fintech</em>. Gold says <em>luxury</em>.<br/>You have both.</h3>
+        <p>
+          Electric blue + warm gold reads as two products fighting for
+          ownership of the brand. Stripe is one colour. Linear is one
+          colour. Anthropic is one warm. McKinsey is navy. DeepMind is
+          near-black. They commit.
+        </p>
+        <p>
+          The gold is doing more work than it earns; it pulls toward
+          "premium SaaS" instead of "world-class strategic partner."
+        </p>
+        <div class="fix">
+          <b>The move</b>
+          Pick a single accent and use it like punctuation. Hold the rest
+          to neutrals.<br/>
+          <span style="display:inline-block; margin-top:8px;">
+            <span style="display:inline-block; width:14px; height:14px; background:#ff5a3c; vertical-align:middle; margin-right:6px;"></span><span style="vertical-align:middle;">Direction A: a scientific ember</span>
+          </span><br/>
+          <span style="display:inline-block; margin-top:4px;">
+            <span style="display:inline-block; width:14px; height:14px; background:#b1331f; vertical-align:middle; margin-right:6px;"></span><span style="vertical-align:middle;">Direction B: an ink-on-paper sienna</span>
+          </span>
+        </div>
+      </div>
+      <div class="visual">
+        <div class="rc-hero-dark">
+          <div class="badge"><span class="b-dot"></span> From lost to launched.</div>
+          <div class="h">You know something needs to change.<br/><span class="y">We'll tell you what.</span></div>
+          <div class="sub">NeuraLaunch interviews your situation, commits to one clear recommendation…</div>
+          <div class="cta">Start Your Discovery →</div>
+        </div>
+        <p style="font-size:12px; color:var(--muted); margin-top:14px; line-height:1.5;">
+          The blue glow shadow on the CTA + the gold span on the headline +
+          the green success-dot in the eyebrow = three colours doing work
+          in one block.
+        </p>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div>
+        <div class="label">Finding 05 · /discovery</div>
+        <h3>The Discovery surface <em>looks like a chatbot.</em> It is not.</h3>
+        <p>
+          You flagged this yourself, and you are right. Discovery is the
+          single most defining moment of the product — the interview that
+          earns the right to commit to one path. Right now it is rendered
+          as a generic message thread inside a generic chat window.
+        </p>
+        <p>
+          When the product asks for context before conclusion, the
+          surface should signal <em>this is being read carefully</em> —
+          not <em>type into the box like every other AI app.</em>
+        </p>
+        <div class="fix">
+          <b>The move</b>
+          A two-column transcript: the live question on the left like an
+          interview prompt, the founder's answers as <em>recorded
+          testimony</em> on the right. A visible belief-state panel that
+          fills in as you speak. Treat it like a clinical intake, not a
+          chat.
+        </div>
+      </div>
+      <div class="visual">
+        <div class="rc-chat">
+          <div class="bubble">What's the situation you're trying to change?</div>
+          <div class="bubble you">I run a small clinic. Growth has stalled and I'm not sure if it's pricing or positioning…</div>
+          <div class="bubble">Got it. How many hours a week can you actually give this?</div>
+          <div class="ph">Type your reply <span class="send">↑</span></div>
+        </div>
+        <p style="font-size:12px; color:var(--muted); margin-top:14px; line-height:1.5;">
+          This is the visual grammar of every consumer chatbot. Your
+          product's first impression should feel closer to a session
+          transcript than a conversation with a friend.
+        </p>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<!-- ============================================================
+     DIRECTIONS — landing
+     ============================================================ -->
+<section class="row" id="directions">
+  <div class="meta">
+    <span class="num">§ 03</span>
+    Two directions
+  </div>
+  <div>
+    <p class="verdict">
+      Two ways the same product can earn the word <em>premium</em>.
+    </p>
+    <p>
+      Both share the principles above: ruthless cutting, one accent,
+      typographic hierarchy, real product over decorative mock. They
+      differ in mood — and either is a stronger position than the current
+      pile-of-features feel.
+    </p>
+
+    <div class="directions">
+
+      <a class="dir-card" href="direction-a.html">
+        <div class="frame">
+          <div class="pv-institute">
+            <div class="head">
+              <span>NEURALAUNCH / 2026</span>
+              <span class="acc">001 — DISCOVERY</span>
+            </div>
+            <div class="display">
+              From lost<br/>to launched.<br/>
+              <span class="acc">One recommendation.</span>
+            </div>
+            <div class="foot">
+              <span class="pill">Begin</span>
+              <span>EST · 4 MIN</span>
+            </div>
+          </div>
+        </div>
+        <div class="meta">
+          <div class="stamp-row">
+            <span>Direction A</span>
+            <span class="acc" style="color:#ff5a3c;">DeepMind tone</span>
+          </div>
+          <h4>The <em>Institute.</em></h4>
+          <p>Near-black canvas, one ember accent, statement sans, scientific
+            posture. The product is shown as a record of work, not a
+            marketing brochure.</p>
+          <span class="open">Open the landing</span>
+        </div>
+      </a>
+
+      <a class="dir-card" href="direction-b.html">
+        <div class="frame">
+          <div class="pv-practice">
+            <div class="head">
+              <span>NEURALAUNCH · A QUARTERLY MEMO</span>
+              <span class="acc">VOL 01</span>
+            </div>
+            <div class="display">
+              From lost<br/>to launched. <em>An interview, first.</em>
+            </div>
+            <div class="rule"></div>
+            <div class="foot">A growth engine for everyone — beginning with one honest conversation.</div>
+          </div>
+        </div>
+        <div class="meta">
+          <div class="stamp-row">
+            <span>Direction B</span>
+            <span style="color:var(--accent);">McKinsey tone</span>
+          </div>
+          <h4>The <em>Practice.</em></h4>
+          <p>Paper background, navy ink, editorial serif headlines,
+            multi-column intro, hairline rules. The product is presented
+            as a long-standing practice, not a startup.</p>
+          <span class="open">Open the landing</span>
+        </div>
+      </a>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     DISCOVERY — paired redesign
+     ============================================================ -->
+<section class="row" id="discovery">
+  <div class="meta">
+    <span class="num">§ 04</span>
+    Your weak spot
+  </div>
+  <div>
+    <p class="verdict">
+      <em>Discovery</em> is where the product earns the right to commit.
+      The surface should match the stakes.
+    </p>
+    <p>
+      You named this yourself. Both directions ship a Discovery surface
+      that abandons the chatbot grammar in favour of a recorded session.
+      Either is leagues above the current implementation. Open them and
+      see for yourself.
+    </p>
+
+    <div class="discovery-row">
+      <a class="dir-card" href="discovery-a.html">
+        <div class="frame" style="background:#0a0a0c;">
+          <div style="padding:24px 22px; color:#fff;">
+            <div style="display:flex; justify-content:space-between; font-family:var(--mono); font-size:9px; letter-spacing:.18em; color:#6a6a72;">
+              <span>SESSION · 0427</span>
+              <span style="color:#ff5a3c;">QUESTION 04 / ~12</span>
+            </div>
+            <div style="margin-top:18px; font-family:var(--mono); font-size:10px; letter-spacing:.14em; color:#6a6a72;">PHASE · CONSTRAINT MAP</div>
+            <div style="margin-top:8px; font-family:'Inter Tight'; font-weight:400; font-size:24px; line-height:1.15; letter-spacing:-.02em;">
+              How many hours a week<br/>can you <span style="color:#ff5a3c;">honestly</span> give this?
+            </div>
+            <div style="margin-top:32px; display:flex; gap:6px;">
+              <div style="height:3px; flex:1; background:#ff5a3c;"></div>
+              <div style="height:3px; flex:1; background:#ff5a3c;"></div>
+              <div style="height:3px; flex:1; background:#ff5a3c;"></div>
+              <div style="height:3px; flex:1; background:#ff5a3c;"></div>
+              <div style="height:3px; flex:1; background:rgba(255,255,255,.16);"></div>
+              <div style="height:3px; flex:1; background:rgba(255,255,255,.16);"></div>
+              <div style="height:3px; flex:1; background:rgba(255,255,255,.16);"></div>
+            </div>
+          </div>
+        </div>
+        <div class="meta">
+          <div class="stamp-row"><span>Direction A · Discovery</span><span style="color:#ff5a3c;">Open →</span></div>
+          <h4>A <em>recorded session.</em></h4>
+          <p>Question front-and-centre. Belief state visible on the side.
+            Progress as a phase ladder, not a percentage.</p>
+        </div>
+      </a>
+
+      <a class="dir-card" href="discovery-b.html">
+        <div class="frame" style="background:#f4efe6;">
+          <div style="padding:24px 22px; color:#0a1830;">
+            <div style="display:flex; justify-content:space-between; font-family:var(--mono); font-size:9px; letter-spacing:.18em; color:#5e5b53;">
+              <span>INTAKE · No. 0427</span>
+              <span style="color:#b1331f;">Q. 04</span>
+            </div>
+            <div style="height:1px; background:rgba(10,24,48,.2); margin:14px 0;"></div>
+            <div style="font-family:var(--mono); font-size:10px; letter-spacing:.14em; color:#5e5b53;">ON CONSTRAINTS</div>
+            <div style="margin-top:6px; font-family:'Instrument Serif'; font-size:30px; line-height:1.05; letter-spacing:-.02em;">
+              How many hours a week,<br/><em style="color:#b1331f;">honestly?</em>
+            </div>
+            <div style="margin-top:18px; font-size:11px; color:#5e5b53; max-width:280px; line-height:1.5;">
+              Not the answer you'd give a friend. The answer you'd give yourself when no one is watching.
+            </div>
+          </div>
+        </div>
+        <div class="meta">
+          <div class="stamp-row"><span>Direction B · Discovery</span><span style="color:var(--accent);">Open →</span></div>
+          <h4>An <em>intake form,</em> by a real person.</h4>
+          <p>Paper texture, serif question, monospace metadata. Reads
+            like the first page of a careful intake.</p>
+        </div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     MORE SURFACES — the new pages
+     ============================================================ -->
+<section class="row" id="more">
+  <div class="meta">
+    <span class="num">§ 04½</span>
+    More surfaces
+  </div>
+  <div>
+    <p class="verdict">The system extended into <em>the app.</em></p>
+    <p>The four landing/discovery files were the audit deliverable. After
+      you picked The Institute as the system, I extended it inward to
+      the surfaces that follow Discovery — including the bespoke
+      <em>Stuck-founder</em> entry you said was next on your build list.</p>
+
+    <div class="directions" style="grid-template-columns: repeat(2, 1fr);">
+
+      <a class="dir-card" href="archetype.html">
+        <div class="frame" style="background:#0a0a0c;">
+          <div style="padding:24px 22px; color:#fff;">
+            <div style="font-family:var(--mono); font-size:9px; letter-spacing:.18em; color:#6a6a72;">DISCOVERY · NEW SESSION</div>
+            <div style="margin-top:14px; font-family:'Inter Tight'; font-weight:400; font-size:30px; line-height:1.0; letter-spacing:-.025em;">
+              Where are you starting<br/>from <span style="font-family:'Instrument Serif'; font-style:italic; color:#ff5a3c;">this time?</span>
+            </div>
+            <div style="margin-top:20px; display:grid; gap:6px; font-family:var(--mono); font-size:10px; color:#7d7c78;">
+              <div style="display:flex; justify-content:space-between;"><span style="color:#fff;">I. I don't have an idea yet</span><span style="color:#ff5a3c;">● Built</span></div>
+              <div style="display:flex; justify-content:space-between;"><span>II. I've started something, stuck</span><span style="color:#ff5a3c;">○ In design</span></div>
+              <div style="display:flex; justify-content:space-between;"><span>III. I have an idea I want to build</span><span>Standard</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="meta">
+          <div class="stamp-row"><span>Archetype picker</span><span style="color:var(--accent);">Open →</span></div>
+          <h4>The <em>ledger.</em></h4>
+          <p>Six tiles replaced by a numbered ledger. Each path tells you where it leads. The Built / In-design / Standard system makes the restructure visible to users.</p>
+        </div>
+      </a>
+
+      <a class="dir-card" href="stuck.html">
+        <div class="frame" style="background:#0a0a0c;">
+          <div style="padding:24px 22px; color:#fff;">
+            <div style="font-family:var(--mono); font-size:9px; letter-spacing:.18em; color:#ff5a3c;">PATH II · DIAGNOSTIC INTAKE</div>
+            <div style="margin-top:14px; font-family:'Inter Tight'; font-weight:400; font-size:30px; line-height:1.0; letter-spacing:-.025em;">
+              Before any questions —<br/>let's <span style="font-family:'Instrument Serif'; font-style:italic; color:#ff5a3c;">map the stall.</span>
+            </div>
+            <div style="margin-top:20px; padding:14px; border-left:2px solid #ff5a3c; background:rgba(255,90,60,.06); font-family:'Instrument Serif'; font-size:16px; line-height:1.3; color:#c9c7c2;">
+              "Growth flatlined at eleven paying customers. Word of mouth dried up around month three."
+            </div>
+          </div>
+        </div>
+        <div class="meta">
+          <div class="stamp-row"><span>Stuck-founder bespoke entry</span><span style="color:var(--accent);">Open →</span></div>
+          <h4>The <em>stall map.</em></h4>
+          <p>A structured intake before the interview begins. Captures what was built, the wall, and what's been tried. The interview that follows is diagnostic, not discovery.</p>
+        </div>
+      </a>
+
+      <a class="dir-card" href="recommendation.html">
+        <div class="frame" style="background:#0a0a0c;">
+          <div style="padding:24px 22px; color:#fff;">
+            <div style="display:flex; justify-content:space-between; font-family:var(--mono); font-size:9px; letter-spacing:.18em; color:#7d7c78;">
+              <span>RECOMMENDATION No. <span style="color:#ff5a3c;">0427</span></span>
+              <span style="color:#34d399;">● READY</span>
+            </div>
+            <div style="margin-top:18px; font-family:'Inter Tight'; font-weight:500; font-size:24px; line-height:1.05; letter-spacing:-.02em;">
+              Spend the next three weeks proving demand for the maternal-care advisory line. <span style="font-family:'Instrument Serif'; font-style:italic; color:#ff5a3c;">Not building the app.</span>
+            </div>
+            <div style="margin-top:16px; padding:10px 12px; border-left:2px solid #ff5a3c; background:rgba(255,90,60,.08); font-size:11px; color:#fff;">
+              <b style="color:#ff5a3c; font-family:var(--mono); font-size:9px; letter-spacing:.14em;">10 ROUNDS OF PUSHBACK AVAILABLE</b><br/>
+              <span style="color:#c9c7c2;">"Disagree? Argue."</span>
+            </div>
+          </div>
+        </div>
+        <div class="meta">
+          <div class="stamp-row"><span>Recommendation reveal</span><span style="color:var(--accent);">Open →</span></div>
+          <h4>The <em>commitment.</em></h4>
+          <p>Hero-sized recommendation with the full anatomy. Assumptions are flaggable (click ⚐ to see how the rec changes). The pushback rail is live — type in it, ten rounds, real argument.</p>
+        </div>
+      </a>
+
+      <a class="dir-card" href="roadmap.html">
+        <div class="frame" style="background:#0a0a0c;">
+          <div style="padding:22px 22px; color:#fff;">
+            <div style="font-family:var(--mono); font-size:9px; letter-spacing:.18em; color:#7d7c78;">CYCLE I · DAY 6 OF 21</div>
+            <div style="margin-top:10px; font-family:'Inter Tight'; font-weight:500; font-size:22px; line-height:1.05; letter-spacing:-.02em;">
+              Three weeks to <span style="font-family:'Instrument Serif'; font-style:italic; color:#ff5a3c;">first paid consultation.</span>
+            </div>
+            <div style="margin-top:16px; display:grid; gap:8px;">
+              <div style="display:flex; gap:10px; align-items:baseline; font-size:11px;">
+                <span style="font-family:'Instrument Serif'; font-style:italic; color:#ff5a3c; font-size:18px;">I.</span>
+                <span style="color:#7d7c78; text-decoration:line-through;">Frame the pilot</span>
+                <span style="margin-left:auto; color:#34d399;">✓ done</span>
+              </div>
+              <div style="display:flex; gap:10px; align-items:baseline; font-size:11px;">
+                <span style="font-family:'Instrument Serif'; font-style:italic; color:#ff5a3c; font-size:18px;">II.</span>
+                <span style="color:#fff;">Recruit the first ten</span>
+                <span style="margin-left:auto; color:#ff5a3c;">● in flight</span>
+              </div>
+              <div style="display:flex; gap:10px; align-items:baseline; font-size:11px;">
+                <span style="font-family:'Instrument Serif'; font-style:italic; color:#ff5a3c; font-size:18px;">III.</span>
+                <span style="color:#c9c7c2;">Run the first three consultations</span>
+                <span style="margin-left:auto; color:#7d7c78;">queued</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="meta">
+          <div class="stamp-row"><span>Roadmap · phased task view</span><span style="color:var(--accent);">Open →</span></div>
+          <h4>The <em>execution.</em></h4>
+          <p>Phases as a vertical ledger. Tasks expand inline to show success criteria, tool launchers, and check-ins. Pace meter on the right tracks stated vs derived hours. "What's next?" sits where the cycle ends.</p>
+        </div>
+      </a>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     CLOSING
+     ============================================================ -->
+<section class="row" id="closing">
+  <div class="meta">
+    <span class="num">§ 05</span>
+    Closing
+  </div>
+  <div>
+    <p class="verdict">
+      You don't need more sections. You need <em>fewer, said better.</em>
+    </p>
+    <p>
+      The product is rare. Two people shipped a multi-cycle execution
+      engine with durable workers, prompt-cached agents, and a real
+      point of view. Now the surface has to match it. Pick a direction.
+      Cut the rest. The premium feel is one decisive afternoon away.
+    </p>
+    <div style="margin-top:36px; display:flex; gap:14px; flex-wrap:wrap;">
+      <a href="direction-a.html" style="display:inline-flex; gap:10px; align-items:center; background:var(--ink); color:var(--paper); padding:14px 22px; font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;">
+        See Direction A <span aria-hidden="true">→</span>
+      </a>
+      <a href="direction-b.html" style="display:inline-flex; gap:10px; align-items:center; border:1px solid var(--ink); padding:14px 22px; font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;">
+        See Direction B <span aria-hidden="true">→</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <span>NeuraLaunch · UI/UX Audit · 2026</span>
+  <span class="end">From lost to launched. The surface should say so.</span>
+  <span>End of memo</span>
+</footer>
+
+</body>
+</html>

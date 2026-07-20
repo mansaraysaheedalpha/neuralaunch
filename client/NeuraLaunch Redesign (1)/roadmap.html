@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NeuraLaunch — Roadmap · Cycle I</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0a0a0c; --bg-2:#111114; --bg-3:#16161a; --bg-4:#1c1c20;
+    --fg:#f5f4f1; --fg-2:#c9c7c2; --muted:#7d7c78; --muted-2:#5e5d59;
+    --rule:rgba(255,255,255,.10); --rule-strong:rgba(255,255,255,.22);
+    --accent:#ff5a3c; --green:#34d399; --amber:#fbbf24;
+    --sans:"Inter Tight",system-ui,sans-serif;
+    --serif:"Instrument Serif","Times New Roman",serif;
+    --mono:"JetBrains Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--bg);color:var(--fg);min-height:100%;}
+  body{font-family:var(--sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;font-feature-settings:"ss01";}
+  ::selection{background:var(--accent);color:var(--bg);}
+  a,button{color:inherit;text-decoration:none;font:inherit;cursor:pointer;background:none;border:none;text-align:left;}
+
+  .bar{position:sticky;top:0;z-index:50;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 36px;background:color-mix(in oklab,var(--bg) 90%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .bar .left{display:flex;gap:18px;align-items:center;}
+  .mark{width:16px;height:16px;border-radius:50%;background:var(--accent);position:relative;}
+  .mark::after{content:"";position:absolute;inset:4px;background:var(--bg);border-radius:50%;}
+  .bar .crumb .acc{color:var(--accent);}
+  .bar .right{display:flex;gap:22px;align-items:center;}
+  .bar a:hover{color:var(--fg);}
+  .bar .pill{padding:5px 10px;border:1px solid var(--rule-strong);}
+  .bar .pill.acc{color:var(--accent);border-color:var(--accent);}
+
+  /* Header / venture title */
+  .header{padding:48px 80px 36px;border-bottom:1px solid var(--rule);}
+  .header .meta{display:flex;gap:18px;font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:24px;}
+  .header .meta .acc{color:var(--accent);}
+  .header h1{font-family:var(--sans);font-weight:500;font-size:clamp(40px,5vw,68px);line-height:1.02;letter-spacing:-.025em;max-width:1000px;}
+  .header h1 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+
+  /* Stats strip */
+  .stats{margin-top:32px;display:grid;grid-template-columns:repeat(5,1fr);gap:0;border:1px solid var(--rule);max-width:1000px;}
+  .stats .c{padding:18px 22px;border-right:1px solid var(--rule);}
+  .stats .c:last-child{border-right:none;}
+  .stats .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+  .stats .v{font-family:var(--serif);font-style:italic;font-size:28px;letter-spacing:-.01em;color:var(--fg);line-height:1;}
+  .stats .v.acc{color:var(--accent);}
+  .stats .sub{font-family:var(--mono);font-size:10px;color:var(--muted-2);margin-top:6px;letter-spacing:.04em;}
+
+  /* Layout: phase rail + body */
+  .layout{display:grid;grid-template-columns:200px 1fr 320px;gap:0;}
+  .phase-rail{padding:40px 0 40px 36px;border-right:1px solid var(--rule);position:sticky;top:56px;height:fit-content;align-self:start;}
+  .phase-rail .pr-lab{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:18px;}
+  .phase-rail ol{list-style:none;display:grid;gap:2px;}
+  .phase-rail li a{display:flex;align-items:center;gap:14px;padding:10px 14px;color:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;}
+  .phase-rail li a:hover{color:var(--fg);}
+  .phase-rail li a.on{color:var(--fg);background:rgba(255,90,60,.05);border-left:2px solid var(--accent);padding-left:12px;}
+  .phase-rail li a .n{font-family:var(--serif);font-style:italic;color:var(--accent);font-size:16px;letter-spacing:0;text-transform:none;}
+  .phase-rail li a .pct{margin-left:auto;font-size:9px;color:var(--muted-2);}
+
+  /* Body */
+  .body{padding:40px 56px 100px;max-width:880px;}
+
+  /* Phase block */
+  .phase{margin-bottom:60px;}
+  .phase .ph-head{padding-bottom:18px;border-bottom:1px solid var(--rule);margin-bottom:24px;display:grid;grid-template-columns:auto 1fr auto;gap:24px;align-items:baseline;}
+  .phase .ph-head .n{font-family:var(--serif);font-style:italic;font-size:48px;color:var(--accent);line-height:.9;letter-spacing:-.01em;}
+  .phase .ph-head h2{font-family:var(--sans);font-weight:500;font-size:30px;letter-spacing:-.015em;line-height:1.05;}
+  .phase .ph-head h2 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+  .phase .ph-head .h-sub{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:4px;}
+  .phase .ph-head .right{display:flex;gap:14px;align-items:center;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .phase .ph-head .right .acc{color:var(--accent);}
+
+  /* Tasks */
+  .task{border:1px solid var(--rule);margin-bottom:10px;transition:border-color .2s;}
+  .task:hover{border-color:var(--rule-strong);}
+  .task.open{border-color:var(--accent);background:linear-gradient(180deg,rgba(255,90,60,.04),transparent);}
+  .task .row{display:grid;grid-template-columns:50px 1fr auto;gap:18px;padding:18px 22px;align-items:center;cursor:pointer;}
+  .task .row .st{width:22px;height:22px;border:1.5px solid var(--rule-strong);border-radius:50%;display:flex;align-items:center;justify-content:center;}
+  .task.done .st{background:var(--accent);border-color:var(--accent);color:var(--bg);}
+  .task.done .st::after{content:"✓";font-size:12px;}
+  .task.now .st{border-color:var(--accent);}
+  .task.now .st::after{content:"";width:8px;height:8px;background:var(--accent);border-radius:50%;animation:pulse 1.6s infinite;}
+  .task.blocked .st{border-color:var(--amber);}
+  .task.blocked .st::after{content:"!";color:var(--amber);font-family:var(--serif);font-weight:700;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .task .ti{font-size:16.5px;color:var(--fg);font-weight:500;}
+  .task.done .ti{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--muted-2);}
+  .task .ti-sub{margin-top:4px;font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.04em;}
+  .task .ti-sub .acc{color:var(--accent);}
+  .task .meta{display:flex;gap:14px;align-items:center;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);}
+  .task .meta .est .v{color:var(--fg);}
+  .task .meta .caret{transition:transform .2s;color:var(--muted);}
+  .task.open .meta .caret{transform:rotate(180deg);color:var(--accent);}
+
+  /* Task expanded */
+  .task .detail{display:none;padding:0 22px 22px 90px;border-top:1px solid var(--rule);background:var(--bg-2);}
+  .task.open .detail{display:block;}
+  .task .detail .why{padding:18px 0;color:var(--fg-2);font-size:14.5px;line-height:1.6;max-width:560px;}
+  .task .detail .why b{color:var(--fg);font-weight:500;}
+  .task .detail .success{padding:14px 18px;background:var(--bg);border-left:2px solid var(--green);margin-bottom:18px;font-size:14px;}
+  .task .detail .success .lab{font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--green);margin-bottom:4px;}
+  .task .detail .success p{color:var(--fg-2);}
+  .task .detail .tools{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px;}
+  .task .detail .tools .lab{display:flex;align-items:center;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-right:6px;}
+  .task .detail .tools a{padding:7px 11px;border:1px solid var(--rule-strong);font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-2);transition:all .2s;}
+  .task .detail .tools a:hover{border-color:var(--accent);color:var(--accent);}
+  .task .detail .tools a .ic{color:var(--accent);margin-right:6px;}
+  .task .detail .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--rule);padding-top:16px;}
+  .task .detail .actions .left-a{display:flex;gap:8px;}
+  .task .detail .actions button{padding:9px 14px;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;}
+  .task .detail .actions .done-btn{background:var(--accent);color:var(--bg);font-weight:500;}
+  .task .detail .actions .help-btn{border:1px solid var(--rule-strong);color:var(--fg);}
+  .task .detail .actions .help-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .task .detail .actions .checkin{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.04em;}
+
+  /* Right rail: progress + next */
+  .rail{padding:40px 30px;border-left:1px solid var(--rule);position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto;}
+  .rail .block{margin-bottom:36px;}
+  .rail .block .lab{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;}
+  .rail .pace{padding:18px 20px;border:1px solid var(--rule);background:var(--bg-2);}
+  .rail .pace .big{font-family:var(--serif);font-style:italic;font-size:32px;color:var(--accent);letter-spacing:-.01em;line-height:1;}
+  .rail .pace .row-p{display:flex;justify-content:space-between;margin-top:14px;font-size:13px;color:var(--fg-2);}
+  .rail .pace .row-p span:last-child{color:var(--fg);font-family:var(--mono);font-size:11px;letter-spacing:.04em;}
+  .rail .pace .bar{height:4px;background:var(--rule);margin-top:14px;position:relative;}
+  .rail .pace .bar .fill{position:absolute;left:0;top:0;bottom:0;background:var(--accent);width:38%;}
+  .rail .pace .note{margin-top:10px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--muted);line-height:1.55;}
+
+  /* parking lot */
+  .parking{padding:14px 16px;border:1px dashed var(--rule-strong);}
+  .parking .item{padding:8px 0;border-bottom:1px dashed var(--rule);font-size:13px;color:var(--fg-2);}
+  .parking .item:last-child{border-bottom:none;}
+  .parking .item q{font-style:italic;font-family:var(--serif);color:var(--fg);}
+  .parking .item .when{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.04em;margin-top:3px;}
+
+  /* What's next */
+  .whats-next{padding:18px 20px;border:1px solid var(--accent);background:linear-gradient(180deg,rgba(255,90,60,.08),rgba(255,90,60,.02));}
+  .whats-next h4{font-family:var(--serif);font-style:italic;font-weight:400;font-size:22px;letter-spacing:-.01em;margin-bottom:6px;}
+  .whats-next h4 em{color:var(--accent);}
+  .whats-next p{font-size:13px;color:var(--fg-2);line-height:1.5;margin-bottom:14px;}
+  .whats-next button{width:100%;background:var(--accent);color:var(--bg);padding:11px;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:500;display:flex;justify-content:center;gap:10px;}
+  .whats-next button::after{content:"→";font-family:var(--sans);}
+
+  @media (max-width:1200px){.layout{grid-template-columns:1fr;}.phase-rail,.rail{position:relative;height:auto;top:auto;border-left:none;border-right:none;border-bottom:1px solid var(--rule);padding:24px 36px;}.body{padding:30px 36px 80px;}.stats{grid-template-columns:repeat(2,1fr);}}
+  @media (max-width:700px){.header{padding:32px 24px 24px;}.stats{grid-template-columns:1fr;}.phase .ph-head{grid-template-columns:auto 1fr;}.phase .ph-head .right{grid-column:1/-1;}.task .row{grid-template-columns:30px 1fr;}.task .meta{grid-column:1/-1;padding-top:6px;}.task .detail{padding-left:22px;}}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="left">
+    <div class="mark"></div>
+    <span class="crumb"><span class="acc">Ventures</span> &nbsp;/&nbsp; Maternal-care advisory &nbsp;/&nbsp; <span style="color:var(--fg);">Roadmap · Cycle I</span></span>
+  </div>
+  <div class="right">
+    <span class="pill acc">● Active · Day 6 of 21</span>
+    <a href="recommendation.html">← Recommendation</a>
+  </div>
+</header>
+
+<section class="header">
+  <div class="meta">
+    <span>Roadmap · Cycle <span class="acc">I</span></span>
+    <span>Sized to 8 h / week</span>
+    <span>Pace · <span class="acc">slightly ahead</span></span>
+  </div>
+  <h1>Three weeks to <em>first paid consultation.</em></h1>
+
+  <div class="stats">
+    <div class="c"><div class="k">Phases</div><div class="v">3</div><div class="sub">of 3 — capped</div></div>
+    <div class="c"><div class="k">Tasks</div><div class="v">9</div><div class="sub">2 done · 1 in flight</div></div>
+    <div class="c"><div class="k">Time est.</div><div class="v">21 d</div><div class="sub">at 8 h / week</div></div>
+    <div class="c"><div class="k">Tools called</div><div class="v acc">3</div><div class="sub">Coach · Composer · Packager</div></div>
+    <div class="c"><div class="k">Completion</div><div class="v">38%</div><div class="sub">on pace</div></div>
+  </div>
+</section>
+
+<div class="layout">
+
+  <nav class="phase-rail">
+    <div class="pr-lab">Phases</div>
+    <ol>
+      <li><a class="on" href="#p1"><span class="n">I.</span><span>Frame</span><span class="pct">100%</span></a></li>
+      <li><a href="#p2"><span class="n">II.</span><span>Recruit</span><span class="pct">40%</span></a></li>
+      <li><a href="#p3"><span class="n">III.</span><span>Run</span><span class="pct">0%</span></a></li>
+    </ol>
+  </nav>
+
+  <main class="body">
+
+    <!-- PHASE I -->
+    <section class="phase" id="p1">
+      <div class="ph-head">
+        <div class="n">I.</div>
+        <div>
+          <h2>Frame the <em>pilot.</em></h2>
+          <div class="h-sub">Days 1 – 3 · 6 hours · complete</div>
+        </div>
+        <div class="right"><span class="acc">2 / 2 done</span></div>
+      </div>
+
+      <div class="task done">
+        <div class="row" onclick="this.parentElement.classList.toggle('open')">
+          <div class="st"></div>
+          <div>
+            <div class="ti">Decide the offer in one paragraph.</div>
+            <div class="ti-sub">Who · what they get · what it costs · <span class="acc">used Service Packager</span></div>
+          </div>
+          <div class="meta">
+            <span class="est">Est. <span class="v">2 h</span></span>
+            <span>Actual · 1.5 h</span>
+            <span class="caret">▾</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="task done">
+        <div class="row" onclick="this.parentElement.classList.toggle('open')">
+          <div class="st"></div>
+          <div>
+            <div class="ti">Confirm regulatory ceiling for distance advisory.</div>
+            <div class="ti-sub">Added during pushback · <span class="acc">used Research Tool</span></div>
+          </div>
+          <div class="meta">
+            <span class="est">Est. <span class="v">3 h</span></span>
+            <span>Actual · 2 h</span>
+            <span class="caret">▾</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PHASE II -->
+    <section class="phase" id="p2">
+      <div class="ph-head">
+        <div class="n">II.</div>
+        <div>
+          <h2>Recruit the <em>first ten.</em></h2>
+          <div class="h-sub">Days 4 – 10 · 8 hours · in progress</div>
+        </div>
+        <div class="right"><span class="acc">2 / 5 · current</span></div>
+      </div>
+
+      <div class="task done">
+        <div class="row" onclick="this.parentElement.classList.toggle('open')">
+          <div class="st"></div>
+          <div>
+            <div class="ti">Filter the WhatsApp list to maternal-age followers.</div>
+            <div class="ti-sub">38 contacts identified</div>
+          </div>
+          <div class="meta">
+            <span class="est">Est. <span class="v">1 h</span></span>
+            <span>Actual · 0.5 h</span>
+            <span class="caret">▾</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="task done">
+        <div class="row" onclick="this.parentElement.classList.toggle('open')">
+          <div class="st"></div>
+          <div>
+            <div class="ti">Rehearse the recruit message with the Conversation Coach.</div>
+            <div class="ti-sub">3 objections prepared · role-play complete</div>
+          </div>
+          <div class="meta">
+            <span class="est">Est. <span class="v">1.5 h</span></span>
+            <span>Actual · 1.5 h</span>
+            <span class="caret">▾</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="task now open">
+        <div class="row" onclick="this.parentElement.classList.toggle('open')">
+          <div class="st"></div>
+          <div>
+            <div class="ti">Send the first batch of 10 outreach messages.</div>
+            <div class="ti-sub">In flight · <span class="acc">started 14:22</span></div>
+          </div>
+          <div class="meta">
+            <span class="est">Est. <span class="v">2 h</span></span>
+            <span>Started Tue 14:22</span>
+            <span class="caret">▾</span>
+          </div>
+        </div>
+        <div class="detail">
+          <div class="why"><b>Why this task, now.</b> Recruitment is the binding constraint for Phase III. Sending in a single batch lets you compare reactions side-by-side rather than chasing each one — and gives the wrong-condition check (≥ 3 of 10 yes) a clean read inside one week.</div>
+          <div class="success">
+            <div class="lab">Success criterion</div>
+            <p>Ten WhatsApp messages sent, each personalised with at least one specific reason this person was chosen. Receipts captured.</p>
+          </div>
+          <div class="tools">
+            <span class="lab">Tools</span>
+            <a href="#"><span class="ic">◇</span>Open Outreach Composer</a>
+            <a href="#"><span class="ic">◇</span>Open Conversation Coach</a>
+            <a href="#"><span class="ic">◇</span>Open Research Tool</a>
+          </div>
+          <div class="actions">
+            <div class="left-a">
+              <button class="done-btn">Mark complete →</button>
+              <button class="help-btn">Get help with this task</button>
+            </div>
+            <span class="checkin">3 check-ins recorded · most recent: "1 yes so far"</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="task">
+        <div class="row" onclick="this.parentElement.classList.toggle('open')">
+          <div class="st"></div>
+          <div>
+            <div class="ti">Follow up non-responders at Day 5.</div>
+            <div class="ti-sub">Will use Outreach Composer sequence (D5)</div>
+          </div>
+          <div class="meta">
+            <span class="est">Est. <span class="v">1 h</span></span>
+            <span>Queued</span>
+            <span class="caret">▾</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="task blocked">
+        <div class="row" onclick="this.parentElement.classList.toggle('open')">
+          <div class="st"></div>
+          <div>
+            <div class="ti">Set up WhatsApp Business catalog with offer page.</div>
+            <div class="ti-sub" style="color:var(--amber);">Blocked · awaiting account verification (Meta)</div>
+          </div>
+          <div class="meta">
+            <span class="est">Est. <span class="v">2 h</span></span>
+            <span>Blocked Day 5</span>
+            <span class="caret">▾</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PHASE III -->
+    <section class="phase" id="p3">
+      <div class="ph-head">
+        <div class="n">III.</div>
+        <div>
+          <h2>Run the first <em>three consultations.</em></h2>
+          <div class="h-sub">Days 11 – 21 · 12 hours · queued</div>
+        </div>
+        <div class="right"><span>0 / 2 · upcoming</span></div>
+      </div>
+
+      <div class="task">
+        <div class="row" onclick="this.parentElement.classList.toggle('open')">
+          <div class="st"></div>
+          <div>
+            <div class="ti">Book the first three consultations.</div>
+            <div class="ti-sub">Requires ≥ 3 yes from Phase II</div>
+          </div>
+          <div class="meta">
+            <span class="est">Est. <span class="v">2 h</span></span>
+            <span>Queued</span>
+            <span class="caret">▾</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="task">
+        <div class="row" onclick="this.parentElement.classList.toggle('open')">
+          <div class="st"></div>
+          <div>
+            <div class="ti">Deliver consultations, capture what they actually asked.</div>
+            <div class="ti-sub">3 × 1h sessions over 10 days</div>
+          </div>
+          <div class="meta">
+            <span class="est">Est. <span class="v">10 h</span></span>
+            <span>Queued</span>
+            <span class="caret">▾</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <aside class="rail">
+    <div class="block">
+      <div class="lab">Pace</div>
+      <div class="pace">
+        <div class="big">+11%</div>
+        <div class="row-p"><span>Stated · 8 h / week</span><span>Actual</span></div>
+        <div class="row-p"><span>Derived · 8.9 h / week</span><span>+0.9 h</span></div>
+        <div class="bar"><div class="fill"></div></div>
+        <p class="note">Pace is honest — you're hitting estimates within 11%. Continuation brief will use derived hours for the next cycle's sizing.</p>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="lab">Parking lot · 3</div>
+      <div class="parking">
+        <div class="item">
+          <q>Could the same pilot work for diabetic care?</q>
+          <div class="when">Day 4 · during recruit</div>
+        </div>
+        <div class="item">
+          <q>If price is the issue, could it be subsidised?</q>
+          <div class="when">Day 5 · check-in</div>
+        </div>
+        <div class="item">
+          <q>What if I partner with the local pharmacy?</q>
+          <div class="when">Day 6 · check-in</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="lab">When the cycle ends</div>
+      <div class="whats-next">
+        <h4>What's <em>next?</em></h4>
+        <p>When you're substantially through — or stalled — I'll produce a five-section brief on what happened, what changed, and the forks ahead.</p>
+        <button>Run continuation</button>
+      </div>
+    </div>
+
+    <div class="block">
+      <div class="lab">Nudges</div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.04em;line-height:1.6;">
+        Quiet for now.<br/>I'll check in if a task runs past its estimate, or if four days pass with no activity.
+      </div>
+    </div>
+  </aside>
+
+</div>
+
+<script>
+  // Smooth-scroll phase rail
+  document.querySelectorAll('.phase-rail a').forEach(a => {
+    a.addEventListener('click', (e) => {
+      const id = a.getAttribute('href');
+      if (id?.startsWith('#')) {
+        e.preventDefault();
+        document.querySelector(id)?.scrollIntoView({behavior: 'smooth', block: 'start'});
+        document.querySelectorAll('.phase-rail a').forEach(x => x.classList.remove('on'));
+        a.classList.add('on');
+      }
+    });
+  });
+</script>
+
+</body>
+</html>

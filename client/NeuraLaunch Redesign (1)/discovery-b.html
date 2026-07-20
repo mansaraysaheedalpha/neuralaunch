@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NeuraLaunch — Intake № 0427</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f4efe6;
+    --paper-2: #ede7da;
+    --paper-3: #fcfaf5;
+    --ink: #0a1830;
+    --ink-2: #1d2a44;
+    --muted: #6e6a60;
+    --rule: rgba(10,24,48,.16);
+    --rule-strong: rgba(10,24,48,.36);
+    --accent: #b1331f;
+    --green: #2d6e44;
+    --sans: "Inter Tight", system-ui, sans-serif;
+    --serif: "Instrument Serif", "Times New Roman", serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--paper); color: var(--ink); height: 100%; }
+  body {
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "ss01";
+    overflow: hidden;
+  }
+  ::selection { background: var(--ink); color: var(--paper); }
+  button { font: inherit; cursor: pointer; }
+  a { color: inherit; text-decoration: none; }
+
+  .app {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    height: 100vh;
+  }
+
+  /* ---------- Masthead ---------- */
+  .masthead {
+    border-bottom: 1px solid var(--ink);
+    background: var(--paper);
+  }
+  .masthead .row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 36px;
+  }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .mark { width: 18px; height: 18px; border: 1.4px solid var(--ink); border-radius: 50%; position: relative; }
+  .mark::after { content: ""; position: absolute; inset: 4px; background: var(--ink); border-radius: 50%; }
+  .brand .name {
+    font-family: var(--serif); font-size: 20px; letter-spacing: -.01em;
+  }
+  .brand .name em { font-style: italic; color: var(--accent); }
+  .masthead .meta {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted);
+    display: flex; gap: 22px; align-items: center;
+  }
+  .masthead .meta a { color: var(--muted); }
+  .masthead .meta a:hover { color: var(--ink); }
+  .masthead .live { color: var(--accent); display: flex; align-items: center; gap: 8px; }
+  .masthead .live::before {
+    content: ""; width: 6px; height: 6px; background: var(--accent); border-radius: 50%;
+    animation: pulse 1.6s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .3; }
+  }
+  .strip {
+    border-top: 1px solid var(--rule);
+    padding: 8px 36px;
+    display: flex; justify-content: space-between;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted);
+  }
+  .strip .acc { color: var(--accent); }
+
+  /* ---------- Main ---------- */
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    overflow: hidden;
+  }
+  .stage {
+    padding: 40px 60px;
+    border-right: 1px solid var(--ink);
+    overflow-y: auto;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: 28px;
+    position: relative;
+  }
+
+  /* Phase header */
+  .phase-head {
+    display: grid; grid-template-columns: 1fr auto; gap: 24px;
+    align-items: baseline;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .phase-head .left {
+    display: flex; gap: 14px; align-items: baseline;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted);
+  }
+  .phase-head .left .acc { color: var(--accent); }
+  .phase-head .left .pn {
+    font-family: var(--serif); font-size: 22px; font-style: italic; color: var(--accent); letter-spacing: -.01em;
+  }
+  .phase-head .right {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+  }
+  .phase-head .progress {
+    display: flex; gap: 4px; align-items: center;
+  }
+  .phase-head .progress .seg {
+    width: 22px; height: 3px; background: var(--rule);
+  }
+  .phase-head .progress .seg.done { background: var(--accent); }
+
+  /* Question */
+  .q-block {
+    align-self: center;
+    max-width: 820px;
+    display: grid; gap: 22px;
+  }
+  .q-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex; gap: 24px;
+  }
+  .q-meta .acc { color: var(--accent); }
+
+  .q-text {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(40px, 5.4vw, 76px);
+    line-height: .98;
+    letter-spacing: -.018em;
+    color: var(--ink);
+  }
+  .q-text em { font-style: italic; color: var(--accent); }
+  .q-hint {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 20px;
+    line-height: 1.35;
+    color: var(--ink-2);
+    max-width: 580px;
+    padding-left: 18px;
+    border-left: 2px solid var(--accent);
+  }
+
+  /* Earlier exchange */
+  .prior {
+    background: var(--paper-3);
+    border: 1px solid var(--rule);
+    padding: 18px 22px;
+    margin-top: 8px;
+  }
+  .prior .lab {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .prior .text {
+    font-family: var(--serif); font-size: 17px; line-height: 1.45; color: var(--ink-2);
+  }
+  .prior .text q { font-style: italic; color: var(--ink); }
+
+  /* Answer composer */
+  .answer {
+    border-top: 1px solid var(--ink);
+    padding-top: 22px;
+  }
+  .answer .lab {
+    display: flex; justify-content: space-between;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+    margin-bottom: 12px;
+  }
+  .answer .lab .right-lab { display: flex; gap: 16px; align-items: center; }
+  .answer .lab .right-lab .voice { display: inline-flex; gap: 6px; align-items: center; color: var(--green); }
+  .answer .lab .right-lab .voice::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
+
+  textarea {
+    width: 100%;
+    background: transparent;
+    color: var(--ink);
+    border: none;
+    outline: none;
+    resize: none;
+    font: inherit;
+    font-family: var(--serif);
+    font-size: 22px;
+    line-height: 1.5;
+    min-height: 96px;
+    caret-color: var(--accent);
+  }
+  textarea::placeholder { color: var(--muted); font-style: italic; }
+  .answer .actions {
+    margin-top: 12px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .answer .actions .hint {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+  }
+  .answer .actions .hint .key {
+    display: inline-block; padding: 2px 6px; border: 1px solid var(--rule-strong); margin-left: 4px; color: var(--ink);
+  }
+  .submit {
+    display: inline-flex; align-items: center; gap: 12px;
+    background: var(--ink); color: var(--paper);
+    padding: 12px 20px;
+    border: none;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+  }
+  .submit:disabled { opacity: .3; cursor: not-allowed; }
+  .submit::after { content: "→"; font-family: var(--sans); font-size: 14px; }
+
+  /* Synth overlay */
+  .synth-overlay {
+    position: absolute; inset: 0;
+    background: color-mix(in oklab, var(--paper) 92%, transparent);
+    backdrop-filter: blur(6px);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 10;
+  }
+  .synth-overlay.on { display: flex; }
+  .synth-overlay .panel { text-align: left; max-width: 520px; }
+  .synth-overlay .stamp { font-family: var(--mono); font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); margin-bottom: 18px; }
+  .synth-overlay h3 {
+    font-family: var(--serif); font-weight: 400; font-size: 44px; line-height: 1.02; letter-spacing: -.02em;
+    margin-bottom: 14px;
+  }
+  .synth-overlay h3 em { font-style: italic; color: var(--accent); }
+  .synth-overlay p {
+    font-family: var(--serif); font-size: 19px; color: var(--ink-2); margin-bottom: 22px; max-width: 460px;
+  }
+  .synth-overlay .steps { display: grid; gap: 8px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .synth-overlay .steps .s { display: flex; gap: 10px; align-items: center; letter-spacing: .04em; }
+  .synth-overlay .steps .s.done { color: var(--ink); }
+  .synth-overlay .steps .s.done::before { content: "●"; color: var(--accent); }
+  .synth-overlay .steps .s::before { content: "○"; color: var(--muted); }
+
+  /* ---------- Belief column ---------- */
+  .belief {
+    background: var(--paper-3);
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    overflow: hidden;
+  }
+  .belief .b-head {
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--ink);
+  }
+  .belief .b-head .t {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--muted);
+    display: flex; justify-content: space-between;
+  }
+  .belief .b-head .t .acc { color: var(--accent); }
+  .belief .b-head h4 {
+    margin-top: 8px;
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 26px;
+    line-height: 1.05;
+    letter-spacing: -.015em;
+  }
+  .belief .b-head h4 em { font-style: italic; color: var(--accent); }
+  .belief .b-head .meter {
+    margin-top: 12px;
+    height: 4px;
+    background: var(--rule);
+    position: relative;
+    overflow: hidden;
+  }
+  .belief .b-head .meter .fill {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: var(--accent);
+    width: 38%;
+    transition: width .6s cubic-bezier(.2,.7,.1,1);
+  }
+
+  .belief .b-list { overflow-y: auto; padding: 8px 0; }
+  .belief .b-list::-webkit-scrollbar { width: 6px; }
+  .belief .b-list::-webkit-scrollbar-thumb { background: var(--rule); }
+
+  .b-group { padding: 16px 24px 18px; border-top: 1px solid var(--rule); }
+  .b-group:first-child { border-top: none; }
+  .b-group .g-lab {
+    font-family: var(--mono);
+    font-size: 10px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+    display: flex; justify-content: space-between;
+  }
+  .b-group .g-lab .acc { color: var(--accent); }
+  .field {
+    display: grid; grid-template-columns: 14px 1fr auto;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 0;
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+  .field .roman {
+    font-family: var(--serif); font-style: italic; font-size: 12px; color: var(--muted);
+    text-align: right;
+  }
+  .field .nm { color: var(--ink-2); }
+  .field .v {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    text-align: right;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .field.captured { color: var(--ink); }
+  .field.captured .roman { color: var(--accent); }
+  .field.captured .nm { color: var(--ink); }
+  .field.captured .v { color: var(--ink-2); }
+  .field.live { color: var(--ink); }
+  .field.live .roman { color: var(--accent); }
+  .field.live .nm { color: var(--ink); font-weight: 500; }
+  .field.live .v { color: var(--accent); }
+
+  .belief .b-foot {
+    padding: 14px 24px;
+    border-top: 1px solid var(--ink);
+    font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted);
+    display: flex; justify-content: space-between;
+  }
+  .belief .b-foot .acc { color: var(--accent); }
+
+  /* ---------- Bottom transcript bar ---------- */
+  .footstrip {
+    border-top: 1px solid var(--ink);
+    padding: 0 36px;
+    height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--paper);
+    font-family: var(--mono);
+    font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted);
+  }
+  .footstrip .left { display: flex; gap: 20px; }
+  .footstrip button {
+    background: transparent; border: 1px solid var(--ink);
+    padding: 8px 14px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink);
+  }
+  .footstrip button:hover { background: var(--ink); color: var(--paper); }
+
+  @media (max-width: 1000px) {
+    .main { grid-template-columns: 1fr; }
+    .belief { display: none; }
+    .stage { padding: 28px 20px; }
+    .masthead .meta { gap: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <header class="masthead">
+    <div class="row">
+      <a class="brand" href="direction-b.html">
+        <div class="mark" aria-hidden="true"></div>
+        <div class="name">NeuraLaunch <em>· An Intake.</em></div>
+      </a>
+      <div class="meta">
+        <span class="live">Recording · 11:47</span>
+        <span>Session No. 0427</span>
+        <a href="direction-b.html">Save &amp; exit</a>
+      </div>
+    </div>
+    <div class="strip">
+      <span>Phase II of IV — Goal clarity completed</span>
+      <span class="acc">Now: Phase III — Constraint map</span>
+      <span>Synthesis at 80% completeness</span>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <section class="stage">
+
+      <!-- Phase header / progress -->
+      <div class="phase-head">
+        <div class="left">
+          <span class="pn">III.</span>
+          <span>The <span class="acc">Constraint Map</span></span>
+          <span>· Question 04 of approximately 12</span>
+        </div>
+        <div class="right">
+          <div class="progress" aria-label="Progress">
+            <div class="seg done"></div>
+            <div class="seg done"></div>
+            <div class="seg done"></div>
+            <div class="seg done"></div>
+            <div class="seg"></div>
+            <div class="seg"></div>
+            <div class="seg"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Question -->
+      <div class="q-block">
+        <div class="q-meta">
+          <span>Topic — <span class="acc">weekly_hours</span></span>
+          <span>Field weight · 0.9 (critical)</span>
+          <span>Confidence · 0</span>
+        </div>
+
+        <h2 class="q-text" id="qtext">
+          How many hours a week, <em>honestly?</em>
+        </h2>
+
+        <p class="q-hint">
+          Not the answer you'd give a friend. The answer you'd give yourself when no one is watching — because every task we recommend will be sized against this number.
+        </p>
+
+        <div class="prior">
+          <div class="lab">Earlier in this session, you said —</div>
+          <div class="text">
+            <q>The clinic has stalled at maybe forty active clients and I want to be at a hundred by next summer.</q> <span style="color:var(--muted); font-family: var(--mono); font-size: 11px; margin-left:6px;">— Q3 · Goals</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Answer composer -->
+      <div class="answer">
+        <div class="lab">
+          <span>Your answer</span>
+          <span class="right-lab">
+            <span class="voice">Voice ready</span>
+            <span id="charcount">0 chars</span>
+          </span>
+        </div>
+        <textarea
+          id="answer"
+          placeholder="Say what you would actually do — not what you would plan to do. Range is fine. 'Maybe six to eight, on a good week.'"
+          rows="3"
+        ></textarea>
+        <div class="actions">
+          <div class="hint">
+            Submit <span class="key">⌘</span><span class="key">↵</span>
+            &nbsp;·&nbsp; Voice <span class="key">⌥</span><span class="key">V</span>
+            &nbsp;·&nbsp; Saved continuously
+          </div>
+          <button class="submit" id="submit" disabled>Continue</button>
+        </div>
+      </div>
+
+      <!-- Synthesis overlay -->
+      <div class="synth-overlay" id="synth">
+        <div class="panel">
+          <div class="stamp">Synthesising</div>
+          <h3>Reading you back <em>to yourself.</em></h3>
+          <p>One direction, for your specific situation, with reasoning and risks — ready in about a minute.</p>
+          <div class="steps">
+            <div class="s done">Belief state · loaded</div>
+            <div class="s done">Alternatives · narrowing</div>
+            <div class="s">Final synthesis · Opus 4.6</div>
+            <div class="s">Recommendation · ready</div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Belief state -->
+    <aside class="belief">
+      <div class="b-head">
+        <div class="t"><span>Belief state</span> <span class="acc" id="completePct">38% complete</span></div>
+        <h4>What we know <em>about you</em></h4>
+        <div class="meter"><div class="fill" id="fill"></div></div>
+      </div>
+
+      <div class="b-list">
+
+        <div class="b-group">
+          <div class="g-lab"><span>I. Orientation</span><span class="acc">Complete</span></div>
+          <div class="field captured">
+            <span class="roman">i.</span>
+            <span class="nm">Situation</span>
+            <span class="v">Clinic, growth stalled</span>
+          </div>
+          <div class="field captured">
+            <span class="roman">ii.</span>
+            <span class="nm">Background</span>
+            <span class="v">8yr clinical · MBA</span>
+          </div>
+          <div class="field captured">
+            <span class="roman">iii.</span>
+            <span class="nm">What you've tried</span>
+            <span class="v">Ads · Referrals · Pricing</span>
+          </div>
+        </div>
+
+        <div class="b-group">
+          <div class="g-lab"><span>II. Goals</span><span class="acc">Complete</span></div>
+          <div class="field captured">
+            <span class="roman">iv.</span><span class="nm">Primary goal</span><span class="v">2× monthly revenue</span>
+          </div>
+          <div class="field captured">
+            <span class="roman">v.</span><span class="nm">Success</span><span class="v">100 active clients</span>
+          </div>
+          <div class="field captured">
+            <span class="roman">vi.</span><span class="nm">Time horizon</span><span class="v">6 months</span>
+          </div>
+        </div>
+
+        <div class="b-group">
+          <div class="g-lab"><span>III. Constraints</span><span>1 of 5</span></div>
+          <div class="field live" id="f-hours">
+            <span class="roman">vii.</span>
+            <span class="nm">Weekly hours</span>
+            <span class="v" id="v-hours">listening…</span>
+          </div>
+          <div class="field">
+            <span class="roman">viii.</span><span class="nm">Budget</span><span class="v">—</span>
+          </div>
+          <div class="field">
+            <span class="roman">ix.</span><span class="nm">Team size</span><span class="v">—</span>
+          </div>
+          <div class="field">
+            <span class="roman">x.</span><span class="nm">Technical</span><span class="v">—</span>
+          </div>
+          <div class="field captured">
+            <span class="roman">xi.</span><span class="nm">Geography</span><span class="v">Freetown, SL</span>
+          </div>
+        </div>
+
+        <div class="b-group">
+          <div class="g-lab"><span>IV. Conviction</span><span>To come</span></div>
+          <div class="field"><span class="roman">xii.</span><span class="nm">Commitment</span><span class="v">—</span></div>
+          <div class="field"><span class="roman">xiii.</span><span class="nm">Biggest fear</span><span class="v">—</span></div>
+          <div class="field"><span class="roman">xiv.</span><span class="nm">Why now</span><span class="v">—</span></div>
+          <div class="field"><span class="roman">xv.</span><span class="nm">Motivation anchor</span><span class="v">—</span></div>
+        </div>
+
+      </div>
+
+      <div class="b-foot">
+        <span>Synthesis at 80%</span>
+        <span class="acc" id="readiness">Ready in ~3 turns</span>
+      </div>
+    </aside>
+
+  </main>
+
+  <footer class="footstrip">
+    <div class="left">
+      <span>Turn 11 · Question 4</span>
+      <span>Model · Sonnet 4.6</span>
+      <span>Safety · Pass</span>
+    </div>
+    <div style="display:flex; gap:10px;">
+      <button id="transcript">View the transcript</button>
+      <button onclick="window.location='index.html'">← Audit</button>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  const ta = document.getElementById('answer');
+  const submit = document.getElementById('submit');
+  const charcount = document.getElementById('charcount');
+  const fHours = document.getElementById('f-hours');
+  const vHours = document.getElementById('v-hours');
+  const fill = document.getElementById('fill');
+  const completePct = document.getElementById('completePct');
+  const readiness = document.getElementById('readiness');
+  const synth = document.getElementById('synth');
+  const qtext = document.getElementById('qtext');
+  const qmeta = document.querySelector('.q-meta');
+
+  let extractTimer;
+  let captured = false;
+
+  ta.addEventListener('input', () => {
+    const len = ta.value.length;
+    charcount.textContent = `${len} chars`;
+    submit.disabled = len < 4;
+
+    ta.style.height = 'auto';
+    ta.style.height = ta.value.scrollHeight + 'px';
+
+    clearTimeout(extractTimer);
+    if (len > 6 && !captured) {
+      const num = ta.value.match(/(\d+)\s*(?:to\s*\d+\s*)?(?:hours?|hrs?|h\b)?/i);
+      const guess = num ? num[0].replace(/\s+/g,'').toLowerCase().replace(/hour[s]?/g,'h') : '6–8 h/wk';
+      vHours.textContent = `extracting · ${guess}`;
+      extractTimer = setTimeout(() => {
+        vHours.textContent = guess;
+        fHours.classList.remove('live');
+        fHours.classList.add('captured');
+        captured = true;
+        fill.style.width = '52%';
+        completePct.textContent = '52% complete';
+        readiness.textContent = 'Ready in ~2 turns';
+      }, 1100);
+    }
+  });
+
+  submit.addEventListener('click', () => {
+    fill.style.width = '78%';
+    completePct.textContent = '78% complete';
+    readiness.textContent = 'Synthesising shortly…';
+    qtext.innerHTML = `What is the one thing you're most <em>afraid</em> of?`;
+    qmeta.innerHTML = `<span>Topic — <span class="acc">biggest_fear</span></span><span>Field weight · 0.8</span><span>Confidence · 0</span>`;
+    ta.value = '';
+    ta.style.height = '96px';
+    charcount.textContent = '0 chars';
+    submit.disabled = true;
+    captured = false;
+
+    setTimeout(() => {
+      fill.style.width = '100%';
+      completePct.textContent = '100% complete';
+      readiness.textContent = 'Ready';
+      synth.classList.add('on');
+    }, 1800);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !submit.disabled) {
+      submit.click();
+    }
+  });
+
+  document.getElementById('transcript').addEventListener('click', () => {
+    alert('Transcript opens here. Eleven turns so far — preserved verbatim, with extraction notes.');
+  });
+</script>
+
+</body>
+</html>

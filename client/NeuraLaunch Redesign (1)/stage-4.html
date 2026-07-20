@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NeuraLaunch — Stage IV · The Docket</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0c; --bg-2:#111114; --bg-3:#16161a;
+    --fg:#f5f4f1; --fg-2:#c9c7c2; --muted:#7d7c78; --muted-2:#5e5d59;
+    --rule:rgba(255,255,255,.10); --rule-strong:rgba(255,255,255,.22);
+    --accent:#ff5a3c; --green:#34d399; --amber:#fbbf24;
+    --sans:"Inter Tight",system-ui,sans-serif;
+    --serif:"Instrument Serif","Times New Roman",serif;
+    --mono:"JetBrains Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--bg);color:var(--fg);min-height:100%;}
+  body{font-family:var(--sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;font-feature-settings:"ss01";}
+  ::selection{background:var(--accent);color:var(--bg);}
+  a,button{color:inherit;text-decoration:none;font:inherit;cursor:pointer;background:none;border:none;text-align:left;}
+
+  .bar{position:sticky;top:0;z-index:50;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:color-mix(in oklab,var(--bg) 90%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .bar .left{display:flex;gap:18px;align-items:center;}
+  .mark{width:14px;height:14px;border-radius:50%;background:var(--accent);position:relative;}
+  .mark::after{content:"";position:absolute;inset:4px;background:var(--bg);border-radius:50%;}
+  .bar .crumb .acc{color:var(--accent);}
+  .bar .right{display:flex;gap:18px;align-items:center;}
+  .bar .pill{padding:5px 10px;border:1px solid var(--rule-strong);}
+  .bar .pill.acc{color:var(--accent);border-color:var(--accent);}
+
+  /* Header */
+  .header{padding:48px 64px 24px;border-bottom:1px solid var(--rule);max-width:1400px;}
+  .header .stamp{display:flex;gap:18px;font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:20px;}
+  .header .stamp .acc{color:var(--accent);}
+  .header h1{font-family:var(--sans);font-weight:500;font-size:clamp(40px,5.2vw,72px);line-height:1;letter-spacing:-.025em;}
+  .header h1 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+  .header .lede{margin-top:18px;max-width:760px;font-size:16px;line-height:1.55;color:var(--fg-2);}
+  .header .lede em{font-family:var(--serif);font-style:italic;color:var(--accent);}
+
+  /* Cascade strip */
+  .cascade{padding:10px 18px;border-top:1px solid var(--amber);background:rgba(251,191,36,.05);font-family:var(--serif);font-style:italic;font-size:14px;color:var(--fg-2);max-width:1400px;display:none;}
+  .cascade.on{display:block;}
+  .cascade em{color:var(--amber);font-style:normal;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin-right:8px;}
+
+  /* Canvas */
+  .canvas{padding:32px 64px 100px;max-width:1400px;display:grid;grid-template-columns:1fr 340px;gap:48px;}
+
+  /* Docket */
+  .docket-head{display:grid;grid-template-columns:50px 1.6fr 130px 180px 140px 50px;gap:18px;padding:14px 20px;font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--rule);}
+  .docket-head .acc{color:var(--accent);}
+
+  .docket{display:grid;}
+  .opp{display:grid;grid-template-columns:50px 1.6fr 130px 180px 140px 50px;gap:18px;padding:22px 20px;border-bottom:1px solid var(--rule);align-items:center;cursor:pointer;transition:background .2s,padding .2s;position:relative;}
+  .opp:hover{background:rgba(255,255,255,.02);padding-left:24px;}
+  .opp.featured{background:linear-gradient(90deg,rgba(255,90,60,.05),transparent 60%);}
+  .opp.featured::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--accent);}
+
+  .opp .n{font-family:var(--serif);font-style:italic;font-size:32px;color:var(--accent);letter-spacing:-.01em;line-height:1;}
+  .opp .name{font-family:var(--sans);font-weight:500;font-size:18px;line-height:1.2;letter-spacing:-.01em;}
+  .opp .name em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+  .opp .name .pain{display:block;margin-top:4px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--muted);text-transform:uppercase;}
+
+  /* Layer A / B columns */
+  .opp .layer{display:flex;flex-direction:column;gap:4px;font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--muted);}
+  .opp .layer .lab{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2);}
+  .opp .layer .glyph{font-size:14px;letter-spacing:2px;line-height:1;color:var(--accent);}
+  .opp .layer .glyph.weak{color:var(--muted);}
+  .opp .layer .glyph.contra{color:var(--accent);}
+  .opp .layer .strength{color:var(--fg-2);}
+  .opp .layer .strength.acc{color:var(--accent);}
+  .opp .layer .strength.muted{color:var(--muted);}
+
+  /* Verdicts column */
+  .opp .verdicts{display:grid;gap:4px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--muted);}
+  .opp .verdicts .v-row{display:flex;justify-content:space-between;}
+  .opp .verdicts .v-row .v{color:var(--fg);text-transform:uppercase;letter-spacing:.14em;}
+  .opp .verdicts .v-row .v.you{color:var(--accent);}
+  .opp .verdicts .v-row .v.drop{color:var(--muted);}
+  .opp .verdicts .v-row .v.park{color:var(--amber);}
+
+  .opp .arrow{font-family:var(--sans);font-size:24px;color:var(--muted);transition:transform .2s,color .2s;text-align:right;}
+  .opp:hover .arrow{color:var(--accent);transform:translateX(4px);}
+
+  /* Right rail */
+  .rail{position:sticky;top:80px;align-self:start;display:grid;gap:24px;}
+  .rail .block{border:1px solid var(--rule);padding:18px 20px;background:var(--bg-2);}
+  .rail .block .lab{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;display:flex;justify-content:space-between;}
+  .rail .block .lab .acc{color:var(--accent);}
+
+  .progress h4{font-family:var(--serif);font-style:italic;font-weight:400;font-size:20px;letter-spacing:-.01em;line-height:1.2;margin-bottom:6px;}
+  .progress h4 em{color:var(--accent);}
+  .progress .big{font-family:var(--serif);font-style:italic;font-size:42px;color:var(--accent);letter-spacing:-.02em;line-height:1;}
+  .progress .big .denom{color:var(--muted);font-size:22px;}
+  .progress p{margin-top:14px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--muted);line-height:1.6;}
+  .progress .meter{height:4px;background:var(--rule);margin-top:14px;position:relative;}
+  .progress .meter .fill{position:absolute;left:0;top:0;bottom:0;background:var(--accent);transition:width .5s;}
+
+  .commit-block{padding:18px 20px;border:1px solid var(--accent);background:linear-gradient(180deg,rgba(255,90,60,.08),rgba(255,90,60,.02));}
+  .commit-block h4{font-family:var(--serif);font-style:italic;font-weight:400;font-size:22px;letter-spacing:-.01em;line-height:1.15;margin-bottom:6px;}
+  .commit-block h4 em{color:var(--accent);}
+  .commit-block p{font-size:12.5px;color:var(--fg-2);line-height:1.5;margin-bottom:14px;}
+  .commit-block button{width:100%;background:var(--accent);color:var(--bg);padding:13px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:500;display:flex;justify-content:center;gap:10px;}
+  .commit-block button::after{content:"→";font-family:var(--sans);}
+  .commit-block button:disabled{opacity:.35;cursor:not-allowed;}
+
+  .legend p{font-size:11.5px;color:var(--fg-2);line-height:1.55;margin-bottom:8px;font-family:var(--mono);letter-spacing:.04em;}
+  .legend p .acc{color:var(--accent);}
+  .legend p b{color:var(--fg);font-weight:500;}
+
+  /* ====== Focus overlay — full-page opportunity view ====== */
+  .focus{position:fixed;inset:0;background:var(--bg);z-index:100;display:none;flex-direction:column;overflow:hidden;}
+  .focus.on{display:flex;}
+  .focus .f-bar{height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .focus .f-bar .esc{padding:7px 12px;border:1px solid var(--rule-strong);color:var(--fg);}
+  .focus .f-bar .esc:hover{border-color:var(--accent);color:var(--accent);}
+  .focus .f-body{flex:1;overflow-y:auto;padding:48px 80px 80px;}
+  .focus .f-inner{max-width:1100px;}
+
+  .focus .f-head{display:grid;grid-template-columns:auto 1fr auto;gap:32px;align-items:baseline;padding-bottom:18px;border-bottom:1px solid var(--rule);margin-bottom:36px;}
+  .focus .f-head .n{font-family:var(--serif);font-style:italic;font-size:72px;color:var(--accent);letter-spacing:-.02em;line-height:.9;}
+  .focus .f-head h2{font-family:var(--sans);font-weight:500;font-size:clamp(34px,4vw,52px);line-height:1.05;letter-spacing:-.025em;}
+  .focus .f-head h2 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+  .focus .f-head h2 .pain{display:block;margin-top:8px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .focus .f-head .signal{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);text-align:right;}
+  .focus .f-head .signal .v{display:block;font-family:var(--serif);font-style:italic;font-size:24px;letter-spacing:-.01em;margin-top:6px;color:var(--accent);text-transform:none;}
+
+  /* Sections inside focus */
+  .f-section{padding:32px 0;border-top:1px solid var(--rule);display:grid;grid-template-columns:180px 1fr;gap:48px;}
+  .f-section:first-of-type{border-top:none;padding-top:0;}
+  .f-section .lab{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);}
+  .f-section .lab .num{display:block;color:var(--accent);font-family:var(--serif);font-style:italic;font-size:22px;letter-spacing:-.01em;margin-bottom:6px;}
+  .f-section h3{font-family:var(--serif);font-style:italic;font-weight:400;font-size:28px;letter-spacing:-.015em;line-height:1.15;margin-bottom:18px;}
+  .f-section h3 em{color:var(--accent);}
+  .f-section p{font-size:16px;color:var(--fg-2);line-height:1.6;margin-bottom:14px;max-width:680px;}
+  .f-section p strong{color:var(--fg);font-weight:500;}
+
+  /* Layer A — 4 dimensions */
+  .dim-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:8px;}
+  .dim-card{padding:18px 20px;border:1px solid var(--rule);background:var(--bg-2);}
+  .dim-card .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:8px;}
+  .dim-card h4{font-family:var(--sans);font-weight:500;font-size:15px;letter-spacing:-.005em;line-height:1.3;margin-bottom:8px;}
+  .dim-card p{font-size:13.5px;color:var(--fg-2);line-height:1.5;margin-bottom:6px;}
+  .dim-card .src{font-family:var(--mono);font-size:9px;letter-spacing:.04em;color:var(--muted);}
+  .dim-card .src .ok{color:var(--green);}
+
+  /* Layer B test script + responses */
+  .test-script{padding:18px 22px;border-left:2px solid var(--accent);background:rgba(255,90,60,.04);margin-bottom:14px;}
+  .test-script .lab{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:8px;}
+  .test-script .copy{font-family:var(--serif);font-style:italic;font-size:18px;line-height:1.4;color:var(--fg);}
+
+  .responses{display:grid;gap:10px;margin-top:12px;}
+  .resp{padding:14px 18px;border:1px solid var(--rule);background:var(--bg-2);display:grid;grid-template-columns:24px 1fr auto;gap:14px;align-items:start;}
+  .resp .src{font-family:var(--serif);font-style:italic;color:var(--accent);font-size:16px;letter-spacing:-.01em;}
+  .resp .text{font-size:14.5px;color:var(--fg-2);line-height:1.5;}
+  .resp .text q{font-family:var(--serif);font-style:italic;color:var(--fg);}
+  .resp .tag{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--green);align-self:start;padding:3px 7px;border:1px solid var(--green);}
+  .resp .tag.contra{color:var(--accent);border-color:var(--accent);}
+  .resp .tag.neutral{color:var(--muted);border-color:var(--rule-strong);}
+
+  /* Verdict picker */
+  .verdict-picker{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:6px;}
+  .verdict-opt{padding:14px 18px;border:1px solid var(--rule);text-align:left;transition:all .15s;display:grid;gap:6px;cursor:pointer;}
+  .verdict-opt:hover{border-color:var(--accent);}
+  .verdict-opt.on{border-color:var(--accent);background:rgba(255,90,60,.06);}
+  .verdict-opt .name{font-family:var(--sans);font-weight:500;font-size:15px;letter-spacing:-.005em;display:flex;justify-content:space-between;align-items:center;}
+  .verdict-opt .name em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+  .verdict-opt .name .pip{width:10px;height:10px;border:1px solid var(--rule-strong);border-radius:50%;}
+  .verdict-opt.on .name .pip{background:var(--accent);border-color:var(--accent);}
+  .verdict-opt p{font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--muted);line-height:1.5;margin:0;}
+
+  /* Pushback rail in focus */
+  .pushback-rail{margin-top:18px;padding:18px 22px;border:1px dashed var(--rule-strong);}
+  .pushback-rail .lab{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;}
+  .pushback-rail textarea{width:100%;background:transparent;border:1px solid var(--rule);padding:10px 12px;color:var(--fg);font-family:var(--sans);font-size:14px;line-height:1.5;min-height:60px;outline:none;resize:vertical;}
+  .pushback-rail textarea:focus{border-color:var(--accent);}
+  .pushback-rail button{margin-top:10px;padding:9px 14px;background:var(--accent);color:var(--bg);font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:500;}
+
+  @media (max-width:1100px){
+    .header{padding:32px 22px 18px;}
+    .canvas{padding:24px 22px 60px;grid-template-columns:1fr;gap:24px;}
+    .rail{position:relative;top:auto;}
+    .docket-head,.opp{grid-template-columns:40px 1fr 90px 110px 80px;gap:12px;padding:14px 12px;}
+    .docket-head .acc:nth-child(4){display:none;}
+    .docket-head > div:nth-child(5){display:none;}
+    .opp .verdicts{display:none;}
+    .opp .arrow{display:none;}
+    .focus .f-body{padding:32px 22px 60px;}
+    .f-section{grid-template-columns:1fr;gap:16px;}
+    .dim-grid{grid-template-columns:1fr;}
+    .verdict-picker{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="left">
+    <div class="mark"></div>
+    <span class="crumb"><span class="acc">No Idea</span> &nbsp;/&nbsp; Session 0501 &nbsp;/&nbsp; <span style="color:var(--fg);">Stage IV · Docket</span></span>
+  </div>
+  <div class="right">
+    <span class="pill acc">● 5 opportunities</span>
+    <a href="stage-3.html" style="color:var(--muted);">← Stage III</a>
+    <a href="stage-5.html" style="color:var(--muted);">Stage V →</a>
+  </div>
+</header>
+
+<section class="header">
+  <div class="stamp">
+    <span>Stage <span class="acc">IV</span> of V · Opportunity Evaluations</span>
+    <span>5 candidates · 2 advanced</span>
+    <span>Layer A · 6-step · Layer B · founder-run</span>
+  </div>
+  <h1>The <em>docket.</em></h1>
+  <p class="lede">
+    Five opportunities derived from your pain shortlist. Each has two layers — <em>Layer A: agent research</em> and <em>Layer B: a small test you run in the world.</em> Stamp a verdict on each. Two advance. Three are held for continuation.
+  </p>
+</section>
+
+<!-- Cascade strip -->
+<div class="cascade" id="cascade">
+  <em>Cascade</em>Stage III changed since these were derived — re-derive Layer A on each opportunity, or commit again to start fresh.
+</div>
+
+<div class="canvas">
+
+  <main>
+
+    <!-- Docket header -->
+    <div class="docket-head">
+      <div>·</div>
+      <div>Opportunity</div>
+      <div class="acc">Layer A</div>
+      <div>Layer B</div>
+      <div>Verdicts</div>
+      <div></div>
+    </div>
+
+    <div class="docket" id="docket">
+
+      <!-- OPP I — FEATURED -->
+      <article class="opp featured" data-id="1">
+        <div class="n">I.</div>
+        <div class="name">Maternal-care WhatsApp <em>advisory.</em>
+          <span class="pain">From: Mothers cannot reach an OB-GYN within a day's travel</span>
+        </div>
+        <div class="layer">
+          <span class="lab">A · 6 step</span>
+          <span class="glyph">●●●●</span>
+          <span class="strength acc">Complete</span>
+        </div>
+        <div class="layer">
+          <span class="lab">B · verified</span>
+          <span class="glyph">●●●●</span>
+          <span class="strength acc">8 / 10 yes</span>
+        </div>
+        <div class="verdicts">
+          <div class="v-row"><span>Agent</span><span class="v">Advance</span></div>
+          <div class="v-row"><span>You</span><span class="v you">Advance</span></div>
+        </div>
+        <div class="arrow">→</div>
+      </article>
+
+      <!-- OPP II -->
+      <article class="opp" data-id="2">
+        <div class="n">II.</div>
+        <div class="name">Antenatal <em>scheduling concierge.</em>
+          <span class="pain">From: Antenatal scheduling is unreliable</span>
+        </div>
+        <div class="layer">
+          <span class="lab">A · 6 step</span>
+          <span class="glyph">●●●○</span>
+          <span class="strength">Mixed</span>
+        </div>
+        <div class="layer">
+          <span class="lab">B · contradictory</span>
+          <span class="glyph contra">●○○○</span>
+          <span class="strength">3 / 10 yes</span>
+        </div>
+        <div class="verdicts">
+          <div class="v-row"><span>Agent</span><span class="v">Drop</span></div>
+          <div class="v-row"><span>You</span><span class="v drop">Drop</span></div>
+        </div>
+        <div class="arrow">→</div>
+      </article>
+
+      <!-- OPP III -->
+      <article class="opp" data-id="3">
+        <div class="n">III.</div>
+        <div class="name">Post-natal <em>small-question line.</em>
+          <span class="pain">From: Mothers have nowhere to ask the small questions</span>
+        </div>
+        <div class="layer">
+          <span class="lab">A · 6 step</span>
+          <span class="glyph">●●●●</span>
+          <span class="strength acc">Complete</span>
+        </div>
+        <div class="layer">
+          <span class="lab">B · verified</span>
+          <span class="glyph">●●●●</span>
+          <span class="strength acc">7 / 10 yes</span>
+        </div>
+        <div class="verdicts">
+          <div class="v-row"><span>Agent</span><span class="v">Advance</span></div>
+          <div class="v-row"><span>You</span><span class="v you">Advance</span></div>
+        </div>
+        <div class="arrow">→</div>
+      </article>
+
+      <!-- OPP IV -->
+      <article class="opp" data-id="4">
+        <div class="n">IV.</div>
+        <div class="name">Lab result <em>delivery service.</em>
+          <span class="pain">From: Lab results take two weeks to return</span>
+        </div>
+        <div class="layer">
+          <span class="lab">A · 6 step</span>
+          <span class="glyph">●●●●</span>
+          <span class="strength acc">Complete</span>
+        </div>
+        <div class="layer">
+          <span class="lab">B · likely</span>
+          <span class="glyph">●●●○</span>
+          <span class="strength">5 / 10 yes</span>
+        </div>
+        <div class="verdicts">
+          <div class="v-row"><span>Agent</span><span class="v">Park</span></div>
+          <div class="v-row"><span>You</span><span class="v park">Park</span></div>
+        </div>
+        <div class="arrow">→</div>
+      </article>
+
+      <!-- OPP V -->
+      <article class="opp" data-id="5">
+        <div class="n">V.</div>
+        <div class="name">Daycare <em>scheduling tool.</em>
+          <span class="pain">From: Daycare drop-off conflicts with work</span>
+        </div>
+        <div class="layer">
+          <span class="lab">A · pending</span>
+          <span class="glyph weak">○○○○</span>
+          <span class="strength muted">Not run</span>
+        </div>
+        <div class="layer">
+          <span class="lab">B · pending</span>
+          <span class="glyph weak">○○○○</span>
+          <span class="strength muted">—</span>
+        </div>
+        <div class="verdicts">
+          <div class="v-row"><span>Agent</span><span class="v" style="color:var(--muted);">—</span></div>
+          <div class="v-row"><span>You</span><span class="v" style="color:var(--muted);">—</span></div>
+        </div>
+        <div class="arrow">→</div>
+      </article>
+
+    </div>
+  </main>
+
+  <!-- Rail -->
+  <aside class="rail">
+
+    <div class="block progress">
+      <div class="lab"><span>Progress</span><span class="acc">4 of 5 evaluated</span></div>
+      <h4>Two clear <em>advances.</em> One pending.</h4>
+      <div class="big" style="margin-top:8px;">2<span class="denom"> advancing</span></div>
+      <div class="meter"><div class="fill" style="width:80%;"></div></div>
+      <p>Composition unlocks at 1 advanced. You can advance up to 5; the reserves are held in continuation.</p>
+    </div>
+
+    <div class="block legend">
+      <div class="lab"><span>Reading the docket</span></div>
+      <p><b>● ● ● ●</b> · <span class="acc">verified</span> validation. The world said yes.</p>
+      <p><b>● ● ● ○</b> · likely. Worth advancing if the others fail.</p>
+      <p><b>● ○ ○ ○</b> · <span class="acc">contradictory</span>. The world said no.</p>
+      <p><b>○ ○ ○ ○</b> · not yet run.</p>
+    </div>
+
+    <div class="block commit-block">
+      <div class="lab" style="color:var(--accent);">When ready</div>
+      <h4>Compose <em>evaluations.</em></h4>
+      <p>Locks in the verdicts. Stage V proceeds with the chosen opportunity and three reserves.</p>
+      <button onclick="window.location='stage-5.html'">Compose evaluations</button>
+    </div>
+
+  </aside>
+
+</div>
+
+<!-- ====== FOCUS OVERLAY ====== -->
+<div class="focus" id="focus" aria-hidden="true">
+  <div class="f-bar">
+    <span>Opportunity · <span id="focusId">—</span> · Stage IV</span>
+    <button class="esc" id="esc">Esc · close</button>
+  </div>
+  <div class="f-body">
+    <div class="f-inner">
+
+      <header class="f-head">
+        <div class="n" id="focusNum">I.</div>
+        <h2 id="focusTitle">Maternal-care WhatsApp <em>advisory.</em>
+          <span class="pain" id="focusPain">From: Mothers cannot reach an OB-GYN within a day's travel</span>
+        </h2>
+        <div class="signal">Validation<br/><span class="v" id="focusSignal">●●●● Verified</span></div>
+      </header>
+
+      <!-- I. Layer A — agent research -->
+      <section class="f-section">
+        <div class="lab"><span class="num">I.</span>Layer A · agent research</div>
+        <div>
+          <h3>Four dimensions, researched by <em>Sonnet</em> with Tavily + Exa.</h3>
+          <p>The agent ran a 6-step research pass against four dimensions — market, competition, willingness-to-pay, and channel fit. Findings condensed below; full sources logged in the research trail.</p>
+          <div class="dim-grid">
+            <div class="dim-card">
+              <div class="k">Market</div>
+              <h4>~ 4,800 expecting mothers / yr in addressable area.</h4>
+              <p>Sierra Leone Ministry of Health 2024 figures, weighted to Freetown + Bo + Makeni metro.</p>
+              <div class="src"><span class="ok">●</span> Verified · 3 sources</div>
+            </div>
+            <div class="dim-card">
+              <div class="k">Competition</div>
+              <h4>One direct: Mama-Pikin clinic chain. No WhatsApp-native.</h4>
+              <p>Mama-Pikin runs physical clinics, not async advisory. No app or service occupies the gap.</p>
+              <div class="src"><span class="ok">●</span> Verified · 2 sources</div>
+            </div>
+            <div class="dim-card">
+              <div class="k">Willingness to pay</div>
+              <h4>NLe 150–300 / consult tolerable across 60% of segment.</h4>
+              <p>From three local pricing surveys (Macroeconomic Forum 2024, Mama-Pikin website, BMJ AfricaHealth).</p>
+              <div class="src"><span class="ok">●</span> Verified · 3 sources</div>
+            </div>
+            <div class="dim-card">
+              <div class="k">Channel fit</div>
+              <h4>WhatsApp Business permitted with disclaimer text.</h4>
+              <p>SL Medical Council 2024 guidance allows distance consultation with explicit non-emergency disclaimer.</p>
+              <div class="src">Likely · 1 source · re-verify</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- II. Layer B — test script + responses -->
+      <section class="f-section">
+        <div class="lab"><span class="num">II.</span>Layer B · the test</div>
+        <div>
+          <h3>What you sent into the world.</h3>
+          <p>Layer B is the test you actually ran — a script the agent wrote, that you sent to ten real people you have access to. Their responses (text or screenshots) are extracted into structured signal.</p>
+
+          <div class="test-script">
+            <div class="lab">Test script · sent to 10 contacts via WhatsApp</div>
+            <p class="copy">"Hey — I'm thinking of running a small paid WhatsApp advisory line for maternal care, NLe 200/mo, you can ask anything between visits. Would you actually pay for that? Brutally honest is fine."</p>
+          </div>
+
+          <div class="responses">
+            <div class="resp">
+              <span class="src">i.</span>
+              <div class="text"><q>Yes — I'd pay tomorrow. The current option is calling my cousin who's a nurse and hoping she answers.</q></div>
+              <span class="tag">Yes</span>
+            </div>
+            <div class="resp">
+              <span class="src">ii.</span>
+              <div class="text"><q>Maybe. Depends if I can ask at 2am. That's the time I actually have questions.</q></div>
+              <span class="tag">Yes</span>
+            </div>
+            <div class="resp">
+              <span class="src">iii.</span>
+              <div class="text"><q>200 / month is fine if it's unlimited. 200 / consult is too much.</q></div>
+              <span class="tag">Yes</span>
+            </div>
+            <div class="resp">
+              <span class="src">iv.</span>
+              <div class="text"><q>Not for me but my sister-in-law would.</q></div>
+              <span class="tag neutral">Adjacent</span>
+            </div>
+            <div class="resp">
+              <span class="src">v.</span>
+              <div class="text"><q>I already have my doctor's number. I'd want this if I didn't.</q></div>
+              <span class="tag contra">No (context)</span>
+            </div>
+            <div class="resp" style="opacity:.7;">
+              <span class="src">+5</span>
+              <div class="text">Five more responses — 5 yes, 0 no. <span style="font-family:var(--mono);font-size:10px;color:var(--muted);">Showing top 5 for brevity.</span></div>
+              <span class="tag">8/10 yes</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- III. Verdicts -->
+      <section class="f-section">
+        <div class="lab"><span class="num">III.</span>Verdict</div>
+        <div>
+          <h3>Stamp the verdict, <em>or push back.</em></h3>
+          <p>The agent recommends <strong>advance</strong>. Choose yours. If your verdict disagrees with the agent, the pushback below opens a structured argument — same engine as Discovery pushback.</p>
+
+          <div class="verdict-picker" id="vp">
+            <button class="verdict-opt on" data-v="advance">
+              <span class="name">Advance to Stage V <span class="pip"></span></span>
+              <p>Confirmed signal. This opportunity proceeds as the chosen path.</p>
+            </button>
+            <button class="verdict-opt" data-v="park">
+              <span class="name">Park <em>for continuation</em> <span class="pip"></span></span>
+              <p>Signal is real but you're choosing not to lead with this one. Held in the reserves.</p>
+            </button>
+            <button class="verdict-opt" data-v="drop">
+              <span class="name">Drop <span class="pip"></span></span>
+              <p>The signal is too weak or contradictory. Remove from the docket.</p>
+            </button>
+            <button class="verdict-opt" data-v="more">
+              <span class="name">Needs more <em>evidence</em> <span class="pip"></span></span>
+              <p>Run another Layer B round before deciding. Counts against your scout budget.</p>
+            </button>
+          </div>
+
+          <div class="pushback-rail">
+            <div class="lab">⚐ Push back · only if you disagree with the agent</div>
+            <textarea placeholder="What does the agent not see? A signal you noticed that contradicts the verdict, a constraint that changed, a context the test missed."></textarea>
+            <button>Send pushback</button>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  // Per-opportunity data — feeds the focus overlay
+  const data = {
+    1: {num:'I.', title:'Maternal-care WhatsApp <em>advisory.</em>', pain:'From: Mothers cannot reach an OB-GYN within a day\'s travel', signal:'●●●● Verified'},
+    2: {num:'II.', title:'Antenatal <em>scheduling concierge.</em>', pain:'From: Antenatal scheduling is unreliable', signal:'●○○○ Contradictory'},
+    3: {num:'III.', title:'Post-natal <em>small-question line.</em>', pain:'From: Mothers have nowhere to ask the small questions', signal:'●●●● Verified'},
+    4: {num:'IV.', title:'Lab result <em>delivery service.</em>', pain:'From: Lab results take two weeks to return', signal:'●●●○ Likely'},
+    5: {num:'V.', title:'Daycare <em>scheduling tool.</em>', pain:'From: Daycare drop-off conflicts with work', signal:'○○○○ Not run'},
+  };
+
+  const focus = document.getElementById('focus');
+  function open(id) {
+    const d = data[id];
+    document.getElementById('focusId').textContent = d.num;
+    document.getElementById('focusNum').textContent = d.num;
+    document.getElementById('focusTitle').innerHTML = d.title + `<span class="pain" id="focusPain">${d.pain}</span>`;
+    document.getElementById('focusSignal').textContent = d.signal;
+    focus.classList.add('on');
+  }
+  function close() { focus.classList.remove('on'); }
+
+  document.querySelectorAll('.opp').forEach(o => o.addEventListener('click', () => open(o.dataset.id)));
+  document.getElementById('esc').addEventListener('click', close);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && focus.classList.contains('on')) close(); });
+
+  // Verdict picker
+  document.querySelectorAll('.verdict-opt').forEach(v => v.addEventListener('click', () => {
+    document.querySelectorAll('.verdict-opt').forEach(x => x.classList.remove('on'));
+    v.classList.add('on');
+  }));
+</script>
+
+</body>
+</html>

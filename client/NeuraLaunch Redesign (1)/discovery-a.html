@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NeuraLaunch — Discovery · Session 0427</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0c;
+    --bg-2: #111114;
+    --bg-3: #16161a;
+    --fg: #f5f4f1;
+    --fg-2: #c9c7c2;
+    --muted: #7d7c78;
+    --rule: rgba(255,255,255,.10);
+    --rule-strong: rgba(255,255,255,.22);
+    --accent: #ff5a3c;
+    --green: #34d399;
+    --sans: "Inter Tight", system-ui, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--fg); height: 100%; }
+  body {
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "ss01", "cv11";
+    overflow: hidden;
+  }
+  ::selection { background: var(--accent); color: var(--bg); }
+  button { font: inherit; cursor: pointer; }
+
+  /* --- Frame --- */
+  .app {
+    display: grid;
+    grid-template-rows: 56px 1fr 64px;
+    height: 100vh;
+  }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 28px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--bg);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .topbar .left { display: flex; gap: 18px; align-items: center; }
+  .mark { width: 14px; height: 14px; border-radius: 50%; background: var(--accent); position: relative; }
+  .mark::after { content: ""; position: absolute; inset: 4px; background: var(--bg); border-radius: 50%; }
+  .topbar .live { display: flex; align-items: center; gap: 8px; color: var(--accent); }
+  .topbar .live::before {
+    content: ""; width: 6px; height: 6px; background: var(--accent); border-radius: 50%;
+    animation: pulse 1.6s infinite ease-in-out;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .35; }
+  }
+  .topbar a { color: var(--muted); text-decoration: none; }
+  .topbar a:hover { color: var(--fg); }
+
+  /* --- Main --- */
+  .main {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    overflow: hidden;
+  }
+  .stage {
+    position: relative;
+    padding: 60px 80px;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: 28px;
+    border-right: 1px solid var(--rule);
+    overflow: hidden;
+  }
+  .stage::after {
+    content: "";
+    position: absolute; top: 0; right: -200px; width: 600px; height: 600px;
+    background: radial-gradient(circle at center, rgba(255,90,60,.06), transparent 70%);
+    pointer-events: none;
+  }
+
+  /* Phase ladder at the top */
+  .ladder {
+    display: flex; align-items: center; gap: 28px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .ladder .step { display: flex; gap: 8px; align-items: center; }
+  .ladder .step .dot { width: 8px; height: 8px; border: 1px solid var(--rule-strong); border-radius: 50%; }
+  .ladder .step.done .dot { background: var(--accent); border-color: var(--accent); }
+  .ladder .step.now { color: var(--fg); }
+  .ladder .step.now .dot {
+    background: var(--accent); border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(255,90,60,.16);
+  }
+  .ladder .step.done span, .ladder .step.now span {}
+  .ladder .sep { width: 24px; height: 1px; background: var(--rule); }
+
+  /* Question */
+  .q-block { max-width: 880px; display: grid; gap: 18px; align-self: center; }
+  .q-meta {
+    display: flex; gap: 18px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .q-meta .acc { color: var(--accent); }
+  .q-text {
+    font-family: var(--sans);
+    font-weight: 400;
+    font-size: clamp(34px, 4.6vw, 60px);
+    line-height: 1.05;
+    letter-spacing: -.025em;
+  }
+  .q-text .acc { color: var(--accent); }
+  .q-hint {
+    margin-top: 8px;
+    color: var(--fg-2);
+    font-size: 16px;
+    max-width: 620px;
+    line-height: 1.5;
+  }
+
+  /* Answer composer */
+  .answer {
+    position: relative;
+    border-top: 1px solid var(--rule);
+    padding-top: 26px;
+  }
+  .answer .lab {
+    display: flex; justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .answer .lab .right-lab { display: flex; gap: 14px; align-items: center; }
+  .answer .lab .right-lab .voice {
+    display: inline-flex; gap: 6px; align-items: center; color: var(--fg-2);
+  }
+  .answer .lab .right-lab .voice::before {
+    content: ""; width: 6px; height: 6px; background: var(--green); border-radius: 50%;
+  }
+  textarea {
+    width: 100%;
+    background: transparent;
+    color: var(--fg);
+    border: none;
+    outline: none;
+    resize: none;
+    font: inherit;
+    font-family: var(--sans);
+    font-size: 19px;
+    line-height: 1.55;
+    min-height: 110px;
+    caret-color: var(--accent);
+  }
+  textarea::placeholder { color: var(--muted); }
+  .answer .actions {
+    margin-top: 14px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .answer .actions .hint {
+    font-family: var(--mono);
+    font-size: 11px; letter-spacing: .14em; color: var(--muted); text-transform: uppercase;
+  }
+  .answer .actions .hint .key {
+    display: inline-block; padding: 2px 6px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 3px;
+    color: var(--fg);
+    margin-left: 6px;
+  }
+  .submit {
+    display: inline-flex; align-items: center; gap: 12px;
+    background: var(--accent); color: var(--bg);
+    padding: 13px 20px;
+    border: none;
+    font-family: var(--mono);
+    font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+    font-weight: 500;
+  }
+  .submit:disabled { opacity: .35; cursor: not-allowed; }
+  .submit::after { content: "→"; font-family: var(--sans); font-size: 15px; }
+
+  /* Belief state side panel */
+  .belief {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    background: var(--bg);
+    overflow: hidden;
+  }
+  .belief .b-head {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .belief .b-head .t {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex; justify-content: space-between;
+  }
+  .belief .b-head .t .acc { color: var(--accent); }
+  .belief .b-head h4 {
+    margin-top: 8px;
+    font-family: var(--sans);
+    font-weight: 500;
+    font-size: 18px;
+    letter-spacing: -.015em;
+  }
+  .belief .b-head .meter {
+    margin-top: 10px;
+    height: 4px;
+    background: var(--rule);
+    border-radius: 999px;
+    position: relative;
+    overflow: hidden;
+  }
+  .belief .b-head .meter .fill {
+    position: absolute; left: 0; top: 0; bottom: 0;
+    background: var(--accent);
+    width: 30%;
+    transition: width .6s cubic-bezier(.2,.7,.1,1);
+  }
+
+  .belief .b-list { overflow-y: auto; padding: 12px 8px; }
+  .belief .b-list::-webkit-scrollbar { width: 6px; }
+  .belief .b-list::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 3px; }
+
+  .b-group { padding: 8px 14px 14px; }
+  .b-group .g-lab {
+    font-family: var(--mono);
+    font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+    display: flex; justify-content: space-between;
+  }
+  .field {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 0;
+    font-size: 13.5px;
+    color: var(--fg-2);
+    border-bottom: 1px solid transparent;
+  }
+  .field .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    border: 1px solid var(--rule-strong);
+    flex-shrink: 0;
+  }
+  .field.captured { color: var(--fg); }
+  .field.captured .dot { background: var(--accent); border-color: var(--accent); }
+  .field.live { color: var(--fg); }
+  .field.live .dot {
+    background: var(--accent); border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(255,90,60,.20);
+    animation: pulse 1.4s infinite;
+  }
+  .field .v {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: .04em;
+    max-width: 140px;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .field.captured .v { color: var(--fg-2); }
+
+  .belief .b-foot {
+    padding: 14px 22px;
+    border-top: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted);
+    display: flex; justify-content: space-between;
+  }
+  .belief .b-foot .acc { color: var(--accent); }
+
+  /* Bottom — transcript hint */
+  .transcript-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 28px;
+    border-top: 1px solid var(--rule);
+    background: var(--bg);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .transcript-bar .turns { display: flex; gap: 14px; }
+  .transcript-bar button {
+    background: transparent; border: 1px solid var(--rule-strong);
+    color: var(--fg);
+    padding: 8px 14px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+  }
+  .transcript-bar button:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Synth state — when discovery completes */
+  .synth-overlay {
+    position: absolute; inset: 0;
+    background: rgba(10,10,12,.94);
+    backdrop-filter: blur(6px);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 10;
+  }
+  .synth-overlay.on { display: flex; }
+  .synth-overlay .panel { text-align: center; max-width: 480px; }
+  .synth-overlay .stamp { font-family: var(--mono); font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); margin-bottom: 18px; }
+  .synth-overlay h3 {
+    font-family: var(--sans); font-weight: 500; font-size: 34px; line-height: 1.1; letter-spacing: -.02em;
+    margin-bottom: 14px;
+  }
+  .synth-overlay p { color: var(--fg-2); margin-bottom: 22px; }
+  .synth-overlay .steps { display: grid; gap: 8px; text-align: left; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .synth-overlay .steps .s { display: flex; gap: 10px; align-items: center; }
+  .synth-overlay .steps .s.done { color: var(--fg); }
+  .synth-overlay .steps .s.done::before { content: "●"; color: var(--accent); }
+  .synth-overlay .steps .s::before { content: "○"; }
+
+  @media (max-width: 1000px) {
+    .main { grid-template-columns: 1fr; }
+    .belief { display: none; }
+    .stage { padding: 36px 28px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <header class="topbar">
+    <div class="left">
+      <div class="mark" aria-hidden="true"></div>
+      <span>NeuraLaunch · Discovery</span>
+      <span style="color:var(--muted);">Session 0427</span>
+    </div>
+    <div class="left">
+      <span class="live">Recording · 11:47</span>
+      <a href="direction-a.html">Save & exit</a>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <section class="stage">
+      <!-- Phase ladder -->
+      <div class="ladder">
+        <div class="step done"><div class="dot"></div><span>Orientation</span></div>
+        <div class="sep"></div>
+        <div class="step done"><div class="dot"></div><span>Goals</span></div>
+        <div class="sep"></div>
+        <div class="step now"><div class="dot"></div><span>Constraints</span></div>
+        <div class="sep"></div>
+        <div class="step"><div class="dot"></div><span>Conviction</span></div>
+        <div class="sep"></div>
+        <div class="step"><div class="dot"></div><span>Synthesis</span></div>
+      </div>
+
+      <!-- Question -->
+      <div class="q-block">
+        <div class="q-meta">
+          <span>Question 04 / ~12</span>
+          <span class="acc">Phase · Constraint map</span>
+          <span>Field · weekly_hours</span>
+        </div>
+        <h2 class="q-text" id="qtext">
+          How many hours a week<br/>can you <span class="acc">honestly</span> give this?
+        </h2>
+        <p class="q-hint">
+          Not the answer you'd give a friend. The answer you'd give
+          yourself when no one is watching. We'll size every task to
+          this number — getting it wrong makes the roadmap useless.
+        </p>
+      </div>
+
+      <!-- Answer composer -->
+      <div class="answer">
+        <div class="lab">
+          <span>Your answer</span>
+          <span class="right-lab">
+            <span class="voice">Voice ready</span>
+            <span id="charcount">0 chars</span>
+          </span>
+        </div>
+        <textarea
+          id="answer"
+          placeholder="Say what you'd actually do, not what you'd plan to do. Range is fine — 'maybe 6 to 8.'"
+          rows="3"
+        ></textarea>
+        <div class="actions">
+          <div class="hint">
+            Submit <span class="key">⌘</span><span class="key">↵</span>
+            &nbsp;·&nbsp; Voice <span class="key">⌥</span><span class="key">V</span>
+          </div>
+          <button class="submit" id="submit" disabled>Continue</button>
+        </div>
+      </div>
+
+      <!-- Synthesis overlay -->
+      <div class="synth-overlay" id="synth">
+        <div class="panel">
+          <div class="stamp">Synthesising</div>
+          <h3>Reading you back to yourself.</h3>
+          <p>One direction, for your specific situation, with reasoning and risks — ready in about a minute.</p>
+          <div class="steps">
+            <div class="s done">Belief state · loaded</div>
+            <div class="s done">Alternatives · narrowing</div>
+            <div class="s">Final synthesis · Opus 4.6</div>
+            <div class="s">Recommendation · ready</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Belief state -->
+    <aside class="belief">
+      <div class="b-head">
+        <div class="t"><span>Belief state</span> <span class="acc" id="completePct">38% complete</span></div>
+        <h4>What we know about you</h4>
+        <div class="meter"><div class="fill" id="fill"></div></div>
+      </div>
+      <div class="b-list">
+
+        <div class="b-group">
+          <div class="g-lab"><span>Orientation</span><span>3/3</span></div>
+          <div class="field captured" data-k="situation">
+            <div class="dot"></div><span>Situation</span><span class="v">Clinic owner, growth stalled</span>
+          </div>
+          <div class="field captured" data-k="background">
+            <div class="dot"></div><span>Background</span><span class="v">8 yr clinical, MBA dropout</span>
+          </div>
+          <div class="field captured" data-k="tried">
+            <div class="dot"></div><span>What you've tried</span><span class="v">Ads · referrals · pricing</span>
+          </div>
+        </div>
+
+        <div class="b-group">
+          <div class="g-lab"><span>Goals</span><span>3/3</span></div>
+          <div class="field captured"><div class="dot"></div><span>Primary goal</span><span class="v">2× monthly revenue</span></div>
+          <div class="field captured"><div class="dot"></div><span>Success</span><span class="v">100 active clients</span></div>
+          <div class="field captured"><div class="dot"></div><span>Time horizon</span><span class="v">6 months</span></div>
+        </div>
+
+        <div class="b-group">
+          <div class="g-lab"><span>Constraints</span><span>1/5</span></div>
+          <div class="field live" data-k="hours" id="f-hours">
+            <div class="dot"></div><span>Weekly hours</span><span class="v" id="v-hours">listening…</span>
+          </div>
+          <div class="field"><div class="dot"></div><span>Budget</span><span class="v">—</span></div>
+          <div class="field"><div class="dot"></div><span>Team</span><span class="v">—</span></div>
+          <div class="field"><div class="dot"></div><span>Technical</span><span class="v">—</span></div>
+          <div class="field captured"><div class="dot"></div><span>Geography</span><span class="v">Freetown, SL</span></div>
+        </div>
+
+        <div class="b-group">
+          <div class="g-lab"><span>Conviction</span><span>0/4</span></div>
+          <div class="field"><div class="dot"></div><span>Commitment</span><span class="v">—</span></div>
+          <div class="field"><div class="dot"></div><span>Biggest fear</span><span class="v">—</span></div>
+          <div class="field"><div class="dot"></div><span>Why now</span><span class="v">—</span></div>
+          <div class="field"><div class="dot"></div><span>Motivation anchor</span><span class="v">—</span></div>
+        </div>
+
+      </div>
+      <div class="b-foot">
+        <span>Synthesis at 80%</span>
+        <span class="acc" id="readiness">Ready in ~3 turns</span>
+      </div>
+    </aside>
+
+  </main>
+
+  <footer class="transcript-bar">
+    <div class="turns">
+      <span>Turn 11 · Q4</span>
+      <span>Model · Sonnet 4.6</span>
+      <span>Safety · Pass</span>
+    </div>
+    <div style="display:flex; gap:10px;">
+      <button id="transcript">View transcript</button>
+      <button onclick="window.location='index.html'">← Audit</button>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  const ta = document.getElementById('answer');
+  const submit = document.getElementById('submit');
+  const charcount = document.getElementById('charcount');
+  const fHours = document.getElementById('f-hours');
+  const vHours = document.getElementById('v-hours');
+  const fill = document.getElementById('fill');
+  const completePct = document.getElementById('completePct');
+  const readiness = document.getElementById('readiness');
+  const synth = document.getElementById('synth');
+  const qtext = document.getElementById('qtext');
+
+  let extractTimer;
+  let captured = false;
+
+  ta.addEventListener('input', () => {
+    const len = ta.value.length;
+    charcount.textContent = `${len} chars`;
+    submit.disabled = len < 4;
+
+    // Auto-grow
+    ta.style.height = 'auto';
+    ta.style.height = ta.value.scrollHeight + 'px';
+
+    // Simulate extractor finding a value
+    clearTimeout(extractTimer);
+    if (len > 6 && !captured) {
+      // Pull a number out of the text, fallback to "~6h"
+      const num = ta.value.match(/(\d+)\s*(?:to\s*\d+\s*)?(?:hours?|hrs?|h\b)?/i);
+      const guess = num ? `${num[0].replace(/\s+/g,'').toLowerCase().replace(/hour[s]?/, 'h')}` : '6–8 h/wk';
+      vHours.textContent = `extracting · ${guess}`;
+      extractTimer = setTimeout(() => {
+        vHours.textContent = guess.replace(/hour[s]?/g, 'h');
+        fHours.classList.remove('live');
+        fHours.classList.add('captured');
+        captured = true;
+        // Move forward
+        fill.style.width = '52%';
+        completePct.textContent = '52% complete';
+        readiness.textContent = 'Ready in ~2 turns';
+      }, 1100);
+    }
+  });
+
+  submit.addEventListener('click', () => {
+    // Animate to "next question" state, then a few turns later show synthesis
+    fill.style.width = '78%';
+    completePct.textContent = '78% complete';
+    readiness.textContent = 'Synthesising shortly…';
+    qtext.innerHTML = `What is the one thing you're most <span class="acc">afraid</span> of?`;
+    document.querySelector('.q-meta').children[0].textContent = 'Question 09 / ~12';
+    document.querySelector('.q-meta').children[2].textContent = 'Field · biggest_fear';
+    ta.value = '';
+    ta.style.height = '110px';
+    charcount.textContent = '0 chars';
+    submit.disabled = true;
+    captured = false;
+
+    setTimeout(() => {
+      fill.style.width = '100%';
+      completePct.textContent = '100% complete';
+      readiness.textContent = 'Ready';
+      synth.classList.add('on');
+    }, 1800);
+  });
+
+  // Keyboard shortcut
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !submit.disabled) {
+      submit.click();
+    }
+  });
+
+  document.getElementById('transcript').addEventListener('click', () => {
+    alert('Transcript opens here. Eleven turns so far — all preserved verbatim, with extraction notes.');
+  });
+</script>
+
+</body>
+</html>

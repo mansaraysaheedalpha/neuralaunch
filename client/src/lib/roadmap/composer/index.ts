@@ -10,33 +10,40 @@ export {
   CONTEXT_MAX_EXCHANGES,
   type ComposerChannel,
   type ComposerMode,
-} from './constants';
+} from "./constants";
 
 export {
   OutreachContextSchema,
   ComposerMessageSchema,
   ComposerOutputSchema,
+  GeneratedComposerOutputSchema,
   ComposerSessionSchema,
   safeParseComposerSession,
   type OutreachContext,
   type ComposerMessage,
   type ComposerOutput,
   type ComposerSession,
-} from './schemas';
+} from "./schemas";
+
+export {
+  DispatchPlanSchema,
+  validateDispatchPlanForMessages,
+  type DispatchPlan,
+} from "./dispatch-plan-schema";
 
 export {
   runComposerContext,
   type RunComposerContextInput,
   type ContextResponse,
-} from './context-engine';
+} from "./context-engine";
 
 export {
   runComposerGeneration,
   type RunComposerGenerationInput,
-} from './generation-engine';
+} from "./generation-engine";
 
 export {
   runComposerRegeneration,
   type RunComposerRegenerationInput,
   type RegenerationResponse,
-} from './regeneration-engine';
+} from "./regeneration-engine";

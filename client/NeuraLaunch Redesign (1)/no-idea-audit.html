@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NeuraLaunch — No Idea Pipeline · Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0c; --bg-2:#111114; --bg-3:#16161a; --bg-4:#1c1c20;
+    --fg:#f5f4f1; --fg-2:#c9c7c2; --muted:#7d7c78; --muted-2:#5e5d59;
+    --rule:rgba(255,255,255,.10); --rule-strong:rgba(255,255,255,.22);
+    --accent:#ff5a3c; --green:#34d399; --amber:#fbbf24;
+    --sans:"Inter Tight",system-ui,sans-serif;
+    --serif:"Instrument Serif","Times New Roman",serif;
+    --mono:"JetBrains Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--bg);color:var(--fg);min-height:100%;}
+  body{font-family:var(--sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;font-feature-settings:"ss01";}
+  ::selection{background:var(--accent);color:var(--bg);}
+  a,button{color:inherit;text-decoration:none;font:inherit;cursor:pointer;background:none;border:none;text-align:left;}
+
+  .bar{position:sticky;top:0;z-index:50;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 36px;background:color-mix(in oklab,var(--bg) 90%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .bar .left{display:flex;gap:18px;align-items:center;}
+  .mark{width:16px;height:16px;border-radius:50%;background:var(--accent);position:relative;}
+  .mark::after{content:"";position:absolute;inset:4px;background:var(--bg);border-radius:50%;}
+  .bar .right{display:flex;gap:22px;align-items:center;}
+  .bar .right a:hover{color:var(--fg);}
+  .bar .pill{padding:5px 10px;border:1px solid var(--rule-strong);}
+  .bar .pill.acc{color:var(--accent);border-color:var(--accent);}
+
+  /* Cover */
+  .cover{padding:80px 80px 56px;border-bottom:1px solid var(--rule);max-width:1320px;}
+  .cover .stamp{display:flex;gap:18px;font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:30px;}
+  .cover h1{font-family:var(--sans);font-weight:500;font-size:clamp(54px,7.5vw,116px);line-height:.94;letter-spacing:-.03em;}
+  .cover h1 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+  .cover .lede{margin-top:28px;max-width:680px;font-size:18px;line-height:1.55;color:var(--fg-2);}
+  .cover .lede strong{color:var(--fg);font-weight:500;}
+  .cover .lede em{font-family:var(--serif);font-style:italic;color:var(--accent);}
+
+  /* Stage map */
+  .map{margin-top:48px;padding:24px 28px;border:1px solid var(--rule);background:var(--bg-2);}
+  .map .lab{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:18px;}
+  .map .ladder{display:grid;grid-template-columns:repeat(6,1fr);gap:0;border-top:1px solid var(--rule);position:relative;}
+  .map .ladder::before{content:"";position:absolute;left:8.33%;right:8.33%;top:50%;height:1px;background:var(--rule);}
+  .map .node{padding:16px 12px 8px;display:flex;flex-direction:column;gap:6px;align-items:flex-start;border-right:1px dashed var(--rule);}
+  .map .node:last-child{border-right:none;}
+  .map .node .n{font-family:var(--serif);font-style:italic;font-size:24px;color:var(--accent);letter-spacing:-.01em;line-height:1;}
+  .map .node .nm{font-family:var(--sans);font-weight:500;font-size:13.5px;letter-spacing:-.005em;}
+  .map .node .desc{font-family:var(--mono);font-size:9.5px;letter-spacing:.04em;color:var(--muted);line-height:1.5;}
+  .map .node .tag{margin-top:auto;padding:3px 7px;font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;border:1px solid var(--rule-strong);color:var(--muted);}
+  .map .node .tag.do{color:var(--accent);border-color:var(--accent);}
+  .map .node .tag.next{color:var(--amber);border-color:var(--amber);}
+
+  /* Verdict block */
+  .verdict-block{padding:64px 80px;border-bottom:1px solid var(--rule);max-width:1320px;}
+  .verdict-block .lead{font-family:var(--serif);font-style:italic;font-size:clamp(32px,3.8vw,52px);line-height:1.1;letter-spacing:-.015em;max-width:920px;}
+  .verdict-block .lead em{color:var(--accent);font-style:italic;}
+  .verdict-block p{margin-top:20px;max-width:700px;color:var(--fg-2);font-size:17px;line-height:1.6;}
+  .verdict-block p strong{color:var(--fg);}
+
+  /* Priority list */
+  .priority{margin-top:36px;display:grid;gap:8px;max-width:920px;}
+  .priority .row{display:grid;grid-template-columns:50px 110px 1fr auto;align-items:baseline;gap:24px;padding:16px 0;border-top:1px solid var(--rule);}
+  .priority .row:last-child{border-bottom:1px solid var(--rule);}
+  .priority .row .order{font-family:var(--serif);font-style:italic;font-size:24px;color:var(--accent);letter-spacing:-.01em;}
+  .priority .row .tag{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .priority .row .tag.acc{color:var(--accent);}
+  .priority .row .text{font-size:15px;color:var(--fg-2);line-height:1.55;max-width:540px;}
+  .priority .row .text b{color:var(--fg);font-weight:500;}
+  .priority .row .effort{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-2);text-align:right;}
+  .priority .row .effort .v{color:var(--fg);}
+
+  /* Stage section */
+  .stage{padding:80px 80px;border-bottom:1px solid var(--rule);max-width:1320px;}
+  .stage .head{display:grid;grid-template-columns:120px 1fr auto;gap:36px;align-items:baseline;padding-bottom:18px;border-bottom:1px solid var(--rule);margin-bottom:36px;}
+  .stage .head .n{font-family:var(--serif);font-style:italic;font-size:72px;color:var(--accent);letter-spacing:-.02em;line-height:.9;}
+  .stage .head .name{font-family:var(--sans);font-weight:500;font-size:clamp(34px,4vw,48px);letter-spacing:-.02em;line-height:1.05;}
+  .stage .head .name em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+  .stage .head .name .sub{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:8px;}
+  .stage .head .stat{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);text-align:right;}
+  .stage .head .stat .badge{display:inline-block;padding:5px 9px;border:1px solid var(--rule-strong);}
+  .stage .head .stat .badge.do{color:var(--accent);border-color:var(--accent);}
+  .stage .head .stat .badge.next{color:var(--amber);border-color:var(--amber);}
+  .stage .head .stat .badge.keep{color:var(--green);border-color:var(--green);}
+
+  .stage .body{display:grid;grid-template-columns:1.1fr 1.4fr;gap:48px;}
+  .stage .body .text .lab{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+  .stage .body .text h3{font-family:var(--serif);font-style:italic;font-weight:400;font-size:24px;line-height:1.2;letter-spacing:-.01em;margin-bottom:10px;color:var(--fg);}
+  .stage .body .text p{color:var(--fg-2);font-size:15px;line-height:1.6;margin-bottom:24px;max-width:500px;}
+  .stage .body .text p strong{color:var(--fg);font-weight:500;}
+  .stage .body .text p em{font-family:var(--serif);font-style:italic;color:var(--accent);}
+  .stage .body .text ul{list-style:none;display:grid;gap:8px;margin-bottom:24px;}
+  .stage .body .text ul li{padding-left:22px;position:relative;font-size:14.5px;color:var(--fg-2);line-height:1.55;}
+  .stage .body .text ul li::before{content:"—";position:absolute;left:0;color:var(--accent);}
+  .stage .body .text ul li b{color:var(--fg);font-weight:500;}
+
+  /* Before/after visual frames */
+  .vfx{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-self:start;}
+  .vfx .frame{border:1px solid var(--rule);padding:20px;background:var(--bg-2);position:relative;min-height:300px;overflow:hidden;}
+  .vfx .frame .lab{font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;display:flex;justify-content:space-between;}
+  .vfx .frame.before .lab .tag{color:var(--muted);}
+  .vfx .frame.after .lab .tag{color:var(--accent);}
+  .vfx .frame.after{border-color:var(--accent);background:linear-gradient(180deg,rgba(255,90,60,.06),var(--bg-2) 70%);}
+
+  /* Mini before visuals — current UI recreations (deliberately generic-looking) */
+  .gen-chat{display:grid;gap:6px;font-size:11px;}
+  .gen-chat .bub{padding:7px 10px;background:rgba(255,255,255,.04);border-radius:8px;max-width:80%;color:var(--fg-2);}
+  .gen-chat .bub.you{margin-left:auto;background:#2563eb;color:#fff;}
+  .gen-chat .ph{margin-top:6px;padding:6px 8px;background:rgba(255,255,255,.04);border-radius:6px;font-size:10px;color:var(--muted);}
+  .gen-banner{padding:10px 12px;background:rgba(255,255,255,.04);border-radius:8px;border:1px solid var(--rule);margin-bottom:10px;font-size:10px;color:var(--muted);}
+  .gen-banner b{color:var(--fg);font-weight:500;display:block;margin-bottom:3px;font-size:9px;text-transform:uppercase;letter-spacing:.14em;}
+  .gen-doc{padding:10px;background:rgba(255,255,255,.02);border-radius:6px;border:1px solid var(--rule);}
+  .gen-doc .h{font-size:13px;color:var(--fg);font-weight:600;margin-bottom:8px;}
+  .gen-doc .row{display:flex;justify-content:space-between;font-size:11px;color:var(--fg-2);padding:4px 0;border-top:1px solid var(--rule);}
+  .gen-doc .row:first-of-type{border-top:none;}
+  .gen-skills{display:flex;flex-wrap:wrap;gap:4px;}
+  .gen-skills .pill{padding:4px 7px;background:rgba(255,255,255,.05);border-radius:4px;font-size:9px;color:var(--fg-2);border:1px solid var(--rule);}
+  .gen-skills .pill.t-good{background:rgba(52,211,153,.08);border-color:rgba(52,211,153,.3);color:#34d399;}
+  .gen-skills .pill.t-bad{background:rgba(255,90,60,.06);border-color:rgba(255,90,60,.3);color:var(--accent);}
+  .gen-cards{display:grid;gap:6px;}
+  .gen-cards .card{padding:8px 10px;border:1px solid var(--rule);background:rgba(255,255,255,.02);border-radius:6px;font-size:10px;color:var(--fg-2);}
+  .gen-cards .card b{color:var(--fg);font-weight:500;display:block;margin-bottom:3px;}
+
+  /* Institute style mini-visuals */
+  .ins-q{font-family:var(--sans);font-weight:400;font-size:20px;line-height:1.05;letter-spacing:-.02em;margin-bottom:14px;}
+  .ins-q em{font-family:var(--serif);font-style:italic;color:var(--accent);}
+  .ins-stamp{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;display:flex;justify-content:space-between;}
+  .ins-stamp .acc{color:var(--accent);}
+  .ins-dimensions{display:grid;gap:8px;margin-top:14px;}
+  .ins-dim{display:grid;grid-template-columns:14px 1fr auto;gap:8px;align-items:baseline;font-size:12px;}
+  .ins-dim .r{font-family:var(--serif);font-style:italic;font-size:11px;color:var(--accent);}
+  .ins-dim .nm{color:var(--fg-2);}
+  .ins-dim.captured .nm{color:var(--fg);}
+  .ins-dim .v{font-family:var(--mono);font-size:9px;color:var(--muted);}
+  .ins-dim.captured .v{color:var(--accent);}
+  .ins-skill-row{display:grid;grid-template-columns:1fr repeat(4,42px);gap:6px;font-size:10px;align-items:center;margin-bottom:4px;}
+  .ins-skill-row .sk{color:var(--fg-2);font-size:10.5px;}
+  .ins-skill-row .lane{height:18px;border:1px solid var(--rule);}
+  .ins-skill-row .lane.fill{background:var(--accent);border-color:var(--accent);}
+  .ins-skill-row .lane.fill.weak{background:rgba(255,90,60,.18);}
+  .ins-skill-head{display:grid;grid-template-columns:1fr repeat(4,42px);gap:6px;font-family:var(--mono);font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;text-align:center;}
+  .ins-skill-head span:first-child{text-align:left;}
+  .ins-pain{display:grid;gap:6px;}
+  .ins-pain .p{display:grid;grid-template-columns:1fr 90px;gap:10px;align-items:baseline;padding:8px 10px;border:1px solid var(--rule);font-size:11.5px;background:rgba(255,255,255,.01);}
+  .ins-pain .p .nm{color:var(--fg-2);}
+  .ins-pain .p .nm b{color:var(--fg);font-weight:500;display:block;font-size:11.5px;}
+  .ins-pain .p .nm .src{font-family:var(--mono);font-size:8px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;margin-top:2px;}
+  .ins-pain .p .score{display:flex;gap:2px;align-items:center;justify-content:flex-end;}
+  .ins-pain .p .score .dot{width:6px;height:6px;border:1px solid var(--rule-strong);border-radius:50%;}
+  .ins-pain .p .score .dot.on{background:var(--accent);border-color:var(--accent);}
+  .ins-opp{padding:10px 12px;border:1px solid var(--rule);margin-bottom:6px;background:rgba(255,255,255,.01);}
+  .ins-opp .h{font-size:12px;color:var(--fg);font-weight:500;margin-bottom:6px;}
+  .ins-opp .h em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+  .ins-opp .meta{display:flex;gap:10px;font-family:var(--mono);font-size:9px;letter-spacing:.04em;color:var(--muted);}
+  .ins-opp .meta .acc{color:var(--accent);}
+  .ins-opp .meta .green{color:var(--green);}
+  .ins-handoff{padding:14px;border:1px solid var(--accent);background:linear-gradient(180deg,rgba(255,90,60,.10),transparent);}
+  .ins-handoff .lab{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:8px;}
+  .ins-handoff .h{font-family:var(--serif);font-style:italic;font-size:18px;line-height:1.15;letter-spacing:-.01em;}
+  .ins-handoff .res{margin-top:10px;font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:.04em;}
+
+  /* Closing */
+  .closing{padding:80px;text-align:left;max-width:1320px;}
+  .closing h2{font-family:var(--sans);font-weight:500;font-size:clamp(48px,6vw,84px);line-height:1;letter-spacing:-.03em;margin-bottom:24px;}
+  .closing h2 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+  .closing p{font-size:17px;max-width:680px;color:var(--fg-2);line-height:1.55;margin-bottom:32px;}
+  .closing .actions{display:flex;gap:12px;flex-wrap:wrap;}
+  .closing .actions .btn{display:inline-flex;align-items:center;gap:10px;padding:14px 22px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:500;}
+  .closing .actions .primary{background:var(--accent);color:var(--bg);}
+  .closing .actions .primary::after{content:"→";font-family:var(--sans);}
+  .closing .actions .ghost{border:1px solid var(--rule-strong);color:var(--fg);}
+  .closing .actions .ghost:hover{border-color:var(--accent);color:var(--accent);}
+
+  @media (max-width:1100px){
+    .cover,.verdict-block,.stage,.closing{padding-left:28px;padding-right:28px;}
+    .map .ladder{grid-template-columns:repeat(2,1fr);}
+    .map .ladder::before{display:none;}
+    .map .node{border-right:none;border-bottom:1px dashed var(--rule);}
+    .stage .body{grid-template-columns:1fr;}
+    .stage .head{grid-template-columns:80px 1fr;}
+    .stage .head .stat{grid-column:1/-1;text-align:left;}
+    .vfx{grid-template-columns:1fr;}
+    .priority .row{grid-template-columns:40px 1fr;gap:14px;}
+    .priority .row .tag,.priority .row .text,.priority .row .effort{grid-column:1/-1;}
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="left">
+    <div class="mark"></div>
+    <span><a href="index.html" style="color:var(--muted);">← Audit</a> &nbsp;/&nbsp; <span style="color:var(--fg);">No Idea pipeline · §</span></span>
+  </div>
+  <div class="right">
+    <span class="pill acc">● Read of 6 stages</span>
+    <a href="archetype.html">Archetypes →</a>
+  </div>
+</header>
+
+<!-- COVER -->
+<section class="cover">
+  <div class="stamp">
+    <span>Pipeline audit · Path I (No Idea)</span>
+    <span>6 stages · 0 through 5</span>
+    <span>Read · 2026-05-26</span>
+  </div>
+  <h1>Six stages.<br/>Six surfaces.<br/><em>One system.</em></h1>
+  <p class="lede">
+    <strong>You shipped the hard part.</strong> The pipeline works end-to-end —
+    Mindset, Outcome, Requirements, Pain Inventory, Opportunity Evaluations,
+    Handoff. What's wrong is not the architecture; <em>it's that six
+    different surfaces look like six different products.</em> Each was built
+    with care and the shadcn defaults available at the time. Together they
+    don't yet read as one institute.
+  </p>
+
+  <div class="map">
+    <div class="lab">Stage map · dependency arrow flows left → right</div>
+    <div class="ladder">
+      <div class="node">
+        <div class="n">0.</div>
+        <div class="nm">Mindset</div>
+        <div class="desc">Static intro. CTA → Stage 1.</div>
+        <div class="tag do">Light pass</div>
+      </div>
+      <div class="node">
+        <div class="n">I.</div>
+        <div class="nm">Outcome</div>
+        <div class="desc">4-dim chat → OutcomeDocument.</div>
+        <div class="tag next">Redesign</div>
+      </div>
+      <div class="node">
+        <div class="n">II.</div>
+        <div class="nm">Requirements</div>
+        <div class="desc">14×4 skill canvas + chat.</div>
+        <div class="tag next">Redesign</div>
+      </div>
+      <div class="node">
+        <div class="n">III.</div>
+        <div class="nm">Pain Inventory</div>
+        <div class="desc">Scout + founder + scoring.</div>
+        <div class="tag next">Redesign</div>
+      </div>
+      <div class="node">
+        <div class="n">IV.</div>
+        <div class="nm">Evaluations</div>
+        <div class="desc">Per-opp Layer A + B + verdict.</div>
+        <div class="tag next">Heavy lift</div>
+      </div>
+      <div class="node">
+        <div class="n">V.</div>
+        <div class="nm">Handoff</div>
+        <div class="desc">Chosen + 4 reserves + synth.</div>
+        <div class="tag do">Light pass</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- VERDICT -->
+<section class="verdict-block">
+  <p class="lead">The pipeline does <em>institute work.</em> The surfaces still read as <em>SaaS product.</em></p>
+  <p>The Mindset page is a Markdown brief in a `max-w-2xl` column. Stage banners are dismissable info-toasts in `bg-card/40`. The skill canvas is a four-lane drag-and-drop tier list with `border-success/40` colour-coding. The opportunity canvas is a stack of cards with chevron-toggle expansion. <strong>All of it is competent. None of it earns the word premium.</strong></p>
+  <p>Below — the verdict for each stage, what to keep, what to rebuild, and the order I'd do it in.</p>
+
+  <div class="priority">
+
+    <div class="row">
+      <div class="order">I.</div>
+      <div class="tag acc">Do first</div>
+      <div class="text"><b>Stage 1 — Outcome Definition.</b> Highest leverage. It's the first chat surface in the No-Idea path and currently looks identical to a generic chatbot. Redesign it as the recorded-session pattern from discovery-a.html. Reuse the belief-state rail; swap the fields to the four outcome dimensions.</div>
+      <div class="effort">Effort<br/><span class="v">M</span></div>
+    </div>
+
+    <div class="row">
+      <div class="order">II.</div>
+      <div class="tag acc">Do first</div>
+      <div class="text"><b>Stage 2 — Skill Canvas.</b> Currently four colour-coded lanes (green/blue/red/grey) with `dnd-kit` chips. <em>Premium tier-lists exist</em> — the move is hairline grid, italic-roman lane labels, no colour-coding except by intent (accent for "good", muted for "bad"). Same drag mechanics, completely different read.</div>
+      <div class="effort">Effort<br/><span class="v">M</span></div>
+    </div>
+
+    <div class="row">
+      <div class="order">III.</div>
+      <div class="tag">Then</div>
+      <div class="text"><b>Stage 4 — Opportunity Evaluations.</b> Heaviest surface in the system: per-opportunity Layer A research + Layer B test scripts + verdict picker + pushback drawer. Currently a stack of expanding cards. <strong>Treat it as a docket</strong> — one opportunity per row, full-page expansion when chosen, ledger summary always visible.</div>
+      <div class="effort">Effort<br/><span class="v">L</span></div>
+    </div>
+
+    <div class="row">
+      <div class="order">IV.</div>
+      <div class="tag">Then</div>
+      <div class="text"><b>Stage 3 — Pain Inventory.</b> Two-column agent-vs-founder list with 3-axis sliders. Sliders are fine; the chrome is generic. Redo as a ledger with score bars rendered as hairline dots, source as italic-roman label, founder pushback as a hairline drawer.</div>
+      <div class="effort">Effort<br/><span class="v">M</span></div>
+    </div>
+
+    <div class="row">
+      <div class="order">V.</div>
+      <div class="tag">Light</div>
+      <div class="text"><b>Stage 0 — Mindset</b> + <b>Stage 5 — Handoff</b>. Both already document-shaped. Apply the Institute typography (serif headings, monospace meta) and they're done. <strong>Don't restructure them</strong> — the content survives the type change.</div>
+      <div class="effort">Effort<br/><span class="v">S × 2</span></div>
+    </div>
+
+    <div class="row">
+      <div class="order">VI.</div>
+      <div class="tag">Cross-cutting</div>
+      <div class="text"><b>Banners + chat shell.</b> Every stage uses `Stage{N}Banner` + a chat panel. Build them once as `&lt;StageBanner&gt;` and `&lt;StageInterview&gt;` shared components in the new aesthetic — every stage benefits.</div>
+      <div class="effort">Effort<br/><span class="v">S</span></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============================================================
+     STAGE 0 — MINDSET
+     ============================================================ -->
+<section class="stage">
+  <header class="head">
+    <div class="n">0.</div>
+    <div class="name">Mindset. <em>The opening note.</em>
+      <span class="sub">Static intro · CTA → Stage 1</span>
+    </div>
+    <div class="stat">Verdict<br/><span class="badge keep">● Light pass</span></div>
+  </header>
+
+  <div class="body">
+    <div class="text">
+      <div class="lab">What's there</div>
+      <h3>A page-of-text with a button.</h3>
+      <p>Three section blocks — <b>What you're about to do · What this requires · What you'll get</b> — set in the default sans, on a `max-w-2xl` column. The CTA fires a server action that creates the session and routes to Stage 1.</p>
+
+      <div class="lab">What's wrong</div>
+      <h3>It's a brief, not a <em>welcome.</em></h3>
+      <p>This is the founder's first contact with the institute. The writing is excellent (your hand). The container does not earn it. It looks like a `README.md` rendered to a screen, not the front matter of a document they are about to commit to.</p>
+
+      <div class="lab">The treatment</div>
+      <ul>
+        <li><b>Serif headline</b> for "What you're about to do" — Instrument Serif at clamp(48px, 7vw, 96px).</li>
+        <li><b>Standfirst</b> — two-column intro paragraph, hairline rule between, drop-cap on the first letter.</li>
+        <li><b>Numbered roman covenants</b> — Diligence, Honesty, Patience — set as three editorial paragraphs, not a bullet list.</li>
+        <li><b>The CTA</b> is a quiet line at the bottom: "Begin, when ready →". No "primary button" appearance.</li>
+      </ul>
+    </div>
+
+    <div class="vfx">
+      <div class="frame before">
+        <div class="lab"><span>Stage 0 — current</span><span class="tag">BEFORE</span></div>
+        <div style="font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:8px;">STAGE 0 OF 5 — MINDSET</div>
+        <div style="font-size:14px; font-weight:600; color:var(--fg); margin-bottom:8px;">What you're about to do</div>
+        <div style="font-size:11px; color:var(--fg-2); line-height:1.55; margin-bottom:14px;">You've said you want to start a business but you don't have an idea yet. Over the next five stages we work that out together — not by handing you a generic playbook…</div>
+        <div style="font-size:14px; font-weight:600; color:var(--fg); margin-bottom:6px;">What this requires</div>
+        <div style="font-size:10px; color:var(--fg-2); margin-bottom:6px;"><b style="color:var(--fg);">Diligence.</b> There's homework. The agent will ask you to do real things…</div>
+        <div style="font-size:10px; color:var(--fg-2); margin-bottom:14px;"><b style="color:var(--fg);">Honesty.</b> Better to say "I don't know" than to guess…</div>
+        <div style="margin-top:auto; display:inline-block; background:#2563eb; color:#fff; padding:8px 14px; font-size:11px; font-weight:600; border-radius:6px;">I'm ready, let's start →</div>
+      </div>
+      <div class="frame after">
+        <div class="lab"><span>Stage 0 — proposed</span><span class="tag" style="color:var(--accent);">AFTER</span></div>
+        <div class="ins-stamp"><span>STAGE 0 · MINDSET</span><span class="acc">Path I · No Idea</span></div>
+        <div class="ins-q">An <em>opening note,</em><br/>before we begin.</div>
+        <div style="border-left:2px solid var(--accent); padding-left:14px; font-family:var(--serif); font-size:14px; font-style:italic; color:var(--fg); line-height:1.4; margin-bottom:14px;">
+          The next five stages produce one validated idea and a roadmap to start moving on it.
+        </div>
+        <div style="display:grid; gap:10px; font-size:11px; color:var(--fg-2); line-height:1.5;">
+          <div><span style="font-family:var(--serif); font-style:italic; color:var(--accent); font-size:14px;">I.</span> <b style="color:var(--fg);">Diligence.</b> Real work in the world.</div>
+          <div><span style="font-family:var(--serif); font-style:italic; color:var(--accent); font-size:14px;">II.</span> <b style="color:var(--fg);">Honesty.</b> "I don't know" beats "I guess."</div>
+          <div><span style="font-family:var(--serif); font-style:italic; color:var(--accent); font-size:14px;">III.</span> <b style="color:var(--fg);">Patience.</b> The pipeline takes 45–90 minutes.</div>
+        </div>
+        <div style="margin-top:auto; padding-top:14px; font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent);">
+          Begin, when ready →
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     STAGE 1 — OUTCOME
+     ============================================================ -->
+<section class="stage">
+  <header class="head">
+    <div class="n">I.</div>
+    <div class="name">Outcome Definition.<br/><em>What outcome would fit your life.</em>
+      <span class="sub">4 dimensions · streaming chat · OutcomeDocument</span>
+    </div>
+    <div class="stat">Verdict<br/><span class="badge do">● Redesign first</span></div>
+  </header>
+
+  <div class="body">
+    <div class="text">
+      <div class="lab">What's there</div>
+      <h3>A chatbot in a wrapper.</h3>
+      <p>Streaming question → user reply → next question, in a generic message thread. A dismissable banner at the top describes the four dimensions: <b>time horizon · financial goal · risk tolerance · lifestyle preference</b>. The OutcomeDocument appears when readiness ≥ 75% for pre-commit review.</p>
+
+      <div class="lab">What's wrong</div>
+      <h3>The first chat <em>looks like every other AI chat.</em></h3>
+      <p>This is the moment the founder starts to feel whether the institute is going to listen to them. Right now it feels like talking to a chatbot. The four dimensions are invisible unless they re-read the banner. There's no sense of <em>where they are in the four</em> or <em>what's left.</em></p>
+
+      <div class="lab">The treatment</div>
+      <ul>
+        <li><b>Adopt the discovery-a pattern</b>: question front-and-centre in big sans, answer field below, belief panel on the right.</li>
+        <li><b>The belief panel shows the four dimensions</b> as roman numerals (I → IV) lighting up as confidence accumulates per axis.</li>
+        <li><b>OutcomeDocument review</b> stays — but rendered as a one-page memo with serif headings, not a card stack.</li>
+        <li><b>Banner becomes a session stamp</b>, not a dismissable toast.</li>
+      </ul>
+    </div>
+
+    <div class="vfx">
+      <div class="frame before">
+        <div class="lab"><span>Stage 1 — current</span><span class="tag">BEFORE</span></div>
+        <div class="gen-banner">
+          <b>Stage 1 of 5 — Outcome Definition</b>
+          Before we look for ideas, we need to know what outcome would actually fit your life. I'll ask you about four things…
+        </div>
+        <div class="gen-chat" style="margin-top:14px;">
+          <div class="bub">Let's start simple. When you imagine doing this — full-time, part-time, somewhere in between — what feels right?</div>
+          <div class="bub you">Probably part-time for now. I have a job.</div>
+          <div class="bub">Okay. And how soon do you need this to produce real income — months, a year, longer?</div>
+          <div class="ph">Type your reply...</div>
+        </div>
+      </div>
+      <div class="frame after">
+        <div class="lab"><span>Stage 1 — proposed</span><span class="tag" style="color:var(--accent);">AFTER</span></div>
+        <div class="ins-stamp"><span>STAGE I · OUTCOME</span><span class="acc">Q3 of ~6</span></div>
+        <div class="ins-q">How soon does this need<br/>to produce <em>real income?</em></div>
+        <div style="font-family:var(--serif); font-style:italic; font-size:13px; color:var(--muted); padding-left:14px; border-left:2px solid var(--accent); margin-bottom:12px; line-height:1.4;">
+          Not the answer you'd give a friend. The honest one.
+        </div>
+        <div class="ins-stamp" style="margin-top:14px; margin-bottom:6px;"><span>BELIEF STATE</span><span class="acc">62% complete</span></div>
+        <div class="ins-dimensions">
+          <div class="ins-dim captured"><span class="r">i.</span><span class="nm">Time horizon</span><span class="v">12–18 months</span></div>
+          <div class="ins-dim captured"><span class="r">ii.</span><span class="nm">Financial goal</span><span class="v">2× salary</span></div>
+          <div class="ins-dim"><span class="r">iii.</span><span class="nm">Risk tolerance</span><span class="v">listening…</span></div>
+          <div class="ins-dim"><span class="r">iv.</span><span class="nm">Lifestyle pref.</span><span class="v">—</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     STAGE 2 — REQUIREMENTS / SKILL CANVAS
+     ============================================================ -->
+<section class="stage">
+  <header class="head">
+    <div class="n">II.</div>
+    <div class="name">Requirements.<br/><em>What you're built to execute.</em>
+      <span class="sub">14 skills × 4 tiers · DnD canvas · per-teammate tabs · Expected Profile derivation</span>
+    </div>
+    <div class="stat">Verdict<br/><span class="badge do">● Redesign first</span></div>
+  </header>
+
+  <div class="body">
+    <div class="text">
+      <div class="lab">What's there</div>
+      <h3>A four-lane drag-and-drop tier list.</h3>
+      <p>14 skill chips drag into 4 colour-coded lanes (<b>good · acceptable · bad · unknown</b>). Teammates added via tabs. The Expected Profile (what the outcome demands) is derived by Sonnet from Stage 1 and shown alongside. Founder pushback opens a drawer.</p>
+
+      <div class="lab">What's wrong</div>
+      <h3>The colour-coding is <em>doing the wrong work.</em></h3>
+      <p>The lanes are green/blue/red/grey. The page reads like a project-management board. <strong>This is a self-assessment instrument</strong>, not a kanban. The reds especially are uncomfortable to look at — the founder is staring at their weaknesses in destructive-action colour.</p>
+
+      <div class="lab">The treatment</div>
+      <ul>
+        <li><b>Hairline grid, no fills</b>. Lanes are columns with monospace labels: <em>Strong · Adequate · Weak · Unknown</em>.</li>
+        <li><b>Chips are typography</b>, not pills. Skill name in sans, tier indicated by the column it's in. One accent dot per chip in <em>strong</em>; nothing in <em>weak</em> except italic style.</li>
+        <li><b>The Expected Profile</b> renders as a faint overlay row above the founder's row — a "what's demanded" ghost over the "what's there" reality.</li>
+        <li><b>Teammate tabs become roman tabs</b>: <em>I. You · II. Daniel · III. Add teammate</em>.</li>
+      </ul>
+    </div>
+
+    <div class="vfx">
+      <div class="frame before">
+        <div class="lab"><span>Stage 2 — current</span><span class="tag">BEFORE</span></div>
+        <div style="font-size:10px; font-weight:600; color:var(--fg); margin-bottom:10px;">Drag skills into tiers · You</div>
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px; font-size:9px; text-align:center; font-weight:600; color:var(--muted); margin-bottom:6px;">
+          <span>GOOD</span><span>OK</span><span>BAD</span><span>?</span>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px; min-height:140px;">
+          <div style="background:rgba(52,211,153,.08); border:1px dashed rgba(52,211,153,.3); padding:4px; display:grid; gap:3px; align-content:start;">
+            <div class="gen-skills"><span class="pill t-good">Sales</span></div>
+            <div class="gen-skills"><span class="pill t-good">Writing</span></div>
+          </div>
+          <div style="background:rgba(37,99,235,.05); border:1px dashed rgba(37,99,235,.3); padding:4px; display:grid; gap:3px; align-content:start;">
+            <div class="gen-skills"><span class="pill">Design</span></div>
+            <div class="gen-skills"><span class="pill">Ops</span></div>
+          </div>
+          <div style="background:rgba(255,90,60,.06); border:1px dashed rgba(255,90,60,.3); padding:4px; display:grid; gap:3px; align-content:start;">
+            <div class="gen-skills"><span class="pill t-bad">Code</span></div>
+          </div>
+          <div style="background:rgba(255,255,255,.03); border:1px dashed var(--rule); padding:4px; display:grid; gap:3px; align-content:start;">
+            <div class="gen-skills"><span class="pill">Legal</span></div>
+            <div class="gen-skills"><span class="pill">Hire</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="frame after">
+        <div class="lab"><span>Stage 2 — proposed</span><span class="tag" style="color:var(--accent);">AFTER</span></div>
+        <div class="ins-stamp"><span>STAGE II · REQUIREMENTS</span><span class="acc">14 skills · YOU</span></div>
+        <div class="ins-skill-head"><span>Skill</span><span>Strong</span><span>Adequate</span><span>Weak</span><span>—</span></div>
+        <div class="ins-skill-row"><span class="sk">Sales</span><span class="lane fill"></span><span class="lane"></span><span class="lane"></span><span class="lane"></span></div>
+        <div class="ins-skill-row"><span class="sk">Writing</span><span class="lane fill"></span><span class="lane"></span><span class="lane"></span><span class="lane"></span></div>
+        <div class="ins-skill-row"><span class="sk">Design</span><span class="lane"></span><span class="lane fill weak"></span><span class="lane"></span><span class="lane"></span></div>
+        <div class="ins-skill-row"><span class="sk">Operations</span><span class="lane"></span><span class="lane fill weak"></span><span class="lane"></span><span class="lane"></span></div>
+        <div class="ins-skill-row"><span class="sk" style="font-style:italic; color:var(--muted);">Code</span><span class="lane"></span><span class="lane"></span><span class="lane fill weak"></span><span class="lane"></span></div>
+        <div class="ins-skill-row"><span class="sk">Legal</span><span class="lane"></span><span class="lane"></span><span class="lane"></span><span class="lane fill weak"></span></div>
+        <div style="margin-top:10px; padding-top:8px; border-top:1px dashed var(--rule); font-family:var(--mono); font-size:9px; letter-spacing:.04em; color:var(--muted);">
+          <span style="color:var(--accent);">— —</span> ghost row above = the Expected Profile your outcome demands.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     STAGE 3 — PAIN INVENTORY
+     ============================================================ -->
+<section class="stage">
+  <header class="head">
+    <div class="n">III.</div>
+    <div class="name">Pain Inventory.<br/><em>Where the real pain is.</em>
+      <span class="sub">Pain Scout (8-step Sonnet) + founder additions · 3-axis scoring · shortlist cap 5</span>
+    </div>
+    <div class="stat">Verdict<br/><span class="badge next">● Then</span></div>
+  </header>
+
+  <div class="body">
+    <div class="text">
+      <div class="lab">What's there</div>
+      <h3>Two columns, three sliders per card.</h3>
+      <p>The Pain Scout fans out across <b>community_pulse · Tavily · Exa</b> and surfaces candidate pain points. The founder adds their own via a form. Each card has three sliders — <b>intensity · frequency · niche specificity</b> — used to score viability. Up to 5 viable points unlock composition.</p>
+
+      <div class="lab">What's wrong</div>
+      <h3>The cards <em>all look the same.</em></h3>
+      <p>An agent-surfaced pain that 800 people complained about in a Reddit thread looks identical to a pain the founder typed in from memory. The source is in a small chip; the signal strength is buried. <strong>The most important visual hierarchy in this stage is "where did this come from and how loud is it" — currently invisible.</strong></p>
+
+      <div class="lab">The treatment</div>
+      <ul>
+        <li><b>One ledger, not two columns</b>. Each pain on its own row. Italic-roman source label (<em>I. Scout · II. You</em>) marks origin.</li>
+        <li><b>Score is rendered as dots</b>, not sliders. Five dots per axis = 5/5. Click to adjust; immediate, calm.</li>
+        <li><b>Signal strength is a typographic weight</b> — heaviest signal gets the largest type, weakest is set in muted italic.</li>
+        <li><b>Scout re-runs become an action of intent</b>: a numbered call with a single editorial line — "Run No. III · 8-step Sonnet · Tavily + Exa".</li>
+      </ul>
+    </div>
+
+    <div class="vfx">
+      <div class="frame before">
+        <div class="lab"><span>Stage 3 — current</span><span class="tag">BEFORE</span></div>
+        <div class="gen-cards">
+          <div class="card">
+            <b>Mothers in rural areas can't reach OB-GYN.</b>
+            <span style="color:var(--muted); font-size:9px;">Source: scout · 12 community signals</span>
+            <div style="margin-top:6px; height:6px; background:rgba(255,255,255,.05); border-radius:3px; position:relative;">
+              <div style="position:absolute; left:0; top:0; bottom:0; width:80%; background:#2563eb; border-radius:3px;"></div>
+            </div>
+            <div style="color:var(--muted); font-size:9px; margin-top:2px;">Intensity 4 · Frequency 5 · Niche 3</div>
+          </div>
+          <div class="card">
+            <b>Daycare drop-off times conflict with work.</b>
+            <span style="color:var(--muted); font-size:9px;">Source: founder · personal observation</span>
+            <div style="margin-top:6px; height:6px; background:rgba(255,255,255,.05); border-radius:3px;">
+              <div style="height:100%; width:50%; background:#2563eb; border-radius:3px;"></div>
+            </div>
+            <div style="color:var(--muted); font-size:9px; margin-top:2px;">Intensity 3 · Frequency 3 · Niche 4</div>
+          </div>
+          <div class="card">
+            <b>Lab results take 2 weeks to come back.</b>
+            <span style="color:var(--muted); font-size:9px;">Source: scout · 4 signals</span>
+            <div style="margin-top:6px; height:6px; background:rgba(255,255,255,.05); border-radius:3px;">
+              <div style="height:100%; width:40%; background:#2563eb; border-radius:3px;"></div>
+            </div>
+            <div style="color:var(--muted); font-size:9px; margin-top:2px;">Intensity 4 · Frequency 2 · Niche 4</div>
+          </div>
+        </div>
+      </div>
+      <div class="frame after">
+        <div class="lab"><span>Stage 3 — proposed</span><span class="tag" style="color:var(--accent);">AFTER</span></div>
+        <div class="ins-stamp"><span>STAGE III · PAINS</span><span class="acc">5 of ~10 rated</span></div>
+        <div class="ins-pain">
+          <div class="p">
+            <div class="nm">
+              <b>Rural mothers cannot reach an OB-GYN.</b>
+              <div class="src"><span style="color:var(--accent);">I.</span> Scout · 12 community signals</div>
+            </div>
+            <div class="score">
+              <span class="dot on"></span><span class="dot on"></span><span class="dot on"></span><span class="dot on"></span><span class="dot"></span>
+              <span style="margin-left:6px; font-family:var(--mono); font-size:9px; color:var(--accent);">4·5·3</span>
+            </div>
+          </div>
+          <div class="p">
+            <div class="nm">
+              <b>Lab results take two weeks to return.</b>
+              <div class="src"><span style="color:var(--accent);">I.</span> Scout · 4 signals</div>
+            </div>
+            <div class="score">
+              <span class="dot on"></span><span class="dot on"></span><span class="dot on"></span><span class="dot"></span><span class="dot"></span>
+              <span style="margin-left:6px; font-family:var(--mono); font-size:9px; color:var(--muted);">4·2·4</span>
+            </div>
+          </div>
+          <div class="p">
+            <div class="nm">
+              <b style="font-style:italic;">Daycare drop-off conflicts with work.</b>
+              <div class="src"><span style="color:var(--accent);">II.</span> You · personal observation</div>
+            </div>
+            <div class="score">
+              <span class="dot on"></span><span class="dot on"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              <span style="margin-left:6px; font-family:var(--mono); font-size:9px; color:var(--muted);">3·3·4</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     STAGE 4 — OPPORTUNITY EVALUATIONS
+     ============================================================ -->
+<section class="stage">
+  <header class="head">
+    <div class="n">IV.</div>
+    <div class="name">Opportunity Evaluations.<br/><em>The docket.</em>
+      <span class="sub">Layer A research (6-step) · Layer B test scripts · per-opp verdict · pushback</span>
+    </div>
+    <div class="stat">Verdict<br/><span class="badge next">● Heavy lift</span></div>
+  </header>
+
+  <div class="body">
+    <div class="text">
+      <div class="lab">What's there</div>
+      <h3>Stack of expanding cards, one per opportunity.</h3>
+      <p>Five opportunities. Each has a chevron-toggle card with Layer A research findings (4-dimension), a Layer B test script + community responses (text or screenshot), a verdict picker (5 verdicts), and a push-back drawer. The most architecturally complex surface in the product.</p>
+
+      <div class="lab">What's wrong</div>
+      <h3>Five opportunities collapse to <em>five identical chevrons.</em></h3>
+      <p>The whole point of Stage 4 is that the five opportunities are <strong>not equal.</strong> Their Layer A signals differ. Their Layer B validation strength differs (verified / likely / contradictory / unverified). Their founder verdicts will differ. The current UI treats them as equal-weight cards in a stack — the most important signal in the whole pipeline (which one is winning) is hidden behind clicks.</p>
+
+      <div class="lab">The treatment</div>
+      <ul>
+        <li><b>The docket.</b> Five opportunities in one ledger, always visible. Each row: roman index, name, Layer A status, Layer B strength as a typographic glyph (●●●○ = strong, ●○○○ = contradictory).</li>
+        <li><b>The expanded view goes full-page</b>, not inline. Open one opportunity, see Layer A + B + verdict picker at hero scale. ESC returns to the docket.</li>
+        <li><b>Verdicts visible in the docket</b> as a stamp column — "advance," "drop," "park," "needs more."</li>
+        <li><b>"Re-derivation needed" banner</b> becomes a hairline strip at the top of the row, not a tinted card.</li>
+      </ul>
+    </div>
+
+    <div class="vfx">
+      <div class="frame before">
+        <div class="lab"><span>Stage 4 — current</span><span class="tag">BEFORE</span></div>
+        <div class="gen-cards">
+          <div class="card" style="border-color:rgba(37,99,235,.4);">
+            <div style="display:flex; gap:6px; align-items:center; font-size:9px; color:var(--muted); margin-bottom:4px;">
+              <span style="background:rgba(255,255,255,.06); padding:2px 5px; border-radius:3px;">EVALUATED</span>
+              <span>A✓</span>
+              <span>B verified</span>
+              <span>·</span>
+              <span>Agent: advance · You: advance</span>
+            </div>
+            <b>Maternal-care WhatsApp advisory…</b>
+          </div>
+          <div class="card">
+            <div style="display:flex; gap:6px; align-items:center; font-size:9px; color:var(--muted); margin-bottom:4px;">
+              <span style="background:rgba(255,255,255,.06); padding:2px 5px; border-radius:3px;">EVALUATED</span>
+              <span>A✓</span>
+              <span>B contradictory</span>
+            </div>
+            <b>Lab result delivery service…</b>
+          </div>
+          <div class="card">
+            <div style="display:flex; gap:6px; align-items:center; font-size:9px; color:var(--muted); margin-bottom:4px;">
+              <span style="background:rgba(255,255,255,.06); padding:2px 5px; border-radius:3px;">PENDING</span>
+              <span>A·</span>
+              <span>B·</span>
+            </div>
+            <b>Daycare scheduling tool…</b>
+          </div>
+        </div>
+      </div>
+      <div class="frame after">
+        <div class="lab"><span>Stage 4 — proposed</span><span class="tag" style="color:var(--accent);">AFTER</span></div>
+        <div class="ins-stamp"><span>STAGE IV · DOCKET</span><span class="acc">2 of 5 advanced</span></div>
+        <div class="ins-opp" style="border-color:var(--accent); background:linear-gradient(180deg,rgba(255,90,60,.06),transparent);">
+          <div class="h"><span style="color:var(--accent); font-family:var(--serif); font-style:italic; margin-right:6px;">I.</span> Maternal-care WhatsApp <em>advisory.</em></div>
+          <div class="meta">
+            <span>Layer A · <span class="green">●●●</span></span>
+            <span>Layer B · <span class="green">●●●●</span> verified</span>
+            <span class="acc">You · advance</span>
+          </div>
+        </div>
+        <div class="ins-opp">
+          <div class="h"><span style="color:var(--accent); font-family:var(--serif); font-style:italic; margin-right:6px;">II.</span> Lab result <em>delivery service.</em></div>
+          <div class="meta">
+            <span>Layer A · <span class="green">●●●</span></span>
+            <span>Layer B · <span style="color:var(--accent);">●○○○</span> contradictory</span>
+            <span>You · drop</span>
+          </div>
+        </div>
+        <div class="ins-opp">
+          <div class="h"><span style="color:var(--accent); font-family:var(--serif); font-style:italic; margin-right:6px;">III.</span> Daycare <em>scheduling tool.</em></div>
+          <div class="meta">
+            <span>Layer A · ○○○</span>
+            <span>Layer B · pending</span>
+            <span>—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     STAGE 5 — HANDOFF
+     ============================================================ -->
+<section class="stage">
+  <header class="head">
+    <div class="n">V.</div>
+    <div class="name">Handoff to Validation.<br/><em>One chosen, four held.</em>
+      <span class="sub">Chosen panel + 4 reserves + Stage 5 synthesis job · Opus bridge</span>
+    </div>
+    <div class="stat">Verdict<br/><span class="badge keep">● Light pass</span></div>
+  </header>
+
+  <div class="body">
+    <div class="text">
+      <div class="lab">What's there</div>
+      <h3>Pre-synthesis review with the chosen + reserves.</h3>
+      <p>The founder sees the opportunity they picked, the four they didn't (snapshotted for continuation), and a CTA that fires the Stage 5 job (Opus 1A reasoning → Sonnet 1B emission). On success it produces a Recommendation and the founder rejoins the legacy roadmap path.</p>
+
+      <div class="lab">What's wrong</div>
+      <h3>It's already <em>document-shaped.</em> Just dressed wrong.</h3>
+      <p>This surface is closer to working than the others — it's a memo-with-cards. The treatment is mostly typographic. The CTA is the most important moment in the whole pipeline (a synthesis worth waiting for) and currently looks like a Submit button.</p>
+
+      <div class="lab">The treatment</div>
+      <ul>
+        <li><b>Cover-page treatment</b> for the chosen opportunity — big serif H1, monospace stamp row above it.</li>
+        <li><b>The four reserves become a sidebar ledger</b>, set in italic at one type size smaller. <em>Held for continuation</em> as the section label.</li>
+        <li><b>The synthesis CTA</b> is presented as a moment, not a button — "Commit to this. Synthesis takes about 90 seconds." With the stages of the job visible in real time below.</li>
+        <li><b>Cascade banner</b> becomes a hairline strip with a single italic line: "Stage 1, 2 or 3 changed since this was prepared — re-derive before committing."</li>
+      </ul>
+    </div>
+
+    <div class="vfx">
+      <div class="frame before">
+        <div class="lab"><span>Stage 5 — current</span><span class="tag">BEFORE</span></div>
+        <div style="font-size:9px; color:var(--muted); letter-spacing:.14em; text-transform:uppercase; margin-bottom:4px;">PRE-SYNTHESIS REVIEW · VALIDATION HANDOFF</div>
+        <div style="font-size:14px; font-weight:600; color:var(--fg); margin-bottom:14px;">Your handoff to validation — Stage 5 of 5</div>
+        <div style="padding:10px; border:1px solid var(--rule); border-radius:6px; margin-bottom:8px;">
+          <div style="font-size:11px; color:var(--muted); margin-bottom:4px;">CHOSEN</div>
+          <div style="font-size:12px; color:var(--fg);">Maternal-care WhatsApp advisory</div>
+        </div>
+        <div style="padding:10px; border:1px solid var(--rule); border-radius:6px;">
+          <div style="font-size:11px; color:var(--muted); margin-bottom:6px;">RESERVES · 4</div>
+          <div style="font-size:11px; color:var(--fg-2);">Lab results · Daycare · Pharmacy referral · …</div>
+        </div>
+        <div style="margin-top:auto; padding-top:10px;">
+          <div style="display:inline-block; background:#2563eb; color:#fff; padding:8px 14px; font-size:11px; font-weight:600; border-radius:6px;">Run synthesis →</div>
+        </div>
+      </div>
+      <div class="frame after">
+        <div class="lab"><span>Stage 5 — proposed</span><span class="tag" style="color:var(--accent);">AFTER</span></div>
+        <div class="ins-stamp"><span>STAGE V · HANDOFF</span><span class="acc">SYNTH READY</span></div>
+        <div class="ins-handoff">
+          <div class="lab">YOUR CHOSEN PATH</div>
+          <div class="h">Maternal-care WhatsApp <em>advisory.</em></div>
+          <div class="res">Validation strength · ●●●● verified</div>
+        </div>
+        <div style="margin-top:10px; padding-left:12px; border-left:1px solid var(--rule); font-size:10.5px; color:var(--fg-2); line-height:1.5;">
+          <div style="font-family:var(--mono); font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:6px;">HELD FOR CONTINUATION · 4</div>
+          <div style="font-style:italic; font-family:var(--serif);"><span style="color:var(--accent);">ii.</span> Lab result delivery</div>
+          <div style="font-style:italic; font-family:var(--serif);"><span style="color:var(--accent);">iii.</span> Daycare scheduling</div>
+          <div style="font-style:italic; font-family:var(--serif);"><span style="color:var(--accent);">iv.</span> Pharmacy referral</div>
+          <div style="font-style:italic; font-family:var(--serif);"><span style="color:var(--accent);">v.</span> Antenatal coaching</div>
+        </div>
+        <div style="margin-top:auto; padding-top:14px; font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent);">
+          Commit to synthesis · ~90 sec →
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     CROSS-CUTTING
+     ============================================================ -->
+<section class="stage">
+  <header class="head">
+    <div class="n">§</div>
+    <div class="name">Cross-cutting.<br/><em>Build once, ship everywhere.</em>
+      <span class="sub">Banners · chat shell · readiness meters · cascade strips</span>
+    </div>
+    <div class="stat">Effort<br/><span class="badge keep">● Small</span></div>
+  </header>
+
+  <div class="body">
+    <div class="text">
+      <div class="lab">Three components shared across all stages</div>
+      <h3>Build them once. The system improves <em>everywhere.</em></h3>
+      <p>Each stage page currently rebuilds the same primitives in slightly different ways. Lift them into the shared component layer and every redesign downstream becomes a config change, not a rewrite.</p>
+      <ul>
+        <li><b>&lt;StageBanner&gt;</b> — the dismissable "what this stage is" intro. One implementation, accepts <em>stageNumber, title, body, sessionId</em>. Same dismiss + persistence behaviour, new typography.</li>
+        <li><b>&lt;StageInterview&gt;</b> — the streaming chat shell. Owns the question, the textarea, the submit, the keyboard shortcuts, the voice button, the safety/error states. Plugs into Stage 1, 2, 3 (and the standard Discovery path) via a single `messages` + `onSend` prop.</li>
+        <li><b>&lt;BeliefRail&gt;</b> — the right-side belief panel. Accepts an array of fields with status (captured / live / unknown) and a completion percentage. Wire to OutcomeDocument fields in Stage 1, SkillInventory in Stage 2, PainPoints in Stage 3 (with a different label set).</li>
+      </ul>
+      <p><strong>Estimate · 2-3 days of focused work</strong>. Pays for itself on the first stage you redesign after, because the shared shell carries the new aesthetic for free.</p>
+    </div>
+
+    <div class="vfx">
+      <div class="frame after" style="grid-column:1/-1;">
+        <div class="lab"><span>Shared components</span><span class="tag" style="color:var(--accent);">BUILD ONCE</span></div>
+        <div style="display:grid; gap:12px;">
+          <div style="padding:10px 14px; border-left:2px solid var(--accent); background:rgba(255,90,60,.04);">
+            <div style="font-family:var(--mono); font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent);">&lt;StageBanner stage={1} /&gt;</div>
+            <div style="margin-top:4px; font-size:11px; color:var(--fg-2);">Dismissable, persistent, accepts any stage's intro copy.</div>
+          </div>
+          <div style="padding:10px 14px; border-left:2px solid var(--accent); background:rgba(255,90,60,.04);">
+            <div style="font-family:var(--mono); font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent);">&lt;StageInterview onSend={...} /&gt;</div>
+            <div style="margin-top:4px; font-size:11px; color:var(--fg-2);">Question, answer, keyboard shortcuts, voice — owned in one place.</div>
+          </div>
+          <div style="padding:10px 14px; border-left:2px solid var(--accent); background:rgba(255,90,60,.04);">
+            <div style="font-family:var(--mono); font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent);">&lt;BeliefRail fields={...} /&gt;</div>
+            <div style="margin-top:4px; font-size:11px; color:var(--fg-2);">Stage 1 = 4 outcome dims. Stage 2 = skill matrix. Stage 3 = pain shortlist.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CLOSING -->
+<section class="closing">
+  <h2>Six stages. <em>One system.</em></h2>
+  <p>The hard work — the agents, the durable jobs, the cascade machinery, the pain scout, the layer-A research — is shipped. The work that remains is <strong>typographic and structural</strong>, not architectural. The cross-cutting components alone make the next four redesigns easy.</p>
+  <p>I'd start with the <strong>Stage 1 Outcome Definition</strong> redesign as a built example, since it's the highest-leverage surface in the pipeline and reuses the discovery-a pattern almost directly. Say the word and I'll build it.</p>
+  <div class="actions">
+    <button class="btn primary" onclick="window.location='discovery-a.html'">See Stage 1 reference (discovery-a.html)</button>
+    <a class="btn ghost" href="archetype.html">← Back to archetypes</a>
+    <a class="btn ghost" href="index.html">← Back to main audit</a>
+  </div>
+</section>
+
+</body>
+</html>

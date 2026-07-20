@@ -1,123 +1,127 @@
-'use client';
-// src/app/(app)/discovery/roadmap/[id]/coach/DebriefView.tsx
-//
-// Renders the four-section debrief produced after role-play ends.
-// Green-tinted "what went well", amber-tinted "what to watch for",
-// and optional revised sections highlighted diff-style.
+"use client";
 
-import { CheckCircle2, AlertTriangle, FileEdit } from 'lucide-react';
-import type { Debrief } from '@/lib/roadmap/coach';
+import type { Debrief } from "@/lib/roadmap/coach";
+import { DecisionFooter } from "@/components/institute/tools/DecisionFooter";
 
 export interface DebriefViewProps {
   debrief: Debrief;
-  onDone:  () => void;
+  onDone: () => void;
 }
 
-/**
- * DebriefView
- *
- * Three-section debrief display. The revisedSections block is only
- * rendered when the debrief produced changes to the preparation package.
- * The "Done" button at the bottom calls `onDone` to advance to the
- * `done` stage in CoachFlow.
- */
-export function DebriefView({ debrief, onDone }: DebriefViewProps) {
-  const { whatWentWell, whatToWatchFor, revisedSections } = debrief;
-
+function DebriefList({
+  label,
+  marker,
+  items,
+}: {
+  label: string;
+  marker: string;
+  items: string[];
+}) {
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <p className="text-[10px] uppercase tracking-widest text-muted mb-3">
-          Rehearsal debrief
+    <section>
+      <h3 className="mb-3 font-mono text-[9px] uppercase tracking-[0.16em] text-muted">
+        {label}
+      </h3>
+      <ul className="border border-rule-strong">
+        {items.map((item, index) => (
+          <li
+            key={`${item}-${index}`}
+            className="grid gap-3 border-b border-rule px-5 py-4 last:border-b-0 sm:grid-cols-[24px_1fr]"
+          >
+            <span className="font-serif text-lg italic text-accent">
+              {marker}
+            </span>
+            <p className="text-[13px] leading-relaxed text-fg-2">{item}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+export function DebriefView({ debrief, onDone }: DebriefViewProps) {
+  const revised = debrief.revisedSections;
+  return (
+    <section className="flex flex-col gap-8 px-6 py-8 sm:px-10">
+      <div className="flex justify-between font-mono text-[9px] uppercase tracking-[0.18em] text-muted">
+        <span>04 · Rehearsal debrief</span>
+        <span className="text-accent">Evidence updated</span>
+      </div>
+      <header>
+        <h2 className="font-serif text-[27px] italic text-fg">
+          What the rehearsal revealed.
+        </h2>
+        <p className="mt-2 text-[13px] leading-relaxed text-fg-2">
+          Specific strengths to keep, risks to watch, and language that improved
+          under pressure.
         </p>
-
-        {/* What went well */}
-        <div className="rounded-lg border border-success/30 bg-success/5 px-3 py-3 mb-3">
-          <div className="flex items-center gap-1.5 mb-2">
-            <CheckCircle2 className="size-3.5 text-success" />
-            <p className="text-xs font-semibold text-success">
-              What went well
-            </p>
-          </div>
-          <ul className="flex flex-col gap-1.5">
-            {whatWentWell.map((item, i) => (
-              <li key={i} className="flex gap-2 items-start">
-                <span className="shrink-0 size-1.5 rounded-full bg-success mt-1.5" />
-                <p className="text-[11px] text-fg/90 leading-relaxed">{item}</p>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* What to watch for */}
-        <div className="rounded-lg border border-accent/30 bg-accent/5 px-3 py-3 mb-3">
-          <div className="flex items-center gap-1.5 mb-2">
-            <AlertTriangle className="size-3.5 text-accent" />
-            <p className="text-xs font-semibold text-accent">
-              What to watch for
-            </p>
-          </div>
-          <ul className="flex flex-col gap-1.5">
-            {whatToWatchFor.map((item, i) => (
-              <li key={i} className="flex gap-2 items-start">
-                <span className="shrink-0 size-1.5 rounded-full bg-accent mt-1.5" />
-                <p className="text-[11px] text-fg/90 leading-relaxed">{item}</p>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* Revised sections — only rendered when present */}
-        {revisedSections && (revisedSections.openingScript ?? revisedSections.additionalObjection) && (
-          <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 px-3 py-3">
-            <div className="flex items-center gap-1.5 mb-2">
-              <FileEdit className="size-3.5 text-blue-600 dark:text-blue-400" />
-              <p className="text-xs font-semibold text-blue-700 dark:text-blue-400">
-                Revised from rehearsal
+      </header>
+      <div className="grid gap-7 lg:grid-cols-2">
+        <DebriefList
+          label="Keep doing"
+          marker="+"
+          items={debrief.whatWentWell}
+        />
+        <DebriefList
+          label="Watch under pressure"
+          marker="!"
+          items={debrief.whatToWatchFor}
+        />
+      </div>
+      {revised && (revised.openingScript || revised.additionalObjection) && (
+        <section className="border border-accent">
+          <header className="border-b border-accent px-5 py-3 font-mono text-[9px] uppercase tracking-[0.16em] text-accent">
+            Revised from rehearsal
+          </header>
+          {revised.openingScript && (
+            <div className="border-b border-rule px-5 py-5">
+              <p className="mb-2 font-mono text-[8px] uppercase tracking-[0.12em] text-muted">
+                Updated opening
+              </p>
+              <p className="whitespace-pre-wrap font-serif text-[18px] italic leading-relaxed text-fg">
+                {revised.openingScript}
               </p>
             </div>
-
-            {revisedSections.openingScript && (
-              <div className="mb-3">
-                <p className="text-[10px] uppercase tracking-wider text-muted mb-1">
-                  Updated opening script
-                </p>
-                <p className="text-[11px] text-fg whitespace-pre-wrap rounded-md border border-blue-500/20 bg-bg px-2.5 py-2 leading-relaxed">
-                  {revisedSections.openingScript}
-                </p>
-              </div>
-            )}
-
-            {revisedSections.additionalObjection && (
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-muted mb-1">
-                  New objection surfaced
-                </p>
-                <div className="rounded-md border border-blue-500/20 overflow-hidden">
-                  <div className="px-2.5 py-2 bg-blue-500/10 border-b border-blue-500/20">
-                    <p className="text-[11px] font-medium text-fg/80 italic">
-                      &ldquo;{revisedSections.additionalObjection.objection}&rdquo;
-                    </p>
-                  </div>
-                  <div className="px-2.5 py-2 bg-bg">
-                    <p className="text-[11px] text-fg leading-relaxed">
-                      {revisedSections.additionalObjection.response}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
+          )}
+          {revised.additionalObjection && (
+            <div className="grid md:grid-cols-2">
+              <blockquote className="border-b border-rule bg-accent/[0.04] px-5 py-4 font-serif text-[16px] italic text-fg md:border-b-0 md:border-r">
+                “{revised.additionalObjection.objection}”
+              </blockquote>
+              <p className="px-5 py-4 text-[13px] leading-relaxed text-fg-2">
+                {revised.additionalObjection.response}
+              </p>
+            </div>
+          )}
+        </section>
+      )}
+      {debrief.readinessVerdict && (
+        <DecisionFooter
+          data={{
+            label: `Readiness verdict · ${debrief.readinessVerdict.status.replaceAll("_", " ")}`,
+            decision: debrief.readinessVerdict.summary,
+            learned: debrief.readinessVerdict.evidence,
+            next: {
+              action: debrief.readinessVerdict.nextAction,
+              successSignal: debrief.readinessVerdict.readyWhen.join("; "),
+              timing: debrief.readinessVerdict.nextActionTiming,
+            },
+            saved:
+              "The rehearsal transcript, debrief, revised language, and readiness verdict are saved to this Coach session.",
+            reconsiderWhen: [
+              `Primary risk: ${debrief.readinessVerdict.primaryRisk}`,
+              ...debrief.readinessVerdict.reconsiderWhen,
+            ],
+          }}
+        />
+      )}
       <button
         type="button"
         onClick={onDone}
-        className="rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-bg hover:opacity-90 transition-opacity"
+        className="self-start bg-accent px-5 py-4 font-mono text-[10px] uppercase tracking-[0.16em] text-bg"
       >
-        Done
+        Finish session →
       </button>
-    </div>
+    </section>
   );
 }

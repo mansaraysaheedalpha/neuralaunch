@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NeuraLaunch — Stage II · Requirements</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0c; --bg-2:#111114; --bg-3:#16161a;
+    --fg:#f5f4f1; --fg-2:#c9c7c2; --muted:#7d7c78; --muted-2:#5e5d59;
+    --rule:rgba(255,255,255,.10); --rule-strong:rgba(255,255,255,.22);
+    --accent:#ff5a3c; --green:#34d399; --amber:#fbbf24;
+    --sans:"Inter Tight",system-ui,sans-serif;
+    --serif:"Instrument Serif","Times New Roman",serif;
+    --mono:"JetBrains Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--bg);color:var(--fg);min-height:100%;}
+  body{font-family:var(--sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;font-feature-settings:"ss01";}
+  ::selection{background:var(--accent);color:var(--bg);}
+  a,button{color:inherit;text-decoration:none;font:inherit;cursor:pointer;background:none;border:none;text-align:left;}
+
+  /* Top bar */
+  .bar{position:sticky;top:0;z-index:50;height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:color-mix(in oklab,var(--bg) 90%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .bar .left{display:flex;gap:18px;align-items:center;}
+  .mark{width:14px;height:14px;border-radius:50%;background:var(--accent);position:relative;}
+  .mark::after{content:"";position:absolute;inset:4px;background:var(--bg);border-radius:50%;}
+  .bar .crumb .acc{color:var(--accent);}
+  .bar .right{display:flex;gap:18px;align-items:center;}
+  .bar .pill{padding:5px 10px;border:1px solid var(--rule-strong);}
+  .bar .pill.acc{color:var(--accent);border-color:var(--accent);}
+
+  /* Header */
+  .header{padding:48px 64px 24px;border-bottom:1px solid var(--rule);max-width:1400px;}
+  .header .stamp{display:flex;gap:18px;font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:24px;}
+  .header .stamp .acc{color:var(--accent);}
+  .header h1{font-family:var(--sans);font-weight:500;font-size:clamp(40px,5.2vw,72px);line-height:1;letter-spacing:-.025em;max-width:1100px;}
+  .header h1 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+  .header .lede{margin-top:18px;max-width:680px;font-size:16px;line-height:1.55;color:var(--fg-2);}
+  .header .lede em{font-family:var(--serif);font-style:italic;color:var(--accent);}
+  .header .lede strong{color:var(--fg);font-weight:500;}
+
+  /* Banner (Expected Profile derivation hint) */
+  .banner{margin-top:24px;padding:14px 18px;border-left:2px solid var(--accent);background:rgba(255,90,60,.04);font-size:13.5px;color:var(--fg-2);line-height:1.5;max-width:920px;}
+  .banner b{color:var(--fg);font-weight:500;}
+  .banner .acc{color:var(--accent);font-weight:500;}
+
+  /* Tabs (founder + teammates) */
+  .tabs{padding:18px 64px 0;border-bottom:1px solid var(--rule);display:flex;gap:0;align-items:flex-end;max-width:1400px;}
+  .tab{padding:14px 22px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);border:none;background:transparent;border-bottom:2px solid transparent;display:inline-flex;gap:8px;align-items:center;}
+  .tab .r{font-family:var(--serif);font-style:italic;color:var(--accent);font-size:14px;letter-spacing:-.01em;text-transform:none;}
+  .tab.on{color:var(--fg);border-bottom-color:var(--accent);}
+  .tab:hover{color:var(--fg);}
+  .tab .add{font-family:var(--sans);font-size:14px;color:var(--muted);}
+  .tab.add-btn{color:var(--muted);}
+
+  /* Canvas */
+  .canvas{padding:32px 64px 80px;max-width:1400px;display:grid;grid-template-columns:1fr 320px;gap:48px;}
+
+  /* Grid header */
+  .grid-head{display:grid;grid-template-columns:240px repeat(4,1fr);gap:0;align-items:end;padding-bottom:14px;border-bottom:1px solid var(--rule);}
+  .grid-head .col{padding:6px 14px;font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);text-align:center;}
+  .grid-head .col:first-child{text-align:left;}
+  .grid-head .col.acc{color:var(--accent);}
+  .grid-head .col .sub{display:block;font-family:var(--serif);font-style:italic;font-size:18px;color:var(--accent);text-transform:none;letter-spacing:-.01em;margin-bottom:4px;}
+
+  /* Skill row */
+  .skill-row{display:grid;grid-template-columns:240px repeat(4,1fr);gap:0;border-bottom:1px solid var(--rule);align-items:stretch;position:relative;}
+  .skill-row:hover{background:rgba(255,255,255,.02);}
+  .skill-row .name{padding:14px 14px 14px 0;display:flex;align-items:center;gap:8px;font-size:14.5px;color:var(--fg-2);}
+  .skill-row .name .ic{font-family:var(--mono);font-size:9px;letter-spacing:.04em;color:var(--muted-2);min-width:24px;}
+  .skill-row .lane{border-left:1px solid var(--rule);padding:6px 8px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .15s;}
+  .skill-row .lane:hover{background:rgba(255,90,60,.04);}
+  .skill-row .lane .chip{
+    display:none;
+    padding:6px 11px;
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;
+    text-align:center;line-height:1.1;
+    width:100%;
+  }
+  .skill-row .lane.active .chip{display:block;}
+  /* Tier styling — typography, not fill */
+  .skill-row .lane.active .chip.strong{color:var(--fg);font-weight:500;letter-spacing:.06em;text-transform:none;}
+  .skill-row .lane.active .chip.strong::before{content:"●";color:var(--accent);margin-right:6px;}
+  .skill-row .lane.active .chip.adequate{color:var(--fg-2);}
+  .skill-row .lane.active .chip.adequate::before{content:"";display:inline-block;width:6px;height:6px;border:1px solid var(--rule-strong);border-radius:50%;margin-right:6px;vertical-align:middle;}
+  .skill-row .lane.active .chip.weak{font-family:var(--serif);font-style:italic;color:var(--muted);font-size:13px;}
+  .skill-row .lane.active .chip.weak::before{content:"—";color:var(--accent);margin-right:6px;}
+  .skill-row .lane.active .chip.unknown{color:var(--muted-2);font-style:italic;font-size:11px;}
+  .skill-row .lane.active .chip.unknown::before{content:"?";color:var(--muted);margin-right:4px;font-family:var(--serif);font-style:italic;}
+
+  /* Expected profile ghost row */
+  .skill-row .ghost-marker{position:absolute;width:8px;height:8px;border:1px dashed var(--accent);background:transparent;border-radius:50%;top:50%;transform:translate(-50%,-50%);pointer-events:none;}
+
+  /* Right rail */
+  .rail{position:sticky;top:80px;align-self:start;display:grid;gap:24px;}
+  .rail .block{border:1px solid var(--rule);padding:18px 20px;background:var(--bg-2);}
+  .rail .block .lab{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;display:flex;justify-content:space-between;}
+  .rail .block .lab .acc{color:var(--accent);}
+
+  /* Expected profile panel */
+  .ep h4{font-family:var(--serif);font-style:italic;font-weight:400;font-size:22px;letter-spacing:-.01em;line-height:1.15;margin-bottom:8px;}
+  .ep h4 em{color:var(--accent);}
+  .ep p{font-size:13px;color:var(--fg-2);line-height:1.55;margin-bottom:14px;}
+  .ep .req{display:grid;gap:8px;padding-top:12px;border-top:1px solid var(--rule);}
+  .ep .req .item{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:baseline;font-size:12.5px;color:var(--fg-2);}
+  .ep .req .item .lvl{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--accent);text-transform:uppercase;}
+  .ep .req .item .lvl.med{color:var(--amber);}
+  .ep .req .item .lvl.lo{color:var(--muted);}
+  .ep .pushback{margin-top:14px;padding:10px 12px;border:1px solid var(--rule-strong);text-align:center;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--fg-2);cursor:pointer;}
+  .ep .pushback:hover{border-color:var(--accent);color:var(--accent);}
+
+  /* Structural blocker */
+  .blocker .lab .acc{color:var(--amber);}
+  .blocker p{font-size:13px;color:var(--fg-2);line-height:1.55;margin-bottom:14px;}
+  .blocker p b{color:var(--amber);font-weight:500;}
+  .blocker .choices{display:grid;gap:6px;}
+  .blocker .choices button{padding:9px 11px;border:1px solid var(--rule-strong);font-size:12px;color:var(--fg-2);font-family:var(--sans);display:flex;justify-content:space-between;align-items:center;}
+  .blocker .choices button:hover{border-color:var(--accent);color:var(--fg);}
+  .blocker .choices button .key{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--muted);}
+
+  /* Readiness */
+  .readiness .big{font-family:var(--serif);font-style:italic;font-size:36px;color:var(--accent);letter-spacing:-.01em;line-height:1;}
+  .readiness .meter{height:4px;background:var(--rule);margin-top:14px;position:relative;}
+  .readiness .meter .fill{position:absolute;left:0;top:0;bottom:0;background:var(--accent);width:64%;transition:width .6s;}
+  .readiness p{margin-top:10px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--muted);line-height:1.6;}
+  .readiness .commit{margin-top:16px;width:100%;padding:13px;background:var(--accent);color:var(--bg);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:500;display:flex;justify-content:center;gap:10px;}
+  .readiness .commit::after{content:"→";font-family:var(--sans);}
+  .readiness .commit:disabled{opacity:.35;cursor:not-allowed;}
+
+  /* Bottom prompt panel — chat for calibration */
+  .calibration{margin-top:48px;padding:28px 32px;border:1px solid var(--rule);background:var(--bg-2);max-width:1400px;}
+  .calibration .lab{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+  .calibration .agent{font-family:var(--serif);font-style:italic;font-size:20px;line-height:1.35;color:var(--fg-2);max-width:780px;padding-left:18px;border-left:2px solid var(--accent);margin-bottom:18px;}
+  .calibration .agent em{color:var(--fg);font-style:normal;font-family:var(--sans);font-weight:500;}
+  .calibration .composer{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;}
+  .calibration textarea{width:100%;background:transparent;border:1px solid var(--rule);padding:12px 14px;color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.5;min-height:64px;resize:vertical;outline:none;}
+  .calibration textarea:focus{border-color:var(--accent);}
+  .calibration button{padding:13px 18px;background:var(--accent);color:var(--bg);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:500;}
+
+  @media (max-width:1100px){
+    .header{padding:32px 22px 18px;}
+    .tabs{padding:14px 22px 0;}
+    .canvas{padding:24px 22px 60px;grid-template-columns:1fr;gap:24px;}
+    .rail{position:relative;top:auto;}
+    .grid-head,.skill-row{grid-template-columns:140px repeat(4,1fr);}
+    .grid-head .col .sub{display:none;}
+    .calibration{margin:24px 22px 0;}
+  }
+  @media (max-width:700px){
+    .skill-row .lane .chip{font-size:9px;padding:4px 4px;}
+    .grid-head,.skill-row{grid-template-columns:100px repeat(4,1fr);}
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="left">
+    <div class="mark"></div>
+    <span class="crumb"><span class="acc">No Idea</span> &nbsp;/&nbsp; Session 0501 &nbsp;/&nbsp; <span style="color:var(--fg);">Stage II · Requirements</span></span>
+  </div>
+  <div class="right">
+    <span class="pill acc">● Authoring</span>
+    <a href="stage-1.html" style="color:var(--muted);">← Stage I</a>
+    <a href="stage-3.html" style="color:var(--muted);">Stage III →</a>
+  </div>
+</header>
+
+<section class="header">
+  <div class="stamp">
+    <span>Stage <span class="acc">II</span> of V · Requirements</span>
+    <span>14 skills · 4 tiers</span>
+    <span>Saved continuously</span>
+  </div>
+  <h1>What you're <em>built to execute.</em></h1>
+  <p class="lede">
+    Calibrate each skill <em>honestly.</em> The dashed marker on each row shows what the outcome you committed to <strong>actually demands</strong>. The mismatch between where you are and what's required becomes the structural blocker we plan around in Stage III.
+  </p>
+  <div class="banner">
+    <b class="acc">Expected Profile derived from your Stage I outcome.</b> A part-time, 12–18 month venture asking for 2× salary with modest risk. The profile leans on <b>sales, writing, and operations</b> heavier than on code — because async, low-capital service businesses live or die on conversation, not engineering.
+  </div>
+</section>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab on" data-tab="you"><span class="r">I.</span> You</button>
+  <button class="tab" data-tab="t1"><span class="r">II.</span> Daniel</button>
+  <button class="tab add-btn"><span class="add">+</span> Add teammate</button>
+</div>
+
+<div class="canvas">
+
+  <main>
+
+    <!-- Grid header -->
+    <div class="grid-head">
+      <div class="col">Skill · 14 · click a lane to set</div>
+      <div class="col acc"><span class="sub">i.</span>Strong</div>
+      <div class="col"><span class="sub">ii.</span>Adequate</div>
+      <div class="col"><span class="sub">iii.</span>Weak</div>
+      <div class="col"><span class="sub">iv.</span>Unknown</div>
+    </div>
+
+    <!-- Skill rows · 14 -->
+    <div id="grid">
+
+      <div class="skill-row" data-skill="Sales" data-expected="strong" data-tier="strong">
+        <div class="name"><span class="ic">i.</span>Sales</div>
+        <div class="lane" data-tier="strong"><span class="chip strong">Strong</span></div>
+        <div class="lane" data-tier="adequate"><span class="chip adequate">Adequate</span></div>
+        <div class="lane" data-tier="weak"><span class="chip weak">Weak</span></div>
+        <div class="lane" data-tier="unknown"><span class="chip unknown">Unknown</span></div>
+      </div>
+
+      <div class="skill-row" data-skill="Marketing &amp; positioning" data-expected="strong" data-tier="adequate">
+        <div class="name"><span class="ic">ii.</span>Marketing &amp; positioning</div>
+        <div class="lane" data-tier="strong"><span class="chip strong">Strong</span></div>
+        <div class="lane" data-tier="adequate"><span class="chip adequate">Adequate</span></div>
+        <div class="lane" data-tier="weak"><span class="chip weak">Weak</span></div>
+        <div class="lane" data-tier="unknown"><span class="chip unknown">Unknown</span></div>
+      </div>
+
+      <div class="skill-row" data-skill="Writing &amp; copy" data-expected="strong" data-tier="strong">
+        <div class="name"><span class="ic">iii.</span>Writing &amp; copy</div>
+        <div class="lane" data-tier="strong"><span class="chip strong">Strong</span></div>
+        <div class="lane" data-tier="adequate"><span class="chip adequate">Adequate</span></div>
+        <div class="lane" data-tier="weak"><span class="chip weak">Weak</span></div>
+        <div class="lane" data-tier="unknown"><span class="chip unknown">Unknown</span></div>
+      </div>
+
+      <div class="skill-row" data-skill="Conversation &amp; pitching" data-expected="strong" data-tier="adequate">
+        <div class="name"><span class="ic">iv.</span>Conversation &amp; pitching</div>
+        <div class="lane" data-tier="strong"><span class="chip strong">Strong</span></div>
+        <div class="lane" data-tier="adequate"><span class="chip adequate">Adequate</span></div>
+        <div class="lane" data-tier="weak"><span class="chip weak">Weak</span></div>
+        <div class="lane" data-tier="unknown"><span class="chip unknown">Unknown</span></div>
+      </div>
+
+      <div class="skill-row" data-skill="Design &amp; aesthetics" data-expected="adequate" data-tier="weak">
+        <div class="name"><span class="ic">v.</span>Design &amp; aesthetics</div>
+        <div class="lane" data-tier="strong"><span class="chip strong">Strong</span></div>
+        <div class="lane" data-tier="adequate"><span class="chip adequate">Adequate</span></div>
+        <div class="lane" data-tier="weak"><span class="chip weak">Weak</span></div>
+        <div class="lane" data-tier="unknown"><span class="chip unknown">Unknown</span></div>
+      </div>
+
+      <div class="skill-row" data-skill="Operations" data-expected="strong" data-tier="adequate">
+        <div class="name"><span class="ic">vi.</span>Operations</div>
+        <div class="lane" data-tier="strong"><span class="chip strong">Strong</span></div>
+        <div class="lane" data-tier="adequate"><span class="chip adequate">Adequate</span></div>
+        <div class="lane" data-tier="weak"><span class="chip weak">Weak</span></div>
+        <div class="lane" data-tier="unknown"><span class="chip unknown">Unknown</span></div>
+      </div>
+
+      <div class="skill-row" data-skill="Code &amp; engineering" data-expected="adequate" data-tier="strong">
+        <div class="name"><span class="ic">vii.</span>Code &amp; engineering</div>
+        <div class="lane" data-tier="strong"><span class="chip strong">Strong</span></div>
+        <div class="lane" data-tier="adequate"><span class="chip adequate">Adequate</span></div>
+        <div class="lane" data-tier="weak"><span class="chip weak">Weak</span></div>
+        <div class="lane" data-tier="unknown"><span class="chip unknown">Unknown</span></div>
+      </div>
+
+      <div class="skill-row" data-skill="Data &amp; analytics" data-expected="adequate" data-tier="adequate">
+        <div class="name"><span class="ic">viii.</span>Data &amp; analytics</div>
+        <div class="lane" data-tier="strong"><span class="chip strong">Strong</span></div>
+        <div class="lane" data-tier="adequate"><span class="chip adequate">Adequate</span></div>
+        <div class="lane" data-tier="weak"><span class="chip weak">Weak</span></div>
+        <div class="lane" data-tier="unknown"><span class="chip unknown">Unknown</span></div>
+      </div>
+
+      <div class="skill-row" data-skill="Customer success" data-expected="strong" data-tier="adequate">
+        <div class="name"><span class="ic">ix.</span>Customer success</div>
+        <div class="lane" data-tier="strong"><span class="chip strong">Strong</span></div>
+        <div class="lane" data-tier="adequate"><span class="chip adequate">Adequate</span></div>
+        <div class="lane" data-tier="weak"><span class="chip weak">Weak</span></div>
+        <div class="lane" data-tier="unknown"><span class="chip unknown">Unknown</span></div>
+      </div>
+
+      <div class="skill-row" data-skill="Finance &amp; pricing" data-expected="adequate" data-tier="weak">
+        <div class="name"><span class="ic">x.</span>Finance &amp; pricing</div>
+        <div class="lane" data-tier="strong"><span class="chip strong">Strong</span></div>
+        <div class="lane" data-tier="adequate"><span class="chip adequate">Adequate</span></div>
+        <div class="lane" data-tier="weak"><span class="chip weak">Weak</span></div>
+        <div class="lane" data-tier="unknown"><span class="chip unknown">Unknown</span></div>
+      </div>
+
+      <div class="skill-row" data-skill="Legal &amp; compliance" data-expected="adequate" data-tier="weak">
+        <div class="name"><span class="ic">xi.</span>Legal &amp; compliance</div>
+        <div class="lane" data-tier="strong"><span class="chip strong">Strong</span></div>
+        <div class="lane" data-tier="adequate"><span class="chip adequate">Adequate</span></div>
+        <div class="lane" data-tier="weak"><span class="chip weak">Weak</span></div>
+        <div class="lane" data-tier="unknown"><span class="chip unknown">Unknown</span></div>
+      </div>
+
+      <div class="skill-row" data-skill="Hiring &amp; team-building" data-expected="adequate" data-tier="unknown">
+        <div class="name"><span class="ic">xii.</span>Hiring &amp; team-building</div>
+        <div class="lane" data-tier="strong"><span class="chip strong">Strong</span></div>
+        <div class="lane" data-tier="adequate"><span class="chip adequate">Adequate</span></div>
+        <div class="lane" data-tier="weak"><span class="chip weak">Weak</span></div>
+        <div class="lane" data-tier="unknown"><span class="chip unknown">Unknown</span></div>
+      </div>
+
+      <div class="skill-row" data-skill="Partnerships &amp; BD" data-expected="strong" data-tier="weak">
+        <div class="name"><span class="ic">xiii.</span>Partnerships &amp; BD</div>
+        <div class="lane" data-tier="strong"><span class="chip strong">Strong</span></div>
+        <div class="lane" data-tier="adequate"><span class="chip adequate">Adequate</span></div>
+        <div class="lane" data-tier="weak"><span class="chip weak">Weak</span></div>
+        <div class="lane" data-tier="unknown"><span class="chip unknown">Unknown</span></div>
+      </div>
+
+      <div class="skill-row" data-skill="Industry knowledge" data-expected="adequate" data-tier="strong">
+        <div class="name"><span class="ic">xiv.</span>Industry knowledge</div>
+        <div class="lane" data-tier="strong"><span class="chip strong">Strong</span></div>
+        <div class="lane" data-tier="adequate"><span class="chip adequate">Adequate</span></div>
+        <div class="lane" data-tier="weak"><span class="chip weak">Weak</span></div>
+        <div class="lane" data-tier="unknown"><span class="chip unknown">Unknown</span></div>
+      </div>
+
+    </div>
+
+    <!-- Calibration chat -->
+    <section class="calibration">
+      <div class="lab">Calibration · agent prompt</div>
+      <p class="agent">You marked <em>Partnerships &amp; BD</em> as weak, but your outcome path leans on it heavily. Is that because you've never tried, or because you've tried and it didn't fit you?</p>
+      <div class="composer">
+        <textarea placeholder="Two sentences is enough. The honest one, not the polished one."></textarea>
+        <button>Send</button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Rail -->
+  <aside class="rail">
+
+    <div class="block ep">
+      <div class="lab"><span>Expected profile</span><span class="acc">Derived</span></div>
+      <h4>What your <em>outcome</em> demands.</h4>
+      <p>From a part-time, 12–18 month, async venture asking for 2× salary. Sonnet derived this from Stage I.</p>
+      <div class="req">
+        <div class="item"><span>Sales</span><span class="lvl">Strong</span></div>
+        <div class="item"><span>Conversation &amp; pitching</span><span class="lvl">Strong</span></div>
+        <div class="item"><span>Operations</span><span class="lvl">Strong</span></div>
+        <div class="item"><span>Customer success</span><span class="lvl">Strong</span></div>
+        <div class="item"><span>Partnerships &amp; BD</span><span class="lvl">Strong</span></div>
+        <div class="item"><span>Writing &amp; copy</span><span class="lvl">Strong</span></div>
+        <div class="item"><span>Marketing &amp; positioning</span><span class="lvl med">Medium</span></div>
+        <div class="item"><span>Finance &amp; pricing</span><span class="lvl med">Medium</span></div>
+        <div class="item"><span>Industry knowledge</span><span class="lvl med">Medium</span></div>
+        <div class="item"><span>Code, design, legal, ops</span><span class="lvl lo">Lower</span></div>
+      </div>
+      <div class="pushback">⚐ Push back on the profile</div>
+    </div>
+
+    <div class="block blocker">
+      <div class="lab"><span>Structural blocker</span><span class="acc">Detected</span></div>
+      <p><b>Five demanded-Strong skills are below adequate</b> for you. This is the structural mismatch we'll plan around in Stage III. Three honest paths from here —</p>
+      <div class="choices">
+        <button>I. Bring on a teammate <span class="key">i</span></button>
+        <button>II. Pick a path that uses your existing strengths <span class="key">ii</span></button>
+        <button>III. Build the missing skills, slower start <span class="key">iii</span></button>
+      </div>
+    </div>
+
+    <div class="block readiness">
+      <div class="lab"><span>Readiness</span><span class="acc" id="readyPct">64% calibrated</span></div>
+      <div class="big">9 / 14</div>
+      <div class="meter"><div class="fill" id="readyFill"></div></div>
+      <p>Five unknowns remain. Mark each tier, then commit to advance.</p>
+      <button class="commit" id="commit">Commit Stage II</button>
+    </div>
+
+  </aside>
+
+</div>
+
+<script>
+  // Click a lane to set its tier; show the marker; recompute readiness
+  const grid = document.getElementById('grid');
+  const readyPct = document.getElementById('readyPct');
+  const readyFill = document.getElementById('readyFill');
+  const commit = document.getElementById('commit');
+
+  // Initialise active lanes from data-tier
+  function refresh() {
+    let calibrated = 0;
+    grid.querySelectorAll('.skill-row').forEach(row => {
+      const tier = row.dataset.tier;
+      const expected = row.dataset.expected;
+      row.querySelectorAll('.lane').forEach(l => l.classList.toggle('active', l.dataset.tier === tier));
+
+      // Add the ghost marker for the expected tier (dashed pip outside the chip)
+      const oldMarker = row.querySelector('.ghost-marker');
+      if (oldMarker) oldMarker.remove();
+      const expectedLane = row.querySelector(`.lane[data-tier="${expected}"]`);
+      if (expectedLane && expected !== tier) {
+        const m = document.createElement('div');
+        m.className = 'ghost-marker';
+        expectedLane.appendChild(m);
+        // position the marker top-center of that lane
+        m.style.position = 'absolute';
+        m.style.left = (expectedLane.offsetLeft + expectedLane.offsetWidth/2) + 'px';
+        m.style.top = (expectedLane.offsetTop + 8) + 'px';
+        row.appendChild(m); // attach to row for proper z-positioning
+      }
+      if (tier !== 'unknown') calibrated++;
+    });
+    const pct = Math.round((calibrated / 14) * 100);
+    readyPct.textContent = `${pct}% calibrated`;
+    readyFill.style.width = `${pct}%`;
+    commit.disabled = calibrated < 12;
+    document.querySelector('.readiness .big').textContent = `${calibrated} / 14`;
+  }
+
+  grid.addEventListener('click', e => {
+    const lane = e.target.closest('.lane');
+    if (!lane) return;
+    const row = lane.closest('.skill-row');
+    row.dataset.tier = lane.dataset.tier;
+    refresh();
+  });
+
+  commit.addEventListener('click', () => {
+    if (commit.disabled) return;
+    window.location.href = 'stage-3.html';
+  });
+
+  // Tabs
+  document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+    if (t.classList.contains('add-btn')) return;
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('on'));
+    t.classList.add('on');
+  }));
+
+  refresh();
+  window.addEventListener('resize', refresh);
+</script>
+
+</body>
+</html>

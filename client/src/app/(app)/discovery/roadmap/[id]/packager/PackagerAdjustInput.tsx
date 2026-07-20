@@ -1,96 +1,70 @@
-'use client';
-// src/app/(app)/discovery/roadmap/[id]/packager/PackagerAdjustInput.tsx
-//
-// Inline adjustment input shown below the package. Shows a round
-// counter ("1/3 adjustments used") and disables itself once the
-// adjustment cap is reached.
+"use client";
 
-import { useState } from 'react';
-import toast from 'react-hot-toast';
-import { Loader2 } from 'lucide-react';
-import { Textarea } from '@/components/ui/textarea';
-import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
-import { canUseVoiceMode, useVoiceTier } from '@/lib/voice/client-tier';
-import { trackVoiceEvent } from '@/lib/voice/analytics';
-import { MAX_ADJUSTMENT_ROUNDS } from '@/lib/roadmap/service-packager/constants';
+import { useState } from "react";
+import { MAX_ADJUSTMENT_ROUNDS } from "@/lib/roadmap/service-packager/constants";
 
 export interface PackagerAdjustInputProps {
   adjustmentsUsed: number;
-  pending:         boolean;
-  onAdjust:        (request: string) => void;
+  pending: boolean;
+  onAdjust: (request: string) => void;
 }
 
-/**
- * PackagerAdjustInput
- *
- * Renders the "Want to adjust anything?" input + send button.
- * Disabled state once MAX_ADJUSTMENT_ROUNDS is reached so the founder
- * can see they've used all their refinements.
- */
 export function PackagerAdjustInput({
-  adjustmentsUsed, pending, onAdjust,
+  adjustmentsUsed,
+  pending,
+  onAdjust,
 }: PackagerAdjustInputProps) {
-  const [draft, setDraft] = useState('');
-  const exhausted = adjustmentsUsed >= MAX_ADJUSTMENT_ROUNDS;
+  const [draft, setDraft] = useState("");
+  const remaining = Math.max(MAX_ADJUSTMENT_ROUNDS - adjustmentsUsed, 0);
 
-  const voiceTier    = useVoiceTier();
-  const voiceEnabled = canUseVoiceMode(voiceTier);
-
-  const handleVoiceTranscription = (text: string) => {
-    if (!text.trim()) return;
-    setDraft(prev => prev.trim().length > 0 ? `${prev.trim()} ${text}` : text);
-    trackVoiceEvent('voice_transcribed', { surface: 'packager' });
-  };
-
-  const handleVoiceError = (message: string) => {
-    trackVoiceEvent('voice_error', { surface: 'packager', errorMessage: message });
-    toast.error(message);
-  };
-
-  function handleSend() {
-    const text = draft.trim();
-    if (!text || exhausted) return;
-    onAdjust(text);
-    setDraft('');
+  function submit() {
+    const request = draft.trim();
+    if (!request || pending || remaining === 0) return;
+    onAdjust(request);
+    setDraft("");
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-rule bg-bg-3/20 p-3">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-fg">Want to adjust anything?</p>
-        <p className="text-[10px] text-muted">
-          {adjustmentsUsed}/{MAX_ADJUSTMENT_ROUNDS} adjustments used
-        </p>
+    <section className="border border-rule-strong">
+      <div className="flex justify-between border-b border-rule px-4 py-3 font-mono text-[9px] uppercase tracking-[0.16em] text-muted">
+        <span>Refine the package</span>
+        <span className={remaining > 0 ? "text-accent" : ""}>
+          {remaining} of {MAX_ADJUSTMENT_ROUNDS} remaining
+        </span>
       </div>
-      <div className="flex items-start gap-2">
-        <Textarea
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          rows={2}
-          placeholder={exhausted
-            ? 'You\'ve used all three adjustments on this package.'
-            : 'e.g. "make the premium tier include emergency same-day service"'}
-          disabled={pending || exhausted}
-          className="min-h-0 flex-1 resize-none py-2 text-xs"
-        />
-        {voiceEnabled && !exhausted && (
-          <VoiceInputButton
-            onTranscription={handleVoiceTranscription}
-            onError={handleVoiceError}
-            disabled={pending}
-            className="shrink-0"
-          />
-        )}
-      </div>
-      <button
-        type="button"
-        onClick={handleSend}
-        disabled={pending || exhausted || draft.trim().length === 0}
-        className="self-end inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[11px] font-semibold text-bg hover:bg-accent/90 transition-colors disabled:opacity-60"
+      <label htmlFor="packager-refinement" className="sr-only">
+        Package refinement request
+      </label>
+      <textarea
+        id="packager-refinement"
+        aria-describedby="packager-refinement-help"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        disabled={pending || remaining === 0}
+        placeholder={
+          remaining === 0
+            ? "This package has used its refinement allowance."
+            : "Change scope, positioning, inclusions, or the price logic…"
+        }
+        className="min-h-[96px] w-full resize-none bg-bg-2 px-4 py-3 font-serif text-[17px] italic text-fg outline-none placeholder:text-muted-2 disabled:opacity-45"
+      />
+      <p
+        id="packager-refinement-help"
+        className="border-t border-rule px-4 py-2 text-[11px] leading-relaxed text-muted"
       >
-        {pending && <Loader2 className="size-3 animate-spin" />}
-        Apply adjustment
-      </button>
-    </div>
+        Describe one concrete change. Pricing or scope changes will also update
+        dependent scenarios and the prospect brief.
+      </p>
+      <div className="sticky bottom-0 z-10 flex justify-end border-t border-rule bg-bg p-3 [padding-bottom:max(0.75rem,env(safe-area-inset-bottom))] lg:static">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={pending || remaining === 0 || !draft.trim()}
+          className="bg-accent px-4 py-2.5 font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-bg disabled:opacity-35"
+        >
+          {pending ? "Applying…" : "Apply refinement →"}
+        </button>
+      </div>
+    </section>
   );
 }

@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NeuraLaunch — Stage I · Outcome Definition</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0c; --bg-2:#111114; --bg-3:#16161a;
+    --fg:#f5f4f1; --fg-2:#c9c7c2; --muted:#7d7c78; --muted-2:#5e5d59;
+    --rule:rgba(255,255,255,.10); --rule-strong:rgba(255,255,255,.22);
+    --accent:#ff5a3c; --green:#34d399;
+    --sans:"Inter Tight",system-ui,sans-serif;
+    --serif:"Instrument Serif","Times New Roman",serif;
+    --mono:"JetBrains Mono",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{background:var(--bg);color:var(--fg);height:100%;}
+  body{font-family:var(--sans);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;font-feature-settings:"ss01";overflow:hidden;}
+  ::selection{background:var(--accent);color:var(--bg);}
+  a,button{color:inherit;text-decoration:none;font:inherit;cursor:pointer;background:none;border:none;text-align:left;}
+
+  .app{display:grid;grid-template-rows:56px 1fr 56px;height:100vh;}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .topbar .left{display:flex;gap:18px;align-items:center;}
+  .mark{width:14px;height:14px;border-radius:50%;background:var(--accent);position:relative;}
+  .mark::after{content:"";position:absolute;inset:4px;background:var(--bg);border-radius:50%;}
+  .topbar .crumb .acc{color:var(--accent);}
+  .topbar .right{display:flex;gap:18px;align-items:center;}
+  .topbar .live{color:var(--accent);display:flex;align-items:center;gap:8px;}
+  .topbar .live::before{content:"";width:6px;height:6px;background:var(--accent);border-radius:50%;animation:pulse 1.6s infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .topbar a:hover{color:var(--fg);}
+
+  .main{display:grid;grid-template-columns:1fr 360px;overflow:hidden;}
+  .stage{position:relative;padding:48px 72px;display:grid;grid-template-rows:auto 1fr auto;gap:24px;border-right:1px solid var(--rule);overflow:hidden;}
+  .stage::after{content:"";position:absolute;top:0;right:-200px;width:600px;height:600px;background:radial-gradient(circle at center,rgba(255,90,60,.06),transparent 70%);pointer-events:none;}
+
+  /* Stage banner — top */
+  .banner{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:center;padding:14px 18px;border:1px solid var(--rule);background:var(--bg-2);}
+  .banner .b-lab{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin-bottom:4px;}
+  .banner .b-text{font-family:var(--serif);font-style:italic;font-size:15px;line-height:1.4;color:var(--fg-2);max-width:560px;}
+  .banner .b-text em{color:var(--fg);font-style:normal;font-family:var(--sans);font-weight:500;}
+  .banner button{padding:6px 10px;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);border:1px solid var(--rule-strong);}
+  .banner button:hover{color:var(--accent);border-color:var(--accent);}
+
+  /* Question block */
+  .q-block{align-self:center;max-width:880px;display:grid;gap:18px;}
+  .q-meta{display:flex;gap:18px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .q-meta .acc{color:var(--accent);}
+  .q-text{font-family:var(--sans);font-weight:400;font-size:clamp(34px,4.6vw,60px);line-height:1.05;letter-spacing:-.025em;}
+  .q-text em{font-family:var(--serif);font-style:italic;color:var(--accent);}
+  .q-hint{margin-top:6px;color:var(--fg-2);font-family:var(--serif);font-style:italic;font-size:18px;line-height:1.4;max-width:620px;padding-left:16px;border-left:2px solid var(--accent);}
+
+  /* Earlier exchange recall */
+  .recall{margin-top:12px;padding:14px 16px;background:var(--bg-2);border:1px solid var(--rule);font-size:13px;}
+  .recall .lab{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+  .recall .text{font-family:var(--serif);font-style:italic;color:var(--fg);line-height:1.4;}
+  .recall .text q{quotes:"\201C" "\201D";}
+  .recall .what{margin-left:8px;font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--muted);font-style:normal;}
+
+  /* Answer composer */
+  .answer{border-top:1px solid var(--rule);padding-top:24px;}
+  .answer .lab{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;}
+  .answer .lab .right-lab{display:flex;gap:14px;align-items:center;}
+  .answer .lab .voice{display:inline-flex;gap:6px;align-items:center;color:var(--green);}
+  .answer .lab .voice::before{content:"";width:5px;height:5px;background:var(--green);border-radius:50%;}
+  textarea{width:100%;background:transparent;color:var(--fg);border:none;outline:none;resize:none;font:inherit;font-family:var(--sans);font-size:19px;line-height:1.55;min-height:100px;caret-color:var(--accent);}
+  textarea::placeholder{color:var(--muted);}
+  .answer .actions{margin-top:14px;display:flex;justify-content:space-between;align-items:center;}
+  .answer .hint{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;}
+  .answer .hint .key{display:inline-block;padding:2px 6px;border:1px solid var(--rule-strong);margin-left:4px;color:var(--fg);}
+  .submit{display:inline-flex;align-items:center;gap:12px;background:var(--accent);color:var(--bg);padding:13px 20px;border:none;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:500;}
+  .submit:disabled{opacity:.35;cursor:not-allowed;}
+  .submit::after{content:"→";font-family:var(--sans);font-size:15px;}
+
+  /* Belief rail (4-dimension) */
+  .belief{display:grid;grid-template-rows:auto 1fr auto;background:var(--bg);overflow:hidden;}
+  .belief .b-head{padding:18px 22px;border-bottom:1px solid var(--rule);}
+  .belief .b-head .t{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;}
+  .belief .b-head .t .acc{color:var(--accent);}
+  .belief .b-head h4{margin-top:8px;font-family:var(--serif);font-weight:400;font-style:italic;font-size:24px;letter-spacing:-.015em;}
+  .belief .b-head h4 em{color:var(--accent);}
+  .belief .b-head .meter{margin-top:12px;height:4px;background:var(--rule);position:relative;overflow:hidden;}
+  .belief .b-head .meter .fill{position:absolute;left:0;top:0;bottom:0;background:var(--accent);width:42%;transition:width .6s cubic-bezier(.2,.7,.1,1);}
+  .belief .b-list{overflow-y:auto;padding:8px 0;}
+  .belief .b-list::-webkit-scrollbar{width:6px;}
+  .belief .b-list::-webkit-scrollbar-thumb{background:var(--rule);}
+
+  /* Dimension */
+  .dim{padding:18px 22px;border-bottom:1px solid var(--rule);}
+  .dim:last-child{border-bottom:none;}
+  .dim .d-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;}
+  .dim .d-head .nm{display:flex;gap:10px;align-items:baseline;}
+  .dim .d-head .r{font-family:var(--serif);font-style:italic;font-size:18px;color:var(--accent);letter-spacing:-.01em;line-height:1;}
+  .dim .d-head .nm-text{font-family:var(--sans);font-weight:500;font-size:14.5px;color:var(--fg-2);letter-spacing:-.005em;}
+  .dim .d-head .conf{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .dim .d-val{font-family:var(--mono);font-size:11.5px;color:var(--muted);line-height:1.5;letter-spacing:.04em;padding-left:24px;}
+  .dim.captured .d-head .nm-text{color:var(--fg);}
+  .dim.captured .d-head .conf{color:var(--accent);}
+  .dim.captured .d-val{color:var(--fg-2);}
+  .dim.live .d-head .nm-text{color:var(--fg);}
+  .dim.live .d-head .conf{color:var(--accent);}
+  .dim.live .d-val{color:var(--accent);animation:pulse 1.4s infinite;}
+
+  .belief .b-foot{padding:14px 22px;border-top:1px solid var(--rule);font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;}
+  .belief .b-foot .acc{color:var(--accent);}
+
+  /* Footer */
+  .footstrip{display:flex;align-items:center;justify-content:space-between;padding:0 28px;border-top:1px solid var(--rule);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .footstrip .turns{display:flex;gap:14px;}
+  .footstrip button{background:transparent;border:1px solid var(--rule-strong);color:var(--fg);padding:8px 14px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;}
+  .footstrip button:hover{border-color:var(--accent);color:var(--accent);}
+
+  /* Outcome document overlay (pre-commit review) */
+  .doc-overlay{position:absolute;inset:0;background:rgba(10,10,12,.94);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;z-index:10;padding:24px;overflow-y:auto;}
+  .doc-overlay.on{display:flex;}
+  .doc-overlay .doc{max-width:780px;width:100%;background:var(--bg);border:1px solid var(--accent);padding:48px 56px;}
+  .doc-overlay .stamp{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:24px;}
+  .doc-overlay .stamp .acc{color:var(--accent);}
+  .doc-overlay h2{font-family:var(--sans);font-weight:500;font-size:clamp(34px,4vw,56px);line-height:1;letter-spacing:-.025em;margin-bottom:16px;}
+  .doc-overlay h2 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+  .doc-overlay .lede{font-family:var(--serif);font-style:italic;font-size:20px;line-height:1.4;color:var(--fg-2);padding-left:18px;border-left:2px solid var(--accent);margin-bottom:30px;}
+  .doc-overlay .doc-grid{display:grid;gap:0;border-top:1px solid var(--rule);}
+  .doc-overlay .doc-row{display:grid;grid-template-columns:160px 1fr;gap:20px;padding:18px 0;border-bottom:1px solid var(--rule);}
+  .doc-overlay .doc-row .k{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);}
+  .doc-overlay .doc-row .k .r{font-family:var(--serif);font-style:italic;font-size:16px;color:var(--accent);text-transform:none;letter-spacing:-.01em;margin-right:6px;}
+  .doc-overlay .doc-row .v{font-size:15.5px;color:var(--fg-2);line-height:1.55;}
+  .doc-overlay .doc-row .v b{color:var(--fg);font-weight:500;}
+  .doc-overlay .actions{margin-top:32px;display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap;}
+  .doc-overlay .actions .ghost{padding:12px 18px;border:1px solid var(--rule-strong);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--fg);}
+  .doc-overlay .actions .ghost:hover{border-color:var(--accent);color:var(--accent);}
+  .doc-overlay .actions .primary{padding:14px 22px;background:var(--accent);color:var(--bg);font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:500;display:inline-flex;gap:10px;align-items:center;}
+  .doc-overlay .actions .primary::after{content:"→";font-family:var(--sans);font-size:14px;}
+
+  @media (max-width:1000px){.main{grid-template-columns:1fr;}.belief{display:none;}.stage{padding:30px 22px;}.doc-overlay .doc{padding:30px 24px;}.doc-overlay .doc-row{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <header class="topbar">
+    <div class="left">
+      <div class="mark"></div>
+      <span class="crumb"><span class="acc">No Idea</span> &nbsp;/&nbsp; Session 0501 &nbsp;/&nbsp; <span style="color:var(--fg);">Stage I · Outcome</span></span>
+    </div>
+    <div class="right">
+      <span class="live">Recording · 08:14</span>
+      <a href="archetype.html">Save &amp; exit</a>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <section class="stage">
+
+      <!-- Stage banner -->
+      <div class="banner" id="banner">
+        <div>
+          <div class="b-lab">STAGE I OF V · OUTCOME DEFINITION</div>
+          <div class="b-text">Before we look for ideas — <em>what outcome would actually fit your life?</em> Four dimensions: how soon you want results, what you want to earn, how much risk you can take, and the kind of operation you want to be running.</div>
+        </div>
+        <button id="dismissBanner">Dismiss</button>
+      </div>
+
+      <!-- Question -->
+      <div class="q-block">
+        <div class="q-meta">
+          <span>Question 03 of ~6</span>
+          <span class="acc">Phase · Outcome dimensions</span>
+          <span id="qField">Field · time_horizon</span>
+        </div>
+        <h2 class="q-text" id="qtext">
+          How soon does this need<br/>to produce <em>real income?</em>
+        </h2>
+        <p class="q-hint">
+          Not the answer you'd give a friend. The honest one. We size every roadmap downstream against this number.
+        </p>
+
+        <div class="recall">
+          <div class="lab">Earlier you said —</div>
+          <div class="text">
+            <q>I'm a backend engineer in Accra, currently employed, and I want to start something on the side.</q>
+            <span class="what">Q1 · situation</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Answer -->
+      <div class="answer">
+        <div class="lab">
+          <span>Your answer</span>
+          <span class="right-lab">
+            <span class="voice">Voice ready</span>
+            <span id="charcount">0 chars</span>
+          </span>
+        </div>
+        <textarea
+          id="answer"
+          placeholder="Twelve months. Maybe eighteen — I can afford to be patient if it's the right thing."
+          rows="3"
+        ></textarea>
+        <div class="actions">
+          <div class="hint">Submit <span class="key">⌘</span><span class="key">↵</span> &nbsp;·&nbsp; Voice <span class="key">⌥</span><span class="key">V</span></div>
+          <button class="submit" id="submit" disabled>Continue</button>
+        </div>
+      </div>
+
+      <!-- Outcome document overlay (when synthesis-ready) -->
+      <div class="doc-overlay" id="doc">
+        <div class="doc">
+          <div class="stamp">
+            <span>OUTCOME DOCUMENT · PRE-COMMIT REVIEW</span>
+            <span class="acc">100% confidence</span>
+          </div>
+          <h2>This is what you're <em>aiming for.</em></h2>
+          <p class="lede">A part-time venture, twelve to eighteen months to first real income, modest risk appetite, asynchronous-friendly so the day-job survives.</p>
+
+          <div class="doc-grid">
+            <div class="doc-row">
+              <div class="k"><span class="r">i.</span>Time horizon</div>
+              <div class="v"><b>12 – 18 months</b> to first real income. Patient enough to choose the right path; impatient enough to start now.</div>
+            </div>
+            <div class="doc-row">
+              <div class="k"><span class="r">ii.</span>Financial goal</div>
+              <div class="v"><b>2× current salary</b> within 24 months. Replacement income, not exit money. Stability over scale.</div>
+            </div>
+            <div class="doc-row">
+              <div class="k"><span class="r">iii.</span>Risk tolerance</div>
+              <div class="v"><b>Modest.</b> Keeps the day job through the first revenue. No capital deployment beyond ~ NLe 5,000 / month at peak.</div>
+            </div>
+            <div class="doc-row" style="border-bottom:none;">
+              <div class="k"><span class="r">iv.</span>Lifestyle preference</div>
+              <div class="v"><b>Asynchronous, evening-and-weekend friendly.</b> Avoids businesses requiring real-time customer presence during the day.</div>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="ghost" onclick="document.getElementById('doc').classList.remove('on')">⚐ Push back · edit a dimension</button>
+            <button class="primary" onclick="window.location='stage-2.html'">Accept &amp; advance to Stage II</button>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Belief rail -->
+    <aside class="belief">
+      <div class="b-head">
+        <div class="t"><span>Outcome map</span><span class="acc" id="completePct">42% complete</span></div>
+        <h4>What you're <em>aiming for</em></h4>
+        <div class="meter"><div class="fill" id="fill"></div></div>
+      </div>
+
+      <div class="b-list">
+        <div class="dim captured">
+          <div class="d-head">
+            <div class="nm"><span class="r">i.</span><span class="nm-text">Time horizon</span></div>
+            <span class="conf">● captured</span>
+          </div>
+          <div class="d-val">— 12-18 months to first real income</div>
+        </div>
+
+        <div class="dim live" id="d-financial">
+          <div class="d-head">
+            <div class="nm"><span class="r">ii.</span><span class="nm-text">Financial goal</span></div>
+            <span class="conf" id="conf-financial">listening…</span>
+          </div>
+          <div class="d-val" id="v-financial">— extracting…</div>
+        </div>
+
+        <div class="dim" id="d-risk">
+          <div class="d-head">
+            <div class="nm"><span class="r">iii.</span><span class="nm-text">Risk tolerance</span></div>
+            <span class="conf">○ pending</span>
+          </div>
+          <div class="d-val">— to come</div>
+        </div>
+
+        <div class="dim" id="d-lifestyle">
+          <div class="d-head">
+            <div class="nm"><span class="r">iv.</span><span class="nm-text">Lifestyle preference</span></div>
+            <span class="conf">○ pending</span>
+          </div>
+          <div class="d-val">— to come</div>
+        </div>
+      </div>
+
+      <div class="b-foot">
+        <span>Synthesis at 75%</span>
+        <span class="acc" id="readiness">~2 turns to ready</span>
+      </div>
+    </aside>
+
+  </main>
+
+  <footer class="footstrip">
+    <div class="turns">
+      <span>Turn 5 · Q3</span>
+      <span>Stage Run · authoring</span>
+      <span>Drift · clear</span>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="window.location='no-idea-audit.html'">← Audit</button>
+      <button onclick="window.location='stage-2.html'">Stage II →</button>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  const ta = document.getElementById('answer');
+  const submit = document.getElementById('submit');
+  const charcount = document.getElementById('charcount');
+  const dFin = document.getElementById('d-financial');
+  const vFin = document.getElementById('v-financial');
+  const confFin = document.getElementById('conf-financial');
+  const fill = document.getElementById('fill');
+  const completePct = document.getElementById('completePct');
+  const readiness = document.getElementById('readiness');
+  const doc = document.getElementById('doc');
+  const qtext = document.getElementById('qtext');
+  const qField = document.getElementById('qField');
+  const banner = document.getElementById('banner');
+
+  document.getElementById('dismissBanner').addEventListener('click', () => banner.style.display='none');
+
+  let extractTimer;
+  let captured = false;
+  let step = 0;
+
+  ta.addEventListener('input', () => {
+    const len = ta.value.length;
+    charcount.textContent = `${len} chars`;
+    submit.disabled = len < 4;
+    ta.style.height='auto'; ta.style.height = ta.value.scrollHeight + 'px';
+
+    clearTimeout(extractTimer);
+    if (len > 6 && !captured) {
+      const num = ta.value.match(/(\d+)\s*(?:to\s*\d+\s*)?(?:months?|years?|mo|yr)/i);
+      const guess = num ? num[0] : '12-18 months';
+      vFin.textContent = `extracting · ${guess}`;
+      extractTimer = setTimeout(() => {
+        vFin.textContent = `— ${guess}, patient`;
+        dFin.classList.remove('live'); dFin.classList.add('captured');
+        confFin.textContent = '● captured';
+        captured = true;
+        fill.style.width = '62%';
+        completePct.textContent = '62% complete';
+        readiness.textContent = '~1 turn to ready';
+      }, 1100);
+    }
+  });
+
+  submit.addEventListener('click', () => {
+    step++;
+    if (step === 1) {
+      qtext.innerHTML = `What's your tolerance for <em>risk</em> with this?`;
+      qField.textContent = 'Field · risk_tolerance';
+      document.querySelector('.q-meta').children[0].textContent = 'Question 04 of ~6';
+      ta.value=''; ta.style.height='100px'; charcount.textContent='0 chars'; submit.disabled=true; captured=false;
+      // mark risk live
+      document.getElementById('d-risk').classList.add('live');
+      document.getElementById('d-risk').querySelector('.conf').textContent='listening…';
+      document.getElementById('d-risk').querySelector('.d-val').textContent='— extracting…';
+      // bump progress
+      fill.style.width='78%'; completePct.textContent='78% complete'; readiness.textContent='1 turn to ready';
+    } else if (step === 2) {
+      qtext.innerHTML = `What kind of operation do you actually <em>want</em> to be running?`;
+      qField.textContent = 'Field · lifestyle_preference';
+      document.querySelector('.q-meta').children[0].textContent = 'Question 05 of ~6';
+      ta.value=''; ta.style.height='100px'; charcount.textContent='0 chars'; submit.disabled=true; captured=false;
+      // mark risk captured
+      const dr = document.getElementById('d-risk');
+      dr.classList.remove('live'); dr.classList.add('captured');
+      dr.querySelector('.conf').textContent='● captured';
+      dr.querySelector('.d-val').textContent='— modest, day-job-preserving';
+      // lifestyle live
+      const dl = document.getElementById('d-lifestyle');
+      dl.classList.add('live');
+      dl.querySelector('.conf').textContent='listening…';
+      dl.querySelector('.d-val').textContent='— extracting…';
+      fill.style.width='90%'; completePct.textContent='90% complete'; readiness.textContent='ready next';
+    } else {
+      // synth → doc
+      const dl = document.getElementById('d-lifestyle');
+      dl.classList.remove('live'); dl.classList.add('captured');
+      dl.querySelector('.conf').textContent='● captured';
+      dl.querySelector('.d-val').textContent='— async, evenings & weekends';
+      fill.style.width='100%'; completePct.textContent='100% complete'; readiness.textContent='Ready';
+      setTimeout(() => doc.classList.add('on'), 600);
+    }
+  });
+
+  document.addEventListener('keydown', e=>{
+    if ((e.metaKey||e.ctrlKey) && e.key==='Enter' && !submit.disabled) submit.click();
+    if (e.key==='Escape' && doc.classList.contains('on')) doc.classList.remove('on');
+  });
+</script>
+
+</body>
+</html>

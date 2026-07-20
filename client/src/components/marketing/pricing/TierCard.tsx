@@ -5,6 +5,7 @@ import { ArrowRight } from "lucide-react";
 import { SubscribeButton } from "@/components/SubscribeButton";
 import type { TierDefinition } from "./tier-data";
 import type { TierPricing } from "../PricingSection";
+import type { ReactNode } from "react";
 import { computeAnnualSavings } from "./savings";
 
 type BillingCycle = "monthly" | "annual";
@@ -31,6 +32,22 @@ const CELL_BASE =
   "flex flex-col gap-[18px] border-r border-rule p-9 last:border-r-0";
 const CTA_BASE =
   "mt-auto inline-flex items-center justify-center gap-2.5 px-[18px] py-[13px] font-mono text-[11px] font-medium uppercase tracking-[0.14em] transition-colors disabled:cursor-not-allowed disabled:opacity-50";
+
+export function TierCardFrame({
+  featured,
+  children,
+}: {
+  featured?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <article
+      className={`${CELL_BASE} relative ${featured ? "border-t-2 border-t-accent bg-[linear-gradient(180deg,rgba(255,90,60,0.08),rgba(255,90,60,0)_70%)]" : ""}`}
+    >
+      {children}
+    </article>
+  );
+}
 
 /**
  * Institute-style tier card. Hairline grid cell (no rounded corners,

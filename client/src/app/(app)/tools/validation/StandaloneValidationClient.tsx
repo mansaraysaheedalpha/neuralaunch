@@ -1,164 +1,176 @@
-'use client';
-// src/app/(app)/tools/validation/StandaloneValidationClient.tsx
-//
-// Client component for the /tools/validation standalone flow.
-// Accepts a list of the user's recommendations as an optional
-// "tie this to a recommendation" picker. When a recommendation is
-// selected, POSTs the existing recommendation-scoped create route so
-// the page is properly tied in and fed by the continuation brief
-// loader. When no recommendation is picked, POSTs the
-// /api/tools/validation/generate truly-standalone route.
+"use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { CheckCircle2 } from 'lucide-react';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { ToolRecoveryNotice } from "@/components/institute/tools/ToolRecoveryNotice";
+import {
+  ValidationEmptyPreview,
+  formatRecommendationDate,
+} from "./ValidationEmptyPreview";
+import type {
+  ValidationClientProps as Props,
+  ValidationCreateResponse as CreateResponse,
+} from "./validation-types";
+import { ValidationSuccess } from "./ValidationSuccess";
+export type { RecommendationOption } from "./validation-types";
 
-export interface RecommendationOption {
-  id:        string;
-  label:     string;
-  createdAt: string;
-}
+type Phase = "idle" | "generating" | "success" | "error";
 
-interface StandaloneValidationClientProps {
-  recommendations: RecommendationOption[];
-}
-
-type Phase = 'idle' | 'generating' | 'success' | 'error';
-
-interface CreateResponse {
-  pageId: string;
-  slug:   string;
-}
-
-function formatRecommendationDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric',
-  });
-}
-
-export function StandaloneValidationClient({ recommendations }: StandaloneValidationClientProps) {
+export function StandaloneValidationClient({ recommendations }: Props) {
   const router = useRouter();
-  const [target, setTarget] = useState('');
-  const [selectedRec, setSelectedRec] = useState<string>('');
-  const [phase, setPhase] = useState<Phase>('idle');
+  const [target, setTarget] = useState("");
+  const [recommendationId, setRecommendationId] = useState("");
+  const [phase, setPhase] = useState<Phase>("idle");
   const [result, setResult] = useState<CreateResponse | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
+  const selected = recommendations.find((item) => item.id === recommendationId);
+  const canGenerate =
+    phase !== "generating" && Boolean(selected ?? target.trim());
 
-  async function handleGenerate() {
-    if (!target.trim() || phase === 'generating') return;
-    setPhase('generating');
-    setError('');
+  async function generate() {
+    if (!canGenerate) return;
+    setPhase("generating");
+    setError("");
     try {
-      // When tied to a recommendation, use the existing recommendation-
-      // scoped route so the page participates in the recommendation's
-      // existing lifecycle (continuation signal, negative-signal block,
-      // etc). Otherwise POST the truly-standalone route.
-      const url = selectedRec
-        ? `/api/discovery/recommendations/${selectedRec}/validation-page`
-        : '/api/tools/validation/generate';
-      const body = selectedRec ? undefined : JSON.stringify({ target: target.trim() });
-      const res = await fetch(url, {
-        method:  'POST',
-        headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      const url = selected
+        ? `/api/discovery/recommendations/${selected.id}/validation-page`
+        : "/api/tools/validation/generate";
+      const body = selected
+        ? undefined
+        : JSON.stringify({ target: target.trim() });
+      const response = await fetch(url, {
+        method: "POST",
+        headers: body ? { "Content-Type": "application/json" } : undefined,
         body,
       });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({})) as { error?: string };
-        setPhase('error');
-        setError(json.error ?? 'Could not create the validation page.');
-        return;
+      if (!response.ok) {
+        const failure = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(
+          failure.error ?? "Could not create the validation page.",
+        );
       }
-      const json = await res.json() as { pageId: string; slug: string };
-      setResult({ pageId: json.pageId, slug: json.slug });
-      setPhase('success');
+      const data = (await response.json()) as CreateResponse;
+      setResult(data);
+      setPhase("success");
       router.refresh();
-    } catch {
-      setPhase('error');
-      setError('Network error — please try again.');
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Network error — please try again.",
+      );
+      setPhase("error");
     }
   }
 
-  if (phase === 'success' && result) {
-    return (
-      <div className="flex flex-col gap-3 rounded-xl border border-success/30 bg-success/5 p-5">
-        <div className="flex items-center gap-2 text-sm font-semibold text-success">
-          <CheckCircle2 className="size-4" aria-hidden="true" />
-          Validation page drafted
-        </div>
-        <p className="text-xs text-muted leading-relaxed">
-          Open the page editor to preview it, customise the copy, and publish it
-          when you&apos;re ready. Once live, share the URL and watch the
-          analytics come back to the editor.
-        </p>
-        <Link
-          href={`/discovery/validation/${result.pageId}`}
-          className="inline-flex items-center justify-center rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-bg hover:bg-accent/90"
-        >
-          Open validation page editor →
-        </Link>
-      </div>
-    );
+  if (phase === "success" && result) {
+    return <ValidationSuccess result={result} />;
   }
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-rule bg-bg-2 p-5">
-      <div className="flex flex-col gap-2">
-        <label className="text-xs font-semibold text-fg" htmlFor="target">
-          What do you want to validate?
-        </label>
-        <textarea
-          id="target"
-          value={target}
-          onChange={e => setTarget(e.target.value)}
-          disabled={phase === 'generating'}
-          maxLength={2000}
-          rows={5}
-          placeholder="e.g. A $99/month premium coaching community for mid-career engineers — weekly group calls, private Slack, and a resume-review service. I want to see if mid-career engineers will sign up before I build the private community."
-          className="w-full rounded-md border border-rule bg-bg px-3 py-2 text-sm text-fg placeholder:text-muted/60 outline-none focus:ring-2 focus:ring-accent/40 disabled:opacity-60"
-        />
-      </div>
-
-      {recommendations.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <label className="text-xs font-semibold text-fg" htmlFor="recommendation">
-            Tie this to a recommendation (optional)
-          </label>
-          <select
-            id="recommendation"
-            value={selectedRec}
-            onChange={e => setSelectedRec(e.target.value)}
-            disabled={phase === 'generating'}
-            className="w-full rounded-md border border-rule bg-bg px-3 py-2 text-sm text-fg outline-none focus:ring-2 focus:ring-accent/40 disabled:opacity-60"
-          >
-            <option value="">None — create standalone</option>
-            {recommendations.map(r => (
-              <option key={r.id} value={r.id}>
-                {formatRecommendationDate(r.createdAt)} — {r.label}
-              </option>
-            ))}
-          </select>
-          <p className="text-[11px] text-muted leading-relaxed">
-            Tying to a recommendation means the page is scored into your
-            venture&apos;s market signal for the continuation brief. Standalone
-            pages are user-scoped — useful for quick tests outside your
-            current venture.
-          </p>
+    <div className="grid min-h-[560px] lg:grid-cols-[1fr_1.35fr]">
+      <section className="flex flex-col gap-7 border-r border-rule px-6 py-8 sm:px-10">
+        <div className="flex justify-between font-mono text-[9px] uppercase tracking-[0.18em] text-muted">
+          <span>01 · Hypothesis</span>
+          <span className="text-accent">Draft</span>
         </div>
-      )}
-
-      {error && <p className="text-xs text-accent">{error}</p>}
-
-      <div className="flex justify-end">
+        {recommendations.length > 0 && (
+          <label className="grid gap-2 font-mono text-[9px] uppercase tracking-[0.14em] text-muted">
+            Evidence source
+            <select
+              id="validation-evidence-source"
+              aria-describedby="validation-source-help"
+              value={recommendationId}
+              onChange={(event) => setRecommendationId(event.target.value)}
+              disabled={phase === "generating"}
+              className="border border-rule bg-bg-2 px-3 py-3 font-sans text-[12px] normal-case tracking-normal text-fg outline-none focus:border-accent"
+            >
+              <option value="">Standalone hypothesis</option>
+              {recommendations.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {formatRecommendationDate(item.createdAt)} — {item.label}
+                </option>
+              ))}
+            </select>
+            <span
+              id="validation-source-help"
+              className="normal-case tracking-normal text-[11px]"
+            >
+              Choose an existing recommendation or write a standalone hypothesis
+              below.
+            </span>
+          </label>
+        )}
+        {selected ? (
+          <div className="border-l-2 border-accent bg-accent/[0.04] px-4 py-4">
+            <p className="font-mono text-[8px] uppercase tracking-[0.14em] text-accent">
+              Pulled from venture recommendation
+            </p>
+            <p className="mt-2 font-serif text-[18px] italic leading-relaxed text-fg">
+              {selected.label}
+            </p>
+            <p className="mt-3 text-[11px] leading-relaxed text-muted">
+              The existing recommendation supplies the page brief and connects
+              resulting signals to the venture lifecycle.
+            </p>
+          </div>
+        ) : (
+          <div className="border border-rule bg-bg-2 focus-within:border-accent">
+            <label htmlFor="validation-hypothesis" className="sr-only">
+              Validation hypothesis
+            </label>
+            <textarea
+              id="validation-hypothesis"
+              aria-describedby="validation-hypothesis-help validation-hypothesis-count"
+              value={target}
+              onChange={(event) => setTarget(event.target.value)}
+              disabled={phase === "generating"}
+              maxLength={2000}
+              placeholder="State the offer, audience, price, and the behavior that would count as real interest…"
+              className="min-h-[190px] w-full resize-none bg-transparent p-5 font-serif text-[20px] italic leading-relaxed text-fg outline-none placeholder:text-muted-2"
+            />
+            <p
+              id="validation-hypothesis-help"
+              className="border-t border-rule px-4 py-2 text-[11px] text-muted"
+            >
+              Include the offer, audience, price, and behavior that would count
+              as interest.
+            </p>
+            <div
+              id="validation-hypothesis-count"
+              className="border-t border-rule px-4 py-2 text-right font-mono text-[8px] text-muted"
+              aria-live="polite"
+            >
+              {target.length} / 2000
+            </div>
+          </div>
+        )}
+        {error && (
+          <ToolRecoveryNotice
+            message={error}
+            onRetry={() => void generate()}
+            workPreserved="Your hypothesis and selected evidence source remain in this form."
+            leaveGuidance="The standalone hypothesis is not saved yet. Copy it before leaving this page."
+            operationStatus="stopped"
+            usageStatus="may_be_consumed"
+          />
+        )}
         <button
           type="button"
-          onClick={() => { void handleGenerate(); }}
-          disabled={phase === 'generating' || target.trim().length === 0}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-bg hover:bg-accent/90 disabled:opacity-50"
+          onClick={() => {
+            void generate();
+          }}
+          disabled={!canGenerate}
+          className="sticky bottom-0 z-10 mt-auto bg-accent px-5 py-4 font-mono text-[10px] uppercase tracking-[0.16em] text-bg [margin-bottom:env(safe-area-inset-bottom)] disabled:opacity-35 lg:static lg:mb-0"
         >
-          {phase === 'generating' ? 'Generating…' : 'Generate page'}
+          {phase === "generating"
+            ? "Drafting the page…"
+            : "Create validation page →"}
         </button>
-      </div>
+      </section>
+      <ValidationEmptyPreview active={phase === "generating"} />
     </div>
   );
 }

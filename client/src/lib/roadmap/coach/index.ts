@@ -9,7 +9,7 @@ export {
   ROLEPLAY_WARNING_TURN,
   SETUP_MAX_EXCHANGES,
   type CoachChannel,
-} from './constants';
+} from "./constants";
 
 export {
   ConversationSetupSchema,
@@ -27,16 +27,24 @@ export {
   type Debrief,
   type CoachSession,
   type ToolSessions,
-} from './schemas';
+} from "./schemas";
 
-export type { SetupResponse, RunCoachSetupInput } from './setup-engine';
-export { runCoachSetup } from './setup-engine';
+export { GeneratedDebriefSchema } from "./generated-debrief-schema";
+export {
+  ReadinessVerdictSchema,
+  validateReadinessVerdict,
+  type ReadinessVerdict,
+} from "./readiness-verdict-schema";
+export { validatePreparationHandoffs } from "./handoff-validation";
 
-export type { RunCoachPreparationInput } from './preparation-engine';
-export { runCoachPreparation } from './preparation-engine';
+export type { SetupResponse, RunCoachSetupInput } from "./setup-engine";
+export { runCoachSetup } from "./setup-engine";
 
-export type { RunRolePlayTurnInput } from './roleplay-engine';
-export { runRolePlayTurn } from './roleplay-engine';
+export type { RunCoachPreparationInput } from "./preparation-engine";
+export { runCoachPreparation } from "./preparation-engine";
 
-export type { RunDebriefInput } from './debrief-engine';
-export { runDebrief } from './debrief-engine';
+export type { RunRolePlayTurnInput } from "./roleplay-engine";
+export { runRolePlayTurn } from "./roleplay-engine";
+
+export type { RunDebriefInput } from "./debrief-engine";
+export { runDebrief } from "./debrief-engine";

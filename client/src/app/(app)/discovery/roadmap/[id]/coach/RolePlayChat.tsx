@@ -1,34 +1,14 @@
-'use client';
-// src/app/(app)/discovery/roadmap/[id]/coach/RolePlayChat.tsx
-// Amber-tinted rehearsal chat. Other party's name shown as agent identity.
-// POSTs to the task-level roleplay route. Capped at ROLEPLAY_HARD_CAP_TURNS.
-
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Loader2, Send, Swords, X } from 'lucide-react';
-import { Textarea } from '@/components/ui/textarea';
-import type { RolePlayTurn } from '@/lib/roadmap/coach/schemas';
-// Import directly from constants, not the barrel — the barrel
-// re-exports server-only engine modules that webpack traces.
-import { ROLEPLAY_HARD_CAP_TURNS, ROLEPLAY_WARNING_TURN } from '@/lib/roadmap/coach/constants';
-
-export interface RolePlayChatProps {
-  roadmapId:      string;
-  taskId:         string;
-  otherPartyName: string;
-  /**
-   * Standalone mode — routes to the session-id-based coach/roleplay
-   * endpoint instead of the taskId-scoped one. sessionId is required
-   * when standalone is true.
-   */
-  standalone?:    boolean;
-  sessionId?:     string;
-  onEnd:          () => void;
-  /** Fired after every roleplay turn completes (success or error). */
-  onToolCallComplete?: () => void;
-}
-
-/** Rehearsal chat. Calls onEnd when capped or founder ends early. */
+"use client";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ConversationRecoveryNotice } from "@/components/institute/tools/ConversationRecoveryNotice";
+import type { RolePlayTurn } from "@/lib/roadmap/coach/schemas";
+import {
+  ROLEPLAY_HARD_CAP_TURNS,
+  ROLEPLAY_WARNING_TURN,
+} from "@/lib/roadmap/coach/constants";
+import type { RolePlayChatProps } from "./coach-chat-types";
+import { RehearsalInput } from "./RehearsalInput";
+export type { RolePlayChatProps } from "./coach-chat-types";
 export function RolePlayChat({
   roadmapId,
   taskId,
@@ -38,178 +18,165 @@ export function RolePlayChat({
   onEnd,
   onToolCallComplete,
 }: RolePlayChatProps) {
-  const [history,    setHistory]    = useState<RolePlayTurn[]>([]);
-  const [draft,      setDraft]      = useState('');
+  const [history, setHistory] = useState<RolePlayTurn[]>([]);
+  const [draft, setDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error,      setError]      = useState<string | null>(null);
-  const [capped,     setCapped]     = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-
+  const [error, setError] = useState<string | null>(null);
+  const [capped, setCapped] = useState(false);
+  const transcriptRef = useRef<HTMLDivElement>(null);
   const currentTurn = Math.ceil(history.length / 2) + (submitting ? 1 : 0);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    if (transcriptRef.current)
+      transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
   }, [history, submitting]);
 
-  const handleSend = useCallback(async () => {
-    const trimmed = draft.trim();
-    if (trimmed.length === 0 || submitting || capped) return;
-
+  const send = useCallback(async () => {
+    const message = draft.trim();
+    if (!message || submitting || capped) return;
     const founderTurn: RolePlayTurn = {
-      role:    'founder',
-      message: trimmed,
-      turn:    Math.floor(history.length / 2) + 1,
+      role: "founder",
+      message,
+      turn: Math.floor(history.length / 2) + 1,
     };
-
-    setHistory(prev => [...prev, founderTurn]);
-    setDraft('');
+    setHistory((current) => [...current, founderTurn]);
+    setDraft("");
     setSubmitting(true);
     setError(null);
-
     try {
-      const roleplayUrl = standalone
+      const url = standalone
         ? `/api/discovery/roadmaps/${roadmapId}/coach/roleplay`
         : `/api/discovery/roadmaps/${roadmapId}/tasks/${taskId}/coach/roleplay`;
-      const res = await fetch(roleplayUrl, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(
-          standalone
-            ? { message: trimmed, sessionId }
-            : {
-                message: trimmed,
-                history: history.map(t => ({ role: t.role, message: t.message, turn: t.turn })),
-              },
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          standalone ? { message, sessionId } : { message, history },
         ),
       });
-
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({})) as { error?: string };
-        setError(json.error ?? 'Could not send. Please try again.');
-        setHistory(prev => prev.slice(0, -1));
-        return;
-      }
-
-      const json = await res.json() as {
-        message: string;
-        turn:    number;
-        capped:  boolean;
-      };
-
-      if (json.capped) {
-        setCapped(true);
-      } else {
-        // Construct the proper RolePlayTurn from the flat response
-        const otherPartyTurn: RolePlayTurn = {
-          role:    'other_party',
-          message: json.message,
-          turn:    json.turn,
+      if (!response.ok) {
+        const failure = (await response.json().catch(() => ({}))) as {
+          error?: string;
         };
-        setHistory(prev => [...prev, otherPartyTurn]);
+        throw new Error(failure.error ?? "Could not send. Please try again.");
       }
-    } catch {
-      setError('Network error — please try again.');
-      setHistory(prev => prev.slice(0, -1));
+      const data = (await response.json()) as {
+        message: string;
+        turn: number;
+        capped: boolean;
+      };
+      if (data.capped) setCapped(true);
+      else
+        setHistory((current) => [
+          ...current,
+          { role: "other_party", message: data.message, turn: data.turn },
+        ]);
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "Network error — please try again.",
+      );
+      setHistory((current) => current.slice(0, -1));
     } finally {
       setSubmitting(false);
       onToolCallComplete?.();
     }
-  }, [draft, submitting, capped, history, roadmapId, taskId, standalone, sessionId, onToolCallComplete]);
+  }, [
+    capped,
+    draft,
+    history,
+    onToolCallComplete,
+    roadmapId,
+    sessionId,
+    standalone,
+    submitting,
+    taskId,
+  ]);
 
-  const turnDisplay = `Turn ${Math.max(currentTurn, 1)}/${ROLEPLAY_HARD_CAP_TURNS}`;
-  const nearCap = currentTurn >= ROLEPLAY_WARNING_TURN && !capped;
-
+  const remaining = Math.max(ROLEPLAY_HARD_CAP_TURNS - currentTurn + 1, 0);
   return (
-    <div className="flex flex-col gap-3 rounded-lg border-2 border-accent/40 bg-accent/5 p-3">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Swords className="size-3.5 text-accent" />
-          <span className="text-[10px] font-bold uppercase tracking-widest text-accent">
-            Rehearsal Mode
-          </span>
-          <span className="rounded-full bg-accent/20 px-2 py-0.5 text-[10px] font-semibold text-accent">
-            {turnDisplay}
-          </span>
+    <section className="flex min-h-full flex-col gap-6 px-6 py-8 sm:px-10">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-rule pb-4">
+        <div>
+          <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-accent">
+            03 · Live rehearsal
+          </p>
+          <h2 className="mt-2 font-serif text-[24px] italic text-fg">
+            Across the table: {otherPartyName}
+          </h2>
         </div>
+        <div className="text-right">
+          <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted">
+            Turn {Math.max(currentTurn, 1)} / {ROLEPLAY_HARD_CAP_TURNS}
+          </p>
+          <button
+            type="button"
+            onClick={onEnd}
+            className="mt-2 font-mono text-[8px] uppercase tracking-[0.12em] text-fg hover:text-accent"
+          >
+            End and debrief →
+          </button>
+        </div>
+      </header>
+      <div
+        ref={transcriptRef}
+        className="max-h-[420px] min-h-[260px] overflow-y-auto border border-rule-strong"
+        aria-live="polite"
+        aria-relevant="additions text"
+        aria-label={`Rehearsal transcript with ${otherPartyName}`}
+      >
+        {history.length === 0 && (
+          <p className="p-6 font-serif text-[17px] italic text-muted">
+            Begin with the opening you would actually use.
+          </p>
+        )}
+        {history.map((turn, index) => (
+          <div
+            key={`${turn.turn}-${turn.role}-${index}`}
+            className={`grid gap-3 border-b border-rule px-5 py-4 last:border-b-0 sm:grid-cols-[100px_1fr] ${turn.role === "founder" ? "bg-accent/[0.04]" : ""}`}
+          >
+            <span
+              className={`font-mono text-[8px] uppercase tracking-[0.14em] ${turn.role === "founder" ? "text-accent" : "text-muted"}`}
+            >
+              {turn.role === "founder" ? "You" : otherPartyName}
+            </span>
+            <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-fg">
+              {turn.message}
+            </p>
+          </div>
+        ))}
+        {submitting && (
+          <p className="border-t border-rule px-5 py-3 font-mono text-[8px] uppercase tracking-[0.14em] text-accent">
+            {otherPartyName} is responding…
+          </p>
+        )}
+      </div>
+      {currentTurn >= ROLEPLAY_WARNING_TURN && !capped && (
+        <p className="border-l-2 border-accent bg-accent/[0.04] px-3 py-2 font-mono text-[8px] uppercase tracking-[0.12em] text-accent">
+          {remaining} turns remain · move toward the ask
+        </p>
+      )}
+      {error && (
+        <ConversationRecoveryNotice message={error} context="coach_rehearsal" />
+      )}
+      {!capped ? (
+        <RehearsalInput
+          otherPartyName={otherPartyName}
+          draft={draft}
+          submitting={submitting}
+          onChange={setDraft}
+          onSend={() => void send()}
+        />
+      ) : (
         <button
           type="button"
           onClick={onEnd}
-          className="flex items-center gap-1 text-[10px] text-muted hover:text-fg transition-colors"
+          className="bg-accent px-5 py-4 font-mono text-[10px] uppercase tracking-[0.16em] text-bg"
         >
-          <X className="size-3" />
-          End rehearsal
-        </button>
-      </div>
-
-      <p className="text-[10px] text-accent/70">
-        Practising with: <span className="font-semibold">{otherPartyName}</span>
-      </p>
-
-      {/* Message list */}
-      <div ref={scrollRef} className="flex flex-col gap-2 max-h-72 overflow-y-auto rounded-md border border-accent/20 bg-bg px-3 py-3">
-        {history.length === 0 && (
-          <p className="text-[11px] text-muted italic">Start with your opening — type what you would say or send.</p>
-        )}
-        <AnimatePresence initial={false}>
-          {history.map((turn, i) => (
-            <motion.div key={i} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.15 }}
-              className={['rounded-lg px-2.5 py-1.5 text-[11px] break-words whitespace-pre-wrap max-w-[88%]',
-                turn.role === 'founder' ? 'self-end bg-accent/10 text-fg' : 'self-start bg-accent/10 border border-accent/20 text-fg/90',
-              ].join(' ')}
-            >
-              {turn.role === 'other_party' && (
-                <p className="text-[9px] font-semibold text-accent mb-0.5 uppercase tracking-wide">{otherPartyName}</p>
-              )}
-              {turn.message}
-            </motion.div>
-          ))}
-        </AnimatePresence>
-        {submitting && (
-          <div className="self-start flex items-center gap-1.5 text-[11px] text-accent">
-            <Loader2 className="size-3 animate-spin" /><span>{otherPartyName} is responding…</span>
-          </div>
-        )}
-      </div>
-
-      {/* Warning / cap banner */}
-      {nearCap && (
-        <p className="text-[10px] text-accent font-medium">
-          {ROLEPLAY_HARD_CAP_TURNS - currentTurn + 1} turns remaining.
-        </p>
-      )}
-      {capped && (
-        <div className="rounded-md bg-accent/10 border border-accent/30 px-3 py-2.5 text-[11px] text-accent font-medium">
-          Rehearsal complete — you&apos;ve used all {ROLEPLAY_HARD_CAP_TURNS} turns.
-        </div>
-      )}
-
-      {error && (
-        <p className="text-[11px] text-red-500">{error}</p>
-      )}
-
-      {!capped && (
-        <div className="flex gap-2">
-          <Textarea value={draft} onChange={e => setDraft(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void handleSend(); } }}
-            placeholder="Type what you would say…" disabled={submitting}
-            rows={3}
-            className="min-h-0 flex-1 resize-none border-accent/30 py-2 text-xs leading-relaxed focus-visible:ring-gold/30 focus-visible:border-accent/50"
-          />
-          <button type="button" onClick={() => { void handleSend(); }} disabled={draft.trim().length === 0 || submitting}
-            className="shrink-0 rounded-md bg-accent px-2.5 py-1.5 text-[11px] font-medium text-white hover:opacity-90 disabled:opacity-50">
-            {submitting ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />}
-          </button>
-        </div>
-      )}
-      {capped && (
-        <button type="button" onClick={onEnd}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-bg hover:opacity-90 transition-opacity">
-          Continue to debrief →
+          Rehearsal complete · open debrief →
         </button>
       )}
-    </div>
+    </section>
   );
 }

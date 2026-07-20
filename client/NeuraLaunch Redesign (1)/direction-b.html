@@ -1,0 +1,863 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NeuraLaunch — A growth engine for everyone.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter+Tight:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f4efe6;
+    --paper-2: #ede7da;
+    --ink: #0a1830;           /* navy ink */
+    --ink-2: #1d2a44;
+    --muted: #6e6a60;
+    --rule: rgba(10,24,48,.16);
+    --rule-strong: rgba(10,24,48,.36);
+    --accent: #b1331f;         /* burnt sienna */
+    --highlight: rgba(177,51,31,.10);
+    --sans: "Inter Tight", system-ui, sans-serif;
+    --serif: "Instrument Serif", "Times New Roman", serif;
+    --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--paper); color: var(--ink); }
+  body {
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "ss01";
+  }
+  ::selection { background: var(--ink); color: var(--paper); }
+  a { color: inherit; text-decoration: none; }
+
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 0 40px; }
+
+  /* ---------- Masthead ---------- */
+  .masthead {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in oklab, var(--paper) 92%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--ink);
+  }
+  .masthead .row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 40px;
+  }
+  .masthead .brand { display: flex; align-items: center; gap: 14px; }
+  .mark {
+    width: 22px; height: 22px;
+    border: 1.4px solid var(--ink);
+    border-radius: 50%;
+    position: relative;
+  }
+  .mark::after {
+    content: ""; position: absolute; inset: 5px;
+    background: var(--ink);
+    border-radius: 50%;
+  }
+  .masthead .brand .name {
+    font-family: var(--serif);
+    font-size: 22px;
+    letter-spacing: -.01em;
+  }
+  .masthead .brand .name .acc { font-style: italic; color: var(--accent); }
+  .masthead .meta {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted);
+    display: flex; gap: 24px; align-items: center;
+  }
+  .masthead .meta a:hover { color: var(--ink); }
+  .masthead .meta .audit { color: var(--accent); }
+  .masthead .meta .cta {
+    color: var(--paper); background: var(--ink);
+    padding: 8px 14px;
+  }
+
+  /* Tagline strip */
+  .tagline-strip {
+    display: flex; justify-content: space-between;
+    padding: 8px 40px;
+    border-top: 1px solid var(--rule);
+    font-family: var(--mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted);
+  }
+  .tagline-strip .acc { color: var(--accent); }
+
+  /* ---------- Hero ---------- */
+  .hero {
+    padding: 80px 0 100px;
+    border-bottom: 1px solid var(--ink);
+  }
+  .hero .grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 80px;
+  }
+  .hero h1 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(58px, 9vw, 148px);
+    line-height: .92;
+    letter-spacing: -.025em;
+    color: var(--ink);
+  }
+  .hero h1 em { font-style: italic; color: var(--accent); }
+  .hero .standfirst {
+    margin-top: 36px;
+    columns: 2;
+    column-gap: 40px;
+    column-rule: 1px solid var(--rule);
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--ink-2);
+    max-width: 680px;
+  }
+  .hero .standfirst strong { color: var(--ink); font-weight: 500; }
+  .hero .standfirst p + p { margin-top: 12px; }
+  .hero .standfirst p::first-letter {
+    font-family: var(--serif);
+    font-size: 1.4em;
+    font-weight: 400;
+  }
+
+  .hero .side {
+    border-left: 1px solid var(--rule);
+    padding-left: 36px;
+    display: flex; flex-direction: column; gap: 26px;
+  }
+  .hero .side .lab {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted);
+  }
+  .hero .side .pull {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 26px;
+    line-height: 1.2;
+    letter-spacing: -.01em;
+    color: var(--ink);
+  }
+  .hero .side .pull::before { content: "“"; color: var(--accent); font-size: 1.3em; line-height: 0; margin-right: 4px; vertical-align: -.4em; }
+  .hero .side .pull::after { content: "”"; color: var(--accent); font-size: 1.3em; line-height: 0; }
+  .hero .side .by {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .08em; color: var(--muted);
+  }
+  .hero .side .rule { height: 1px; background: var(--rule); }
+  .hero .side .stats { display: grid; gap: 12px; }
+  .hero .side .stats .stat { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
+  .hero .side .stats .stat .k { color: var(--muted); font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+  .hero .side .stats .stat .v { font-family: var(--serif); font-size: 22px; }
+
+  .hero .actions {
+    margin-top: 44px;
+    display: flex; gap: 20px; align-items: center; flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 12px;
+    background: var(--ink); color: var(--paper);
+    padding: 16px 22px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    transition: gap .25s;
+  }
+  .btn::after { content: "→"; font-family: var(--sans); font-size: 16px; }
+  .btn:hover { gap: 18px; }
+  .btn.outline { background: transparent; color: var(--ink); border: 1px solid var(--ink); }
+  .quiet { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+
+  /* ---------- Section ---------- */
+  .section {
+    padding: 100px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .section .head {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 56px;
+    margin-bottom: 60px;
+    align-items: end;
+    padding-bottom: 30px;
+    border-bottom: 1px solid var(--ink);
+  }
+  .section .head .stamp {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted);
+  }
+  .section .head .stamp .num {
+    display: block; color: var(--ink); margin-bottom: 6px;
+  }
+  .section .head h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(40px, 5.4vw, 76px);
+    line-height: 1;
+    letter-spacing: -.02em;
+  }
+  .section .head h2 em { font-style: italic; color: var(--accent); }
+  .section .head h2 .small {
+    display: block;
+    font-family: var(--sans);
+    font-size: 14px;
+    color: var(--muted);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin-top: 16px;
+    font-style: normal;
+  }
+
+  /* ---------- The Cycle ---------- */
+  .cycle {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 56px;
+  }
+  .step {
+    display: grid;
+    grid-template-columns: 80px 1fr 280px;
+    gap: 40px;
+    padding: 32px 0;
+    border-top: 1px solid var(--rule);
+    align-items: baseline;
+  }
+  .step:first-child { border-top: 1px solid var(--ink); padding-top: 32px; }
+  .step:last-child { border-bottom: 1px solid var(--ink); }
+  .step .n {
+    font-family: var(--serif);
+    font-size: 48px;
+    font-style: italic;
+    color: var(--accent);
+    line-height: .9;
+    letter-spacing: -.02em;
+  }
+  .step h3 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(28px, 3vw, 40px);
+    line-height: 1.05;
+    letter-spacing: -.015em;
+    margin-bottom: 10px;
+  }
+  .step h3 em { font-style: italic; color: var(--accent); }
+  .step p { color: var(--ink-2); font-size: 15.5px; max-width: 520px; }
+  .step .annot {
+    font-family: var(--mono); font-size: 11px; line-height: 1.7; color: var(--muted); letter-spacing: .04em;
+  }
+  .step .annot b {
+    color: var(--accent);
+    font-weight: 500;
+    display: block;
+    margin-bottom: 6px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    font-size: 10px;
+  }
+
+  /* ---------- The Recommendation (paper version) ---------- */
+  .surface {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 56px;
+  }
+  .surface .lead {
+    font-family: var(--serif);
+    font-size: clamp(28px, 3vw, 40px);
+    line-height: 1.15;
+    margin-bottom: 36px;
+    max-width: 760px;
+    color: var(--ink);
+  }
+  .surface .lead em { font-style: italic; color: var(--accent); }
+  .surface .lead .muted { color: var(--muted); }
+
+  .rec {
+    background: #fcfaf5;
+    border: 1px solid var(--ink);
+    padding: 0;
+    position: relative;
+  }
+  .rec::before {
+    content: "";
+    position: absolute; top: -8px; left: -8px;
+    width: 16px; height: 16px;
+    background: var(--accent);
+    transform: rotate(45deg);
+  }
+  .rec .r-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 22px 36px;
+    border-bottom: 1px solid var(--ink);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .rec .r-head .id .acc { color: var(--accent); }
+  .rec .r-body { padding: 44px 36px 32px; }
+  .rec .r-body h3 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(36px, 4.4vw, 60px);
+    line-height: 1.02;
+    letter-spacing: -.018em;
+    max-width: 880px;
+    margin-bottom: 24px;
+  }
+  .rec .r-body h3 em { font-style: italic; color: var(--accent); }
+  .rec .r-body p.why {
+    color: var(--ink-2);
+    font-size: 17px;
+    line-height: 1.55;
+    max-width: 760px;
+    margin-bottom: 32px;
+    font-family: var(--serif);
+    font-size: 19px;
+  }
+  .rec .grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  .rec .cell {
+    padding: 22px 28px 22px 0;
+  }
+  .rec .cell + .cell { padding-left: 28px; border-left: 1px solid var(--rule); }
+  .rec .cell .k {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .rec .cell .v { font-size: 14.5px; line-height: 1.55; color: var(--ink-2); }
+  .rec .cell .v b { color: var(--ink); font-weight: 500; }
+  .rec .cell .v .acc { color: var(--accent); font-style: italic; font-family: var(--serif); font-size: 16px; }
+  .rec .r-foot {
+    padding: 22px 36px;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 16px;
+    background: var(--paper-2);
+  }
+  .rec .r-foot .stats { display: flex; gap: 24px; font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .rec .r-foot .stats .acc { color: var(--accent); }
+  .rec .r-foot .accept {
+    background: var(--ink); color: var(--paper);
+    padding: 12px 20px;
+    border: none;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  /* ---------- Tools (newspaper list) ---------- */
+  .tools-list {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 56px;
+  }
+  .tools-list .grid { display: grid; }
+  .tool-row {
+    display: grid;
+    grid-template-columns: 60px 1.2fr 2fr;
+    gap: 40px;
+    padding: 28px 0;
+    border-top: 1px solid var(--rule);
+    align-items: baseline;
+  }
+  .tool-row:first-child { border-top: 1px solid var(--ink); }
+  .tool-row:last-child { border-bottom: 1px solid var(--ink); }
+  .tool-row:hover { background: var(--paper-2); }
+  .tool-row .idx {
+    font-family: var(--serif); font-style: italic;
+    font-size: 30px;
+    color: var(--accent);
+  }
+  .tool-row .name {
+    font-family: var(--serif);
+    font-size: clamp(24px, 2.4vw, 32px);
+    line-height: 1.1;
+    letter-spacing: -.015em;
+  }
+  .tool-row .desc {
+    color: var(--ink-2); font-size: 15px; line-height: 1.55; max-width: 580px;
+  }
+  .tool-row .desc .lab {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-right: 12px;
+  }
+
+  /* ---------- Pricing ---------- */
+  .pricing {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 56px;
+  }
+  .tiers {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border: 1px solid var(--ink);
+    background: #fcfaf5;
+  }
+  .tier { padding: 32px; border-right: 1px solid var(--ink); display: flex; flex-direction: column; gap: 18px; }
+  .tier:last-child { border-right: none; }
+  .tier.featured { background: var(--ink); color: var(--paper); }
+  .tier .lab {
+    display: flex; justify-content: space-between;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted);
+  }
+  .tier.featured .lab { color: rgba(244,239,230,.6); }
+  .tier.featured .lab .acc { color: #ffb491; }
+  .tier .lab .acc { color: var(--accent); }
+  .tier .nm {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-style: italic;
+    font-size: 36px;
+    letter-spacing: -.015em;
+    line-height: 1;
+  }
+  .tier .price { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .tier.featured .price { color: rgba(244,239,230,.6); }
+  .tier .price b {
+    color: var(--ink);
+    font-family: var(--serif); font-weight: 400;
+    font-size: 56px;
+    letter-spacing: -.02em;
+    display: block;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .tier.featured .price b { color: var(--paper); }
+  .tier ul {
+    list-style: none; display: grid; gap: 12px;
+    padding-top: 18px; border-top: 1px solid var(--rule);
+  }
+  .tier.featured ul { border-top-color: rgba(244,239,230,.18); }
+  .tier ul li { font-size: 14px; color: var(--ink-2); line-height: 1.5; padding-left: 22px; position: relative; }
+  .tier.featured ul li { color: rgba(244,239,230,.85); }
+  .tier ul li::before {
+    content: "—"; position: absolute; left: 0; top: 0;
+    color: var(--accent); font-weight: 700;
+  }
+  .tier.featured ul li::before { color: #ffb491; }
+  .tier .go {
+    margin-top: auto;
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 13px 18px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ink); border: 1px solid var(--ink);
+  }
+  .tier.featured .go { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+  .tier .go::after { content: "→"; font-family: var(--sans); }
+
+  /* ---------- Closing ---------- */
+  .closing { padding: 120px 0; text-align: left; border-bottom: 1px solid var(--ink); }
+  .closing .stamp {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent);
+    margin-bottom: 36px;
+  }
+  .closing h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(70px, 10vw, 168px);
+    line-height: .92;
+    letter-spacing: -.03em;
+    margin-bottom: 28px;
+  }
+  .closing h2 em { font-style: italic; color: var(--accent); }
+  .closing .lede {
+    font-family: var(--serif);
+    font-size: clamp(22px, 2.4vw, 32px);
+    line-height: 1.25;
+    max-width: 680px;
+    color: var(--ink-2);
+    margin-bottom: 40px;
+  }
+  .closing .lede em { font-style: italic; color: var(--accent); }
+
+  /* ---------- Footer ---------- */
+  footer {
+    padding: 56px 40px;
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 32px;
+    font-size: 12px; color: var(--muted);
+  }
+  footer .col h5 {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink); margin-bottom: 12px;
+  }
+  footer .col p { line-height: 1.55; }
+  footer .col a { color: var(--muted); display: block; padding: 3px 0; }
+  footer .col a:hover { color: var(--ink); }
+  footer .col .colophon {
+    font-family: var(--serif); font-style: italic; font-size: 18px; color: var(--ink); line-height: 1.3;
+  }
+
+  @media (max-width: 1000px) {
+    .masthead .row { padding: 14px 22px; }
+    .tagline-strip { padding: 8px 22px; }
+    .wrap { padding: 0 22px; }
+    .hero { padding: 50px 0 60px; }
+    .hero .grid { grid-template-columns: 1fr; gap: 36px; }
+    .hero .standfirst { columns: 1; }
+    .hero .side { border-left: none; padding-left: 0; border-top: 1px solid var(--rule); padding-top: 28px; }
+    .section { padding: 60px 0; }
+    .section .head { grid-template-columns: 1fr; gap: 14px; margin-bottom: 36px; }
+    .cycle, .surface, .tools-list, .pricing { grid-template-columns: 1fr; gap: 24px; }
+    .step { grid-template-columns: 50px 1fr; }
+    .step .annot { grid-column: 1 / -1; padding-left: 0; padding-top: 8px; }
+    .rec .grid { grid-template-columns: 1fr; }
+    .rec .cell + .cell { padding-left: 0; border-left: none; border-top: 1px solid var(--rule); padding-top: 22px; }
+    .tool-row { grid-template-columns: 40px 1fr; gap: 14px; }
+    .tool-row .desc { grid-column: 1 / -1; padding-left: 0; }
+    .tiers { grid-template-columns: 1fr; }
+    .tier { border-right: none; border-bottom: 1px solid var(--ink); }
+    footer { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="row">
+    <a class="brand" href="index.html">
+      <div class="mark" aria-hidden="true"></div>
+      <div class="name">NeuraLaunch <span class="acc">·</span> A Practice.</div>
+    </a>
+    <nav class="meta">
+      <a href="#cycle">The Cycle</a>
+      <a href="#surface">Recommendation</a>
+      <a href="#tools">Tools</a>
+      <a href="#pricing">Price</a>
+      <a class="audit" href="index.html">← Audit</a>
+      <a class="cta" href="discovery-b.html">Begin Discovery</a>
+    </nav>
+  </div>
+  <div class="tagline-strip">
+    <span>Vol. 01 &nbsp;·&nbsp; Tabempa Engineering &nbsp;·&nbsp; Founded 2026</span>
+    <span class="acc">From lost to launched. For everyone.</span>
+    <span>Freetown · Remote · Global</span>
+  </div>
+</header>
+
+<main>
+
+<!-- ============================================================
+     HERO
+     ============================================================ -->
+<section class="hero">
+  <div class="wrap">
+    <div class="grid">
+      <div>
+        <div class="quiet" style="margin-bottom: 28px;">An opening note</div>
+        <h1>You know something needs to change. <em>We'll tell you what — and walk it with you.</em></h1>
+
+        <div class="standfirst">
+          <p><strong>NeuraLaunch is a growth engine and execution partner</strong> for people at every stage of the journey — whether they are just starting, stuck in the middle, or ready to scale something that already exists.</p>
+          <p>It listens before it speaks. Commits to one direction when others would hedge. Stays with you through the work of making that direction real.</p>
+        </div>
+
+        <div class="actions">
+          <a href="discovery-b.html" class="btn">Begin Discovery</a>
+          <a href="#cycle" class="btn outline">Read the cycle</a>
+          <span class="quiet">Free to start · No card</span>
+        </div>
+      </div>
+
+      <aside class="side">
+        <div class="lab">A note from the editor</div>
+        <p class="pull">There is no shortage of talent in the world. There is no shortage of ideas. What is scarce is the guide.</p>
+        <p class="by">— A. Mansaray, founder</p>
+        <div class="rule"></div>
+        <div class="lab">By the numbers</div>
+        <div class="stats">
+          <div class="stat"><span class="k">Recommendations per session</span><span class="v">One.</span></div>
+          <div class="stat"><span class="k">Pushback rounds available</span><span class="v">10</span></div>
+          <div class="stat"><span class="k">Tools shipped</span><span class="v">5</span></div>
+          <div class="stat"><span class="k">Interview question cap</span><span class="v">15</span></div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     CYCLE
+     ============================================================ -->
+<section class="section" id="cycle">
+  <div class="wrap">
+    <div class="head">
+      <div class="stamp"><span class="num">§ 01</span>The cycle</div>
+      <h2>One arc. From first question<br/>to first <em>outcome.</em>
+        <span class="small">Five moments, each connected to the next.</span>
+      </h2>
+    </div>
+
+    <div class="cycle">
+      <div></div>
+      <div>
+
+        <div class="step">
+          <div class="n">I.</div>
+          <div>
+            <h3>Be heard.</h3>
+            <p>A 4-phase interview building a fifteen-field belief state. Audience-aware. Capped, so it ends. The quality of the recommendation is only as good as the quality of the listening.</p>
+          </div>
+          <div class="annot"><b>Discovery</b>Orientation → goals → constraints → conviction. Hard cap at 15 questions.</div>
+        </div>
+
+        <div class="step">
+          <div class="n">II.</div>
+          <div>
+            <h3>One <em>recommendation.</em></h3>
+            <p>Synthesised across the full belief state. With reasoning, risks, and the alternatives we rejected — and why, for you specifically. Not a shortlist.</p>
+          </div>
+          <div class="annot"><b>Phase 1B emission</b>Opus 4.6 reasons. Sonnet formats. No menus. No hedge.</div>
+        </div>
+
+        <div class="step">
+          <div class="n">III.</div>
+          <div>
+            <h3>Argue.</h3>
+            <p>Up to ten rounds of real argument. Defend, refine, or replace. If you are right and the evidence agrees, the recommendation changes.</p>
+          </div>
+          <div class="annot"><b>Pushback engine</b>Two-phase. Hard cap triggers a constrained alternative.</div>
+        </div>
+
+        <div class="step">
+          <div class="n">IV.</div>
+          <div>
+            <h3>A real <em>roadmap.</em></h3>
+            <p>Phased. Sequenced. Sized to the hours you actually have. Each task carries reasoning, success criteria, and the tool we will use to get through it.</p>
+          </div>
+          <div class="annot"><b>Roadmap engine</b>Up to five phases. Up to five tasks per phase.</div>
+        </div>
+
+        <div class="step">
+          <div class="n">V.</div>
+          <div>
+            <h3>Learn. Continue.</h3>
+            <p>At the end of every cycle, a five-section brief: what happened, what we got wrong, what the evidence says, the forks ahead, and the parking lot. The next cycle starts smarter than the last.</p>
+          </div>
+          <div class="annot"><b>Continuation brief</b>Five sections. Auto-generated. Ready to read.</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     A REAL RECOMMENDATION
+     ============================================================ -->
+<section class="section" id="surface">
+  <div class="wrap">
+    <div class="head">
+      <div class="stamp"><span class="num">§ 02</span>A recommendation</div>
+      <h2>What a real one<br/><em>looks like.</em>
+        <span class="small">Reasoning, risks, the alternatives rejected — all on the page.</span>
+      </h2>
+    </div>
+
+    <div class="surface">
+      <div>
+        <p class="lead">
+          <span class="muted">Not a menu.</span> One direction, for your specific situation, with reasoning and what would make it <em>wrong</em> — all on one page.
+        </p>
+      </div>
+
+      <article class="rec">
+        <header class="r-head">
+          <span class="id">Recommendation No. <span class="acc">0427</span> · Cycle I</span>
+          <span class="acc">Confidence · High</span>
+        </header>
+        <div class="r-body">
+          <h3>Spend the next three weeks proving demand for the maternal-care advisory line. <em>Not building the app.</em></h3>
+          <p class="why">You have a clinical network, a real WhatsApp following, and a shortage of hours. The app will eat 200 hours before anyone says yes. A three-week paid advisory pilot, run from your existing channel, will tell you within thirty days whether to build at all — and at what price.</p>
+
+          <div class="grid">
+            <div class="cell">
+              <div class="k">First three steps</div>
+              <div class="v">
+                <b>I.</b> Frame the pilot as a 30-day paid line.<br/>
+                <b>II.</b> Recruit ten followers at NLe 200 / mo.<br/>
+                <b>III.</b> Run consultations via WhatsApp Business.
+              </div>
+            </div>
+            <div class="cell">
+              <div class="k">Time to first result</div>
+              <div class="v">
+                <span class="acc">14 days.</span><br/>
+                <b>First paid consultation booked.</b><br/>
+                Sized against the 8 weekly hours you stated.
+              </div>
+            </div>
+            <div class="cell">
+              <div class="k">What would make this wrong</div>
+              <div class="v">
+                If fewer than 3 of 10 followers say yes at price, the advisory frame is wrong — pivot to free-tier triage with escalation, not a paid line.
+              </div>
+            </div>
+          </div>
+        </div>
+        <footer class="r-foot">
+          <div class="stats">
+            <span>3 assumptions · flaggable</span>
+            <span>2 alternatives · rejected</span>
+            <span class="acc">10 rounds of pushback available</span>
+          </div>
+          <button class="accept">Accept · Build roadmap →</button>
+        </footer>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     THE TOOLS
+     ============================================================ -->
+<section class="section" id="tools">
+  <div class="wrap">
+    <div class="head">
+      <div class="stamp"><span class="num">§ 03</span>The toolkit</div>
+      <h2>Five tools, for the work<br/>that decides the <em>outcome.</em>
+        <span class="small">Not autogenerated MVPs. The conversations and writing that come before code.</span>
+      </h2>
+    </div>
+
+    <div class="tools-list">
+      <div></div>
+      <div class="grid">
+
+        <div class="tool-row">
+          <span class="idx">I.</span>
+          <span class="name">Conversation Coach</span>
+          <span class="desc"><span class="lab">Opus</span>Rehearse the pitch before you walk in. Channel-native opening script, anticipated objections, fallback positions — then a role-play in character.</span>
+        </div>
+        <div class="tool-row">
+          <span class="idx">II.</span>
+          <span class="name">Outreach Composer</span>
+          <span class="desc"><span class="lab">Sonnet</span>WhatsApp, email, LinkedIn. Single message, batched variations, or a Day 1 / Day 5 / Day 14 sequence — each with a note on why it works.</span>
+        </div>
+        <div class="tool-row">
+          <span class="idx">III.</span>
+          <span class="name">Research Tool</span>
+          <span class="desc"><span class="lab">Opus · 25 step</span>Ask in plain language. Get back structured findings, source URLs, and a confidence label — verified, likely, or unverified.</span>
+        </div>
+        <div class="tool-row">
+          <span class="idx">IV.</span>
+          <span class="name">Service Packager</span>
+          <span class="desc"><span class="lab">Sonnet</span>Three priced tiers from your situation — Starter, Pro, Premium — with revenue scenarios and the reasoning behind each.</span>
+        </div>
+        <div class="tool-row">
+          <span class="idx">V.</span>
+          <span class="name">Validation Page</span>
+          <span class="desc"><span class="lab">Public</span>A live landing page with surveys and analytics. Real demand signal before you write a line of code.</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     PRICING
+     ============================================================ -->
+<section class="section" id="pricing">
+  <div class="wrap">
+    <div class="head">
+      <div class="stamp"><span class="num">§ 04</span>Price</div>
+      <h2>Each tier unlocks the next layer<br/>of the <em>journey.</em>
+        <span class="small">Free earns trust. Paid delivers transformation.</span>
+      </h2>
+    </div>
+
+    <div class="pricing">
+      <div></div>
+      <div class="tiers">
+
+        <div class="tier">
+          <div class="lab"><span>I. Free</span><span>Trust</span></div>
+          <div class="nm">Discover.</div>
+          <div class="price"><b>$0</b>One interview. One recommendation. Yours to keep.</div>
+          <ul>
+            <li>Discovery interview, capped at 15 questions</li>
+            <li>One synthesised recommendation</li>
+            <li>Up to 7 rounds of pushback</li>
+          </ul>
+          <a href="discovery-b.html" class="go">Start free</a>
+        </div>
+
+        <div class="tier featured">
+          <div class="lab"><span>II. Execute</span><span class="acc">Most chosen</span></div>
+          <div class="nm">Ship it.</div>
+          <div class="price"><b>$29<span style="font-size:14px; font-family:var(--mono);">/mo</span></b>The full execution cycle, end to end.</div>
+          <ul>
+            <li>Full phased roadmap, sized to your hours</li>
+            <li>All five tools — Coach, Composer, Research, Packager, Validation</li>
+            <li>Continuation brief at end of each cycle</li>
+            <li>Up to 10 rounds of pushback</li>
+          </ul>
+          <a href="#" class="go">Choose Execute</a>
+        </div>
+
+        <div class="tier">
+          <div class="lab"><span>III. Compound</span><span>Memory</span></div>
+          <div class="nm">Across cycles.</div>
+          <div class="price"><b>$79<span style="font-size:14px; font-family:var(--mono);">/mo</span></b>Multiple ventures. Cross-cycle memory.</div>
+          <ul>
+            <li>Everything in Execute</li>
+            <li>Multiple concurrent ventures</li>
+            <li>Cross-venture memory across recommendations</li>
+            <li>Up to 15 rounds of pushback</li>
+          </ul>
+          <a href="#" class="go">Choose Compound</a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     CLOSING
+     ============================================================ -->
+<section class="closing">
+  <div class="wrap">
+    <div class="stamp">Eight weeks from today</div>
+    <h2>You'll <em>know.</em></h2>
+    <p class="lede">Either you've shipped. Or you've learned what to change. Or you've decided this isn't the path — <em>with proof.</em> Whichever it is, you won't be guessing anymore.</p>
+    <a href="discovery-b.html" class="btn">Begin Discovery</a>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="col">
+    <h5>The Practice</h5>
+    <p class="colophon">A growth engine and execution partner. Built by a small team in Freetown. Held to the standards of a senior team at a world-class company.</p>
+  </div>
+  <div class="col">
+    <h5>Index</h5>
+    <a href="#cycle">The cycle</a>
+    <a href="#surface">A recommendation</a>
+    <a href="#tools">The toolkit</a>
+    <a href="#pricing">Price</a>
+    <a href="index.html">← Back to the audit</a>
+    <a href="direction-a.html">Direction A</a>
+  </div>
+  <div class="col">
+    <h5>Colophon</h5>
+    <p>Set in <i>Instrument Serif</i> &amp; Inter Tight. Hairlines, no shadows. One accent: burnt sienna. Paper warmth, navy ink. Tabempa Engineering Limited, 2026.</p>
+  </div>
+</footer>
+
+</body>
+</html>

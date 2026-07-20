@@ -1,194 +1,178 @@
-'use client';
-// src/app/(app)/discovery/roadmap/[id]/coach/PreparationView.tsx
-//
-// Renders the five-section PreparationPackage produced by the Coach's
-// Opus call. Each section is a collapsible card. The opening script
-// has a copy-to-clipboard button. At the bottom a "Start rehearsal →"
-// button advances the founder to the role-play stage.
+"use client";
 
-import { useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { ChevronDown, Copy, Check, PlayCircle } from 'lucide-react';
-import type { PreparationPackage, CoachChannel } from '@/lib/roadmap/coach';
+import { useState } from "react";
+import Link from "next/link";
+import { MobileDisclosure } from "@/components/institute/tools/MobileDisclosure";
+import type { CoachChannel, PreparationPackage } from "@/lib/roadmap/coach";
 
 export interface PreparationViewProps {
-  preparation:   PreparationPackage;
-  channel:       CoachChannel;
+  preparation: PreparationPackage;
+  channel: CoachChannel;
   onStartReplay: () => void;
+  roadmapId?: string;
+  sessionId?: string;
 }
-
 const CHANNEL_LABELS: Record<CoachChannel, string> = {
-  whatsapp:  'WhatsApp',
-  in_person: 'In-person',
-  email:     'Email',
-  linkedin:  'LinkedIn',
+  whatsapp: "WhatsApp",
+  in_person: "In person",
+  email: "Email",
+  linkedin: "LinkedIn",
 };
 
-function CollapsibleSection({
-  title,
-  children,
-  defaultOpen = false,
-}: {
-  title:        string;
-  children:     React.ReactNode;
-  defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="rounded-lg border border-rule overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-3 py-2.5 bg-bg-3/40 hover:bg-bg-3/60 transition-colors text-left"
-      >
-        <span className="text-xs font-semibold text-fg">{title}</span>
-        <motion.span animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.18 }}>
-          <ChevronDown className="size-3.5 text-muted" />
-        </motion.span>
-      </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.18 }}
-            className="overflow-hidden"
-          >
-            <div className="px-3 py-3">{children}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // clipboard unavailable — silently ignore
-    }
-  }, [text]);
-
-  return (
-    <button
-      type="button"
-      onClick={() => { void handleCopy(); }}
-      className="flex items-center gap-1 text-[10px] text-muted hover:text-fg transition-colors"
-    >
-      {copied
-        ? <><Check className="size-3 text-success" /><span className="text-success">Copied</span></>
-        : <><Copy className="size-3" /><span>Copy</span></>
-      }
-    </button>
-  );
-}
-
-/** Renders the five-section PreparationPackage in collapsible cards. */
 export function PreparationView({
   preparation,
   channel,
   onStartReplay,
+  roadmapId,
+  sessionId,
 }: PreparationViewProps) {
+  const [copied, setCopied] = useState(false);
+  const copyOpening = async () => {
+    try {
+      await navigator.clipboard.writeText(preparation.openingScript);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* Clipboard is optional. */
+    }
+  };
   return (
-    <div className="flex flex-col gap-3">
-      {/* Opening script */}
-      <CollapsibleSection
-        title={`Opening script — ${CHANNEL_LABELS[channel]}`}
-        defaultOpen
-      >
-        <div className="flex items-start justify-between gap-2 mb-1.5">
-          <p className="text-[11px] text-muted">
-            Your exact opening — copy and use it as-is.
-          </p>
-          <CopyButton text={preparation.openingScript} />
-        </div>
-        <p className="text-xs text-fg whitespace-pre-wrap rounded-md bg-bg-3/40 border border-rule px-2.5 py-2 leading-relaxed">
+    <section className="flex flex-col gap-8 px-6 py-8 sm:px-10">
+      <div className="flex justify-between font-mono text-[9px] uppercase tracking-[0.18em] text-muted">
+        <span>02 · Preparation dossier</span>
+        <span className="text-accent">{CHANNEL_LABELS[channel]}</span>
+      </div>
+      <section className="border border-rule-strong">
+        <header className="flex justify-between border-b border-rule px-5 py-3 font-mono text-[9px] uppercase tracking-[0.16em] text-muted">
+          <span>Opening · exact language</span>
+          <button
+            type="button"
+            onClick={() => {
+              void copyOpening();
+            }}
+            className="text-accent"
+          >
+            {copied ? "Copied ✓" : "Copy opening"}
+          </button>
+        </header>
+        <p className="whitespace-pre-wrap px-5 py-6 font-serif text-[20px] italic leading-[1.6] text-fg">
           {preparation.openingScript}
         </p>
-      </CollapsibleSection>
-
-      {/* Key asks */}
-      <CollapsibleSection title="Key asks" defaultOpen>
-        <ol className="flex flex-col gap-2 list-none">
-          {preparation.keyAsks.map((item, i) => (
-            <li key={i} className="flex gap-2">
-              <span className="shrink-0 size-4 rounded-full bg-accent/10 text-accent flex items-center justify-center text-[10px] font-bold mt-0.5">
-                {i + 1}
+      </section>
+      <section>
+        <h3 className="mb-3 font-mono text-[9px] uppercase tracking-[0.16em] text-muted">
+          The asks
+        </h3>
+        <ol className="border border-rule-strong">
+          {preparation.keyAsks.map((item, index) => (
+            <li
+              key={`${item.ask}-${index}`}
+              className="grid gap-3 border-b border-rule px-5 py-4 last:border-b-0 sm:grid-cols-[30px_1fr]"
+            >
+              <span className="font-serif text-xl italic text-accent">
+                {index + 1}
               </span>
               <div>
-                <p className="text-[11px] font-medium text-fg">{item.ask}</p>
-                <p className="text-[10px] text-muted mt-0.5">{item.whyItMatters}</p>
+                <p className="text-[14px] font-semibold text-fg">{item.ask}</p>
+                <p className="mt-1 text-[12px] leading-relaxed text-fg-2">
+                  {item.whyItMatters}
+                </p>
               </div>
             </li>
           ))}
         </ol>
-      </CollapsibleSection>
-
-      {/* Objection handling */}
-      <CollapsibleSection title="Objection handling">
-        <div className="flex flex-col gap-3">
-          {preparation.objections.map((item, i) => (
-            <div key={i} className="rounded-md border border-rule overflow-hidden">
-              <div className="px-2.5 py-2 bg-red-500/5 border-b border-rule">
-                <p className="text-[11px] font-medium text-fg/80 italic">&ldquo;{item.objection}&rdquo;</p>
-              </div>
-              <div className="px-2.5 py-2 bg-bg">
-                <p className="text-[11px] text-fg leading-relaxed">{item.response}</p>
-                <p className="text-[10px] text-muted mt-1.5 pt-1.5 border-t border-rule/60">
-                  Grounded in: {item.groundedIn}
+      </section>
+      <MobileDisclosure
+        title={`Objection ledger · ${preparation.objections.length}`}
+      >
+        <h3 className="mb-3 hidden font-mono text-[9px] uppercase tracking-[0.16em] text-muted lg:block">
+          Objection ledger
+        </h3>
+        <div className="border border-rule-strong">
+          {preparation.objections.map((item, index) => (
+            <article
+              key={`${item.objection}-${index}`}
+              className="grid border-b border-rule last:border-b-0 md:grid-cols-[0.8fr_1.2fr]"
+            >
+              <blockquote className="border-b border-rule bg-accent/[0.04] px-5 py-4 font-serif text-[16px] italic text-fg md:border-b-0 md:border-r">
+                “{item.objection}”
+              </blockquote>
+              <div className="px-5 py-4">
+                <p className="text-[13px] leading-relaxed text-fg">
+                  {item.response}
+                </p>
+                <p className="mt-3 border-t border-rule pt-2 font-mono text-[8px] uppercase tracking-[0.12em] text-muted">
+                  Grounded in · {item.groundedIn}
                 </p>
               </div>
-            </div>
+            </article>
           ))}
         </div>
-      </CollapsibleSection>
-
-      {/* Fallback positions */}
-      <CollapsibleSection title="Fallback positions">
-        <div className="flex flex-col gap-2">
-          {preparation.fallbackPositions.map((item, i) => (
-            <div key={i} className="flex gap-2 items-start">
-              <div className="flex-1">
-                <p className="text-[10px] uppercase tracking-wider text-muted mb-0.5">
-                  {item.trigger}
+      </MobileDisclosure>
+      <div className="grid gap-6 md:grid-cols-2">
+        <MobileDisclosure
+          title={`Fallback positions · ${preparation.fallbackPositions.length}`}
+        >
+          <h3 className="mb-3 hidden font-mono text-[9px] uppercase tracking-[0.16em] text-muted lg:block">
+            Fallback positions
+          </h3>
+          <div className="border border-rule-strong">
+            {preparation.fallbackPositions.map((item, index) => (
+              <div
+                key={`${item.trigger}-${index}`}
+                className="border-b border-rule px-4 py-3 last:border-b-0"
+              >
+                <p className="font-mono text-[8px] uppercase tracking-[0.12em] text-accent">
+                  If · {item.trigger}
                 </p>
-                <p className="text-[11px] text-fg leading-relaxed">{item.fallback}</p>
+                <p className="mt-1 text-[12px] leading-relaxed text-fg-2">
+                  {item.fallback}
+                </p>
               </div>
-            </div>
-          ))}
-        </div>
-      </CollapsibleSection>
-
-      {/* Post-conversation checklist */}
-      <CollapsibleSection title="After the conversation">
-        <div className="flex flex-col gap-2">
-          {preparation.postConversationChecklist.map((item, i) => (
-            <div key={i} className="flex gap-2 items-start">
-              <span className="size-4 rounded-sm border border-rule shrink-0 mt-0.5" />
-              <div>
-                <p className="text-[10px] text-accent/80 font-medium">{item.condition}</p>
-                <p className="text-[11px] text-fg">{item.action}</p>
+            ))}
+          </div>
+        </MobileDisclosure>
+        <MobileDisclosure
+          title={`After the conversation · ${preparation.postConversationChecklist.length}`}
+        >
+          <h3 className="mb-3 hidden font-mono text-[9px] uppercase tracking-[0.16em] text-muted lg:block">
+            After the conversation
+          </h3>
+          <div className="border border-rule-strong">
+            {preparation.postConversationChecklist.map((item, index) => (
+              <div
+                key={`${item.condition}-${index}`}
+                className="border-b border-rule px-4 py-3 last:border-b-0"
+              >
+                <p className="font-mono text-[8px] uppercase tracking-[0.12em] text-accent">
+                  When · {item.condition}
+                </p>
+                <p className="mt-1 text-[12px] leading-relaxed text-fg-2">
+                  {item.action}
+                </p>
+                {item.suggestedTool === "outreach_composer" &&
+                  item.composerContext &&
+                  roadmapId &&
+                  sessionId && (
+                    <Link
+                      href={`/tools/outreach-composer?roadmapId=${encodeURIComponent(roadmapId)}&fromCoach=${encodeURIComponent(sessionId)}&checklist=${index}`}
+                      className="mt-3 inline-block border border-rule px-3 py-2 font-mono text-[8px] uppercase tracking-[0.12em] text-accent hover:border-accent"
+                    >
+                      Draft this follow-up →
+                    </Link>
+                  )}
               </div>
-            </div>
-          ))}
-        </div>
-      </CollapsibleSection>
-
+            ))}
+          </div>
+        </MobileDisclosure>
+      </div>
       <button
         type="button"
         onClick={onStartReplay}
-        className="flex items-center justify-center gap-2 rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-bg hover:opacity-90 transition-opacity mt-1"
+        className="sticky bottom-0 z-10 bg-accent px-5 py-4 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-bg [margin-bottom:env(safe-area-inset-bottom)] lg:static lg:mb-0"
       >
-        <PlayCircle className="size-4" />
-        Start rehearsal →
+        Enter rehearsal →
       </button>
-    </div>
+    </section>
   );
 }

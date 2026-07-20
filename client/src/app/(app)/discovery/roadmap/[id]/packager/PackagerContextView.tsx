@@ -1,150 +1,158 @@
-'use client';
-// src/app/(app)/discovery/roadmap/[id]/packager/PackagerContextView.tsx
-//
-// Renders the pre-populated ServiceContext for the founder to confirm
-// or adjust before package generation. "This looks right" proceeds;
-// the inline text input sends an adjustment message that loops the
-// context exchange until status: ready.
+"use client";
 
-import { useState } from 'react';
-import toast from 'react-hot-toast';
-import { Loader2, Search, Sparkles } from 'lucide-react';
-import { Textarea } from '@/components/ui/textarea';
-import { VoiceInputButton } from '@/components/ui/VoiceInputButton';
-import { canUseVoiceMode, useVoiceTier } from '@/lib/voice/client-tier';
-import { trackVoiceEvent } from '@/lib/voice/analytics';
-import type { ServiceContext } from '@/lib/roadmap/service-packager/schemas';
+import { useState } from "react";
+import toast from "react-hot-toast";
+import { VoiceInputButton } from "@/components/ui/VoiceInputButton";
+import { canUseVoiceMode, useVoiceTier } from "@/lib/voice/client-tier";
+import { trackVoiceEvent } from "@/lib/voice/analytics";
+import type { ServiceContext } from "@/lib/roadmap/service-packager/schemas";
 
 export interface PackagerContextViewProps {
-  context:    ServiceContext;
-  pending:    boolean;
+  context: ServiceContext;
+  pending: boolean;
   agentNote?: string | null;
-  onConfirm:  () => void;
-  onAdjust:   (message: string) => void;
+  onConfirm: () => void;
+  onAdjust: (message: string) => void;
 }
 
-/**
- * PackagerContextView
- *
- * Shows the pre-populated summary the agent assembled from the task,
- * belief state, and any research findings. The founder confirms or
- * sends an inline adjustment.
- */
+const CONTEXT_FIELDS: Array<{ key: keyof ServiceContext; label: string }> = [
+  { key: "serviceSummary", label: "Service summary" },
+  { key: "targetMarket", label: "Target market" },
+  { key: "competitorPricing", label: "Competitor pricing" },
+  { key: "founderCosts", label: "Cost context" },
+  { key: "availableHoursPerWeek", label: "Weekly capacity" },
+  { key: "researchFindings", label: "Research evidence" },
+];
+
 export function PackagerContextView({
-  context, pending, agentNote, onConfirm, onAdjust,
+  context,
+  pending,
+  agentNote,
+  onConfirm,
+  onAdjust,
 }: PackagerContextViewProps) {
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState("");
+  const voiceEnabled = canUseVoiceMode(useVoiceTier());
+  const visibleFields = CONTEXT_FIELDS.flatMap(({ key, label }) => {
+    const value = context[key];
+    return typeof value === "string" && value.trim()
+      ? [{ key, label, value }]
+      : [];
+  });
 
-  const voiceTier    = useVoiceTier();
-  const voiceEnabled = canUseVoiceMode(voiceTier);
-
-  const handleVoiceTranscription = (text: string) => {
-    if (!text.trim()) return;
-    setDraft(prev => prev.trim().length > 0 ? `${prev.trim()} ${text}` : text);
-    trackVoiceEvent('voice_transcribed', { surface: 'packager' });
-  };
-
-  const handleVoiceError = (message: string) => {
-    trackVoiceEvent('voice_error', { surface: 'packager', errorMessage: message });
-    toast.error(message);
-  };
-
-  function handleAdjust() {
-    const text = draft.trim();
-    if (!text) return;
-    onAdjust(text);
-    setDraft('');
+  function sendAdjustment() {
+    const message = draft.trim();
+    if (!message || pending) return;
+    onAdjust(message);
+    setDraft("");
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-start gap-2">
-        <Sparkles className="size-4 text-accent shrink-0 mt-0.5" />
-        <p className="text-xs text-fg leading-relaxed">
-          Here&apos;s what the Packager already knows about your service. Confirm if it&apos;s right, or tell me what to adjust.
+    <section className="flex min-h-full flex-col gap-7 px-6 py-8 sm:px-10">
+      <div className="flex justify-between font-mono text-[9px] uppercase tracking-[0.18em] text-muted">
+        <span>01 · Evidence review</span>
+        <span className="text-accent">Confirm</span>
+      </div>
+      <div>
+        <p className="font-serif text-[24px] italic leading-snug text-fg">
+          The Packager found the shape of the offer.
+        </p>
+        <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-fg-2">
+          Check the evidence before it becomes scope and price. Correcting one
+          fact here is more valuable than refining three tiers later.
         </p>
       </div>
-
-      {/* Research-session attribution: when the context carries findings
-          digested from a prior researchSession on this task, surface a
-          small badge so the founder can see the system is using their
-          research work. The badge is purely visual — the findings
-          themselves are already wired into the generation prompt via
-          context.researchFindings below. */}
       {context.researchFindings && (
-        <div className="flex items-center gap-1.5 text-[10px] text-accent rounded-md border border-accent/20 bg-accent/5 px-2.5 py-1.5 self-start">
-          <Search className="size-3 shrink-0" />
-          {context.researchQuery
-            ? `Informed by your research on "${context.researchQuery.length > 60 ? context.researchQuery.slice(0, 57) + '...' : context.researchQuery}"`
-            : 'Using findings from your research session'}
-        </div>
-      )}
-
-      <div className="rounded-lg border border-rule bg-bg-3/20 p-3 flex flex-col gap-2">
-        <ContextRow label="Service summary"        value={context.serviceSummary} />
-        <ContextRow label="Target market"          value={context.targetMarket} />
-        {context.competitorPricing     && <ContextRow label="Competitor pricing"     value={context.competitorPricing} />}
-        {context.founderCosts          && <ContextRow label="Your cost context"      value={context.founderCosts} />}
-        {context.availableHoursPerWeek && <ContextRow label="Available hours/week"   value={context.availableHoursPerWeek} />}
-        {context.researchFindings      && <ContextRow label="Research findings"      value={context.researchFindings} />}
-      </div>
-
-      {agentNote && (
-        <p className="text-[11px] text-muted italic">{agentNote}</p>
-      )}
-
-      <div className="flex flex-col gap-2">
-        <label className="text-[11px] uppercase tracking-wider text-muted">
-          Want to adjust anything?
-        </label>
-        <div className="flex items-start gap-2">
-          <Textarea
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            rows={2}
-            placeholder='e.g. "actually I want to focus on guest houses, not hotels"'
-            disabled={pending}
-            className="min-h-0 flex-1 resize-none py-2 text-xs"
-          />
-          {voiceEnabled && (
-            <VoiceInputButton
-              onTranscription={handleVoiceTranscription}
-              onError={handleVoiceError}
-              disabled={pending}
-              className="shrink-0"
-            />
+        <div className="border-l-2 border-accent bg-accent/[0.04] px-4 py-3">
+          <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-accent">
+            Informed by research
+          </p>
+          {context.researchQuery && (
+            <p className="mt-1 text-[12px] text-fg-2">
+              {context.researchQuery}
+            </p>
           )}
         </div>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onConfirm}
+      )}
+      <dl className="border border-rule-strong">
+        {visibleFields.map(({ key, label, value }, index) => (
+          <div
+            key={key}
+            className={`grid gap-2 px-5 py-4 sm:grid-cols-[140px_1fr] ${index > 0 ? "border-t border-rule" : ""}`}
+          >
+            <dt className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted">
+              {label}
+            </dt>
+            <dd className="whitespace-pre-wrap text-[13px] leading-relaxed text-fg-2">
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {agentNote && (
+        <p className="border-l border-rule pl-4 font-serif text-[15px] italic leading-relaxed text-muted">
+          {agentNote}
+        </p>
+      )}
+      <div className="border border-rule bg-bg-2 focus-within:border-accent">
+        <label
+          htmlFor="packager-context-correction"
+          className="block border-b border-rule px-4 py-2 font-mono text-[9px] uppercase tracking-[0.16em] text-muted"
+        >
+          Correct or add context
+        </label>
+        <textarea
+          id="packager-context-correction"
+          aria-describedby="packager-context-help"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          placeholder="What did the Packager misunderstand or miss?"
           disabled={pending}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md bg-accent px-4 py-2 text-xs font-semibold text-bg hover:bg-accent/90 transition-colors disabled:opacity-60"
+          className="min-h-[86px] w-full resize-none bg-transparent px-4 py-3 font-serif text-[17px] italic text-fg outline-none placeholder:text-muted-2 disabled:opacity-50"
+        />
+        <p
+          id="packager-context-help"
+          className="border-t border-rule px-4 py-2 text-[11px] leading-relaxed text-muted"
         >
-          {pending ? <Loader2 className="size-3.5 animate-spin" /> : null}
-          This looks right — generate the package
-        </button>
-        <button
-          type="button"
-          onClick={handleAdjust}
-          disabled={pending || draft.trim().length === 0}
-          className="rounded-md border border-rule px-3 py-2 text-xs font-medium text-fg hover:bg-bg-3 transition-colors disabled:opacity-60"
-        >
-          Send adjustment
-        </button>
+          Corrections are reviewed before the package is generated.
+        </p>
+        <div className="flex items-center justify-between border-t border-rule px-3 py-2">
+          {voiceEnabled ? (
+            <VoiceInputButton
+              onTranscription={(text) => {
+                setDraft((current) => (current ? `${current} ${text}` : text));
+                trackVoiceEvent("voice_transcribed", { surface: "packager" });
+              }}
+              onError={(message) => {
+                trackVoiceEvent("voice_error", {
+                  surface: "packager",
+                  errorMessage: message,
+                });
+                toast.error(message);
+              }}
+              disabled={pending}
+            />
+          ) : (
+            <span />
+          )}
+          <button
+            type="button"
+            onClick={sendAdjustment}
+            disabled={pending || !draft.trim()}
+            className="font-mono text-[9px] uppercase tracking-[0.14em] text-fg hover:text-accent disabled:opacity-35"
+          >
+            Send correction →
+          </button>
+        </div>
       </div>
-    </div>
-  );
-}
-
-function ContextRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <p className="text-[10px] uppercase tracking-wider text-muted">{label}</p>
-      <p className="text-[11px] text-fg whitespace-pre-wrap leading-relaxed">{value}</p>
-    </div>
+      <button
+        type="button"
+        onClick={onConfirm}
+        disabled={pending}
+        className="sticky bottom-0 z-10 mt-auto bg-accent px-5 py-4 font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-bg [margin-bottom:env(safe-area-inset-bottom)] disabled:opacity-35 lg:static lg:mb-0"
+      >
+        Evidence is right · build the tiers →
+      </button>
+    </section>
   );
 }

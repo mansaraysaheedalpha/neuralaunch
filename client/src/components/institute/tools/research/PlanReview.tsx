@@ -1,4 +1,4 @@
-'use client';
+"use client";
 // src/components/institute/tools/research/PlanReview.tsx
 //
 // Plan-review surface — the engine's plan engine ran on the founder's
@@ -7,15 +7,15 @@
 // textarea, accent approve CTA. Engine flow preserved verbatim (this
 // was the existing plan_review stage from ResearchFlow).
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 
 export interface PlanReviewProps {
-  query:          string;
-  plan:           string;
-  estimatedTime:  string;
-  busy?:          boolean;
-  onApprove:      (editedPlan: string) => void;
-  onCancel:       () => void;
+  query: string;
+  plan: string;
+  estimatedTime: string;
+  busy?: boolean;
+  onApprove: (editedPlan: string) => void;
+  onCancel: () => void;
 }
 
 export function PlanReview({
@@ -30,7 +30,9 @@ export function PlanReview({
 
   // Keep the textarea synced when the parent's plan updates (e.g. a
   // freshly loaded session).
-  useEffect(() => { setDraft(plan); }, [plan]);
+  useEffect(() => {
+    setDraft(plan);
+  }, [plan]);
 
   function handleApprove() {
     const final = draft.trim();
@@ -49,15 +51,30 @@ export function PlanReview({
         </p>
       </div>
 
+      <label
+        htmlFor="research-plan"
+        className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted"
+      >
+        Editable research plan
+      </label>
       <textarea
+        id="research-plan"
+        aria-describedby="research-plan-help"
         value={draft}
-        onChange={e => setDraft(e.target.value)}
+        onChange={(e) => setDraft(e.target.value)}
         disabled={busy}
         rows={12}
         className="block w-full resize-y border border-rule bg-bg-2 px-4 py-3 font-sans text-[14px] leading-[1.6] text-fg placeholder:text-muted focus:border-accent focus:outline-none disabled:opacity-60"
       />
+      <p
+        id="research-plan-help"
+        className="text-[12px] leading-relaxed text-muted"
+      >
+        Review the sources and questions before approving. Your edits are used
+        for this research run.
+      </p>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="sticky bottom-0 z-10 grid grid-cols-2 gap-3 border-t border-rule bg-bg py-3 [padding-bottom:max(0.75rem,env(safe-area-inset-bottom))] lg:static lg:flex lg:flex-wrap lg:border-t-0 lg:py-0">
         <button
           type="button"
           onClick={handleApprove}
