@@ -40,8 +40,8 @@ export function TopBar({ crumb, rightStatus, rightActions, className }: TopBarPr
   return (
     <header
       className={[
-        'sticky top-0 z-50 flex h-14 items-center justify-between',
-        'border-b border-rule px-9',
+        'sticky top-0 z-50 flex min-h-14 max-w-full items-center justify-between gap-3 overflow-hidden',
+        'border-b border-rule px-4 py-2 sm:px-9 sm:py-0',
         'font-mono text-[11px] uppercase tracking-[0.14em] text-muted',
         'backdrop-blur-md',
         // bg with ~90% opacity so the blur layer reads behind. var(--bg)
@@ -51,12 +51,12 @@ export function TopBar({ crumb, rightStatus, rightActions, className }: TopBarPr
         className ?? '',
       ].filter(Boolean).join(' ')}
     >
-      <div className="flex items-center gap-[18px]">
+      <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-[18px]">
         <BrandMark />
-        <nav aria-label="Breadcrumb">
-          <ol className="flex items-center gap-0">
+        <nav aria-label="Breadcrumb" className="min-w-0 overflow-hidden">
+          <ol className="flex min-w-0 items-center gap-0">
             {crumb.map((item, i) => (
-              <li key={`${item.label}-${i}`} className="flex items-center">
+              <li key={`${item.label}-${i}`} className={`${i < crumb.length - 1 ? 'hidden sm:flex' : 'flex min-w-0'} items-center`}>
                 {i > 0 && (
                   <span aria-hidden="true" className="mx-2 text-muted">/</span>
                 )}
@@ -68,9 +68,9 @@ export function TopBar({ crumb, rightStatus, rightActions, className }: TopBarPr
       </div>
 
       {(rightStatus || rightActions) && (
-        <div className="flex items-center gap-[22px]">
+        <div className="flex shrink-0 items-center gap-3 sm:gap-[22px]">
           {rightStatus}
-          {rightActions}
+          <span className="hidden sm:inline-flex">{rightActions}</span>
         </div>
       )}
     </header>
@@ -87,7 +87,7 @@ function BrandMark() {
   return (
     <span
       aria-hidden="true"
-      className="relative inline-block h-4 w-4 rounded-full bg-accent"
+      className="relative hidden h-4 w-4 shrink-0 rounded-full bg-accent sm:inline-block"
     >
       <span className="absolute inset-1 rounded-full bg-bg" />
     </span>
@@ -106,7 +106,7 @@ function CrumbSegment({ item }: { item: BreadcrumbItem }) {
     return (
       <a
         href={item.href}
-        className={`${tone} transition-colors hover:text-fg`}
+        className={`${tone} block truncate transition-colors hover:text-fg`}
       >
         {item.label}
       </a>
@@ -115,7 +115,7 @@ function CrumbSegment({ item }: { item: BreadcrumbItem }) {
   return (
     <span
       aria-current={item.current ? 'page' : undefined}
-      className={tone}
+      className={`${tone} block truncate`}
     >
       {item.label}
     </span>
@@ -139,10 +139,10 @@ export function Pill({ children, accent, className }: PillProps) {
   return (
     <span
       className={[
-        'inline-flex items-center px-[10px] py-[5px]',
+        'inline-flex items-center px-2 py-1 sm:px-[10px] sm:py-[5px]',
         'border',
         accent ? 'border-accent text-accent' : 'border-rule-strong text-muted',
-        'font-mono text-[11px] uppercase tracking-[0.14em]',
+        'font-mono text-[9px] uppercase tracking-[0.1em] sm:text-[11px] sm:tracking-[0.14em]',
         className ?? '',
       ].filter(Boolean).join(' ')}
     >

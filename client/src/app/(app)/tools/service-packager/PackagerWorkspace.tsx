@@ -43,6 +43,7 @@ interface PackagerWorkspaceProps {
   historyRefreshKey: number;
   generateJob: ToolJobStatus | null;
   adjustJob: ToolJobStatus | null;
+  operationStatus: "stopped" | "running_unknown" | "completed_not_loaded";
   onDraftChange: (value: string) => void;
   onStart: (description: string) => void;
   onNew: () => void;
@@ -91,7 +92,7 @@ export function PackagerWorkspace(props: PackagerWorkspaceProps) {
           }
           workPreserved="Your description, confirmed context, and last saved package remain available."
           leaveGuidance="Saved packages remain in history. Copy any unsent adjustment text before leaving."
-          operationStatus="stopped"
+          operationStatus={props.operationStatus}
           usageStatus="may_be_consumed"
           className="border-x-0 border-t-0 px-6 sm:px-10"
         />

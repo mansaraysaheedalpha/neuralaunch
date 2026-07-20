@@ -21,20 +21,20 @@ export default function AppShell({ children }: AppShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="flex min-h-dvh w-full bg-bg text-fg">
+    <div className="flex min-h-dvh w-full max-w-full overflow-x-hidden bg-bg text-fg">
       <AppSidebar
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
       />
 
-      <div className="relative flex min-w-0 flex-1 flex-col">
+      <div className="relative flex w-full min-w-0 max-w-full flex-1 flex-col overflow-x-hidden">
         <AppMobileBar onOpen={() => setMobileOpen(true)} />
 
         {/* Mobile upgrade CTA — only renders for authenticated Free-tier
             users, only on mobile. Floats above content. */}
         <MobileUpgradePill />
 
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">{children}</main>
 
         {/* Floating background-jobs banner — polls /tool-jobs/active
             and surfaces in-flight ToolJob rows so the founder always

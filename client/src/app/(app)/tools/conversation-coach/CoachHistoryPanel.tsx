@@ -65,7 +65,7 @@ export function CoachHistoryPanel({
   onSelect,
   refreshKey,
 }: CoachHistoryPanelProps) {
-  const { data, error, isLoading } = useSWR<SessionsListResponse, Error>(
+  const { data, error, isLoading, mutate } = useSWR<SessionsListResponse, Error>(
     `/api/discovery/roadmaps/${roadmapId}/coach/sessions?k=${refreshKey ?? ""}`,
     fetcher,
     { revalidateOnFocus: false, shouldRetryOnError: false },
@@ -88,6 +88,9 @@ export function CoachHistoryPanel({
         <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-accent">
           Rehearsal ledger unavailable
         </p>
+        <button type="button" onClick={() => void mutate()} className="mt-3 font-mono text-[9px] uppercase tracking-[0.14em] text-fg underline underline-offset-4">
+          Retry history
+        </button>
       </div>
     );
   }

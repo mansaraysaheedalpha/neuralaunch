@@ -16,6 +16,7 @@ export { ToolsLedger } from "./ToolsLedger";
 export type { ToolListing, ToolsLedgerProps } from "./ToolsLedger";
 
 export { ToolShellLoading, ToolShellNoRoadmap } from "./ToolShellStates";
+export { ToolShellLoadError } from "./ToolShellStates";
 export type { ToolShellNoRoadmapProps } from "./ToolShellStates";
 
 export { DecisionFooter } from "./DecisionFooter";

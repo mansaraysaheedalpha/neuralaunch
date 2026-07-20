@@ -3,6 +3,7 @@
 import {
   ToolShell,
   ToolShellLoading,
+  ToolShellLoadError,
   ToolShellNoRoadmap,
 } from "@/components/institute/tools";
 import { CoachWorkspace } from "./CoachWorkspace";
@@ -28,6 +29,8 @@ const SHELL = {
 
 export default function StandaloneCoachPage() {
   const c = useCoachController();
+  if (c.stage === "loading" && c.error)
+    return <ToolShellLoadError {...SHELL} message={c.error} />;
   if (c.stage === "no_roadmap")
     return (
       <ToolShellNoRoadmap
@@ -51,6 +54,7 @@ export default function StandaloneCoachPage() {
         meterRefreshKey={c.meterRefreshKey}
         historyRefreshKey={c.historyRefreshKey}
         prepareJob={c.prepareJob}
+        operationStatus={c.operationStatus}
         onNew={c.newSession}
         onSelect={(id) => {
           void c.selectSession(id);

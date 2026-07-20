@@ -20,10 +20,25 @@ const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI'];
 export function PhaseRail({ phases, selected, onSelect }: PhaseRailProps) {
   return (
     <nav className="lg:sticky lg:top-14 lg:self-start" aria-label="Phases">
-      <div className="mb-[18px] font-mono text-[10px] uppercase tracking-[0.18em] text-muted">
+      <label htmlFor="mobile-phase-select" className="mb-2 block font-mono text-[10px] uppercase tracking-[0.18em] text-muted lg:hidden">
+        Phases
+      </label>
+      <select
+        id="mobile-phase-select"
+        value={selected}
+        onChange={(event) => onSelect(Number(event.target.value))}
+        className="min-h-11 w-full border border-rule-strong bg-bg px-3 font-mono text-[11px] uppercase tracking-[0.1em] text-fg lg:hidden"
+      >
+        {phases.map((phase, index) => (
+          <option key={phase.phase} value={phase.phase}>
+            {ROMAN[index] ?? phase.phase}. {phase.title}
+          </option>
+        ))}
+      </select>
+      <div className="mb-[18px] hidden font-mono text-[10px] uppercase tracking-[0.18em] text-muted lg:block">
         Phases
       </div>
-      <ol className="grid gap-0.5">
+      <ol className="hidden gap-0.5 lg:grid">
         {phases.map((p, i) => {
           const total = p.tasks.length;
           const done = p.tasks.filter((t) => t.status === 'completed').length;

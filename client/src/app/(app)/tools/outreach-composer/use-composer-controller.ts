@@ -49,7 +49,13 @@ export function useComposerController() {
   const [meterRefreshKey, setMeterRefreshKey] = useState(0);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [generateJobId, setGenerateJobId] = useState<string | null>(null);
-  const { job: generateJob } = useToolJob({ jobId: generateJobId, roadmapId });
+  const {
+    job: generateJob,
+    error: generatePollError,
+    timedOut: generateTimedOut,
+  } = useToolJob({ jobId: generateJobId, roadmapId });
+  const generateStage = generateJob?.stage;
+  const generateErrorMessage = generateJob?.errorMessage;
 
   const refreshUsageAndHistory = useCallback(() => {
     setMeterRefreshKey((key) => key + 1);
@@ -82,10 +88,13 @@ export function useComposerController() {
     async (targetSessionId: string) => {
       if (!roadmapId) return;
       try {
-        if (await hydrateSession(roadmapId, targetSessionId))
-          updateSessionUrl(targetSessionId);
+        if (!(await hydrateSession(roadmapId, targetSessionId))) {
+          throw new Error("That saved outreach session could not be loaded.");
+        }
+        updateSessionUrl(targetSessionId);
+        setError(null);
       } catch {
-        /* The ledger remains available for retry. */
+        setError("That saved outreach session could not be loaded. Select it again to retry.");
       }
     },
     [hydrateSession, roadmapId],
@@ -109,8 +118,7 @@ export function useComposerController() {
       try {
         const response = await fetch("/api/discovery/roadmaps/has-any");
         if (!response.ok) {
-          setStage("no_roadmap");
-          return;
+          throw new Error("Could not check your roadmap. Please reload the tool.");
         }
         const data = (await response.json()) as {
           hasRoadmap: boolean;
@@ -127,8 +135,9 @@ export function useComposerController() {
         if (sessionIdFromUrl) {
           try {
             if (await hydrateSession(data.roadmapId, sessionIdFromUrl)) return;
+            throw new Error("Saved outreach unavailable");
           } catch {
-            /* Start fresh. */
+            setError("The requested saved outreach could not be loaded. You can retry it from history.");
           }
         }
         const handoffParams = readPackagerHandoffParams();
@@ -145,8 +154,8 @@ export function useComposerController() {
           if (seed) setSeedDraft(seed);
         }
         setStage("context");
-      } catch {
-        setStage("no_roadmap");
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Could not load the tool.");
       }
     })();
   }, [hydrateSession]);
@@ -203,13 +212,30 @@ export function useComposerController() {
   );
 
   useEffect(() => {
-    if (generateJob?.stage !== "complete" || !roadmapId || !sessionId) return;
-    void hydrateSession(roadmapId, sessionId).finally(() => {
+    if (!generateStage || !roadmapId || !sessionId) return;
+    if (generateStage === "failed") {
+      setError(generateErrorMessage ?? "Message generation failed.");
       setGenerateJobId(null);
+      setStage("context");
       refreshUsageAndHistory();
-    });
+      return;
+    }
+    if (generateStage !== "complete") return;
+    void (async () => {
+      try {
+        if (!(await hydrateSession(roadmapId, sessionId))) {
+          throw new Error("The messages were saved but could not be loaded.");
+        }
+        setGenerateJobId(null);
+        setError(null);
+        refreshUsageAndHistory();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "The saved messages could not be loaded.");
+      }
+    })();
   }, [
-    generateJob?.stage,
+    generateErrorMessage,
+    generateStage,
     hydrateSession,
     refreshUsageAndHistory,
     roadmapId,
@@ -218,10 +244,28 @@ export function useComposerController() {
 
   const retryGenerate = useCallback(() => {
     if (!context || !mode || !channel) return;
+    if (generateJob?.stage === "complete" && roadmapId && sessionId) {
+      void hydrateSession(roadmapId, sessionId).then((loaded) => {
+        if (!loaded) return;
+        setGenerateJobId(null);
+        setError(null);
+        refreshUsageAndHistory();
+      });
+      return;
+    }
     setGenerateJobId(null);
     setError(null);
     void generate(context, mode, channel);
-  }, [channel, context, generate, mode]);
+  }, [channel, context, generate, generateJob?.stage, hydrateSession, mode, refreshUsageAndHistory, roadmapId, sessionId]);
+
+  const operationStatus = generatePollError || generateTimedOut
+    ? "running_unknown" as const
+    : generateJob?.stage === "complete" && error
+      ? "completed_not_loaded" as const
+      : "stopped" as const;
+  const displayError = error ?? (generatePollError || generateTimedOut
+    ? "The server status could not be confirmed. Message generation may still be running."
+    : null);
 
   return {
     roadmapId,
@@ -232,11 +276,12 @@ export function useComposerController() {
     output,
     sessionId,
     sentMessageIds,
-    error,
+    error: displayError,
     seedDraft,
     meterRefreshKey,
     historyRefreshKey,
     generateJob,
+    operationStatus,
     refreshUsageAndHistory,
     selectSession,
     newSession,

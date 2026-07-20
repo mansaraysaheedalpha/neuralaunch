@@ -48,7 +48,7 @@ export function PackagerHistoryPanel({
   onSelect,
   refreshKey,
 }: PackagerHistoryPanelProps) {
-  const { data, error, isLoading } = useSWR<SessionsListResponse, Error>(
+  const { data, error, isLoading, mutate } = useSWR<SessionsListResponse, Error>(
     `/api/discovery/roadmaps/${roadmapId}/packager/sessions?k=${refreshKey ?? ""}`,
     fetcher,
     { revalidateOnFocus: false, shouldRetryOnError: false },
@@ -71,6 +71,9 @@ export function PackagerHistoryPanel({
         <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-accent">
           Package ledger unavailable
         </p>
+        <button type="button" onClick={() => void mutate()} className="mt-3 font-mono text-[9px] uppercase tracking-[0.14em] text-fg underline underline-offset-4">
+          Retry history
+        </button>
       </div>
     );
   }

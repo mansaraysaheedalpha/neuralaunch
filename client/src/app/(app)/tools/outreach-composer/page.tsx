@@ -3,6 +3,7 @@
 import {
   ToolShell,
   ToolShellLoading,
+  ToolShellLoadError,
   ToolShellNoRoadmap,
 } from "@/components/institute/tools";
 import { ComposerWorkspace } from "./ComposerWorkspace";
@@ -29,6 +30,8 @@ const SHELL = {
 
 export default function StandaloneComposerPage() {
   const controller = useComposerController();
+  if (controller.stage === "loading" && controller.error)
+    return <ToolShellLoadError {...SHELL} message={controller.error} />;
   if (controller.stage === "no_roadmap")
     return (
       <ToolShellNoRoadmap
@@ -54,6 +57,7 @@ export default function StandaloneComposerPage() {
         meterRefreshKey={controller.meterRefreshKey}
         historyRefreshKey={controller.historyRefreshKey}
         generateJob={controller.generateJob}
+        operationStatus={controller.operationStatus}
         onNew={controller.newSession}
         onSelect={(id) => {
           void controller.selectSession(id);

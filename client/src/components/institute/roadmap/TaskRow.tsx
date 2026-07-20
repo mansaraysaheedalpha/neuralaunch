@@ -87,13 +87,13 @@ export function TaskRow({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="grid w-full grid-cols-[50px_1fr_auto] items-center gap-[18px] px-[22px] py-[18px] text-left"
+        className="grid w-full min-w-0 grid-cols-[28px_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-3 py-4 text-left sm:grid-cols-[50px_minmax(0,1fr)_auto] sm:gap-[18px] sm:px-[22px] sm:py-[18px]"
       >
         <StatusCircle done={done} now={now} blocked={blocked} />
         <div className="min-w-0">
           <div
             className={[
-              'text-[16.5px] font-medium',
+              'break-words text-[15px] font-medium sm:text-[16.5px]',
               done ? 'text-muted line-through decoration-muted-2' : 'text-fg',
             ].join(' ')}
           >
@@ -109,7 +109,7 @@ export function TaskRow({
             {checkInCount > 0 && <span> · {checkInCount} check-in{checkInCount === 1 ? '' : 's'}</span>}
           </div>
         </div>
-        <div className="flex items-center gap-3.5 font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
+        <div className="col-span-2 flex items-center justify-between gap-3 pl-10 font-mono text-[9px] uppercase tracking-[0.1em] text-muted sm:col-span-1 sm:justify-start sm:pl-0 sm:text-[10px] sm:tracking-[0.12em]">
           <span>
             Est. <span className="text-fg">{ck.task.timeEstimate}</span>
           </span>
@@ -122,7 +122,7 @@ export function TaskRow({
 
       {/* Expanded detail */}
       {open && (
-        <div className="border-t border-rule bg-bg-2 px-[22px] py-5 pl-[90px]">
+        <div className="min-w-0 border-t border-rule bg-bg-2 px-3 py-5 sm:px-[22px] sm:pl-[90px]">
           {/* Why */}
           {ck.task.rationale && (
             <p className="mb-4 max-w-[560px] text-[14.5px] leading-[1.6] text-fg-2">

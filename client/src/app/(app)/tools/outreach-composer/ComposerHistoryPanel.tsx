@@ -49,7 +49,7 @@ export function ComposerHistoryPanel({
   onSelect,
   refreshKey,
 }: ComposerHistoryPanelProps) {
-  const { data, error, isLoading } = useSWR<SessionsListResponse, Error>(
+  const { data, error, isLoading, mutate } = useSWR<SessionsListResponse, Error>(
     `/api/discovery/roadmaps/${roadmapId}/composer/sessions?k=${refreshKey ?? ""}`,
     fetcher,
     { revalidateOnFocus: false, shouldRetryOnError: false },
@@ -72,6 +72,9 @@ export function ComposerHistoryPanel({
         <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-accent">
           Dispatch ledger unavailable
         </p>
+        <button type="button" onClick={() => void mutate()} className="mt-3 font-mono text-[9px] uppercase tracking-[0.14em] text-fg underline underline-offset-4">
+          Retry history
+        </button>
       </div>
     );
   }

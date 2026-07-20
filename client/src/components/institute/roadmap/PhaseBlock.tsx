@@ -38,19 +38,19 @@ export function PhaseBlock({
 
   return (
     <section id={`phase-${phase.phase}`} className="mb-15">
-      <div className="mb-6 grid grid-cols-[auto_1fr_auto] items-baseline gap-6 border-b border-rule pb-[18px]">
-        <div className="font-serif text-[48px] italic leading-[0.9] tracking-[-0.01em] text-accent">
+      <div className="mb-5 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-2 border-b border-rule pb-4 sm:mb-6 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:gap-6 sm:pb-[18px]">
+        <div className="font-serif text-[34px] italic leading-[0.9] tracking-[-0.01em] text-accent sm:text-[48px]">
           {romanIndex}.
         </div>
-        <div>
-          <h2 className="font-sans text-[30px] font-medium leading-[1.05] tracking-[-0.015em] text-fg">
+        <div className="min-w-0">
+          <h2 className="break-words font-sans text-[24px] font-medium leading-[1.08] tracking-[-0.015em] text-fg sm:text-[30px]">
             {phase.title}
           </h2>
-          <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">
+          <div className="mt-1 break-words font-mono text-[9px] uppercase tracking-[0.1em] text-muted sm:text-[10px] sm:tracking-[0.14em]">
             {weekLabel} · {phase.objective ? truncate(phase.objective, 70) : `${total} tasks`}
           </div>
         </div>
-        <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+        <div className="col-span-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted sm:col-span-1 sm:text-[11px] sm:tracking-[0.14em]">
           <span className={allDone ? 'text-accent' : undefined}>
             {done} / {total} {allDone ? 'done' : total === 0 ? '' : '· current'}
           </span>

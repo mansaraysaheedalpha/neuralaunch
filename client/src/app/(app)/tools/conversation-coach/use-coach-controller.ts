@@ -51,7 +51,10 @@ export function useCoachController() {
   const [meterRefreshKey, setMeterRefreshKey] = useState(0);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [prepareJobId, setPrepareJobId] = useState<string | null>(null);
-  const { job: prepareJob } = useToolJob({ jobId: prepareJobId, roadmapId });
+  const preparePoll = useToolJob({ jobId: prepareJobId, roadmapId });
+  const prepareJob = preparePoll.job;
+  const prepareStage = prepareJob?.stage;
+  const prepareErrorMessage = prepareJob?.errorMessage;
 
   const refreshUsageAndHistory = useCallback(() => {
     setMeterRefreshKey((key) => key + 1);
@@ -90,10 +93,13 @@ export function useCoachController() {
     async (targetSessionId: string) => {
       if (!roadmapId) return;
       try {
-        if (await hydrateSession(roadmapId, targetSessionId))
-          updateSessionUrl(targetSessionId);
+        if (!(await hydrateSession(roadmapId, targetSessionId))) {
+          throw new Error("That saved rehearsal could not be loaded.");
+        }
+        updateSessionUrl(targetSessionId);
+        setError(null);
       } catch {
-        /* Retry remains available. */
+        setError("That saved rehearsal could not be loaded. Select it again to retry.");
       }
     },
     [hydrateSession, roadmapId],
@@ -115,8 +121,7 @@ export function useCoachController() {
       try {
         const response = await fetch("/api/discovery/roadmaps/has-any");
         if (!response.ok) {
-          setStage("no_roadmap");
-          return;
+          throw new Error("Could not check your roadmap. Please reload the tool.");
         }
         const data = (await response.json()) as {
           hasRoadmap: boolean;
@@ -133,8 +138,9 @@ export function useCoachController() {
         if (restoreId) {
           try {
             if (await hydrateSession(data.roadmapId, restoreId)) return;
+            throw new Error("Saved rehearsal unavailable");
           } catch {
-            /* Continue to handoff. */
+            setError("The requested saved rehearsal could not be loaded. You can retry it from history.");
           }
         }
         const composerParams = readComposerHandoffParams();
@@ -156,8 +162,8 @@ export function useCoachController() {
           }
         }
         setStage("setup");
-      } catch {
-        setStage("no_roadmap");
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "Could not load the tool.");
       }
     })();
   }, [hydrateSession]);
@@ -200,14 +206,31 @@ export function useCoachController() {
   );
 
   useEffect(() => {
-    if (prepareJob?.stage !== "complete" || !roadmapId || !sessionId) return;
-    void hydrateSession(roadmapId, sessionId).finally(() => {
+    if (!prepareStage || !roadmapId || !sessionId) return;
+    if (prepareStage === "failed") {
+      setError(prepareErrorMessage ?? "Conversation preparation failed.");
       setPrepareJobId(null);
+      setStage("setup");
       refreshUsageAndHistory();
-    });
+      return;
+    }
+    if (prepareStage !== "complete") return;
+    void (async () => {
+      try {
+        if (!(await hydrateSession(roadmapId, sessionId))) {
+          throw new Error("The preparation was saved but could not be loaded.");
+        }
+        setPrepareJobId(null);
+        setError(null);
+        refreshUsageAndHistory();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "The saved preparation could not be loaded.");
+      }
+    })();
   }, [
     hydrateSession,
-    prepareJob?.stage,
+    prepareErrorMessage,
+    prepareStage,
     refreshUsageAndHistory,
     roadmapId,
     sessionId,
@@ -215,10 +238,19 @@ export function useCoachController() {
 
   const retryPrepare = useCallback(() => {
     if (!setup || !sessionId) return;
+    if (prepareJob?.stage === "complete" && roadmapId) {
+      void hydrateSession(roadmapId, sessionId).then((loaded) => {
+        if (!loaded) return;
+        setPrepareJobId(null);
+        setError(null);
+        refreshUsageAndHistory();
+      });
+      return;
+    }
     setPrepareJobId(null);
     setError(null);
     void prepare(setup, sessionId);
-  }, [prepare, sessionId, setup]);
+  }, [hydrateSession, prepare, prepareJob?.stage, refreshUsageAndHistory, roadmapId, sessionId, setup]);
 
   const endRolePlay = useCallback(async () => {
     if (!roadmapId || !sessionId) return;
@@ -245,6 +277,16 @@ export function useCoachController() {
     }
   }, [refreshUsageAndHistory, roadmapId, sessionId]);
 
+  const pollingUnknown = preparePoll.error || preparePoll.timedOut;
+  const operationStatus = pollingUnknown
+    ? "running_unknown" as const
+    : prepareJob?.stage === "complete" && error
+      ? "completed_not_loaded" as const
+      : "stopped" as const;
+  const displayError = error ?? (pollingUnknown
+    ? "The server status could not be confirmed. Preparation may still be running."
+    : null);
+
   return {
     roadmapId,
     stage,
@@ -252,7 +294,8 @@ export function useCoachController() {
     sessionId,
     preparation,
     debrief,
-    error,
+    error: displayError,
+    operationStatus,
     seedDraft,
     meterRefreshKey,
     historyRefreshKey,

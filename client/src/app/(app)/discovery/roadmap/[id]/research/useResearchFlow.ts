@@ -44,6 +44,7 @@ export interface UseResearchFlowResult {
     round: number;
   }>;
   error: string | null;
+  operationStatus: "stopped" | "running_unknown" | "completed_not_loaded";
   followUpLoading: boolean;
   /** In-flight execute job (null when no job is running). Drives the
    *  ToolJobProgress ladder rendered while stage === 'executing'. */
@@ -122,8 +123,10 @@ export function useResearchFlow(input: {
 
   // Polling hooks for the two long-running operations. Both hooks no-op
   // when their jobId is null (idle state).
-  const { job: executeJob } = useToolJob({ jobId: executeJobId, roadmapId });
-  const { job: followupJob } = useToolJob({ jobId: followupJobId, roadmapId });
+  const executePoll = useToolJob({ jobId: executeJobId, roadmapId });
+  const followupPoll = useToolJob({ jobId: followupJobId, roadmapId });
+  const executeJob = executePoll.job;
+  const followupJob = followupPoll.job;
 
   // When the execute job hits 'complete', fetch the session to load
   // the report into local state and transition the UI to 'report'.
@@ -360,6 +363,17 @@ export function useResearchFlow(input: {
     setError(null);
   }, []);
 
+  const pollingUnknown = executePoll.error || executePoll.timedOut
+    || followupPoll.error || followupPoll.timedOut;
+  const operationStatus = pollingUnknown
+    ? "running_unknown" as const
+    : executeJob?.stage === "complete" && error
+      ? "completed_not_loaded" as const
+      : "stopped" as const;
+  const displayError = error ?? (pollingUnknown
+    ? "The server status could not be confirmed. Research may still be running; do not start a duplicate run yet."
+    : null);
+
   return {
     stage,
     query,
@@ -368,7 +382,8 @@ export function useResearchFlow(input: {
     report,
     sessionId,
     followUps,
-    error,
+    error: displayError,
+    operationStatus,
     followUpLoading,
     executeJob,
     followupJob,

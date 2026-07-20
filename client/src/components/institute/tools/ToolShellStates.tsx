@@ -10,6 +10,7 @@
 import Link from 'next/link';
 import { Loader2 } from 'lucide-react';
 import { ToolShell, type ToolShellProps } from './ToolShell';
+import { ToolRecoveryNotice } from './ToolRecoveryNotice';
 
 type ToolShellSlot = Omit<ToolShellProps, 'children'>;
 
@@ -24,6 +25,23 @@ export function ToolShellLoading(props: ToolShellSlot) {
       <div className="flex items-center justify-center py-24">
         <Loader2 aria-hidden="true" className="size-6 text-accent animate-spin" />
       </div>
+    </ToolShell>
+  );
+}
+
+export function ToolShellLoadError(props: ToolShellSlot & { message: string }) {
+  const { message, ...shell } = props;
+  return (
+    <ToolShell {...shell}>
+      <ToolRecoveryNotice
+        message={message}
+        onRetry={() => window.location.reload()}
+        retryLabel="Reload tool"
+        workPreserved="No existing saved tool work was changed."
+        leaveGuidance="It is safe to leave and return later."
+        operationStatus="stopped"
+        usageStatus="not_consumed"
+      />
     </ToolShell>
   );
 }

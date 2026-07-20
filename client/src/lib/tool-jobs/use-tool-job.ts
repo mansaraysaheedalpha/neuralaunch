@@ -54,6 +54,7 @@ export interface UseToolJobResult {
   isTerminal: boolean;
   isFailed:   boolean;
   error:      Error | null;
+  timedOut:   boolean;
 }
 
 export function useToolJob({ jobId, roadmapId }: UseToolJobInput): UseToolJobResult {
@@ -64,6 +65,7 @@ export function useToolJob({ jobId, roadmapId }: UseToolJobInput): UseToolJobRes
     if (typeof document === 'undefined') return true;
     return document.visibilityState !== 'hidden';
   });
+  const [timedOutJobId, setTimedOutJobId] = useState<string | null>(null);
   useEffect(() => {
     const handler = () => setIsVisible(document.visibilityState !== 'hidden');
     document.addEventListener('visibilitychange', handler);
@@ -78,7 +80,11 @@ export function useToolJob({ jobId, roadmapId }: UseToolJobInput): UseToolJobRes
   const startedAtRef = useRef<number | null>(null);
   useEffect(() => {
     startedAtRef.current = jobId ? Date.now() : null;
+    if (!jobId) return;
+    const timer = window.setTimeout(() => setTimedOutJobId(jobId), POLL_HARD_STOP_MS);
+    return () => window.clearTimeout(timer);
   }, [jobId]);
+  const timedOut = jobId !== null && timedOutJobId === jobId;
 
   const url = jobId && roadmapId
     ? `/api/discovery/roadmaps/${roadmapId}/tool-jobs/${jobId}/status`
@@ -93,20 +99,26 @@ export function useToolJob({ jobId, roadmapId }: UseToolJobInput): UseToolJobRes
       // disables polling on terminal stages and after the hard stop.
       refreshInterval: () => {
         if (!url) return 0;
-        if (isPastHardStop(startedAtRef.current)) return 0;
+        if (timedOut || isPastHardStop(startedAtRef.current)) return 0;
         if (data && (TERMINAL_STAGES as readonly string[]).includes(data.stage)) return 0;
         return isVisible ? POLL_INTERVAL_FOREGROUND_MS : POLL_INTERVAL_BACKGROUNDED_MS;
       },
       revalidateOnFocus: false,
-      shouldRetryOnError: false,
+      shouldRetryOnError: true,
+      errorRetryCount: 3,
+      errorRetryInterval: 3_000,
     },
   );
+  const isTerminal = data
+    ? (TERMINAL_STAGES as readonly string[]).includes(data.stage)
+    : false;
 
   return {
     job:        data ?? null,
     stage:      data?.stage ?? null,
-    isTerminal: data ? (TERMINAL_STAGES as readonly string[]).includes(data.stage) : false,
+    isTerminal,
     isFailed:   data?.stage === 'failed',
     error:      error instanceof Error ? error : null,
+    timedOut: timedOut && !isTerminal,
   };
 }

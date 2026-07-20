@@ -32,6 +32,7 @@ interface ComposerWorkspaceProps {
   meterRefreshKey: number;
   historyRefreshKey: number;
   generateJob: ToolJobStatus | null;
+  operationStatus: "stopped" | "running_unknown" | "completed_not_loaded";
   onNew: () => void;
   onSelect: (id: string) => void;
   onContextComplete: (
@@ -109,7 +110,7 @@ export function ComposerWorkspace(props: ComposerWorkspaceProps) {
           }
           workPreserved="Your outreach context and every previously saved message remain available."
           leaveGuidance="Saved messages remain in history. Copy any unsent context draft before leaving."
-          operationStatus="stopped"
+          operationStatus={props.operationStatus}
           usageStatus="may_be_consumed"
           className="border-x-0 border-t-0 px-6 sm:px-10"
         />

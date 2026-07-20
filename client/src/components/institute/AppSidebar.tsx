@@ -29,7 +29,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Discovery', href: '/discovery', match: ['/discovery'] },
-  { label: 'Ventures',  href: '/ventures',  match: ['/ventures'] },
+  { label: 'Ventures',  href: '/discovery/recommendations', match: ['/discovery/recommendations', '/discovery/roadmap'] },
   { label: 'Tools',     href: '/tools',     match: ['/tools'] },
   { label: 'Settings',  href: '/settings',  match: ['/settings'] },
 ];

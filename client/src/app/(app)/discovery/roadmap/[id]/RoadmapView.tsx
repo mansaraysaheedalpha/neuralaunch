@@ -118,10 +118,10 @@ export function RoadmapView({
 
   return (
     <RoadmapWritabilityProvider writable={writable} readOnlyReason={readOnlyReason}>
-      <div className="flex h-full flex-col">
+      <div className="flex h-full min-w-0 max-w-full flex-col overflow-x-hidden">
         <TopBar
           crumb={[
-            { label: 'Ventures', accent: true },
+            { label: 'Ventures', accent: true, href: '/discovery/recommendations' },
             { label: ventureName ?? 'Venture' },
             { label: 'Roadmap · Cycle I', current: true },
           ]}
@@ -140,20 +140,20 @@ export function RoadmapView({
           }
         />
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
           {/* Header band */}
-          <header className="border-b border-rule px-6 pb-9 pt-12 sm:px-12 lg:px-20">
-            <div className="mb-6 flex flex-wrap gap-[18px] font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
+          <header className="min-w-0 border-b border-rule px-4 pb-7 pt-8 sm:px-12 sm:pb-9 sm:pt-12 lg:px-20">
+            <div className="mb-5 flex flex-wrap gap-x-4 gap-y-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted sm:mb-6 sm:text-[11px] sm:tracking-[0.18em]">
               <span>Roadmap · Cycle <span className="text-accent">I</span></span>
               {data.weeklyHours && <span>Sized to {data.weeklyHours} h / week</span>}
               <span>Completion · <span className="text-accent">{completionPct}%</span></span>
             </div>
-            <h1 className="max-w-[1000px] font-sans text-fg [font-size:clamp(36px,5vw,64px)] [font-weight:500] [line-height:1.02] [letter-spacing:-0.025em]">
+            <h1 className="max-w-[1000px] break-words font-sans text-fg [font-size:clamp(30px,9vw,64px)] [font-weight:500] [line-height:1.02] [letter-spacing:-0.025em] [overflow-wrap:anywhere]">
               {objective ?? 'Your execution roadmap.'}
             </h1>
 
             {/* Stats strip */}
-            <div className="mt-8 grid max-w-[1000px] grid-cols-1 border border-rule sm:grid-cols-2 lg:grid-cols-5">
+            <div className="mt-7 grid max-w-[1000px] grid-cols-2 border border-rule sm:mt-8 sm:grid-cols-2 lg:grid-cols-5">
               <Stat k="Phases" v={String(data.phases.length)} sub="in order" />
               <Stat k="Tasks" v={String(totalTasks)} sub={`${completedTasks} done · ${inFlight} in flight`} />
               <Stat k="Time est." v={`${data.totalWeeks ?? '—'} w`} sub={data.weeklyHours ? `at ${data.weeklyHours} h / week` : ''} />
@@ -163,7 +163,7 @@ export function RoadmapView({
           </header>
 
           {/* Read-only + STALE + nudge banners */}
-          <div className="flex flex-col gap-4 px-6 pt-6 sm:px-12 lg:px-20">
+          <div className="flex min-w-0 flex-col gap-4 px-4 pt-5 sm:px-12 sm:pt-6 lg:px-20">
             {!writable && readOnlyReason && (
               <div className="border-l-2 border-amber bg-amber/5 px-4 py-3 font-mono text-[11px] uppercase tracking-[0.14em] text-amber">
                 This venture is {readOnlyReason} — read-only.
@@ -192,8 +192,8 @@ export function RoadmapView({
           </div>
 
           {/* Three-column layout */}
-          <div className="grid grid-cols-1 gap-0 px-6 sm:px-12 lg:grid-cols-[200px_1fr_320px] lg:px-0">
-            <div className="py-10 lg:border-r lg:border-rule lg:pl-20 lg:pr-0">
+          <div className="grid min-w-0 grid-cols-1 gap-0 px-4 sm:px-12 lg:grid-cols-[200px_minmax(0,1fr)_320px] lg:px-0">
+            <div className="min-w-0 py-6 sm:py-8 lg:border-r lg:border-rule lg:py-10 lg:pl-20 lg:pr-0">
               <PhaseRail
                 phases={data.phases}
                 selected={effectiveSelected}
@@ -201,7 +201,7 @@ export function RoadmapView({
               />
             </div>
 
-            <main className="min-w-0 py-10 lg:px-14">
+            <main className="min-w-0 py-6 sm:py-8 lg:px-14 lg:py-10">
               {data.phases.map((phase, i) => (
                 <PhaseBlock
                   key={phase.phase}
@@ -227,7 +227,7 @@ export function RoadmapView({
               )}
             </main>
 
-            <aside className="grid content-start gap-9 py-10 lg:sticky lg:top-14 lg:h-[calc(100vh-56px)] lg:overflow-y-auto lg:border-l lg:border-rule lg:px-7 lg:pr-20">
+            <aside className="grid min-w-0 content-start gap-8 border-t border-rule py-8 lg:sticky lg:top-14 lg:h-[calc(100vh-56px)] lg:overflow-y-auto lg:border-l lg:border-t-0 lg:px-7 lg:py-10 lg:pr-20">
               <RailBlock label="Pace">
                 <PaceMeter
                   statedHours={data.weeklyHours}
@@ -260,9 +260,9 @@ export function RoadmapView({
 
 function Stat({ k, v, sub, accent }: { k: string; v: string; sub?: string; accent?: boolean }) {
   return (
-    <div className="border-b border-rule px-[22px] py-[18px] last:border-b-0 lg:border-b-0 lg:border-r lg:border-rule lg:last:border-r-0">
+    <div className="min-w-0 border-b border-r border-rule px-4 py-4 even:border-r-0 lg:border-b-0 lg:px-[22px] lg:py-[18px] lg:even:border-r lg:last:border-r-0">
       <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">{k}</div>
-      <div className={`font-serif text-[28px] italic leading-none tracking-[-0.01em] ${accent ? 'text-accent' : 'text-fg'}`}>
+      <div className={`break-words font-serif text-[24px] italic leading-none tracking-[-0.01em] sm:text-[28px] ${accent ? 'text-accent' : 'text-fg'}`}>
         {v}
       </div>
       {sub && <div className="mt-1.5 font-mono text-[10px] tracking-[0.04em] text-muted-2">{sub}</div>}

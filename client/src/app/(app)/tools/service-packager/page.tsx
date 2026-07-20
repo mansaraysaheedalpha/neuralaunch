@@ -1,6 +1,6 @@
 'use client';
 
-import { ToolShell, ToolShellLoading, ToolShellNoRoadmap } from '@/components/institute/tools';
+import { ToolShell, ToolShellLoadError, ToolShellLoading, ToolShellNoRoadmap } from '@/components/institute/tools';
 import { PackagerWorkspace } from './PackagerWorkspace';
 import { usePackagerController } from './use-packager-controller';
 
@@ -15,6 +15,9 @@ const SHELL = {
 
 export default function StandalonePackagerPage() {
   const controller = usePackagerController();
+  if (controller.stage === 'loading' && controller.error) {
+    return <ToolShellLoadError {...SHELL} message={controller.error} />;
+  }
 
   if (controller.stage === 'no_roadmap') {
     return (
@@ -45,6 +48,7 @@ export default function StandalonePackagerPage() {
         historyRefreshKey={controller.historyRefreshKey}
         generateJob={controller.generateJob}
         adjustJob={controller.adjustJob}
+        operationStatus={controller.operationStatus}
         onDraftChange={controller.setDraft}
         onStart={(description) => { controller.setDraft(description); void controller.start(description); }}
         onNew={controller.newSession}

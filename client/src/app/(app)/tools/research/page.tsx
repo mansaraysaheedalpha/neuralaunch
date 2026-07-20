@@ -19,6 +19,7 @@ import { Loader2, Plus } from "lucide-react";
 import {
   ToolShell,
   ToolShellLoading,
+  ToolShellLoadError,
   ToolShellNoRoadmap,
 } from "@/components/institute/tools";
 import {
@@ -65,6 +66,7 @@ const SHELL = {
 export default function StandaloneResearchPage() {
   const [roadmapId, setRoadmapId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [seedQuery, setSeedQuery] = useState<string | undefined>(undefined);
   const [meterRefreshKey, setMeterRefreshKey] = useState(0);
 
@@ -77,16 +79,17 @@ export default function StandaloneResearchPage() {
       try {
         const res = await fetch("/api/discovery/roadmaps/has-any");
         if (!res.ok) {
-          setLoading(false);
-          return;
+          throw new Error("Could not check your roadmap. Please reload the tool.");
         }
         const json = (await res.json()) as {
           hasRoadmap: boolean;
           roadmapId?: string;
         };
         if (json.hasRoadmap && json.roadmapId) setRoadmapId(json.roadmapId);
-      } catch {
-        /* fall through */
+      } catch (cause) {
+        setLoadError(cause instanceof Error ? cause.message : "Could not load the Research Tool.");
+        setLoading(false);
+        return;
       }
 
       // Packager → Research handoff: when the URL carries fromPackager,
@@ -108,6 +111,7 @@ export default function StandaloneResearchPage() {
   if (loading) {
     return <ToolShellLoading {...SHELL} />;
   }
+  if (loadError) return <ToolShellLoadError {...SHELL} message={loadError} />;
 
   if (!roadmapId) {
     return (
@@ -218,11 +222,7 @@ function ResearchLoaded({
               retryLabel="Load saved result"
               workPreserved="Your query, approved plan, and every server-saved finding remain in research history."
               leaveGuidance="It is safe to leave; reopen this research session from history to load the saved result."
-              operationStatus={
-                flow.executeJob?.stage === "complete"
-                  ? "completed_not_loaded"
-                  : "stopped"
-              }
+              operationStatus={flow.operationStatus}
               usageStatus="server_reconciled"
               className="mb-6"
             />

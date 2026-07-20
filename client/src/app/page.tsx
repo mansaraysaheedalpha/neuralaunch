@@ -66,7 +66,7 @@ function Hero() {
             "radial-gradient(700px 320px at 20% 30%, rgba(255,90,60,0.10), transparent 60%)",
         }}
       />
-      <div className="relative mx-auto max-w-[1320px] px-6 pb-20 pt-24 sm:px-10 lg:pb-24 lg:pt-32">
+      <div className="relative mx-auto max-w-[1320px] px-6 pb-20 pt-16 sm:px-10 sm:pt-20 lg:pb-24 lg:pt-24">
         {/* Stamp row */}
         <div className="mb-14 flex flex-wrap items-baseline justify-between gap-6 font-mono text-[11px] uppercase tracking-[0.18em] text-muted">
           <span>NeuraLaunch · Tabempa Engineering</span>
@@ -76,7 +76,7 @@ function Hero() {
 
         <h1
           id="hero-heading"
-          className="font-sans font-medium text-fg [font-size:clamp(44px,6vw,96px)] [line-height:0.96] [letter-spacing:-0.03em] max-w-[1100px]"
+          className="max-w-[1100px] font-sans font-medium text-fg [font-size:clamp(40px,5.5vw,88px)] [line-height:0.98] [letter-spacing:-0.03em]"
         >
           You know something<br />
           needs to change.{" "}

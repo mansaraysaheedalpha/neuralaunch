@@ -30,6 +30,7 @@ interface Props {
   meterRefreshKey: number;
   historyRefreshKey: number;
   prepareJob: ToolJobStatus | null;
+  operationStatus: "stopped" | "running_unknown" | "completed_not_loaded";
   onNew: () => void;
   onSelect: (id: string) => void;
   onPrepare: (setup: ConversationSetup, id?: string) => void;
@@ -73,7 +74,7 @@ export function CoachWorkspace(p: Props) {
           onRetry={p.stage === "loading_preparation" ? p.onRetry : undefined}
           workPreserved="Your setup, preparation dossier, and completed rehearsal turns remain saved."
           leaveGuidance="Saved preparation and rehearsal turns remain in history; copy any unsent response before leaving."
-          operationStatus="stopped"
+          operationStatus={p.operationStatus}
           usageStatus="may_be_consumed"
           className="border-x-0 border-t-0 px-6 sm:px-10"
         />
